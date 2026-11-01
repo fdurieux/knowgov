@@ -13,10 +13,12 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
 
 - `harness/` the pipeline, with the store port (`store.py`: the operations
   the loader, the rules, the gate, the census, the SHACL reads and the register
-  projection need, nothing more) and its first adapter (`store_neo4j.py`: every
-  Cypher statement, the constraints, the saved queries); `KG_STORE` picks the
-  adapter, `neo4j` by default. No other module speaks Cypher; a test guards it
-  (task-0003). `demo/` the page, the vendored model, the vendored
+  projection need, nothing more) and two adapters: `store_neo4j.py` (every
+  Cypher statement, the constraints, the saved queries) and `store_rdflib.py`
+  (an rdflib graph in memory, optionally persisted to `KG_RDFLIB_FILE`); `KG_STORE`
+  picks one, `neo4j` by default. No other module speaks Cypher; a test guards
+  it (task-0003). The comparator compares D1, the Neo4j edition's constraint
+  measurement, only between runs of the same store kind (task-0004). `demo/` the page, the vendored model, the vendored
   register, the comparator, the Docker files; `subjects/<id>/` a subject root
   (`subjects/README.md` documents the format): `subject.toml`, `scenarios.toml`,
   `plants.toml`, `queries.toml`, `register_map.toml`, `prompts/`, and under
@@ -31,9 +33,11 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
 - The record's versions are pinned in `demo/Dockerfile` (neo4j 6.4.1, rdflib
   7.6.0, pyshacl 0.40.2, openai 3.41.0) with pumllint 0.33.0 from PyPI, the
   library the sequence-diagram mapper imports; `tests/test_demo.py` holds them.
-- Local proof without Docker: a Neo4j 5.26 community tarball started directly
-  (Java 21), a venv with the pins above, `harness/run.py --deterministic --out
-  <dir>`, then `demo/tools/compare_deterministic.py <dir>`.
+- Local proof without any database: `KG_STORE=rdflib python harness/run.py
+  --deterministic --out <dir>` in a venv with the pins, then
+  `demo/tools/compare_deterministic.py <dir>` (`harness.yml` does this in CI).
+  Against Neo4j: a 5.26 community tarball started directly (Java 21), the same
+  two commands without `KG_STORE`.
 
 ## Record and views
 

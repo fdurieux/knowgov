@@ -70,6 +70,8 @@ def _endpoint_view() -> dict:
 def _store(timeout: float = 3):
     """A store through the port, for the page's short reads; raises when unreachable."""
     from store import open_store  # the harness's port; the adapter needs its driver, in the image
+    if (os.environ.get("KG_STORE") or "neo4j").lower() == "rdflib" and not os.environ.get("KG_RDFLIB_FILE"):
+        os.environ["KG_RDFLIB_FILE"] = str(RUNS_DIR / "store.ttl")
     return open_store(connection_timeout=timeout, instance=SUBJECT.id)
 
 
@@ -98,13 +100,17 @@ def cypher_list() -> list[dict]:
 
 def store_status() -> dict:
     """What the store holds, through the driver when it is installed."""
-    out = {"uri": NEO4J_URI, "browser": BROWSER_URL, "reachable": False, "loaded": None, "census": None, "register": None, "error": None}
+    kind = (os.environ.get("KG_STORE") or "neo4j").lower()
+    out = {"store": kind, "uri": NEO4J_URI if kind == "neo4j" else "", "browser": BROWSER_URL if kind == "neo4j" else None,
+           "reachable": False, "loaded": None, "census": None, "register": None, "error": None}
     try:
         with _store() as s:
+            d = s.describe()
             acts = s.extraction_activities()
             c = s.census()
             reg = s.register_census()
-        out.update(reachable=True, census={"nodes": c["nodes"], "relationships": c["relationships"], "assertions_by_status": c["assertions_by_status"]},
+        out.update(store=d.get("store", kind), uri=d.get("uri", out["uri"]), browser=d.get("browser"), reachable=True,
+                   census={"nodes": c["nodes"], "relationships": c["relationships"], "assertions_by_status": c["assertions_by_status"]},
                    loaded=(acts[0].split(":")[2] if acts else None), activities=acts, register=reg)
     except ImportError:
         out["error"] = "store driver not installed: deterministic and arms modes need it"
@@ -185,6 +191,10 @@ class Runner:
             cmd += ["--deterministic"] if mode == "deterministic" else ["--n", str(n)]
             env = {**os.environ, "KG_NEO4J_URI": NEO4J_URI, "KG_NEO4J_PASSWORD": NEO4J_PASSWORD,
                    "PYTHONUNBUFFERED": "1", "KG_WORKERS": os.environ.get("KG_WORKERS", "2")}
+            if (os.environ.get("KG_STORE") or "neo4j").lower() == "rdflib":
+                # the in-memory store lives in the run's process; a Turtle file beside the runs lets the
+                # page read what the run left (the harness writes it on close, the page reads it on open)
+                env.setdefault("KG_RDFLIB_FILE", str(RUNS_DIR / "store.ttl"))
             if mode == "arms":
                 env["KG_ARMS_MODEL"] = model  # the record's model unless the page chose another
             log = out_dir / f"{scenario}-{mode}.log"

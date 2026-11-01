@@ -119,8 +119,8 @@ a{color:var(--teal)}
     </div>
     <div class="card" style="margin-top:16px"><h2>The store</h2>
       <div id="store" class="small">…</div>
-      <p class="small"><a id="browser-link" href="#" target="_blank" rel="noopener">Open Neo4j Browser</a> (user <code>neo4j</code>, password <code>KG_NEO4J_PASSWORD</code>). One store, one scenario: it holds the scenario loaded last.</p>
-      <h3>Saved Cypher</h3><p class="small">Each query says what it needs in the store: one scenario is loaded at a time, the register only when projected. Against the wrong state Neo4j warns and returns no rows.</p><div id="cypher"></div>
+      <p class="small" id="browser-p"><a id="browser-link" href="#" target="_blank" rel="noopener">Open Neo4j Browser</a> (user <code>neo4j</code>, password <code>KG_NEO4J_PASSWORD</code>). One store, one scenario: it holds the scenario loaded last.</p>
+      <div id="cypher-h"><h3>Saved Cypher</h3><p class="small">Each query says what it needs in the store: one scenario is loaded at a time, the register only when projected. Against the wrong state Neo4j warns and returns no rows.</p><div id="cypher"></div></div>
     </div>
     <div class="card" style="margin-top:16px"><h2>Demo runs</h2><div id="runs" class="small">…</div></div>
   </aside>
@@ -156,7 +156,7 @@ async function loadScenarios() {
 function renderChips() {
   const s = STATE.store;
   $('#chips').innerHTML =
-    `<span class="chip ${s.reachable ? 'ok' : 'bad'}" title="${esc(s.error||'')}">store ${s.reachable ? 'reachable' : 'unreachable'} · ${esc(s.uri)}${s.loaded ? ' · loaded: ' + esc(s.loaded) : ''}</span>` +
+    `<span class="chip ${s.reachable ? 'ok' : 'bad'}" title="${esc(s.error||'')}">store ${esc(s.store || 'neo4j')} ${s.reachable ? 'reachable' : 'unreachable'} · ${esc(s.uri)}${s.loaded ? ' · loaded: ' + esc(s.loaded) : ''}</span>` +
     `<span class="chip ${STATE.armsEnabled ? 'ok' : 'warn'}" title="${esc(STATE.endpoint ? 'endpoint ' + STATE.endpoint.host + ', key in ' + STATE.endpoint.key_var : '')}">arms ${STATE.armsEnabled ? 'enabled (' + esc(STATE.endpoint.host) + ', key in ' + esc(STATE.endpoint.key_var) + ')' : 'disabled: set ' + esc(STATE.endpoint ? STATE.endpoint.key_var : 'the key variable')}</span>` +
     `<span class="chip ${s.register ? 'ok' : 'warn'}" title="the register's projection in the store: derived, its own namespace, wiped by a run">register ${s.register ? 'projected at ' + esc(s.register.tag || s.register.commit.slice(0, 7)) : 'not projected'}</span>`;
 }
@@ -240,7 +240,10 @@ $('#run-hide').addEventListener('click', () => { $('#runbox').style.display = 'n
 
 async function renderStore() {
   const s = STATE.store;
-  $('#browser-link').href = s.browser + '/browser/?connectURL=bolt://neo4j@' + (new URL(s.browser).hostname) + ':7687';
+  const neo = s.store === 'neo4j' || !s.store;   // another adapter has no console: no Browser link, no saved Cypher
+  $('#browser-p').style.display = neo ? '' : 'none';
+  $('#cypher-h').style.display = neo ? '' : 'none';
+  if (neo && s.browser) $('#browser-link').href = s.browser + '/browser/?connectURL=bolt://neo4j@' + (new URL(s.browser).hostname) + ':7687';
   $('#store').innerHTML = s.reachable
     ? `Loaded: <b>${esc(s.loaded || 'nothing yet')}</b> — ${s.census.nodes} nodes, ${s.census.relationships} relationships; assertions by status: ${esc(JSON.stringify(s.census.assertions_by_status))}`
     : `Unreachable: ${esc(s.error || '')}`;

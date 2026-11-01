@@ -9,6 +9,10 @@ be equal across two executions: wall-clock timestamps (``at``,
 (blank-node labels are fresh per run; its counts are compared), and the
 running number R-CONFLICT appends to a conflict gap's id, which follows
 the store's return order (the set of gaps, text included, is compared).
+Lists of scalars are compared as sets (Cypher's collect() answers in
+store order). D1, the constraint measurement of a Neo4j edition, is
+compared only between runs of the same store kind: a run on another
+adapter records its store and the comparator says D1 was skipped.
 Everything else — counts, rule hits, census, verdicts, the invalidation
 set, the gate's keys — must match. Exit 0 iff nothing differs; the diff
 is printed either way, one line per leaf.
@@ -39,7 +43,9 @@ RECORD = SUBJECT.record_dir     # the subject's vendored record
 SCENARIOS = SUBJECT.order
 # a scenario whose record also holds a deterministic-mode run is compared against that by default
 DETERMINISTIC_RECORDS = {sc: s["deterministic_record"] for sc, s in SUBJECT.scenarios.items() if s.get("deterministic_record")}
-VOLATILE_KEYS = {"at", "ingested_at", "invalidated_at", "sample"}
+VOLATILE_KEYS = {"at", "ingested_at", "invalidated_at", "sample", "store"}
+# the Neo4j edition's constraint measurement: compared only between runs of the same store kind
+STORE_SPECIFIC = {"D1_constraints"}
 
 
 def _leaves(obj, prefix: str = "") -> dict[str, object]:
@@ -56,6 +62,11 @@ def _leaves(obj, prefix: str = "") -> dict[str, object]:
             canon = sorted(json.dumps(_strip(x), sort_keys=True) for x in obj)
             for i, c in enumerate(canon):
                 out[f"{prefix}[{i}]"] = c
+        elif obj and all(isinstance(x, (str, int, float, bool)) or x is None for x in obj):
+            # lists of scalars are unordered: Cypher's collect() answers in store order, and another
+            # adapter's store order differs; nothing the harness computes depends on that order
+            for i, x in enumerate(sorted(obj, key=lambda v: json.dumps(v))):
+                out[f"{prefix}[{i}]"] = x
         else:
             for i, x in enumerate(obj):
                 out.update(_leaves(x, f"{prefix}[{i}]"))
@@ -93,15 +104,22 @@ def compare(run_dir: Path, record_dir: Path, scenarios: list[str], record_for: d
             lines.append(f"{sc}: no record at {b}")
             n_diff += 1
             continue
-        la = _leaves(json.loads(a.read_text(encoding="utf-8")))
-        lb = _leaves(json.loads(b.read_text(encoding="utf-8")))
+        ja, jb = json.loads(a.read_text(encoding="utf-8")), json.loads(b.read_text(encoding="utf-8"))
+        store_a, store_b = ja.get("store", "neo4j"), jb.get("store", "neo4j")
+        note = ""
+        if store_a != store_b:
+            for k in STORE_SPECIFIC:
+                ja.pop(k, None); jb.pop(k, None)
+            note = f" ({', '.join(sorted(STORE_SPECIFIC))} skipped: the run's store is {store_a}, the record's {store_b})"
+        la = _leaves(ja)
+        lb = _leaves(jb)
         diffs = []
         for k in sorted(set(la) | set(lb)):
             if la.get(k, "<missing>") != lb.get(k, "<missing>"):
                 diffs.append(f"  {k}: run={la.get(k, '<missing>')!r} record={lb.get(k, '<missing>')!r}")
         n_diff += len(diffs)
         lines.append(f"{sc} against {b.parent.relative_to(record_dir.parent) if record_dir.parent in b.parents else b.parent}: "
-                     f"{len(la)} leaves compared, {len(diffs)} differ" + ("" if diffs else " — identical"))
+                     f"{len(la)} leaves compared, {len(diffs)} differ" + ("" if diffs else " — identical") + note)
         lines.extend(diffs)
     return n_diff, lines
 
