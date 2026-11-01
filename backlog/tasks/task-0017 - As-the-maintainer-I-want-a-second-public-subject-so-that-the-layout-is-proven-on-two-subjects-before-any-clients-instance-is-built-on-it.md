@@ -6,11 +6,12 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-01T14:30:00Z'
+updated_date: '2026-11-01T19:44:00Z'
 labels:
   - story
 milestone: m-3
 dependencies:
-  - TASK-0008
+  - TASK-0021
 priority: low
 type: story
 ordinal: 17000
@@ -25,4 +26,5 @@ Story for milestone m-3. The aris2puml pilot corpus; the EPC mapper is also the 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 task-0008 is Done; the second subject loads with no harness edit
+- [ ] #2 or task-0021 is Done: the J-F data-load kit loads as the second subject with no harness edit beyond its mappers
 <!-- AC:END -->
