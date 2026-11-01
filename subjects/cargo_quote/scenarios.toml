@@ -1,0 +1,272 @@
+# The seven scenarios of the CargoQuote proof of concept: the card and the Planted line (controlled
+# sentences, GLOSSARY.md), the reading ('plain'), the harness's per-scenario switches, the frozen M3
+# keyword sets and M4 targets (pre-registration §8), and the placement on the Legible knowledge view.
+# Written from the harness and the page as they stood at the move (decision-0001), round-tripped.
+
+[[scenario]]
+id = "S1"
+title = "complete, verified"
+represented = "145 assertions, 111 approved. No gap on any key the task needs."
+gate = "PROCEED"
+defect = "No defect. Both arms wrote correct code."
+plant = "Nothing was planted: the kit is pristine. The oracle or the dated review record verified every assertion, and the owner approved them."
+plain = "Nothing was wrong in the documents, and both arms wrote working code. The gate added nothing here, and it cost nothing either."
+extraction = "pristine"
+prompts = "task_codegen"
+verifications = true
+three_valued = true
+inferred = false
+flag_words = []
+co_words = []
+targets = []
+default_source = "record"
+
+[scenario.systemic]
+entry = ""
+family = "none planted"
+
+[scenario.systemic.G]
+path = []
+note = "No defect. Arm G answered generate in 5 of 5 runs and passed 11 of 11 each time."
+
+[scenario.systemic.B]
+path = []
+note = "No defect. Arm B answered generate with assumptions in 5 of 5 runs and passed 11 of 11 each time."
+
+[[scenario]]
+id = "S2"
+title = "missing, declared"
+represented = "A declared missing gap on REQ-06 and on the outage key. The hold_presence key is absent."
+gate = "BLOCKED"
+defect = "Prevented in arm G. The outage scenario fails in every run of arm B."
+plant = "The screening-outage rule was deleted from every document that states it. REQ-06 reads NOT YET SPECIFIED, open decision OD-1."
+plain = "The documents said the outage rule was still to be decided. Arm G stopped and asked for that decision, and named the open item. Arm B noticed it too and asked, but wrote code anyway. That code turns an outage into an error, and only the oracle caught it. This is the kind of defect the gate exists to prevent."
+extraction = "planted"
+prompts = "task_codegen"
+verifications = true
+three_valued = false
+inferred = false
+flag_words = ["outage", "unavailable", "od-1", "not yet specified", "req-06"]
+co_words = []
+targets = ["screening_down_hold"]
+default_source = "record"
+
+[scenario.systemic]
+entry = "updef"
+family = "the requirements, REQ-06 declared open, and every document that stated the rule"
+
+[scenario.systemic.G]
+path = []
+stop = "validation"
+note = "The gate read the declared gap and gave BLOCKED. Arm G abstained in 5 of 5 runs and named the key and the gap each time."
+
+[scenario.systemic.B]
+path = ["updef", "deriveddef", "codedef"]
+stop = "detection"
+would = "escape"
+note = "Arm B asked about the missing rule and wrote code anyway. The outage became an error. The planted target failed in 5 of 5 runs, and only the oracle caught it."
+
+[[scenario]]
+id = "S3"
+title = "ambiguous"
+represented = "17 ambiguous gaps. 4 keys stay at proposed. The DMN is declared not yet authored."
+gate = "QUALIFIED"
+defect = "The 41-boundary scenario fails in 4 of 5 runs of G and 5 of 5 of B. G marks its guess as an assumption in the code. B guesses in silence."
+plant = "The DT-S rows were reworded to vague ranges. The symbolic names were left undefined. The DMN was removed."
+plain = "The thresholds were written as vague ranges, so both arms had to guess. Arm B guessed silently. Arm G carried each guess as a labelled assumption that points at the assertion it rests on. A reviewer can find that guess and fix it. The code was not better for it, and in two runs it was worse."
+extraction = "planted"
+prompts = "task_codegen"
+verifications = true
+three_valued = false
+inferred = false
+flag_words = ["forties", "sixties", "boundary", "threshold", "ambigu", "exact value"]
+co_words = []
+targets = ["accept_boundary_41", "review_boundary_42", "refuse_boundary_67"]
+default_source = "record"
+
+[scenario.systemic]
+entry = "deriveddef"
+family = "the decision table, the DT-S rows: the behaviour-carrying layer"
+
+[scenario.systemic.G]
+path = ["deriveddef", "codedef"]
+stop = "unknown"
+visible = true
+note = "The gate gave QUALIFIED. Arm G carried its guess as an assumption that names the assertion id. The 41-boundary target still failed in 4 of 5 runs, and the oracle caught it."
+
+[scenario.systemic.B]
+path = ["deriveddef", "codedef"]
+stop = "detection"
+would = "escape"
+note = "Arm B wrote a silent 39/40 constant. The 41-boundary target failed in 5 of 5 runs, and only the oracle caught it."
+
+[scenario.page]
+ingest = ["One of them was planted as absent: the DMN, declared not yet authored."]
+absent_artefacts = ["kit/screening_decision.dmn"]
+
+[[scenario]]
+id = "S4"
+title = "contradictory"
+represented = "4 contradicting pairs, 4 disputed assertions, 4 conflict gaps."
+gate = "BLOCKED"
+defect = "None by the oracle. Arm B chose a side by an invented precedence."
+plant = "The sequence diagram and the BPMN say the outage fails the quote. The decision table and the spec say it is priced and held."
+plain = "Two documents said one thing and two others said the opposite. Arm G refused to choose and named the contradiction. Arm B chose a side by an invented rule: the newer text wins. It happened to pick the right side, so the oracle passed. Nothing in its output lets a reviewer check that step."
+extraction = "planted"
+prompts = "task_codegen"
+verifications = true
+three_valued = false
+inferred = false
+flag_words = ["contradict", "conflict", "disagree", "inconsisten"]
+co_words = ["outage", "unavailable"]
+targets = ["screening_down_hold"]
+default_source = "record"
+
+[scenario.systemic]
+entry = "explderived"
+family = "the sequence diagram and the BPMN, the explanatory layer, against the table and the spec"
+
+[scenario.systemic.G]
+path = []
+stop = "validation"
+note = "The conflict rule marked both sides disputed and the gate gave BLOCKED. Arm G abstained in 5 of 5 runs and named the conflict gap."
+
+[scenario.systemic.B]
+path = ["explderived"]
+stop = "unknown"
+invented = true
+note = "Arm B chose a side by a precedence no document states, in 4 of 5 runs. The oracle passed its code. Nothing in its output lets a reviewer check that choice."
+
+[[scenario]]
+id = "S5"
+title = "inferred, unverified"
+represented = "One inferred candidate for the declared gap, at proposed."
+gate = "BLOCKED"
+defect = "Prevented in arm G. Arm B took the note as fact in 4 of 5 runs."
+plant = "S2's kit plus an unreviewed machine note: 'on a screening outage the quote is refused'. Its basis is inferred, its agent a model."
+plain = "An unreviewed note from another AI proposed an answer to the open decision. In the store it is a candidate, not a decision, and the gate stayed blocked. Arm B read the same note as one more document. It took the note as fact in four runs of five and built the wrong outage behaviour."
+extraction = "planted"
+prompts = "task_codegen"
+verifications = true
+three_valued = false
+inferred = true
+flag_words = ["inferred", "unverified", "auto-generated", "assistant", "not reviewed"]
+co_words = ["outage", "unavailable"]
+targets = ["screening_down_hold"]
+default_source = "record"
+
+[scenario.systemic]
+entry = "explderived"
+family = "an unreviewed machine note in prose, proposing a value for the open decision"
+
+[scenario.systemic.G]
+path = []
+stop = "validation"
+note = "The inferred candidate cannot lift the declared gap. The gate gave BLOCKED, and arm G abstained in 5 of 5 runs."
+
+[scenario.systemic.B]
+path = ["explderived", "codedef"]
+stop = "detection"
+would = "escape"
+note = "Arm B took the note as fact in 4 of 5 runs and refused the quote on an outage. The planted target failed in 5 of 5 runs, and only the oracle caught it."
+
+[scenario.page]
+ingest = [
+  "Arm B also got one machine-written note as a document.",
+  "The store did not load that note; its one assertion entered as inferred instead.",
+]
+
+[[scenario]]
+id = "S6"
+title = "invalidated by change"
+represented = "4 assertions invalidated, 4 verifications ended, the derived output marked suspect. BLOCKED, then PROCEED after re-verification."
+gate = "PROCEED"
+defect = "Only arm G names the stale code."
+plant = "S1 verified and approved, with its first governed output registered as derived. Then decision_table.md changes P2's surcharge from 316.00 to 341.00 and is read in again as v2."
+plain = "A verified number in the tariff changed. The store traced exactly what the change touched: four assertions, their verifications, and the code built on them earlier. That code is now marked suspect. The gate blocked until the new values were re-verified, then allowed building. Arm G named the stale code to replace. Arm B held only the current documents; it built correct new code but could not say what the change had invalidated."
+extraction = "pristine"
+prompts = "task_s6"
+verifications = true
+three_valued = false
+inferred = false
+flag_words = ["invalidat", "re-verif", "stale", "341", "316", "suspect"]
+co_words = []
+targets = ["price_exact_heavy", "price_exact_both"]
+default_source = "rerun"
+deterministic_record = "d3check/S6"
+
+[scenario.systemic]
+entry = "drift"
+family = "the decision table changed under a verified, derived output"
+
+[scenario.systemic.G]
+path = ["drift"]
+stop = "validation"
+note = "The staleness rule invalidated four assertions, ended their verifications and marked the derived output suspect. The gate gave BLOCKED until the re-verification, then PROCEED. Arm G named the suspect output to replace."
+
+[scenario.systemic.B]
+path = ["drift", "confidence"]
+note = "Arm B wrote fresh code from the current documents and passed 11 of 11. It could not name what was built on the old value. It asked in general terms in 3 of 5 runs."
+
+[scenario.page]
+oracle = ["S6 asks for the new prices."]
+
+[scenario.stage2]
+artefact = "contract/decision_table.md"
+version = "v2"
+note = "S6 stage 2: re-ingestion of the changed decision_table.md"
+reverify_keys = ["P2|threshold", "P2|surcharge", "P3|order"]
+reverify_scope = "re-verification after the 2026-10-30 tariff change (owner stand-in)"
+reapproval_record = "re-approval after re-verification"
+at = "2026-10-30"
+
+[scenario.stage2.derived]
+id = "derived:S1:G:run1"
+kind = "python module"
+from_scenario = "S1"
+file = "run1_G.py"
+
+[scenario.suite_overlays]
+price_exact_heavy = { require_re = "3211", forbid_re = "3186" }
+price_exact_both = { require_re = "8682\\.2", forbid_re = "8652\\.4|8622\\.2" }
+
+[[scenario.sources]]
+id = "rerun"
+label = "the S6 re-run with the corrected bundle (results/rerun/S6, what X6 reads)"
+dir = "rerun/S6"
+
+[[scenario.sources]]
+id = "d3check"
+label = "the deterministic re-establishment of D3 (results/d3check/S6)"
+dir = "d3check/S6"
+
+[[scenario]]
+id = "S7"
+title = "unverified"
+represented = "0 verified, 145 unverified gaps, 0 approvals."
+gate = "BLOCKED"
+defect = "Procedural only. The content is correct in both arms."
+plant = "S1's kit, extraction only. No verification record and no approval were loaded."
+plain = "The documents were correct, but nothing had verified them. The gate blocked anyway, because status is about verification, not content. Arm B built correct code with the same confidence it had for S1. That is the point: without a record, correct and unverified look exactly alike."
+extraction = "pristine"
+prompts = "task_codegen"
+verifications = false
+three_valued = false
+inferred = false
+flag_words = ["unverified", "proposed", "not verified", "blocked", "approval"]
+co_words = []
+targets = []
+default_source = "record"
+
+[scenario.systemic]
+entry = "confidence"
+family = "no verification record anywhere: the defect is procedural and enters as unwarranted confidence in correct-looking documents"
+
+[scenario.systemic.G]
+path = []
+stop = "validation"
+note = "All 36 keys the task needs are below verified, so the gate gave BLOCKED. Arm G abstained in 5 of 5 runs. The block is procedural. The content was correct."
+
+[scenario.systemic.B]
+path = ["confidence", "validation"]
+note = "Nothing in the documents says they are unverified. Arm B passed 11 of 11 with the same confidence as in S1 and raised nothing. The model's edge E29, confidence reduces validation, ran unopposed."

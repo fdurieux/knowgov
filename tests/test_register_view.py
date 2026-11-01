@@ -114,7 +114,7 @@ def test_register_footprint_per_scenario():
     assert "ENT-0005" in s3["not_approved"] and s3["box"]["colour"] == "bad"
     s6 = fps["S6"]
     assert len(s6["table_links"]) >= 4 and "REL-10001" in s6["table_links"] and s6["keys_below"] == {}
-    assert any("changed decision table" in sec["heading"] for sec in s6["panel"]["sections"])
+    assert any("changed document" in sec["heading"] for sec in s6["panel"]["sections"])
     assert len(fps["S7"]["keys_below"]) == 36 and len(fps["S7"]["touched"]) == 20
     for fp in fps.values():
         assert fp["box"]["id"] == "footprint" and fp["panel"]["title"].startswith("Register footprint of")
@@ -248,24 +248,30 @@ def test_projection_is_wired_and_named():
 
 def test_saved_queries_say_what_they_need():
     import importlib.util, re as _re
-    server = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
-    needs = dict(_re.findall(r'\{"id": "([a-z0-9-]+)", "needs": "([^"]+)", "title"', server))
+    import server  # the page's generic queries plus the subject's queries.toml
+    listed = server.cypher_list()
+    needs = {q["id"]: q["needs"] for q in listed}
     assert len(needs) == 12 and set(needs.values()) <= {"scenario", "S6", "S4", "register", "register+scenario"}
+    assert all(q["needs_text"] for q in listed)
+    assert {q["id"]: q["needs_text"] for q in listed}["invalidation"] == "S6 loaded deterministically"
+    assert {q["id"] for q in views.SUBJECT.queries} == {"three-valued", "gate", "invalidation", "contradiction"}, "the subject's own queries"
     assert needs["invalidation"] == "S6" and needs["contradiction"] == "S4" and needs["register-cites"] == "register+scenario"
     assert all(needs[k] == "register" for k in ("register-tag", "register-impact", "register-c1"))
     assert all(needs[k] == "scenario" for k in ("loaded", "three-valued", "gate", "gaps", "gaps-concerns", "census"))
-    for need in set(needs.values()):
-        assert f'"{need}": "' in server.split("NEEDS_TEXT = ")[1].split("}")[0]
+    # every need has its text: the page's generic ones in NEEDS_TEXT, a scenario's in the subject's queries.toml
+    for q in listed:
+        assert q["needs"] in server.NEEDS_TEXT or q.get("needs_text"), q["id"]
+    server_text = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
     page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
-    assert "const can = n =>" in page and "'runs now' : 'needs ' + esc(q.needs_text)" in page and "cypher_list()" in server
+    assert "const can = n =>" in page and "'runs now' : 'needs ' + esc(q.needs_text)" in page and "cypher_list()" in server_text
 
 
 def test_runner_gives_s6_the_derived_output_in_both_modes():
     # a deterministic S6 without S1/run1_G.py in its folder has no Derived node to mark suspect,
     # which the maintainer's invalidation traversal showed as an empty derived column (2026-11-01)
     server = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
-    assert 'if scenario == "S6":' in server and 'if scenario == "S6" and mode == "arms":' not in server
-    assert (ROOT / "subjects" / "cargo_quote" / "kg_experiment" / "results" / "S1" / "run1_G.py").exists()
+    assert "if derived:" in server and 'RECORD / derived["from_scenario"] / derived["file"]' in server and "mode == \"arms\"" not in server.split("if derived:")[1].split("cmd = ")[0]
+    assert (ROOT / "subjects" / "cargo_quote" / "vendor" / "kg_experiment" / "results" / "S1" / "run1_G.py").exists()
     # and the harness reads that file in both modes: the deterministic branch used to pass none
     run_py = (ROOT / "harness" / "run.py").read_text(encoding="utf-8")
     assert "s6_stage2(d, None, [])" not in run_py and 'derived_ids = [a["id"] for v in gate["keys"].values() for a in v["assertions"]] if derived_code else []' in run_py
@@ -273,7 +279,7 @@ def test_runner_gives_s6_the_derived_output_in_both_modes():
 
 def json_keys():
     import json
-    return list(json.loads((ROOT / "subjects" / "cargo_quote" / "kg_experiment" / "results" / "S1" / "deterministic.json").read_text(encoding="utf-8"))["gate_keys"])
+    return list(json.loads((ROOT / "subjects" / "cargo_quote" / "vendor" / "kg_experiment" / "results" / "S1" / "deterministic.json").read_text(encoding="utf-8"))["gate_keys"])
 
 
 def test_register_card_is_wired_on_the_page_and_the_server():

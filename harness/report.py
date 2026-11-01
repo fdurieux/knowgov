@@ -11,7 +11,9 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-RES = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "results"
+from subject import SUBJECT  # noqa: E402
+
+RES = Path(sys.argv[1]) if len(sys.argv) > 1 else SUBJECT.record_dir
 
 
 def load(sc: str, arm: str) -> list[dict]:
@@ -22,7 +24,7 @@ def load(sc: str, arm: str) -> list[dict]:
 
 
 def main() -> None:
-    for sc in ["S1", "S2", "S3", "S4", "S5", "S6", "S7"]:
+    for sc in SUBJECT.order:
         det_path = RES / sc / "deterministic.json"
         if not det_path.exists():
             continue
@@ -35,7 +37,7 @@ def main() -> None:
         print(f"   SHACL main: conforms={sh['main']['conforms']} results={sh['main']['results']} {sh['main']['by_severity']}; info-only: conforms={sh['info_only']['conforms']} results={sh['info_only']['results']}")
         if "stage2" in det:
             s2 = det["stage2"]
-            print(f"   S6 stage 2: v2 load {s2['load_v2']}; invalidated {[x['key'] for x in s2['D3_stale']['invalidated']]}; kept {len(s2['D3_stale']['kept'])}; "
+            print(f"   {sc} stage 2: v2 load {s2['load_v2']}; invalidated {[x['key'] for x in s2['D3_stale']['invalidated']]}; kept {len(s2['D3_stale']['kept'])}; "
                   f"suspect {s2['suspect_derived']}; before {s2['gate_before_reverification']['verdict']} ({s2['gate_before_reverification']['why']}); after {s2['gate_after_reverification']['verdict']}")
         for arm in ("B", "G"):
             runs = load(sc, arm)

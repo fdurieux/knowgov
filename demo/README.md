@@ -397,6 +397,10 @@ out; Replay and Deterministic work without it.
 export OPENAI_API_KEY=sk-your-real-key-here
 ```
 
+Optionally choose a database password other than the default. The stack reads
+`KG_SUBJECT` too: the subject root inside the container, `/repo/subjects/cargo_quote`
+unless you set it ([`subjects/README.md`](../subjects/README.md) says what a subject holds).
+
 Optionally choose a database password other than the default
 `kgpoc2026`:
 

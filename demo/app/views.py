@@ -4,8 +4,7 @@ Everything the page shows comes from here: the pipeline strip's numbers
 (``deterministic.json`` and the ``run<i>_<arm>.json`` files), the arms'
 summaries, the bundle, the generated code, the oracle's per-scenario
 verdicts, and the placement of the scenario on the systemic model. The
-record is the vendored ``subjects/cargo_quote/kg_experiment/results``; a demo run
-is a dated folder under ``runs/``. Standard library only.
+record is the subject's vendored one; a demo run is a dated folder under ``runs/``. Standard library only.
 """
 
 from __future__ import annotations
@@ -18,111 +17,50 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent                     # the repository
-EXP = ROOT / "subjects" / "cargo_quote" / "kg_experiment"   # the vendored subject (subjects/cargo_quote/SOURCE.md)
-RESULTS = EXP / "results"                     # the record, never written
+sys.path.insert(0, str(ROOT / "harness"))
+from subject import SUBJECT  # noqa: E402  (the subject root: KG_SUBJECT, default subjects/cargo_quote)
+RESULTS = SUBJECT.record_dir                  # the subject's record, never written
 sys.path.insert(0, str(HERE.parent / "tools"))
 import compare_deterministic  # noqa: E402  (the same leaf-by-leaf comparison the CI job runs)
 import cascade  # noqa: E402  (the vendored model and the slide's node table, for the systemic panels)
-SUITE_ORDER = ["quoted_low_risk", "accept_boundary_41", "review_boundary_42", "refuse_boundary_67",
-               "refuse_high_risk", "price_exact_heavy", "price_exact_both", "invalid_weight_low",
-               "invalid_value_over", "screening_down_hold", "store_down_error"]
+SUITE_ORDER = SUBJECT.suite_order
 RULE_ORDER = ["R-STRUCT", "R-CORROBORATE", "R-CONFLICT", "R-VAGUE", "R-REQ", "R-UNVERIFIED"]
-RECORD_MODEL = "gpt-5.1-2025-11-13"  # harness/arms.py RECORD_MODEL; a run by another model is a deviation
+RECORD_MODEL = SUBJECT.record_model  # the model of the subject's scored run; a run by another model is a deviation
 
-# One line per scenario, after the record's §6 table (docs/neo4j-governed-knowledge-evaluation.md),
-# reworded to GLOSSARY.md: controlled sentences for the card (represented, defect) and the
-# Planted line (plant), a reading for "plain".
-SCENARIOS = {
-    "S1": {"title": "complete, verified",
-           "represented": "145 assertions, 111 approved. No gap on any key the task needs.",
-           "gate": "PROCEED", "defect": "No defect. Both arms wrote correct code.",
-           "plant": "Nothing was planted: the kit is pristine. The oracle or the dated review record verified every assertion, and the owner approved them.",
-           "plain": "Nothing was wrong in the documents, and both arms wrote working code. The gate added nothing here, and it cost nothing either."},
-    "S2": {"title": "missing, declared",
-           "represented": "A declared missing gap on REQ-06 and on the outage key. The hold_presence key is absent.",
-           "gate": "BLOCKED", "defect": "Prevented in arm G. The outage scenario fails in every run of arm B.",
-           "plant": "The screening-outage rule was deleted from every document that states it. REQ-06 reads NOT YET SPECIFIED, open decision OD-1.",
-           "plain": "The documents said the outage rule was still to be decided. Arm G stopped and asked for that decision, and named the open item. Arm B noticed it too and asked, but wrote code anyway. That code turns an outage into an error, and only the oracle caught it. This is the kind of defect the gate exists to prevent."},
-    "S3": {"title": "ambiguous",
-           "represented": "17 ambiguous gaps. 4 keys stay at proposed. The DMN is declared not yet authored.",
-           "gate": "QUALIFIED", "defect": "The 41-boundary scenario fails in 4 of 5 runs of G and 5 of 5 of B. G marks its guess as an assumption in the code. B guesses in silence.",
-           "plant": "The DT-S rows were reworded to vague ranges. The symbolic names were left undefined. The DMN was removed.",
-           "plain": "The thresholds were written as vague ranges, so both arms had to guess. Arm B guessed silently. Arm G carried each guess as a labelled assumption that points at the assertion it rests on. A reviewer can find that guess and fix it. The code was not better for it, and in two runs it was worse."},
-    "S4": {"title": "contradictory",
-           "represented": "4 contradicting pairs, 4 disputed assertions, 4 conflict gaps.",
-           "gate": "BLOCKED", "defect": "None by the oracle. Arm B chose a side by an invented precedence.",
-           "plant": "The sequence diagram and the BPMN say the outage fails the quote. The decision table and the spec say it is priced and held.",
-           "plain": "Two documents said one thing and two others said the opposite. Arm G refused to choose and named the contradiction. Arm B chose a side by an invented rule: the newer text wins. It happened to pick the right side, so the oracle passed. Nothing in its output lets a reviewer check that step."},
-    "S5": {"title": "inferred, unverified",
-           "represented": "One inferred candidate for the declared gap, at proposed.",
-           "gate": "BLOCKED", "defect": "Prevented in arm G. Arm B took the note as fact in 4 of 5 runs.",
-           "plant": "S2's kit plus an unreviewed machine note: 'on a screening outage the quote is refused'. Its basis is inferred, its agent a model.",
-           "plain": "An unreviewed note from another AI proposed an answer to the open decision. In the store it is a candidate, not a decision, and the gate stayed blocked. Arm B read the same note as one more document. It took the note as fact in four runs of five and built the wrong outage behaviour."},
-    "S6": {"title": "invalidated by change",
-           "represented": "4 assertions invalidated, 4 verifications ended, the derived output marked suspect. BLOCKED, then PROCEED after re-verification.",
-           "gate": "PROCEED", "defect": "Only arm G names the stale code.",
-           "plant": "S1 verified and approved, with its first governed output registered as derived. Then decision_table.md changes P2's surcharge from 316.00 to 341.00 and is read in again as v2.",
-           "plain": "A verified number in the tariff changed. The store traced exactly what the change touched: four assertions, their verifications, and the code built on them earlier. That code is now marked suspect. The gate blocked until the new values were re-verified, then allowed building. Arm G named the stale code to replace. Arm B held only the current documents; it built correct new code but could not say what the change had invalidated."},
-    "S7": {"title": "unverified",
-           "represented": "0 verified, 145 unverified gaps, 0 approvals.",
-           "gate": "BLOCKED", "defect": "Procedural only. The content is correct in both arms.",
-           "plant": "S1's kit, extraction only. No verification record and no approval were loaded.",
-           "plain": "The documents were correct, but nothing had verified them. The gate blocked anyway, because status is about verification, not content. Arm B built correct code with the same confidence it had for S1. That is the point: without a record, correct and unverified look exactly alike."},
-}
+# One line per scenario, from the subject's scenarios.toml: controlled sentences for the card
+# (represented, defect) and the Planted line (plant), a reading for "plain".
+SCENARIOS = {sc: {k: s.get(k, "") for k in ("title", "represented", "gate", "defect", "plant", "plain")} for sc, s in SUBJECT.scenarios.items()}
 ORDER = list(SCENARIOS)
 
-# Where each scenario sits on the model's reduced knowledge view. This is the
-# demo's reading of the record's §6 onto the Legible v0.3 cascade; the record
-# itself does not map scenarios to the model. Node ids are the model's.
+# Where each scenario sits on the model's reduced knowledge view: the subject's reading of its
+# record onto the Legible v0.3 cascade (scenarios.toml, [scenario.systemic]). Node ids are the model's.
 #   entry: the node where the planted defect enters (the artefact family it was planted in)
 #   <arm>: path = edges the defect travelled, stop = the node where it was stopped or made visible,
 #          note = the record's reading in one line
-SYSTEMIC = {
-    "S1": {"entry": None, "family": "none planted",
-           "G": {"path": [], "stop": None, "note": "No defect. Arm G answered generate in 5 of 5 runs and passed 11 of 11 each time."},
-           "B": {"path": [], "stop": None, "note": "No defect. Arm B answered generate with assumptions in 5 of 5 runs and passed 11 of 11 each time."}},
-    "S2": {"entry": "updef", "family": "the requirements, REQ-06 declared open, and every document that stated the rule",
-           "G": {"path": [], "stop": "validation", "note": "The gate read the declared gap and gave BLOCKED. Arm G abstained in 5 of 5 runs and named the key and the gap each time."},
-           "B": {"path": ["updef", "deriveddef", "codedef"], "stop": "detection", "would": "escape",
-                 "note": "Arm B asked about the missing rule and wrote code anyway. The outage became an error. The planted target failed in 5 of 5 runs, and only the oracle caught it."}},
-    "S3": {"entry": "deriveddef", "family": "the decision table, the DT-S rows: the behaviour-carrying layer",
-           "G": {"path": ["deriveddef", "codedef"], "stop": "unknown", "visible": True,
-                 "note": "The gate gave QUALIFIED. Arm G carried its guess as an assumption that names the assertion id. The 41-boundary target still failed in 4 of 5 runs, and the oracle caught it."},
-           "B": {"path": ["deriveddef", "codedef"], "stop": "detection", "would": "escape",
-                 "note": "Arm B wrote a silent 39/40 constant. The 41-boundary target failed in 5 of 5 runs, and only the oracle caught it."}},
-    "S4": {"entry": "explderived", "family": "the sequence diagram and the BPMN, the explanatory layer, against the table and the spec",
-           "G": {"path": [], "stop": "validation", "note": "The conflict rule marked both sides disputed and the gate gave BLOCKED. Arm G abstained in 5 of 5 runs and named the conflict gap."},
-           "B": {"path": ["explderived"], "stop": "unknown", "invented": True,
-                 "note": "Arm B chose a side by a precedence no document states, in 4 of 5 runs. The oracle passed its code. Nothing in its output lets a reviewer check that choice."}},
-    "S5": {"entry": "explderived", "family": "an unreviewed machine note in prose, proposing a value for the open decision",
-           "G": {"path": [], "stop": "validation", "note": "The inferred candidate cannot lift the declared gap. The gate gave BLOCKED, and arm G abstained in 5 of 5 runs."},
-           "B": {"path": ["explderived", "codedef"], "stop": "detection", "would": "escape",
-                 "note": "Arm B took the note as fact in 4 of 5 runs and refused the quote on an outage. The planted target failed in 5 of 5 runs, and only the oracle caught it."}},
-    "S6": {"entry": "drift", "family": "the decision table changed under a verified, derived output",
-           "G": {"path": ["drift"], "stop": "validation", "note": "The staleness rule invalidated four assertions, ended their verifications and marked the derived output suspect. The gate gave BLOCKED until the re-verification, then PROCEED. Arm G named the suspect output to replace."},
-           "B": {"path": ["drift", "confidence"], "stop": None,
-                 "note": "Arm B wrote fresh code from the current documents and passed 11 of 11. It could not name what was built on the old value. It asked in general terms in 3 of 5 runs."}},
-    "S7": {"entry": "confidence", "family": "no verification record anywhere: the defect is procedural and enters as unwarranted confidence in correct-looking documents",
-           "G": {"path": [], "stop": "validation", "note": "All 36 keys the task needs are below verified, so the gate gave BLOCKED. Arm G abstained in 5 of 5 runs. The block is procedural. The content was correct."},
-           "B": {"path": ["confidence", "validation"], "stop": None,
-                 "note": "Nothing in the documents says they are unverified. Arm B passed 11 of 11 with the same confidence as in S1 and raised nothing. The model's edge E29, confidence reduces validation, ran unopposed."}},
-}
+def _systemic(s: dict) -> dict:
+    sy = s.get("systemic", {})
+    out = {"entry": sy.get("entry") or None, "family": sy.get("family", "")}
+    for arm in ("G", "B"):
+        a = dict(sy.get(arm, {}))
+        a.setdefault("path", [])
+        a["stop"] = a.get("stop") or None
+        a.setdefault("note", "")
+        out[arm] = a
+    return out
 
-# The no-governance reference the record cites: the degradation test.
-REFERENCE = {
-    "title": "Without governance — the degradation test (recreate_experiment/degradation-2026-10-28, graded 2026-10-29)",
-    "text": "Six of the fifteen planted defects reached the code, all six concealed by the arm's own suite and caught by the pristine one; every outcome the one the kit's precedence rule gives.",
-    "numbers": {"planted": 15, "reached_code": 6, "concealed_by_own_suite": 6, "caught_by_pristine_suite": 6},
-}
+
+SYSTEMIC = {sc: _systemic(s) for sc, s in SUBJECT.scenarios.items()}
+
+# The no-governance reference the subject's record cites.
+REFERENCE = SUBJECT.page.get("reference", {"title": "", "text": "", "numbers": {}})
 
 
 def sources_for(scenario: str, runs_dir: Path) -> list[dict]:
-    """The result folders that hold this scenario: the record, S6's re-run and
-    deterministic check, and every demo run that contains it."""
+    """The result folders that hold this scenario: the record, the extra sources the subject
+    declares for it (a re-run, a deterministic check), and every demo run that contains it."""
     out = [{"id": "record", "label": "the record (results/)", "dir": str(RESULTS / scenario)}]
-    if scenario == "S6":
-        out.append({"id": "rerun", "label": "the S6 re-run with the corrected bundle (results/rerun/S6, what X6 reads)", "dir": str(RESULTS / "rerun" / scenario)})
-        out.append({"id": "d3check", "label": "the deterministic re-establishment of D3 (results/d3check/S6)", "dir": str(RESULTS / "d3check" / scenario)})
+    for s in SUBJECT.scenarios.get(scenario, {}).get("sources", []):
+        out.append({"id": s["id"], "label": s["label"], "dir": str(RESULTS / s["dir"])})
     if runs_dir.exists():
         for d in sorted(runs_dir.iterdir(), reverse=True):
             if (d / scenario / "deterministic.json").exists():
@@ -142,7 +80,7 @@ def resolve_source(scenario: str, source: str, runs_dir: Path) -> Path | None:
 
 
 def default_source(scenario: str) -> str:
-    return "rerun" if scenario == "S6" else "record"
+    return SUBJECT.scenarios.get(scenario, {}).get("default_source", "record")
 
 
 # ------------------------------------------------------------------ loading
@@ -336,10 +274,11 @@ def build(scenario: str, source: str, runs_dir: Path) -> dict:
         "suite_order": SUITE_ORDER,
         "systemic": SYSTEMIC[scenario], "reference": REFERENCE,
     }
-    view["record_check"] = record_check(scenario, d)
+    view["record_check"] = record_check(scenario, d, source)
     if "stage2" in det:
         s2 = det["stage2"]
         view["stage2"] = {
+            "label": f"{scenario} stage 2 — the source change, and what it invalidates",
             "load_v2": s2["load_v2"],
             "invalidated": s2["D3_stale"]["invalidated"], "kept": len(s2["D3_stale"]["kept"]),
             "suspect_derived": s2["suspect_derived"],
@@ -398,14 +337,14 @@ GLOSSARY = {
     "status": "Where an assertion stands: proposed, validated, verified, approved, disputed or invalidated.",
     "rule": "One of the seven checks the harness runs on the store after each load.",
     "gap": "Something a rule found wanting: missing, ambiguous, a conflict, or unverified.",
-    "key": "One piece of knowledge the coding task needs; the task needs 36 keys.",
-    "gate": "The check that reads the 36 keys and gives a verdict.",
+    "key": "One piece of knowledge the coding task needs; the subject lists the keys.",
+    "gate": "The check that reads the task's keys and gives a verdict.",
     "verdict": "The gate's answer: PROCEED, QUALIFIED or BLOCKED.",
     "bundle": "The text the gate writes for arm G: the verdict, the policy and the evidence per key.",
     "arm": "One of the two AI assistants asked to write the code. G got the bundle; B got the documents.",
     "run": "One call of one arm, graded on its own.",
     "decision": "The word an arm gives for its own choice: generate, generate with assumptions, or abstain.",
-    "oracle": "The kit's eleven acceptance scenarios, run on the code an arm wrote.",
+    "oracle": "The kit's own acceptance scenarios, run on the code an arm wrote.",
     "planted target": "The oracle scenario the planted defect aims at.",
     "flagged": "The arm named the planted problem in its questions or assumptions.",
     "record": "The committed results of the scored run, under results/.",
@@ -470,21 +409,22 @@ def _plural(n: int, one: str, many: str | None = None) -> str:
     return f"{n} {one if n == 1 else (many or one + 's')}"
 
 
-def record_check(scenario: str, d: Path) -> dict | None:
-    """For a demo run: its deterministic results against the record's, leaf by leaf.
-    S6 is read against results/d3check/S6 when the run registered no Derived
-    artefact (deterministic mode), against results/S6 otherwise."""
-    if d.parent.parent.name != "demo-runs" and d.parent.name not in ("rerun", "d3check"):
+def record_check(scenario: str, d: Path, source: str = "") -> dict | None:
+    """For a demo run (a source under ``demo-runs/``): its deterministic results against the
+    record's, leaf by leaf. A scenario with a ``deterministic_record`` (its record's
+    deterministic-mode run) is read against that when the run registered no Derived artefact
+    (deterministic mode), against its scored record otherwise."""
+    if not source.startswith("demo-runs/"):
         return None
-    if d.parent.name in ("rerun", "d3check"):
-        return None
+    cfg = SUBJECT.scenarios.get(scenario, {})
     det = _read_json(d / "deterministic.json")
-    s6 = RESULTS / ("S6" if det.get("stage2", {}).get("suspect_derived") else "d3check/S6")
-    n, lines = compare_deterministic.compare(d.parent, RESULTS, [scenario], s6_record=s6)
+    det_rec = cfg.get("deterministic_record")
+    rec = RESULTS / (scenario if det.get("stage2", {}).get("suspect_derived") or not det_rec else det_rec)
+    n, lines = compare_deterministic.compare(d.parent, RESULTS, [scenario], record_for={scenario: rec})
     compared = next((ln for ln in lines if "leaves compared" in ln), "")
     m = re.search(r"(\d+) leaves compared", compared)
     return {"differ": n, "compared": int(m.group(1)) if m else 0,
-            "against": str(s6.relative_to(EXP)) if scenario == "S6" else f"results/{scenario}",
+            "against": str(rec.relative_to(RESULTS.parent)),
             "lines": [ln.strip() for ln in lines if ln.startswith("  ")][:6]}
 
 
@@ -501,7 +441,7 @@ def narrative(view: dict, det: dict, reg: list) -> list[str]:
     out.append(C("How to read this page.", "The harness cut the kit's documents into fragments.",
                  "It read each fragment into assertions, one fact each, with its source and its status.",
                  "Seven rules then checked the assertions and recorded gaps.",
-                 "The gate read the 36 keys the coding task needs and gave a verdict.",
+                 f"The gate read the {view['required_keys']} keys the coding task needs and gave a verdict.",
                  "Two arms were then asked to write the code.",
                  "Arm G, the governed arm, got the verdict and the bundle.",
                  "Arm B, the baseline arm, got the documents only.",
@@ -568,11 +508,11 @@ def narrative(view: dict, det: dict, reg: list) -> list[str]:
                 sents.append(f"{sm['api_errors']} of its calls failed before any answer.")
             sents.append(f"It wrote code in {sm['code']} of {sm['n']} runs.")
             if sm["code"]:
-                sents.append(f"That code passed {', '.join(x for x in sm['suites'] if x != '—')} of the oracle's eleven scenarios.")
+                sents.append(f"That code passed {', '.join(x for x in sm['suites'] if x != '—')} of the oracle's {len(SUITE_ORDER)} scenarios.")
                 fails = sorted(((k.split(':')[0], v) for k, v in sm["targets"].items() if k.endswith(":fail")), key=lambda t: -t[1])
                 for t, v in fails:
                     sents.append(f"It failed the planted target '{t}' in {v} of {sm['n']} runs.")
-            if sc != "S1":
+            if SUBJECT.scenarios.get(sc, {}).get("flag_words"):
                 sents.append(f"It raised the planted problem in {sm['flagged']} of {sm['n']} runs.")
             if arm == "G" and sm["noncompliance"]:
                 sents.append(f"It broke the policy in {sm['noncompliance']} runs.")
@@ -617,11 +557,9 @@ RULE_TEXT = {
     "R-UNVERIFIED": ["A proposed or validated assertion with no verification record gets an unverified gap.",
                      "The count is how many assertions nobody has verified."],
 }
-FAMILIES = [("kit/requirements.md", "requirements", "markdown"), ("contract/decision_table.md", "decision tables", "markdown"),
-            ("contract/spec.md", "specification", "markdown"), ("contract/openapi.yaml", "API contract", "OpenAPI 3.0"),
-            ("behavior/quote_flow.puml", "behaviour", "PlantUML sequence diagram"), ("structure/containers.puml", "structure", "C4 PlantUML"),
-            ("kit/quote_process.bpmn", "process", "BPMN 2.0"), ("kit/screening_decision.dmn", "decision", "DMN 1.3"),
-            ("tests_input/acceptance.feature", "tests", "Gherkin"), ("kit/links.toml", "links", "TOML")]
+FAMILIES = [(a["key"], a.get("label", a["family"]), a.get("format_label", a["format"]))
+            for a in SUBJECT.artefacts if a.get("store", True)]   # the documents the store reads, from the subject manifest
+MAPPERS = len(SUBJECT.mappers)
 
 
 def _table(cols, rows):
@@ -635,25 +573,23 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
     gate = det["D6_gate"]
     C = lambda *s: _reg(reg, "controlled", *s)  # noqa: E731
     D = lambda *s: _reg(reg, "data", *s)  # noqa: E731
-    arts = [f for f in FAMILIES if not (sc == "S3" and f[0].endswith(".dmn"))]
+    page = SUBJECT.scenarios.get(sc, {}).get("page", {})
+    absent = set(page.get("absent_artefacts", []))
+    arts = [f for f in FAMILIES if f[0] not in absent]
     d = {}
     ingest = [f"{len(arts)} documents were read."]
-    if sc == "S3":
-        ingest.append("One of them was planted as absent: the DMN, declared not yet authored.")
-    if sc == "S5":
-        ingest += ["Arm B also got one machine-written note as a document.",
-                   "The store did not load that note; its one assertion entered as inferred instead."]
+    ingest += list(page.get("ingest", []))
     ingest += ["Each document and each fragment is stored with its sha256 digest.",
                "A later version can then be told apart byte for byte.", f"{det['load']['fragments']} fragments came out."]
     d["ingest"] = {"title": C("Ingest: the documents, read file by file"), "intro": C(*ingest),
                    "sections": [{"heading": C("Documents"), "table": _table(["path", "family", "format"], arts)}]}
     levels = Counter(v["level"] for v in det["gate_keys"].values())
     d["extract"] = {"title": C("Extract: fragments into assertions"),
-                    "intro": C(f"{det['load']['assertions']} assertions, one fact each, by ten deterministic mappers, one per format.",
+                    "intro": C(f"{det['load']['assertions']} assertions, one fact each, by {MAPPERS} deterministic mappers, one per format.",
                                "No model took part.",
                                "Each assertion carries a basis, the fragment it rests on, and a status that starts at proposed."),
                     "sections": ([{"heading": C("Symbols with no definition in any document"), "list": det["load"]["unresolved_symbols"]}] if det["load"]["unresolved_symbols"] else [])
-                                + [{"heading": C("The 36 keys the task needs, by the level the gate resolved"), "table": _table(["level", "keys"], sorted(levels.items(), key=lambda kv: -kv[1]))}]}
+                                + [{"heading": C(f"The {len(det['gate_keys'])} keys the task needs, by the level the gate resolved"), "table": _table(["level", "keys"], sorted(levels.items(), key=lambda kv: -kv[1]))}]}
     cen = det["D2_census"]
     ver_text = (C(f"{det['verifications']['execution']} by execution: the oracle ran them, and each record names the scenario and the code's digest.",
                   f"{det['verifications']['review']} by review: the dated review record and the authored inputs.",
@@ -718,9 +654,9 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
         orows = [(r["run"], f"{r['M4_suite']['passed']}/{r['M4_suite']['total']}" if r["M4_suite"]["ran"] else "no code",
                   ", ".join(f"{t}: {'pass' if v else ('fail' if v is False else 'no code')}" for t, v in (r.get("M4_targets") or {}).items()) or "",
                   r.get("outage_status") or "", f"{r['M5_refs']['resolved']}/{r['M5_refs']['total']}" if r["M5_refs"]["share"] is not None else "") for r in rs]
-        d[f"oracle_{arm}"] = {"title": C(f"Oracle, {arm}: the kit's eleven scenarios on the code the arm wrote"),
-                              "intro": (C("Each reply's code ran in a sandbox against the kit's eleven scenarios, with the scenario's overlays.",
-                                          "S6 asks for the new prices.", "The planted target is the scenario the plant aims at.",
+        d[f"oracle_{arm}"] = {"title": C(f"Oracle, {arm}: the kit's {len(SUITE_ORDER)} scenarios on the code the arm wrote"),
+                              "intro": (C(f"Each reply's code ran in a sandbox against the kit's {len(SUITE_ORDER)} scenarios, with the scenario's overlays.",
+                                          *page.get("oracle", []), "The planted target is the scenario the plant aims at.",
                                           "The outage status is what the code returned when screening was down.",
                                           "A reference is resolvable when it points at something that exists.",
                                           "For G that is an assertion id; for B, a document line.")
@@ -781,8 +717,8 @@ def gaps_view(det: dict, reg: list) -> dict:
     for h in rules["R-REQ"]:
         if h.get("declared"):
             if h.get("req"):
-                groups["declared missing"].append({"id": "gap:declared:OD-1", "declared": True,
-                    "text": f"{h['req']} is NOT YET SPECIFIED (open decision OD-1, owner: compliance)",
+                groups["declared missing"].append({"id": SUBJECT.rules.get("declared_gap_id", "gap:declared:open"), "declared": True,
+                    "text": SUBJECT.rules.get("declared_gap_text", "{req} is declared open").format(req=h["req"]),
                     "concerns": [{"id": h["req"], "what": "requirement"}] + ([{"id": h["key"], "what": "key"}] if h.get("key") else []), "assertion": None})
             elif h.get("artefact"):
                 groups["declared missing"].append({"id": f"gap:declared:{h['artefact']}", "declared": True,
@@ -950,6 +886,6 @@ def systemic_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
             else:
                 secs.append({"heading": C("Document change"), "text": C("No document changed in this scenario.")})
         if nid == "testdef":
-            secs.append({"heading": C("The oracle here"), "text": C("The oracle is the kit's own eleven scenarios, written before the arms ran.", "It does not share the arms' premise.")})
+            secs.append({"heading": C("The oracle here"), "text": C(f"The oracle is the kit's own {len(SUITE_ORDER)} scenarios, written before the arms ran.", "It does not share the arms' premise.")})
         out[nid] = {"title": C(NODE_TITLE[nid]), "intro": intro, "sections": secs}
     return out

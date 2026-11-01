@@ -56,13 +56,9 @@ class Bag:
         return a
 
 
-_SHORT = {
-    "kit/requirements.md": "req", "contract/decision_table.md": "dt",
-    "contract/spec.md": "spec", "contract/openapi.yaml": "oas",
-    "behavior/quote_flow.puml": "seq", "structure/containers.puml": "c4",
-    "kit/quote_process.bpmn": "bpmn", "kit/screening_decision.dmn": "dmn",
-    "tests_input/acceptance.feature": "gherkin", "kit/links.toml": "links",
-}
+from subject import SUBJECT
+
+_SHORT = SUBJECT.shorts   # artefact key -> the short name assertion ids carry (the subject manifest)
 
 
 def short(path: str) -> str:
@@ -606,34 +602,38 @@ def extract_links(path: str, text: str, code_text: str) -> Bag:
     return b
 
 
-EXTRACTORS = {
-    "kit/requirements.md": extract_requirements,
-    "contract/decision_table.md": extract_decision_table,
-    "contract/spec.md": extract_spec,
-    "contract/openapi.yaml": extract_openapi,
-    "behavior/quote_flow.puml": extract_sequence,
-    "structure/containers.puml": extract_containers,
-    "kit/quote_process.bpmn": extract_bpmn,
-    "kit/screening_decision.dmn": extract_dmn,
-    "tests_input/acceptance.feature": extract_gherkin,
+EXTRACTORS = {   # mapper name (the subject manifest's) -> the deterministic mapper
+    "requirements": extract_requirements,
+    "decision_table": extract_decision_table,
+    "spec": extract_spec,
+    "openapi": extract_openapi,
+    "sequence": extract_sequence,
+    "containers": extract_containers,
+    "bpmn": extract_bpmn,
+    "dmn": extract_dmn,
+    "gherkin": extract_gherkin,
 }
 
 
 def extract_all(kit: dict[str, str], code_text: str) -> list[Bag]:
     bags = []
+    mappers = SUBJECT.mappers
     for path, text in kit.items():
-        if path in EXTRACTORS:
-            bags.append(EXTRACTORS[path](path, text))
-        elif path == "kit/links.toml":
+        mapper = mappers.get(path)
+        if mapper == "links":
             bags.append(extract_links(path, text, code_text))
+        elif mapper in EXTRACTORS:
+            bags.append(EXTRACTORS[mapper](path, text))
+        elif mapper:
+            raise KeyError(f"{path}: no mapper named {mapper!r}; the harness has {sorted(EXTRACTORS) + ['links']}")
     return bags
 
 
 if __name__ == "__main__":
     import sys
-    from kitio import kit_for, CARGO
-    code = (CARGO / "reference_impl.py").read_text()
-    scenario = sys.argv[1] if len(sys.argv) > 1 else "S1"
+    from kitio import kit_for
+    code = SUBJECT.reference_code()
+    scenario = sys.argv[1] if len(sys.argv) > 1 else SUBJECT.order[0]
     for bag in extract_all(kit_for(scenario), code):
         print(f"== {bag.artefact}: {len(bag.fragments)} fragments, {len(bag.entities)} entities, {len(bag.assertions)} assertions")
         for a in bag.assertions:

@@ -13,12 +13,14 @@ from __future__ import annotations
 import re
 
 from extract import NONE
+from subject import SUBJECT
 
-VAGUE = ["around", "roughly", "approximately", "low forties", "mid-sixties",
-         "clearly", "as soon as", "usable", "appropriate", "anything higher"]
+VAGUE = list(SUBJECT.rules.get("vague_words", []))
 
-# a declared gap on a requirement also concerns the key it governs
-REQ_KEY = {"REQ-06": "QuoteAPI|on_screening_outage"}
+# a declared gap on a requirement also concerns the key it governs (the subject's [rules.requirement_keys])
+REQ_KEY = dict(SUBJECT.rules.get("requirement_keys", {}))
+DECLARED_GAP_ID = SUBJECT.rules.get("declared_gap_id", "gap:declared:open")
+DECLARED_GAP_TEXT = SUBJECT.rules.get("declared_gap_text", "{req} is declared open")
 
 
 def _fields(v: str) -> dict | None:
@@ -155,13 +157,13 @@ def r_req(s, scenario: str) -> list[dict]:
     for row in s.run("MATCH (x:Assertion {predicate:'specified', value:'NONE'})-[:ABOUT]->(e:Entity) RETURN e.id AS req, x.id AS id"):
         key = REQ_KEY.get(row["req"])
         s.run("""MATCH (e:Entity {id:$req}), (x:Assertion {id:$id})
-                 MERGE (g:Gap {id:'gap:declared:OD-1'}) SET g.kind='missing', g.declared=true,
-                    g.text=$req + ' is NOT YET SPECIFIED (open decision OD-1, owner: compliance)'
+                 MERGE (g:Gap {id:$gid}) SET g.kind='missing', g.declared=true, g.text=$gtext
                  MERGE (g)-[:CONCERNS]->(e) MERGE (g)-[:CONCERNS]->(x)
                  WITH g MATCH (act:Activity) WHERE act.id STARTS WITH 'act:extract:' + $sc
                  MERGE (g)-[:RAISED_BY]->(act)
                  WITH g MATCH (k:Entity {id:$kent}) MERGE (g)-[:CONCERNS_KEY {key:$key}]->(k)""",
-              req=row["req"], id=row["id"], sc=scenario, kent=key.split("|")[0] if key else row["req"], key=key or "").consume()
+              req=row["req"], id=row["id"], sc=scenario, kent=key.split("|")[0] if key else row["req"], key=key or "",
+              gid=DECLARED_GAP_ID, gtext=DECLARED_GAP_TEXT.format(req=row["req"])).consume()
         out.append({"kind": "missing", "declared": True, "req": row["req"], "key": key})
     # an artefact declared not yet authored
     for row in s.run("MATCH (x:Assertion {predicate:'authored', value:'NONE'})-[:ABOUT]->(e:Entity) RETURN e.id AS art, x.id AS id"):

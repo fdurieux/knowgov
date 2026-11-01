@@ -9,7 +9,6 @@ from __future__ import annotations
 import datetime as dt
 import os
 import re
-import tomllib
 
 import logging
 
@@ -17,7 +16,12 @@ from neo4j import GraphDatabase, NotificationMinimumSeverity
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
 
-from kitio import FAMILY, sha256, kit_for, CARGO, EXP
+from kitio import FAMILY, sha256, pristine
+from subject import SUBJECT
+
+STORE = SUBJECT.store_keys        # artefact keys the store holds; the others are documents for the arms only
+PROV = SUBJECT.provenance
+VER = SUBJECT.verification
 from extract import extract_all, NONE
 
 URI = os.environ.get("KG_NEO4J_URI", "bolt://localhost:7687")
@@ -64,9 +68,9 @@ def clear(session):
 
 
 def symbol_table(kit: dict[str, str]) -> dict[str, str]:
-    """ACCEPT_MAX = 41 etc. from the decision table's symbolic-names
-    sentence; empty when the sentence is absent (S3)."""
-    text = kit.get("contract/decision_table.md", "")
+    """ACCEPT_MAX = 41 etc. from the symbolic-names sentence of the subject's
+    decision-table artefacts; empty when the sentence is absent."""
+    text = "\n".join(kit.get(k, "") for k, (family, _fmt) in FAMILY.items() if family == "decision_tables")
     return dict(re.findall(r"`([A-Z_]+) = (\d+)`", text))
 
 
@@ -91,21 +95,24 @@ def load_scenario(session, scenario: str, kit: dict[str, str], *, activity_note:
                   version_tag: str = "v1", reingest: bool = False) -> dict:
     """Write artefacts, versions, fragments, entities, assertions and the
     provenance activity. Returns counts and the unresolved symbols."""
-    code = (CARGO / "reference_impl.py").read_text(encoding="utf-8")
+    code = SUBJECT.reference_code()
     bags = extract_all(kit, code)
     unresolved = resolve_symbols(bags, symbol_table(kit))
     ts = now()
     session.run("""
-        MERGE (tool:Agent {id:'agent:harness'}) SET tool.kind='tool', tool.name='kg_experiment harness', tool.version=$v
-        MERGE (human:Agent {id:'agent:maintainer'}) SET human.kind='human', human.name='maintainer (authoring 2026-10-30; review record 2026-08-06)'
-        MERGE (llm:Agent {id:'agent:llm'}) SET llm.kind='llm', llm.name='architecture assistant (2026-10-27)'
-        CREATE (act:Activity {id:$aid, kind:'extraction', at:$ts, tool:'kg_experiment harness', note:$note})
+        MERGE (tool:Agent {id:'agent:harness'}) SET tool.kind='tool', tool.name=$tool, tool.version=$v
+        MERGE (human:Agent {id:$hid}) SET human.kind='human', human.name=$hname
+        MERGE (llm:Agent {id:$lid}) SET llm.kind='llm', llm.name=$lname
+        CREATE (act:Activity {id:$aid, kind:'extraction', at:$ts, tool:$tool, note:$note})
         MERGE (act)-[:ASSOCIATED_WITH]->(tool)
-        """, v=version_tag, aid=f"act:extract:{scenario}:{version_tag}", ts=ts, note=activity_note).consume()
+        """, v=version_tag, aid=f"act:extract:{scenario}:{version_tag}", ts=ts, note=activity_note,
+             tool=PROV.get("harness_name", "harness"), hid=PROV.get("human", {}).get("id", "agent:maintainer"),
+             hname=PROV.get("human", {}).get("name", "maintainer"), lid=PROV.get("llm", {}).get("id", "agent:llm"),
+             lname=PROV.get("llm", {}).get("name", "model")).consume()
     aid = f"act:extract:{scenario}:{version_tag}"
     n_frag = n_ass = n_reused = 0
     for path, text in kit.items():
-        if path not in FAMILY or path == "notes/analysis_notes.md":
+        if path not in FAMILY or path not in STORE:
             continue
         family, fmt = FAMILY[path]
         vid = f"V:{path}:{version_tag}"
@@ -180,12 +187,11 @@ def load_scenario(session, scenario: str, kit: dict[str, str], *, activity_note:
 
 
 def load_inferred(session, scenario: str, inferred: dict):
-    """S5: one LLM-proposed assertion, attributed to the llm agent, linked
-    to the open decision it claims to resolve, with no supporting fragment."""
-    ts = now()
+    """One model-proposed assertion (the subject's ``[inferred]`` plant), attributed to the llm
+    agent, linked to the open decision it claims to resolve, with no supporting fragment."""
     session.run("""
-        MATCH (llm:Agent {id:'agent:llm'}), (e:Entity {id:$eid})
-        CREATE (act:Activity {id:$aid, kind:'inference', at:'2026-10-27T00:00:00+00:00', tool:'architecture assistant', note:$note})
+        MATCH (llm:Agent {id:$lid}), (e:Entity {id:$eid})
+        CREATE (act:Activity {id:$aid, kind:'inference', at:$at, tool:$itool, note:$note})
         MERGE (act)-[:ASSOCIATED_WITH]->(llm)
         CREATE (x:Assertion {id:$id, predicate:$pred, value:$value, text:$text, basis:'inferred',
                              status:'proposed', artefact:'llm', key:$key, version:'v1'})
@@ -193,18 +199,19 @@ def load_inferred(session, scenario: str, inferred: dict):
         MERGE (x)-[:DERIVED_BY]->(act)
         MERGE (x)-[:ATTRIBUTED_TO]->(llm)
         WITH x
-        MERGE (g:Gap {id:'gap:declared:OD-1'})
+        MERGE (g:Gap {id:$gid})
         MERGE (x)-[:CANDIDATE_FOR]->(g)
-        """, eid=inferred["entity"], aid=f"act:infer:{scenario}", note=inferred["note"],
+        """, eid=inferred["entity"], aid=f"act:infer:{scenario}", note=inferred["note"], gid=inferred["candidate_for"],
+                lid=PROV.get("llm", {}).get("id", "agent:llm"), at=PROV.get("inference_at", now()), itool=PROV.get("inference_tool", "model"),
                 id=inferred["id"] + "@v1", pred=inferred["predicate"], value=inferred["value"],
                 text=inferred["text"], key=f"{inferred['entity']}|{inferred['predicate']}").consume()
 
 
 def pristine_values() -> dict[str, set[str]]:
     """key -> values the pristine kit states (what the suite and the review
-    record verified). Computed from S1's extraction."""
-    kit = kit_for("S1")
-    code = (CARGO / "reference_impl.py").read_text(encoding="utf-8")
+    record verified). Computed from the pristine kit's extraction."""
+    kit = pristine()
+    code = SUBJECT.reference_code()
     bags = extract_all(kit, code)
     resolve_symbols(bags, symbol_table(kit))
     out: dict[str, set[str]] = {}
@@ -217,12 +224,14 @@ def pristine_values() -> dict[str, set[str]]:
 def load_verifications(session, scenario: str, pristine: dict[str, set[str]]) -> dict:
     """Execution and review verifications of the live assertions whose
     (key, value) the pristine kit states; then the owner's approval of
-    every verified assertion. Skipped for S7 by the caller."""
-    vmap = tomllib.loads((EXP / "kit" / "verification_map.toml").read_text())
+    every verified assertion. Skipped by the caller for a scenario declared
+    ``verifications = false``. A subject with no verification map verifies nothing."""
+    vmap = SUBJECT.verification_map()
     ts = now()
     counts = {"execution": 0, "review": 0, "approved": 0}
-    smoke_digest = sha256((CARGO / "reference_impl.py").read_text(encoding="utf-8"))
-    for suite_scenario, keys in vmap["execution"].items():
+    smoke_digest = sha256(SUBJECT.reference_code())
+    review, authored, approval = VER.get("review", {}), VER.get("authored", {}), VER.get("approval", {})
+    for suite_scenario, keys in vmap.get("execution", {}).items():
         for key in keys:
             n = session.run("""
                 MATCH (x:Assertion {key:$key}) WHERE x.value IN $vals AND x.basis IN ['extracted','authored'] AND NOT x.status IN ['invalidated','rejected','deprecated']
@@ -234,34 +243,32 @@ def load_verifications(session, scenario: str, pristine: dict[str, set[str]]) ->
                 MERGE (v)-[:PERFORMED_BY]->(h)
                 SET x.status = CASE WHEN x.status IN ['proposed','validated'] THEN 'verified' ELSE x.status END
                 RETURN count(x) AS n""", key=key, vals=sorted(pristine.get(key, set())), sc=suite_scenario,
-                scope=f"suite scenario {suite_scenario} on reference_impl.py (smoke 2026-10-30)", ts=ts,
+                scope=VER.get("execution_scope", "suite scenario {scenario}").format(scenario=suite_scenario), ts=ts,
                 dig=smoke_digest).single()["n"]
             counts["execution"] += n
-    for key in vmap["review"]["keys"]:
+    for key in vmap.get("review", {}).get("keys", []):
         n = session.run("""
             MATCH (x:Assertion {key:$key}) WHERE x.value IN $vals AND x.basis IN ['extracted','authored'] AND NOT x.status IN ['invalidated','rejected','deprecated']
             MATCH (h:Agent {id:'agent:maintainer'})
             MERGE (v:Verification {id:'ver:review:' + x.id})
-              SET v.method='review', v.outcome='pass', v.at='2026-08-06', v.valid_until=null,
-                  v.scope='stack_experiment/README.md, Verified state (2026-08-06)'
+              SET v.method='review', v.outcome='pass', v.at=$at, v.valid_until=null, v.scope=$scope
             MERGE (v)-[:VERIFIES]->(x)
             MERGE (v)-[:PERFORMED_BY]->(h)
             SET x.status = CASE WHEN x.status IN ['proposed','validated'] THEN 'verified' ELSE x.status END
-            RETURN count(x) AS n""", key=key, vals=sorted(pristine.get(key, set()))).single()["n"]
+            RETURN count(x) AS n""", key=key, vals=sorted(pristine.get(key, set())), at=review.get("at", ts), scope=review.get("scope", "review")).single()["n"]
         counts["review"] += n
     # requirements and links: authored by the maintainer -> reviewed by construction
     n = session.run("""
         MATCH (x:Assertion) WHERE x.basis='authored' AND x.status='proposed' AND x.value <> 'NONE'
         MATCH (h:Agent {id:'agent:maintainer'})
         MERGE (v:Verification {id:'ver:review:' + x.id})
-          SET v.method='review', v.outcome='pass', v.at='2026-10-30', v.valid_until=null,
-              v.scope='authored 2026-10-30 from spec.md and decision_table.md, verbatim'
+          SET v.method='review', v.outcome='pass', v.at=$at, v.valid_until=null, v.scope=$scope
         MERGE (v)-[:VERIFIES]->(x) MERGE (v)-[:PERFORMED_BY]->(h)
-        SET x.status='verified' RETURN count(x) AS n""").single()["n"]
+        SET x.status='verified' RETURN count(x) AS n""", at=authored.get("at", ts), scope=authored.get("scope", "authored")).single()["n"]
     counts["review"] += n
     counts["approved"] = session.run("""
         MATCH (x:Assertion {status:'verified'}), (h:Agent {id:'agent:maintainer'})
-        MERGE (ap:Approval {id:'appr:' + x.id}) SET ap.at='2026-08-06', ap.record='stack_experiment/README.md Verified state'
+        MERGE (ap:Approval {id:'appr:' + x.id}) SET ap.at=$at, ap.record=$record
         MERGE (ap)-[:APPROVES]->(x) MERGE (ap)-[:BY]->(h)
-        SET x.status='approved' RETURN count(x) AS n""").single()["n"]
+        SET x.status='approved' RETURN count(x) AS n""", at=approval.get("at", ts), record=approval.get("record", "approval")).single()["n"]
     return counts

@@ -143,19 +143,26 @@ def impact(start: str) -> dict | None:
             "text_registry": reg_sentences}
 
 
-MAP = HERE / "register_map.toml"
-REQ_ANCHOR = "kit:requirements.md#"
-TABLE_PATH = "contract/decision_table.md"
+sys.path.insert(0, str(HERE.parent.parent / "harness"))
+from subject import SUBJECT  # noqa: E402  (the subject root: KG_SUBJECT, default subjects/cargo_quote)
+REQ_ANCHOR = SUBJECT.register.get("requirement_anchor", "")   # how the register's links cite a requirement; the subject says
+REQ_DOC_ANCHOR = REQ_ANCHOR.split(":", 1)[-1]          # the anchor without the export prefix, e.g. requirements.md#
+EXPORT_MANIFEST = SUBJECT.register.get("export_manifest", "")
 
 
 def load_map() -> dict:
-    with MAP.open("rb") as f:
-        return tomllib.load(f)
+    """The approved key-to-node map, the subject's register_map.toml."""
+    return SUBJECT.register_map()
+
+
+def changed_artefact(scenario: str) -> str:
+    """The artefact a scenario's stage 2 changes, or '' when it has none."""
+    return SUBJECT.scenarios.get(scenario, {}).get("stage2", {}).get("artefact", "")
 
 
 # ------------------------------------------------------------ references: what a cell opens
 
-REQUIREMENTS = HERE.parent.parent / "subjects" / "cargo_quote" / "kg_experiment" / "kit" / "requirements.md"   # the vendored subject
+REQUIREMENTS = next((SUBJECT.path(a["path"]) for a in SUBJECT.artefacts if a["family"] == "requirements" and a.get("path")), None)
 REF_KINDS = ("node", "link", "req", "key", "doc")
 LEVEL_TIP = {
     "approved": "Verified and approved by the owner; the gate may build on it.",
@@ -196,7 +203,7 @@ def _norm(anchor: str) -> str:
 def _anchor_ref(anchor: str) -> dict:
     """A kit anchor opens the requirement panel when it names a requirement, else the document card."""
     a = _norm(anchor)
-    if a.startswith("requirements.md#REQ-"):
+    if a.startswith(REQ_DOC_ANCHOR + "REQ-"):
         return R("req", a.split("#", 1)[1], anchor)
     return R("doc", a.split("#", 1)[0], anchor)
 
@@ -305,7 +312,7 @@ def _req_panel(cx: _Ctx, req: str) -> dict | None:
     line = _requirement_line(req)
     if not line:
         return None
-    anchor = "requirements.md#" + req
+    anchor = REQ_DOC_ANCHOR + req
     intro = D(f"{req}: {line}") + " " + C("The id is the experiment's; the kit's text is quoted as data.")
     secs = []
     hits = [h for h in cx.det["rules"]["R-REQ"] if h.get("req") == req] if cx.det else []
@@ -361,7 +368,7 @@ def _doc_panel(cx: _Ctx, path: str) -> dict | None:
         return None
     intro = C("A kit document the register's export carries.") + " " + D(f"Manifest digest at the register's commit: {digest[:12]}.")
     secs = []
-    if cx.det and "stage2" in cx.det and path == TABLE_PATH:
+    if cx.det and "stage2" in cx.det and path == changed_artefact(cx.scenario):
         s2 = cx.det["stage2"]
         secs.append({"heading": C("Changed in the second stage"),
                      "text": C("Every link that cites this document is a link to review.") + " "
@@ -403,7 +410,7 @@ def ref(kind: str, ident: str, view: dict | None = None) -> dict | None:
 def footprint(view: dict) -> dict:
     """The register footprint of one scenario: the map rows its keys below approved hit and the
     nodes they touch, the requirement gaps joined to the links whose evidence cites them, and
-    for S6 the links whose evidence cites the changed decision table. Read from the scenario's
+    for a stage-2 scenario the links whose evidence cites the changed artefact. Read from the scenario's
     deterministic.json (view["source_dir"]), the approved map and the vendored register."""
     cx = _Ctx(view)
     T, reg, m, det, rows, links = cx.T, cx.reg, cx.map, cx.det, cx.rows, cx.links
@@ -435,15 +442,16 @@ def footprint(view: dict) -> dict:
         req_cells.append([R("req", subject) if h.get("req") else (R("doc", subject) if subject in cx.manifest.get("files", {}) else subject),
                           _tip(h.get("kind", ""), C(_kind_tip(h.get("kind", ""), bool(h.get("declared"))))), _tip(declared, C(DECLARED_TIP[declared])),
                           _join([cx.link_cell(ln) for ln in citing]) or "none"])
-    # S6: the changed decision table and the links that cite it
+    # a stage-2 scenario: the changed artefact and the links that cite it
     table_links = []
-    if "stage2" in det:
+    table_path = changed_artefact(view["scenario"])
+    if "stage2" in det and table_path:
         for ln in links:
-            evs = [ev for ev in ln.get("evidence", []) if TABLE_PATH in ev] + ([ln["target_external"]] if TABLE_PATH in (ln.get("target_external") or "") else [])
+            evs = [ev for ev in ln.get("evidence", []) if table_path in ev] + ([ln["target_external"]] if table_path in (ln.get("target_external") or "") else [])
             if evs:
                 table_links.append((ln["id"], ln["type"], ln["source"], ln.get("target") or ln.get("target_external", ""), ln.get("state", ""), ", ".join(evs)))
-    manifest = T["register"].load_toml(REGISTER / "exports" / "kit" / "2026-10-30" / "MANIFEST.toml")
-    table_digest = manifest.get("files", {}).get(TABLE_PATH, "")
+    manifest = T["register"].load_toml(REGISTER / EXPORT_MANIFEST) if EXPORT_MANIFEST else {}
+    table_digest = manifest.get("files", {}).get(table_path, "")
     colour = "bad" if not_approved or uncited else "warn" if key_rows or table_links else "ok"
     lines = [f"{views._plural(len(key_rows), 'key')} below approved {'touches' if len(key_rows) == 1 else 'touch'} {views._plural(len(touched), 'node')}" if key_rows else "no key below approved",
              f"{views._plural(len(req_rows), 'requirement gap')}, {uncited} cited by no link"]
@@ -472,9 +480,9 @@ def footprint(view: dict) -> dict:
                  "text": C(f"{len(req_rows) - uncited} {'is' if len(req_rows) - uncited == 1 else 'are'} cited by a link, {uncited} by none.") + (" " + C("A gap no link cites is one the register does not yet carry.") if uncited else ""),
                  "table": {"cols": ["requirement or document", "kind", "declared", "links citing it"], "rows": req_cells}})
     if "stage2" in det:
-        secs.append({"heading": C(f"Links citing the changed decision table: {len(table_links)}"),
-                     "text": C("The table changed in the second stage, so every link that cites it is a link to review.") + " "
-                             + D(f"The manifest digest of {TABLE_PATH} at the register's commit is {table_digest[:12]}; the result file records the second load ({det['stage2']['load_v2']['fragments']} new fragments, {det['stage2']['load_v2']['fragments_reused']} reused) and no document digest."),
+        secs.append({"heading": C(f"Links citing the changed document: {len(table_links)}"),
+                     "text": C("The document changed in the second stage, so every link that cites it is a link to review.") + " "
+                             + D(f"The manifest digest of {table_path} at the register's commit is {table_digest[:12]}; the result file records the second load ({det['stage2']['load_v2']['fragments']} new fragments, {det['stage2']['load_v2']['fragments_reused']} reused) and no document digest."),
                      "table": {"cols": ["link", "type", "source", "target", "state", "evidence"],
                                "rows": [[R("link", lid), _tip(ty, D(_type_tip(reg["relationships"][ty]["type"]))), R("node", src), _target_ref(cx.by_id[lid]), cx.state_cell(st),
                                          _join([_anchor_ref(ev) for ev in evs.split(", ")])] for lid, ty, src, _tg, st, evs in table_links]}})

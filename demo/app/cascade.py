@@ -127,6 +127,6 @@ def render(spec: dict, arm: str, *, title: str | None = None) -> str:
 if __name__ == "__main__":  # a quick look: python cascade.py S2 B > out.svg
     sys.path.insert(0, str(HERE))
     import views
-    sc = sys.argv[1] if len(sys.argv) > 1 else "S2"
+    sc = sys.argv[1] if len(sys.argv) > 1 else views.ORDER[0]
     arm = sys.argv[2] if len(sys.argv) > 2 else "B"
     print(render(views.SYSTEMIC[sc], arm, title=f"{sc} {arm}"))
