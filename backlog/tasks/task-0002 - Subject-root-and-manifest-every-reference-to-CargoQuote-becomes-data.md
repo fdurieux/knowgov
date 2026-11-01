@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-01T14:27:00Z'
-updated_date: '2026-11-01T15:25:00Z'
+updated_date: '2026-11-01T15:27:00Z'
 labels:
   - platform
   - subject
@@ -46,6 +46,8 @@ The harness and page know their subject by name in seven places: the kit file li
 
 <!-- SECTION:NOTES:BEGIN -->
 Done as planned. Residue after the refactor, by design: the ten mappers in harness/extract.py keep CargoQuote's document conventions (entity QuoteAPI, the DT row names, the NOT YET SPECIFIED phrase); subjects/README.md states it and tests/test_subject.py exempts that one file, checking it names no scenario id. AC 2 reworded to say so. Two things found on the way: (a) views.record_check keyed a demo run on a folder named demo-runs, which task-0001's move to runs/ had silently broken (no 'against the record' sentence for a page run); now keyed on the source id. (b) A deterministic S6 through the page, which registers S1's derived output, differs from the scored record results/S6 in 3 leaves (valid_until of the three ended verifications: null in the record, v2 in a re-run); pumllint's original code at fd8bef4 shows the identical 3 leaves by the same route, so it is the record's, not this refactor's; the comparator's CLI default (d3check/S6) stays identical. Local proof: 44/44 tests; deterministic S1 to S7 against Neo4j 5.26.0, comparator 0 differing leaves over 7 scenarios; the page served locally passed the CI job's checks plus an S6 deterministic run through the page; the minimal subject BLOCKED with both keys absent, and on the page its menu lists S0 with nothing to replay (404 on the result, no crash).
+
+CI red on the first push: tests/test_subject.py imported harness/extract.py, which imports pyyaml, absent from the stdlib-only tests job; reproduced locally with pyyaml blocked, the test now reads the mapper registry from the source; 44/44 with and without pyyaml.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

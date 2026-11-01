@@ -14,7 +14,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 import subject as subject_mod  # noqa: E402
-import extract  # noqa: E402
+
+
+def _mapper_names() -> set[str]:
+    """The mapper registry of harness/extract.py, read from the source: importing the module
+    needs pyyaml, which the tests job does not have."""
+    src = (ROOT / "harness" / "extract.py").read_text(encoding="utf-8")
+    body = src[src.index("EXTRACTORS = {"):src.index("def extract_all(")]
+    return set(re.findall(r'^\s+"([a-z_]+)": extract_', body, re.M)) | {"links"}
 
 CARGO = subject_mod.Subject(ROOT / "subjects" / "cargo_quote")
 MINIMAL = subject_mod.Subject(ROOT / "subjects" / "minimal")
@@ -26,7 +33,8 @@ def test_cargo_quote_manifest_names_what_exists():
     assert len(CARGO.artefacts) == 11 and len(CARGO.kit_files) == 10, "ten documents on disk, one added by a plant"
     for key, p in CARGO.kit_files:
         assert p.is_file(), key
-    mappers = set(extract.EXTRACTORS) | {"links"}
+    mappers = _mapper_names()
+    assert mappers >= {"requirements", "decision_table", "links"}, mappers
     for key, m in CARGO.mappers.items():
         assert m in mappers, (key, m)
     assert len(CARGO.mappers) == 10 and len(CARGO.shorts) == 10
