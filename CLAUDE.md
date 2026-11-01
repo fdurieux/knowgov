@@ -12,11 +12,14 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
 ```
 
 - `harness/` the pipeline; `demo/` the page, the vendored model, the vendored
-  register, the comparator, the Docker files; `subjects/cargo_quote/` the
-  vendored subject and record in pumllint's relative layout (kit, documents,
-  oracle, results, pre-registration); `runs/` re-runs, gitignored.
+  register, the comparator, the Docker files; `subjects/<id>/` a subject root
+  (`subjects/README.md` documents the format): `subject.toml`, `scenarios.toml`,
+  `plants.toml`, `queries.toml`, `register_map.toml`, `prompts/`, and under
+  `vendor/` the bytes vendored from pumllint in its relative layout; `runs/`
+  re-runs, gitignored. `KG_SUBJECT` selects the root; nothing in `harness/` or
+  `demo/` names a subject, a document or a scenario (task-0002).
 - Re-vendor the register with `python tools/vendor_register.py <checkout>` at
-  a tag of ieam-register; the subject with `python tools/vendor_subject.py
+  a tag of ieam-register; the CargoQuote bytes with `python tools/vendor_subject.py
   <checkout>` at a pumllint tag (`--allow-untagged` for a commit, and the
   note says so). Each rewrites its `SOURCE.md`; a test holds every file to
   its digest.

@@ -1,0 +1,55 @@
+# Saved Cypher queries that name this subject's keys or scenarios; the page lists them after its
+# generic ones. needs: scenario (any loaded), or a scenario id. Written from the page at the move.
+
+[[query]]
+id = "three-valued"
+needs = "scenario"
+title = "The three-valued answer (D5; S1): asserted, documented absent, unknown"
+text = """
+// documented absence: every live assertion on the key says NONE
+MATCH (x:Assertion {key:'S-review|notified'}) RETURN x.id, x.value, x.status;
+// asserted: a value
+MATCH (x:Assertion {key:'S-refuse|notified'}) RETURN x.id, x.value, x.status;
+// unknown: no assertion at all (not a documented absence)
+MATCH (x:Assertion {key:'QuoteAPI|notified_after_screening'}) RETURN count(x) AS n"""
+
+[[query]]
+id = "gate"
+needs = "scenario"
+title = "The gate's view of one required key"
+text = """
+MATCH (x:Assertion {key:'P2|surcharge'})
+OPTIONAL MATCH (x)-[:SUPPORTED_BY]->(f:Fragment)
+OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x)
+OPTIONAL MATCH (ap:Approval)-[:APPROVES]->(x)
+RETURN x.id, x.value, x.basis, x.status, collect(DISTINCT f.locator) AS evidence,
+       collect(DISTINCT v.method) AS verified_by, count(DISTINCT ap) AS approvals"""
+
+[[query]]
+id = "invalidation"
+needs = "S6"
+needs_text = "S6 loaded deterministically"
+title = "The invalidation traversal (S6): changed fragments → assertions → verifications → Derived"
+text = """
+MATCH (a:Artefact)-[:CURRENT]->(cur:Version {tag:'v2'})
+MATCH (a)-[:HAS_VERSION]->(old:Version {tag:'v1'})-[:HAS_FRAGMENT]->(f:Fragment)
+WHERE NOT (cur)-[:HAS_FRAGMENT]->(f)
+MATCH (x:Assertion {status:'invalidated'})-[:SUPPORTED_BY]->(f)
+OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x)
+OPTIONAL MATCH (d:Derived)-[:USED_ASSERTION]->(x)
+OPTIONAL MATCH (succ:Assertion {key:x.key, version:'v2'})
+RETURN f.locator AS changed_fragment, x.id AS invalidated, x.value AS old_value,
+       collect(DISTINCT v.id + ' valid_until=' + coalesce(v.valid_until,'∅')) AS verifications_ended,
+       collect(DISTINCT d.id + ' suspect=' + toString(d.suspect)) AS derived,
+       collect(DISTINCT succ.id + ' ' + succ.value + ' ' + succ.status) AS successor"""
+
+[[query]]
+id = "contradiction"
+needs = "S4"
+needs_text = "S4 loaded"
+title = "The contradiction pairs (S4)"
+text = """
+MATCH (a:Assertion)-[:CONTRADICTS]->(b:Assertion) WHERE a.id < b.id
+OPTIONAL MATCH (g:Gap {kind:'conflict'})-[:CONCERNS]->(a)
+RETURN a.key AS key, a.artefact AS side_a, a.value AS value_a, b.artefact AS side_b, b.value AS value_b,
+       a.status AS status, collect(DISTINCT g.id) AS conflict_gaps"""

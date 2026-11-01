@@ -1,0 +1,12 @@
+# The smallest subject: no artefacts, no record, one task with two required keys. The harness
+# loads it, the rules find nothing, and the gate reports every key absent and BLOCKED. It is
+# the worked example of subjects/README.md and the fixture the CI stack job runs.
+[subject]
+id = "minimal"
+name = "Minimal"
+description = "An empty subject: nothing to read, so every required key is absent."
+
+[tasks.codegen]
+keys = ["thing|property", "other|property"]
+block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
+max_unverified_share = 0.25

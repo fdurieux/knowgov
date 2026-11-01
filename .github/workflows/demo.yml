@@ -78,6 +78,11 @@ jobs:
         run: |
           docker compose exec -T app python demo/tools/compare_deterministic.py "runs/$(cat run_id)"
 
+      - name: An empty subject loads and the gate reports every required key absent
+        run: |
+          docker compose exec -T -e KG_SUBJECT=/repo/subjects/minimal app python harness/run.py --deterministic --out runs/minimal
+          docker compose exec -T app python3 -c 'import json; d=json.load(open("runs/minimal/S0/deterministic.json")); g=d["D6_gate"]; ks=d["gate_keys"]; assert g["verdict"]=="BLOCKED", g; assert ks and all(v["level"]=="absent" for v in ks.values()), ks; print("minimal subject:", g["verdict"], len(ks), "keys absent")'
+
       - name: Logs on failure
         if: failure()
         run: docker compose logs --no-color | tail -200

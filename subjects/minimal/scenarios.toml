@@ -1,0 +1,11 @@
+# One scenario, nothing planted: the pristine (empty) kit, verifications attempted (there is no
+# verification map, so none load), no stage 2, no arms targets.
+[[scenario]]
+id = "S0"
+title = "empty"
+represented = "No document, no assertion, no gap."
+gate = "BLOCKED"
+defect = "Nothing to build from: every key the task needs is absent."
+plant = "Nothing was planted: the subject has no artefacts."
+plain = "The subject holds no document, so the store holds no statement. The gate blocks because every required key is absent."
+extraction = "pristine"

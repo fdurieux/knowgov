@@ -16,7 +16,9 @@ from pathlib import Path
 from openai import OpenAI
 
 HERE = Path(__file__).resolve().parent
-RECORD_MODEL = "gpt-5.1-2025-11-13"  # the model of the scored run; the record's figures are this model's
+from subject import SUBJECT  # noqa: E402
+
+RECORD_MODEL = SUBJECT.record_model or "gpt-5.1-2025-11-13"  # the model of the scored run; the record's figures are this model's
 # The demo's Arms mode may call another model through KG_ARMS_MODEL (a legacy model's
 # rate limit on a new organisation blocked the governed prompt there); such runs are a
 # deviation the demo page names, and they never write into results/.
@@ -38,7 +40,7 @@ def policy() -> str:
 
 
 def prompt(name: str) -> str:
-    return (HERE / "prompts" / f"{name}.md").read_text(encoding="utf-8")
+    return SUBJECT.prompt(name)   # the task prompts are the subject's
 
 
 def baseline_documents(kit: dict[str, str], order: list[str]) -> str:

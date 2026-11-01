@@ -1,6 +1,6 @@
 """Compare a deterministic run against the published record, field by field.
 
-    python compare_deterministic.py <run_dir> [<record_dir>] [--scenarios S1 S6]
+    python compare_deterministic.py <run_dir> [<record_dir>] [--scenarios <id> ...]
 
 For every scenario present in <run_dir>, loads ``<S>/deterministic.json``
 from both trees and reports every leaf that differs, ignoring what cannot
@@ -13,16 +13,14 @@ Everything else — counts, rule hits, census, verdicts, the invalidation
 set, the gate's keys — must match. Exit 0 iff nothing differs; the diff
 is printed either way, one line per leaf.
 
-S6 is compared against ``results/d3check/S6`` by default: that is the
-record's deterministic-mode run (``run.py --deterministic``, after the
-loader fix the pre-registration's run notes describe). ``results/S6``
-was written by the scored run, whose stage 2 also registers S1's first
-governed output as a ``Derived`` node — a node, 88 ``USED_ASSERTION``
-edges and a suspect flag that ``--deterministic`` does not create.
-Pass ``--s6-record results/S6`` to see exactly that difference.
+A scenario whose subject names a ``deterministic_record`` (the record's own
+deterministic-mode run) is compared against that by default: the scored
+record's stage 2 may register an earlier governed output as a ``Derived``
+node that ``--deterministic`` does not create. Pass ``--record-for <scenario>=<dir>``
+to compare against another folder.
 
 Standard library only, so the CI job and a laptop can run it with no
-install. The record is the vendored ``subjects/cargo_quote/kg_experiment/results`` by default.
+install. The record is the subject's vendored one by default.
 """
 
 from __future__ import annotations
@@ -34,8 +32,13 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-RECORD = HERE.parent.parent / "subjects" / "cargo_quote" / "kg_experiment" / "results"   # the vendored record
-SCENARIOS = ["S1", "S2", "S3", "S4", "S5", "S6", "S7"]
+sys.path.insert(0, str(HERE.parent.parent / "harness"))
+from subject import SUBJECT  # noqa: E402  (the subject root: KG_SUBJECT, default subjects/cargo_quote)
+
+RECORD = SUBJECT.record_dir     # the subject's vendored record
+SCENARIOS = SUBJECT.order
+# a scenario whose record also holds a deterministic-mode run is compared against that by default
+DETERMINISTIC_RECORDS = {sc: s["deterministic_record"] for sc, s in SUBJECT.scenarios.items() if s.get("deterministic_record")}
 VOLATILE_KEYS = {"at", "ingested_at", "invalidated_at", "sample"}
 
 
@@ -77,11 +80,12 @@ def _strip(obj):
     return obj
 
 
-def compare(run_dir: Path, record_dir: Path, scenarios: list[str], s6_record: Path | None = None) -> tuple[int, list[str]]:
+def compare(run_dir: Path, record_dir: Path, scenarios: list[str], record_for: dict[str, Path] | None = None) -> tuple[int, list[str]]:
+    """``record_for`` names the record folder to read for a scenario instead of ``<record_dir>/<scenario>``."""
     lines: list[str] = []
     n_diff = 0
     for sc in scenarios:
-        rec = s6_record if (sc == "S6" and s6_record) else record_dir / sc
+        rec = (record_for or {}).get(sc) or record_dir / sc
         a, b = run_dir / sc / "deterministic.json", rec / "deterministic.json"
         if not a.exists():
             continue
@@ -107,11 +111,14 @@ def main() -> int:
     ap.add_argument("run_dir", type=Path)
     ap.add_argument("record_dir", type=Path, nargs="?", default=RECORD)
     ap.add_argument("--scenarios", nargs="*", default=SCENARIOS)
-    ap.add_argument("--s6-record", type=Path, default=None,
-                    help="directory holding S6's deterministic.json (default: <record_dir>/d3check/S6)")
+    ap.add_argument("--record-for", action="append", default=[], metavar="SCENARIO=DIR",
+                    help="read this scenario's record from DIR (default for " + ", ".join(f"{k}: <record_dir>/{v}" for k, v in DETERMINISTIC_RECORDS.items()) + ")")
     args = ap.parse_args()
-    s6 = args.s6_record or (args.record_dir / "d3check" / "S6")
-    n, lines = compare(args.run_dir, args.record_dir, args.scenarios, s6_record=s6)
+    record_for = {sc: args.record_dir / rel for sc, rel in DETERMINISTIC_RECORDS.items()}
+    for item in args.record_for:
+        sc, _, d = item.partition("=")
+        record_for[sc] = Path(d)
+    n, lines = compare(args.run_dir, args.record_dir, args.scenarios, record_for=record_for)
     print("\n".join(lines))
     compared = [ln for ln in lines if "leaves compared" in ln]
     if not compared:

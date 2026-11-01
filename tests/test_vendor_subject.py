@@ -118,7 +118,7 @@ def test_real_copy_matches_its_note_and_the_note_is_the_tools_output():
     """subjects/cargo_quote/ is a byte-for-byte copy of pumllint at the commit SOURCE.md names:
     every file's sha256 is in the note, the note lists no file the copy lacks, the record's own
     SHA256SUMS still resolves inside the copy, and the note is what the tool writes."""
-    dest = ROOT / "subjects" / "cargo_quote"
+    dest = ROOT / "subjects" / "cargo_quote" / "vendor"
     note = (dest / "SOURCE.md").read_text(encoding="utf-8")
     assert vs.MARK in note
     files = {p.relative_to(dest).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()

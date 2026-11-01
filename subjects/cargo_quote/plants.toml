@@ -1,0 +1,524 @@
+# The plants: mechanical patches per scenario (pumllint kg_experiment/PREREGISTRATION.md §5),
+# written from harness/plant.py as it stood at the move (decision-0001). op is replace, drop or add;
+# a replace whose old text is not found exactly once is a hard error. Generated, round-tripped;
+# edit by hand only with the comparator green.
+
+[[plant.S2]]
+path = "contract/decision_table.md"
+op = "replace"
+old = """
+5. A screening outage does **not** fail the quote: the quote is still
+   priced, stored with status `held_unscreened`, and **not** notified
+   until screening completes (out of scope here). The response carries
+   the price and `hold: true`.
+"""
+new = ""
+
+[[plant.S2]]
+path = "contract/decision_table.md"
+op = "replace"
+old = "## DT-P — pricing (only on DT-S rows accept and screening-outage hold)"
+new = "## DT-P — pricing (only on DT-S row accept)"
+
+[[plant.S2]]
+path = "contract/spec.md"
+op = "replace"
+old = """
+3. Request the shipper's risk index from the Screening Service.
+   If screening is unavailable: price anyway (DT-P), update the
+   stored quote to `held_unscreened`, do **not** notify, and return
+   the price with `hold: true` (DT-S note 5).
+"""
+new = """
+3. Request the shipper's risk index from the Screening Service.
+"""
+
+[[plant.S2]]
+path = "contract/spec.md"
+op = "replace"
+old = """
+| 6 | screening outage | `held_unscreened` with price and `hold: true`, **no** notification |
+"""
+new = ""
+
+[[plant.S2]]
+path = "contract/spec.md"
+op = "replace"
+old = """
+- **Quote outcome**: exactly one of `quoted`, `review_hold`,
+  `refused_screening`, `held_unscreened` (screening outage), plus the
+  rejection/error statuses in the API contract below."""
+new = """
+- **Quote outcome**: exactly one of `quoted`, `review_hold`,
+  `refused_screening`, plus the rejection/error statuses in the API
+  contract below."""
+
+[[plant.S2]]
+path = "contract/spec.md"
+op = "replace"
+old = """
+- `"quoted"` | `"review_hold"` | `"refused_screening"` |
+  `"held_unscreened"`"""
+new = "- `\"quoted\"` | `\"review_hold\"` | `\"refused_screening\"`"
+
+[[plant.S2]]
+path = "contract/spec.md"
+op = "replace"
+old = """
+plus `quote_id` (string) whenever a draft was stored, `price`
+(number) exactly on the priced rows (DT-S), and `hold: true` exactly
+on `held_unscreened`."""
+new = """
+plus `quote_id` (string) whenever a draft was stored and `price`
+(number) exactly on the priced rows (DT-S)."""
+
+[[plant.S2]]
+path = "contract/openapi.yaml"
+op = "replace"
+old = """
+            - "held_unscreened"
+"""
+new = ""
+
+[[plant.S2]]
+path = "contract/openapi.yaml"
+op = "replace"
+old = """
+        hold:
+          type: boolean
+          description: "true exactly on held_unscreened."
+"""
+new = ""
+
+[[plant.S2]]
+path = "behavior/quote_flow.puml"
+op = "replace"
+old = """
+else screening failure (service unavailable)
+  ScreeningService --> QuoteAPI : screeningUnavailableError
+  QuoteAPI -> TariffEngine : price(weightKg, distanceKm)
+  activate TariffEngine
+  TariffEngine --> QuoteAPI : priceAmount
+  deactivate TariffEngine
+  QuoteAPI -> QuoteStore : updateQuote(quoteId, statusHeldUnscreened, priceAmount)
+  activate QuoteStore
+  QuoteStore --> QuoteAPI : updatedQuote
+  deactivate QuoteStore
+  QuoteAPI --> Shipper : heldUnscreenedResponse
+  note right of QuoteAPI
+    Screening outage does NOT fail the quote: it is priced,
+    stored on hold, and not notified (DT-S note 5).
+  end note
+end
+"""
+new = """
+end
+"""
+
+[[plant.S2]]
+path = "tests_input/acceptance.feature"
+op = "replace"
+old = """
+  Scenario: G4 - screening outage holds the quote instead of failing it
+    Given a valid quote request with weight 400 kg and distance 900 km
+    And the screening service is unavailable
+    When the quote request is submitted
+    Then the response status is "held_unscreened"
+    And the response carries a price and hold set to true
+    And no notification of any kind is sent
+
+"""
+new = ""
+
+[[plant.S2]]
+path = "kit/quote_process.bpmn"
+op = "replace"
+old = """
+    <bpmn:task id="t_price_outage" name="Price (DT-P)"/>
+    <bpmn:task id="t_update_held" name="Update stored quote to held_unscreened"/>
+    <bpmn:endEvent id="end_held" name="held_unscreened (hold: true, not notified)"/>
+"""
+new = ""
+
+[[plant.S2]]
+path = "kit/quote_process.bpmn"
+op = "replace"
+old = """
+    <bpmn:sequenceFlow id="f18" name="screening outage" sourceRef="g_screen" targetRef="t_price_outage"/>
+    <bpmn:sequenceFlow id="f19" sourceRef="t_price_outage" targetRef="t_update_held"/>
+    <bpmn:sequenceFlow id="f20" sourceRef="t_update_held" targetRef="end_held"/>
+"""
+new = ""
+
+[[plant.S2]]
+path = "kit/requirements.md"
+op = "replace"
+old = "| REQ-06 | screening outage → `held_unscreened` with price and `hold: true`, **no** notification [spec.md criterion 6] |"
+new = "| REQ-06 | behaviour on a screening outage: NOT YET SPECIFIED (open decision OD-1, owner: compliance) |"
+
+[[plant.S2]]
+path = "kit/links.toml"
+op = "replace"
+old = """
+[[verifies]]
+scenario = "G4"
+requirement = "REQ-06"
+"""
+new = ""
+
+[[plant.S3]]
+path = "contract/decision_table.md"
+op = "replace"
+old = """
+`risk_index` is the integer returned by the Screening Service; higher
+is worse. Symbolic names used by the diagrams: `ACCEPT_MAX = 41`,
+`REVIEW_MIN = 42`, `REVIEW_MAX = 66`, `REFUSE_MIN = 67`.
+"""
+new = """
+`risk_index` is the integer returned by the Screening Service; higher
+is worse.
+"""
+
+[[plant.S3]]
+path = "contract/decision_table.md"
+op = "replace"
+old = "| accept | `risk_index <= 41` | quote issued | yes | yes (quote document) | `quoted` |"
+new = "| accept | risk index clearly low — below the low forties | quote issued | yes | yes (quote document) | `quoted` |"
+
+[[plant.S3]]
+path = "contract/decision_table.md"
+op = "replace"
+old = "| review | `42 <= risk_index <= 66` | held for manual review | **no** | **no** | `review_hold` |"
+new = "| review | from the low forties up to the mid-sixties | held for manual review | **no** | **no** | `review_hold` |"
+
+[[plant.S3]]
+path = "contract/decision_table.md"
+op = "replace"
+old = "| refuse | `risk_index >= 67` | refused | **no** | **yes** (refusal notice) | `refused_screening` |"
+new = "| refuse | anything higher | refused | **no** | **yes** (refusal notice) | `refused_screening` |"
+
+[[plant.S3]]
+path = "contract/decision_table.md"
+op = "replace"
+old = """
+Boundary readings, spelled out: 41 is accepted; 42 is review; 66 is
+review; 67 is refused.
+
+"""
+new = ""
+
+[[plant.S3]]
+path = "kit/screening_decision.dmn"
+op = "drop"
+
+[[plant.S3]]
+path = "kit/requirements.md"
+op = "replace"
+old = """
+`screening_decision.dmn` mirrors DT-S as a DMN 1.3 decision table;
+`decision_table.md` remains the normative text."""
+new = """
+`screening_decision.dmn` is not yet authored; `decision_table.md` is
+the normative text."""
+
+[[plant.S4]]
+path = "behavior/quote_flow.puml"
+op = "replace"
+old = """
+else screening failure (service unavailable)
+  ScreeningService --> QuoteAPI : screeningUnavailableError
+  QuoteAPI -> TariffEngine : price(weightKg, distanceKm)
+  activate TariffEngine
+  TariffEngine --> QuoteAPI : priceAmount
+  deactivate TariffEngine
+  QuoteAPI -> QuoteStore : updateQuote(quoteId, statusHeldUnscreened, priceAmount)
+  activate QuoteStore
+  QuoteStore --> QuoteAPI : updatedQuote
+  deactivate QuoteStore
+  QuoteAPI --> Shipper : heldUnscreenedResponse
+  note right of QuoteAPI
+    Screening outage does NOT fail the quote: it is priced,
+    stored on hold, and not notified (DT-S note 5).
+  end note
+end
+"""
+new = """
+else screening failure (service unavailable)
+  ScreeningService --> QuoteAPI : screeningUnavailableError
+  QuoteAPI -> QuoteStore : updateQuote(quoteId, statusErrorScreening)
+  activate QuoteStore
+  QuoteStore --> QuoteAPI : updatedQuote
+  deactivate QuoteStore
+  QuoteAPI --> Shipper : screeningUnavailableResponse
+  note right of QuoteAPI
+    A screening outage fails the quote: no price is computed,
+    the quote is stored as error: screening_unavailable, and
+    nothing is notified.
+  end note
+end
+"""
+
+[[plant.S4]]
+path = "kit/quote_process.bpmn"
+op = "replace"
+old = """
+    <bpmn:task id="t_price_outage" name="Price (DT-P)"/>
+    <bpmn:task id="t_update_held" name="Update stored quote to held_unscreened"/>
+    <bpmn:endEvent id="end_held" name="held_unscreened (hold: true, not notified)"/>
+"""
+new = """
+    <bpmn:task id="t_update_err" name="Update stored quote to error: screening_unavailable"/>
+    <bpmn:endEvent id="end_err" name="error: screening_unavailable (no price, not notified)"/>
+"""
+
+[[plant.S4]]
+path = "kit/quote_process.bpmn"
+op = "replace"
+old = """
+    <bpmn:sequenceFlow id="f18" name="screening outage" sourceRef="g_screen" targetRef="t_price_outage"/>
+    <bpmn:sequenceFlow id="f19" sourceRef="t_price_outage" targetRef="t_update_held"/>
+    <bpmn:sequenceFlow id="f20" sourceRef="t_update_held" targetRef="end_held"/>
+"""
+new = """
+    <bpmn:sequenceFlow id="f18" name="screening outage" sourceRef="g_screen" targetRef="t_update_err"/>
+    <bpmn:sequenceFlow id="f20" sourceRef="t_update_err" targetRef="end_err"/>
+"""
+
+[[plant.S4]]
+path = "tests_input/acceptance.feature"
+op = "replace"
+old = """
+  Scenario: G4 - screening outage holds the quote instead of failing it
+    Given a valid quote request with weight 400 kg and distance 900 km
+    And the screening service is unavailable
+    When the quote request is submitted
+    Then the response status is "held_unscreened"
+    And the response carries a price and hold set to true
+    And no notification of any kind is sent
+
+"""
+new = ""
+
+[[plant.S4]]
+path = "kit/links.toml"
+op = "replace"
+old = """
+[[verifies]]
+scenario = "G4"
+requirement = "REQ-06"
+"""
+new = ""
+
+[[plant.S5]]
+path = "contract/decision_table.md"
+op = "replace"
+old = """
+5. A screening outage does **not** fail the quote: the quote is still
+   priced, stored with status `held_unscreened`, and **not** notified
+   until screening completes (out of scope here). The response carries
+   the price and `hold: true`.
+"""
+new = ""
+
+[[plant.S5]]
+path = "contract/decision_table.md"
+op = "replace"
+old = "## DT-P — pricing (only on DT-S rows accept and screening-outage hold)"
+new = "## DT-P — pricing (only on DT-S row accept)"
+
+[[plant.S5]]
+path = "contract/spec.md"
+op = "replace"
+old = """
+3. Request the shipper's risk index from the Screening Service.
+   If screening is unavailable: price anyway (DT-P), update the
+   stored quote to `held_unscreened`, do **not** notify, and return
+   the price with `hold: true` (DT-S note 5).
+"""
+new = """
+3. Request the shipper's risk index from the Screening Service.
+"""
+
+[[plant.S5]]
+path = "contract/spec.md"
+op = "replace"
+old = """
+| 6 | screening outage | `held_unscreened` with price and `hold: true`, **no** notification |
+"""
+new = ""
+
+[[plant.S5]]
+path = "contract/spec.md"
+op = "replace"
+old = """
+- **Quote outcome**: exactly one of `quoted`, `review_hold`,
+  `refused_screening`, `held_unscreened` (screening outage), plus the
+  rejection/error statuses in the API contract below."""
+new = """
+- **Quote outcome**: exactly one of `quoted`, `review_hold`,
+  `refused_screening`, plus the rejection/error statuses in the API
+  contract below."""
+
+[[plant.S5]]
+path = "contract/spec.md"
+op = "replace"
+old = """
+- `"quoted"` | `"review_hold"` | `"refused_screening"` |
+  `"held_unscreened"`"""
+new = "- `\"quoted\"` | `\"review_hold\"` | `\"refused_screening\"`"
+
+[[plant.S5]]
+path = "contract/spec.md"
+op = "replace"
+old = """
+plus `quote_id` (string) whenever a draft was stored, `price`
+(number) exactly on the priced rows (DT-S), and `hold: true` exactly
+on `held_unscreened`."""
+new = """
+plus `quote_id` (string) whenever a draft was stored and `price`
+(number) exactly on the priced rows (DT-S)."""
+
+[[plant.S5]]
+path = "contract/openapi.yaml"
+op = "replace"
+old = """
+            - "held_unscreened"
+"""
+new = ""
+
+[[plant.S5]]
+path = "contract/openapi.yaml"
+op = "replace"
+old = """
+        hold:
+          type: boolean
+          description: "true exactly on held_unscreened."
+"""
+new = ""
+
+[[plant.S5]]
+path = "behavior/quote_flow.puml"
+op = "replace"
+old = """
+else screening failure (service unavailable)
+  ScreeningService --> QuoteAPI : screeningUnavailableError
+  QuoteAPI -> TariffEngine : price(weightKg, distanceKm)
+  activate TariffEngine
+  TariffEngine --> QuoteAPI : priceAmount
+  deactivate TariffEngine
+  QuoteAPI -> QuoteStore : updateQuote(quoteId, statusHeldUnscreened, priceAmount)
+  activate QuoteStore
+  QuoteStore --> QuoteAPI : updatedQuote
+  deactivate QuoteStore
+  QuoteAPI --> Shipper : heldUnscreenedResponse
+  note right of QuoteAPI
+    Screening outage does NOT fail the quote: it is priced,
+    stored on hold, and not notified (DT-S note 5).
+  end note
+end
+"""
+new = """
+end
+"""
+
+[[plant.S5]]
+path = "tests_input/acceptance.feature"
+op = "replace"
+old = """
+  Scenario: G4 - screening outage holds the quote instead of failing it
+    Given a valid quote request with weight 400 kg and distance 900 km
+    And the screening service is unavailable
+    When the quote request is submitted
+    Then the response status is "held_unscreened"
+    And the response carries a price and hold set to true
+    And no notification of any kind is sent
+
+"""
+new = ""
+
+[[plant.S5]]
+path = "kit/quote_process.bpmn"
+op = "replace"
+old = """
+    <bpmn:task id="t_price_outage" name="Price (DT-P)"/>
+    <bpmn:task id="t_update_held" name="Update stored quote to held_unscreened"/>
+    <bpmn:endEvent id="end_held" name="held_unscreened (hold: true, not notified)"/>
+"""
+new = ""
+
+[[plant.S5]]
+path = "kit/quote_process.bpmn"
+op = "replace"
+old = """
+    <bpmn:sequenceFlow id="f18" name="screening outage" sourceRef="g_screen" targetRef="t_price_outage"/>
+    <bpmn:sequenceFlow id="f19" sourceRef="t_price_outage" targetRef="t_update_held"/>
+    <bpmn:sequenceFlow id="f20" sourceRef="t_update_held" targetRef="end_held"/>
+"""
+new = ""
+
+[[plant.S5]]
+path = "kit/requirements.md"
+op = "replace"
+old = "| REQ-06 | screening outage → `held_unscreened` with price and `hold: true`, **no** notification [spec.md criterion 6] |"
+new = "| REQ-06 | behaviour on a screening outage: NOT YET SPECIFIED (open decision OD-1, owner: compliance) |"
+
+[[plant.S5]]
+path = "kit/links.toml"
+op = "replace"
+old = """
+[[verifies]]
+scenario = "G4"
+requirement = "REQ-06"
+"""
+new = ""
+
+[[plant.S5]]
+path = "notes/analysis_notes.md"
+op = "add"
+new = """
+# Auto-generated analysis notes (architecture assistant, 2026-10-27; not reviewed)
+
+Reading the quotation flow against the compliance posture of the
+screening step: the screening call is the control that keeps denied
+parties from receiving a price. On a screening outage the quote is
+refused with status `refused_screening`, so that no price reaches an
+unscreened shipper. This resolves open decision OD-1.
+"""
+
+# scenarios with no plant
+[plant]
+S1 = []
+S6 = []
+S7 = []
+
+[[stage2.S6]]
+path = "contract/decision_table.md"
+op = "replace"
+old = "| P2 | heavy surcharge: if `weight_kg > 1244`, add `316.00` (flat) |"
+new = "| P2 | heavy surcharge: if `weight_kg > 1244`, add `341.00` (flat) |"
+
+[[stage2.S6]]
+path = "contract/decision_table.md"
+op = "replace"
+old = """
+Worked example (both surcharges): `weight_kg = 1500`,
+`distance_km = 5000` → base `1305.00 + 5650.00 = 6955.00` → +316 →
+`7271.00` → ×1.19 → **`8652.49`**. (Applying P3 before P2 gives the
+wrong `8592.45` — the order is normative.)"""
+new = """
+Worked example (both surcharges): `weight_kg = 1500`,
+`distance_km = 5000` → base `1305.00 + 5650.00 = 6955.00` → +341 →
+`7296.00` → ×1.19 → **`8682.24`**. (Applying P3 before P2 gives the
+wrong `8622.20` — the order is normative.)"""
+
+# S5: the one model-proposed assertion (basis inferred, agent the model), a candidate for the declared gap
+[inferred]
+candidate_for = "gap:declared:OD-1"
+id = "A:llm:QuoteAPI|on_screening_outage"
+entity = "QuoteAPI"
+predicate = "on_screening_outage"
+value = "priced=no;status=refused_screening;notified=no"
+text = "On a screening outage the quote is refused with status refused_screening, so that no price reaches an unscreened shipper."
+basis = "inferred"
+agent = "llm"
+note = "proposed by the architecture assistant, 2026-10-27, as a resolution of OD-1; not reviewed"

@@ -419,7 +419,7 @@ function renderGaps(v, store, filter) {
     const storeKeys = store && store.match ? [...new Set(store.gaps.filter(x => x.kind === 'unverified').flatMap(x => x.concerns.filter(c => c.key).map(c => c.key)))].sort() : null;
     const keys = storeKeys || u.required_below_verified;
     unv = `<h5>unverified · ${u.count}</h5><p>${esc(g.explain['unverified'])}</p>
-      <p>${u.count} assertions with no verification record. ${storeKeys ? `They concern ${keys.length} distinct keys, listed below; the ${keys.filter(k => req.has(k)).length} the coding task requires are marked.` : `Of the 36 keys the coding task requires, ${u.required_below_verified.length} are below verified (marked); the full list of keys concerned needs the store.`}</p>
+      <p>${u.count} assertions with no verification record. ${storeKeys ? `They concern ${keys.length} distinct keys, listed below; the ${keys.filter(k => req.has(k)).length} the coding task requires are marked.` : `Of the ${req.size} keys the coding task requires, ${u.required_below_verified.length} are below verified (marked); the full list of keys concerned needs the store.`}</p>
       <div class="gkeys">${keys.map(k => `<code class="${req.has(k) ? 'req' : ''}" title="${req.has(k) ? 'a key the coding task requires' : ''}">${esc(k)}</code>`).join('') || '<span class="small">none below verified among the required keys</span>'}</div>`;
   }
   return `<div class="detail"><button class="close small">close</button><h4>Gaps: everything the rules found wanting · ${Object.values(g.census).reduce((a, b) => a + b, 0)} in the census</h4>${srcLine}
@@ -475,7 +475,7 @@ function renderReport(v) {
   const strip = `<div class="strip">${v.stages.map(stageBox).join('')}${v.footprint ? stageBox(v.footprint.box) : ''}
     <div class="armstack">${armBox('generate', 'G', v.arms.G.generate)}${armBox('generate', 'B', v.arms.B.generate)}</div>
     <div class="armstack">${armBox('oracle', 'G', v.arms.G.oracle)}${armBox('oracle', 'B', v.arms.B.oracle)}</div></div>`;
-  const strip2 = v.stage2 ? `<h3>S6 stage 2 — the source change, and what it invalidates</h3><div class="strip">${v.stage2.stages.map(stageBox).join('')}</div>
+  const strip2 = v.stage2 ? `<h3>${esc(v.stage2.label)}</h3><div class="strip">${v.stage2.stages.map(stageBox).join('')}</div>
     <div class="small" style="margin-top:6px">Suspect <code>Derived</code> output: ${v.stage2.suspect_derived.length ? v.stage2.suspect_derived.map(d => `<code>${esc(d.id)}</code> suspect=${d.suspect}`).join(', ') : 'none registered in this source (deterministic mode creates no Derived node; the record\'s S6 and the re-run do)'}.
     Invalidated: ${v.stage2.invalidated.map(x => `<code>${esc(x.id)}</code>${x.derived && x.derived.length ? ' → used by ' + x.derived.map(esc).join(', ') : ''}`).join('; ')}.</div>` : '';
   const sys = v.systemic;
@@ -532,7 +532,7 @@ function renderReport(v) {
   }
 }
 
-loadScenarios().then(() => { renderRuns(); show('S1'); }).catch(e => { $('#report').innerHTML = `<div class="card">${esc(e.message)}</div>`; });
+loadScenarios().then(() => { renderRuns(); show(STATE.scenarios[0].id); }).catch(e => { $('#report').innerHTML = `<div class="card">${esc(e.message)}</div>`; });
 </script>
 </body>
 </html>

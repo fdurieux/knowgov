@@ -1,8 +1,8 @@
-"""Read the CargoQuote kit and the authored inputs into memory, then apply
-a scenario's plant (plant.py). Nothing here touches the committed kit.
+"""Read the subject's artefacts into memory, then apply a scenario's plant (plant.py).
+Nothing here touches the committed files.
 
-Keys are kit-relative paths; the three authored files and links.toml are
-under ``kit/`` and come from the vendored subject's kg_experiment/kit/.
+Keys are the artefact keys the subject manifest declares (the record's names for the
+documents); the bytes come from the paths it names, relative to the subject root.
 """
 
 from __future__ import annotations
@@ -10,45 +10,15 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent                     # harness/
-ROOT = HERE.parent                                         # the repository
-SUBJECT = ROOT / "subjects" / "cargo_quote"                 # the vendored subject, pumllint's layout kept (SOURCE.md)
-EXP = SUBJECT / "kg_experiment"                             # the kit and the record
-REPO = SUBJECT
-CARGO = REPO / "stack_experiment" / "cargo_quote"
+from subject import SUBJECT, ROOT, HERE
 
-# Fixed order: the baseline arm concatenates in this order (§7 of the
-# pre-registration).
-KIT_FILES = [
-    ("kit/requirements.md", EXP / "kit" / "requirements.md"),
-    ("contract/decision_table.md", CARGO / "contract" / "decision_table.md"),
-    ("contract/spec.md", CARGO / "contract" / "spec.md"),
-    ("contract/openapi.yaml", CARGO / "contract" / "openapi.yaml"),
-    ("behavior/quote_flow.puml", CARGO / "behavior" / "quote_flow.puml"),
-    ("structure/containers.puml", CARGO / "structure" / "containers.puml"),
-    ("kit/quote_process.bpmn", EXP / "kit" / "quote_process.bpmn"),
-    ("kit/screening_decision.dmn", EXP / "kit" / "screening_decision.dmn"),
-    ("tests_input/acceptance.feature", CARGO / "tests_input" / "acceptance.feature"),
-    ("kit/links.toml", EXP / "kit" / "links.toml"),
-]
-
-FAMILY = {
-    "kit/requirements.md": ("requirements", "markdown"),
-    "contract/decision_table.md": ("decision_tables", "markdown"),
-    "contract/spec.md": ("specification", "markdown"),
-    "contract/openapi.yaml": ("api", "openapi-3.0"),
-    "behavior/quote_flow.puml": ("behaviour", "plantuml-sequence"),
-    "structure/containers.puml": ("structure", "c4-plantuml"),
-    "kit/quote_process.bpmn": ("process", "bpmn-2.0"),
-    "kit/screening_decision.dmn": ("decision", "dmn-1.3"),
-    "tests_input/acceptance.feature": ("tests", "gherkin"),
-    "kit/links.toml": ("links", "toml"),
-    "notes/analysis_notes.md": ("notes", "markdown"),
-}
+# Fixed order: the baseline arm concatenates in this order (pre-registration §7).
+KIT_FILES: list[tuple[str, Path]] = SUBJECT.kit_files
+FAMILY: dict[str, tuple[str, str]] = SUBJECT.families
 
 
 def pristine() -> dict[str, str]:
-    return {key: path.read_text(encoding="utf-8") for key, path in KIT_FILES}
+    return SUBJECT.pristine()
 
 
 def sha256(text: str) -> str:
@@ -56,8 +26,8 @@ def sha256(text: str) -> str:
 
 
 def kit_for(scenario: str, stage: int = 1) -> dict[str, str]:
-    """The in-memory kit for a scenario. S6 has two stages: the first is
-    S1's kit, the second applies the tariff change."""
+    """The in-memory kit for a scenario. A scenario with a stage 2 has two kits: the
+    first is the pristine one, the second applies the stage-2 change."""
     from plant import apply_plant  # local import: plant imports nothing
 
     kit = pristine()

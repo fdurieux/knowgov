@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DEST = ROOT / "subjects" / "cargo_quote"
+DEST = ROOT / "subjects" / "cargo_quote" / "vendor"
 PATHS = ("kg_experiment/kit", "kg_experiment/results", "kg_experiment/PREREGISTRATION.md",
          "stack_experiment/cargo_quote", "stack_experiment/smoke_test.py",
          "tools/acceptance/__init__.py", "tools/acceptance/cargo_quote_suite.py",

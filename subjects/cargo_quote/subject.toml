@@ -1,0 +1,229 @@
+# The CargoQuote subject: what the harness loads and the page shows. Paths are relative to this
+# directory. Written from the harness and the page as they stood at the move (decision-0001).
+# The format is documented in subjects/README.md.
+
+[subject]
+id = "cargo_quote"
+name = "CargoQuote"
+description = "A fictional freight quoting service: the kit of pumllint's governed-knowledge experiment, synthetic content, no bank data."
+record_model = "gpt-5.1-2025-11-13"
+
+# The artefacts, in the order the baseline arm concatenates them (pre-registration §7). key is the
+# name the harness and the record use; path is where the bytes are (absent when a plant adds the
+# artefact); mapper names the deterministic extractor; store = false keeps a document out of the store.
+[[artefact]]
+key = "kit/requirements.md"
+short = "req"
+family = "requirements"
+format = "markdown"
+label = "requirements"
+format_label = "markdown"
+path = "vendor/kg_experiment/kit/requirements.md"
+mapper = "requirements"
+
+[[artefact]]
+key = "contract/decision_table.md"
+short = "dt"
+family = "decision_tables"
+format = "markdown"
+label = "decision tables"
+format_label = "markdown"
+path = "vendor/stack_experiment/cargo_quote/contract/decision_table.md"
+mapper = "decision_table"
+
+[[artefact]]
+key = "contract/spec.md"
+short = "spec"
+family = "specification"
+format = "markdown"
+label = "specification"
+format_label = "markdown"
+path = "vendor/stack_experiment/cargo_quote/contract/spec.md"
+mapper = "spec"
+
+[[artefact]]
+key = "contract/openapi.yaml"
+short = "oas"
+family = "api"
+format = "openapi-3.0"
+label = "API contract"
+format_label = "OpenAPI 3.0"
+path = "vendor/stack_experiment/cargo_quote/contract/openapi.yaml"
+mapper = "openapi"
+
+[[artefact]]
+key = "behavior/quote_flow.puml"
+short = "seq"
+family = "behaviour"
+format = "plantuml-sequence"
+label = "behaviour"
+format_label = "PlantUML sequence diagram"
+path = "vendor/stack_experiment/cargo_quote/behavior/quote_flow.puml"
+mapper = "sequence"
+
+[[artefact]]
+key = "structure/containers.puml"
+short = "c4"
+family = "structure"
+format = "c4-plantuml"
+label = "structure"
+format_label = "C4 PlantUML"
+path = "vendor/stack_experiment/cargo_quote/structure/containers.puml"
+mapper = "containers"
+
+[[artefact]]
+key = "kit/quote_process.bpmn"
+short = "bpmn"
+family = "process"
+format = "bpmn-2.0"
+label = "process"
+format_label = "BPMN 2.0"
+path = "vendor/kg_experiment/kit/quote_process.bpmn"
+mapper = "bpmn"
+
+[[artefact]]
+key = "kit/screening_decision.dmn"
+short = "dmn"
+family = "decision"
+format = "dmn-1.3"
+label = "decision"
+format_label = "DMN 1.3"
+path = "vendor/kg_experiment/kit/screening_decision.dmn"
+mapper = "dmn"
+
+[[artefact]]
+key = "tests_input/acceptance.feature"
+short = "gherkin"
+family = "tests"
+format = "gherkin"
+label = "tests"
+format_label = "Gherkin"
+path = "vendor/stack_experiment/cargo_quote/tests_input/acceptance.feature"
+mapper = "gherkin"
+
+[[artefact]]
+key = "kit/links.toml"
+short = "links"
+family = "links"
+format = "toml"
+label = "links"
+format_label = "TOML"
+path = "vendor/kg_experiment/kit/links.toml"
+mapper = "links"
+
+[[artefact]]
+key = "notes/analysis_notes.md"
+family = "notes"
+format = "markdown"
+label = "notes"
+format_label = "markdown"
+store = false
+
+# the code the oracle verified; its digest is the execution evidence
+[reference]
+code = "vendor/stack_experiment/cargo_quote/reference_impl.py"
+
+[oracle]
+script = "vendor/stack_experiment/smoke_test.py"
+status_scenario = "screening_down_hold"   # the suite scenario whose detail carries the status the code returned
+suite_order = [
+  "quoted_low_risk",
+  "accept_boundary_41",
+  "review_boundary_42",
+  "refuse_boundary_67",
+  "refuse_high_risk",
+  "price_exact_heavy",
+  "price_exact_both",
+  "invalid_weight_low",
+  "invalid_value_over",
+  "screening_down_hold",
+  "store_down_error",
+]
+
+[provenance]
+harness_name = "kg_experiment harness"
+human = { id = "agent:maintainer", name = "maintainer (authoring 2026-10-30; review record 2026-08-06)" }
+llm = { id = "agent:llm", name = "architecture assistant (2026-10-27)" }
+inference_at = "2026-10-27T00:00:00+00:00"
+inference_tool = "architecture assistant"
+
+[verification]
+map = "vendor/kg_experiment/kit/verification_map.toml"
+execution_scope = "suite scenario {scenario} on reference_impl.py (smoke 2026-10-30)"
+review = { at = "2026-08-06", scope = "vendor/stack_experiment/README.md, Verified state (2026-08-06)" }
+authored = { at = "2026-10-30", scope = "authored 2026-10-30 from spec.md and decision_table.md, verbatim" }
+approval = { at = "2026-08-06", record = "vendor/stack_experiment/README.md Verified state" }
+
+# the required keys per task class (pre-registration §6), frozen
+[tasks.codegen]
+keys = [
+  "shipper_id|present",
+  "weight_kg|min",
+  "weight_kg|max",
+  "distance_km|min",
+  "distance_km|max",
+  "declared_value|min",
+  "declared_value|max",
+  "invalid_request|behaviour",
+  "S-accept|max",
+  "S-accept|priced",
+  "S-accept|notified",
+  "S-accept|status",
+  "S-review|min",
+  "S-review|max",
+  "S-review|priced",
+  "S-review|notified",
+  "S-review|status",
+  "S-refuse|min",
+  "S-refuse|priced",
+  "S-refuse|notified",
+  "S-refuse|status",
+  "QuoteAPI|on_store_failure",
+  "QuoteAPI|on_notification_failure",
+  "QuoteAPI|on_screening_outage",
+  "P1|formula",
+  "P2|threshold",
+  "P2|surcharge",
+  "P3|threshold",
+  "P3|factor",
+  "P3|order",
+  "P4|rounding",
+  "flow|order",
+  "response|statuses",
+  "response|price_presence",
+  "response|hold_presence",
+  "response|quote_id_presence",
+]
+block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
+max_unverified_share = 0.25
+
+# D5: the three-valued answer, measured on the scenario that asks for it
+[three_valued]
+keys = ["S-review|notified", "S-refuse|notified", "QuoteAPI|notified_after_screening"]
+
+[record]
+dir = "vendor/kg_experiment/results"
+
+# the no-governance reference the page cites
+[page.reference]
+title = "Without governance — the degradation test (recreate_experiment/degradation-2026-10-28, graded 2026-10-29)"
+text = "Six of the fifteen planted defects reached the code, all six concealed by the arm's own suite and caught by the pristine one; every outcome the one the kit's precedence rule gives."
+numbers = { planted = 15, reached_code = 6, concealed_by_own_suite = 6, caught_by_pristine_suite = 6 }
+
+# The rules' subject constants (pre-registration §4): the vague-wording list, which key a declared-open
+# requirement governs, and the declared gap R-REQ raises for a requirement whose text says NOT YET SPECIFIED.
+[rules]
+vague_words = ["around", "roughly", "approximately", "low forties", "mid-sixties", "clearly", "as soon as", "usable", "appropriate", "anything higher"]
+declared_gap_id = "gap:declared:OD-1"
+declared_gap_text = "{req} is NOT YET SPECIFIED (open decision OD-1, owner: compliance)"
+
+[rules.requirement_keys]
+"REQ-06" = "QuoteAPI|on_screening_outage"
+
+# The register view: the approved key-to-node map, the evidence anchor the register's links use for a
+# requirement, the export folder's manifest in the vendored register, and the artefact the stage-2
+# change touches (the links citing it light up in the footprint).
+[register]
+map = "register_map.toml"
+requirement_anchor = "kit:requirements.md#"
+export_manifest = "exports/kit/2026-10-30/MANIFEST.toml"

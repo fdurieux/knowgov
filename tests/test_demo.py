@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DEMO = ROOT / "demo"
 APP = DEMO / "app"
-RESULTS = ROOT / "subjects" / "cargo_quote" / "kg_experiment" / "results"   # the vendored record
+RESULTS = ROOT / "subjects" / "cargo_quote" / "vendor" / "kg_experiment" / "results"   # the vendored record
 NO_RUNS = ROOT / "nonexistent-demo-runs"
 
 sys.path.insert(0, str(APP))
@@ -111,10 +111,10 @@ def test_layout_tables_match_their_source_note():
 
 def test_compare_tool_finds_the_record_identical_to_itself():
     n, lines = compare_deterministic.compare(RESULTS, RESULTS, compare_deterministic.SCENARIOS,
-                                             s6_record=RESULTS / "S6")
+                                             record_for={"S6": RESULTS / "S6"})
     assert n == 0, lines
     # and the deterministic-mode S6 record differs from the scored one only by the Derived node
-    n, lines = compare_deterministic.compare(RESULTS / "d3check", RESULTS, ["S6"], s6_record=RESULTS / "S6")
+    n, lines = compare_deterministic.compare(RESULTS / "d3check", RESULTS, ["S6"], record_for={"S6": RESULTS / "S6"})
     assert n > 0 and all("derived" in ln.lower() or "census_after" in ln or "valid_until" in ln or "S6" in ln for ln in lines), lines
 
 
@@ -154,8 +154,8 @@ def test_arms_model_defaults_to_the_records_and_is_overridable():
     """The harness's model comes from KG_ARMS_MODEL with the record's model as the
     default, the view names the same record model, and the page offers the toggle."""
     arms = (ROOT / "harness" / "arms.py").read_text(encoding="utf-8")
-    m = re.search(r'^RECORD_MODEL = "([^"]+)"', arms, re.M)
-    assert m and m.group(1) == views.RECORD_MODEL == "gpt-5.1-2025-11-13"
+    assert "RECORD_MODEL = SUBJECT.record_model" in arms, "the record's model is the subject's"
+    assert views.RECORD_MODEL == views.SUBJECT.record_model == "gpt-5.1-2025-11-13"
     assert 'MODEL = os.environ.get("KG_ARMS_MODEL") or RECORD_MODEL' in arms
     page = (APP / "index.html").read_text(encoding="utf-8")
     assert 'name="am" value="record"' in page and 'name="am" value="other"' in page

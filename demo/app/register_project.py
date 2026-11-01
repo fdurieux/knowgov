@@ -19,7 +19,7 @@ from pathlib import Path
 import register_view
 
 REGISTER = register_view.REGISTER
-MANIFEST = REGISTER / "exports" / "kit" / "2026-10-30" / "MANIFEST.toml"
+MANIFEST = REGISTER / register_view.EXPORT_MANIFEST   # the kit export the subject names
 NODE_LABELS = ("RegNode", "RegLink", "RegType", "RegException", "RegDocument", "RegExternal")
 
 

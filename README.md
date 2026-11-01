@@ -17,7 +17,7 @@ scenarios, re-runs them against the database, and shows the register's impact wa
 |---|---|---|
 | `harness/` | the pipeline: reading the subject's documents into statements, loading them into the store with their provenance, the seven checking rules, the gate, the two assistant arms | this repository |
 | `demo/` | the web page, the vendored Legible model and layout tables, the vendored IEAM register, the comparator, the Dockerfile and compose files | this repository; `demo/register/` by `tools/vendor_register.py` |
-| `subjects/cargo_quote/` | the CargoQuote subject (its documents, the acceptance oracle) and the record of the proof of concept, byte for byte from pumllint at the commit `SOURCE.md` names | `tools/vendor_subject.py`, never by hand |
+| `subjects/<id>/` | a subject: its manifest, scenarios, plants, saved queries, register map and prompts ([`subjects/README.md`](subjects/README.md)); `cargo_quote/` carries pumllint's kit, oracle and record byte for byte under `vendor/`, `minimal/` is the smallest one | this repository; `vendor/` by `tools/vendor_subject.py`, never by hand |
 | `runs/` | re-runs, in dated folders; ignored by git, never the record | the page or the harness |
 | `backlog/` | the queue, the decisions and the briefs ([Backlog.md](https://github.com/MrLesk/Backlog.md)) | the `backlog` command |
 | `tests/` | the checks; `python tests/run_tests.py` needs the standard library only | this repository |

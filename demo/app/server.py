@@ -11,7 +11,7 @@ Environment:
     KG_NEO4J_PASSWORD the store's password (kgpoc2026, the harness default)
     KG_BROWSER_URL    where the viewer's browser reaches Neo4j Browser (http://localhost:7474)
     KG_DEMO_RUNS      where re-runs land (runs/); the vendored record under
-                      subjects/cargo_quote/kg_experiment/results/ is never written
+                      the subject's vendored record is never written
     OPENAI_API_KEY    enables the arms mode; passed through to the harness, never stored
 """
 
@@ -37,8 +37,10 @@ import register_project  # noqa: E402  (the register projected into the store, i
 import register_view  # noqa: E402  (the vendored IEAM register, read only)
 
 ROOT = HERE.parent.parent
-EXP = ROOT / "subjects" / "cargo_quote" / "kg_experiment"   # the vendored subject: the kit and the record
 HARNESS = ROOT / "harness"
+sys.path.insert(0, str(HARNESS))
+from subject import SUBJECT  # noqa: E402  (the subject root: KG_SUBJECT, default subjects/cargo_quote)
+RECORD = SUBJECT.record_dir
 RUNS_DIR = Path(os.environ.get("KG_DEMO_RUNS", str(ROOT / "runs")))
 NEO4J_URI = os.environ.get("KG_NEO4J_URI", "bolt://localhost:7687")
 NEO4J_PASSWORD = os.environ.get("KG_NEO4J_PASSWORD", "kgpoc2026")
@@ -56,37 +58,6 @@ INDEX = (HERE / "index.html").read_bytes()
 CYPHER = [
     {"id": "loaded", "needs": "scenario", "title": "Which scenario is loaded",
      "text": "MATCH (a:Activity) WHERE a.id STARTS WITH 'act:extract:'\nRETURN a.id AS activity, a.at AS at, a.note AS note ORDER BY a.at"},
-    {"id": "three-valued", "needs": "scenario", "title": "The three-valued answer (D5; S1): asserted, documented absent, unknown",
-     "text": ("// documented absence: every live assertion on the key says NONE\n"
-              "MATCH (x:Assertion {key:'S-review|notified'}) RETURN x.id, x.value, x.status;\n"
-              "// asserted: a value\n"
-              "MATCH (x:Assertion {key:'S-refuse|notified'}) RETURN x.id, x.value, x.status;\n"
-              "// unknown: no assertion at all (not a documented absence)\n"
-              "MATCH (x:Assertion {key:'QuoteAPI|notified_after_screening'}) RETURN count(x) AS n")},
-    {"id": "gate", "needs": "scenario", "title": "The gate's view of one required key",
-     "text": ("MATCH (x:Assertion {key:'P2|surcharge'})\n"
-              "OPTIONAL MATCH (x)-[:SUPPORTED_BY]->(f:Fragment)\n"
-              "OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x)\n"
-              "OPTIONAL MATCH (ap:Approval)-[:APPROVES]->(x)\n"
-              "RETURN x.id, x.value, x.basis, x.status, collect(DISTINCT f.locator) AS evidence,\n"
-              "       collect(DISTINCT v.method) AS verified_by, count(DISTINCT ap) AS approvals")},
-    {"id": "invalidation", "needs": "S6", "title": "The invalidation traversal (S6): changed fragments → assertions → verifications → Derived",
-     "text": ("MATCH (a:Artefact)-[:CURRENT]->(cur:Version {tag:'v2'})\n"
-              "MATCH (a)-[:HAS_VERSION]->(old:Version {tag:'v1'})-[:HAS_FRAGMENT]->(f:Fragment)\n"
-              "WHERE NOT (cur)-[:HAS_FRAGMENT]->(f)\n"
-              "MATCH (x:Assertion {status:'invalidated'})-[:SUPPORTED_BY]->(f)\n"
-              "OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x)\n"
-              "OPTIONAL MATCH (d:Derived)-[:USED_ASSERTION]->(x)\n"
-              "OPTIONAL MATCH (succ:Assertion {key:x.key, version:'v2'})\n"
-              "RETURN f.locator AS changed_fragment, x.id AS invalidated, x.value AS old_value,\n"
-              "       collect(DISTINCT v.id + ' valid_until=' + coalesce(v.valid_until,'∅')) AS verifications_ended,\n"
-              "       collect(DISTINCT d.id + ' suspect=' + toString(d.suspect)) AS derived,\n"
-              "       collect(DISTINCT succ.id + ' ' + succ.value + ' ' + succ.status) AS successor")},
-    {"id": "contradiction", "needs": "S4", "title": "The contradiction pairs (S4)",
-     "text": ("MATCH (a:Assertion)-[:CONTRADICTS]->(b:Assertion) WHERE a.id < b.id\n"
-              "OPTIONAL MATCH (g:Gap {kind:'conflict'})-[:CONCERNS]->(a)\n"
-              "RETURN a.key AS key, a.artefact AS side_a, a.value AS value_a, b.artefact AS side_b, b.value AS value_b,\n"
-              "       a.status AS status, collect(DISTINCT g.id) AS conflict_gaps")},
     {"id": "gaps", "needs": "scenario", "title": "The gap census",
      "text": ("MATCH (g:Gap)\n"
               "OPTIONAL MATCH (g)-[:CONCERNS]->(t)\n"
@@ -128,12 +99,17 @@ CYPHER = [
 # What each saved query needs in the store before it returns rows: the store holds one scenario
 # at a time and the register only when projected, so a query run against the wrong state gets
 # Neo4j's "label not in the database" warnings and no records. The page marks each entry live.
-NEEDS_TEXT = {"scenario": "any loaded scenario", "S6": "S6 loaded deterministically", "S4": "S4 loaded",
+NEEDS_TEXT = {"scenario": "any loaded scenario",
               "register": "the register projected", "register+scenario": "the register projected and a loaded scenario"}
 
 
 def cypher_list() -> list[dict]:
-    return [dict(q, needs_text=NEEDS_TEXT[q["needs"]]) for q in CYPHER]
+    """The page's generic queries, then the subject's own (queries.toml), each with what it needs."""
+    out = []
+    for q in CYPHER + SUBJECT.queries:
+        needs_text = q.get("needs_text") or NEEDS_TEXT.get(q["needs"]) or f"{q['needs']} loaded"
+        out.append(dict(q, needs_text=needs_text))
+    return out
 
 
 # ------------------------------------------------------------------ the store
@@ -229,16 +205,17 @@ class Runner:
                 out_dir = RUNS_DIR / f"{stamp}-{k}"
                 k += 1
             out_dir.mkdir(parents=True)
-            if scenario == "S6":
-                # the record's stage 2 registers S1's first governed output as the
-                # Derived artefact; give the re-run the same object to invalidate, in
-                # both modes: the harness reads <out>/S1/run1_G.py whether or not the
-                # arms are called, and without it a deterministic S6 has no Derived
+            derived = SUBJECT.scenarios.get(scenario, {}).get("stage2", {}).get("derived")
+            if derived:
+                # the record's stage 2 registers an earlier scenario's governed output as the
+                # Derived artefact; give the re-run the same object to invalidate, in both
+                # modes: the harness reads <out>/<from_scenario>/<file> whether or not the
+                # arms are called, and without it a deterministic stage 2 has no Derived
                 # node to mark suspect (found by the maintainer's traversal, 2026-11-01)
-                src = EXP / "results" / "S1" / "run1_G.py"
+                src = RECORD / derived["from_scenario"] / derived["file"]
                 if src.exists():
-                    (out_dir / "S1").mkdir()
-                    shutil.copy(src, out_dir / "S1" / "run1_G.py")
+                    (out_dir / derived["from_scenario"]).mkdir()
+                    shutil.copy(src, out_dir / derived["from_scenario"] / derived["file"])
             cmd = [sys.executable, "run.py", "--scenarios", scenario, "--out", str(out_dir)]
             cmd += ["--deterministic"] if mode == "deterministic" else ["--n", str(n)]
             env = {**os.environ, "KG_NEO4J_URI": NEO4J_URI, "KG_NEO4J_PASSWORD": NEO4J_PASSWORD,
