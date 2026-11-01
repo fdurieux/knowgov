@@ -65,6 +65,12 @@ def test_comparator_skips_d1_across_store_kinds_and_ignores_scalar_list_order():
         (d / "run" / "S9" / "deterministic.json").write_text(json.dumps(run), encoding="utf-8")
         n, lines = cd.compare(d / "run", d / "record", ["S9"])
         assert n == 1 and any("message" in ln for ln in lines), lines
+        # a known difference drops one field under one prefix against the named record folder only
+        known = {"S9": [{"records": ["S9"], "prefix": "D1_constraints", "field": "message", "why": "the message is the edition's"}]}
+        n, lines = cd.compare(d / "run", d / "record", ["S9"], known=known)
+        assert n == 0 and any(ln == "known: the message is the edition's" for ln in lines), lines
+        n, lines = cd.compare(d / "run", d / "record", ["S9"], known={"S9": [{"records": ["other/S9"], "prefix": "D1_constraints", "field": "message", "why": "x"}]})
+        assert n == 1, "a known difference for another folder does not apply"
 
 
 def test_only_the_adapter_speaks_cypher():

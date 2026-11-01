@@ -211,6 +211,18 @@ note = "Arm B wrote fresh code from the current documents and passed 11 of 11. I
 [scenario.page]
 oracle = ["S6 asks for the new prices."]
 
+# A difference between every re-run and the scored record that is the record's, not the store's:
+# the scored run (and its re-run with the corrected bundle) predates the staleness stamp, so the
+# three ended verifications it lists carry no valid_until, where every run since stamps v2; the
+# record's own deterministic re-establishment (d3check/S6) carries v2. The record is pumllint's
+# and frozen by the pre-registration, so the comparator drops this one field when it compares
+# against those folders and reports the reason instead (knowgov task-0018, 2026-11-01).
+[[scenario.known_differences]]
+records = ["S6", "rerun/S6"]
+prefix = "stage2.gate_after_reverification.stale"
+field = "valid_until"
+why = "the scored record predates the staleness stamp: its ended verifications carry no valid_until, every re-run stamps v2 (pumllint kg_experiment/PREREGISTRATION.md run notes; the record's d3check/S6 carries v2)"
+
 [scenario.stage2]
 artefact = "contract/decision_table.md"
 version = "v2"

@@ -114,8 +114,16 @@ def test_compare_tool_finds_the_record_identical_to_itself():
                                              record_for={"S6": RESULTS / "S6"})
     assert n == 0, lines
     # and the deterministic-mode S6 record differs from the scored one only by the Derived node
-    n, lines = compare_deterministic.compare(RESULTS / "d3check", RESULTS, ["S6"], record_for={"S6": RESULTS / "S6"})
+    n, lines = compare_deterministic.compare(RESULTS / "d3check", RESULTS, ["S6"], record_for={"S6": RESULTS / "S6"}, known={})
     assert n > 0 and all("derived" in ln.lower() or "census_after" in ln or "valid_until" in ln or "S6" in ln for ln in lines), lines
+    assert any("valid_until" in ln for ln in lines), "without the known difference the three valid_until leaves differ"
+    # with the subject's known difference applied, only the derived node's absence remains
+    n2, lines2 = compare_deterministic.compare(RESULTS / "d3check", RESULTS, ["S6"], record_for={"S6": RESULTS / "S6"})
+    assert n2 == n - 3 and not any("valid_until" in ln for ln in lines2 if ln.startswith("  ")), lines2
+    assert any(ln.startswith("known: the scored record predates the staleness stamp") for ln in lines2), lines2
+    # against the record's own deterministic run nothing is dropped: it stays strict
+    n3, lines3 = compare_deterministic.compare(RESULTS / "d3check", RESULTS, ["S6"], record_for={"S6": RESULTS / "d3check" / "S6"})
+    assert n3 == 0 and not any(ln.startswith("known:") for ln in lines3)
 
 
 def test_image_pins_the_versions_the_record_names():

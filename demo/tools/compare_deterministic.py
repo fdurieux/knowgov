@@ -10,7 +10,9 @@ be equal across two executions: wall-clock timestamps (``at``,
 running number R-CONFLICT appends to a conflict gap's id, which follows
 the store's return order (the set of gaps, text included, is compared).
 Lists of scalars are compared as sets (Cypher's collect() answers in
-store order). D1, the constraint measurement of a Neo4j edition, is
+store order). A difference the subject records as the record's own
+(``known_differences`` in its scenarios) is dropped on both sides and
+reported by its reason, never counted. D1, the constraint measurement of a Neo4j edition, is
 compared only between runs of the same store kind: a run on another
 adapter records its store and the comparator says D1 was skipped.
 Everything else — counts, rule hits, census, verdicts, the invalidation
@@ -46,6 +48,28 @@ DETERMINISTIC_RECORDS = {sc: s["deterministic_record"] for sc, s in SUBJECT.scen
 VOLATILE_KEYS = {"at", "ingested_at", "invalidated_at", "sample", "store"}
 # the Neo4j edition's constraint measurement: compared only between runs of the same store kind
 STORE_SPECIFIC = {"D1_constraints"}
+# differences the subject records as the record's own (scenarios.toml, [[scenario.known_differences]]):
+# against the named record folders one field under one leaf prefix is dropped on both sides
+KNOWN = {sc: list(s.get("known_differences", [])) for sc, s in SUBJECT.scenarios.items() if s.get("known_differences")}
+
+
+def _drop_field(obj, prefix: str, field: str) -> None:
+    """Remove ``field`` from every dict under the dotted ``prefix`` (keys only; lists are walked)."""
+    node = obj
+    for part in prefix.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return
+        node = node[part]
+
+    def walk(x):
+        if isinstance(x, dict):
+            x.pop(field, None)
+            for v in x.values():
+                walk(v)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v)
+    walk(node)
 
 
 def _leaves(obj, prefix: str = "") -> dict[str, object]:
@@ -91,8 +115,13 @@ def _strip(obj):
     return obj
 
 
-def compare(run_dir: Path, record_dir: Path, scenarios: list[str], record_for: dict[str, Path] | None = None) -> tuple[int, list[str]]:
-    """``record_for`` names the record folder to read for a scenario instead of ``<record_dir>/<scenario>``."""
+def compare(run_dir: Path, record_dir: Path, scenarios: list[str], record_for: dict[str, Path] | None = None,
+            known: dict[str, list[dict]] | None = None) -> tuple[int, list[str]]:
+    """``record_for`` names the record folder to read for a scenario instead of ``<record_dir>/<scenario>``.
+    ``known`` (default the subject's) names, per scenario, the record folders against which one
+    field under one prefix is a recorded difference: it is dropped on both sides and reported as
+    ``known: <why>`` instead of counted."""
+    known = KNOWN if known is None else known
     lines: list[str] = []
     n_diff = 0
     for sc in scenarios:
@@ -111,6 +140,16 @@ def compare(run_dir: Path, record_dir: Path, scenarios: list[str], record_for: d
             for k in STORE_SPECIFIC:
                 ja.pop(k, None); jb.pop(k, None)
             note = f" ({', '.join(sorted(STORE_SPECIFIC))} skipped: the run's store is {store_a}, the record's {store_b})"
+        applied = []
+        try:
+            rel = rec.resolve().relative_to(record_dir.resolve()).as_posix()
+        except ValueError:
+            rel = ""
+        for kd in known.get(sc, []):
+            if rel in kd.get("records", []):
+                _drop_field(ja, kd["prefix"], kd["field"])
+                _drop_field(jb, kd["prefix"], kd["field"])
+                applied.append(kd["why"])
         la = _leaves(ja)
         lb = _leaves(jb)
         diffs = []
@@ -121,6 +160,7 @@ def compare(run_dir: Path, record_dir: Path, scenarios: list[str], record_for: d
         lines.append(f"{sc} against {b.parent.relative_to(record_dir.parent) if record_dir.parent in b.parents else b.parent}: "
                      f"{len(la)} leaves compared, {len(diffs)} differ" + ("" if diffs else " — identical") + note)
         lines.extend(diffs)
+        lines.extend(f"known: {why}" for why in applied)
     return n_diff, lines
 
 

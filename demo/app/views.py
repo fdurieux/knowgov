@@ -425,6 +425,7 @@ def record_check(scenario: str, d: Path, source: str = "") -> dict | None:
     m = re.search(r"(\d+) leaves compared", compared)
     return {"differ": n, "compared": int(m.group(1)) if m else 0,
             "against": str(rec.relative_to(RESULTS.parent)),
+            "known": [ln[len("known: "):] for ln in lines if ln.startswith("known: ")],
             "lines": [ln.strip() for ln in lines if ln.startswith("  ")][:6]}
 
 
@@ -523,7 +524,11 @@ def narrative(view: dict, det: dict, reg: list) -> list[str]:
                      "The two arms were not called.", "Replay shows the record's runs for this scenario.", "Arms calls them again."))
     if view.get("record_check"):
         rc = view["record_check"]
-        if rc["differ"] == 0:
+        if rc["differ"] == 0 and rc.get("known"):
+            out.append(C(f"Against the record: identical on all {rc['compared']} fields compared with {rc['against']}, timestamps aside.",
+                         "The store reproduced the record.", f"{_plural(len(rc['known']), 'difference')} recorded as the record's own, not counted:")
+                       + " " + D("; ".join(rc["known"]) + "."))
+        elif rc["differ"] == 0:
             out.append(C(f"Against the record: identical on all {rc['compared']} fields compared with {rc['against']}, timestamps aside.",
                          "The store reproduced the record."))
         else:
