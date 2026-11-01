@@ -23,10 +23,12 @@ def _methods(path: Path, cls: str) -> set[str]:
 
 
 def test_adapters_implement_every_port_operation():
-    port = _methods(PORT, "Store") - {"__enter__", "__exit__", "close", "describe", "saved_queries"}
+    console = {"describe", "saved_queries", "console_query"}   # optional: what an adapter with a console offers the page
+    port = _methods(PORT, "Store") - {"__enter__", "__exit__", "close"} - console
     adapter = _methods(ADAPTER, "Neo4jStore")
     assert port and port <= adapter, sorted(port - adapter)
-    extra = adapter - port - {"__init__", "close", "run", "describe", "saved_queries"}
+    assert console <= adapter
+    extra = adapter - port - {"__init__", "close", "run"} - console
     assert not extra, f"the adapter has operations the port does not declare: {sorted(extra)}"
     rdf = _methods(RDFLIB, "RdflibStore")
     assert port <= rdf, sorted(port - rdf)
@@ -90,3 +92,23 @@ def test_port_names_the_adapter_and_the_default():
     adapter = ADAPTER.read_text(encoding="utf-8")
     assert "from neo4j import GraphDatabase" in adapter and adapter.index("class Neo4jStore") < adapter.index("from neo4j import GraphDatabase"), "the driver is imported lazily"
     assert "SAVED_QUERIES" in adapter and "CONSTRAINTS" in adapter
+
+
+def test_saved_query_check_splits_statements_and_only_a_console_store_runs_them():
+    """The check tool runs each ';'-separated statement of a saved query; a comment-only piece
+    is no statement. The port's default has no console (the rdflib adapter keeps it), so it
+    refuses rather than pretending; the tests job has no rdflib, so the port is what is run."""
+    import sys
+    sys.path.insert(0, str(ROOT / "demo" / "tools"))
+    import check_saved_queries as c
+    text = "// documented absence\nMATCH (x) RETURN x;\n// a note alone\n;\nRETURN 1 AS n"
+    assert c.statements(text) == ["// documented absence\nMATCH (x) RETURN x", "RETURN 1 AS n"]
+    sys.path.insert(0, str(ROOT / "harness"))
+    from store import Store
+    try:
+        Store().console_query("RETURN 1")
+    except NotImplementedError as e:
+        assert "no console" in str(e)
+    else:
+        raise AssertionError("the port's default ran a console query")
+    assert "console_query" not in _methods(RDFLIB, "RdflibStore")

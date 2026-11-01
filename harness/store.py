@@ -213,6 +213,11 @@ class Store:
         """The adapter's own saved queries for its console, if it has one."""
         return []
 
+    def console_query(self, text: str) -> list[dict]:
+        """Run one statement of a saved query as the console would and return its rows;
+        only an adapter with a console has one (demo/tools/check_saved_queries.py)."""
+        raise NotImplementedError(f"the {self.name} store has no console")
+
 
 def open_store(kind: str | None = None, **kw: Any) -> Store:
     kind = (kind or os.environ.get("KG_STORE") or "neo4j").lower()

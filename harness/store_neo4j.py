@@ -42,9 +42,9 @@ SAVED_QUERIES = [
     {"id": "gaps-concerns", "needs": "scenario", "title": "The gaps, with what they concern",
      "text": ("MATCH (g:Gap)\n"
               "OPTIONAL MATCH (g)-[r:CONCERNS|CONCERNS_KEY]->(t)\n"
-              "RETURN g.kind AS kind, g.declared AS declared, g.text AS text,\n"
+              "RETURN g.id AS gap, g.kind AS kind, g.declared AS declared, g.text AS text,\n"
               "       collect(DISTINCT coalesce(r.key, t.id)) AS concerns\n"
-              "ORDER BY kind, g.id")},
+              "ORDER BY kind, gap")},
     {"id": "census", "needs": "scenario", "title": "The status census",
      "text": "MATCH (x:Assertion) RETURN x.status AS status, x.basis AS basis, count(*) AS n ORDER BY status, basis"},
     # the register's projection: its own namespace (Register, Reg*, REG_*), loaded on demand, wiped by a run
@@ -488,3 +488,6 @@ class Neo4jStore(Store):
 
     def saved_queries(self) -> list[dict]:
         return list(SAVED_QUERIES)
+
+    def console_query(self, text: str) -> list[dict]:
+        return _rows(self.run(text))
