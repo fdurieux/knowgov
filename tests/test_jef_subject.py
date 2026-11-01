@@ -229,3 +229,24 @@ print("ok")
     assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr[-1500:]
     html = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
     assert "!STATE.recordModel" in html and "the record ran no arm" in html, "the page hides the record's-model choice when there is none"
+
+
+def test_register_card_marks_the_subjects_slice_and_offers_its_application():
+    """One register per organisation (ieam-register decision 0004): on the J-F subject the card lists
+    the jef_kit slice first, names CargoQuote's nodes as the other subject's, and the impact walk
+    starts from jef-data. Asked by the maintainer on seeing CargoQuote's capabilities on the J-F
+    page (2026-11-01)."""
+    code = """
+import sys; sys.path.insert(0, "demo/app")
+import register_view as rv
+v = rv.build()
+assert v["subject_system"] == "jef_kit" and v["slice"] == {"nodes": 29, "links": 37, "other_nodes": 27, "other_systems": ["kit"]}, v["slice"]
+assert v["impact_default"] == "APP-0005" and "This subject's slice is the source system jef_kit: 29 nodes and 37 links." in v["intro"]
+caps = v["nodes_by_taxonomy"]["capabilities"]
+assert [c["id"] for c in caps if c["subject"]] == ["CAP-0006", "CAP-0007", "CAP-0008"] and all(c["system"] == "kit" for c in caps if not c["subject"])
+print("ok")
+"""
+    r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=dict(os.environ, KG_SUBJECT=str(SUBJ)), capture_output=True, text=True)
+    assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr[-1500:]
+    html = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
+    assert 'id="reg-mine"' in html and "r.impact_default" in html, "the card filters to the subject's slice and takes the impact default from the view"
