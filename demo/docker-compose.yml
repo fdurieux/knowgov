@@ -11,6 +11,11 @@
 # Variables, read from the shell or a .env file beside this compose file:
 #   KG_NEO4J_PASSWORD  the store's password (default kgpoc2026, the harness default)
 #   OPENAI_API_KEY     enables the arms mode; passed through to the app only, never baked in
+#   KG_MODEL_BASE_URL  the model endpoint (default api.openai.com): Google's compatible endpoint, or a
+#                      private model behind vLLM, Ollama, LiteLLM or a gateway
+#   KG_MODEL_API_KEY_VAR  the name of the variable holding the key (default OPENAI_API_KEY); the compose
+#                      file passes OPENAI_API_KEY and KG_MODEL_API_KEY through, so name one of those
+#                      or add your own variable to the app service
 #   KG_BROWSER_URL     where the viewer's browser reaches Neo4j Browser (default http://localhost:7474;
 #                      on a server, http://<its address>:7474)
 #   KG_STORE           the store adapter (default neo4j, the only one so far; see harness/store.py)
@@ -50,6 +55,9 @@ services:
       KG_NEO4J_PASSWORD: ${KG_NEO4J_PASSWORD:-kgpoc2026}
       KG_BROWSER_URL: ${KG_BROWSER_URL:-http://localhost:7474}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      KG_MODEL_API_KEY: ${KG_MODEL_API_KEY:-}
+      KG_MODEL_BASE_URL: ${KG_MODEL_BASE_URL:-}
+      KG_MODEL_API_KEY_VAR: ${KG_MODEL_API_KEY_VAR:-OPENAI_API_KEY}
       KG_STORE: ${KG_STORE:-neo4j}
       KG_SUBJECT: ${KG_SUBJECT:-/repo/subjects/cargo_quote}
       KG_ARMS_MODEL: ${KG_ARMS_MODEL:-}   # optional: preselects "another model" on the page; empty keeps the record's

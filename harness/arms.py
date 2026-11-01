@@ -1,5 +1,18 @@
 """The two arms (pre-registration §7): one generator call each, JSON mode.
 
+The model endpoint is instance configuration (option 1 of the brief, doc-0001): one
+OpenAI-compatible endpoint named by three settings, read when a call is made:
+
+    KG_MODEL_BASE_URL      the endpoint (default the OpenAI client's own, api.openai.com);
+                           Google's compatible endpoint, Azure OpenAI, or a private model
+                           behind vLLM, Ollama, LiteLLM or an enterprise gateway go here
+    KG_MODEL_API_KEY_VAR   the name of the variable that holds the key (default OPENAI_API_KEY)
+    KG_ARMS_MODEL          the model name (default the subject's record model)
+
+The arms are enabled only when the named key variable holds a value; a private instance
+that sets none sends nothing anywhere. A model other than the record's is a deviation the
+page marks on every run.
+
 Budget guard: MAX_CALLS and a dollar ceiling over the API's usage field,
 priced at the list rates recorded below (read 2026-10-30; the record
 quotes measured tokens, the dollars are an estimate).
@@ -13,8 +26,6 @@ import threading
 import time
 from pathlib import Path
 
-from openai import OpenAI
-
 HERE = Path(__file__).resolve().parent
 from subject import SUBJECT  # noqa: E402
 
@@ -23,6 +34,7 @@ RECORD_MODEL = SUBJECT.record_model or "gpt-5.1-2025-11-13"  # the model of the 
 # rate limit on a new organisation blocked the governed prompt there); such runs are a
 # deviation the demo page names, and they never write into results/.
 MODEL = os.environ.get("KG_ARMS_MODEL") or RECORD_MODEL
+DEFAULT_BASE_URL = "https://api.openai.com/v1"   # the OpenAI client's own default, named so the page can show it
 MAX_CALLS = 90
 CEILING_USD = 25.0
 PRICE_IN, PRICE_OUT = 1.25 / 1e6, 10.0 / 1e6  # USD per token, the record model's list price read 2026-10-30
@@ -33,6 +45,20 @@ _state = {"calls": 0, "usd": 0.0, "usage": []}
 
 class BudgetExceeded(RuntimeError):
     pass
+
+
+def endpoint() -> dict:
+    """The three instance settings as they stand now, and whether the arms are enabled."""
+    key_var = os.environ.get("KG_MODEL_API_KEY_VAR") or "OPENAI_API_KEY"
+    base_url = os.environ.get("KG_MODEL_BASE_URL") or DEFAULT_BASE_URL
+    model = os.environ.get("KG_ARMS_MODEL") or RECORD_MODEL
+    return {"base_url": base_url, "key_var": key_var, "key_set": bool(os.environ.get(key_var)),
+            "model": model, "record_model": RECORD_MODEL, "deviation": model != RECORD_MODEL}
+
+
+def enabled() -> bool:
+    """True only when the named key variable holds a value: no key, no call, nothing sent."""
+    return endpoint()["key_set"]
 
 
 def policy() -> str:
@@ -58,10 +84,15 @@ def call(system: str, user: str, *, tag: str) -> dict:
         if _state["usd"] >= CEILING_USD:
             raise BudgetExceeded(f"ceiling ${CEILING_USD}")
         _state["calls"] += 1
-    # the scored run went through the session proxy, which injected the key and
-    # ignored the placeholder; outside it (the demo container, a laptop) the key
-    # comes from the environment and is never written to disk
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY") or "proxy-injected", max_retries=0)
+    from openai import OpenAI  # lazy: the module loads without the client installed
+
+    ep = endpoint()
+    # the scored run went through the session proxy, which injected the key and ignored the
+    # placeholder; outside it (the demo container, a laptop) the key comes from the named
+    # variable and is never written to disk; the endpoint is whatever the instance set
+    client = OpenAI(api_key=os.environ.get(ep["key_var"]) or "proxy-injected",
+                    base_url=ep["base_url"] if ep["base_url"] != DEFAULT_BASE_URL else None, max_retries=0)
+    model = ep["model"]
     t0 = time.time()
     attempts = 0
     while True:
@@ -71,11 +102,11 @@ def call(system: str, user: str, *, tag: str) -> dict:
             # silent too long (the OpenWiki record's finding, 2026-10-28); the chunks are
             # concatenated and usage is taken from the final chunk
             stream = client.chat.completions.create(
-                model=MODEL, response_format={"type": "json_object"},
+                model=model, response_format={"type": "json_object"},
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
                 stream=True, stream_options={"include_usage": True},
             )
-            parts, usage_obj, model_name = [], None, MODEL
+            parts, usage_obj, model_name = [], None, model
             for chunk in stream:
                 if chunk.usage:
                     usage_obj = chunk.usage

@@ -348,6 +348,33 @@ the record's (see the next section).
 
 ## Which model the Arms mode calls
 
+**Which endpoint, first.** The arms call one OpenAI-compatible endpoint, named by
+three settings the stack reads from your shell (never written to disk, never baked
+into the image):
+
+| setting | meaning | default |
+|---|---|---|
+| `KG_MODEL_BASE_URL` | the endpoint's base URL | OpenAI's own, `api.openai.com` |
+| `KG_MODEL_API_KEY_VAR` | the *name* of the variable that holds the key | `OPENAI_API_KEY` |
+| `KG_ARMS_MODEL` | the model name | the record's model |
+
+The arms are enabled only when the named key variable holds a value. Set none and
+the Arms buttons stay greyed out, the header chip says which variable to set, and
+nothing is sent anywhere: that is the state a private instance starts in. Three cases:
+
+- **OpenAI**: export `OPENAI_API_KEY` and nothing else.
+- **Google's OpenAI-compatible endpoint**: export `KG_MODEL_BASE_URL` to Google's
+  compatible base URL, `KG_MODEL_API_KEY_VAR=KG_MODEL_API_KEY`, `KG_MODEL_API_KEY` to
+  your Google key, and `KG_ARMS_MODEL` to a Gemini model name.
+- **A private model behind a gateway** (vLLM, Ollama, LiteLLM, an enterprise proxy):
+  export `KG_MODEL_BASE_URL` to the gateway, the key the same way, and the model name
+  the gateway serves.
+
+Whatever the endpoint, a model other than the record's is a deviation: the page marks
+every such run in red and names the model, and the numbers are not comparable with
+the record's. The header chip names the endpoint's host and the key variable, never
+the key.
+
 The record's two arms were answered by `gpt-5.1-2025-11-13`, and the
 demo calls that model by default, so an Arms run is like-for-like with
 the record. That model is a year old, and on a new OpenAI organisation
