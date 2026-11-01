@@ -585,7 +585,8 @@ MAPPERS = len(SUBJECT.mappers)
 
 
 def _table(cols, rows):
-    return {"cols": cols, "rows": [[("" if c is None else str(c)) for c in r] for r in rows]}
+    """Cells are strings, or {text, tip} / {text, ref, tip?} objects the page renders as a hover or a reference."""
+    return {"cols": cols, "rows": [[(c if isinstance(c, (dict, list)) else "" if c is None else str(c)) for c in r] for r in rows]}
 
 
 def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
@@ -827,7 +828,13 @@ def systemic_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
         secs = []
         if lever:
             secs.append({"heading": C("A lever"), "text": C("The model marks this node as one of its four levers.") + " " + D(l2 + ".")})
-        rows = [(eid, a, b, E[eid]["polarity"], E[eid].get("delay") or "", E[eid]["evidence"], E[eid].get("mechanism") or "")
+        def _node_cell(x):   # the node's label, its definition on hover, a click opens its panel
+            mx = N.get(x)
+            return {"ref": f"node:{x}", "text": mx["label"] if mx else cascade.slide.nodes[x][2] if x in cascade.slide.nodes else x,
+                    "tip": (mx["definition"] if mx else "drawn by the slide as context; not in the model's inventory")}
+        ev_tip = {"M": "measured, bounded", "H": "a hypothesis"}
+        rows = [(eid, _node_cell(a), _node_cell(b), E[eid]["polarity"], E[eid].get("delay") or "",
+                 {"text": E[eid]["evidence"], "tip": ev_tip.get(E[eid]["evidence"], E[eid]["evidence"])}, E[eid].get("mechanism") or "")
                 for eid, a, b in cascade.slide.edges if nid in (a, b)]
         secs.append({"heading": C("Edges in the model"),
                      "text": C("Plus means the source raises the target, minus means it lowers it.",

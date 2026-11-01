@@ -362,7 +362,7 @@ function armBox(label, arm, part) { return `<div class="stage ${part.colour}" da
 // a tip {text, tip} that explains itself on hover, or a list of those.
 function cell(c) {
   if (Array.isArray(c)) return c.map(cell).join('');
-  if (c && typeof c === 'object') return c.ref ? `<a href="#" class="xref" data-ref="${esc(c.ref)}">${esc(c.text)}</a>` : `<span class="tip" title="${esc(c.tip)}">${esc(c.text)}</span>`;
+  if (c && typeof c === 'object') return c.ref ? `<a href="#" class="xref" data-ref="${esc(c.ref)}"${c.tip ? ` title="${esc(c.tip)}"` : ''}>${esc(c.text)}</a>` : `<span class="tip" title="${esc(c.tip)}">${esc(c.text)}</span>`;
   return esc(c);
 }
 function renderDetail(d) {
@@ -379,6 +379,11 @@ function wireRefs(root, sub, crumb) {
   root.querySelectorAll('a.xref').forEach(a => a.addEventListener('click', async ev => {
     ev.preventDefault();
     const i = a.dataset.ref.indexOf(':'); const kind = a.dataset.ref.slice(0, i), id = a.dataset.ref.slice(i + 1);
+    if (kind === 'node') {   // a node of the systemic model: open its own panel in place of this one
+      const g = $('#report').querySelector(`.cascade g.node[data-node="${id}"]`);
+      if (g) { g.classList.remove('sel'); g.dispatchEvent(new Event('click')); }
+      return;
+    }
     const sc = STATE.current && STATE.current !== 'register' ? STATE.current : null;
     const qs = sc ? `?scenario=${encodeURIComponent(sc)}${STATE.source ? '&source=' + encodeURIComponent(STATE.source) : ''}` : '';
     try {

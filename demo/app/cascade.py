@@ -65,6 +65,7 @@ def render(spec: dict, arm: str, *, title: str | None = None) -> str:
            '<marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#C27A1F"/></marker>'
            f'<marker id="ahp-{arm}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="{colour}"/></marker>'
            '</defs>']
+    N = {n["id"]: n for n in model()["nodes"]}
     for x0, t in slide.lanes:
         out.append(f'<rect x="{x0}" y="0" width="400" height="{H}" rx="12" fill="{slide.PALE}" opacity="0.55"/>')
         out.append(f'<text x="{x0 + 16}" y="-10" font-size="22" font-weight="600" fill="{slide.GREEN}" '
@@ -111,7 +112,9 @@ def render(spec: dict, arm: str, *, title: str | None = None) -> str:
                    "stopped here")
             if nid == entry:
                 tag = "defect enters here, and is stopped here"
-        out.append(f'<g class="node" data-node="{nid}"><title>click for this node\'s details</title><rect x="{x}" y="{y}" width="{BW}" height="{BH}" rx="10" fill="{fill}" stroke="{stroke}" stroke-width="{width}"/>'
+        mn = N.get(nid)   # the model's definition on hover; the click opens the panel
+        tip = f"{mn['label']}: {mn['definition'].rstrip('.')}. Click for this node's details." if mn else "click for this node's details"
+        out.append(f'<g class="node" data-node="{nid}"><title>{html.escape(tip)}</title><rect x="{x}" y="{y}" width="{BW}" height="{BH}" rx="10" fill="{fill}" stroke="{stroke}" stroke-width="{width}"/>'
                    f'<text x="{x + 12}" y="{y + 30}" font-size="22" font-weight="600" fill="{slide.INK}" font-family="IBM Plex Sans, Arial, sans-serif">{html.escape(l1)}</text>'
                    f'<text x="{x + 12}" y="{y + 56}" font-size="20" fill="{slide.GREEN if lever else slide.MUTED}" font-family="IBM Plex Sans, Arial, sans-serif">{html.escape(l2)}</text></g>')
         if tag:
