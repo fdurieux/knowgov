@@ -75,9 +75,31 @@ approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-s
 id = "REL-01006"
 source = "PRD-0004"
 target = "CAP-0008"
-state = "approved"
+state = "deprecated"   # decision 0006: the status gate guards the upload of the run outputs, not the frame; see REL-01007
 rationale = "The frame is published only when the status run passes"
 owner = "ORG-0003"
 evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-146", "jef_kit:requirements.json#JDL-151"]
 review_due = 2027-05-01
 approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-01007"
+source = "PRD-0005"
+target = "CAP-0008"
+state = "approved"
+rationale = "The run outputs are uploaded only when the status run passes"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-156", "jef_kit:requirements.json#JDL-158"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0006-daily-chain-stages.md" }
+
+[[link]]
+id = "REL-01008"
+source = "PRD-0005"
+target = "CAP-0007"
+state = "approved"
+rationale = "The run outputs are binned from the bars the sync run acquired"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-155", "jef_kit:requirements.json#JDL-157"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0006-daily-chain-stages.md" }

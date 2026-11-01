@@ -828,12 +828,17 @@ def systemic_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
         secs = []
         if lever:
             secs.append({"heading": C("A lever"), "text": C("The model marks this node as one of its four levers.") + " " + D(l2 + ".")})
-        def _node_cell(x):   # the node's label, its definition on hover, a click opens its panel
+        def _node_cell(x):   # the node's label, its definition on hover (the figure's box opens the panel)
             mx = N.get(x)
-            return {"ref": f"node:{x}", "text": mx["label"] if mx else cascade.slide.nodes[x][2] if x in cascade.slide.nodes else x,
+            return {"text": mx["label"] if mx else cascade.slide.nodes[x][2] if x in cascade.slide.nodes else x,
                     "tip": (mx["definition"] if mx else "drawn by the slide as context; not in the model's inventory")}
+        def _edge_cell(eid):   # the edge's condition and the model's sources on hover
+            e = E[eid]
+            parts = [f"condition: {e['condition']}" if e.get("condition") else "", f"moderator: {e['moderator']}" if e.get("moderator") else "",
+                     f"sources: {', '.join(e['sources'])}" if e.get("sources") else ""]
+            return {"text": eid, "tip": "; ".join(p for p in parts if p) or "no condition or source recorded"}
         ev_tip = {"M": "measured, bounded", "H": "a hypothesis"}
-        rows = [(eid, _node_cell(a), _node_cell(b), E[eid]["polarity"], E[eid].get("delay") or "",
+        rows = [(_edge_cell(eid), _node_cell(a), _node_cell(b), E[eid]["polarity"], E[eid].get("delay") or "",
                  {"text": E[eid]["evidence"], "tip": ev_tip.get(E[eid]["evidence"], E[eid]["evidence"])}, E[eid].get("mechanism") or "")
                 for eid, a, b in cascade.slide.edges if nid in (a, b)]
         secs.append({"heading": C("Edges in the model"),

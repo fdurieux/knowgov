@@ -411,9 +411,9 @@ def test_every_systemic_node_has_a_panel():
             heads = [sec["heading"] for sec in d["sections"]]
             assert any(h.startswith("Edges in the model") for h in heads) and any(h.startswith("Arm G") for h in heads) and any(h.startswith("Arm B") for h in heads), (sc, nid)
             edges = next(sec for sec in d["sections"] if sec["heading"].startswith("Edges in the model"))["table"]
-            for r in edges["rows"]:   # from and to open the other node's panel and carry its definition on hover
-                for c in (r[1], r[2]):
-                    assert c["ref"].startswith("node:") and c["text"] and c["tip"], (sc, nid, c)
+            for r in edges["rows"]:   # the edge, from and to explain themselves on hover; no reference, the panel wires none
+                for c in (r[0], r[1], r[2]):
+                    assert "ref" not in c and c["text"] and c["tip"], (sc, nid, c)
                 assert r[5]["text"] and r[5]["tip"], (sc, nid, r[5])   # M, H, or a composite the model writes
             for sec in d["sections"]:
                 if "table" in sec:
@@ -465,6 +465,6 @@ def test_vendored_register_matches_its_source_note_and_checks_clean():
     spec.loader.exec_module(mod)
     findings, summary = mod.run(reg, today=dt.date.fromisoformat(pinned))
     assert [f for f in findings.items if f["level"] == "error"] == [], findings.items
-    assert summary["nodes"] == 51 and summary["links"] == 56
+    assert summary["nodes"] == 56 and summary["links"] == 65
     assert summary["C1"]["uncovered"] == [] and summary["C1"]["excepted"] == 1
     assert summary["C2"]["uncovered"] == [] and summary["C3"]["uncovered"] == []

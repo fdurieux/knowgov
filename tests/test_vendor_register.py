@@ -125,10 +125,10 @@ def test_real_copy_note_is_the_tools_output_at_the_tag():
     dest = ROOT / "demo" / "register"
     note = (dest / "SOURCE.md").read_text(encoding="utf-8")
     assert vr.MARK in note
-    assert re.search(r"^\| tag \| `v0\.2\.0` — the demo reads the tag", note, re.M)
-    assert vr.earlier_copies(note) == [("v0.1.1", "c54f86c", "2026-11-01")], "this repository's first copy was v0.1.1; pumllint's note carries the earlier v0.1.0"
+    assert re.search(r"^\| tag \| `v0\.2\.1` — the demo reads the tag", note, re.M)
+    assert vr.earlier_copies(note) == [("v0.2.0", "cc68a6b", "2026-11-01"), ("v0.1.1", "c54f86c", "2026-11-01")], "this repository's first copy was v0.1.1; pumllint's note carries the earlier v0.1.0"
     files = {p.relative_to(dest).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
              for p in dest.rglob("*") if p.is_file() and p.name != "SOURCE.md" and "__pycache__" not in p.parts}
-    assert vr.source_note({"commit": "cc68a6b8cef5f6dada3c499c26db12a7c85d6dc0", "subject": "Merge pull request #5 from fdurieux/claude/compassionate-hamilton-ohj8mj",
-                           "date": "2026-11-01", "tag": "v0.2.0", "repo": "fdurieux/ieam-register", "files": sorted(files)},
-                          files, "2026-11-01", "2026-11-01", [("v0.1.1", "c54f86c", "2026-11-01")]) == note
+    assert vr.source_note({"commit": "a70d6fb1666a9f661cd8372b37bafa8ffe53a875", "subject": "Merge pull request #7 from fdurieux/claude/compassionate-hamilton-ohj8mj",
+                           "date": "2026-11-01", "tag": "v0.2.1", "repo": "fdurieux/ieam-register", "files": sorted(files)},
+                          files, "2026-11-01", "2026-11-01", [("v0.2.0", "cc68a6b", "2026-11-01"), ("v0.1.1", "c54f86c", "2026-11-01")]) == note

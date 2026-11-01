@@ -75,9 +75,42 @@ approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-s
 id = "REL-03006"
 source = "JRN-0008"
 target = "PROC-0006"
-state = "approved"
+state = "deprecated"   # decision 0006: its step is deprecated; see REL-03009
 rationale = "Publishing is the chain's last stage"
 owner = "ORG-0003"
 evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-152"]
 review_due = 2027-05-01
 approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-03007"
+source = "JRN-0009"
+target = "PROC-0006"
+state = "approved"
+rationale = "Restoring the store from the venue bucket is the chain's first stage"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-154"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0006-daily-chain-stages.md" }
+
+[[link]]
+id = "REL-03008"
+source = "JRN-0010"
+target = "PROC-0006"
+state = "approved"
+rationale = "Binning each asset is the chain's stage after status"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-157"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0006-daily-chain-stages.md" }
+
+[[link]]
+id = "REL-03009"
+source = "JRN-0011"
+target = "PROC-0006"
+state = "approved"
+rationale = "Uploading the store and the run outputs is the chain's last stage, only when every stage passed"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-158"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0006-daily-chain-stages.md" }

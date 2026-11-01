@@ -184,9 +184,11 @@ def test_register_map_rows_hold_the_links_endpoints_and_place_every_key():
     cited = {}
     for p in sorted((reg / "relationships").glob("*.toml")):
         for ln in tomllib.loads(p.read_text(encoding="utf-8")).get("link", []):
+            if ln.get("state") != "approved":   # a deprecated link's endpoints are not the register's reading any more
+                continue
             for jid in set(re.findall(r"JDL-\d+", " ".join(str(e) for e in ln.get("evidence", [])))):
                 cited.setdefault(jid, set()).update({ln["source"], ln["target"]})
-    assert len(cited) == 28, "the v0.2.0 slice cites 28 keys"
+    assert len(cited) == 31, "the v0.2.1 slice's approved links cite 31 keys"
     short = {k: sorted(v - set(rows[k]["nodes"])) for k, v in cited.items() if not v <= set(rows[k]["nodes"])}
     assert short == {}, f"rows missing a citing link's endpoints: {short}"
     kinds = {r["id"]: r["kind"] for r in json.loads((SUBJ / "vendor" / "recreate_experiment" / "kit" / "requirements.json").read_text(encoding="utf-8"))}
@@ -195,6 +197,11 @@ def test_register_map_rows_hold_the_links_endpoints_and_place_every_key():
     ids = {p.stem for d in reg.iterdir() if d.is_dir() and d.name not in ("relationships", "exports", "tools", "metamodel", "glossary", "exceptions", "mapping", "decisions") for p in d.glob("*.toml")}
     unknown = sorted({n for r in rows.values() for n in r["nodes"]} - ids)
     assert unknown == [], f"rows naming a node the register copy lacks: {unknown}"
+    retired = {p.stem for d in reg.iterdir() if d.is_dir() and d.name not in ("relationships", "exports", "tools", "metamodel", "glossary", "exceptions", "mapping", "decisions")
+               for p in d.glob("*.toml") if tomllib.loads(p.read_text(encoding="utf-8")).get("state") in ("deprecated", "retired")}
+    assert retired == {"JRN-0008"} and not any(set(r["nodes"]) & retired for r in rows.values()), "no row names a deprecated node"
+    for k, step in (("JDL-154", "JRN-0009"), ("JDL-157", "JRN-0010"), ("JDL-158", "JRN-0011"), ("JDL-155", "JRN-0006"), ("JDL-156", "JRN-0007")):
+        assert step in rows[k]["nodes"], (k, step)   # each chain stage on its step (decision 0006)
 
 
 def test_a_record_without_an_arm_offers_no_record_model_and_the_arms_still_run():
