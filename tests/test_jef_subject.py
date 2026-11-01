@@ -195,3 +195,30 @@ def test_register_map_rows_hold_the_links_endpoints_and_place_every_key():
     ids = {p.stem for d in reg.iterdir() if d.is_dir() and d.name not in ("relationships", "exports", "tools", "metamodel", "glossary", "exceptions", "mapping", "decisions") for p in d.glob("*.toml")}
     unknown = sorted({n for r in rows.values() for n in r["nodes"]} - ids)
     assert unknown == [], f"rows naming a node the register copy lacks: {unknown}"
+
+
+def test_a_record_without_an_arm_offers_no_record_model_and_the_arms_still_run():
+    """The J-F record graded whole rebuilds, not this harness's arms, so record_model is "";
+    an Arms run then calls the default other model (or KG_ARMS_MODEL), is no deviation, and the
+    page offers only "another model". Found on the maintainer's first Arms click on the subject:
+    the empty record model was sent as the model name and refused (2026-11-01)."""
+    code = """
+import os, sys
+os.environ.pop("KG_ARMS_MODEL", None)
+sys.path.insert(0, "harness"); sys.path.insert(0, "demo/app")
+import arms, server, views
+assert arms.RECORD_MODEL == "" and views.RECORD_MODEL == ""
+ep = arms.endpoint()
+assert ep["model"] == arms.DEFAULT_MODEL and ep["record_model"] == "" and ep["deviation"] is False, ep
+assert server.arms_model(None) == arms.DEFAULT_MODEL and server.arms_model("") == arms.DEFAULT_MODEL
+assert server.arms_model(" gpt-5.5 ") == "gpt-5.5" and not server.is_deviation("gpt-5.5")
+try:
+    server.arms_model("not a model"); raise SystemExit("accepted a bad name")
+except ValueError as e:
+    assert "not a model name" in str(e)
+print("ok")
+"""
+    r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=dict(os.environ, KG_SUBJECT=str(SUBJ)), capture_output=True, text=True)
+    assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr[-1500:]
+    html = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
+    assert "!STATE.recordModel" in html and "the record ran no arm" in html, "the page hides the record's-model choice when there is none"

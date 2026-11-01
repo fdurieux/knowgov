@@ -294,7 +294,7 @@ export_manifest = "exports/jef_kit/2026-11-01/MANIFEST.toml"
 # the page's heading; the no-governance reference it cites is the degradation test, which ran on this very kit
 [page]
 title = "J-F's data load as a governed kit — the degradation test, read by the gate"
-subtitle = "Six scenarios, a gate, no arm and no oracle yet. Record: pumllint <code>docs/recreate-experiment.md</code> and <code>recreate_experiment/degradation-2026-10-28</code>, graded 2026-10-29."
+subtitle = "Six scenarios, a gate, the kit's own suite as the oracle. The record ran no arm: an Arms run calls the model the page chooses. Record: pumllint <code>docs/recreate-experiment.md</code> and <code>recreate_experiment/degradation-2026-10-28</code>, graded 2026-10-29."
 oracle = []
 
 [page.reference]

@@ -53,8 +53,22 @@ PORT = int(os.environ.get("KG_DEMO_PORT", "8080"))
 RECORD_MODEL = views.RECORD_MODEL
 # KG_ARMS_MODEL in the app's environment preselects "another model" on the page; the
 # harness itself reads the variable the server passes per run
-DEFAULT_OTHER_MODEL = os.environ.get("KG_ARMS_MODEL") or "gpt-5.5"
+DEFAULT_OTHER_MODEL = os.environ.get("KG_ARMS_MODEL") or arms.DEFAULT_MODEL
 MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
+
+
+def arms_model(requested: str | None) -> str:
+    """The model an Arms run calls: the page's choice, else the record's model, else the default
+    other model (a subject whose record ran no arm has no record model to fall back on)."""
+    model = (requested or RECORD_MODEL or DEFAULT_OTHER_MODEL).strip()
+    if not MODEL_RE.match(model):
+        raise ValueError(f"not a model name: {model!r}")
+    return model
+
+
+def is_deviation(model: str) -> bool:
+    """A model other than the record's answered; nothing to deviate from when the record ran no arm."""
+    return bool(RECORD_MODEL) and model != RECORD_MODEL
 INDEX = (HERE / "index.html").read_bytes()
 
 # Saved Cypher for the store panel. Each runs in Neo4j Browser against the
@@ -164,9 +178,7 @@ class Runner:
             raise ValueError(f"unknown mode {mode}")
         if mode == "arms" and not arms.enabled():
             raise ValueError(f"arms mode needs {arms.endpoint()['key_var']} in the app's environment")
-        model = (model or RECORD_MODEL).strip()
-        if not MODEL_RE.match(model):
-            raise ValueError(f"not a model name: {model!r}")
+        model = arms_model(model)
         with self.lock:
             if self.current and self.current["status"] == "running":
                 raise RuntimeError("a run is already in progress; the store is one database")
@@ -202,7 +214,7 @@ class Runner:
             fh = open(log, "w", encoding="utf-8")  # noqa: SIM115 — closed when the process ends
             proc = subprocess.Popen(cmd, cwd=str(HARNESS), stdout=fh, stderr=subprocess.STDOUT, env=env)
             rec = {"id": out_dir.name, "scenario": scenario, "mode": mode, "n": n, "status": "running",
-                   "model": model if mode == "arms" else None, "model_deviation": (mode == "arms" and model != RECORD_MODEL),
+                   "model": model if mode == "arms" else None, "model_deviation": (mode == "arms" and is_deviation(model)),
                    "started": _now(), "finished": None, "exit_code": None,
                    "out_dir": str(out_dir), "log": str(log), "source": f"demo-runs/{out_dir.name}", "cmd": " ".join(cmd)}
             self.current = rec
