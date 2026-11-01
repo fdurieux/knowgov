@@ -1,0 +1,11 @@
+# Build context is the repository root; keep out what the demo never reads.
+.git
+.github
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.venv
+venv
+backlog
+tests
+runs

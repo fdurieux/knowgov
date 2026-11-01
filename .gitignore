@@ -1,0 +1,5 @@
+# re-runs land in dated folders here, never over the vendored record
+runs/
+__pycache__/
+*.pyc
+.pytest_cache/

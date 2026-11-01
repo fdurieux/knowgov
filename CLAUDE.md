@@ -4,6 +4,29 @@ Governed knowledge for AI-assisted delivery: the platform behind pumllint's
 governed-repository demo, moved here by decision-0001. Maintainer register:
 terse, dense, symbols cited by name. British English.
 
+## Layout and checks
+
+```bash
+python tests/run_tests.py          # stdlib only; imports every tests/test_*.py, calls each test_*
+cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 deterministically and runs the comparator
+```
+
+- `harness/` the pipeline; `demo/` the page, the vendored model, the vendored
+  register, the comparator, the Docker files; `subjects/cargo_quote/` the
+  vendored subject and record in pumllint's relative layout (kit, documents,
+  oracle, results, pre-registration); `runs/` re-runs, gitignored.
+- Re-vendor the register with `python tools/vendor_register.py <checkout>` at
+  a tag of ieam-register; the subject with `python tools/vendor_subject.py
+  <checkout>` at a pumllint tag (`--allow-untagged` for a commit, and the
+  note says so). Each rewrites its `SOURCE.md`; a test holds every file to
+  its digest.
+- The record's versions are pinned in `demo/Dockerfile` (neo4j 6.4.1, rdflib
+  7.6.0, pyshacl 0.40.2, openai 3.41.0) with pumllint 0.33.0 from PyPI, the
+  library the sequence-diagram mapper imports; `tests/test_demo.py` holds them.
+- Local proof without Docker: a Neo4j 5.26 community tarball started directly
+  (Java 21), a venv with the pins above, `harness/run.py --deterministic --out
+  <dir>`, then `demo/tools/compare_deterministic.py <dir>`.
+
 ## Record and views
 
 - `backlog/decisions/` is the decision record; `backlog/tasks/` the queue;
@@ -25,7 +48,8 @@ for the whole matrix, merge on green, never on red or pending.
 ## Boundaries
 
 - `pumllint/` imports nothing from here and reads no register; this repository
-  consumes pumllint's reports, never the reverse.
+  consumes pumllint's reports and its parser as a released library, never the
+  reverse.
 - A client's instance is private, created inside the client's repositories,
   and never pushed here. No bank-related data, ever.
 - The model endpoint is instance configuration; arms are off until one is set.
