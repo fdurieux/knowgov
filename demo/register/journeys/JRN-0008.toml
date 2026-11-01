@@ -2,7 +2,7 @@ id = "JRN-0008"
 kind = "step"
 name = "Publish the seam frame"
 parent = "JRN-0005"
-state = "approved"
+state = "deprecated"   # decision 0006: the chain never exports the seam frame; superseded by JRN-0011
 owner = "ORG-0003"
 review_due = 2027-05-01
 

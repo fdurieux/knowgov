@@ -104,10 +104,22 @@ approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-s
 id = "REL-07008"
 source = "PROC-0006"
 target = "ENT-0010"
-state = "approved"
+state = "deprecated"   # decision 0006: the export command, not the chain, creates the seam frame; see REL-07009
 rationale = "The chain exports one seam frame per modelled asset"
 owner = "ORG-0003"
 mode = ["C"]
 evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-152"]
 review_due = 2027-05-01
 approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-07009"
+source = "PROC-0010"
+target = "ENT-0010"
+state = "approved"
+rationale = "The export writes one seam frame per asset from the stored series"
+owner = "ORG-0003"
+mode = ["C"]
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/seam_frame.md", "jef_kit:requirements.json#JDL-071"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0006-daily-chain-stages.md" }

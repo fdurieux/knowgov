@@ -116,3 +116,14 @@ owner = "ORG-0003"
 evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/dmn/status_verdicts.dmn", "jef_kit:requirements.json#JDL-107", "jef_kit:requirements.json#JDL-132"]
 review_due = 2027-05-01
 approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-06010"
+source = "APP-0005"
+target = "PROC-0010"
+state = "approved"
+rationale = "jef-data export is the command the seam frame export runs"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/seam_frame.md", "jef_kit:requirements.json#JDL-071"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0006-daily-chain-stages.md" }

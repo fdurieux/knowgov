@@ -33,9 +33,31 @@ approval = { by = "fdurieux", on = 2026-10-30, record = "decisions/0002-pilot-sl
 id = "REL-05002"
 source = "PROC-0006"
 target = "PRD-0004"
-state = "approved"
+state = "deprecated"   # decision 0006: the chain delivers the run outputs, not the seam frame; see REL-05003 and REL-05004
 rationale = "The daily chain exports the seam frame after sync and status"
 owner = "ORG-0003"
 evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-148", "jef_kit:requirements.json#JDL-152"]
 review_due = 2027-05-01
 approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-05003"
+source = "PROC-0006"
+target = "PRD-0005"
+state = "approved"
+rationale = "The chain uploads the binning outputs of the day to the venue bucket when every stage passed"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-157", "jef_kit:requirements.json#JDL-158"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0006-daily-chain-stages.md" }
+
+[[link]]
+id = "REL-05004"
+source = "PROC-0010"
+target = "PRD-0004"
+state = "approved"
+rationale = "The export command writes the seam frame of one asset on demand"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/seam_frame.md", "jef_kit:requirements.json#JDL-071", "jef_kit:requirements.json#JDL-073"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0006-daily-chain-stages.md" }
