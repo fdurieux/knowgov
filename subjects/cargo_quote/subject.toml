@@ -231,3 +231,31 @@ declared_gap_text = "{req} is NOT YET SPECIFIED (open decision OD-1, owner: comp
 map = "register_map.toml"
 requirement_anchor = "kit:requirements.md#"
 export_manifest = "exports/kit/2026-10-30/MANIFEST.toml"
+
+# What tools/vendor_subject.py copies from a pumllint checkout into vendor/, and the words of the
+# SOURCE.md it writes there; tests/test_vendor_subject.py holds the copy to the note.
+[vendor]
+source = "fdurieux/pumllint"
+title = "Vendored copy of the CargoQuote subject and the proof-of-concept record, from pumllint"
+paths = [
+  "kg_experiment/kit",
+  "kg_experiment/results",
+  "kg_experiment/PREREGISTRATION.md",
+  "stack_experiment/cargo_quote",
+  "stack_experiment/smoke_test.py",
+  "tools/acceptance/__init__.py",
+  "tools/acceptance/cargo_quote_suite.py",
+  "tools/acceptance/runner_child.py",
+  "tools/acceptance/suites.py",
+]
+what = "the kit (`kg_experiment/kit`), the CargoQuote documents and reference implementation (`stack_experiment/cargo_quote`), the acceptance oracle (`stack_experiment/smoke_test.py`, `tools/acceptance`), the record (`kg_experiment/results`) and the pre-registration; nothing else"
+note = """
+pumllint's relative layout is kept under this directory so the oracle's own path
+logic and the record's `SHA256SUMS` paths stay valid. The record under
+`kg_experiment/results` is pumllint's and is never written here: the platform's
+re-runs land under `runs/`. The documents are the subject the harness loads and
+the arms read; the oracle grades what the arms wrote. This table is the record of
+which bytes the platform carries. To refresh it, check pumllint out at the tag you
+want and run `python tools/vendor_subject.py <checkout>`, which rewrites this file;
+`tests/test_vendor_subject.py` holds every file to its digest.
+"""

@@ -190,9 +190,21 @@ text = "MATCH ..."
 
 ## Vendoring
 
-`tools/vendor_subject.py <pumllint checkout>` refreshes `subjects/cargo_quote/vendor/` from a
-pumllint tag and rewrites its `SOURCE.md`; `tests/test_vendor_subject.py` holds every file to
-its digest. A subject whose bytes are authored in place has no `vendor/`.
+A subject whose bytes live in pumllint declares them in a `[vendor]` table of `subject.toml`,
+and `tools/vendor_subject.py <pumllint checkout> --subject <id>` copies that path set byte for
+byte into `vendor/` under the subject and rewrites its `SOURCE.md`; `tests/test_vendor_subject.py`
+holds every file of every vendored subject to its digest and the note to the tool's output.
+A subject whose bytes are authored in place has no `[vendor]` table and no `vendor/`.
+
+```toml
+[vendor]
+source = "fdurieux/pumllint"               # the repository the note falls back to when the checkout has no origin
+title = "Vendored copy of ..."            # the note's heading
+paths = ["kg_experiment/kit", "..."]      # the path set, as git ls-files reads it from the checkout
+what = "the kit (...), ...; nothing else" # the note's "what is copied" cell
+note = """..."""                          # the paragraph under the note's table
+dest = "vendor"                           # optional; the copy's root under the subject
+```
 
 ## What is still the subject's shape in the code
 
