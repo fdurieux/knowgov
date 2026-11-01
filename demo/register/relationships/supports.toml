@@ -59,3 +59,60 @@ owner = "ORG-0002"
 evidence = ["exports/kit/2026-10-30/MANIFEST.toml", "kit:kit/links.toml"]
 review_due = 2027-04-30
 approval = { by = "fdurieux", on = 2026-10-30, record = "decisions/0002-pilot-slice-cargoquote.md" }
+
+# The J-F data-load slice (decision 0005)
+
+[[link]]
+id = "REL-06005"
+source = "APP-0005"
+target = "PROC-0006"
+state = "approved"
+rationale = "jef-data is the program the chain runs, sync then status then export"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:uml/component.puml", "jef_kit:requirements.json#JDL-146", "jef_kit:requirements.json#JDL-148"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-06006"
+source = "APP-0006"
+target = "PROC-0007"
+state = "approved"
+rationale = "The sync module selects the legs and runs them independently"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:uml/sync_run.puml", "jef_kit:requirements.json#JDL-084", "jef_kit:requirements.json#JDL-085", "jef_kit:requirements.json#JDL-094"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-06007"
+source = "APP-0009"
+target = "PROC-0009"
+state = "approved"
+rationale = "A collector fetches one leg's bars and actions from its provider"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/collectors.md", "jef_kit:requirements.json#JDL-023", "jef_kit:requirements.json#JDL-039"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-06008"
+source = "APP-0008"
+target = "PROC-0007"
+state = "approved"
+rationale = "The store writes each leg's bars, adjusted, into year files"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/store.md", "jef_kit:requirements.json#JDL-057", "jef_kit:requirements.json#JDL-072"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-06009"
+source = "APP-0007"
+target = "PROC-0008"
+state = "approved"
+rationale = "The health module runs the checks and the verdicts"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/dmn/status_verdicts.dmn", "jef_kit:requirements.json#JDL-107", "jef_kit:requirements.json#JDL-132"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }

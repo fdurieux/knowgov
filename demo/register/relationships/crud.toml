@@ -61,3 +61,53 @@ rationale = "Screening creates the screening result"
 owner = "ORG-0001"
 mode = ["C"]
 evidence = ["exports/kit/2026-10-30/MANIFEST.toml"]
+
+# The J-F data-load slice (decision 0005)
+
+[[link]]
+id = "REL-07005"
+source = "PROC-0007"
+target = "ENT-0008"
+state = "approved"
+rationale = "A sync run creates and refreshes series"
+owner = "ORG-0003"
+mode = ["C", "U"]
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/leg.md", "jef_kit:requirements.json#JDL-090", "jef_kit:requirements.json#JDL-095"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-07006"
+source = "PROC-0007"
+target = "ENT-0009"
+state = "approved"
+rationale = "A sync run refreshes the actions files when eligible"
+owner = "ORG-0003"
+mode = ["C", "U"]
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/dmn/actions_gate.dmn", "jef_kit:requirements.json#JDL-086", "jef_kit:requirements.json#JDL-089"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-07007"
+source = "PROC-0008"
+target = "ENT-0008"
+state = "approved"
+rationale = "A status run reads every series and the actions stamps"
+owner = "ORG-0003"
+mode = ["R"]
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/status.schema.json", "jef_kit:requirements.json#JDL-107", "jef_kit:requirements.json#JDL-113"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-07008"
+source = "PROC-0006"
+target = "ENT-0010"
+state = "approved"
+rationale = "The chain exports one seam frame per modelled asset"
+owner = "ORG-0003"
+mode = ["C"]
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-152"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }

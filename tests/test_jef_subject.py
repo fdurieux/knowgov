@@ -122,9 +122,10 @@ for sc in views.ORDER:
     fp = register_view.footprint(v)
     fp_seen += 1
     lines = fp["box"]["lines"]
-    assert "the register copy carries no export of this subject" in lines, (sc, lines)
-    if sc != "C" and sc != "D1":
-        assert any("not in the register copy" in ln for ln in lines) and fp["box"]["colour"] == "bad", (sc, lines)
+    # the copy is at v0.2.0, which carries the slice (decision 0005) and its jef_kit export
+    assert "no export" not in " ".join(lines) and not any("not in the register copy" in ln for ln in lines), (sc, lines)
+    expect = {"C": "ok", "D1": "ok", "D2": "warn", "D3": "warn", "D4": "bad", "D5": "warn"}[sc]
+    assert fp["box"]["colour"] == expect and (fp["uncited"] == 2) == (sc == "D4"), (sc, fp["box"]["colour"], lines)
     for item in fp["text_registry"]:
         if item["kind"] != "data":
             for s in sentences(item["text"]):

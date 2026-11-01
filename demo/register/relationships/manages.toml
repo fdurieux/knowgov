@@ -48,3 +48,49 @@ owner = "ORG-0002"
 evidence = ["exports/kit/2026-10-30/MANIFEST.toml", "kit:contract/decision_table.md#DT-P"]
 review_due = 2027-04-30
 approval = { by = "fdurieux", on = 2026-10-30, record = "decisions/0002-pilot-slice-cargoquote.md" }
+
+# The J-F data-load slice (decision 0005)
+
+[[link]]
+id = "REL-08004"
+source = "APP-0008"
+target = "ENT-0008"
+state = "approved"
+rationale = "The store module reads and writes every series"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/store.md", "jef_kit:requirements.json#JDL-057", "jef_kit:requirements.json#JDL-063"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-08005"
+source = "APP-0008"
+target = "ENT-0009"
+state = "approved"
+rationale = "The store module keeps the splits and dividends files"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/store.md", "jef_kit:requirements.json#JDL-040", "jef_kit:requirements.json#JDL-044"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-08006"
+source = "APP-0005"
+target = "ENT-0007"
+state = "approved"
+rationale = "The universe loader reads and normalises the declared assets"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/universe.toml.md", "jef_kit:requirements.json#JDL-001", "jef_kit:requirements.json#JDL-022"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-08007"
+source = "APP-0005"
+target = "ENT-0010"
+state = "approved"
+rationale = "The export command writes the seam frame"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/seam_frame.md", "jef_kit:requirements.json#JDL-071", "jef_kit:requirements.json#JDL-073"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }

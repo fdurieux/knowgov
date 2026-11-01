@@ -1,0 +1,18 @@
+id = "PROC-0007"
+kind = "subprocess"
+name = "Sync run"
+parent = "PROC-0006"
+state = "approved"
+owner = "ORG-0003"
+review_due = 2027-05-01
+
+[source]
+system = "jef_kit"
+kit_path = "uml/sync_run.puml"
+export = "exports/jef_kit/2026-11-01"
+diagram = "uml/sync_run.puml"
+
+[approval]
+by = "fdurieux"
+on = 2026-11-01
+record = "decisions/0005-second-subject-jef-data-load.md"
