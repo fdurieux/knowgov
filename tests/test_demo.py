@@ -84,6 +84,7 @@ def test_every_cascade_renders_well_formed_svg():
             svg = cascade.render(views.SYSTEMIC[sc], arm, title=f"{sc} {arm}")
             xml.dom.minidom.parseString(svg)
             assert svg.startswith("<svg") and "People and intent" in svg, (sc, arm)
+            assert "<title>Knowledge held only by people: " in svg and ". Click for this node" in svg, "a node's hover carries the model's definition"
             if views.SYSTEMIC[sc]["entry"]:
                 assert "defect enters here" in svg, (sc, arm)
 
@@ -409,6 +410,11 @@ def test_every_systemic_node_has_a_panel():
             assert d["title"] and d["intro"] and d["sections"], (sc, nid)
             heads = [sec["heading"] for sec in d["sections"]]
             assert any(h.startswith("Edges in the model") for h in heads) and any(h.startswith("Arm G") for h in heads) and any(h.startswith("Arm B") for h in heads), (sc, nid)
+            edges = next(sec for sec in d["sections"] if sec["heading"].startswith("Edges in the model"))["table"]
+            for r in edges["rows"]:   # from and to open the other node's panel and carry its definition on hover
+                for c in (r[1], r[2]):
+                    assert c["ref"].startswith("node:") and c["text"] and c["tip"], (sc, nid, c)
+                assert r[5]["text"] and r[5]["tip"], (sc, nid, r[5])   # M, H, or a composite the model writes
             for sec in d["sections"]:
                 if "table" in sec:
                     assert all(len(r) == len(sec["table"]["cols"]) for r in sec["table"]["rows"]), (sc, nid, sec["heading"])
