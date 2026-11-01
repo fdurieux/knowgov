@@ -47,6 +47,10 @@ def test_register_view_builds_from_the_vendored_copy_at_the_pinned_date():
     assert v["matrix"] == {"rows": 16, "unverified": 16, "sentence": v["matrix"]["sentence"]} and "every row is unverified" in v["matrix"]["sentence"]
     assert len(v["relationship_types"]) == 10 and all(t["aris_status"] == "unverified" for t in v["relationship_types"])
     assert {t["term"] for t in v["glossary"]} <= set(views.GLOSSARY), "every register term is in the demo glossary"
+    # one register per organisation: the view says which nodes are this subject's slice and offers its application to the impact walk
+    assert v["subject_system"] == "kit" and v["slice"] == {"nodes": 27, "links": 28, "other_nodes": 29, "other_systems": ["jef_kit"]}
+    assert v["impact_default"] == "APP-0002" and "This subject's slice is the source system kit: 27 nodes and 28 links." in v["intro"]
+    assert all(n["subject"] == (n["system"] == "kit") for ns in v["nodes_by_taxonomy"].values() for n in ns)
 
 
 def test_register_view_at_the_wall_clock_shows_an_expired_exception():

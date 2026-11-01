@@ -123,7 +123,8 @@ def _node_panel(nid: str, n: dict, reg: dict, C, D) -> dict:
     secs.append({"heading": C(f"Links out: {len(outs)}"), "table": {"cols": ["link", "relationship type", "target", "state", "owner", "rationale"], "rows": outs}})
     secs.append({"heading": C(f"Links in: {len(ins)}"), "table": {"cols": ["link", "relationship type", "source", "state", "owner", "rationale"], "rows": ins}})
     return {"id": nid, "taxonomy": tax, "kind": n.get("kind"), "name": n.get("name"), "state": n.get("state"), "owner": n.get("owner"),
-            "parent": n.get("parent"), "links_out": len(outs), "links_in": len(ins),
+            "parent": n.get("parent"), "links_out": len(outs), "links_in": len(ins), "system": src.get("system", ""),
+            "subject": src.get("system", "") == SYSTEM,   # a node of this subject's slice, or of another subject of the organisation
             "panel": {"title": C(f"{nid}, a {kind_words} in {tax}"), "intro": intro, "sections": secs}}
 
 
@@ -569,6 +570,16 @@ def build(today: str | None = None) -> dict:
     health = (C(f"The checker reports no errors and {len(warnings)} advisory warnings.") if not errors
               else C(f"The checker reports {len(errors)} errors and {len(warnings)} warnings."))
     nodes = [_node_panel(nid, n, reg, C, D) for nid, n in reg["nodes"].items()]
+    # one register per organisation (ieam-register decision 0004): this subject's slice is the nodes of its
+    # source system and the links that start or end on one; the rest belongs to the organisation's other subjects
+    mine = {n["id"] for n in nodes if n["subject"]}
+    slice_links = sum(1 for rel in reg["relationships"].values() for ln in rel["links"] if ln.get("source") in mine or ln.get("target") in mine)
+    others = sorted({n["system"] for n in nodes if not n["subject"] and n["system"]})
+    intro += " " + C(f"This subject's slice is the source system {SYSTEM}: {len(mine)} nodes and {slice_links} links.",
+                     f"The other {len(nodes) - len(mine)} nodes belong to the organisation's other subjects ({', '.join(others)})." if others
+                     else "Every node is this subject's.")
+    apps = sorted((n for n in nodes if n["subject"] and n["taxonomy"] == "applications"), key=lambda n: (-n["links_out"], n["id"]))
+    impact_default = apps[0]["id"] if apps else (nodes[0]["id"] if nodes else "")
     by_tax: dict[str, list] = {}
     for n in nodes:
         by_tax.setdefault(n["taxonomy"], []).append(n)
@@ -596,6 +607,8 @@ def build(today: str | None = None) -> dict:
             "summary": {"nodes": summary["nodes"], "links": summary["links"], "errors": len(errors), "warnings": len(warnings)},
             "coverage": {r: summary[r] for r in ("C1", "C2", "C3")}, "coverage_lines": _coverage_lines(summary),
             "findings": findings.items, "intro": intro, "health": health,
+            "subject_system": SYSTEM, "slice": {"nodes": len(mine), "links": slice_links, "other_nodes": len(nodes) - len(mine), "other_systems": others},
+            "impact_default": impact_default,
             "nodes_by_taxonomy": by_tax, "links": links, "relationship_types": rel_types,
             "exceptions": exceptions, "matrix": {"rows": len(mrows), "unverified": unverified, "sentence": matrix_sentence},
             "glossary": glossary, "text_registry": reg_sentences}
