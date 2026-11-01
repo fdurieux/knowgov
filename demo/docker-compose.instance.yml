@@ -1,0 +1,18 @@
+# An instance's own register: one register per organisation, shared by every subject of it.
+# Point KG_INSTANCE at a folder on this machine that holds the organisation's register checkout
+# under register/ (the ieam-register layout: the taxonomy directories, relationships/, metamodel/,
+# glossary/, mapping/, decisions/, exceptions/, exports/, tools/) and start the stack with this
+# file added last:
+#
+#   KG_INSTANCE=/path/to/instance docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.instance.yml up -d --build --wait
+#
+# (leave docker-compose.override.yml out to pull the published image instead of building). The
+# folder is mounted read-only: the page never writes to a register, and nothing of the instance
+# is copied into the image. A subject kept under the same folder is selected the usual way,
+# KG_SUBJECT=/instance/subjects/<id>; it joins the register through its own register_map.toml.
+services:
+  app:
+    environment:
+      KG_REGISTER: /instance/register
+    volumes:
+      - ${KG_INSTANCE:?set KG_INSTANCE to the instance folder on this machine}:/instance:ro

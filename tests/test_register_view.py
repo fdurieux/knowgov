@@ -25,6 +25,7 @@ def _forbidden_in(sentence):
 def test_register_view_builds_from_the_vendored_copy_at_the_pinned_date():
     v = register_view.build()
     assert v["source"]["repo"] == "fdurieux/ieam-register" and len(v["source"]["commit"]) == 40 and v["source"]["digest_ok"]
+    assert v["source"]["kind"] == "copy" and register_view.REGISTER == (DEMO / "register").resolve()
     assert v["source"]["tag"] == "v0.1.1" and v["source"]["commit"].startswith("c54f86c")  # the tag sits on the vendored commit
     assert v["pinned"] and v["run_date"] == v["source"]["pinned_date"]
     assert v["summary"] == {"nodes": 27, "links": 28, "errors": 0, "warnings": 3}
@@ -308,3 +309,36 @@ def test_register_card_is_wired_on_the_page_and_the_server():
     assert "**The register.**" in readme
     glossary = (DEMO / "GLOSSARY.md").read_text(encoding="utf-8")
     assert "Terms shared with the IEAM register" in glossary
+
+
+def test_register_root_comes_from_the_environment_and_a_checkout_has_no_note():
+    """task-0006.01: KG_REGISTER selects the register root, one register per organisation shared
+    by every subject. A root without SOURCE.md is an instance's own checkout: reported as such,
+    no digest checked, the checker run at the wall-clock date, and the checks, the impact walk
+    and the footprint reading it as they read the vendored copy."""
+    import datetime as dt
+    import importlib
+    import os
+    import shutil
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "register"
+        shutil.copytree(DEMO / "register", root, ignore=shutil.ignore_patterns("SOURCE.md", "__pycache__"))
+        os.environ["KG_REGISTER"] = str(root)
+        try:
+            rv = importlib.reload(register_view)
+            assert rv.REGISTER == root.resolve()
+            src = rv.source_info()
+            assert src["kind"] == "checkout" and src["digest_ok"] is None and src["mismatched"] == [] and src["pinned_date"] == ""
+            assert src["repo"] == "" and src["commit"] == "" and src["describe"] == "", "no git repository, nothing invented"
+            v = rv.build()
+            assert not v["pinned"] and v["pinned_date"] == "" and v["run_date"] == dt.date.today().isoformat()
+            assert "own checkout" in v["intro"] and "no pinned date" in v["intro"]
+            assert v["summary"]["nodes"] == 27 and len(v["links"]) == 28, "the same content, read from the other root"
+            assert rv.impact("APP-0002")["reached"]["products"]
+            fp = rv.footprint(views.build("S2", views.default_source("S2"), ROOT / "nonexistent-demo-runs"))
+            assert fp["box"]["colour"] == "warn" and fp["uncited"] == 0, "the subject's map and manifest join the mounted register"
+        finally:
+            del os.environ["KG_REGISTER"]
+            rv = importlib.reload(register_view)
+    assert rv.REGISTER == (DEMO / "register").resolve() and rv.source_info()["kind"] == "copy"

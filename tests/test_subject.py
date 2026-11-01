@@ -108,7 +108,7 @@ def test_readme_documents_every_file_and_the_mapper_exception():
 
 DOCUMENT_NAMES = ("requirements.md", "decision_table.md", "spec.md", "openapi.yaml", "quote_flow.puml", "containers.puml",
                   "quote_process.bpmn", "screening_decision.dmn", "acceptance.feature", "links.toml", "analysis_notes.md")
-FORBIDDEN = re.compile(r"cargo_quote|CargoQuote|\bS[1-7]\b|" + "|".join(re.escape(d) for d in DOCUMENT_NAMES))
+FORBIDDEN = re.compile(r"cargo_quote|CargoQuote|\bS[1-7]\b|2026-10-30|" + "|".join(re.escape(d) for d in DOCUMENT_NAMES))   # the date is the subject's export folder
 
 
 def _code_lines(p: Path):
