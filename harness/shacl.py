@@ -1,6 +1,6 @@
 """D4: an RDF projection of the graph, validated with pyshacl.
 
-The projection is Python-side (rdflib) from Cypher reads; n10s is not
+The projection is Python-side (rdflib) from the store port's reads; n10s is not
 executed. Two shapes graphs: the main one mirrors R-STRUCT and R-REQ;
 the second has a single sh:Info-severity shape that every assertion
 violates, to show at execution that sh:conforms is false on
@@ -55,21 +55,21 @@ kg:CommentShape a sh:NodeShape ;
 def project(s) -> Graph:
     g = Graph()
     g.bind("kg", KG)
-    for r in s.run("MATCH (x:Assertion) RETURN x.id AS id, x.basis AS basis, x.status AS status"):
+    for r in s.assertion_rows():
         n = URIRef(KG[r["id"].replace("|", "_").replace(" ", "_")])
         cls = KG.InferredAssertion if r["basis"] in ("inferred", "assumed", "hypothesised") else KG.SourcedAssertion
         g.add((n, RDF.type, cls))
         g.add((n, KG.status, Literal(r["status"])))
-    for r in s.run("MATCH (x:Assertion)-[:SUPPORTED_BY]->(f:Fragment) RETURN x.id AS x, f.id AS f"):
+    for r in s.supported_by():
         g.add((URIRef(KG[r["x"].replace("|", "_").replace(" ", "_")]), KG.supportedBy, URIRef(KG[r["f"].replace(" ", "_")])))
-    for r in s.run("MATCH (x:Assertion)-[:CANDIDATE_FOR]->(g:Gap) RETURN x.id AS x, g.id AS g"):
+    for r in s.candidate_for():
         g.add((URIRef(KG[r["x"].replace("|", "_").replace(" ", "_")]), KG.candidateFor, URIRef(KG[r["g"]])))
-    for r in s.run("MATCH (f:Fragment) OPTIONAL MATCH (v:Version)-[:HAS_FRAGMENT]->(f) RETURN f.id AS f, v.id AS v"):
+    for r in s.fragments_with_version():
         fn = URIRef(KG[r["f"].replace(" ", "_")])
         g.add((fn, RDF.type, KG.Fragment))
         if r["v"]:
             g.add((fn, KG.ofVersion, URIRef(KG[r["v"].replace(" ", "_")])))
-    for r in s.run("MATCH (e:Entity {kind:'requirement'}) OPTIONAL MATCH (x:Assertion {predicate:'verified_by'})-[:ABOUT]->(e) RETURN e.id AS e, collect(x.value) AS by"):
+    for r in s.requirements_verified_by():
         en = URIRef(KG[r["e"]])
         g.add((en, RDF.type, KG.Requirement))
         for b in r["by"]:

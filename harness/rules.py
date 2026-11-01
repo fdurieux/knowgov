@@ -1,11 +1,9 @@
 """The seven rules of pre-registration §4, run after every load.
 
-Each rule is one or more Cypher statements. R-CORROBORATE and
-R-CONFLICT fetch candidate pairs with Cypher and decide value
-compatibility in Python (``compatible``), because a behaviour value is
-a ``k=v;k=v`` string and Cypher has no map-from-string function; the
-writes are Cypher again. Status is set only here, by the loaders and by
-recorded human acts.
+Each rule reads and writes through the store port (store.py); the adapter holds the
+statements. R-CORROBORATE and R-CONFLICT fetch candidate pairs and decide value
+compatibility in Python (``compatible``), because a behaviour value is a ``k=v;k=v``
+string. Status is set only by the loaders, the rules and recorded human acts.
 """
 
 from __future__ import annotations
@@ -67,172 +65,84 @@ def compatible(a: str, b: str, predicate: str = "") -> str:
     return "conflict"
 
 
-def r_struct(s) -> list[dict]:
-    v = []
-    for row in s.run("""
-        MATCH (x:Assertion) WHERE x.basis IN ['extracted','authored'] AND NOT (x)-[:SUPPORTED_BY]->(:Fragment)
-        RETURN x.id AS id, 'no supporting fragment' AS why"""):
-        v.append(dict(row))
-    for row in s.run("""
-        MATCH (x:Assertion) WHERE x.basis IN ['inferred','assumed','hypothesised']
-          AND NOT (x)-[:CANDIDATE_FOR|CONCERNED_BY]-(:Gap) AND NOT (:Gap)-[:CONCERNS]->(x)
-        RETURN x.id AS id, 'inferred without a gap' AS why"""):
-        v.append(dict(row))
-    for row in s.run("MATCH (f:Fragment) WHERE NOT (:Version)-[:HAS_FRAGMENT]->(f) RETURN f.id AS id, 'orphan fragment' AS why"):
-        v.append(dict(row))
-    for row in s.run("MATCH (v:Version) WHERE NOT (:Artefact)-[:HAS_VERSION]->(v) RETURN v.id AS id, 'orphan version' AS why"):
-        v.append(dict(row))
-    return v
+def r_struct(st) -> list[dict]:
+    return st.structural_violations()
 
 
-def _pairs(s):
-    return list(s.run("""
-        MATCH (a:Assertion)-[:ABOUT]->(e:Entity)<-[:ABOUT]-(b:Assertion)
-        WHERE a.predicate = b.predicate AND a.id < b.id AND a.artefact <> b.artefact
-          AND NOT a.status IN ['rejected','deprecated','invalidated'] AND NOT b.status IN ['rejected','deprecated','invalidated']
-          AND a.version = b.version
-        RETURN a.id AS a, a.value AS va, a.basis AS ba, b.id AS b, b.value AS vb, b.basis AS bb, a.key AS key,
-               a.predicate AS pred"""))
-
-
-def r_corroborate(s) -> int:
+def r_corroborate(st) -> int:
     n = 0
-    for p in _pairs(s):
+    for p in st.candidate_pairs():
         if p["ba"] == "extracted" and p["bb"] == "extracted" and compatible(p["va"], p["vb"], p["pred"]) == "equal":
-            s.run("""MATCH (a:Assertion {id:$a}), (b:Assertion {id:$b})
-                     MERGE (a)-[:CORROBORATES]->(b) MERGE (b)-[:CORROBORATES]->(a)
-                     SET a.status = CASE WHEN a.status='proposed' THEN 'validated' ELSE a.status END,
-                         b.status = CASE WHEN b.status='proposed' THEN 'validated' ELSE b.status END""",
-                  a=p["a"], b=p["b"]).consume()
+            st.corroborate(p["a"], p["b"])
             n += 1
     return n
 
 
-def r_conflict(s, scenario: str) -> list[dict]:
+def r_conflict(st, scenario: str) -> list[dict]:
     out = []
-    for p in _pairs(s):
+    for p in st.candidate_pairs():
         if compatible(p["va"], p["vb"], p["pred"]) == "conflict":
             gid = f"gap:conflict:{p['key']}:{len(out)}"
-            s.run("""MATCH (a:Assertion {id:$a}), (b:Assertion {id:$b})
-                     MERGE (a)-[:CONTRADICTS]->(b) MERGE (b)-[:CONTRADICTS]->(a)
-                     SET a.status='disputed', b.status='disputed'
-                     MERGE (g:Gap {id:$gid}) SET g.kind='conflict', g.declared=false,
-                        g.text='two artefacts state different values for ' + $key + ': ' + a.artefact + ' says ' + a.value + '; ' + b.artefact + ' says ' + b.value
-                     MERGE (g)-[:CONCERNS]->(a) MERGE (g)-[:CONCERNS]->(b)
-                     WITH g MATCH (act:Activity) WHERE act.id STARTS WITH 'act:extract:' + $sc
-                     MERGE (g)-[:RAISED_BY]->(act)""",
-                  a=p["a"], b=p["b"], gid=gid, key=p["key"], sc=scenario).consume()
+            st.mark_conflict(p["a"], p["b"], gid, p["key"], scenario)
             out.append({"key": p["key"], "a": p["a"], "va": p["va"], "b": p["b"], "vb": p["vb"]})
     return out
 
 
-def r_vague(s, scenario: str) -> list[dict]:
+def r_vague(st, scenario: str) -> list[dict]:
     out = []
-    for row in s.run("""
-        MATCH (x:Assertion)-[:SUPPORTED_BY]->(f:Fragment)
-        WHERE any(w IN $vague WHERE toLower(f.text) CONTAINS w) AND f.locator CONTAINS 'row/'
-        RETURN DISTINCT x.id AS id, x.key AS key, f.id AS fid, f.text AS text""", vague=VAGUE):
+    for row in st.vague_fragments(VAGUE):
         w = [v for v in VAGUE if v in row["text"].lower()]
-        s.run("""MATCH (x:Assertion {id:$id})
-                 MERGE (g:Gap {id:'gap:ambiguous:' + $id}) SET g.kind='ambiguous', g.declared=false,
-                    g.text='vague wording (' + $w + ') in ' + $fid
-                 MERGE (g)-[:CONCERNS]->(x)
-                 WITH g MATCH (act:Activity) WHERE act.id STARTS WITH 'act:extract:' + $sc
-                 MERGE (g)-[:RAISED_BY]->(act)""", id=row["id"], w=", ".join(w), fid=row["fid"], sc=scenario).consume()
+        st.add_ambiguous_gap(row["id"], f"vague wording ({', '.join(w)}) in {row['fid']}", scenario)
         out.append({"id": row["id"], "key": row["key"], "words": w})
-    for row in s.run("MATCH (x:Assertion {unresolved:true}) RETURN x.id AS id, x.key AS key, x.raw_value AS sym"):
-        s.run("""MATCH (x:Assertion {id:$id})
-                 MERGE (g:Gap {id:'gap:ambiguous:' + $id}) SET g.kind='ambiguous', g.declared=false,
-                    g.text='symbol ' + $sym + ' has no definition in any artefact'
-                 MERGE (g)-[:CONCERNS]->(x)
-                 WITH g MATCH (act:Activity) WHERE act.id STARTS WITH 'act:extract:' + $sc
-                 MERGE (g)-[:RAISED_BY]->(act)""", id=row["id"], sym=row["sym"], sc=scenario).consume()
+    for row in st.unresolved_assertions():
+        st.add_ambiguous_gap(row["id"], f"symbol {row['sym']} has no definition in any artefact", scenario)
         out.append({"id": row["id"], "key": row["key"], "words": [f"unresolved {row['sym']}"]})
     return out
 
 
-def r_req(s, scenario: str) -> list[dict]:
+def r_req(st, scenario: str) -> list[dict]:
     out = []
-    # declared gaps: a requirement whose text says NOT YET SPECIFIED
-    for row in s.run("MATCH (x:Assertion {predicate:'specified', value:'NONE'})-[:ABOUT]->(e:Entity) RETURN e.id AS req, x.id AS id"):
-        key = REQ_KEY.get(row["req"])
-        s.run("""MATCH (e:Entity {id:$req}), (x:Assertion {id:$id})
-                 MERGE (g:Gap {id:$gid}) SET g.kind='missing', g.declared=true, g.text=$gtext
-                 MERGE (g)-[:CONCERNS]->(e) MERGE (g)-[:CONCERNS]->(x)
-                 WITH g MATCH (act:Activity) WHERE act.id STARTS WITH 'act:extract:' + $sc
-                 MERGE (g)-[:RAISED_BY]->(act)
-                 WITH g MATCH (k:Entity {id:$kent}) MERGE (g)-[:CONCERNS_KEY {key:$key}]->(k)""",
-              req=row["req"], id=row["id"], sc=scenario, kent=key.split("|")[0] if key else row["req"], key=key or "",
-              gid=DECLARED_GAP_ID, gtext=DECLARED_GAP_TEXT.format(req=row["req"])).consume()
-        out.append({"kind": "missing", "declared": True, "req": row["req"], "key": key})
+    # declared gaps: a requirement whose text says it is not yet specified
+    for row in st.declared_open("specified"):
+        key = REQ_KEY.get(row["entity"])
+        st.add_declared_gap(DECLARED_GAP_ID, DECLARED_GAP_TEXT.format(req=row["entity"]), row["entity"], row["id"], scenario,
+                            key.split("|")[0] if key else row["entity"], key or "")
+        out.append({"kind": "missing", "declared": True, "req": row["entity"], "key": key})
     # an artefact declared not yet authored
-    for row in s.run("MATCH (x:Assertion {predicate:'authored', value:'NONE'})-[:ABOUT]->(e:Entity) RETURN e.id AS art, x.id AS id"):
-        s.run("""MATCH (x:Assertion {id:$id})
-                 MERGE (g:Gap {id:'gap:declared:' + $art}) SET g.kind='missing', g.declared=true, g.text=$art + ' is not yet authored'
-                 MERGE (g)-[:CONCERNS]->(x)""", id=row["id"], art=row["art"]).consume()
-        out.append({"kind": "missing", "declared": True, "artefact": row["art"]})
+    for row in st.declared_open("authored"):
+        st.add_absent_artefact_gap(row["entity"], row["id"])
+        out.append({"kind": "missing", "declared": True, "artefact": row["entity"]})
     # every requirement needs a verifying scenario
-    for row in s.run("""MATCH (e:Entity {kind:'requirement'}) WHERE NOT (:Assertion {predicate:'verified_by'})-[:ABOUT]->(e)
-                        RETURN e.id AS req"""):
-        s.run("""MATCH (e:Entity {id:$req})
-                 MERGE (g:Gap {id:'gap:unverified-req:' + $req}) SET g.kind='missing', g.declared=false,
-                    g.text=$req + ' has no verifying scenario'
-                 MERGE (g)-[:CONCERNS]->(e)""", req=row["req"]).consume()
-        out.append({"kind": "missing", "declared": False, "req": row["req"], "why": "no verifying scenario"})
-    # every DT-S row and DT-P step is spoken about
-    for row in s.run("""MATCH (e:Entity) WHERE e.kind IN ['decision_row','pricing_step'] AND NOT (:Assertion)-[:ABOUT]->(e)
-                        RETURN e.id AS id"""):
-        out.append({"kind": "missing", "declared": False, "entity": row["id"]})
+    for req in st.requirements_without("verified_by"):
+        st.add_unverified_requirement_gap(req)
+        out.append({"kind": "missing", "declared": False, "req": req, "why": "no verifying scenario"})
+    # every decision row and pricing step is spoken about
+    for eid in st.silent_entities(["decision_row", "pricing_step"]):
+        out.append({"kind": "missing", "declared": False, "entity": eid})
     return out
 
 
-def r_unverified(s) -> int:
-    return s.run("""
-        MATCH (x:Assertion) WHERE x.status IN ['proposed','validated'] AND NOT (:Verification)-[:VERIFIES]->(x)
-        MERGE (g:Gap {id:'gap:unverified:' + x.id}) SET g.kind='unverified', g.declared=false,
-           g.text=x.id + ' has no verification record'
-        MERGE (g)-[:CONCERNS]->(x)
-        RETURN count(x) AS n""").single()["n"]
+def r_unverified(st) -> int:
+    return st.mark_unverified()
 
 
-def r_stale(s, new_tag: str) -> dict:
+def r_stale(st, new_tag: str) -> dict:
     """After a re-ingestion: an assertion of an older version whose
     supporting fragment's digest differs from the current fragment at the
     same locator (or whose locator vanished) is invalidated; its
     verifications end; derived outputs that used it become suspect."""
-    inv = list(s.run("""
-        MATCH (x:Assertion)-[:SUPPORTED_BY]->(f:Fragment)<-[:HAS_FRAGMENT]-(old:Version)<-[:HAS_VERSION]-(a:Artefact)-[:CURRENT]->(cur:Version)
-        WHERE old <> cur AND x.version <> $tag
-        OPTIONAL MATCH (cur)-[:HAS_FRAGMENT]->(nf:Fragment {locator:f.locator})
-        WITH x, f, nf WHERE nf IS NULL OR nf.sha256 <> f.sha256
-        SET x.status='invalidated', x.invalidated_at=datetime().epochSeconds, x.invalidated_by=$tag
-        WITH DISTINCT x
-        OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x) SET v.valid_until=$tag
-        WITH DISTINCT x
-        OPTIONAL MATCH (d:Derived)-[:USED_ASSERTION]->(x) SET d.suspect=true
-        RETURN x.id AS id, x.key AS key, collect(DISTINCT d.id) AS derived""", tag=new_tag))
-    kept = list(s.run("""
-        MATCH (x:Assertion)-[:SUPPORTED_BY]->(f:Fragment)<-[:HAS_FRAGMENT]-(old:Version)<-[:HAS_VERSION]-(a:Artefact)-[:CURRENT]->(cur:Version)
-        WHERE old <> cur AND x.version <> $tag AND x.status <> 'invalidated'
-        RETURN DISTINCT x.id AS id, x.key AS key, x.status AS status""", tag=new_tag))
-    return {"invalidated": [dict(r) for r in inv], "kept": [dict(r) for r in kept]}
+    return st.invalidate_stale(new_tag)
 
 
-def run_all(s, scenario: str) -> dict:
-    out = {"R-STRUCT": r_struct(s)}
-    out["R-CORROBORATE"] = r_corroborate(s)
-    out["R-CONFLICT"] = r_conflict(s, scenario)
-    out["R-VAGUE"] = r_vague(s, scenario)
-    out["R-REQ"] = r_req(s, scenario)
-    out["R-UNVERIFIED"] = r_unverified(s)
+def run_all(st, scenario: str) -> dict:
+    out = {"R-STRUCT": r_struct(st)}
+    out["R-CORROBORATE"] = r_corroborate(st)
+    out["R-CONFLICT"] = r_conflict(st, scenario)
+    out["R-VAGUE"] = r_vague(st, scenario)
+    out["R-REQ"] = r_req(st, scenario)
+    out["R-UNVERIFIED"] = r_unverified(st)
     return out
 
 
-def census(s) -> dict:
-    st = {r["status"]: r["n"] for r in s.run("MATCH (x:Assertion) RETURN x.status AS status, count(*) AS n")}
-    gaps = {r["kind"]: r["n"] for r in s.run("MATCH (g:Gap) RETURN g.kind AS kind, count(*) AS n")}
-    contradicts = s.run("MATCH ()-[r:CONTRADICTS]->() RETURN count(r)/2 AS n").single()["n"]
-    nodes = s.run("MATCH (n) RETURN count(n) AS n").single()["n"]
-    rels = s.run("MATCH ()-[r]->() RETURN count(r) AS n").single()["n"]
-    return {"assertions_by_status": st, "gaps_by_kind": gaps, "contradicts": contradicts,
-            "nodes": nodes, "relationships": rels}
+def census(st) -> dict:
+    return st.census()

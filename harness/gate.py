@@ -1,5 +1,5 @@
 """The gate (pre-registration §6): required keys -> levels, flags,
-verdict, evidence bundle."""
+verdict, evidence bundle. Reads through the store port."""
 
 from __future__ import annotations
 
@@ -13,30 +13,9 @@ def resolve(s, task: str) -> dict:
     spec = TASKS[task]
     keys = {}
     for key in spec["keys"]:
-        rows = list(s.run("""
-            MATCH (x:Assertion {key:$key}) WHERE x.status IN $live
-            OPTIONAL MATCH (x)-[:SUPPORTED_BY]->(f:Fragment)
-            OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x)
-            OPTIONAL MATCH (ap:Approval)-[:APPROVES]->(x)
-            OPTIONAL MATCH (g:Gap)-[:CONCERNS]->(x)
-            OPTIONAL MATCH (x)-[:ATTRIBUTED_TO]->(ag:Agent)
-            RETURN x.id AS id, x.value AS value, x.text AS text, x.basis AS basis, x.status AS status,
-                   x.artefact AS artefact, ag.name AS agent,
-                   collect(DISTINCT {locator:f.locator, text:f.text, artefact:f.artefact}) AS fragments,
-                   collect(DISTINCT {id:v.id, method:v.method, scope:v.scope, at:v.at, valid_until:v.valid_until}) AS verifications,
-                   collect(DISTINCT {id:ap.id, at:ap.at, record:ap.record}) AS approvals,
-                   collect(DISTINCT {id:g.id, kind:g.kind, declared:g.declared, text:g.text}) AS gaps
-            ORDER BY x.id""", key=key, live=LIVE))
-        rows = [dict(r) for r in rows]
-        for r in rows:
-            r["fragments"] = [f for f in r["fragments"] if f["locator"]]
-            r["verifications"] = [v for v in r["verifications"] if v["id"]]
-            r["approvals"] = [a for a in r["approvals"] if a["id"]]
-            r["gaps"] = [g for g in r["gaps"] if g["id"]]
+        rows = s.key_evidence(key, LIVE)
         ent = key.split("|")[0]
-        declared = [dict(r) for r in s.run("""
-            MATCH (g:Gap {kind:'missing', declared:true})-[c:CONCERNS_KEY {key:$key}]->()
-            RETURN g.id AS id, g.text AS text""", key=key)]
+        declared = s.declared_gaps_for_key(key)
         if not rows:
             level = "declared_gap" if declared else "absent"
         elif declared:
@@ -67,20 +46,12 @@ def resolve(s, task: str) -> dict:
         verdict, why = "QUALIFIED", f"{len(below)} key(s) below verified, {len(flagged)} flagged: " + ", ".join(sorted(set(below) | set(flagged)))
     else:
         verdict, why = "PROCEED", f"all {n} required keys verified or approved, none flagged"
-    conflicts = [dict(r) for r in s.run("MATCH (g:Gap {kind:'conflict'}) RETURN g.id AS id, g.text AS text")]
+    conflicts = s.conflict_gaps()
     # staleness: invalidated assertions on required keys (superseded or not), the verifications
     # their invalidation ended, and the derived outputs that used them (S6; added after the first
     # scored run, whose S6 bundle carried none of this - see the pre-registration's run notes)
-    stale = [dict(r) for r in s.run("""
-        MATCH (x:Assertion {status:'invalidated'}) WHERE x.key IN $keys
-        OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x)
-        OPTIONAL MATCH (succ:Assertion {key:x.key, artefact:x.artefact}) WHERE succ.status IN ['proposed','validated','verified','approved']
-        RETURN x.id AS id, x.key AS key, x.value AS value, x.invalidated_by AS invalidated_by,
-               collect(DISTINCT {id:v.id, valid_until:v.valid_until}) AS verifications,
-               collect(DISTINCT {id:succ.id, value:succ.value, status:succ.status}) AS successors""", keys=spec["keys"])]
-    suspect = [dict(r) for r in s.run("""
-        MATCH (d:Derived {suspect:true})-[:USED_ASSERTION]->(x:Assertion {status:'invalidated'})
-        RETURN d.id AS id, d.kind AS kind, d.sha256 AS sha256, collect(x.id) AS used_invalidated""")]
+    stale = s.stale_on_keys(spec["keys"])
+    suspect = s.suspect_derived()
     return {"task": task, "verdict": verdict, "why": why, "keys": keys, "conflicts": conflicts,
             "blocked_keys": blocked_keys, "below_verified": below, "flagged": flagged,
             "stale": stale, "suspect_derived": suspect}

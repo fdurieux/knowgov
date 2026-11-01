@@ -22,8 +22,8 @@ import measures
 import shacl
 from gate import resolve, render_bundle
 from kitio import kit_for, sha256
-from load import (PROV, apply_constraints, clear, driver, load_inferred, load_scenario,
-                  load_verifications, pristine_values)
+from load import PROV, HUMAN, load_inferred, load_scenario, load_verifications, pristine_values
+from store import open_store
 from plant import INFERRED
 from rules import census, r_stale, run_all
 from subject import HERE as HARNESS, ROOT, SUBJECT
@@ -43,7 +43,7 @@ def d5(s) -> dict:
     """The three-valued answer for the keys the subject names."""
     out = {}
     for key in SUBJECT.three_valued:
-        rows = [dict(r) for r in s.run("MATCH (x:Assertion {key:$k}) WHERE x.status IN ['verified','approved','validated','proposed'] RETURN x.id AS id, x.value AS value, x.status AS status, x.basis AS basis", k=key)]
+        rows = s.assertions_on_key(key, ["verified", "approved", "validated", "proposed"])
         if not rows:
             out[key] = {"answer": "unknown", "why": "no assertion for this key (not a documented absence)"}
         elif all(r["value"] == "NONE" for r in rows):
@@ -53,71 +53,56 @@ def d5(s) -> dict:
     return out
 
 
-def deterministic(sc: str, pv: dict, d) -> dict:
+def deterministic(sc: str, pv: dict, s) -> dict:
     cfg = SUBJECT.scenario(sc)
-    with d.session() as s:
-        clear(s)
-        d1 = apply_constraints(s)
-        kit = kit_for(sc)
-        planted = cfg.get("extraction", "pristine") == "planted"
-        load = load_scenario(s, sc, kit, activity_note=f"{sc}: extraction of the {'planted' if planted else 'pristine'} kit")
-        ver = load_verifications(s, sc, pv) if cfg.get("verifications", True) else {"skipped": f"{sc}: extraction only"}
-        if cfg.get("inferred") and INFERRED:
-            load_inferred(s, sc, INFERRED)
-        rules = run_all(s, sc)
-        cen = census(s)
-        gate = resolve(s, "codegen")
-        out = {"scenario": sc, "D1_constraints": d1, "load": load, "verifications": ver, "rules": rules,
-               "D2_census": cen, "D4_shacl": shacl.run(s), "D6_gate": {k: v for k, v in gate.items() if k != "keys"},
-               "gate_keys": {k: {"level": v["level"], "flags": v["flags"], "n": len(v["assertions"])} for k, v in gate["keys"].items()}}
-        if cfg.get("three_valued"):
-            out["D5_three_valued"] = d5(s)
-        return out, gate, kit
+    s.wipe()
+    d1 = s.apply_constraints()
+    kit = kit_for(sc)
+    planted = cfg.get("extraction", "pristine") == "planted"
+    load = load_scenario(s, sc, kit, activity_note=f"{sc}: extraction of the {'planted' if planted else 'pristine'} kit")
+    ver = load_verifications(s, sc, pv) if cfg.get("verifications", True) else {"skipped": f"{sc}: extraction only"}
+    if cfg.get("inferred") and INFERRED:
+        load_inferred(s, sc, INFERRED)
+    rules = run_all(s, sc)
+    cen = census(s)
+    gate = resolve(s, "codegen")
+    out = {"scenario": sc, "D1_constraints": d1, "load": load, "verifications": ver, "rules": rules,
+           "D2_census": cen, "D4_shacl": shacl.run(s), "D6_gate": {k: v for k, v in gate.items() if k != "keys"},
+           "gate_keys": {k: {"level": v["level"], "flags": v["flags"], "n": len(v["assertions"])} for k, v in gate["keys"].items()}}
+    if cfg.get("three_valued"):
+        out["D5_three_valued"] = d5(s)
+    return out, gate, kit
 
 
-def stage2(sc: str, cfg2: dict, pv: dict, d, derived_code: str | None, derived_ids: list[str]) -> tuple[dict, dict, dict]:
+def stage2(sc: str, cfg2: dict, pv: dict, s, derived_code: str | None, derived_ids: list[str]) -> tuple[dict, dict, dict]:
     """The scenario's second stage (the subject's ``[scenario.stage2]``): register the earlier
     governed output as derived, re-ingest the changed artefact as a new version, invalidate what
     rested on the changed fragments, then record the re-verification of the named keys."""
     version = cfg2.get("version", "v2")
     derived = cfg2.get("derived", {})
-    with d.session() as s:
-        if derived_code:
-            s.run("""CREATE (dv:Derived {id:$did, kind:$dkind, sha256:$sha, suspect:false})
-                     WITH dv UNWIND $ids AS aid MATCH (x:Assertion {id:aid}) MERGE (dv)-[:USED_ASSERTION]->(x)""",
-                  did=derived.get("id", f"derived:{sc}"), dkind=derived.get("kind", "artefact"),
-                  sha=sha256(derived_code), ids=derived_ids).consume()
-        kit2 = kit_for(sc, 2)
-        art = cfg2["artefact"]
-        load2 = load_scenario(s, sc, {art: kit2[art]}, activity_note=cfg2.get("note", f"{sc} stage 2: re-ingestion of the changed {art}"),
-                              version_tag=version, reingest=True)
-        stale = r_stale(s, version)
-        rules2 = {"R-STRUCT": run_all(s, sc)["R-STRUCT"]}
-        gate_blocked = resolve(s, "codegen")
-        # the recorded re-verification of the new assertions on the named keys, by the owner stand-in
-        rever = s.run("""
-            MATCH (x:Assertion {version:$version}) WHERE x.key IN $keys AND x.status IN ['proposed','validated']
-            MATCH (h:Agent {id:$hid})
-            MERGE (v:Verification {id:'ver:review:' + $version + ':' + x.id}) SET v.method='review', v.outcome='pass', v.at=$ts,
-                  v.scope=$scope, v.valid_until=null
-            MERGE (v)-[:VERIFIES]->(x) MERGE (v)-[:PERFORMED_BY]->(h)
-            SET x.status='verified'
-            WITH x, h MERGE (ap:Approval {id:'appr:' + $version + ':' + x.id}) SET ap.at=$ts, ap.record=$record
-            MERGE (ap)-[:APPROVES]->(x) MERGE (ap)-[:BY]->(h) SET x.status='approved'
-            RETURN collect(x.id) AS ids""", version=version, keys=list(cfg2.get("reverify_keys", [])),
-                      hid=PROV.get("human", {}).get("id", "agent:maintainer"), ts=cfg2.get("at", ""),
-                      scope=cfg2.get("reverify_scope", "re-verification"), record=cfg2.get("reapproval_record", "re-approval")).single()["ids"]
-        # new-version assertions of unchanged fragments inherit nothing automatically: they are new statements.
-        # Corroboration and verification of them against the pristine values:
-        load_verifications(s, sc, dict(pv))
-        gate_after = resolve(s, "codegen")
-        stage2 = {"load_v2": load2, "D3_stale": stale, "R-STRUCT_after": rules2["R-STRUCT"],
-                  "gate_before_reverification": {k: v for k, v in gate_blocked.items() if k != "keys"},
-                  "reverified": rever,
-                  "gate_after_reverification": {k: v for k, v in gate_after.items() if k != "keys"},
-                  "census_after": census(s),
-                  "suspect_derived": [dict(r) for r in s.run("MATCH (dv:Derived) RETURN dv.id AS id, dv.suspect AS suspect")]}
-        return stage2, gate_after, kit2
+    if derived_code:
+        s.register_derived(derived.get("id", f"derived:{sc}"), derived.get("kind", "artefact"), sha256(derived_code), derived_ids)
+    kit2 = kit_for(sc, 2)
+    art = cfg2["artefact"]
+    load2 = load_scenario(s, sc, {art: kit2[art]}, activity_note=cfg2.get("note", f"{sc} stage 2: re-ingestion of the changed {art}"),
+                          version_tag=version, reingest=True)
+    stale = r_stale(s, version)
+    rules2 = {"R-STRUCT": run_all(s, sc)["R-STRUCT"]}
+    gate_blocked = resolve(s, "codegen")
+    # the recorded re-verification of the new assertions on the named keys, by the owner stand-in
+    rever = s.reverify(version, list(cfg2.get("reverify_keys", [])), HUMAN["id"], cfg2.get("at", ""),
+                       cfg2.get("reverify_scope", "re-verification"), cfg2.get("reapproval_record", "re-approval"))
+    # new-version assertions of unchanged fragments inherit nothing automatically: they are new statements.
+    # Corroboration and verification of them against the pristine values:
+    load_verifications(s, sc, dict(pv))
+    gate_after = resolve(s, "codegen")
+    stage2 = {"load_v2": load2, "D3_stale": stale, "R-STRUCT_after": rules2["R-STRUCT"],
+              "gate_before_reverification": {k: v for k, v in gate_blocked.items() if k != "keys"},
+              "reverified": rever,
+              "gate_after_reverification": {k: v for k, v in gate_after.items() if k != "keys"},
+              "census_after": census(s),
+              "suspect_derived": s.all_derived()}
+    return stage2, gate_after, kit2
 
 
 def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, out_dir: Path,
@@ -184,12 +169,12 @@ def main() -> None:
     args = ap.parse_args()
     out_root = Path(args.out)
     pv = pristine_values()
-    d = driver()
+    d = open_store(instance=SUBJECT.id)
     summary = {}
     for sc in args.scenarios:
         out_dir = out_root / sc
         out_dir.mkdir(parents=True, exist_ok=True)
-        det, gate, kit = deterministic(sc, pv, d)
+        det, gate, kit = deterministic(sc, pv, d)   # one store, one scenario at a time
         cfg = SUBJECT.scenario(sc)
         task = cfg.get("prompts", "task_codegen")
         runs = {}
