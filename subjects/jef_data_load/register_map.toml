@@ -17,6 +17,13 @@
 # (JDL-108, JDL-115, JDL-119, JDL-128). The 14 cli keys no contract cites stay on the application,
 # which is the command.
 #
+# Chain rows, 2026-11-01: JDL-155 and JDL-156 name their stage's step, run and module by the
+# stage name the contract gives them. JDL-146, 147, 149, 151 and 153 are the preamble, the exec
+# override and the traps, which govern the run and no one step, so they stay on the journey.
+# JDL-154, 157 and 158 (restore, binning, upload) wait on a register decision: the register's
+# steps do not carry those stages, and its publish step names the seam frame, which the chain
+# never exports.
+#
 # contracts/universe.toml.md, classifications.toml.md, the packaged TOML -> ENT-0007 (and APP-0005)
 # contracts/collectors.md, fixtures.md -> APP-0009, PROC-0009
 # contracts/adjustment.md -> APP-0008, ENT-0009, ENT-0008; contracts/store.md -> APP-0008, ENT-0008
@@ -30,9 +37,9 @@
 [map]
 basis = "derived"
 author = "the demo session, derived 2026-11-01 from the contracts' citations, reconciled the same day with the register's links at v0.2.0"
-status = "drafted"
-approved_by = ""
-approved_on = ""
+status = "approved"          # the maintainer read the rows after the reconciliation and approved them on 2026-11-01; the page says so
+approved_by = "fdurieux"
+approved_on = 2026-11-01
 register_commit = "cc68a6b8cef5f6dada3c499c26db12a7c85d6dc0"   # ieam-register v0.2.0, the links the rows were reconciled with
 keys_expected = 163
 
@@ -962,15 +969,15 @@ note = "chain; elaborated by chain.md"
 
 [[row]]
 key = "JDL-155|statement"
-nodes = ["APP-0005", "PROC-0006", "JRN-0005"]
+nodes = ["APP-0005", "PROC-0006", "JRN-0005", "JRN-0006", "PROC-0007", "APP-0006"]
 anchor = "contracts/refusals.md"
-note = "chain; elaborated by chain.md, refusals.md"
+note = "chain; elaborated by chain.md, refusals.md; the sync stage by name (STAGE=sync), so the step Sync the store, the sync run and the sync module"
 
 [[row]]
 key = "JDL-156|statement"
-nodes = ["APP-0005", "PROC-0006", "JRN-0005"]
+nodes = ["APP-0005", "PROC-0006", "JRN-0005", "JRN-0007", "PROC-0008", "APP-0007"]
 anchor = "contracts/refusals.md"
-note = "chain; elaborated by chain.md, refusals.md"
+note = "chain; elaborated by chain.md, refusals.md; the status stage by name (STAGE=status), so the step Check the store's health, the status run and the health module"
 
 [[row]]
 key = "JDL-157|statement"
