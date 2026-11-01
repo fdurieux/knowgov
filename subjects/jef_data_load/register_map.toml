@@ -6,6 +6,17 @@
 # the jef_kit: prefix. Drafted, not yet approved: the page says so until the maintainer reads the
 # rows and sets status = "approved" with the date. Nothing here is written back to the register.
 #
+# Second rule, reconciled 2026-11-01 against the register at v0.2.0: a row also names both
+# endpoints of every register link whose evidence cites the key (28 keys, 29 rows changed), so
+# the nodes a key below approved lights are never fewer than the nodes the register's own links
+# put the requirement on; tests/test_jef_subject.py holds every row to that. A row that was
+# placed by kind on the application alone and is cited by a link takes the link's endpoints
+# instead (JDL-089, JDL-090, JDL-107). The by-kind rows no link cites are placed on the run
+# they belong to: sync rituals on the sync module and the sync run (JDL-092, JDL-097, JDL-098,
+# JDL-102), status rituals and the status arithmetic on the health module and the status run
+# (JDL-108, JDL-115, JDL-119, JDL-128). The 14 cli keys no contract cites stay on the application,
+# which is the command.
+#
 # contracts/universe.toml.md, classifications.toml.md, the packaged TOML -> ENT-0007 (and APP-0005)
 # contracts/collectors.md, fixtures.md -> APP-0009, PROC-0009
 # contracts/adjustment.md -> APP-0008, ENT-0009, ENT-0008; contracts/store.md -> APP-0008, ENT-0008
@@ -18,11 +29,11 @@
 
 [map]
 basis = "derived"
-author = "the demo session, derived 2026-11-01 from the contracts' citations"
+author = "the demo session, derived 2026-11-01 from the contracts' citations, reconciled the same day with the register's links at v0.2.0"
 status = "drafted"
 approved_by = ""
 approved_on = ""
-register_commit = "a852219d0394f61e89e97923927cc7e828b6ab25"
+register_commit = "cc68a6b8cef5f6dada3c499c26db12a7c85d6dc0"   # ieam-register v0.2.0, the links the rows were reconciled with
 keys_expected = 163
 
 [[row]]
@@ -261,9 +272,9 @@ note = "contract; elaborated by collectors.md"
 
 [[row]]
 key = "JDL-040|statement"
-nodes = ["APP-0008", "ENT-0008"]
+nodes = ["APP-0008", "ENT-0008", "ENT-0009"]
 anchor = "contracts/store.md"
-note = "contract; elaborated by store.md"
+note = "contract; elaborated by store.md; the links citing it (REL-08005) add ENT-0009"
 
 [[row]]
 key = "JDL-041|statement"
@@ -285,9 +296,9 @@ note = "contract; elaborated by actions_gate.dmn, leg.md, store.md"
 
 [[row]]
 key = "JDL-044|statement"
-nodes = ["APP-0008", "ENT-0008"]
+nodes = ["APP-0008", "ENT-0008", "ENT-0009"]
 anchor = "contracts/store.md"
-note = "contract; elaborated by store.md"
+note = "contract; elaborated by store.md; the links citing it (REL-08005) add ENT-0009"
 
 [[row]]
 key = "JDL-045|statement"
@@ -363,9 +374,9 @@ note = "arithmetic; elaborated by adjustment.md, basis.dmn"
 
 [[row]]
 key = "JDL-057|statement"
-nodes = ["APP-0008", "ENT-0008"]
+nodes = ["APP-0008", "ENT-0008", "PROC-0007"]
 anchor = "contracts/store.md"
-note = "contract; elaborated by store.md"
+note = "contract; elaborated by store.md; the links citing it (REL-08004, REL-06008) add PROC-0007"
 
 [[row]]
 key = "JDL-058|statement"
@@ -447,15 +458,15 @@ note = "ritual; elaborated by basis.dmn, command_store_state.dmn, refusals.md, s
 
 [[row]]
 key = "JDL-071|statement"
-nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+nodes = ["ENT-0010", "PRD-0004", "APP-0005", "CAP-0007"]
 anchor = "contracts/seam_frame.md"
-note = "contract; elaborated by seam_frame.md"
+note = "contract; elaborated by seam_frame.md; the links citing it (REL-08007, REL-01005) add CAP-0007"
 
 [[row]]
 key = "JDL-072|statement"
-nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+nodes = ["ENT-0010", "PRD-0004", "APP-0005", "PROC-0007", "APP-0008"]
 anchor = "contracts/seam_frame.md"
-note = "arithmetic; elaborated by seam_frame.md"
+note = "arithmetic; elaborated by seam_frame.md; the links citing it (REL-06008) add PROC-0007, APP-0008"
 
 [[row]]
 key = "JDL-073|statement"
@@ -471,9 +482,9 @@ note = "contract; elaborated by seam_frame.md"
 
 [[row]]
 key = "JDL-075|statement"
-nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+nodes = ["ENT-0010", "PRD-0004", "APP-0005", "CAP-0007"]
 anchor = "contracts/seam_frame.md"
-note = "cli; elaborated by seam_frame.md"
+note = "cli; elaborated by seam_frame.md; the links citing it (REL-01005) add CAP-0007"
 
 [[row]]
 key = "JDL-076|statement"
@@ -525,21 +536,21 @@ note = "cli; elaborated by cli.md"
 
 [[row]]
 key = "JDL-084|statement"
-nodes = ["PROC-0009", "APP-0006"]
+nodes = ["PROC-0009", "APP-0006", "CAP-0007", "PROC-0007"]
 anchor = "contracts/leg.md"
-note = "ritual; elaborated by leg.md"
+note = "ritual; elaborated by leg.md; the links citing it (REL-04005, REL-06006) add CAP-0007, PROC-0007"
 
 [[row]]
 key = "JDL-085|statement"
-nodes = ["PROC-0009", "APP-0006", "APP-0005"]
+nodes = ["PROC-0009", "APP-0006", "APP-0005", "PROC-0007"]
 anchor = "contracts/leg.md"
-note = "refusal; elaborated by leg.md, refusal_routing.dmn, refusals.md"
+note = "refusal; elaborated by leg.md, refusal_routing.dmn, refusals.md; the links citing it (REL-06006) add PROC-0007"
 
 [[row]]
 key = "JDL-086|statement"
-nodes = ["PROC-0009", "APP-0006", "ENT-0009", "APP-0008"]
+nodes = ["PROC-0009", "APP-0006", "ENT-0009", "APP-0008", "PROC-0007"]
 anchor = "contracts/leg.md"
-note = "ritual; elaborated by actions_gate.dmn, basis.dmn, leg.md"
+note = "ritual; elaborated by actions_gate.dmn, basis.dmn, leg.md; the links citing it (REL-07006) add PROC-0007"
 
 [[row]]
 key = "JDL-087|statement"
@@ -555,15 +566,15 @@ note = "ritual; elaborated by actions_gate.dmn"
 
 [[row]]
 key = "JDL-089|statement"
-nodes = ["APP-0005"]
+nodes = ["PROC-0007", "ENT-0009"]
 anchor = "requirements.json#JDL-089"
-note = "cli; cited by no contract, placed by kind"
+note = "from the register links citing it (REL-07006); was placed by kind on the application alone"
 
 [[row]]
 key = "JDL-090|statement"
-nodes = ["APP-0005"]
+nodes = ["PROC-0007", "ENT-0008"]
 anchor = "requirements.json#JDL-090"
-note = "ritual; cited by no contract, placed by kind"
+note = "from the register links citing it (REL-07005); was placed by kind on the application alone"
 
 [[row]]
 key = "JDL-091|statement"
@@ -573,9 +584,9 @@ note = "ritual; elaborated by actions_gate.dmn"
 
 [[row]]
 key = "JDL-092|statement"
-nodes = ["APP-0005"]
+nodes = ["APP-0006", "PROC-0007"]
 anchor = "requirements.json#JDL-092"
-note = "ritual; cited by no contract, placed by kind"
+note = "by kind, placed on the run: a ritual of the sync, so the sync module and the sync run"
 
 [[row]]
 key = "JDL-093|statement"
@@ -585,15 +596,15 @@ note = "arithmetic; elaborated by command_store_state.dmn, sync_window.dmn"
 
 [[row]]
 key = "JDL-094|statement"
-nodes = ["APP-0006", "PROC-0009"]
+nodes = ["APP-0006", "PROC-0009", "CAP-0007", "PROC-0007"]
 anchor = "contracts/dmn/sync_window.dmn"
-note = "arithmetic; elaborated by sync_window.dmn"
+note = "arithmetic; elaborated by sync_window.dmn; the links citing it (REL-04005, REL-06006) add CAP-0007, PROC-0007"
 
 [[row]]
 key = "JDL-095|statement"
-nodes = ["APP-0005", "APP-0006", "PROC-0009"]
+nodes = ["APP-0005", "APP-0006", "PROC-0009", "PROC-0007", "ENT-0008"]
 anchor = "contracts/refusals.md"
-note = "ritual; elaborated by refusals.md, sync_window.dmn"
+note = "ritual; elaborated by refusals.md, sync_window.dmn; the links citing it (REL-07005) add PROC-0007, ENT-0008"
 
 [[row]]
 key = "JDL-096|statement"
@@ -603,15 +614,15 @@ note = "ritual; elaborated by refusals.md"
 
 [[row]]
 key = "JDL-097|statement"
-nodes = ["APP-0005"]
+nodes = ["APP-0006", "PROC-0007"]
 anchor = "requirements.json#JDL-097"
-note = "ritual; cited by no contract, placed by kind"
+note = "by kind, placed on the run: a ritual of the sync, so the sync module and the sync run"
 
 [[row]]
 key = "JDL-098|statement"
-nodes = ["APP-0005"]
+nodes = ["APP-0006", "PROC-0007"]
 anchor = "requirements.json#JDL-098"
-note = "ritual; cited by no contract, placed by kind"
+note = "by kind, placed on the run: a ritual of the sync, so the sync module and the sync run"
 
 [[row]]
 key = "JDL-099|statement"
@@ -633,9 +644,9 @@ note = "ritual; elaborated by refusal_routing.dmn"
 
 [[row]]
 key = "JDL-102|statement"
-nodes = ["APP-0005"]
+nodes = ["APP-0006", "PROC-0007"]
 anchor = "requirements.json#JDL-102"
-note = "ritual; cited by no contract, placed by kind"
+note = "by kind, placed on the run: a ritual of the sync, so the sync module and the sync run"
 
 [[row]]
 key = "JDL-103|statement"
@@ -663,15 +674,15 @@ note = "contract; elaborated by sync_summary.schema.json"
 
 [[row]]
 key = "JDL-107|statement"
-nodes = ["APP-0005"]
+nodes = ["CAP-0008", "PROC-0008", "APP-0007", "ENT-0008"]
 anchor = "requirements.json#JDL-107"
-note = "ritual; cited by no contract, placed by kind"
+note = "from the register links citing it (REL-07007, REL-04006, REL-06009); was placed by kind on the application alone"
 
 [[row]]
 key = "JDL-108|statement"
-nodes = ["APP-0005"]
+nodes = ["APP-0007", "PROC-0008"]
 anchor = "requirements.json#JDL-108"
-note = "ritual; cited by no contract, placed by kind"
+note = "by kind, placed on the run: a ritual of the status checks, so the health module and the status run"
 
 [[row]]
 key = "JDL-109|statement"
@@ -699,9 +710,9 @@ note = "verdict; elaborated by classifications.toml.md"
 
 [[row]]
 key = "JDL-113|statement"
-nodes = ["ENT-0007", "APP-0005"]
+nodes = ["ENT-0007", "APP-0005", "PROC-0008", "ENT-0008"]
 anchor = "contracts/classifications.toml.md"
-note = "contract; elaborated by classifications.toml.md"
+note = "contract; elaborated by classifications.toml.md; the links citing it (REL-07007) add PROC-0008, ENT-0008"
 
 [[row]]
 key = "JDL-114|statement"
@@ -711,9 +722,9 @@ note = "verdict; elaborated by command_store_state.dmn, status_verdicts.dmn"
 
 [[row]]
 key = "JDL-115|statement"
-nodes = ["APP-0005"]
+nodes = ["APP-0007", "PROC-0008"]
 anchor = "requirements.json#JDL-115"
-note = "arithmetic; cited by no contract, placed by kind"
+note = "by kind, placed on the run: an arithmetic of the status checks, so the health module and the status run"
 
 [[row]]
 key = "JDL-116|statement"
@@ -735,9 +746,9 @@ note = "verdict; cited by no contract, placed by kind"
 
 [[row]]
 key = "JDL-119|statement"
-nodes = ["APP-0005"]
+nodes = ["APP-0007", "PROC-0008"]
 anchor = "requirements.json#JDL-119"
-note = "arithmetic; cited by no contract, placed by kind"
+note = "by kind, placed on the run: an arithmetic of the status checks, so the health module and the status run"
 
 [[row]]
 key = "JDL-120|statement"
@@ -789,9 +800,9 @@ note = "verdict; elaborated by status_verdicts.dmn"
 
 [[row]]
 key = "JDL-128|statement"
-nodes = ["APP-0005"]
+nodes = ["APP-0007", "PROC-0008"]
 anchor = "requirements.json#JDL-128"
-note = "arithmetic; cited by no contract, placed by kind"
+note = "by kind, placed on the run: an arithmetic of the status checks, so the health module and the status run"
 
 [[row]]
 key = "JDL-129|statement"
@@ -807,9 +818,9 @@ note = "contract; elaborated by status.schema.json"
 
 [[row]]
 key = "JDL-131|statement"
-nodes = ["APP-0005", "APP-0007", "PROC-0008"]
+nodes = ["APP-0005", "APP-0007", "PROC-0008", "CAP-0008"]
 anchor = "contracts/cli.md"
-note = "cli; elaborated by cli.md, status_verdicts.dmn"
+note = "cli; elaborated by cli.md, status_verdicts.dmn; the links citing it (REL-04006) add CAP-0008"
 
 [[row]]
 key = "JDL-132|statement"
@@ -897,9 +908,9 @@ note = "cli; elaborated by cli.md, refusal_routing.dmn"
 
 [[row]]
 key = "JDL-146|statement"
-nodes = ["PROC-0006", "APP-0005", "JRN-0005"]
+nodes = ["PROC-0006", "APP-0005", "JRN-0005", "CAP-0008", "PRD-0004"]
 anchor = "contracts/chain.md"
-note = "chain; elaborated by chain.md"
+note = "chain; elaborated by chain.md; the links citing it (REL-01006, REL-06005) add CAP-0008, PRD-0004"
 
 [[row]]
 key = "JDL-147|statement"
@@ -909,9 +920,9 @@ note = "chain; elaborated by chain.md"
 
 [[row]]
 key = "JDL-148|statement"
-nodes = ["PROC-0006", "APP-0005", "JRN-0005"]
+nodes = ["PROC-0006", "APP-0005", "JRN-0005", "PRD-0004", "JRN-0006", "PROC-0007"]
 anchor = "contracts/chain.md"
-note = "chain; elaborated by chain.md"
+note = "chain; elaborated by chain.md; the links citing it (REL-05002, REL-03004, REL-06005) add PRD-0004, JRN-0006, PROC-0007"
 
 [[row]]
 key = "JDL-149|statement"
@@ -921,21 +932,21 @@ note = "chain; elaborated by chain.md"
 
 [[row]]
 key = "JDL-150|statement"
-nodes = ["PROC-0006", "APP-0005", "JRN-0005"]
+nodes = ["PROC-0006", "APP-0005", "JRN-0005", "JRN-0007", "PROC-0008"]
 anchor = "contracts/chain.md"
-note = "chain; elaborated by chain.md"
+note = "chain; elaborated by chain.md; the links citing it (REL-03005) add JRN-0007, PROC-0008"
 
 [[row]]
 key = "JDL-151|statement"
-nodes = ["APP-0005", "PROC-0006", "JRN-0005"]
+nodes = ["APP-0005", "PROC-0006", "JRN-0005", "CAP-0008", "PRD-0004"]
 anchor = "contracts/refusals.md"
-note = "chain; elaborated by chain.md, refusals.md"
+note = "chain; elaborated by chain.md, refusals.md; the links citing it (REL-01006) add CAP-0008, PRD-0004"
 
 [[row]]
 key = "JDL-152|statement"
-nodes = ["PROC-0006", "APP-0005", "JRN-0005"]
+nodes = ["PROC-0006", "APP-0005", "JRN-0005", "PRD-0004", "JRN-0008", "ENT-0010"]
 anchor = "contracts/chain.md"
-note = "chain; elaborated by chain.md"
+note = "chain; elaborated by chain.md; the links citing it (REL-07008, REL-05002, REL-03006) add PRD-0004, JRN-0008, ENT-0010"
 
 [[row]]
 key = "JDL-153|statement"
