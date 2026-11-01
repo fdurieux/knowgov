@@ -75,7 +75,7 @@ def test_jef_subject_loads_and_its_vendor_table_names_what_exists():
     ids = [r["id"] for r in json.loads(kit["requirements.json"])]
     assert len(ids) == 163 and s.tasks["codegen"]["keys"] == [f"{i}|statement" for i in ids]
     assert s.order == ["C", "D1", "D2", "D3", "D4", "D5"] and set(s.plants) == {"D1", "D2", "D3", "D4", "D5"}
-    assert s.verification["derive_execution"]["from_predicate"] == "verified_by" and s.oracle_script() is None
+    assert s.verification["derive_execution"]["from_predicate"] == "verified_by" and s.oracle_script() == s.root / "oracle" / "jef_suite.py"
 
 
 def test_minimal_subject_is_empty_but_loads():

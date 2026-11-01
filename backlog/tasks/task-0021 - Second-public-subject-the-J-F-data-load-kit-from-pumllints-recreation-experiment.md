@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-01T19:43:00Z'
-updated_date: '2026-11-01T20:42:00Z'
+updated_date: '2026-11-01T20:54:00Z'
 labels:
   - subject
 milestone: m-3
@@ -25,11 +25,11 @@ A platform proven on one subject is not proven (task-0008). pumllint's recreatio
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 subjects/jef_data_load/ loads through KG_SUBJECT and a deterministic run completes on rdflib and on Neo4j with no edit outside harness/extract.py (mappers are the harness's extension point) and the vendor tool
-- [ ] #2 The subject's bytes are vendored from a pumllint commit by tools/vendor_subject.py with a SOURCE.md naming the commit, and tests/test_vendor_subject.py holds every file to its digest; J-F's original code is absent
-- [ ] #3 The gate's task class names its required keys as JDL requirement ids and the verification map is derived from the scenarios' tags
-- [ ] #4 The five degradation arms are the subject's scenarios, with plants.toml reproducing the plant bundle's kit patches and the cards quoting the graded outcomes
-- [ ] #5 The page shows the subject with every scenario on the menu, the register entry present, and the footprint and the impact walk answering on J-F content through the subject's register_map.toml
+- [x] #1 subjects/jef_data_load/ loads through KG_SUBJECT and a deterministic run completes on rdflib and on Neo4j with no edit outside harness/extract.py (mappers are the harness's extension point) and the vendor tool
+- [x] #2 The subject's bytes are vendored from a pumllint commit by tools/vendor_subject.py with a SOURCE.md naming the commit, and tests/test_vendor_subject.py holds every file to its digest; J-F's original code is absent
+- [x] #3 The gate's task class names its required keys as JDL requirement ids and the verification map is derived from the scenarios' tags
+- [x] #4 The five degradation arms are the subject's scenarios, with plants.toml reproducing the plant bundle's kit patches and the cards quoting the graded outcomes
+- [x] #5 The page shows the subject with every scenario on the menu, the register entry present, and the footprint and the impact walk answering on J-F content through the subject's register_map.toml
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -42,4 +42,6 @@ A platform proven on one subject is not proven (task-0008). pumllint's recreatio
 
 <!-- SECTION:NOTES:BEGIN -->
 0021.01 and 0021.02 Done (knowgov #16, #17); the register slice merged (ieam-register #5); 0021.04 built on both sides and verified live through KG_REGISTER, its last two criteria waiting on the owner's tag; 0021.03 (the oracle) not started.
+
+Criteria 1 to 5 met across knowgov #16, #17, #18, #19 and ieam-register #5. On criterion 1, one reading to record: the subject needed no subject-specific edit, but three generic harness additions beside the mappers (directory artefacts with path-aware include globs, a plant replace confined to one part with within, the execution map derived from the kit's verified_by links), each documented in subjects/README.md and usable by any subject; and arms.enabled() now also needs an oracle. On criterion 5, the footprint and the impact walk were verified live with KG_REGISTER set to the ieam-register checkout that carries the slice; the vendored copy under demo/register reads 'not in the register copy' until the owner tags and it is re-vendored (0021.04's last two criteria).
 <!-- SECTION:NOTES:END -->

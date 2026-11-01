@@ -44,7 +44,11 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   section is the adopter-facing walkthrough.
 - The record's versions are pinned in `demo/Dockerfile` (neo4j 6.4.1, rdflib
   7.6.0, pyshacl 0.40.2, openai 3.41.0) with pumllint 0.33.0 from PyPI, the
-  library the sequence-diagram mapper imports; `tests/test_demo.py` holds them.
+  library the sequence-diagram mapper imports, and the J-F subject's oracle
+  pins (pandas 3.0.5, numpy 2.4.6, requests 2.34.2, pyarrow 25.0.1, pytest
+  9.1.1, pytest-bdd 9.0.1) on CPython 3.12, the interpreter its kit names;
+  `tests/test_demo.py` holds them, `harness.yml` runs the oracle on the
+  reference rebuild (258 of 258).
 - Local proof without any database: `KG_STORE=rdflib python harness/run.py
   --deterministic --out <dir>` in a venv with the pins, then
   `demo/tools/compare_deterministic.py <dir>` (`harness.yml` does this in CI).

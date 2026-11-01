@@ -75,9 +75,13 @@ mapper = "gherkin_tagged"
 [reference]
 code = "vendor/recreate_experiment/rebuilds/codex-2026-10-24/src/jef/data"
 
-# No oracle yet (task-0021.03): the arms stay off, the deterministic half runs.
+# The oracle: the kit's own pytest-bdd suite through its seams (oracle/jef_suite.py), one scenario
+# per feature file; a result is the feature's cases passed over its total. The reference (the codex
+# rebuild) passes 258 of 258 on CPython 3.12, the interpreter the kit's pins name; CPython 3.13
+# wraps seven --help usage lines differently and fails those seven verbatim cases.
 [oracle]
-suite_order = []
+script = "oracle/jef_suite.py"
+suite_order = ["actions", "adjustment", "chain", "cli", "collectors", "decisions", "differential", "seam", "status", "store", "sync", "universe"]
 
 [provenance]
 harness_name = "knowgov harness"

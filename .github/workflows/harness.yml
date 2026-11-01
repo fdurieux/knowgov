@@ -1,8 +1,8 @@
 name: harness
 
 # The deterministic half without a database: the rdflib adapter in memory, S1 to S7 against the
-# vendored record through the comparator, then the J-F subject against its record, then the
-# minimal subject. Needs the Python pins the
+# vendored record through the comparator, then the J-F subject against its record and its
+# oracle over the reference rebuild, then the minimal subject. Needs the Python pins the
 # image installs, no Neo4j. The stack job (demo.yml) is the Neo4j adapter's proof.
 
 on:
@@ -20,8 +20,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.13"
-      - run: pip install "pumllint==0.33.0" "pyyaml==6.0.3" "rdflib==7.6.0" "pyshacl==0.40.2" "openai==3.41.0"
+          python-version: "3.12"   # the interpreter the demo image and the J-F kit's pins name
+      - run: pip install "pumllint==0.33.0" "pyyaml==6.0.3" "rdflib==7.6.0" "pyshacl==0.40.2" "openai==3.41.0" "pandas==3.0.5" "numpy==2.4.6" "requests==2.34.2" "pyarrow==25.0.1" "pytest==9.1.1" "pytest-bdd==9.0.1"
       - name: S1 to S7 on the in-memory store match the record
         run: |
           cd harness && KG_STORE=rdflib python run.py --deterministic --out ../runs/rdflib && cd ..
@@ -30,6 +30,8 @@ jobs:
         run: |
           cd harness && KG_STORE=rdflib KG_SUBJECT=../subjects/jef_data_load python run.py --deterministic --out ../runs/jef && cd ..
           KG_SUBJECT=subjects/jef_data_load python demo/tools/compare_deterministic.py runs/jef
+      - name: The J-F subject's oracle passes the reference rebuild, every feature, 258 of 258
+        run: python subjects/jef_data_load/oracle/jef_suite.py
       - name: The minimal subject loads and the gate reports every required key absent
         run: |
           cd harness && KG_STORE=rdflib KG_SUBJECT=../subjects/minimal python run.py --deterministic --out ../runs/minimal && cd ..

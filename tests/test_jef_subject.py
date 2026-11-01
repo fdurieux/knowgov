@@ -88,7 +88,7 @@ def test_manifest_conventions_and_record():
     m = tomllib.loads((SUBJ / "subject.toml").read_text(encoding="utf-8"))
     assert m["rules"]["requirement_id_pattern"] == "JDL-\\d{3}"
     assert m["verification"]["derive_execution"] == {"from_predicate": "verified_by", "key_predicate": "statement", "separator": "; "}
-    assert m["oracle"]["suite_order"] == [] and "script" not in m["oracle"], "no oracle yet: the arms stay off (0021.03)"
+    assert m["oracle"]["script"] == "oracle/jef_suite.py" and len(m["oracle"]["suite_order"]) == 12
     assert m["page"]["title"].startswith("J-F") and m["page"]["reference"]["numbers"]["planted"] == 15
     for sc in ("C", "D1", "D2", "D3", "D4", "D5"):
         d = json.loads((SUBJ / "record" / sc / "deterministic.json").read_text(encoding="utf-8"))
@@ -149,3 +149,23 @@ print(json.dumps({"seen": seen, "bad": bad[:8], "scenarios": len(views.ORDER)}))
     out = json.loads(r.stdout.strip().splitlines()[-1])
     assert out["scenarios"] == 6 and out["seen"]["controlled"] > 300 and out["seen"]["data"] > 20, out["seen"]   # no arm ran: no readings yet
     assert not out["bad"], out["bad"]
+
+
+def test_oracle_module_presents_the_kits_suite_in_the_harness_interface():
+    """oracle/jef_suite.py imports with the standard library alone, names the twelve feature files
+    as the suite's scenarios, and attributes every scenario title to its feature under pytest-bdd's
+    naming (the run itself needs the pins and runs in harness.yml: 258 of 258 on the reference)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("jef_suite", SUBJ / "oracle" / "jef_suite.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    m = tomllib.loads((SUBJ / "subject.toml").read_text(encoding="utf-8"))
+    assert mod.FEATURES == m["oracle"]["suite_order"] == sorted(mod.suite_mod.SUITE["scenarios"]) and len(mod.FEATURES) == 12
+    assert mod.build_spec("seam") == {"family": "jef_data_load", "feature": "seam"} and mod.suite_mod.OVERLAYS == {}
+    feat = mod._feature_of_slug()
+    assert len(feat) == 130 and set(feat.values()) == set(mod.FEATURES)
+    assert mod._slug("A two-split equity is stored raw (manifest.json)") == "a_twosplit_equity_is_stored_raw_manifestjson"
+    assert mod.REBUILD.is_dir() and (mod.REBUILD / "deploy" / "daily.sh").exists() and (mod.REBUILD / "jdl_adapter.py").exists()
+    assert mod.ADAPTER_FUNCTIONS[0] == "make_collector" and len(mod.ADAPTER_FUNCTIONS) == 10
+    # the arms are on only with a key: the switch now has an oracle to grade a reply
+    assert m["page"]["subtitle"].startswith("Six scenarios, a gate")
