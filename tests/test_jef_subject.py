@@ -23,15 +23,17 @@ def _sentences(text):
 
 
 def test_plants_are_the_tools_output_from_the_vendored_patches():
+    import tempfile
     import plants_from_patch as pfp
     patches = SUBJ / "vendor" / "recreate_experiment" / "degradation-2026-10-28" / "plant" / "patches"
     env = dict(os.environ, KG_SUBJECT=str(SUBJ))
-    out = subprocess.run([sys.executable, str(ROOT / "tools" / "plants_from_patch.py"), str(SUBJ),
-                          *(f"{a}={patches / (a + '.patch')}" for a in ("D1", "D2", "D3", "D4", "D5")),
-                          "-o", str(ROOT / "runs" / "_plants_check.toml")], env=env, capture_output=True, text=True)
-    assert out.returncode == 0, out.stderr
-    written = (ROOT / "runs" / "_plants_check.toml").read_text(encoding="utf-8")
-    (ROOT / "runs" / "_plants_check.toml").unlink()
+    with tempfile.TemporaryDirectory() as td:   # a fresh checkout has no runs/
+        target = Path(td) / "plants.toml"
+        out = subprocess.run([sys.executable, str(ROOT / "tools" / "plants_from_patch.py"), str(SUBJ),
+                              *(f"{a}={patches / (a + '.patch')}" for a in ("D1", "D2", "D3", "D4", "D5")),
+                              "-o", str(target)], env=env, capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr
+        written = target.read_text(encoding="utf-8")
     assert written == (SUBJ / "plants.toml").read_text(encoding="utf-8"), "plants.toml is not the tool's output; regenerate it"
     d = tomllib.loads(written)
     assert {k: len(v) for k, v in d["plant"].items()} == {"D1": 4, "D2": 12, "D3": 27, "D4": 10, "D5": 29}
