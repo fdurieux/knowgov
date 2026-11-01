@@ -12,7 +12,10 @@ Environment:
     KG_BROWSER_URL    where the viewer's browser reaches Neo4j Browser (http://localhost:7474)
     KG_DEMO_RUNS      where re-runs land (runs/); the vendored record under
                       the subject's vendored record is never written
-    OPENAI_API_KEY    enables the arms mode; passed through to the harness, never stored
+    KG_MODEL_BASE_URL, KG_MODEL_API_KEY_VAR, KG_ARMS_MODEL
+                      the model endpoint (harness/arms.py): the arms are enabled only when the
+                      variable KG_MODEL_API_KEY_VAR names (OPENAI_API_KEY by default) holds a
+                      value; passed through to the harness, never stored
 """
 
 from __future__ import annotations
@@ -40,6 +43,7 @@ ROOT = HERE.parent.parent
 HARNESS = ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
 from subject import SUBJECT  # noqa: E402  (the subject root: KG_SUBJECT, default subjects/cargo_quote)
+import arms  # noqa: E402  (the model endpoint settings; the client is imported only when a call is made)
 RECORD = SUBJECT.record_dir
 RUNS_DIR = Path(os.environ.get("KG_DEMO_RUNS", str(ROOT / "runs")))
 NEO4J_URI = os.environ.get("KG_NEO4J_URI", "bolt://localhost:7687")
@@ -55,6 +59,14 @@ INDEX = (HERE / "index.html").read_bytes()
 
 # Saved Cypher for the store panel. Each runs in Neo4j Browser against the
 # scenario currently loaded; the comment on each says which scenario shows it.
+def _endpoint_view() -> dict:
+    """What the page says about the model endpoint: the host, the key variable's name (never
+    its value), the model, and whether a call would be a deviation from the record."""
+    ep = arms.endpoint()
+    host = ep["base_url"].split("://", 1)[-1].split("/", 1)[0]
+    return {"host": host, "key_var": ep["key_var"], "key_set": ep["key_set"], "model": ep["model"], "deviation": ep["deviation"]}
+
+
 def _store(timeout: float = 3):
     """A store through the port, for the page's short reads; raises when unreachable."""
     from store import open_store  # the harness's port; the adapter needs its driver, in the image
@@ -143,8 +155,8 @@ class Runner:
             raise ValueError(f"unknown scenario {scenario}")
         if mode not in ("deterministic", "arms"):
             raise ValueError(f"unknown mode {mode}")
-        if mode == "arms" and not os.environ.get("OPENAI_API_KEY"):
-            raise ValueError("arms mode needs OPENAI_API_KEY in the app's environment")
+        if mode == "arms" and not arms.enabled():
+            raise ValueError(f"arms mode needs {arms.endpoint()['key_var']} in the app's environment")
         model = (model or RECORD_MODEL).strip()
         if not MODEL_RE.match(model):
             raise ValueError(f"not a model name: {model!r}")
@@ -254,7 +266,7 @@ class Handler(BaseHTTPRequestHandler):
             if parts[:2] == ["api", "scenarios"]:
                 st = store_status()
                 return self._json({"scenarios": views.scenario_list(RUNS_DIR), "store": st,
-                                   "arms_enabled": bool(os.environ.get("OPENAI_API_KEY")),
+                                   "arms_enabled": arms.enabled(), "model_endpoint": _endpoint_view(),
                                    "record_model": RECORD_MODEL, "default_other_model": DEFAULT_OTHER_MODEL,
                                    "arms_model_preset": bool(os.environ.get("KG_ARMS_MODEL")),
                                    "deterministic_enabled": st["reachable"],

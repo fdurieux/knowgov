@@ -60,7 +60,9 @@ for the whole matrix, merge on green, never on red or pending.
   reverse.
 - A client's instance is private, created inside the client's repositories,
   and never pushed here. No bank-related data, ever.
-- The model endpoint is instance configuration; arms are off until one is set.
+- The model endpoint is instance configuration (`KG_MODEL_BASE_URL`,
+  `KG_MODEL_API_KEY_VAR`, `KG_ARMS_MODEL`; `harness/arms.py` `endpoint()`); the
+  arms are off until the named key variable holds a value (task-0005).
 
 
 <!-- BACKLOG.MD GUIDELINES START -->
