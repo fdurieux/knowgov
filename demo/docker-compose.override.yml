@@ -1,0 +1,12 @@
+# Development override, applied automatically by `docker compose up` run in
+# this directory: build the app image from this checkout instead of pulling
+# it, and write demo runs into the checkout's runs/ (ignored by git) so they survive `docker compose down -v`. Pass `-f docker-compose.yml`
+# alone to skip it and use the registry image.
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile
+    image: knowgov:local
+    volumes:
+      - ../runs:/repo/runs
