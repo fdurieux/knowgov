@@ -57,3 +57,27 @@ state = "proposed"
 rationale = "The quote document and the refusal notice are notifications"
 owner = "ORG-0001"
 evidence = ["exports/kit/2026-10-30/MANIFEST.toml"]
+
+# The J-F data-load slice (decision 0005)
+
+[[link]]
+id = "REL-01005"
+source = "PRD-0004"
+target = "CAP-0007"
+state = "approved"
+rationale = "The seam frame is the adjusted bars of every modelled asset"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/seam_frame.md", "jef_kit:requirements.json#JDL-071", "jef_kit:requirements.json#JDL-075"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-01006"
+source = "PRD-0004"
+target = "CAP-0008"
+state = "approved"
+rationale = "The frame is published only when the status run passes"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-146", "jef_kit:requirements.json#JDL-151"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }

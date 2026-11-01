@@ -48,3 +48,71 @@ owner = "ORG-0002"
 evidence = ["exports/kit/2026-10-30/MANIFEST.toml"]
 review_due = 2027-04-30
 approval = { by = "fdurieux", on = 2026-10-30, record = "decisions/0002-pilot-slice-cargoquote.md" }
+
+# The J-F data-load slice (decision 0005)
+
+[[link]]
+id = "REL-09004"
+source = "ORG-0003"
+target = "CAP-0006"
+state = "approved"
+rationale = "The maintainer owns the J-F program and everything it declares"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:README.md"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-09005"
+source = "ORG-0003"
+target = "PRD-0003"
+state = "approved"
+rationale = "The maintainer owns the J-F program and everything it declares"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:README.md"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-09006"
+source = "ORG-0003"
+target = "JRN-0005"
+state = "approved"
+rationale = "The maintainer owns the J-F program and everything it declares"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:README.md"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-09007"
+source = "ORG-0003"
+target = "PROC-0006"
+state = "approved"
+rationale = "The maintainer owns the J-F program and everything it declares"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:README.md"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-09008"
+source = "ORG-0003"
+target = "APP-0005"
+state = "approved"
+rationale = "The maintainer owns the J-F program and everything it declares"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:README.md"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-09009"
+source = "ORG-0003"
+target = "ENT-0006"
+state = "approved"
+rationale = "The maintainer owns the J-F program and everything it declares"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:README.md"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }

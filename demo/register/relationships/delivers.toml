@@ -26,3 +26,16 @@ owner = "ORG-0001"
 evidence = ["exports/kit/2026-10-30/MANIFEST.toml", "kit:kit/quote_process.bpmn"]
 review_due = 2027-04-30
 approval = { by = "fdurieux", on = 2026-10-30, record = "decisions/0002-pilot-slice-cargoquote.md" }
+
+# The J-F data-load slice (decision 0005)
+
+[[link]]
+id = "REL-05002"
+source = "PROC-0006"
+target = "PRD-0004"
+state = "approved"
+rationale = "The daily chain exports the seam frame after sync and status"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-148", "jef_kit:requirements.json#JDL-152"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }

@@ -46,3 +46,38 @@ state = "proposed"
 rationale = "The quote document or refusal notice is sent by PROC-0005 (REQ-01, REQ-03)"
 owner = "ORG-0001"
 evidence = ["exports/kit/2026-10-30/MANIFEST.toml"]
+
+# The J-F data-load slice (decision 0005)
+
+[[link]]
+id = "REL-03004"
+source = "JRN-0006"
+target = "PROC-0007"
+state = "approved"
+rationale = "Syncing the store is the sync run"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-148"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-03005"
+source = "JRN-0007"
+target = "PROC-0008"
+state = "approved"
+rationale = "Checking health is the status run"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-150"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+
+[[link]]
+id = "REL-03006"
+source = "JRN-0008"
+target = "PROC-0006"
+state = "approved"
+rationale = "Publishing is the chain's last stage"
+owner = "ORG-0003"
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-152"]
+review_due = 2027-05-01
+approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }

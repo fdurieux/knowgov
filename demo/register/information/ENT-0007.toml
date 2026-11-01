@@ -1,0 +1,17 @@
+id = "ENT-0007"
+kind = "business_entity"
+name = "Universe"
+parent = "ENT-0006"
+state = "approved"
+owner = "ORG-0003"
+review_due = 2027-05-01
+
+[source]
+system = "jef_kit"
+kit_path = "contracts/universe.toml.md"
+export = "exports/jef_kit/2026-11-01"
+
+[approval]
+by = "fdurieux"
+on = 2026-11-01
+record = "decisions/0005-second-subject-jef-data-load.md"

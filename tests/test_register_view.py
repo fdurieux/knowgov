@@ -26,13 +26,13 @@ def test_register_view_builds_from_the_vendored_copy_at_the_pinned_date():
     v = register_view.build()
     assert v["source"]["repo"] == "fdurieux/ieam-register" and len(v["source"]["commit"]) == 40 and v["source"]["digest_ok"]
     assert v["source"]["kind"] == "copy" and register_view.REGISTER == (DEMO / "register").resolve()
-    assert v["source"]["tag"] == "v0.1.1" and v["source"]["commit"].startswith("c54f86c")  # the tag sits on the vendored commit
+    assert v["source"]["tag"] == "v0.2.0" and v["source"]["commit"].startswith("cc68a6b")  # the tag sits on the vendored commit
     assert v["pinned"] and v["run_date"] == v["source"]["pinned_date"]
-    assert v["summary"] == {"nodes": 27, "links": 28, "errors": 0, "warnings": 3}
-    assert v["coverage_lines"][0] == "C1: 2/3 covered, 1 excepted, 0 uncovered"
+    assert v["summary"] == {"nodes": 51, "links": 56, "errors": 0, "warnings": 6}   # the J-F slice (decision 0005): 24 nodes, 28 links, six parentless nodes
+    assert v["coverage_lines"][0] == "C1: 5/6 covered, 1 excepted, 0 uncovered"
     assert v["coverage"]["C2"]["uncovered"] == [] and v["coverage"]["C3"]["uncovered"] == []
     assert sorted(v["nodes_by_taxonomy"]) == sorted(["capabilities", "products", "journeys", "processes", "applications", "information", "organisation"])
-    assert sum(len(ns) for ns in v["nodes_by_taxonomy"].values()) == 27 and len(v["links"]) == 28
+    assert sum(len(ns) for ns in v["nodes_by_taxonomy"].values()) == 51 and len(v["links"]) == 56
     for ns in v["nodes_by_taxonomy"].values():
         for n in ns:
             p = n["panel"]
@@ -53,8 +53,8 @@ def test_register_view_at_the_wall_clock_shows_an_expired_exception():
     w = register_view.build("2027-03-01")
     assert not w["pinned"] and w["run_date"] == "2027-03-01"
     assert w["coverage"]["C1"]["uncovered"] == ["JRN-0004"] and w["coverage"]["C1"]["excepted"] == 0
-    assert "wall-clock date" in w["intro"] and w["pinned_date"] == "2026-10-30"
-    same = register_view.build("2026-10-30")
+    assert "wall-clock date" in w["intro"] and w["pinned_date"] == "2026-11-01"
+    same = register_view.build("2026-11-01")
     assert not same["pinned"] and "which is the pinned date" in same["intro"]
     assert any(f["check"] == "exceptions" and "expired" in f["message"] for f in w["findings"])
 
@@ -208,18 +208,18 @@ def test_projection_rows_and_statements():
     import register_project as rp
     r = rp.rows(loaded_at="2026-10-31T00:00:00+00:00")
     c = r["counts"]
-    assert c["nodes"] == 27 and c["links"] == 28 and c["types"] == 10 and c["documents"] == 10 and c["externals"] == 1 and c["exceptions"] == 1
-    assert r["stamp"]["tag"] == "v0.1.1" and r["stamp"]["commit"].startswith("c54f86c") and r["stamp"]["export_date"] == "2026-10-30"
-    assert len(r["parents"]) == sum(1 for n in r["nodes"] if n["parent"]) and len(r["owners"]) == 27
-    assert sum(len(v) for v in r["typed"].values()) == 27 and len(r["maps_to"]) == 1 and len(r["link_of"]) == 55 and len(r["of_type"]) == 28
+    assert c["nodes"] == 51 and c["links"] == 56 and c["types"] == 10 and c["documents"] == 10 and c["externals"] == 1 and c["exceptions"] == 1
+    assert r["stamp"]["tag"] == "v0.2.0" and r["stamp"]["commit"].startswith("cc68a6b") and r["stamp"]["export_date"] == "2026-10-30"   # the subject's export, not the newest
+    assert len(r["parents"]) == sum(1 for n in r["nodes"] if n["parent"]) and len(r["owners"]) == 51
+    assert sum(len(v) for v in r["typed"].values()) == 55 and len(r["maps_to"]) == 1 and len(r["link_of"]) == 111 and len(r["of_type"]) == 56
     assert {"reg_id": "REL-08002", "path": "kit/requirements.md", "anchor": "kit:requirements.md#REQ-05"} in r["cites"]
     assert r["excepts"] == [{"reg_id": "EXC-0001", "node": "JRN-0004", "rule": "C1", "expires": "2027-01-31"}]
-    assert c["relationships"] == 27 + 1 + 55 + 28 + len(r["cites"]) + len(r["parents"]) + 27 + 1
+    assert c["relationships"] == 55 + 1 + 111 + 56 + len(r["cites"]) + len(r["parents"]) + 51 + 1
     # every property is what Neo4j can hold: a string, number, boolean or list of strings; every row is stamped
     ok = (str, int, float, bool)
     for key in ("nodes", "types", "links", "documents", "externals", "exceptions"):
         for row in r[key]:
-            assert row["tag"] == "v0.1.1" and row["commit"] and row["loaded_at"] and len(row["digest"]) == 64, (key, row["reg_id"])
+            assert row["tag"] == "v0.2.0" and row["commit"] and row["loaded_at"] and len(row["digest"]) == 64, (key, row["reg_id"])
             for k, v in row.items():
                 assert isinstance(v, ok) or (isinstance(v, list) and all(isinstance(x, str) for x in v)), (key, row["reg_id"], k, v)
     # the load is the Neo4j adapter's project_register, read as source: the tests job has no driver
@@ -243,7 +243,7 @@ def test_projection_is_wired_and_named():
     ci = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert '["api", "register", "project"]' in server and "s.register_census()" in server and '"register": None' in server
     assert 'id="project-btn"' in page and "/api/register/project" in page and "register ${s.register ? 'projected at '" in page
-    assert "POST localhost:8080/api/register/project" in ci and '"tag"]=="v0.1.1"' in ci
+    assert "POST localhost:8080/api/register/project" in ci and '"tag"]=="v0.2.0"' in ci
     assert "projection" in views.GLOSSARY and "**The projection.**" in (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
     adapter = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")   # the saved queries are the adapter's
     ids = [m.group(1) for m in _re.finditer(r'\{"id": "([a-z0-9-]+)", "needs": "[^"]+", "title"', adapter)]
@@ -334,7 +334,7 @@ def test_register_root_comes_from_the_environment_and_a_checkout_has_no_note():
             v = rv.build()
             assert not v["pinned"] and v["pinned_date"] == "" and v["run_date"] == dt.date.today().isoformat()
             assert "own checkout" in v["intro"] and "no pinned date" in v["intro"]
-            assert v["summary"]["nodes"] == 27 and len(v["links"]) == 28, "the same content, read from the other root"
+            assert v["summary"]["nodes"] == 51 and len(v["links"]) == 56, "the same content, read from the other root"
             assert rv.impact("APP-0002")["reached"]["products"]
             fp = rv.footprint(views.build("S2", views.default_source("S2"), ROOT / "nonexistent-demo-runs"))
             assert fp["box"]["colour"] == "warn" and fp["uncited"] == 0, "the subject's map and manifest join the mounted register"

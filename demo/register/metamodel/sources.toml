@@ -1,6 +1,7 @@
 # The systems of record. The register points at them and checks `name` against their latest
-# export; it never copies their attributes. `kit` is the synthetic source of this test case:
-# the CargoQuote kit under pumllint's kg_experiment/kit, public content, no bank data.
+# export; it never copies their attributes. `kit` is the synthetic source of this test case's
+# first subject: the CargoQuote kit under pumllint's kg_experiment/kit, public content, no bank
+# data. A second subject of the organisation is a second [system.<name>] here (decision 0004).
 
 [system.aris]
 description = "ARIS, the governed authoring repository for processes, journeys, products and operational publication"
@@ -22,6 +23,12 @@ export_route = "unknown; format and id stability unverified"
 
 [system.kit]
 description = "the CargoQuote kit (pumllint kg_experiment/kit), synthetic content for this test case"
+id_field = "kit_path"
+authoritative_for = ["capabilities", "products", "journeys", "processes", "applications", "information", "organisation"]
+export_route = "a MANIFEST of sha256 digests at a pumllint commit; the files themselves stay in pumllint"
+
+[system.jef_kit]
+description = "the J-F data-load kit (pumllint recreate_experiment/kit): the maintainer's own daily asset load, reverse-engineered into requirements, contracts, decision tables, diagrams and a tagged suite; the organisation's second subject (decision 0005); synthetic fixtures, no bank data"
 id_field = "kit_path"
 authoritative_for = ["capabilities", "products", "journeys", "processes", "applications", "information", "organisation"]
 export_route = "a MANIFEST of sha256 digests at a pumllint commit; the files themselves stay in pumllint"
