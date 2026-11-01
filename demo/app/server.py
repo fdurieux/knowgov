@@ -90,7 +90,8 @@ def cypher_list() -> list[dict]:
     except ImportError:
         SAVED_QUERIES = []
     out = []
-    for q in list(SAVED_QUERIES) + SUBJECT.queries:
+    generic = list(SAVED_QUERIES)
+    for q in generic[:1] + SUBJECT.queries + generic[1:]:   # the subject's after the first, as the page always listed them
         needs_text = q.get("needs_text") or NEEDS_TEXT.get(q["needs"]) or f"{q['needs']} loaded"
         out.append(dict(q, needs_text=needs_text))
     return out

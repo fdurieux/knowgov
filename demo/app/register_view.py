@@ -480,8 +480,10 @@ def footprint(view: dict) -> dict:
                  "text": C(f"{len(req_rows) - uncited} {'is' if len(req_rows) - uncited == 1 else 'are'} cited by a link, {uncited} by none.") + (" " + C("A gap no link cites is one the register does not yet carry.") if uncited else ""),
                  "table": {"cols": ["requirement or document", "kind", "declared", "links citing it"], "rows": req_cells}})
     if "stage2" in det:
-        secs.append({"heading": C(f"Links citing the changed document: {len(table_links)}"),
-                     "text": C("The document changed in the second stage, so every link that cites it is a link to review.") + " "
+        s2cfg = SUBJECT.scenarios.get(view["scenario"], {}).get("stage2", {})
+        label, short = s2cfg.get("label", "document"), s2cfg.get("short_label", s2cfg.get("label", "document"))
+        secs.append({"heading": C(f"Links citing the changed {label}: {len(table_links)}"),
+                     "text": C(f"The {short} changed in the second stage, so every link that cites it is a link to review.") + " "
                              + D(f"The manifest digest of {table_path} at the register's commit is {table_digest[:12]}; the result file records the second load ({det['stage2']['load_v2']['fragments']} new fragments, {det['stage2']['load_v2']['fragments_reused']} reused) and no document digest."),
                      "table": {"cols": ["link", "type", "source", "target", "state", "evidence"],
                                "rows": [[R("link", lid), _tip(ty, D(_type_tip(reg["relationships"][ty]["type"]))), R("node", src), _target_ref(cx.by_id[lid]), cx.state_cell(st),

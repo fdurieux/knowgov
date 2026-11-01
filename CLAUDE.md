@@ -26,10 +26,13 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   re-runs, gitignored. `KG_SUBJECT` selects the root; nothing in `harness/` or
   `demo/` names a subject, a document or a scenario (task-0002).
 - Re-vendor the register with `python tools/vendor_register.py <checkout>` at
-  a tag of ieam-register; the CargoQuote bytes with `python tools/vendor_subject.py
-  <checkout>` at a pumllint tag (`--allow-untagged` for a commit, and the
-  note says so). Each rewrites its `SOURCE.md`; a test holds every file to
-  its digest.
+  a tag of ieam-register; the Legible model with `python tools/vendor_legible_model.py
+  <checkout of fdurieux.github.io>` (its note also carries the digest of
+  `demo/model/cascade_layout.py`); the CargoQuote bytes with `python
+  tools/vendor_subject.py <checkout>` at a pumllint tag (`--allow-untagged` for
+  a commit, and the note says so). Each rewrites its `SOURCE.md`; a test holds
+  every file to its digest. The demo README's "Keeping the demo current"
+  section is the adopter-facing walkthrough.
 - The record's versions are pinned in `demo/Dockerfile` (neo4j 6.4.1, rdflib
   7.6.0, pyshacl 0.40.2, openai 3.41.0) with pumllint 0.33.0 from PyPI, the
   library the sequence-diagram mapper imports; `tests/test_demo.py` holds them.
