@@ -1,6 +1,7 @@
-"""tools/vendor_subject.py: the CargoQuote subject and the record copied from a pumllint
-checkout, SOURCE.md written from git's answers, a dirty tree and an untagged commit refused.
-Exercised on a throwaway git repository built here, then held to the real copy's note."""
+"""tools/vendor_subject.py: a subject's bytes copied from a pumllint checkout as its manifest's
+[vendor] table declares, SOURCE.md written from git's answers, a dirty tree and an untagged
+commit refused. Exercised on a throwaway git repository built here with the default subject's
+path set, then every vendored subject's copy is held to its note."""
 import hashlib
 import re
 import subprocess
@@ -49,7 +50,7 @@ def test_vendor_subject_copies_a_tagged_checkout_and_writes_source_md():
         _git(repo, "commit", "-q", "-m", "the record")
         _git(repo, "tag", "v9.0.0")
         lines = []
-        r = vs.vendor(repo, dest, copied="2026-02-02", out=lines.append)
+        r = vs.vendor(repo, dest, copied="2026-02-02", out=lines.append)   # the default subject's [vendor] table
         commit = _git(repo, "rev-parse", "HEAD")
         assert r["tag"] == "v9.0.0" and r["commit"] == commit and r["repo"] == "fdurieux/pumllint"
         assert len(r["digests"]) == 12, sorted(r["digests"])
@@ -63,7 +64,7 @@ def test_vendor_subject_copies_a_tagged_checkout_and_writes_source_md():
         assert "## Earlier copies" not in note
         for rel, sha in r["digests"].items():
             assert f"| `{rel}` | `{sha}` |" in note
-        assert lines[0].startswith("fdurieux/pumllint at v9.0.0 (") and "12 files; 12 added, 0 removed, 0 changed" in lines[0]
+        assert lines[0].startswith("cargo_quote: fdurieux/pumllint at v9.0.0 (") and "12 files; 12 added, 0 removed, 0 changed" in lines[0]
 
         # A second tag: one file changed, one removed, one added; the first copy becomes an earlier one.
         (repo / "kg_experiment" / "kit" / "requirements.md").write_text("# REQ\nsurcharge 400.00\n", encoding="utf-8")
@@ -114,20 +115,21 @@ def test_vendor_subject_refuses_a_dirty_tree_and_an_untagged_commit():
             assert "uncommitted changes" in str(e)
 
 
-def test_real_copy_matches_its_note_and_the_note_is_the_tools_output():
-    """subjects/cargo_quote/ is a byte-for-byte copy of pumllint at the commit SOURCE.md names:
-    every file's sha256 is in the note, the note lists no file the copy lacks, the record's own
-    SHA256SUMS still resolves inside the copy, and the note is what the tool writes."""
-    dest = ROOT / "subjects" / "cargo_quote" / "vendor"
+def _check_copy(subject: str) -> dict[str, str]:
+    """A vendored subject is a byte-for-byte copy of pumllint at the commit its SOURCE.md names:
+    every file's sha256 is in the note, the note lists no file the copy lacks, every file lies
+    under a path the manifest's [vendor] table names, and the note is what the tool writes."""
+    spec = vs.spec_for(subject)
+    dest = spec["dest"]
     note = (dest / "SOURCE.md").read_text(encoding="utf-8")
     assert vs.MARK in note
     files = {p.relative_to(dest).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
              for p in dest.rglob("*") if p.is_file() and p.name != "SOURCE.md" and "__pycache__" not in p.parts}
-    assert len(files) >= 300
     for rel, sha in files.items():
-        assert f"| `{rel}` | `{sha}` |" in note, f"{rel} is not in SOURCE.md with its digest"
+        assert f"| `{rel}` | `{sha}` |" in note, f"{subject}: {rel} is not in SOURCE.md with its digest"
+        assert any(rel == p or rel.startswith(p + "/") for p in spec["paths"]), f"{subject}: {rel} is outside the declared path set"
     listed = set(re.findall(r"^\| `([^`]+)` \| `[0-9a-f]{64}` \|$", note, re.M))
-    assert listed == set(files), "SOURCE.md lists files the copy does not hold"
+    assert listed == set(files), f"{subject}: SOURCE.md lists files the copy does not hold"
     m = re.search(r"\| commit \| `([0-9a-f]{40})` — \"([^\"]*)\", (\d{4}-\d{2}-\d{2}) \|", note)
     assert m
     tag = re.search(r"^\| tag \| `(v[0-9][^`]*)`", note, re.M)
@@ -135,7 +137,39 @@ def test_real_copy_matches_its_note_and_the_note_is_the_tools_output():
     earlier = vs.earlier_copies(note)
     info = {"commit": m.group(1), "subject": m.group(2), "date": m.group(3), "tag": tag.group(1) if tag else "",
             "repo": "fdurieux/pumllint", "files": sorted(files)}
-    assert vs.source_note(info, files, copied, earlier) == note
+    assert vs.source_note(info, files, copied, earlier, spec) == note, f"{subject}: SOURCE.md is not the tool's output"
+    return files
+
+
+def test_every_vendored_subject_matches_its_note():
+    vendored = sorted(p.parent.parent.name for p in (ROOT / "subjects").glob("*/vendor/SOURCE.md"))
+    assert vendored == ["cargo_quote", "jef_data_load"], vendored
+    for subject in vendored:
+        _check_copy(subject)
+
+
+def test_jef_copy_holds_the_kit_the_rebuild_and_the_plants_and_never_jf_itself():
+    files = _check_copy("jef_data_load")
+    assert len(files) >= 200
+    assert "recreate_experiment/kit/requirements.json" in files and "recreate_experiment/kit/MANIFEST.sha256" in files
+    assert "recreate_experiment/rebuilds/codex-2026-10-24/src/jef/data/sync.py" in files, "the public rebuild is the reference code"
+    assert "recreate_experiment/degradation-2026-10-28/plant/patches/D3.patch" in files
+    assert not any(rel.startswith("recreate_experiment/hidden") or rel.startswith("recreate_experiment/results") for rel in files), \
+        "the hidden inputs and the graded results stay in pumllint"
+    assert not any("/src/jef/" in rel and "rebuilds/" not in rel for rel in files), "J-F's own code is never vendored"
+    # the kit's own manifest still verifies inside the copy
+    dest = ROOT / "subjects" / "jef_data_load" / "vendor" / "recreate_experiment" / "kit"
+    for line in (dest / "MANIFEST.sha256").read_text(encoding="utf-8").splitlines():
+        digest, rel = line.split("  ", 1)
+        assert hashlib.sha256((dest / rel).read_bytes()).hexdigest() == digest, rel
+
+
+def test_real_copy_matches_its_note_and_the_note_is_the_tools_output():
+    """subjects/cargo_quote/: the default subject's copy, and its record's own SHA256SUMS still
+    resolves inside the copy."""
+    dest = ROOT / "subjects" / "cargo_quote" / "vendor"
+    files = _check_copy("cargo_quote")
+    assert len(files) >= 300
     # the record's own checksum file, written by the harness over paths relative to pumllint's root, resolves
     # here for the kit and the documents; its harness lines name the harness as it was at the scored run,
     # which lives in this repository's harness/ now and has moved on, so they are counted, not resolved

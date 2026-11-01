@@ -54,6 +54,18 @@ def test_cargo_quote_manifest_names_what_exists():
     assert CARGO.scenarios["S6"]["stage2"]["artefact"] in CARGO.families
 
 
+def test_jef_subject_loads_and_its_vendor_table_names_what_exists():
+    """The J-F data-load subject (task-0021): the manifest loads, its [vendor] paths all exist in
+    the copy, and until its mappers land (0021.02) it declares no artefact and no key."""
+    s = subject_mod.Subject(ROOT / "subjects" / "jef_data_load")
+    assert s.id == "jef_data_load" and s.record_model == "" and s.artefacts == []
+    v = s.manifest["vendor"]
+    for rel in v["paths"]:
+        assert (s.root / "vendor" / rel).exists(), rel
+    assert s.page["reference"]["numbers"]["planted"] == 15
+    assert s.record_dir == s.root / "record"
+
+
 def test_minimal_subject_is_empty_but_loads():
     assert MINIMAL.artefacts == [] and MINIMAL.kit_files == [] and MINIMAL.pristine() == {}
     assert MINIMAL.order == ["S0"] and MINIMAL.plants_for("S0") == [] and MINIMAL.inferred is None

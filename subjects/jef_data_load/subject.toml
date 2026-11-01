@@ -1,0 +1,70 @@
+# The J-F data-load subject: pumllint's recreation experiment (docs/recreate-experiment.md there),
+# J-F's daily asset load reverse-engineered into a specification kit and rebuilt from it. This
+# manifest names what the harness loads and the page shows; the bytes are vendored from pumllint
+# under vendor/ (tools/vendor_subject.py --subject jef_data_load). Format: subjects/README.md.
+# J-F's original code is private and is never vendored: the reference code is the public rebuild
+# of 2026-10-24 (the codex arm), 258/258 on the kit's suite.
+
+[subject]
+id = "jef_data_load"
+name = "J-F data load"
+description = "J-F's daily asset load as a specification kit: 163 EARS requirements, prose contracts, DMN decision tables, PlantUML diagrams and a tagged Gherkin suite, reverse-engineered from the code and rebuilt from the kit alone (pumllint, recreate_experiment). The maintainer's own program; synthetic fixtures; no bank data."
+record_model = ""
+
+# The artefacts arrive with their mappers (task-0021.02); until then the subject loads like
+# subjects/minimal and the gate reports its keys absent.
+[tasks.codegen]
+keys = []
+block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
+max_unverified_share = 0.25
+
+[three_valued]
+keys = []
+
+[record]
+dir = "record"
+
+# the no-governance reference the page cites: the degradation test ran on this very kit
+[page.reference]
+title = "Without governance — the degradation test (recreate_experiment/degradation-2026-10-28, graded 2026-10-29)"
+text = "Six of the fifteen planted defects reached the code, all six concealed by the arm's own suite and caught by the pristine one; every outcome the one the kit's precedence rule gives."
+numbers = { planted = 15, reached_code = 6, concealed_by_own_suite = 6, caught_by_pristine_suite = 6 }
+
+# What tools/vendor_subject.py copies from a pumllint checkout into vendor/, and the words of the
+# SOURCE.md it writes there; tests/test_vendor_subject.py holds the copy to the note. The hidden
+# inputs, the mutant trees, the arms' rebuilds other than the reference and the graded results
+# stay in pumllint.
+[vendor]
+source = "fdurieux/pumllint"
+title = "Vendored copy of the J-F data-load subject, from pumllint's recreation experiment"
+paths = [
+  "docs/recreate-experiment.md",
+  "recreate_experiment/PREREGISTRATION.md",
+  "recreate_experiment/kit",
+  "recreate_experiment/rebuilds/codex-2026-10-24/README.md",
+  "recreate_experiment/rebuilds/codex-2026-10-24/ASSUMPTIONS.md",
+  "recreate_experiment/rebuilds/codex-2026-10-24/jdl_adapter.py",
+  "recreate_experiment/rebuilds/codex-2026-10-24/src",
+  "recreate_experiment/rebuilds/codex-2026-10-24/deploy",
+  "recreate_experiment/degradation-2026-10-28/PREREGISTRATION.md",
+  "recreate_experiment/degradation-2026-10-28/README.md",
+  "recreate_experiment/degradation-2026-10-28/plant/README.md",
+  "recreate_experiment/degradation-2026-10-28/plant/plant.md",
+  "recreate_experiment/degradation-2026-10-28/plant/walk.md",
+  "recreate_experiment/degradation-2026-10-28/plant/patches",
+  "recreate_experiment/degradation-2026-10-28/plant/gates",
+]
+what = "the record (`docs/recreate-experiment.md`, the pre-registration), the kit (`recreate_experiment/kit`: requirements, contracts, DMN, diagrams, the tagged Gherkin suite with its fixtures), the reference code (the codex rebuild of 2026-10-24, `src/jef`, `deploy/daily.sh` and its harness adapter), and the degradation test's pre-registration with its plant patches and gate readouts; nothing else, and never J-F's own code"
+note = """
+pumllint's relative layout is kept under this directory so the kit's own path logic
+(`features/`, `contracts/`, `MANIFEST.sha256`) and the record's paths stay valid. The
+documents under `recreate_experiment/kit` are the subject the harness loads and the arms
+read; the rebuild under `recreate_experiment/rebuilds/codex-2026-10-24` stands in for
+J-F's private original as the code the kit's suite verified (258/258); the patches under
+`recreate_experiment/degradation-2026-10-28/plant/patches` are the plants of the
+subject's scenarios. Nothing here is written by a run: the platform's runs land under
+`runs/`. This table is the record of which bytes the platform carries. To refresh it,
+check pumllint out at the tag you want and run
+`python tools/vendor_subject.py <checkout> --subject jef_data_load`, which rewrites this
+file; `tests/test_vendor_subject.py` holds every file to its digest.
+"""

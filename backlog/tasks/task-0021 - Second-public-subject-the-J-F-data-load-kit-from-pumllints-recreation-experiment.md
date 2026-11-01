@@ -3,10 +3,11 @@ id: TASK-0021
 title: >-
   Second public subject: the J-F data-load kit from pumllint's recreation
   experiment
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-01T19:43:00Z'
-updated_date: '2026-11-01T19:47:00Z'
+updated_date: '2026-11-01T20:04:00Z'
 labels:
   - subject
 milestone: m-3
@@ -30,3 +31,9 @@ A platform proven on one subject is not proven (task-0008). pumllint's recreatio
 - [ ] #4 The five degradation arms are the subject's scenarios, with plants.toml reproducing the plant bundle's kit patches and the cards quoting the graded outcomes
 - [ ] #5 The page shows the subject with every scenario on the menu, the register entry present, and the footprint and the impact walk answering on J-F content through the subject's register_map.toml
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 0021.01: tools/vendor_subject.py reads the path set, destination and note wording from the subject's [vendor] table; subjects/jef_data_load/ vendored from pumllint main (untagged, --allow-untagged) with SOURCE.md and the digest test. 2. 0021.02: mappers for requirements.json, the prose contracts and the component/class/activity/state diagrams; subject.toml, scenarios.toml (S1 pristine + the five degradation arms), plants.toml from the plant bundle; deterministic run on rdflib and Neo4j; the page shows it; harness.yml runs it. 3. 0021.03: the oracle adapter and pins. 4. 0021.04: the register slice in ieam-register, re-vendor, register_map.toml. Each step a PR merged on green.
+<!-- SECTION:PLAN:END -->
