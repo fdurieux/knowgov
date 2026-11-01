@@ -114,7 +114,7 @@ def test_register_footprint_per_scenario():
     assert "ENT-0005" in s3["not_approved"] and s3["box"]["colour"] == "bad"
     s6 = fps["S6"]
     assert len(s6["table_links"]) >= 4 and "REL-10001" in s6["table_links"] and s6["keys_below"] == {}
-    assert any("changed document" in sec["heading"] for sec in s6["panel"]["sections"])
+    assert any("changed decision table" in sec["heading"] for sec in s6["panel"]["sections"])
     assert len(fps["S7"]["keys_below"]) == 36 and len(fps["S7"]["touched"]) == 20
     for fp in fps.values():
         assert fp["box"]["id"] == "footprint" and fp["panel"]["title"].startswith("Register footprint of")

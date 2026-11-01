@@ -204,6 +204,10 @@ keys = ["S-review|notified", "S-refuse|notified", "QuoteAPI|notified_after_scree
 [record]
 dir = "vendor/kg_experiment/results"
 
+# sentences the page adds to every scenario's oracle panel (the record's S6 asks for the new prices)
+[page]
+oracle = ["S6 asks for the new prices."]
+
 # the no-governance reference the page cites
 [page.reference]
 title = "Without governance — the degradation test (recreate_experiment/degradation-2026-10-28, graded 2026-10-29)"

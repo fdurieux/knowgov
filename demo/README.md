@@ -589,5 +589,88 @@ Arms mode is simply disabled; everything else works.
 | `app/views.py` | builds the report view of a scenario from its result files |
 | `app/cascade.py` | draws the systemic-model view with the deck generator's layout |
 | `app/index.html` | the one page |
-| `model/model.json`, `model/SOURCE.md` | the vendored Legible model v0.3 and where it came from |
+| `model/model.json`, `model/SOURCE.md` | the vendored Legible model v0.3 and where it came from; written by `tools/vendor_legible_model.py` at the repository root |
+| `model/cascade_layout.py` | the layout tables of the systemic-model view, carried from pumllint's deck generator; its digest is in `model/SOURCE.md` |
+| `register/`, `register/SOURCE.md` | the vendored IEAM register at its tag and where it came from; written by `tools/vendor_register.py` at the repository root |
 | `tools/compare_deterministic.py` | compares a deterministic run against the record, field by field; the CI job and the pull request's proof use it |
+
+## Keeping the demo current
+
+Four things in this folder and under `subjects/` are copies of something that
+lives elsewhere, and one check guards the harness. Each has one command. All
+of them run from the top of the knowgov checkout, and all of them end the
+same way: run the tests, open a pull request.
+
+**The register, when a new tag is published.** The demo carries a copy of
+the IEAM register (`register/`) at a tag, so the page works offline and the
+image carries it. Check `fdurieux/ieam-register` out at the new tag, in a
+folder beside this checkout, and run:
+
+```bash
+python tools/vendor_register.py ../ieam-register
+```
+
+It copies the register's files byte for byte and rewrites
+`register/SOURCE.md` from what git reports: the tag, the commit, a
+checksum per file, and the earlier copies as a table. It refuses a
+checkout with uncommitted changes, and a commit without a tag unless you
+pass `--allow-untagged`. Add `--dry-run` to see what would change without
+writing anything. Never edit `SOURCE.md` by hand: a test holds it to the
+tool's output, and another checks every copied file against its checksum
+and runs the register's own checker on the copy.
+
+**The Legible model, when the site publishes a new version.** The
+systemic-model view draws `model/model.json`, generated in
+`fdurieux/fdurieux.github.io`. Check that repository out at the commit you
+want and run:
+
+```bash
+python tools/vendor_legible_model.py ../fdurieux.github.io
+```
+
+The model's version is read from the file itself; a tag is recorded when
+the commit carries one and is not required, since that repository has
+none today. The note also carries the checksum of `model/cascade_layout.py`,
+the layout tables beside it; a test holds both.
+
+**The CargoQuote subject and the record, when pumllint tags a release
+that carries them.** The kit, the documents, the oracle and the record live
+in pumllint and are copied under `subjects/cargo_quote/vendor/`. Check
+pumllint out at the tag and run:
+
+```bash
+python tools/vendor_subject.py ../pumllint
+```
+
+Until a pumllint tag carries the experiment, `--allow-untagged` copies a
+commit and the note says so.
+
+**The harness, after any change to it.** Run one scenario
+deterministically from the page, then compare the run folder with the
+record, leaf for leaf:
+
+```bash
+python demo/tools/compare_deterministic.py runs/<the run's folder>
+```
+
+It exits 0 when nothing differs and prints every differing leaf either
+way. A scenario whose record also holds a deterministic-mode run (S6,
+`results/d3check/S6`) is compared against that by default; pass
+`--record-for S6=subjects/cargo_quote/vendor/kg_experiment/results/S6` to
+compare a run that registered the derived output with the scored record,
+which the page does on its own, setting the record's `valid_until` aside as
+its scenario data says. Without a database, `KG_STORE=rdflib` runs the same
+check in memory.
+
+**The published image.** Nothing to do by hand. Every merge to `main`
+that touches the demo rebuilds `ghcr.io/fdurieux/knowgov` and publishes it;
+another machine picks it up with `docker compose pull`.
+
+| what | when | command |
+|---|---|---|
+| the register copy | a new register tag | `python tools/vendor_register.py <checkout at the tag>` |
+| the model copy | a new model version on the site | `python tools/vendor_legible_model.py <checkout>` |
+| the subject and record copy | a pumllint tag that carries them | `python tools/vendor_subject.py <checkout at the tag>` |
+| the harness | after a harness change | a deterministic run, then `compare_deterministic.py` on its folder |
+| the image | never by hand | the merge to `main` publishes it |
+| everything above | before the pull request | `python tests/run_tests.py` |

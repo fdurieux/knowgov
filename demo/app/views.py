@@ -25,6 +25,14 @@ import compare_deterministic  # noqa: E402  (the same leaf-by-leaf comparison th
 import cascade  # noqa: E402  (the vendored model and the slide's node table, for the systemic panels)
 SUITE_ORDER = SUBJECT.suite_order
 RULE_ORDER = ["R-STRUCT", "R-CORROBORATE", "R-CONFLICT", "R-VAGUE", "R-REQ", "R-UNVERIFIED"]
+WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve"}
+
+
+def _word(n: int) -> str:
+    """Small counts as words, as the page has always written them (ten mappers, eleven scenarios)."""
+    return WORDS.get(n, str(n))
+
+
 RECORD_MODEL = SUBJECT.record_model  # the model of the subject's scored run; a run by another model is a deviation
 
 # One line per scenario, from the subject's scenarios.toml: controlled sentences for the card
@@ -337,14 +345,14 @@ GLOSSARY = {
     "status": "Where an assertion stands: proposed, validated, verified, approved, disputed or invalidated.",
     "rule": "One of the seven checks the harness runs on the store after each load.",
     "gap": "Something a rule found wanting: missing, ambiguous, a conflict, or unverified.",
-    "key": "One piece of knowledge the coding task needs; the subject lists the keys.",
-    "gate": "The check that reads the task's keys and gives a verdict.",
+    "key": f"One piece of knowledge the coding task needs; the task needs {len(SUBJECT.tasks.get('codegen', {}).get('keys', []))} keys.",
+    "gate": f"The check that reads the {len(SUBJECT.tasks.get('codegen', {}).get('keys', []))} keys and gives a verdict.",
     "verdict": "The gate's answer: PROCEED, QUALIFIED or BLOCKED.",
     "bundle": "The text the gate writes for arm G: the verdict, the policy and the evidence per key.",
     "arm": "One of the two AI assistants asked to write the code. G got the bundle; B got the documents.",
     "run": "One call of one arm, graded on its own.",
     "decision": "The word an arm gives for its own choice: generate, generate with assumptions, or abstain.",
-    "oracle": "The kit's own acceptance scenarios, run on the code an arm wrote.",
+    "oracle": f"The kit's {_word(len(SUBJECT.suite_order))} acceptance scenarios, run on the code an arm wrote.",
     "planted target": "The oracle scenario the planted defect aims at.",
     "flagged": "The arm named the planted problem in its questions or assumptions.",
     "record": "The committed results of the scored run, under results/.",
@@ -517,7 +525,7 @@ def narrative(view: dict, det: dict, reg: list) -> list[str]:
                 sents.append(f"{sm['api_errors']} of its calls failed before any answer.")
             sents.append(f"It wrote code in {sm['code']} of {sm['n']} runs.")
             if sm["code"]:
-                sents.append(f"That code passed {', '.join(x for x in sm['suites'] if x != '—')} of the oracle's {len(SUITE_ORDER)} scenarios.")
+                sents.append(f"That code passed {', '.join(x for x in sm['suites'] if x != '—')} of the oracle's {_word(len(SUITE_ORDER))} scenarios.")
                 fails = sorted(((k.split(':')[0], v) for k, v in sm["targets"].items() if k.endswith(":fail")), key=lambda t: -t[1])
                 for t, v in fails:
                     sents.append(f"It failed the planted target '{t}' in {v} of {sm['n']} runs.")
@@ -595,7 +603,7 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
                    "sections": [{"heading": C("Documents"), "table": _table(["path", "family", "format"], arts)}]}
     levels = Counter(v["level"] for v in det["gate_keys"].values())
     d["extract"] = {"title": C("Extract: fragments into assertions"),
-                    "intro": C(f"{det['load']['assertions']} assertions, one fact each, by {MAPPERS} deterministic mappers, one per format.",
+                    "intro": C(f"{det['load']['assertions']} assertions, one fact each, by {_word(MAPPERS)} deterministic mappers, one per format.",
                                "No model took part.",
                                "Each assertion carries a basis, the fragment it rests on, and a status that starts at proposed."),
                     "sections": ([{"heading": C("Symbols with no definition in any document"), "list": det["load"]["unresolved_symbols"]}] if det["load"]["unresolved_symbols"] else [])
@@ -664,9 +672,9 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
         orows = [(r["run"], f"{r['M4_suite']['passed']}/{r['M4_suite']['total']}" if r["M4_suite"]["ran"] else "no code",
                   ", ".join(f"{t}: {'pass' if v else ('fail' if v is False else 'no code')}" for t, v in (r.get("M4_targets") or {}).items()) or "",
                   r.get("outage_status") or "", f"{r['M5_refs']['resolved']}/{r['M5_refs']['total']}" if r["M5_refs"]["share"] is not None else "") for r in rs]
-        d[f"oracle_{arm}"] = {"title": C(f"Oracle, {arm}: the kit's {len(SUITE_ORDER)} scenarios on the code the arm wrote"),
-                              "intro": (C(f"Each reply's code ran in a sandbox against the kit's {len(SUITE_ORDER)} scenarios, with the scenario's overlays.",
-                                          *page.get("oracle", []), "The planted target is the scenario the plant aims at.",
+        d[f"oracle_{arm}"] = {"title": C(f"Oracle, {arm}: the kit's {_word(len(SUITE_ORDER))} scenarios on the code the arm wrote"),
+                              "intro": (C(f"Each reply's code ran in a sandbox against the kit's {_word(len(SUITE_ORDER))} scenarios, with the scenario's overlays.",
+                                          *SUBJECT.page.get("oracle", []), *page.get("oracle", []), "The planted target is the scenario the plant aims at.",
                                           "The outage status is what the code returned when screening was down.",
                                           "A reference is resolvable when it points at something that exists.",
                                           "For G that is an assertion id; for B, a document line.")
@@ -896,6 +904,6 @@ def systemic_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
             else:
                 secs.append({"heading": C("Document change"), "text": C("No document changed in this scenario.")})
         if nid == "testdef":
-            secs.append({"heading": C("The oracle here"), "text": C(f"The oracle is the kit's own {len(SUITE_ORDER)} scenarios, written before the arms ran.", "It does not share the arms' premise.")})
+            secs.append({"heading": C("The oracle here"), "text": C(f"The oracle is the kit's own {_word(len(SUITE_ORDER))} scenarios, written before the arms ran.", "It does not share the arms' premise.")})
         out[nid] = {"title": C(NODE_TITLE[nid]), "intro": intro, "sections": secs}
     return out

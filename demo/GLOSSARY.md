@@ -52,14 +52,14 @@ and the test checks this file names every term of it.
 | status | Where an assertion stands: proposed, validated, verified, approved, disputed or invalidated. |
 | rule | One of the seven checks the harness runs on the store after each load. |
 | gap | Something a rule found wanting: missing, ambiguous, a conflict, or unverified. |
-| key | One piece of knowledge the coding task needs; the subject lists the keys. |
-| gate | The check that reads the task's keys and gives a verdict. |
+| key | One piece of knowledge the coding task needs; the task needs 36 keys. |
+| gate | The check that reads the 36 keys and gives a verdict. |
 | verdict | The gate's answer: PROCEED, QUALIFIED or BLOCKED. |
 | bundle | The text the gate writes for arm G: the verdict, the policy and the evidence per key. |
 | arm | One of the two AI assistants asked to write the code. G got the bundle; B got the documents. |
 | run | One call of one arm, graded on its own. |
 | decision | The word an arm gives for its own choice: generate, generate with assumptions, or abstain. |
-| oracle | The kit's own acceptance scenarios, run on the code an arm wrote. |
+| oracle | The kit's eleven acceptance scenarios, run on the code an arm wrote. |
 | planted target | The oracle scenario the planted defect aims at. |
 | flagged | The arm named the planted problem in its questions or assumptions. |
 | record | The committed results of the scored run, under results/. |
