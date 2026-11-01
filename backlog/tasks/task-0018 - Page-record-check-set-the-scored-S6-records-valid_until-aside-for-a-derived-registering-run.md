@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-01T16:56:00Z'
-updated_date: '2026-11-01T17:00:00Z'
+updated_date: '2026-11-01T17:06:00Z'
 labels: []
 dependencies: []
 priority: medium
@@ -41,6 +41,8 @@ A deterministic S6 run that has S1/run1_G.py in its output folder registers the 
 Finding: the scored record is wrong on that leaf, by its own account. pumllint kg_experiment/PREREGISTRATION.md, run notes 2026-10-30, "a third harness defect": R-STALE set valid_until = v2 on the ended verifications, then the scored run's stage-2 verification loader (load_verifications, whose match did not exclude invalidated assertions) re-merged the same Verification nodes and reset the field to null; the loader was fixed, D3 re-established in results/d3check/S6 (valid_until = "v2") and results/S6 kept as the first run was. So the scored run's gate_after_reverification.stale listing read valid_until after the loader had reset it, not before r_stale set it; the record captures the defective loader, and a re-run's "v2" is the correct value. results/rerun/S6 (the arms re-run with the corrected bundle) carries the same nulls: it predates the loader fix too. d3check/S6 has no Derived node (the deterministic branch passed none until 2026-11-01), so a derived-registering run has no record right on every leaf. Regeneration (option a) rejected: it would rewrite a frozen scored record (SHA256SUMS, the vendoring digest test) against the record's own procedure, which left results/S6 untouched and added d3check/S6.
 
 Done (option b): compare_deterministic.compare() takes ignore_keys (threaded through _leaves/_strip; the CLI passes none); scenarios.toml S6 gains scored_record_volatile = ["valid_until"] with the why as a comment, documented in subjects/README.md; views.record_check passes it only when the run is read against the scored record, returns "aside", and the narrative says "timestamps and valid_until aside". Verification: tests/run_tests.py 57/57 (three tests cover the CLI still reporting the three leaves, the record identical to itself with valid_until read, record_check identical for a derived-registering run and still counting any other leaf, nothing aside against d3check/S6); a deterministic S6 started through the page (server.py on KG_STORE=rdflib, POST /api/run) read "identical on all 170 fields compared with results/S6, timestamps and valid_until aside" while the comparator CLI on the same run folder against results/S6 still exits 1 with the three leaves.
+
+Follow-up: pumllint's windows job on the mirrored change (#262) read "against": "results\S6" (str() on a relative Path); as_posix() on that field here too, knowgov PR #10.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
