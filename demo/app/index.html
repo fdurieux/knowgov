@@ -379,11 +379,6 @@ function wireRefs(root, sub, crumb) {
   root.querySelectorAll('a.xref').forEach(a => a.addEventListener('click', async ev => {
     ev.preventDefault();
     const i = a.dataset.ref.indexOf(':'); const kind = a.dataset.ref.slice(0, i), id = a.dataset.ref.slice(i + 1);
-    if (kind === 'node') {   // a node of the systemic model: open its own panel in place of this one
-      const g = $('#report').querySelector(`.cascade g.node[data-node="${id}"]`);
-      if (g) { g.classList.remove('sel'); g.dispatchEvent(new Event('click')); }
-      return;
-    }
     const sc = STATE.current && STATE.current !== 'register' ? STATE.current : null;
     const qs = sc ? `?scenario=${encodeURIComponent(sc)}${STATE.source ? '&source=' + encodeURIComponent(STATE.source) : ''}` : '';
     try {
