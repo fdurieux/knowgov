@@ -133,7 +133,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 let STATE = {scenarios: [], store: null, armsEnabled: false, detEnabled: false, current: null, source: null, view: null, run: null, shown: null, lastRun: {}, recordModel: '', otherModel: ''};
 function armsChoice() { try { return JSON.parse(localStorage.getItem('kg-arms-model') || 'null'); } catch (e) { return null; } }
 function saveArmsChoice(c) { try { localStorage.setItem('kg-arms-model', JSON.stringify(c)); } catch (e) {} }
-function armsModel() { const c = armsChoice() || {}; return c.which === 'other' ? (c.other || STATE.otherModel) : STATE.recordModel; }
+function armsModel() { const c = armsChoice() || {}; return c.which === 'other' || !STATE.recordModel ? (c.other || STATE.otherModel) : STATE.recordModel; }
 // shown: {scenario, mode} of the report on screen; lastRun[scenario+mode]: the most recent run's record for that button
 
 async function api(path, opts) {
@@ -168,6 +168,11 @@ const running = () => STATE.run && STATE.run.status === 'running';
 function renderToggle(preset) {
   let c = armsChoice();
   if (!c) { c = {which: preset ? 'other' : 'record', other: STATE.otherModel}; saveArmsChoice(c); }
+  if (!STATE.recordModel) {   // the subject's record ran no arm: there is no like-for-like model to offer
+    c = {which: 'other', other: c.other || STATE.otherModel}; saveArmsChoice(c);
+    $('#am-record').closest('label').style.display = 'none';
+    $('#am-other').closest('label').querySelector('.why').textContent = 'the record ran no arm, so an Arms run compares with nothing in it';
+  }
   $('#am-record').textContent = STATE.recordModel;
   $('#am-other').value = c.other || STATE.otherModel;
   $$('input[name=am]').forEach(r => { r.checked = r.value === c.which; r.addEventListener('change', () => { saveArmsChoice({which: r.value, other: $('#am-other').value.trim()}); renderMenu(); }); });
@@ -196,7 +201,7 @@ function renderMenu() {
       <div class="modes">
         ${modeButton(s, 'replay', 'Replay', true, '')}
         ${modeButton(s, 'deterministic', 'Deterministic', STATE.detEnabled, 'the store is unreachable')}
-        ${modeButton(s, 'arms', 'Arms', STATE.armsEnabled && STATE.detEnabled, "set " + (STATE.endpoint ? STATE.endpoint.key_var : 'the key variable') + " in the app's environment (and the store must be reachable)", `calls ${armsModel()}${armsModel() === STATE.recordModel ? '' : ' (a deviation from the record)'}`)}
+        ${modeButton(s, 'arms', 'Arms', STATE.armsEnabled && STATE.detEnabled, "set " + (STATE.endpoint ? STATE.endpoint.key_var : 'the key variable') + " in the app's environment (and the store must be reachable)", `calls ${armsModel()}${!STATE.recordModel || armsModel() === STATE.recordModel ? '' : ' (a deviation from the record)'}`)}
       </div></div>`).join('') + registerEntry();
   $('#menu-list').querySelectorAll('button').forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); if (b.dataset.id === 'register') return showRegister(); onMode(b.dataset.id, b.dataset.mode); }));
   $('#menu-list').querySelectorAll('.sc').forEach(d => d.addEventListener('click', () => d.dataset.id === 'register' ? showRegister() : show(d.dataset.id)));

@@ -414,6 +414,12 @@ any time:
   record's. Setting `KG_ARMS_MODEL` in the environment before
   `docker compose up` preselects this choice.
 
+A subject whose record ran no arm (the J-F data load: its record graded
+whole rebuilds, so its `record_model` is empty) has no like-for-like
+choice. The toggle then offers only *another model*, the run calls that
+model, and the report says the record has no arm result to compare with;
+nothing is marked as a deviation, since there is nothing to deviate from.
+
 The choice is remembered by your browser. Either way a re-run writes
 into `runs/`, never into the record, and the cost estimate
 the harness prints uses the record model's list price.

@@ -269,7 +269,7 @@ def build(scenario: str, source: str, runs_dir: Path) -> dict:
         "api_errors": api_errors,
         "record_model": RECORD_MODEL, "models_used": models_used,
         # a model other than the record's answered: the numbers are not comparable with the record's
-        "model_deviation": [m for m in models_used if not m.startswith(RECORD_MODEL)],
+        "model_deviation": [m for m in models_used if RECORD_MODEL and not m.startswith(RECORD_MODEL)],
         "sources": sources_for(scenario, runs_dir),
         "stages": stages, "arms": arms,
         "gate": _gate_view(gate),
@@ -550,6 +550,9 @@ def narrative(view: dict, det: dict, reg: list) -> list[str]:
     if view.get("model_deviation"):
         out.append(C(f"The arms here were answered by {', '.join(view['model_deviation'])}, not the record's {view['record_model']}.",
                      "A different model answered, so these results are not comparable with the record's."))
+    elif not view.get("record_model") and view.get("models_used"):
+        out.append(C(f"The record ran no arm. The arms here were answered by {', '.join(view['models_used'])}.",
+                     "The record has no arm result to compare these with."))
     return out
 
 

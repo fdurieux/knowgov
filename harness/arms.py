@@ -29,11 +29,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 from subject import SUBJECT  # noqa: E402
 
-RECORD_MODEL = SUBJECT.record_model or "gpt-5.1-2025-11-13"  # the model of the scored run; the record's figures are this model's
+RECORD_MODEL = SUBJECT.record_model  # the model of the subject's scored run, "" when its record ran no arm
+DEFAULT_MODEL = "gpt-5.5"            # what the arms call when the record names no model and KG_ARMS_MODEL is unset
 # The demo's Arms mode may call another model through KG_ARMS_MODEL (a legacy model's
 # rate limit on a new organisation blocked the governed prompt there); such runs are a
 # deviation the demo page names, and they never write into results/.
-MODEL = os.environ.get("KG_ARMS_MODEL") or RECORD_MODEL
+MODEL = os.environ.get("KG_ARMS_MODEL") or RECORD_MODEL or DEFAULT_MODEL
 DEFAULT_BASE_URL = "https://api.openai.com/v1"   # the OpenAI client's own default, named so the page can show it
 MAX_CALLS = 90
 CEILING_USD = 25.0
@@ -51,9 +52,10 @@ def endpoint() -> dict:
     """The three instance settings as they stand now, and whether the arms are enabled."""
     key_var = os.environ.get("KG_MODEL_API_KEY_VAR") or "OPENAI_API_KEY"
     base_url = os.environ.get("KG_MODEL_BASE_URL") or DEFAULT_BASE_URL
-    model = os.environ.get("KG_ARMS_MODEL") or RECORD_MODEL
+    model = os.environ.get("KG_ARMS_MODEL") or RECORD_MODEL or DEFAULT_MODEL
+    # a deviation is a model other than the record's; a record that ran no arm has nothing to deviate from
     return {"base_url": base_url, "key_var": key_var, "key_set": bool(os.environ.get(key_var)),
-            "model": model, "record_model": RECORD_MODEL, "deviation": model != RECORD_MODEL}
+            "model": model, "record_model": RECORD_MODEL, "deviation": bool(RECORD_MODEL) and model != RECORD_MODEL}
 
 
 def enabled() -> bool:
