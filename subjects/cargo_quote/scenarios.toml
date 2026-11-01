@@ -194,6 +194,14 @@ co_words = []
 targets = ["price_exact_heavy", "price_exact_both"]
 default_source = "rerun"
 deterministic_record = "d3check/S6"
+# Leaves the page sets aside, as it does the timestamps, when a run that registered the derived
+# output is read against the scored record (results/S6), and only then. The scored run's stage-2
+# verification loader re-merged the three ended verifications and reset valid_until to null after
+# R-STALE had set it to "v2" (pumllint kg_experiment/PREREGISTRATION.md, run notes 2026-10-30, "a third
+# harness defect"); the loader was fixed, D3 was re-established in d3check/S6 (valid_until = "v2") and
+# results/S6 was kept as the first run was. d3check/S6 has no Derived node, so a derived-registering
+# run has no record that is right on every leaf; a re-run's "v2" is the correct value (task-0018).
+scored_record_volatile = ["valid_until"]
 
 [scenario.systemic]
 entry = "drift"

@@ -419,12 +419,21 @@ def record_check(scenario: str, d: Path, source: str = "") -> dict | None:
     cfg = SUBJECT.scenarios.get(scenario, {})
     det = _read_json(d / "deterministic.json")
     det_rec = cfg.get("deterministic_record")
-    rec = RESULTS / (scenario if det.get("stage2", {}).get("suspect_derived") or not det_rec else det_rec)
-    n, lines = compare_deterministic.compare(d.parent, RESULTS, [scenario], record_for={scenario: rec})
+    scored = bool(det.get("stage2", {}).get("suspect_derived")) or not det_rec
+    rec = RESULTS / (scenario if scored else det_rec)
+    # Against the scored record only, the leaves the subject's manifest sets aside
+    # (``scored_record_volatile``), as the comparator sets the timestamps aside: a leaf that
+    # record wrote with a harness defect fixed afterwards, and that its deterministic-mode
+    # re-establishment corrected without the Derived node a derived-registering run must be
+    # read against, cannot be equal in either direction. The why for each leaf is written
+    # beside the key in the manifest. The comparator's command line passes none, so the
+    # record stays comparable with itself on every leaf; the view names what was set aside.
+    aside = [str(k) for k in cfg.get("scored_record_volatile", [])] if scored else []
+    n, lines = compare_deterministic.compare(d.parent, RESULTS, [scenario], record_for={scenario: rec}, ignore_keys=aside)
     compared = next((ln for ln in lines if "leaves compared" in ln), "")
     m = re.search(r"(\d+) leaves compared", compared)
     return {"differ": n, "compared": int(m.group(1)) if m else 0,
-            "against": str(rec.relative_to(RESULTS.parent)),
+            "against": str(rec.relative_to(RESULTS.parent)), "aside": aside,
             "lines": [ln.strip() for ln in lines if ln.startswith("  ")][:6]}
 
 
@@ -523,11 +532,12 @@ def narrative(view: dict, det: dict, reg: list) -> list[str]:
                      "The two arms were not called.", "Replay shows the record's runs for this scenario.", "Arms calls them again."))
     if view.get("record_check"):
         rc = view["record_check"]
+        aside = " and ".join(["timestamps"] + rc.get("aside", [])) + " aside"
         if rc["differ"] == 0:
-            out.append(C(f"Against the record: identical on all {rc['compared']} fields compared with {rc['against']}, timestamps aside.",
+            out.append(C(f"Against the record: identical on all {rc['compared']} fields compared with {rc['against']}, {aside}.",
                          "The store reproduced the record."))
         else:
-            out.append(C(f"Against the record: {_plural(rc['differ'], 'field')} of {rc['compared']} differ from {rc['against']}.") + " " + D("; ".join(rc["lines"][:3]) + "."))
+            out.append(C(f"Against the record: {_plural(rc['differ'], 'field')} of {rc['compared']} differ from {rc['against']}, {aside}.") + " " + D("; ".join(rc["lines"][:3]) + "."))
     if view.get("model_deviation"):
         out.append(C(f"The arms here were answered by {', '.join(view['model_deviation'])}, not the record's {view['record_model']}.",
                      "A different model answered, so these results are not comparable with the record's."))

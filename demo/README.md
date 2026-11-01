@@ -188,7 +188,11 @@ derived output pointing at its assertions (the demo's runner copies the
 record's S1 output into the run folder for S6 in both modes, and the
 harness reads it in both modes, so a deterministic S6 has the same
 object to invalidate as the record's full run; the record's own
-deterministic-only run, `d3check/S6`, predates that and has none). The changed decision table is
+deterministic-only run, `d3check/S6`, predates that and has none; the page
+reads a run that registered the derived output against the scored record,
+`results/S6`, with `valid_until` set aside as the timestamps are, since that
+record holds the null a since-fixed loader defect wrote there, see
+`scored_record_volatile` in the subject's `scenarios.toml`). The changed decision table is
 re-ingested as version two; unchanged fragments are recognised by digest
 and reused, so only the changed rows produce new assertions. The
 staleness rule then invalidates every older assertion whose supporting
