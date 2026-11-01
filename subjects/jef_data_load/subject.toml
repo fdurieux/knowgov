@@ -11,12 +11,268 @@ name = "J-F data load"
 description = "J-F's daily asset load as a specification kit: 163 EARS requirements, prose contracts, DMN decision tables, PlantUML diagrams and a tagged Gherkin suite, reverse-engineered from the code and rebuilt from the kit alone (pumllint, recreate_experiment). The maintainer's own program; synthetic fixtures; no bank data."
 record_model = ""
 
-# The artefacts arrive with their mappers (task-0021.02); until then the subject loads like
-# subjects/minimal and the gate reports its keys absent.
+# The artefacts: one per layer of the kit, as the degradation test's pre-registration orders them
+# (L2 requirements, L3 contracts, L4 decision tables, L5 diagrams, L1 the suite). A layer that is a
+# folder is one directory artefact (subjects/README.md): its files are the parts of one document,
+# so a statement the layer makes about a requirement is one assertion, and the layers join on the
+# requirement id (harness/extract.py, the bundle mappers). Keys are the kit's own paths.
+[[artefact]]
+key = "requirements.json"
+short = "req"
+family = "requirements"
+format = "json"
+label = "requirements"
+format_label = "JSON, EARS statements"
+path = "vendor/recreate_experiment/kit/requirements.json"
+mapper = "requirements_json"
+
+[[artefact]]
+key = "contracts/"
+short = "con"
+family = "contracts"
+format = "markdown"
+label = "contracts"
+format_label = "markdown, with the packaged TOML and the JSON Schemas"
+path = "vendor/recreate_experiment/kit/contracts"
+include = ["*.md", "*.toml", "*.json"]
+mapper = "contracts_markdown"
+
+[[artefact]]
+key = "contracts/dmn/"
+short = "dmn"
+family = "decision_tables"
+format = "dmn-1.3"
+label = "decision tables"
+format_label = "DMN 1.3"
+path = "vendor/recreate_experiment/kit/contracts/dmn"
+include = ["*.dmn"]
+mapper = "dmn_decisions"
+
+[[artefact]]
+key = "uml/"
+short = "uml"
+family = "diagrams"
+format = "plantuml"
+label = "diagrams"
+format_label = "PlantUML"
+path = "vendor/recreate_experiment/kit/uml"
+include = ["*.puml"]
+mapper = "plantuml_realises"
+
+[[artefact]]
+key = "features/"
+short = "fea"
+family = "acceptance"
+format = "gherkin"
+label = "acceptance suite"
+format_label = "Gherkin, tagged with requirement ids"
+path = "vendor/recreate_experiment/kit/features"
+include = ["*.feature"]
+mapper = "gherkin_tagged"
+
+# The code the kit's suite verified: the public rebuild of 2026-10-24 (258/258), standing in for
+# J-F's private original; its digest is the execution evidence.
+[reference]
+code = "vendor/recreate_experiment/rebuilds/codex-2026-10-24/src/jef/data"
+
+# No oracle yet (task-0021.03): the arms stay off, the deterministic half runs.
+[oracle]
+suite_order = []
+
+[provenance]
+harness_name = "knowgov harness"
+human = { id = "agent:maintainer", name = "maintainer (the kit's owner; precedence rule and revisions, 2026-10-24)" }
+llm = { id = "agent:llm", name = "the reverse engineer (a fresh agent, 2026-10-23)" }
+inference_at = "2026-10-23T00:00:00+00:00"
+inference_tool = "reverse engineer"
+
+# Execution verification derived from the kit's own links: every scenario tagged @JDL-nnn
+# verifies that requirement's statement, so a scenario the plant removes verifies nothing.
+# Authored links (the citations, the tags, the footers, the rule descriptions, the tables'
+# structure) are reviewed by construction, as the kit's revision record says.
+[verification]
+derive_execution = { from_predicate = "verified_by", key_predicate = "statement", separator = "; " }
+execution_scope = "suite scenario {scenario} on the codex rebuild (kit suite 2026-10-24, 258/258)"
+review = { at = "2026-10-24", scope = "the fourth rebuild's review of the kit (INPUT-QUALITY.md, ten findings, all corrected)" }
+authored = { at = "2026-10-23", scope = "authored by the reverse engineer from the code alone, revised 2026-10-24 (CHANGES.md)" }
+approval = { at = "2026-10-24", record = "kit CHANGES.md revision 2026-10-24: the precedence rule and the manifest" }
+
+# The task is the kit's own: rebuild the program so that every stored number, verdict and exit
+# code matches. Every requirement is required.
 [tasks.codegen]
-keys = []
+keys = [
+  "JDL-001|statement",
+  "JDL-002|statement",
+  "JDL-003|statement",
+  "JDL-004|statement",
+  "JDL-005|statement",
+  "JDL-006|statement",
+  "JDL-007|statement",
+  "JDL-008|statement",
+  "JDL-009|statement",
+  "JDL-010|statement",
+  "JDL-011|statement",
+  "JDL-012|statement",
+  "JDL-013|statement",
+  "JDL-014|statement",
+  "JDL-015|statement",
+  "JDL-016|statement",
+  "JDL-017|statement",
+  "JDL-018|statement",
+  "JDL-019|statement",
+  "JDL-020|statement",
+  "JDL-021|statement",
+  "JDL-022|statement",
+  "JDL-023|statement",
+  "JDL-024|statement",
+  "JDL-025|statement",
+  "JDL-026|statement",
+  "JDL-027|statement",
+  "JDL-028|statement",
+  "JDL-029|statement",
+  "JDL-030|statement",
+  "JDL-031|statement",
+  "JDL-032|statement",
+  "JDL-033|statement",
+  "JDL-034|statement",
+  "JDL-035|statement",
+  "JDL-036|statement",
+  "JDL-037|statement",
+  "JDL-038|statement",
+  "JDL-039|statement",
+  "JDL-040|statement",
+  "JDL-041|statement",
+  "JDL-042|statement",
+  "JDL-043|statement",
+  "JDL-044|statement",
+  "JDL-045|statement",
+  "JDL-046|statement",
+  "JDL-047|statement",
+  "JDL-048|statement",
+  "JDL-049|statement",
+  "JDL-050|statement",
+  "JDL-051|statement",
+  "JDL-052|statement",
+  "JDL-053|statement",
+  "JDL-054|statement",
+  "JDL-055|statement",
+  "JDL-056|statement",
+  "JDL-057|statement",
+  "JDL-058|statement",
+  "JDL-059|statement",
+  "JDL-060|statement",
+  "JDL-061|statement",
+  "JDL-062|statement",
+  "JDL-063|statement",
+  "JDL-064|statement",
+  "JDL-065|statement",
+  "JDL-066|statement",
+  "JDL-067|statement",
+  "JDL-068|statement",
+  "JDL-069|statement",
+  "JDL-070|statement",
+  "JDL-071|statement",
+  "JDL-072|statement",
+  "JDL-073|statement",
+  "JDL-074|statement",
+  "JDL-075|statement",
+  "JDL-076|statement",
+  "JDL-077|statement",
+  "JDL-078|statement",
+  "JDL-079|statement",
+  "JDL-080|statement",
+  "JDL-081|statement",
+  "JDL-082|statement",
+  "JDL-083|statement",
+  "JDL-084|statement",
+  "JDL-085|statement",
+  "JDL-086|statement",
+  "JDL-087|statement",
+  "JDL-088|statement",
+  "JDL-089|statement",
+  "JDL-090|statement",
+  "JDL-091|statement",
+  "JDL-092|statement",
+  "JDL-093|statement",
+  "JDL-094|statement",
+  "JDL-095|statement",
+  "JDL-096|statement",
+  "JDL-097|statement",
+  "JDL-098|statement",
+  "JDL-099|statement",
+  "JDL-100|statement",
+  "JDL-101|statement",
+  "JDL-102|statement",
+  "JDL-103|statement",
+  "JDL-104|statement",
+  "JDL-105|statement",
+  "JDL-106|statement",
+  "JDL-107|statement",
+  "JDL-108|statement",
+  "JDL-109|statement",
+  "JDL-110|statement",
+  "JDL-111|statement",
+  "JDL-112|statement",
+  "JDL-113|statement",
+  "JDL-114|statement",
+  "JDL-115|statement",
+  "JDL-116|statement",
+  "JDL-117|statement",
+  "JDL-118|statement",
+  "JDL-119|statement",
+  "JDL-120|statement",
+  "JDL-121|statement",
+  "JDL-122|statement",
+  "JDL-123|statement",
+  "JDL-124|statement",
+  "JDL-125|statement",
+  "JDL-126|statement",
+  "JDL-127|statement",
+  "JDL-128|statement",
+  "JDL-129|statement",
+  "JDL-130|statement",
+  "JDL-131|statement",
+  "JDL-132|statement",
+  "JDL-133|statement",
+  "JDL-134|statement",
+  "JDL-135|statement",
+  "JDL-136|statement",
+  "JDL-137|statement",
+  "JDL-138|statement",
+  "JDL-139|statement",
+  "JDL-140|statement",
+  "JDL-141|statement",
+  "JDL-142|statement",
+  "JDL-143|statement",
+  "JDL-144|statement",
+  "JDL-145|statement",
+  "JDL-146|statement",
+  "JDL-147|statement",
+  "JDL-148|statement",
+  "JDL-149|statement",
+  "JDL-150|statement",
+  "JDL-151|statement",
+  "JDL-152|statement",
+  "JDL-153|statement",
+  "JDL-154|statement",
+  "JDL-155|statement",
+  "JDL-156|statement",
+  "JDL-157|statement",
+  "JDL-158|statement",
+  "JDL-159|statement",
+  "JDL-160|statement",
+  "JDL-161|statement",
+  "JDL-162|statement",
+  "JDL-163|statement",
+]
 block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
 max_unverified_share = 0.25
+
+# The rules' subject constants: the vague wording R-VAGUE looks for in a requirement's row (none
+# in the pristine kit; the degradation test's A defects write "usable" and loosen exact values).
+[rules]
+requirement_id_pattern = "JDL-\\d{3}"
+vague_words = ["usable", "approximately", "roughly", " around ", " about ", "more or less", "reasonable", "appropriate", "as needed"]
 
 [three_valued]
 keys = []
@@ -24,7 +280,12 @@ keys = []
 [record]
 dir = "record"
 
-# the no-governance reference the page cites: the degradation test ran on this very kit
+# the page's heading; the no-governance reference it cites is the degradation test, which ran on this very kit
+[page]
+title = "J-F's data load as a governed kit — the degradation test, read by the gate"
+subtitle = "Six scenarios, a gate, no arm and no oracle yet. Record: pumllint <code>docs/recreate-experiment.md</code> and <code>recreate_experiment/degradation-2026-10-28</code>, graded 2026-10-29."
+oracle = []
+
 [page.reference]
 title = "Without governance — the degradation test (recreate_experiment/degradation-2026-10-28, graded 2026-10-29)"
 text = "Six of the fifteen planted defects reached the code, all six concealed by the arm's own suite and caught by the pristine one; every outcome the one the kit's precedence rule gives."

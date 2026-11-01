@@ -277,6 +277,7 @@ class Handler(BaseHTTPRequestHandler):
             if parts[:2] == ["api", "scenarios"]:
                 st = store_status()
                 return self._json({"scenarios": views.scenario_list(RUNS_DIR), "store": st,
+                                   "page": {"title": SUBJECT.page.get("title", ""), "subtitle": SUBJECT.page.get("subtitle", "")},
                                    "arms_enabled": arms.enabled(), "model_endpoint": _endpoint_view(),
                                    "record_model": RECORD_MODEL, "default_other_model": DEFAULT_OTHER_MODEL,
                                    "arms_model_preset": bool(os.environ.get("KG_ARMS_MODEL")),
@@ -287,8 +288,11 @@ class Handler(BaseHTTPRequestHandler):
                 source = q.get("source", [views.default_source(sc)])[0]
                 view = views.build(sc, source, RUNS_DIR)
                 view["cascade"] = {arm: cascade.render(view["systemic"], arm, title=f"{sc}, arm {arm}") for arm in ("G", "B")}
-                view["footprint"] = register_view.footprint(view)
-                view["details"]["footprint"] = view["footprint"]["panel"]
+                if register_view.has_map():   # a subject with no register map has no footprint
+                    view["footprint"] = register_view.footprint(view)
+                    view["details"]["footprint"] = view["footprint"]["panel"]
+                else:
+                    view["footprint"] = None
                 return self._json(view)
             if parts == ["api", "store"]:
                 return self._json(store_status())
@@ -298,6 +302,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"error": "today must be 'wall' or YYYY-MM-DD"}, 400)
                 return self._json(register_view.build(today))
             if parts[:3] == ["api", "register", "footprint"] and len(parts) == 4 and parts[3] in views.SCENARIOS:
+                if not register_view.has_map():
+                    return self._json({"error": f"the {SUBJECT.id} subject maps no key onto the register: no footprint"}, 404)
                 sc = parts[3]
                 source = q.get("source", [views.default_source(sc)])[0]
                 return self._json(register_view.footprint(views.build(sc, source, RUNS_DIR)))

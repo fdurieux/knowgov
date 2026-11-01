@@ -58,12 +58,24 @@ def test_jef_subject_loads_and_its_vendor_table_names_what_exists():
     """The J-F data-load subject (task-0021): the manifest loads, its [vendor] paths all exist in
     the copy, and until its mappers land (0021.02) it declares no artefact and no key."""
     s = subject_mod.Subject(ROOT / "subjects" / "jef_data_load")
-    assert s.id == "jef_data_load" and s.record_model == "" and s.artefacts == []
+    assert s.id == "jef_data_load" and s.record_model == ""
     v = s.manifest["vendor"]
     for rel in v["paths"]:
         assert (s.root / "vendor" / rel).exists(), rel
     assert s.page["reference"]["numbers"]["planted"] == 15
     assert s.record_dir == s.root / "record"
+    # one artefact per layer of the kit; the folders are directory artefacts (bundles)
+    assert [a["key"] for a in s.artefacts] == ["requirements.json", "contracts/", "contracts/dmn/", "uml/", "features/"]
+    kit = s.pristine()
+    assert kit["requirements.json"].startswith("[") and kit["features/"].startswith("==> actions.feature <==\n")
+    assert kit["contracts/"].count("\n==> ") + 1 == 21 and "==> dmn/" not in kit["contracts/"] and "==> externals/" not in kit["contracts/"]
+    assert kit["contracts/dmn/"].count("==> ") == 6 and kit["uml/"].count("==> ") == 8 and kit["features/"].count("==> ") == 12
+    assert s.reference_code().startswith("==> __init__.py <==\n") and "==> sync.py <==" in s.reference_code()
+    import json
+    ids = [r["id"] for r in json.loads(kit["requirements.json"])]
+    assert len(ids) == 163 and s.tasks["codegen"]["keys"] == [f"{i}|statement" for i in ids]
+    assert s.order == ["C", "D1", "D2", "D3", "D4", "D5"] and set(s.plants) == {"D1", "D2", "D3", "D4", "D5"}
+    assert s.verification["derive_execution"]["from_predicate"] == "verified_by" and s.oracle_script() is None
 
 
 def test_minimal_subject_is_empty_but_loads():

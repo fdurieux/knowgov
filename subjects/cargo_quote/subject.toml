@@ -204,8 +204,10 @@ keys = ["S-review|notified", "S-refuse|notified", "QuoteAPI|notified_after_scree
 [record]
 dir = "vendor/kg_experiment/results"
 
-# sentences the page adds to every scenario's oracle panel (the record's S6 asks for the new prices)
+# the page's heading, and sentences it adds to every scenario's oracle panel (the record's S6 asks for the new prices)
 [page]
+title = "Neo4j as a governed knowledge repository — the proof of concept, replayed"
+subtitle = "Seven scenarios, a gate, two generator arms, one oracle. Record: <code>docs/neo4j-governed-knowledge-evaluation.md</code> §6, PRs #214–#218."
 oracle = ["S6 asks for the new prices."]
 
 # the no-governance reference the page cites

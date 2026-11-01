@@ -24,7 +24,10 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   `plants.toml`, `queries.toml`, `register_map.toml`, `prompts/`, and under
   `vendor/` the bytes vendored from pumllint in its relative layout; `runs/`
   re-runs, gitignored. `KG_SUBJECT` selects the root; nothing in `harness/` or
-  `demo/` names a subject, a document or a scenario (task-0002).
+  `demo/` names a subject, a document or a scenario (task-0002). Two public
+  subjects: `cargo_quote` (the proof of concept, seven scenarios, the scored
+  record) and `jef_data_load` (the recreation experiment's kit, the degradation
+  test's arms as scenarios, a deterministic record, no oracle yet; task-0021).
 - The register the page reads is `KG_REGISTER` (default `demo/register`, the public register
   vendored at a tag): one register per organisation, shared by every subject of it; an
   instance mounts its own checkout read-only (`demo/docker-compose.instance.yml`). A subject

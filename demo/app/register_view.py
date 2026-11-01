@@ -171,6 +171,11 @@ REQ_DOC_ANCHOR = REQ_ANCHOR.split(":", 1)[-1]          # the anchor without the 
 EXPORT_MANIFEST = SUBJECT.register.get("export_manifest", "")
 
 
+def has_map() -> bool:
+    """Whether the subject maps its keys onto the register; without a map there is no footprint."""
+    return bool(SUBJECT.register.get("map"))
+
+
 def load_map() -> dict:
     """The approved key-to-node map, the subject's register_map.toml."""
     return SUBJECT.register_map()

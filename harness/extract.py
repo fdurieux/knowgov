@@ -602,6 +602,198 @@ def extract_links(path: str, text: str, code_text: str) -> Bag:
     return b
 
 
+# ---------------------------------------------------------------- bundles
+# A directory artefact (subject.py ``bundle``) is one document made of parts, each opened by a
+# ``==> <relative path> <==`` line. The mappers below read such kits: a JSON list of identified
+# requirements, markdown contracts citing requirement ids, DMN tables whose rule descriptions
+# cite them, PlantUML diagrams whose footer says which they realise, and Gherkin scenarios
+# tagged with them. The requirement id is the join: every layer's statement about a requirement
+# becomes an assertion on that requirement's entity, one per layer, so the layers never pair
+# off as conflicts on the same predicate (the store pairs assertions by entity and predicate
+# across artefacts).
+
+_BUNDLE_MARK = re.compile(r"^==> (.+?) <==$", re.M)
+# the shape of a requirement id, the subject's ([rules] requirement_id_pattern; JDL-047, REQ-06),
+# so that a standard's name (IEEE-754) is never read as one
+_REQ_ID = re.compile(r"\b(" + SUBJECT.rules.get("requirement_id_pattern", r"[A-Z]{2,}-\d{2,}") + r")\b")
+
+
+def bundle_parts(text: str) -> list[tuple[str, str]]:
+    """(relative path, text) per part of a bundle; a plain file is one part named ''."""
+    marks = list(_BUNDLE_MARK.finditer(text))
+    if not marks:
+        return [("", text)]
+    out = []
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
+        out.append((m.group(1), text[m.end() + 1:end]))
+    return out
+
+
+def _ids_in(text: str) -> list[str]:
+    """Requirement ids cited in a text, ranges written ``JDL-023 … JDL-039`` (or ``..``, ``to``,
+    an en dash) expanded, each id once, in id order."""
+    found = set(_REQ_ID.findall(text))
+    for a, b in re.findall(r"\b(" + _REQ_ID.pattern[3:-3] + r")\s*(?:…|\.\.\.?|–|-|to)\s*(" + _REQ_ID.pattern[3:-3] + r")\b", text):
+        pa, na = a.rsplit("-", 1)
+        pb, nb = b.rsplit("-", 1)
+        if pa == pb and int(na) < int(nb) and int(nb) - int(na) < 200:
+            found.update(f"{pa}-{i:0{len(na)}d}" for i in range(int(na), int(nb) + 1))
+    return sorted(found)
+
+
+def _stem(rel: str) -> str:
+    return rel.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+
+
+def extract_requirements_json(path: str, text: str) -> Bag:
+    """A JSON list of ``{id, kind, statement, basis}``: one requirement entity per item and one
+    extracted ``statement`` assertion, supported by the item as a row fragment (R-VAGUE reads
+    row fragments)."""
+    import json
+    b = Bag(short(path))
+    for item in json.loads(text):
+        rid, stmt = item["id"], item["statement"]
+        b.ent(rid, "requirement", rid)
+        f = b.frag(f"row/{rid}", stmt)
+        b.assertion(rid, "statement", stmt, stmt, [f])
+    return b
+
+
+def _by_requirement(bag: Bag, predicate: str, cites: dict[str, list[tuple[str, str]]], text_for) -> None:
+    """One authored assertion per requirement: ``<req>|<predicate>`` = the parts that cite it,
+    ``; ``-separated in path order, supported by one fragment per citing part."""
+    for rid in sorted(cites):
+        bag.ent(rid, "requirement", rid)
+        names = [n for n, _f in cites[rid]]
+        frags = [f for _n, f in cites[rid]]
+        bag.assertion(rid, predicate, "; ".join(names), text_for(rid, names), frags, basis="authored")
+
+
+def extract_contracts_markdown(path: str, text: str) -> Bag:
+    """A bundle of prose contracts. Each part elaborates the requirements it cites anywhere
+    (``Requirements: JDL-045, …`` sentences, ranges, inline citations); every markdown table row
+    is a fragment, so a changed cell is a changed fragment. ``<req>|elaborated_by`` lists the
+    citing parts."""
+    b = Bag(short(path))
+    cites: dict[str, list[tuple[str, str]]] = {}
+    for rel, body in bundle_parts(text):
+        name = rel or path
+        ids = _ids_in(body)
+        head = b.frag(f"{name}:cites", f"{name} cites {', '.join(ids)}" if ids else f"{name} cites no requirement")
+        for rid in ids:
+            cites.setdefault(rid, []).append((name, head))
+        for i, line in enumerate(body.splitlines(), 1):
+            if line.startswith("|") and not re.match(r"^\|[\s:|-]+\|$", line):
+                b.frag(f"{name}:row/{i}", line)
+    _by_requirement(b, "elaborated_by", cites, lambda rid, names: f"{rid} is elaborated by {', '.join(names)}")
+    return b
+
+
+def extract_dmn_decisions(path: str, text: str) -> Bag:
+    """A bundle of DMN 1.3 files: one ``decision_table`` entity per decision with its rule count
+    (authored: the table's own structure), and ``<req>|decided_by`` for every requirement a rule's
+    description cites, listing ``<decision>/<rule id>``."""
+    b = Bag(short(path))
+    ns = {"d": "https://www.omg.org/spec/DMN/20191111/MODEL/"}
+    cites: dict[str, list[tuple[str, str]]] = {}
+    for rel, body in bundle_parts(text):
+        if not body.lstrip().startswith("<"):
+            continue   # a README beside the tables
+        root = ET.fromstring(body)
+        for dec in root.iter(f"{{{ns['d']}}}decision"):
+            dname = dec.get("name") or dec.get("id")
+            ent = f"dmn:{dname}"
+            b.ent(ent, "decision_table", dname)
+            rules = list(dec.iter(f"{{{ns['d']}}}rule"))
+            frags = []
+            for r in rules:
+                rid = r.get("id")
+                desc = (r.findtext("d:description", default="", namespaces=ns) or "").strip()
+                ins = [(i.findtext("d:text", default="", namespaces=ns) or "").strip() for i in r.findall("d:inputEntry", ns)]
+                outs = [(o.findtext("d:text", default="", namespaces=ns) or "").strip() for o in r.findall("d:outputEntry", ns)]
+                f = b.frag(f"{rel or path}:rule/{rid}", f"{rid}: {', '.join(ins)} -> {', '.join(outs)}" + (f" ({desc})" if desc else ""))
+                frags.append(f)
+                for req in _ids_in(desc):
+                    cites.setdefault(req, []).append((f"{dname}/{rid}", f))
+            b.assertion(ent, "rules", str(len(rules)), f"{dname} has {len(rules)} rules", frags, basis="authored")
+    _by_requirement(b, "decided_by", cites, lambda rid, names: f"{rid} is decided by {', '.join(names)}")
+    return b
+
+
+def extract_gherkin_tagged(path: str, text: str) -> Bag:
+    """A bundle of feature files whose scenarios carry ``@<req>`` tags: one ``feature`` entity per
+    part with its scenario count, and ``<req>|verified_by`` listing ``<feature>::<scenario>`` for
+    every tagged scenario (authored: the suite's own links). The subject's ``[verification]
+    derive_execution`` turns these into the execution map."""
+    b = Bag(short(path))
+    cites: dict[str, list[tuple[str, str]]] = {}
+    for rel, body in bundle_parts(text):
+        stem = _stem(rel) if rel else _stem(path)
+        lines = body.splitlines()
+        n = 0
+        frags = []
+        for i, line in enumerate(lines):
+            m = re.match(r"\s*Scenario(?: Outline)?: (.*)", line)
+            if not m:
+                continue
+            n += 1
+            title = m.group(1).strip()
+            tags = []
+            j = i - 1
+            while j >= 0 and lines[j].strip().startswith("@"):
+                tags = lines[j].split() + tags
+                j -= 1
+            f = b.frag(f"{rel or path}:scenario/{n}", "\n".join(lines[j + 1:i + 1]).strip())
+            frags.append(f)
+            for t in tags:
+                if _REQ_ID.fullmatch(t.lstrip("@")):
+                    cites.setdefault(t.lstrip("@"), []).append((f"{stem}::{title}", f))
+        b.ent(f"feature:{stem}", "feature", stem)
+        b.assertion(f"feature:{stem}", "scenarios", str(n), f"{stem} has {n} scenarios", frags, basis="authored")
+    _by_requirement(b, "verified_by", cites, lambda rid, names: f"{rid} is verified by {', '.join(names)}")
+    return b
+
+
+_PUML_NAMES = {
+    "sequence": re.compile(r"^\s*(?:participant|actor|boundary|control|entity|database|collections|queue)\s+(?:\"[^\"]+\"\s+as\s+)?(\w+)", re.M),
+    "class": re.compile(r"^\s*(?:abstract\s+)?(?:class|interface|enum|component|package)\s+\"?([\w.]+)", re.M),
+    "state": re.compile(r"^\s*state\s+\"?([\w ]+?)\"?(?:\s+as\s+(\w+))?\s*(?:\{|$)", re.M),
+}
+
+
+def extract_plantuml_realises(path: str, text: str) -> Bag:
+    """A bundle of PlantUML diagrams: one ``diagram`` entity per part with its type (pumllint's
+    parser), its title and the names it declares (authored: the diagram's own structure), and
+    ``<req>|realised_by`` for every requirement the footer's ``realises`` list names."""
+    from pumllint import parser  # the product's parser, as a library
+    b = Bag(short(path))
+    cites: dict[str, list[tuple[str, str]]] = {}
+    for rel, body in bundle_parts(text):
+        stem = _stem(rel) if rel else _stem(path)
+        d = parser.parse_source(body, file_path=rel or path)[0]
+        ent = f"diagram:{stem}"
+        title = next((x.value for x in d.directives if getattr(x, "kind", "") == "title"), stem)
+        b.ent(ent, "diagram", title)
+        head = b.frag(f"{rel or path}:head", f"@startuml {stem}: {d.diagram_type}, {title}")
+        b.assertion(ent, "type", d.diagram_type, title, [head], basis="authored")
+        names = sorted(d.participants) if d.participants else []
+        if not names:
+            rx = _PUML_NAMES.get(d.diagram_type)
+            if rx:
+                names = sorted({(m[0] if isinstance(m, tuple) else m).strip() for m in rx.findall(body)} - {""})
+        if d.diagram_type == "activity":
+            names = [f"{len(d.activity_nodes or [])} activity nodes"]
+        b.assertion(ent, "elements", "; ".join(names), f"{stem} declares {len(names)} elements", [head], basis="authored")
+        foot = re.search(r"^\s*footer\b(.*)$", body, re.M)
+        if foot:
+            f = b.frag(f"{rel or path}:footer", foot.group(0).strip())
+            for req in _ids_in(foot.group(1)):
+                cites.setdefault(req, []).append((stem, f))
+    _by_requirement(b, "realised_by", cites, lambda rid, names: f"{rid} is realised by {', '.join(names)}")
+    return b
+
+
 EXTRACTORS = {   # mapper name (the subject manifest's) -> the deterministic mapper
     "requirements": extract_requirements,
     "decision_table": extract_decision_table,
@@ -612,6 +804,12 @@ EXTRACTORS = {   # mapper name (the subject manifest's) -> the deterministic map
     "bpmn": extract_bpmn,
     "dmn": extract_dmn,
     "gherkin": extract_gherkin,
+    # a kit whose layers are folders, joined by requirement id (bundle_parts above)
+    "requirements_json": extract_requirements_json,
+    "contracts_markdown": extract_contracts_markdown,
+    "dmn_decisions": extract_dmn_decisions,
+    "gherkin_tagged": extract_gherkin_tagged,
+    "plantuml_realises": extract_plantuml_realises,
 }
 
 

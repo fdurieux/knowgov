@@ -692,7 +692,7 @@ another machine picks it up with `docker compose pull`.
 |---|---|---|
 | the register copy | a new register tag | `python tools/vendor_register.py <checkout at the tag>` |
 | the model copy | a new model version on the site | `python tools/vendor_legible_model.py <checkout>` |
-| the subject and record copy | a pumllint tag that carries them | `python tools/vendor_subject.py <checkout at the tag>` |
+| a subject's copy (the kit, its code, its record) | a pumllint tag that carries them | `python tools/vendor_subject.py <checkout at the tag> --subject <id>` |
 | the harness | after a harness change | a deterministic run, then `compare_deterministic.py` on its folder |
 | the image | never by hand | the merge to `main` publishes it |
 | everything above | before the pull request | `python tests/run_tests.py` |

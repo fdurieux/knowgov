@@ -60,7 +60,7 @@ def deterministic(sc: str, pv: dict, s) -> dict:
     kit = kit_for(sc)
     planted = cfg.get("extraction", "pristine") == "planted"
     load = load_scenario(s, sc, kit, activity_note=f"{sc}: extraction of the {'planted' if planted else 'pristine'} kit")
-    ver = load_verifications(s, sc, pv) if cfg.get("verifications", True) else {"skipped": f"{sc}: extraction only"}
+    ver = load_verifications(s, sc, pv, kit) if cfg.get("verifications", True) else {"skipped": f"{sc}: extraction only"}
     if cfg.get("inferred") and INFERRED:
         load_inferred(s, sc, INFERRED)
     rules = run_all(s, sc)
@@ -94,7 +94,7 @@ def stage2(sc: str, cfg2: dict, pv: dict, s, derived_code: str | None, derived_i
                        cfg2.get("reverify_scope", "re-verification"), cfg2.get("reapproval_record", "re-approval"))
     # new-version assertions of unchanged fragments inherit nothing automatically: they are new statements.
     # Corroboration and verification of them against the pristine values:
-    load_verifications(s, sc, dict(pv))
+    load_verifications(s, sc, dict(pv), kit2)
     gate_after = resolve(s, "codegen")
     stage2 = {"load_v2": load2, "D3_stale": stale, "R-STRUCT_after": rules2["R-STRUCT"],
               "gate_before_reverification": {k: v for k, v in gate_blocked.items() if k != "keys"},

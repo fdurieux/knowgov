@@ -352,7 +352,8 @@ GLOSSARY = {
     "arm": "One of the two AI assistants asked to write the code. G got the bundle; B got the documents.",
     "run": "One call of one arm, graded on its own.",
     "decision": "The word an arm gives for its own choice: generate, generate with assumptions, or abstain.",
-    "oracle": f"The kit's {_word(len(SUBJECT.suite_order))} acceptance scenarios, run on the code an arm wrote.",
+    "oracle": (f"The kit's {_word(len(SUBJECT.suite_order))} acceptance scenarios, run on the code an arm wrote."
+               if SUBJECT.suite_order else "The subject declares no oracle yet, so the arms stay off."),
     "planted target": "The oracle scenario the planted defect aims at.",
     "flagged": "The arm named the planted problem in its questions or assumptions.",
     "record": "The committed results of the scored run, under results/.",

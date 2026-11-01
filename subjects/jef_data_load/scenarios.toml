@@ -1,0 +1,198 @@
+# The scenarios of the J-F data-load subject: the degradation test's six arms (its
+# PREREGISTRATION.md §3, graded 2026-10-29), read as scenarios of the governed store. C is the kit
+# as committed; D1 to D5 plant the test's fifteen defects, one arm per layer, with plants.toml
+# written from the test's own patches. The cards are controlled sentences (demo/GLOSSARY.md);
+# "oracle" is the kit's acceptance suite, "arm" the rebuild agent of the record. The record's
+# arms were rebuilds with no gate: the B note is what they did, the G note is what the gate
+# reads, measured here. represented and gate are the deterministic run's own numbers.
+
+[[scenario]]
+id = "C"
+title = "the kit as committed"
+represented = "712 assertions, all approved. Each of the 163 requirements has a verifying scenario. No gap on any key."
+gate = "PROCEED"
+defect = "No defect. The rebuild passed the oracle 258 of 258 and matched the reference on 147 of 157 results."
+plant = "Nothing was planted: the kit is the one the rebuilds were graded against, hash-manifested."
+plain = "Nothing was wrong in the kit, and the rebuild matched the original on every number. The gate adds nothing here."
+extraction = "pristine"
+prompts = "task_codegen"
+verifications = true
+three_valued = false
+inferred = false
+flag_words = []
+co_words = []
+targets = []
+default_source = "record"
+
+[scenario.systemic]
+entry = ""
+family = "none planted"
+
+[scenario.systemic.G]
+path = []
+note = "Every requirement has a verifying scenario and every assertion matches what the oracle verified. The gate gives PROCEED."
+
+[scenario.systemic.B]
+path = []
+note = "No defect. Arm C rebuilt the program first time and its own oracle passed 258 of 258."
+
+[[scenario]]
+id = "D1"
+title = "diagrams only"
+represented = "712 assertions, all approved. The three planted labels changed no assertion. No gap on any key."
+gate = "PROCEED"
+defect = "None of the three reached the code. The rebuild read every diagram and took each behaviour from a higher layer."
+plant = "Three defects in the diagrams: a wrong word, a missing refusal arrow, raw dropped from three steps. Every other layer intact."
+plain = "Only the pictures were wrong. The store reads a diagram's structure and its realises list, not its words, so the gate sees nothing. Nothing reached the code either: the rebuild trusted the oracle and the contracts over the diagrams."
+extraction = "planted"
+prompts = "task_codegen"
+verifications = true
+three_valued = false
+inferred = false
+flag_words = []
+co_words = []
+targets = []
+default_source = "record"
+
+[scenario.systemic]
+entry = "deriveddef"
+family = "the diagrams, the lowest layer of the kit's precedence rule"
+
+[scenario.systemic.G]
+path = []
+note = "The store reads a diagram's type, names and realises list, not its labels. The gate gives PROCEED and the three defects are invisible to it."
+
+[scenario.systemic.B]
+path = []
+note = "Attenuated. The rebuild read every diagram and took each behaviour from the intact oracle and contracts."
+
+[[scenario]]
+id = "D2"
+title = "requirements and contracts, oracle intact"
+represented = "Six assertions no longer match the values the oracle verified; three carry an ambiguous gap. 706 approved, 6 proposed."
+gate = "QUALIFIED"
+defect = "None of the three reached the code. The rebuild saw the contradiction and let the oracle win, by the precedence rule."
+plant = "Three defects in the requirements, contracts and glossary: UTC became New York time, a clause vanished, usable was written in. The oracle and the diagrams intact."
+plain = "The requirements and contracts were wrong, the oracle was right. The gate sees six assertions the oracle no longer verifies, three of them vague, and gives QUALIFIED. The rebuild saw the same contradiction and followed the oracle."
+extraction = "planted"
+prompts = "task_codegen"
+verifications = true
+three_valued = false
+inferred = false
+flag_words = []
+co_words = []
+targets = []
+default_source = "record"
+
+[scenario.systemic]
+entry = "updef"
+family = "the requirements, the contracts and the glossary; the oracle and the diagrams intact"
+
+[scenario.systemic.G]
+path = ["updef"]
+stop = "validation"
+note = "Six assertions no longer match the values the oracle verified, and three read vague. The gate gives QUALIFIED and names them."
+
+[scenario.systemic.B]
+path = ["updef"]
+stop = "validation"
+note = "Attenuated. The rebuild named the contradiction in its assumptions and let the oracle win, by the precedence rule."
+
+[[scenario]]
+id = "D3"
+title = "every layer, consistently wrong"
+represented = "Six assertions no longer match the pristine values: the three planted and three the plant rewrote. 706 approved, 6 proposed."
+gate = "QUALIFIED"
+defect = "All three reached the code, concealed by the arm's own oracle. The pristine oracle fails 17 scenarios."
+plant = "Three wrong values written into every layer that states them: a folder name, float32 for float64, int32 for int64. The oracle's expectations rewritten to match."
+plain = "Every document agreed on the wrong values, the oracle included. The gate still sees them: six assertions no longer match the values the pristine oracle verified. The rebuild had no way to know and wrote all three into the code."
+extraction = "planted"
+prompts = "task_codegen"
+verifications = true
+three_valued = false
+inferred = false
+flag_words = []
+co_words = []
+targets = []
+default_source = "record"
+
+[scenario.systemic]
+entry = "updef"
+family = "every layer that states the value, the oracle's expectations included"
+
+[scenario.systemic.G]
+path = ["updef"]
+stop = "validation"
+note = "Six assertions no longer match the pristine values, so execution verification fails them. The gate gives QUALIFIED and names them."
+
+[scenario.systemic.B]
+path = ["updef", "deriveddef", "codedef"]
+stop = "detection"
+would = "escape"
+note = "Propagated and concealed. All three values reached the code, the arm's own oracle passed, and only the pristine oracle caught them."
+
+[[scenario]]
+id = "D4"
+title = "the oracle only"
+represented = "Two requirements lost their verifying scenario, so two assertions stay proposed and the projection warns twice. 708 approved."
+gate = "QUALIFIED"
+defect = "The wrong word reached the code. The deletion and the loosening did not. The pristine oracle fails 4 scenarios."
+plant = "Three defects in the oracle alone: an expected word changed, one scenario deleted, two exact messages loosened to a prefix. Every document intact."
+plain = "Only the oracle changed. The gate sees two requirements that lost their verifying scenario and gives QUALIFIED. The changed expectation is invisible to the store, and that one reached the code: the rebuild let the oracle win."
+extraction = "planted"
+prompts = "task_codegen"
+verifications = true
+three_valued = false
+inferred = false
+flag_words = []
+co_words = []
+targets = []
+default_source = "record"
+
+[scenario.systemic]
+entry = "testdef"
+family = "the oracle alone; every document intact"
+
+[scenario.systemic.G]
+path = ["testdef"]
+stop = "validation"
+note = "Two requirements lost their verifying scenario, so their assertions stay unverified. The gate gives QUALIFIED. A changed expectation is invisible to the store."
+
+[scenario.systemic.B]
+path = ["testdef", "codedef"]
+stop = "detection"
+would = "escape"
+note = "The wrong word propagated: the rebuild let the oracle win over the requirement. The deletion and the loosening were attenuated."
+
+[[scenario]]
+id = "D5"
+title = "a clause missing everywhere"
+represented = "Five assertions no longer match the pristine values and a decision table lost two rules. 707 approved, 5 proposed."
+gate = "QUALIFIED"
+defect = "Two of three reached the code, concealed by the arm's own oracle. The pristine oracle fails 20 scenarios."
+plant = "Three clauses deleted from every layer that states them: the crypto end-guard, the paused asset's marker, the asset filter. The oracle left neutral."
+plain = "Three rules vanished from every document at once. The gate sees five assertions that no longer match the pristine values and a table that lost two rules. Two clauses reached the code, because no layer stated them any more."
+extraction = "planted"
+prompts = "task_codegen"
+verifications = true
+three_valued = false
+inferred = false
+flag_words = []
+co_words = []
+targets = []
+default_source = "record"
+
+[scenario.systemic]
+entry = "updef"
+family = "every layer that states the clause; the oracle neutral"
+
+[scenario.systemic.G]
+path = ["updef"]
+stop = "validation"
+note = "Five assertions no longer match the pristine values and a decision table lost two rules. The gate gives QUALIFIED and names them."
+
+[scenario.systemic.B]
+path = ["updef", "deriveddef", "codedef"]
+stop = "detection"
+would = "escape"
+note = "Two clauses propagated, concealed by the arm's own oracle; the asset filter survived in two other assertions. The pristine oracle caught both."

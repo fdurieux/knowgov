@@ -126,17 +126,37 @@ def pristine_values() -> dict[str, set[str]]:
     return out
 
 
-def load_verifications(st, scenario: str, pristine: dict[str, set[str]]) -> dict:
+def execution_map(kit: dict[str, str] | None) -> dict[str, list[str]]:
+    """suite scenario -> the keys it verifies. The subject's static map (``[verification] map``),
+    or, when ``[verification] derive_execution`` is set, derived from the kit of the scenario at
+    hand: every assertion with ``from_predicate`` (say ``verified_by``) names, in its value, the
+    suite scenarios that verify its entity's ``key_predicate`` (say ``statement``), separated by
+    ``separator``. A scenario the plant removed from the kit then verifies nothing."""
+    d = VER.get("derive_execution")
+    if not d or kit is None:
+        return dict(SUBJECT.verification_map().get("execution", {}))
+    sep = d.get("separator", "; ")
+    out: dict[str, list[str]] = {}
+    for bag in extract_all(kit, SUBJECT.reference_code()):
+        for a in bag.assertions:
+            if a["predicate"] == d["from_predicate"]:
+                for suite_scenario in (v.strip() for v in a["value"].split(sep) if v.strip()):
+                    out.setdefault(suite_scenario, []).append(f"{a['entity']}|{d['key_predicate']}")
+    return out
+
+
+def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: dict[str, str] | None = None) -> dict:
     """Execution and review verifications of the live assertions whose
     (key, value) the pristine kit states; then the owner's approval of
     every verified assertion. Skipped by the caller for a scenario declared
     ``verifications = false``. A subject with no verification map verifies nothing."""
     vmap = SUBJECT.verification_map()
+    execution = execution_map(kit)
     ts = now()
     counts = {"execution": 0, "review": 0, "approved": 0}
     smoke_digest = sha256(SUBJECT.reference_code())
     review, authored, approval = VER.get("review", {}), VER.get("authored", {}), VER.get("approval", {})
-    for suite_scenario, keys in vmap.get("execution", {}).items():
+    for suite_scenario, keys in execution.items():
         for key in keys:
             counts["execution"] += st.verify_by_execution(
                 key, sorted(pristine.get(key, set())), suite_scenario,

@@ -1,5 +1,12 @@
 """The subject: what the harness loads and the page shows, read from a subject root.
 
+An artefact's ``path`` is a file, or a directory: a directory artefact is one document made of
+every file under it that matches its ``include`` globs (all files by default), each part
+prefixed by a ``==> <relative path> <==`` line, in path order. A kit whose layers are folders
+(a suite of feature files, a set of contracts) is loaded that way: one artefact per layer, so a
+statement the layer makes once is one assertion, and ``harness/extract.py``'s ``bundle_parts``
+gives a mapper the parts back.
+
 A subject root (``KG_SUBJECT``, default ``subjects/cargo_quote``) holds ``subject.toml`` (the
 artefacts, the reference code, the oracle, the provenance and verification constants, the task
 classes, the three-valued keys, the record), ``scenarios.toml`` (optional: the recorded scenarios,
@@ -12,8 +19,42 @@ names a subject, a document or a scenario: all of it comes from here.
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from pathlib import Path
+
+BUNDLE_MARK = "==> {rel} <=="   # the line that opens each part of a directory artefact
+
+
+def _glob_re(g: str) -> re.Pattern:
+    """A relative POSIX glob as a regex: ``*`` and ``?`` never cross a slash, ``**`` does."""
+    out = ""
+    i = 0
+    while i < len(g):
+        c = g[i]
+        if g.startswith("**", i):
+            out += ".*"
+            i += 2
+            continue
+        out += {"*": "[^/]*", "?": "[^/]"}.get(c, re.escape(c))
+        i += 1
+    return re.compile(f"^{out}$")
+
+
+def bundle(root: Path, include: list[str] | None = None) -> str:
+    """Every file under ``root`` matching ``include`` (relative POSIX globs, path-aware; all
+    files when empty), in path order, each prefixed by its marker line and ended by a newline."""
+    patterns = [_glob_re(g) for g in (include or [])]
+    parts = []
+    for p in sorted(root.rglob("*")):
+        if not p.is_file() or "__pycache__" in p.parts:
+            continue
+        rel = p.relative_to(root).as_posix()
+        if patterns and not any(r.match(rel) for r in patterns):
+            continue
+        text = p.read_text(encoding="utf-8")
+        parts.append(BUNDLE_MARK.format(rel=rel) + "\n" + text + ("" if text.endswith("\n") else "\n"))
+    return "".join(parts)
 
 HERE = Path(__file__).resolve().parent          # harness/
 ROOT = HERE.parent                              # the repository
@@ -65,8 +106,14 @@ class Subject:
 
     @property
     def kit_files(self) -> list[tuple[str, Path]]:
-        """(key, file) for every artefact that has bytes on disk, in manifest order."""
+        """(key, path) for every artefact that has bytes on disk, in manifest order; a path may be
+        a directory (a bundle, see ``bundle``)."""
         return [(a["key"], self.root / a["path"]) for a in self.artefacts if a.get("path")]
+
+    def artefact_text(self, key: str) -> str:
+        a = next(x for x in self.artefacts if x["key"] == key)
+        p = self.root / a["path"]
+        return bundle(p, a.get("include")) if p.is_dir() else p.read_text(encoding="utf-8")
 
     @property
     def order_keys(self) -> list[str]:
@@ -90,11 +137,15 @@ class Subject:
         return {a["key"]: a["short"] for a in self.artefacts if a.get("short")}
 
     def pristine(self) -> dict[str, str]:
-        return {key: p.read_text(encoding="utf-8") for key, p in self.kit_files}
+        return {key: self.artefact_text(key) for key, _p in self.kit_files}
 
     def reference_code(self) -> str:
+        """The code the oracle verified: one file, or a directory bundled as its ``*.py`` files."""
         rel = self.reference.get("code")
-        return self.path(rel).read_text(encoding="utf-8") if rel else ""
+        if not rel:
+            return ""
+        p = self.path(rel)
+        return bundle(p, ["*.py", "**/*.py"]) if p.is_dir() else p.read_text(encoding="utf-8")
 
     def oracle_script(self) -> Path | None:
         rel = self.oracle.get("script")

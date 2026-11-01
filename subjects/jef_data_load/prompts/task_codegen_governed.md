@@ -1,0 +1,2 @@
+Rebuild the `jef.data` market-data program so that every stored number, every verdict and every exit code matches the kit. You do not receive the documents: you receive the knowledge repository's evidence bundle below, one entry per requirement the task needs, each with its status, its verifying scenarios and its gaps, under the policy that opens it. Build only on what the policy allows; mark every assumption with the assertion id it rests on; abstain under BLOCKED and say what is missing.
+
