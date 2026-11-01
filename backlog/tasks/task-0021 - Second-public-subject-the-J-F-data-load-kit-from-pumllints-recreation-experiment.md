@@ -3,11 +3,11 @@ id: TASK-0021
 title: >-
   Second public subject: the J-F data-load kit from pumllint's recreation
   experiment
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-01T19:43:00Z'
-updated_date: '2026-11-01T20:54:00Z'
+updated_date: '2026-11-01T21:22:00Z'
 labels:
   - subject
 milestone: m-3
@@ -44,4 +44,12 @@ A platform proven on one subject is not proven (task-0008). pumllint's recreatio
 0021.01 and 0021.02 Done (knowgov #16, #17); the register slice merged (ieam-register #5); 0021.04 built on both sides and verified live through KG_REGISTER, its last two criteria waiting on the owner's tag; 0021.03 (the oracle) not started.
 
 Criteria 1 to 5 met across knowgov #16, #17, #18, #19 and ieam-register #5. On criterion 1, one reading to record: the subject needed no subject-specific edit, but three generic harness additions beside the mappers (directory artefacts with path-aware include globs, a plant replace confined to one part with within, the execution map derived from the kit's verified_by links), each documented in subjects/README.md and usable by any subject; and arms.enabled() now also needs an oracle. On criterion 5, the footprint and the impact walk were verified live with KG_REGISTER set to the ieam-register checkout that carries the slice; the vendored copy under demo/register reads 'not in the register copy' until the owner tags and it is re-vendored (0021.04's last two criteria).
+
+Four subtasks Done (PRs #12 to #20): the vendor tool reads the subject's [vendor] table; mappers for JSON requirements, prose contracts, DMN tables, tagged Gherkin and the four diagram types on bundles joined by requirement id; the oracle adapter runs the kit's pytest-bdd suite on CPython 3.12 (258/258 on the reference rebuild, in harness.yml); the register slice at ieam-register v0.2.0 re-vendored with the subject's register map. Deterministic record C and D1 to D5 identical on rdflib and Neo4j; gate outcomes mirror the degradation record. Open: the maintainer's approval of register_map.toml; the re-vendor of both subjects at a pumllint tag once one is published.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+subjects/jef_data_load is the second public subject: vendored from pumllint 3375197 with a digest test and J-F's original code absent; 163 JDL keys as the gate's required set with the verification map derived from the scenarios' tags; the five degradation arms as scenarios with their kit patches and graded outcomes; the page shows every scenario, the register entry at v0.2.0, and footprint and impact walk on J-F content. Verified by 71 tests, harness.yml (rdflib run and comparator for both subjects, the oracle 258/258) and demo.yml's stack job.
+<!-- SECTION:FINAL_SUMMARY:END -->
