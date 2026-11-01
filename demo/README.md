@@ -459,6 +459,7 @@ if [ -d knowgov/.git ]; then cd knowgov && git pull --ff-only; else git clone ht
 export KG_NEO4J_PASSWORD="${KG_NEO4J_PASSWORD:-kgpoc2026}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-}"
 cd demo
+for p in 8080 7474 7687; do docker ps --filter "publish=$p" --format '{{.Names}}' | grep -q . && { echo "port $p is in use by container $(docker ps --filter "publish=$p" --format '{{.Names}}'): stop that stack first, with docker compose down in its folder, then paste again"; exit 1; }; done
 docker compose up -d --build --wait --wait-timeout 300
 echo "demo:          http://localhost:8080"
 echo "Neo4j Browser: http://localhost:7474  user neo4j, password $KG_NEO4J_PASSWORD"
@@ -466,7 +467,10 @@ open http://localhost:8080
 ```
 
 The first start takes a minute or two (the image build plus the Neo4j
-pull). Later starts take seconds.
+pull). Later starts take seconds. The stack needs ports 8080, 7474 and 7687
+free: the block stops with the name of the container holding one, which is
+pumllint's demo stack if you ran it before (`docker compose down` in
+`~/pumllint/kg_experiment/demo` frees them).
 
 **4. Use it.** In the browser at `http://localhost:8080`:
 
@@ -531,7 +535,8 @@ the demo page has no login, and 7474 is a live database console.
 
 The first four lines check that `git`, `docker` and `docker compose` are
 present and that the Docker engine is running; each stops with a message
-naming the fix. The next two lines go to your home folder and clone the
+naming the fix. The port line stops when another container already holds
+one of the stack's three ports and names it. The next two lines go to your home folder and clone the
 repository, or update it if it is already there. The two `export` lines
 set the two variables the stack reads: the database password (the
 harness's default if you have not chosen one) and the OpenAI key (kept
