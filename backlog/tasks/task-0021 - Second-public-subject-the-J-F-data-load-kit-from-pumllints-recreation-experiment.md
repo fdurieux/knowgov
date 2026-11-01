@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-01T19:43:00Z'
-updated_date: '2026-11-01T20:04:00Z'
+updated_date: '2026-11-01T20:42:00Z'
 labels:
   - subject
 milestone: m-3
@@ -37,3 +37,9 @@ A platform proven on one subject is not proven (task-0008). pumllint's recreatio
 <!-- SECTION:PLAN:BEGIN -->
 1. 0021.01: tools/vendor_subject.py reads the path set, destination and note wording from the subject's [vendor] table; subjects/jef_data_load/ vendored from pumllint main (untagged, --allow-untagged) with SOURCE.md and the digest test. 2. 0021.02: mappers for requirements.json, the prose contracts and the component/class/activity/state diagrams; subject.toml, scenarios.toml (S1 pristine + the five degradation arms), plants.toml from the plant bundle; deterministic run on rdflib and Neo4j; the page shows it; harness.yml runs it. 3. 0021.03: the oracle adapter and pins. 4. 0021.04: the register slice in ieam-register, re-vendor, register_map.toml. Each step a PR merged on green.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+0021.01 and 0021.02 Done (knowgov #16, #17); the register slice merged (ieam-register #5); 0021.04 built on both sides and verified live through KG_REGISTER, its last two criteria waiting on the owner's tag; 0021.03 (the oracle) not started.
+<!-- SECTION:NOTES:END -->

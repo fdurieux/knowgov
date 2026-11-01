@@ -168,6 +168,9 @@ sys.path.insert(0, str(HERE.parent.parent / "harness"))
 from subject import SUBJECT  # noqa: E402  (the subject root: KG_SUBJECT, default subjects/cargo_quote)
 REQ_ANCHOR = SUBJECT.register.get("requirement_anchor", "")   # how the register's links cite a requirement; the subject says
 REQ_DOC_ANCHOR = REQ_ANCHOR.split(":", 1)[-1]          # the anchor without the export prefix, e.g. requirements.md#
+SYSTEM = REQ_ANCHOR.split(":", 1)[0] if ":" in REQ_ANCHOR else "kit"   # the register's name for the subject as a source system
+SYS = SYSTEM + ":"                                      # the prefix its evidence anchors carry
+REQ_ID = re.compile(SUBJECT.rules.get("requirement_id_pattern", r"[A-Z]{2,}-\d{2,}"))   # what a requirement id looks like
 EXPORT_MANIFEST = SUBJECT.register.get("export_manifest", "")
 
 
@@ -220,16 +223,16 @@ def _join(parts: list, sep: str = ", ") -> list | str:
 
 
 def _norm(anchor: str) -> str:
-    """One spelling for a kit anchor: the register writes kit:requirements.md#REQ-05, the map
-    kit/requirements.md#REQ-05 and contract/decision_table.md#DT-V; all become kit-relative paths."""
-    a = anchor[4:] if anchor.startswith("kit:") else anchor
-    return a[4:] if a.startswith("kit/") else a
+    """One spelling for a kit anchor: the register writes <system>:requirements.md#REQ-05, the map
+    <system>/requirements.md#REQ-05 or contract/decision_table.md#DT-V; all become kit-relative paths."""
+    a = anchor[len(SYS):] if anchor.startswith(SYS) else anchor
+    return a[len(SYSTEM) + 1:] if a.startswith(SYSTEM + "/") else a
 
 
 def _anchor_ref(anchor: str) -> dict:
     """A kit anchor opens the requirement panel when it names a requirement, else the document card."""
     a = _norm(anchor)
-    if a.startswith(REQ_DOC_ANCHOR + "REQ-"):
+    if a.startswith(REQ_DOC_ANCHOR) and "#" in a and REQ_ID.fullmatch(a.split("#", 1)[1]):
         return R("req", a.split("#", 1)[1], anchor)
     return R("doc", a.split("#", 1)[0], anchor)
 
@@ -255,7 +258,15 @@ def _type_tip(t: dict) -> str:
 
 
 def _requirement_line(req: str) -> str:
-    """The requirement's own line from the kit's requirements table, verbatim."""
+    """The requirement's own text from the kit's requirements document, verbatim: a markdown
+    table's row, or a JSON list's statement."""
+    if REQUIREMENTS is None:
+        return ""
+    if REQUIREMENTS.suffix == ".json":
+        for item in json.loads(REQUIREMENTS.read_text(encoding="utf-8")):
+            if item.get("id") == req:
+                return item.get("statement", "")
+        return ""
     for line in REQUIREMENTS.read_text(encoding="utf-8").splitlines():
         if line.startswith(f"| {req} |"):
             return line.split("|")[2].strip()
@@ -272,7 +283,9 @@ class _Ctx:
         self.map = load_map()
         self.rows = {r["key"]: r for r in self.map["row"]}
         self.lifecycle = T["register"].load_toml(REGISTER / "metamodel" / "lifecycle.toml")
-        self.manifest = T["register"].load_toml(REGISTER / EXPORT_MANIFEST) if EXPORT_MANIFEST else {}   # the export the subject names
+        # the export the subject names, when the register copy carries it (a copy vendored before the
+        # subject's slice does not; the footprint says so)
+        self.manifest = T["register"].load_toml(REGISTER / EXPORT_MANIFEST) if EXPORT_MANIFEST and (REGISTER / EXPORT_MANIFEST).exists() else {}
         self.links = [dict(ln, type=rname) for rname, rel in self.reg["relationships"].items() for ln in rel["links"]]
         self.by_id = {ln["id"]: ln for ln in self.links}
         self.view = view
@@ -300,8 +313,8 @@ class _Ctx:
     def citing(self, anchor: str) -> list:
         """The links whose evidence or external target cites the anchor (a kit path or path#section)."""
         return [ln for ln in self.links
-                if any(ev == anchor or ev.startswith(anchor + "#") or ev == "kit:" + anchor or ev.startswith("kit:" + anchor + "#") for ev in ln.get("evidence", []))
-                or (ln.get("target_external") or "").startswith("kit:" + anchor)]
+                if any(ev == anchor or ev.startswith(anchor + "#") or ev == SYS + anchor or ev.startswith(SYS + anchor + "#") for ev in ln.get("evidence", []))
+                or (ln.get("target_external") or "").startswith(SYS + anchor)]
 
     def rows_anchored(self, anchor: str) -> list:
         n = _norm(anchor)
@@ -324,7 +337,7 @@ def _link_panel(cx: _Ctx, ln: dict) -> dict:
              "table": {"cols": ["role", "node", "name", "state"], "rows": ends}},
             {"heading": C("Relationship type"), "text": D(_type_tip(t)) + (" " + D(f"Note: {t['note']}") if t.get("note") else "")},
             {"heading": C(f"Evidence: {len(ln.get('evidence', []))}"), "text": C("A kit entry opens its document or requirement; an export entry is the manifest."),
-             "table": {"cols": ["entry"], "rows": [[_anchor_ref(ev) if ev.startswith("kit:") else ev] for ev in ln.get("evidence", [])]}}]
+             "table": {"cols": ["entry"], "rows": [[_anchor_ref(ev) if ev.startswith(SYS) else ev] for ev in ln.get("evidence", [])]}}]
     appr = ln.get("approval")
     if appr:
         secs.append({"heading": C("Approval"), "text": D(f"By {appr.get('by')} on {appr.get('on')}, record {appr.get('record')}; review due {ln.get('review_due')}.")})
@@ -353,7 +366,7 @@ def _req_panel(cx: _Ctx, req: str) -> dict | None:
                  "text": C("Each link opens its own panel.") if citing else C("No link cites it: the register does not yet carry this requirement."),
                  "table": {"cols": ["link", "type", "source", "target", "state"],
                            "rows": [[R("link", ln["id"]), ln["type"], R("node", ln["source"]), _target_ref(ln), cx.state_cell(ln.get("state", ""))] for ln in citing]}})
-    rows = cx.rows_anchored("kit:" + anchor)
+    rows = cx.rows_anchored(SYS + anchor)
     secs.append({"heading": C(f"Map rows anchored on it: {len(rows)}"),
                  "text": C("Each row names the nodes its key concerns; the level is the gate's in this scenario.") if cx.det else C("Each row names the nodes its key concerns."),
                  "table": {"cols": ["key", "level", "nodes"], "rows": [[R("key", r["key"]), cx.level_cell(cx.level_of(r["key"])) if cx.det else "", _join([R("node", n) for n in r["nodes"]])] for r in rows]}})
@@ -404,7 +417,7 @@ def _doc_panel(cx: _Ctx, path: str) -> dict | None:
                  "table": {"cols": ["link", "type", "source", "target", "state", "evidence"],
                            "rows": [[R("link", ln["id"]), ln["type"], R("node", ln["source"]), _target_ref(ln), cx.state_cell(ln.get("state", "")),
                                      ", ".join([ev for ev in ln.get("evidence", []) if path in ev] + ([ln["target_external"]] if path in (ln.get("target_external") or "") else []))] for ln in citing]}})
-    rows = cx.rows_anchored("kit:" + path)
+    rows = cx.rows_anchored(SYS + path)
     secs.append({"heading": C(f"Map rows anchored on it: {len(rows)}"),
                  "table": {"cols": ["key", "level", "nodes"], "rows": [[R("key", r["key"]), cx.level_cell(cx.level_of(r["key"])) if cx.det else "", _join([R("node", n) for n in r["nodes"]])] for r in rows]}})
     return {"title": C(f"Document {path}"), "intro": intro, "sections": secs}
@@ -452,14 +465,15 @@ def footprint(view: dict) -> dict:
     for k, _lvl, r in key_rows:
         for nid in r["nodes"]:
             touched.setdefault(nid, []).append(k)
-    not_approved = sorted(nid for nid in touched if states.get(nid) != "approved")
+    not_in_copy = sorted(nid for nid in touched if nid not in states)   # the register copy predates this subject's slice
+    not_approved = sorted(nid for nid in touched if nid in states and states[nid] != "approved")
     # requirement gaps joined to the links that cite them
     req_rows = []
     req_cells = []
     uncited = 0
     for h in det["rules"]["R-REQ"]:
         subject = h.get("req") or h.get("artefact") or h.get("entity") or ""
-        anchor = REQ_ANCHOR + subject if h.get("req") else "kit:" + subject
+        anchor = REQ_ANCHOR + subject if h.get("req") else SYS + subject
         citing = [ln for ln in links if any(ev == anchor or ev.startswith(anchor + "#") for ev in ln.get("evidence", []))] if h.get("req") else []
         if not citing:
             uncited += 1
@@ -476,17 +490,23 @@ def footprint(view: dict) -> dict:
             evs = [ev for ev in ln.get("evidence", []) if table_path in ev] + ([ln["target_external"]] if table_path in (ln.get("target_external") or "") else [])
             if evs:
                 table_links.append((ln["id"], ln["type"], ln["source"], ln.get("target") or ln.get("target_external", ""), ln.get("state", ""), ", ".join(evs)))
-    manifest = T["register"].load_toml(REGISTER / EXPORT_MANIFEST) if EXPORT_MANIFEST else {}
+    manifest = cx.manifest
     table_digest = manifest.get("files", {}).get(table_path, "")
-    colour = "bad" if not_approved or uncited else "warn" if key_rows or table_links else "ok"
+    colour = "bad" if not_approved or uncited or not_in_copy else "warn" if key_rows or table_links else "ok"
     lines = [f"{views._plural(len(key_rows), 'key')} below approved {'touches' if len(key_rows) == 1 else 'touch'} {views._plural(len(touched), 'node')}" if key_rows else "no key below approved",
              f"{views._plural(len(req_rows), 'requirement gap')}, {uncited} cited by no link"]
     if table_links:
         lines.append(f"{views._plural(len(table_links), 'link cites', 'links cite')} the changed table")
     if not_approved:
         lines.append(f"{views._plural(len(not_approved), 'touched node')} not approved: {', '.join(not_approved)}")
+    if not_in_copy:
+        lines.append(f"{views._plural(len(not_in_copy), 'touched node')} not in the register copy: {', '.join(not_in_copy)}")
+    if EXPORT_MANIFEST and not manifest:
+        lines.append("the register copy carries no export of this subject")
     approved_on = str(m["map"].get("approved_on", ""))
-    intro = C(f"The footprint is the demo's reading of the gate's keys onto the register, approved by the maintainer on {approved_on}.",
+    intro = C((f"The footprint is the demo's reading of the gate's keys onto the register, approved by the maintainer on {approved_on}."
+               if m["map"].get("status") == "approved" else
+               "The footprint is the demo's reading of the gate's keys onto the register, drafted and not yet approved."),
               "A key below approved touches the nodes its map row names.",
               "A requirement gap is joined to the links whose evidence cites it.",
               "An underlined cell opens its subject's panel under the table; a dotted one explains itself on hover.",

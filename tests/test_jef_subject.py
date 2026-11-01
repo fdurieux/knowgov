@@ -101,9 +101,10 @@ def test_manifest_conventions_and_record():
 
 def test_generated_prose_on_the_subject_keeps_to_the_glossary_and_the_limits():
     """views.build for every scenario of the subject, from its record: controlled sentences at
-    most 20 words, readings 25, no forbidden synonym; the footprint absent, since the subject maps
-    no key onto the register yet (0021.04). Run in a subprocess, since the view modules bind the
-    subject at import."""
+    most 20 words, readings 25, no forbidden synonym. The subject maps its keys onto the register
+    (0021.04), but the vendored register copy predates its slice, so the footprint says so rather
+    than failing: the touched nodes are not in the copy and the copy carries no export of the
+    subject. Run in a subprocess, since the view modules bind the subject at import."""
     code = r"""
 import json, re, sys
 sys.path.insert(0, 'demo/app')
@@ -113,10 +114,24 @@ def sentences(t): return [s for s in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(])", 
 limits = {"controlled": 20, "reading": 25}
 seen = {"controlled": 0, "reading": 0, "data": 0}
 bad = []
-assert not register_view.has_map()
+assert register_view.has_map() and register_view.SYS == "jef_kit:" and register_view.REQ_ID.fullmatch("JDL-047")
+fp_seen = 0
 for sc in views.ORDER:
     v = views.build(sc, views.default_source(sc), Path('runs') / 'nonexistent')
     assert v["gate"]["verdict"] == views.SCENARIOS[sc]["gate"], (sc, v["gate"]["verdict"])
+    fp = register_view.footprint(v)
+    fp_seen += 1
+    lines = fp["box"]["lines"]
+    assert "the register copy carries no export of this subject" in lines, (sc, lines)
+    if sc != "C" and sc != "D1":
+        assert any("not in the register copy" in ln for ln in lines) and fp["box"]["colour"] == "bad", (sc, lines)
+    for item in fp["text_registry"]:
+        if item["kind"] != "data":
+            for s in sentences(item["text"]):
+                low = s.lower()
+                forb = [f for f in views.FORBIDDEN if re.search(r"\b" + re.escape(f) + r"\b", low)]
+                if len(s.split()) > 20 or forb:
+                    bad.append((sc, "footprint", forb, s))
     for item in v["text_registry"]:
         seen[item["kind"]] += 1
         if item["kind"] == "data":
@@ -126,6 +141,7 @@ for sc in views.ORDER:
             forb = [f for f in views.FORBIDDEN if re.search(r"\b" + re.escape(f) + r"\b", low)]
             if len(s.split()) > limits[item["kind"]] or forb:
                 bad.append((sc, item["kind"], forb, s))
+assert fp_seen == 6
 print(json.dumps({"seen": seen, "bad": bad[:8], "scenarios": len(views.ORDER)}))
 """
     r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=dict(os.environ, KG_SUBJECT=str(SUBJ)), capture_output=True, text=True)

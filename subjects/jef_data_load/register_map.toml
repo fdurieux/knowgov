@@ -1,0 +1,1004 @@
+# The demo's reading of the gate's 163 keys onto the IEAM register: which register nodes each
+# key concerns. Derived on 2026-11-01 from the kit's own citations: a requirement's row names the
+# nodes of the contracts and decision tables that cite it (one table per document, in this file's
+# header comment of its generator run), a requirement no contract cites is placed by its kind.
+# The anchor is the first citing document, the same path the register's link evidence uses with
+# the jef_kit: prefix. Drafted, not yet approved: the page says so until the maintainer reads the
+# rows and sets status = "approved" with the date. Nothing here is written back to the register.
+#
+# contracts/universe.toml.md, classifications.toml.md, the packaged TOML -> ENT-0007 (and APP-0005)
+# contracts/collectors.md, fixtures.md -> APP-0009, PROC-0009
+# contracts/adjustment.md -> APP-0008, ENT-0009, ENT-0008; contracts/store.md -> APP-0008, ENT-0008
+# contracts/seam_frame.md -> ENT-0010, PRD-0004, APP-0005; contracts/leg.md -> PROC-0009, APP-0006
+# contracts/cli.md, cli_help.md, refusals.md -> APP-0005; contracts/chain.md -> PROC-0006, APP-0005, JRN-0005
+# the status schema and example -> APP-0007, PROC-0008; the sync summary schema and example -> APP-0006, PROC-0007
+# dmn: actions_gate -> ENT-0009, APP-0006; basis -> APP-0008; command_store_state -> APP-0005, ENT-0008;
+#      refusal_routing -> APP-0005; status_verdicts -> APP-0007, PROC-0008; sync_window -> APP-0006, PROC-0009
+# by kind: chain -> PROC-0006; verdict -> APP-0007, PROC-0008; cli, refusal -> APP-0005; else APP-0005
+
+[map]
+basis = "derived"
+author = "the demo session, derived 2026-11-01 from the contracts' citations"
+status = "drafted"
+approved_by = ""
+approved_on = ""
+register_commit = "a852219d0394f61e89e97923927cc7e828b6ab25"
+keys_expected = 163
+
+[[row]]
+key = "JDL-001|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "contract; elaborated by universe.toml.md"
+
+[[row]]
+key = "JDL-002|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "contract; elaborated by universe.toml.md"
+
+[[row]]
+key = "JDL-003|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "contract; elaborated by universe.toml.md"
+
+[[row]]
+key = "JDL-004|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "contract; elaborated by universe.toml.md"
+
+[[row]]
+key = "JDL-005|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "contract; elaborated by universe.toml.md"
+
+[[row]]
+key = "JDL-006|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "contract; elaborated by universe.toml.md"
+
+[[row]]
+key = "JDL-007|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "contract; elaborated by universe.toml.md"
+
+[[row]]
+key = "JDL-008|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "contract; elaborated by universe.toml.md"
+
+[[row]]
+key = "JDL-009|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "contract; elaborated by universe.toml.md"
+
+[[row]]
+key = "JDL-010|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "contract; elaborated by universe.toml.md"
+
+[[row]]
+key = "JDL-011|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "contract; elaborated by universe.toml.md"
+
+[[row]]
+key = "JDL-012|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "refusal; elaborated by universe.toml.md"
+
+[[row]]
+key = "JDL-013|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "refusal; elaborated by refusals.md, universe.toml.md"
+
+[[row]]
+key = "JDL-014|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "refusal; elaborated by refusals.md, universe.toml.md"
+
+[[row]]
+key = "JDL-015|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "refusal; elaborated by refusals.md, universe.toml.md"
+
+[[row]]
+key = "JDL-016|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "refusal; elaborated by refusals.md, universe.toml.md"
+
+[[row]]
+key = "JDL-017|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "refusal; elaborated by refusals.md, universe.toml.md"
+
+[[row]]
+key = "JDL-018|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "refusal; elaborated by refusals.md, universe.toml.md"
+
+[[row]]
+key = "JDL-019|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "refusal; elaborated by refusals.md, universe.toml.md"
+
+[[row]]
+key = "JDL-020|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "refusal; elaborated by refusals.md, universe.toml.md"
+
+[[row]]
+key = "JDL-021|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "refusal; elaborated by refusals.md, universe.toml.md"
+
+[[row]]
+key = "JDL-022|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/universe.toml.md"
+note = "refusal; elaborated by refusals.md, universe.toml.md"
+
+[[row]]
+key = "JDL-023|statement"
+nodes = ["APP-0009", "PROC-0009", "APP-0005"]
+anchor = "contracts/collectors.md"
+note = "contract; elaborated by collectors.md, refusals.md"
+
+[[row]]
+key = "JDL-024|statement"
+nodes = ["APP-0009", "PROC-0009"]
+anchor = "contracts/collectors.md"
+note = "contract; elaborated by collectors.md, fixtures.md"
+
+[[row]]
+key = "JDL-025|statement"
+nodes = ["APP-0009", "PROC-0009"]
+anchor = "contracts/collectors.md"
+note = "contract; elaborated by collectors.md, fixtures.md"
+
+[[row]]
+key = "JDL-026|statement"
+nodes = ["APP-0009", "PROC-0009", "APP-0005"]
+anchor = "contracts/collectors.md"
+note = "contract; elaborated by collectors.md, fixtures.md, refusals.md"
+
+[[row]]
+key = "JDL-027|statement"
+nodes = ["APP-0009", "PROC-0009"]
+anchor = "contracts/collectors.md"
+note = "ritual; elaborated by collectors.md"
+
+[[row]]
+key = "JDL-028|statement"
+nodes = ["APP-0009", "PROC-0009", "APP-0005"]
+anchor = "contracts/collectors.md"
+note = "refusal; elaborated by collectors.md, refusals.md"
+
+[[row]]
+key = "JDL-029|statement"
+nodes = ["APP-0009", "PROC-0009"]
+anchor = "contracts/collectors.md"
+note = "contract; elaborated by collectors.md"
+
+[[row]]
+key = "JDL-030|statement"
+nodes = ["APP-0009", "PROC-0009", "APP-0005"]
+anchor = "contracts/collectors.md"
+note = "refusal; elaborated by collectors.md, refusals.md"
+
+[[row]]
+key = "JDL-031|statement"
+nodes = ["APP-0009", "PROC-0009", "APP-0005"]
+anchor = "contracts/collectors.md"
+note = "arithmetic; elaborated by collectors.md, refusals.md"
+
+[[row]]
+key = "JDL-032|statement"
+nodes = ["APP-0009", "PROC-0009", "APP-0005"]
+anchor = "contracts/collectors.md"
+note = "contract; elaborated by collectors.md, refusals.md"
+
+[[row]]
+key = "JDL-033|statement"
+nodes = ["APP-0009", "PROC-0009", "APP-0008", "ENT-0009", "ENT-0008", "APP-0005"]
+anchor = "contracts/collectors.md"
+note = "contract; elaborated by adjustment.md, collectors.md, refusals.md"
+
+[[row]]
+key = "JDL-034|statement"
+nodes = ["APP-0009", "PROC-0009"]
+anchor = "contracts/collectors.md"
+note = "contract; elaborated by collectors.md"
+
+[[row]]
+key = "JDL-035|statement"
+nodes = ["APP-0009", "PROC-0009"]
+anchor = "contracts/collectors.md"
+note = "contract; elaborated by collectors.md"
+
+[[row]]
+key = "JDL-036|statement"
+nodes = ["APP-0009", "PROC-0009"]
+anchor = "contracts/collectors.md"
+note = "contract; elaborated by collectors.md"
+
+[[row]]
+key = "JDL-037|statement"
+nodes = ["APP-0009", "PROC-0009"]
+anchor = "contracts/collectors.md"
+note = "arithmetic; elaborated by collectors.md"
+
+[[row]]
+key = "JDL-038|statement"
+nodes = ["APP-0009", "PROC-0009", "APP-0005"]
+anchor = "contracts/collectors.md"
+note = "ritual; elaborated by collectors.md, refusals.md"
+
+[[row]]
+key = "JDL-039|statement"
+nodes = ["APP-0009", "PROC-0009"]
+anchor = "contracts/collectors.md"
+note = "contract; elaborated by collectors.md"
+
+[[row]]
+key = "JDL-040|statement"
+nodes = ["APP-0008", "ENT-0008"]
+anchor = "contracts/store.md"
+note = "contract; elaborated by store.md"
+
+[[row]]
+key = "JDL-041|statement"
+nodes = ["APP-0008", "ENT-0008"]
+anchor = "contracts/store.md"
+note = "contract; elaborated by store.md"
+
+[[row]]
+key = "JDL-042|statement"
+nodes = ["APP-0008", "ENT-0008"]
+anchor = "contracts/store.md"
+note = "ritual; elaborated by store.md"
+
+[[row]]
+key = "JDL-043|statement"
+nodes = ["APP-0008", "ENT-0008", "PROC-0009", "APP-0006", "ENT-0009"]
+anchor = "contracts/store.md"
+note = "contract; elaborated by actions_gate.dmn, leg.md, store.md"
+
+[[row]]
+key = "JDL-044|statement"
+nodes = ["APP-0008", "ENT-0008"]
+anchor = "contracts/store.md"
+note = "contract; elaborated by store.md"
+
+[[row]]
+key = "JDL-045|statement"
+nodes = ["APP-0008", "ENT-0009", "ENT-0008"]
+anchor = "contracts/adjustment.md"
+note = "arithmetic; elaborated by adjustment.md"
+
+[[row]]
+key = "JDL-046|statement"
+nodes = ["APP-0008", "ENT-0009", "ENT-0008"]
+anchor = "contracts/adjustment.md"
+note = "arithmetic; elaborated by adjustment.md"
+
+[[row]]
+key = "JDL-047|statement"
+nodes = ["APP-0008", "ENT-0009", "ENT-0008"]
+anchor = "contracts/adjustment.md"
+note = "arithmetic; elaborated by adjustment.md"
+
+[[row]]
+key = "JDL-048|statement"
+nodes = ["APP-0008", "ENT-0009", "ENT-0008"]
+anchor = "contracts/adjustment.md"
+note = "arithmetic; elaborated by adjustment.md"
+
+[[row]]
+key = "JDL-049|statement"
+nodes = ["APP-0008", "ENT-0009", "ENT-0008"]
+anchor = "contracts/adjustment.md"
+note = "arithmetic; elaborated by adjustment.md"
+
+[[row]]
+key = "JDL-050|statement"
+nodes = ["APP-0008", "ENT-0009", "ENT-0008"]
+anchor = "contracts/adjustment.md"
+note = "arithmetic; elaborated by adjustment.md"
+
+[[row]]
+key = "JDL-051|statement"
+nodes = ["APP-0008", "ENT-0009", "ENT-0008", "APP-0005"]
+anchor = "contracts/adjustment.md"
+note = "refusal; elaborated by adjustment.md, refusals.md"
+
+[[row]]
+key = "JDL-052|statement"
+nodes = ["APP-0008", "ENT-0009", "ENT-0008", "APP-0005"]
+anchor = "contracts/adjustment.md"
+note = "refusal; elaborated by adjustment.md, refusals.md"
+
+[[row]]
+key = "JDL-053|statement"
+nodes = ["APP-0008", "ENT-0009", "ENT-0008"]
+anchor = "contracts/adjustment.md"
+note = "contract; elaborated by adjustment.md"
+
+[[row]]
+key = "JDL-054|statement"
+nodes = ["APP-0008", "ENT-0009", "ENT-0008"]
+anchor = "contracts/adjustment.md"
+note = "arithmetic; elaborated by adjustment.md"
+
+[[row]]
+key = "JDL-055|statement"
+nodes = ["APP-0008", "ENT-0009", "ENT-0008"]
+anchor = "contracts/adjustment.md"
+note = "arithmetic; elaborated by adjustment.md, basis.dmn"
+
+[[row]]
+key = "JDL-056|statement"
+nodes = ["APP-0008", "ENT-0009", "ENT-0008"]
+anchor = "contracts/adjustment.md"
+note = "arithmetic; elaborated by adjustment.md, basis.dmn"
+
+[[row]]
+key = "JDL-057|statement"
+nodes = ["APP-0008", "ENT-0008"]
+anchor = "contracts/store.md"
+note = "contract; elaborated by store.md"
+
+[[row]]
+key = "JDL-058|statement"
+nodes = ["APP-0008", "ENT-0008", "APP-0005"]
+anchor = "contracts/store.md"
+note = "ritual; elaborated by refusals.md, store.md"
+
+[[row]]
+key = "JDL-059|statement"
+nodes = ["APP-0008", "ENT-0008"]
+anchor = "contracts/store.md"
+note = "contract; elaborated by store.md"
+
+[[row]]
+key = "JDL-060|statement"
+nodes = ["APP-0008", "ENT-0008"]
+anchor = "contracts/store.md"
+note = "arithmetic; elaborated by store.md"
+
+[[row]]
+key = "JDL-061|statement"
+nodes = ["APP-0008", "ENT-0008", "APP-0005"]
+anchor = "contracts/store.md"
+note = "refusal; elaborated by refusals.md, store.md"
+
+[[row]]
+key = "JDL-062|statement"
+nodes = ["APP-0008", "ENT-0008"]
+anchor = "contracts/store.md"
+note = "contract; elaborated by store.md"
+
+[[row]]
+key = "JDL-063|statement"
+nodes = ["APP-0008", "ENT-0008"]
+anchor = "contracts/store.md"
+note = "contract; elaborated by store.md"
+
+[[row]]
+key = "JDL-064|statement"
+nodes = ["APP-0008", "ENT-0008"]
+anchor = "contracts/store.md"
+note = "contract; elaborated by store.md"
+
+[[row]]
+key = "JDL-065|statement"
+nodes = ["APP-0008", "ENT-0008", "APP-0005"]
+anchor = "contracts/store.md"
+note = "ritual; elaborated by command_store_state.dmn, store.md"
+
+[[row]]
+key = "JDL-066|statement"
+nodes = ["APP-0008", "ENT-0008"]
+anchor = "contracts/store.md"
+note = "ritual; elaborated by store.md"
+
+[[row]]
+key = "JDL-067|statement"
+nodes = ["APP-0008", "ENT-0008"]
+anchor = "contracts/store.md"
+note = "contract; elaborated by store.md"
+
+[[row]]
+key = "JDL-068|statement"
+nodes = ["APP-0008", "ENT-0008"]
+anchor = "contracts/store.md"
+note = "contract; elaborated by store.md"
+
+[[row]]
+key = "JDL-069|statement"
+nodes = ["APP-0008", "ENT-0008", "APP-0005"]
+anchor = "contracts/store.md"
+note = "ritual; elaborated by command_store_state.dmn, refusal_routing.dmn, refusals.md, store.md"
+
+[[row]]
+key = "JDL-070|statement"
+nodes = ["APP-0008", "ENT-0008", "APP-0005"]
+anchor = "contracts/store.md"
+note = "ritual; elaborated by basis.dmn, command_store_state.dmn, refusals.md, store.md"
+
+[[row]]
+key = "JDL-071|statement"
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+anchor = "contracts/seam_frame.md"
+note = "contract; elaborated by seam_frame.md"
+
+[[row]]
+key = "JDL-072|statement"
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+anchor = "contracts/seam_frame.md"
+note = "arithmetic; elaborated by seam_frame.md"
+
+[[row]]
+key = "JDL-073|statement"
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+anchor = "contracts/seam_frame.md"
+note = "contract; elaborated by seam_frame.md"
+
+[[row]]
+key = "JDL-074|statement"
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+anchor = "contracts/seam_frame.md"
+note = "contract; elaborated by seam_frame.md"
+
+[[row]]
+key = "JDL-075|statement"
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+anchor = "contracts/seam_frame.md"
+note = "cli; elaborated by seam_frame.md"
+
+[[row]]
+key = "JDL-076|statement"
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+anchor = "contracts/seam_frame.md"
+note = "contract; elaborated by seam_frame.md"
+
+[[row]]
+key = "JDL-077|statement"
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+anchor = "contracts/seam_frame.md"
+note = "contract; elaborated by seam_frame.md"
+
+[[row]]
+key = "JDL-078|statement"
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+anchor = "contracts/seam_frame.md"
+note = "contract; elaborated by seam_frame.md"
+
+[[row]]
+key = "JDL-079|statement"
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+anchor = "contracts/seam_frame.md"
+note = "contract; elaborated by seam_frame.md"
+
+[[row]]
+key = "JDL-080|statement"
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+anchor = "contracts/seam_frame.md"
+note = "arithmetic; elaborated by seam_frame.md"
+
+[[row]]
+key = "JDL-081|statement"
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+anchor = "contracts/seam_frame.md"
+note = "contract; elaborated by seam_frame.md"
+
+[[row]]
+key = "JDL-082|statement"
+nodes = ["APP-0005", "ENT-0008"]
+anchor = "contracts/dmn/command_store_state.dmn"
+note = "arithmetic; elaborated by command_store_state.dmn"
+
+[[row]]
+key = "JDL-083|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md"
+
+[[row]]
+key = "JDL-084|statement"
+nodes = ["PROC-0009", "APP-0006"]
+anchor = "contracts/leg.md"
+note = "ritual; elaborated by leg.md"
+
+[[row]]
+key = "JDL-085|statement"
+nodes = ["PROC-0009", "APP-0006", "APP-0005"]
+anchor = "contracts/leg.md"
+note = "refusal; elaborated by leg.md, refusal_routing.dmn, refusals.md"
+
+[[row]]
+key = "JDL-086|statement"
+nodes = ["PROC-0009", "APP-0006", "ENT-0009", "APP-0008"]
+anchor = "contracts/leg.md"
+note = "ritual; elaborated by actions_gate.dmn, basis.dmn, leg.md"
+
+[[row]]
+key = "JDL-087|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/refusals.md"
+note = "refusal; elaborated by refusals.md"
+
+[[row]]
+key = "JDL-088|statement"
+nodes = ["ENT-0009", "APP-0006"]
+anchor = "contracts/dmn/actions_gate.dmn"
+note = "ritual; elaborated by actions_gate.dmn"
+
+[[row]]
+key = "JDL-089|statement"
+nodes = ["APP-0005"]
+anchor = "requirements.json#JDL-089"
+note = "cli; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-090|statement"
+nodes = ["APP-0005"]
+anchor = "requirements.json#JDL-090"
+note = "ritual; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-091|statement"
+nodes = ["ENT-0009", "APP-0006"]
+anchor = "contracts/dmn/actions_gate.dmn"
+note = "ritual; elaborated by actions_gate.dmn"
+
+[[row]]
+key = "JDL-092|statement"
+nodes = ["APP-0005"]
+anchor = "requirements.json#JDL-092"
+note = "ritual; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-093|statement"
+nodes = ["APP-0005", "ENT-0008", "APP-0006", "PROC-0009"]
+anchor = "contracts/dmn/command_store_state.dmn"
+note = "arithmetic; elaborated by command_store_state.dmn, sync_window.dmn"
+
+[[row]]
+key = "JDL-094|statement"
+nodes = ["APP-0006", "PROC-0009"]
+anchor = "contracts/dmn/sync_window.dmn"
+note = "arithmetic; elaborated by sync_window.dmn"
+
+[[row]]
+key = "JDL-095|statement"
+nodes = ["APP-0005", "APP-0006", "PROC-0009"]
+anchor = "contracts/refusals.md"
+note = "ritual; elaborated by refusals.md, sync_window.dmn"
+
+[[row]]
+key = "JDL-096|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/refusals.md"
+note = "ritual; elaborated by refusals.md"
+
+[[row]]
+key = "JDL-097|statement"
+nodes = ["APP-0005"]
+anchor = "requirements.json#JDL-097"
+note = "ritual; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-098|statement"
+nodes = ["APP-0005"]
+anchor = "requirements.json#JDL-098"
+note = "ritual; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-099|statement"
+nodes = ["APP-0005", "ENT-0008"]
+anchor = "contracts/refusals.md"
+note = "ritual; elaborated by command_store_state.dmn, refusals.md"
+
+[[row]]
+key = "JDL-100|statement"
+nodes = ["APP-0008"]
+anchor = "contracts/dmn/basis.dmn"
+note = "ritual; elaborated by basis.dmn"
+
+[[row]]
+key = "JDL-101|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/dmn/refusal_routing.dmn"
+note = "ritual; elaborated by refusal_routing.dmn"
+
+[[row]]
+key = "JDL-102|statement"
+nodes = ["APP-0005"]
+anchor = "requirements.json#JDL-102"
+note = "ritual; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-103|statement"
+nodes = ["PROC-0009", "APP-0006", "APP-0005"]
+anchor = "contracts/leg.md"
+note = "ritual; elaborated by cli.md, leg.md"
+
+[[row]]
+key = "JDL-104|statement"
+nodes = ["PROC-0009", "APP-0006", "APP-0005"]
+anchor = "contracts/leg.md"
+note = "ritual; elaborated by cli.md, leg.md"
+
+[[row]]
+key = "JDL-105|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "contract; elaborated by cli.md"
+
+[[row]]
+key = "JDL-106|statement"
+nodes = ["APP-0006", "PROC-0007"]
+anchor = "contracts/sync_summary.schema.json"
+note = "contract; elaborated by sync_summary.schema.json"
+
+[[row]]
+key = "JDL-107|statement"
+nodes = ["APP-0005"]
+anchor = "requirements.json#JDL-107"
+note = "ritual; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-108|statement"
+nodes = ["APP-0005"]
+anchor = "requirements.json#JDL-108"
+note = "ritual; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-109|statement"
+nodes = ["APP-0007", "PROC-0008"]
+anchor = "contracts/status.schema.json"
+note = "contract; elaborated by status.schema.json"
+
+[[row]]
+key = "JDL-110|statement"
+nodes = ["APP-0005", "ENT-0008"]
+anchor = "contracts/dmn/command_store_state.dmn"
+note = "ritual; elaborated by command_store_state.dmn"
+
+[[row]]
+key = "JDL-111|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/classifications.toml.md"
+note = "verdict; elaborated by classifications.toml.md"
+
+[[row]]
+key = "JDL-112|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/classifications.toml.md"
+note = "verdict; elaborated by classifications.toml.md"
+
+[[row]]
+key = "JDL-113|statement"
+nodes = ["ENT-0007", "APP-0005"]
+anchor = "contracts/classifications.toml.md"
+note = "contract; elaborated by classifications.toml.md"
+
+[[row]]
+key = "JDL-114|statement"
+nodes = ["APP-0005", "ENT-0008", "APP-0007", "PROC-0008"]
+anchor = "contracts/dmn/command_store_state.dmn"
+note = "verdict; elaborated by command_store_state.dmn, status_verdicts.dmn"
+
+[[row]]
+key = "JDL-115|statement"
+nodes = ["APP-0005"]
+anchor = "requirements.json#JDL-115"
+note = "arithmetic; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-116|statement"
+nodes = ["APP-0007", "PROC-0008"]
+anchor = "contracts/dmn/status_verdicts.dmn"
+note = "verdict; elaborated by status_verdicts.dmn"
+
+[[row]]
+key = "JDL-117|statement"
+nodes = ["APP-0007", "PROC-0008"]
+anchor = "requirements.json#JDL-117"
+note = "verdict; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-118|statement"
+nodes = ["APP-0007", "PROC-0008"]
+anchor = "requirements.json#JDL-118"
+note = "verdict; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-119|statement"
+nodes = ["APP-0005"]
+anchor = "requirements.json#JDL-119"
+note = "arithmetic; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-120|statement"
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+anchor = "contracts/seam_frame.md"
+note = "arithmetic; elaborated by seam_frame.md"
+
+[[row]]
+key = "JDL-121|statement"
+nodes = ["APP-0007", "PROC-0008"]
+anchor = "requirements.json#JDL-121"
+note = "verdict; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-122|statement"
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
+anchor = "contracts/seam_frame.md"
+note = "arithmetic; elaborated by seam_frame.md"
+
+[[row]]
+key = "JDL-123|statement"
+nodes = ["APP-0007", "PROC-0008"]
+anchor = "requirements.json#JDL-123"
+note = "verdict; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-124|statement"
+nodes = ["APP-0007", "PROC-0008"]
+anchor = "contracts/dmn/status_verdicts.dmn"
+note = "verdict; elaborated by status_verdicts.dmn"
+
+[[row]]
+key = "JDL-125|statement"
+nodes = ["APP-0007", "PROC-0008"]
+anchor = "contracts/dmn/status_verdicts.dmn"
+note = "verdict; elaborated by status_verdicts.dmn"
+
+[[row]]
+key = "JDL-126|statement"
+nodes = ["APP-0007", "PROC-0008"]
+anchor = "contracts/status.schema.json"
+note = "contract; elaborated by status.schema.json"
+
+[[row]]
+key = "JDL-127|statement"
+nodes = ["APP-0007", "PROC-0008"]
+anchor = "contracts/dmn/status_verdicts.dmn"
+note = "verdict; elaborated by status_verdicts.dmn"
+
+[[row]]
+key = "JDL-128|statement"
+nodes = ["APP-0005"]
+anchor = "requirements.json#JDL-128"
+note = "arithmetic; cited by no contract, placed by kind"
+
+[[row]]
+key = "JDL-129|statement"
+nodes = ["APP-0007", "PROC-0008"]
+anchor = "contracts/dmn/status_verdicts.dmn"
+note = "verdict; elaborated by status_verdicts.dmn"
+
+[[row]]
+key = "JDL-130|statement"
+nodes = ["APP-0007", "PROC-0008"]
+anchor = "contracts/status.schema.json"
+note = "contract; elaborated by status.schema.json"
+
+[[row]]
+key = "JDL-131|statement"
+nodes = ["APP-0005", "APP-0007", "PROC-0008"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md, status_verdicts.dmn"
+
+[[row]]
+key = "JDL-132|statement"
+nodes = ["APP-0005", "APP-0007", "PROC-0008"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md, status_verdicts.dmn"
+
+[[row]]
+key = "JDL-133|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md, refusal_routing.dmn, refusals.md"
+
+[[row]]
+key = "JDL-134|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md, refusal_routing.dmn"
+
+[[row]]
+key = "JDL-135|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md"
+
+[[row]]
+key = "JDL-136|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md"
+
+[[row]]
+key = "JDL-137|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md"
+
+[[row]]
+key = "JDL-138|statement"
+nodes = ["APP-0005", "ENT-0008"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md, command_store_state.dmn, refusals.md"
+
+[[row]]
+key = "JDL-139|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md"
+
+[[row]]
+key = "JDL-140|statement"
+nodes = ["APP-0005", "ENT-0008"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md, command_store_state.dmn, refusals.md"
+
+[[row]]
+key = "JDL-141|statement"
+nodes = ["APP-0008", "ENT-0008", "APP-0005"]
+anchor = "contracts/store.md"
+note = "cli; elaborated by cli.md, command_store_state.dmn, store.md"
+
+[[row]]
+key = "JDL-142|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "refusal; elaborated by cli.md, refusal_routing.dmn, refusals.md"
+
+[[row]]
+key = "JDL-143|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md"
+
+[[row]]
+key = "JDL-144|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md, refusal_routing.dmn"
+
+[[row]]
+key = "JDL-145|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md, refusal_routing.dmn"
+
+[[row]]
+key = "JDL-146|statement"
+nodes = ["PROC-0006", "APP-0005", "JRN-0005"]
+anchor = "contracts/chain.md"
+note = "chain; elaborated by chain.md"
+
+[[row]]
+key = "JDL-147|statement"
+nodes = ["PROC-0006", "APP-0005", "JRN-0005"]
+anchor = "contracts/chain.md"
+note = "chain; elaborated by chain.md"
+
+[[row]]
+key = "JDL-148|statement"
+nodes = ["PROC-0006", "APP-0005", "JRN-0005"]
+anchor = "contracts/chain.md"
+note = "chain; elaborated by chain.md"
+
+[[row]]
+key = "JDL-149|statement"
+nodes = ["PROC-0006", "APP-0005", "JRN-0005"]
+anchor = "contracts/chain.md"
+note = "chain; elaborated by chain.md"
+
+[[row]]
+key = "JDL-150|statement"
+nodes = ["PROC-0006", "APP-0005", "JRN-0005"]
+anchor = "contracts/chain.md"
+note = "chain; elaborated by chain.md"
+
+[[row]]
+key = "JDL-151|statement"
+nodes = ["APP-0005", "PROC-0006", "JRN-0005"]
+anchor = "contracts/refusals.md"
+note = "chain; elaborated by chain.md, refusals.md"
+
+[[row]]
+key = "JDL-152|statement"
+nodes = ["PROC-0006", "APP-0005", "JRN-0005"]
+anchor = "contracts/chain.md"
+note = "chain; elaborated by chain.md"
+
+[[row]]
+key = "JDL-153|statement"
+nodes = ["APP-0005", "PROC-0006", "JRN-0005"]
+anchor = "contracts/refusals.md"
+note = "chain; elaborated by chain.md, refusals.md"
+
+[[row]]
+key = "JDL-154|statement"
+nodes = ["PROC-0006", "APP-0005", "JRN-0005"]
+anchor = "contracts/chain.md"
+note = "chain; elaborated by chain.md"
+
+[[row]]
+key = "JDL-155|statement"
+nodes = ["APP-0005", "PROC-0006", "JRN-0005"]
+anchor = "contracts/refusals.md"
+note = "chain; elaborated by chain.md, refusals.md"
+
+[[row]]
+key = "JDL-156|statement"
+nodes = ["APP-0005", "PROC-0006", "JRN-0005"]
+anchor = "contracts/refusals.md"
+note = "chain; elaborated by chain.md, refusals.md"
+
+[[row]]
+key = "JDL-157|statement"
+nodes = ["APP-0005", "PROC-0006", "JRN-0005"]
+anchor = "contracts/refusals.md"
+note = "chain; elaborated by chain.md, refusals.md"
+
+[[row]]
+key = "JDL-158|statement"
+nodes = ["APP-0005", "PROC-0006", "JRN-0005"]
+anchor = "contracts/refusals.md"
+note = "chain; elaborated by chain.md, refusals.md"
+
+[[row]]
+key = "JDL-159|statement"
+nodes = ["APP-0005", "ENT-0008"]
+anchor = "contracts/cli.md"
+note = "refusal; elaborated by cli.md, command_store_state.dmn, refusal_routing.dmn, refusals.md"
+
+[[row]]
+key = "JDL-160|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md"
+
+[[row]]
+key = "JDL-161|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md, refusal_routing.dmn, refusals.md"
+
+[[row]]
+key = "JDL-162|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "cli; elaborated by cli.md, cli_help.md"
+
+[[row]]
+key = "JDL-163|statement"
+nodes = ["APP-0005"]
+anchor = "contracts/cli.md"
+note = "refusal; elaborated by cli.md, refusal_routing.dmn, refusals.md"
