@@ -280,6 +280,13 @@ keys = []
 [record]
 dir = "record"
 
+# The register view: the derived key-to-node map, the evidence anchor the register's links use for a
+# requirement (the jef_kit source system, decision 0005 there), and its export folder's manifest.
+[register]
+map = "register_map.toml"
+requirement_anchor = "jef_kit:requirements.json#"
+export_manifest = "exports/jef_kit/2026-11-01/MANIFEST.toml"
+
 # the page's heading; the no-governance reference it cites is the degradation test, which ran on this very kit
 [page]
 title = "J-F's data load as a governed kit — the degradation test, read by the gate"
