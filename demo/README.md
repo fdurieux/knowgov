@@ -96,8 +96,9 @@ not a fault.
 **The register.** The last entry of the Scenarios list is the IEAM
 register, a separate public repository
 ([fdurieux/ieam-register](https://github.com/fdurieux/ieam-register))
-that keeps the identities, typed relationships and approvals of the same
-CargoQuote kit the scenarios use. Its card gives the commit the demo
+that keeps the identities, typed relationships and approvals of an
+organisation's architecture; its public content is the same CargoQuote
+kit the scenarios use. Its card gives the commit the demo
 carries (`register/SOURCE.md` says which, written by
 `tools/vendor_register.py` from a checkout at the tag), the counts and the register's
 own coverage figures; *Open* replaces the scenario report with the
@@ -113,6 +114,20 @@ and does not climb a node's parent, so it says so when it reaches no
 product. A link runs the checker at today's date instead of the pinned
 one, so you can see an exception expire. Clicking a scenario brings the
 report back. Nothing on the page is written back to the register.
+
+**One register per organisation.** A register belongs to an organisation
+and holds every subject of it: each body of artefacts the stack loads is a
+source of record in the register, with its own dated exports, and its nodes
+sit beside the others' under ids minted across the whole register. A subject
+joins the register through its own `register_map.toml`, which names the
+nodes its keys concern, and through the export manifest it cites. The page
+reads one register, the one `KG_REGISTER` names: `register/` in this
+folder by default, the public register vendored at a tag. An organisation's
+own instance mounts its register checkout read-only with
+`docker-compose.instance.yml` (the comment at its top is the command); the
+entry then says *this instance* instead of the public repository, the
+checker runs at today's date, since a checkout has no pinned date, and no
+digest is checked, since there is no `SOURCE.md` to check against.
 
 ## What Neo4j holds, who writes it and who reads it
 
@@ -431,8 +446,10 @@ export OPENAI_API_KEY=sk-your-real-key-here
 Optionally choose a database password other than the default. The stack reads
 `KG_STORE` too, the store adapter behind the harness's port (`neo4j`, the default, or
 `rdflib`: an in-memory graph that needs no database container, no Browser link and no saved
-Cypher; the deterministic mode still re-runs and compares), and `KG_SUBJECT`: the subject root inside the container, `/repo/subjects/cargo_quote`
-unless you set it ([`subjects/README.md`](../subjects/README.md) says what a subject holds).
+Cypher; the deterministic mode still re-runs and compares), `KG_SUBJECT`: the subject root inside the container, `/repo/subjects/cargo_quote`
+unless you set it ([`subjects/README.md`](../subjects/README.md) says what a subject holds),
+and `KG_REGISTER`: the register the page reads, `/repo/demo/register` unless an instance
+mounts its own (see *One register per organisation* above).
 
 Optionally choose a database password other than the default
 `kgpoc2026`:

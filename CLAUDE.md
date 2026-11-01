@@ -25,6 +25,12 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   `vendor/` the bytes vendored from pumllint in its relative layout; `runs/`
   re-runs, gitignored. `KG_SUBJECT` selects the root; nothing in `harness/` or
   `demo/` names a subject, a document or a scenario (task-0002).
+- The register the page reads is `KG_REGISTER` (default `demo/register`, the public register
+  vendored at a tag): one register per organisation, shared by every subject of it; an
+  instance mounts its own checkout read-only (`demo/docker-compose.instance.yml`). A subject
+  joins it through its own `register_map.toml` and `export_manifest`; no module under
+  `demo/app` names a register path or an export folder (`tests/test_subject.py` guards the
+  subject's export date as it guards its names).
 - Re-vendor the register with `python tools/vendor_register.py <checkout>` at
   a tag of ieam-register; the Legible model with `python tools/vendor_legible_model.py
   <checkout of fdurieux.github.io>` (its note also carries the digest of

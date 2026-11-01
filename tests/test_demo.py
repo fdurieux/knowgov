@@ -206,6 +206,9 @@ def test_compose_files_agree():
     assert "image: ghcr.io/fdurieux/knowgov:latest" in compose
     assert "neo4j:5.26-community" in compose and "condition: service_healthy" in compose
     assert "OPENAI_API_KEY: ${OPENAI_API_KEY:-}" in compose, "the key is passed through, never baked in"
+    assert "KG_REGISTER: ${KG_REGISTER:-/repo/demo/register}" in compose, "one register per organisation: the root is configuration"
+    instance = (DEMO / "docker-compose.instance.yml").read_text(encoding="utf-8")
+    assert "KG_REGISTER: /instance/register" in instance and ":/instance:ro" in instance and "docker compose -f docker-compose.yml" in instance
     assert "dockerfile: demo/Dockerfile" in override and "context: .." in override
     workflow = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert "ghcr.io/fdurieux/knowgov:${{ steps.sha.outputs.short }}" in workflow

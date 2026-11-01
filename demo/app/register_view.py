@@ -17,13 +17,17 @@ import datetime as dt
 import hashlib
 import importlib.util
 import json
+import os
 import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REGISTER = HERE.parent / "register"
+# One register per organisation, shared by every subject of it: the instance's own checkout when
+# KG_REGISTER names one, else the public register vendored under demo/register at a tag.
+REGISTER = Path(os.environ.get("KG_REGISTER") or (HERE.parent / "register")).resolve()
 
 sys.path.insert(0, str(HERE))
 import views  # noqa: E402  (the controlled-English registry and glossary live there)
@@ -49,8 +53,27 @@ def _load_tools() -> dict:
     return _tools
 
 
+def _git(*args: str) -> str:
+    try:
+        return subprocess.run(["git", "-C", str(REGISTER), *args], check=True, capture_output=True, text=True,
+                              encoding="utf-8").stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return ""
+
+
 def source_info() -> dict:
-    """SOURCE.md's table, and whether every vendored file still matches its digest."""
+    """What the register root is. A vendored copy (``SOURCE.md`` present): the note's table, and
+    whether every file still matches its digest. An instance's own checkout (no note): what git
+    says of it when it is a repository, no digest to check, no pinned date."""
+    files = [p for p in REGISTER.rglob("*") if p.is_file() and p.name != "SOURCE.md" and "__pycache__" not in p.parts and ".git" not in p.parts]
+    actual = {p.relative_to(REGISTER).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
+    if not (REGISTER / "SOURCE.md").exists():
+        remote = _git("remote", "get-url", "origin")
+        m = re.search(r"[:/]([^/:]+/[^/]+?)(?:\.git)?/?$", remote)
+        commit = _git("rev-parse", "HEAD")
+        return {"kind": "checkout", "repo": m.group(1) if m else "", "commit": commit, "commit_short": commit[:7],
+                "tag": _git("describe", "--tags", "--exact-match"), "describe": _git("describe", "--tags", "--always", "--dirty"),
+                "copied": "", "pinned_date": "", "files": len(actual), "digest_ok": None, "mismatched": []}
     note = (REGISTER / "SOURCE.md").read_text(encoding="utf-8")
     def cell(label: str) -> str:
         m = re.search(r"^\| " + re.escape(label) + r" \| (.+?) \|$", note, re.M)
@@ -59,11 +82,9 @@ def source_info() -> dict:
     tag = re.search(r"^\| tag \| `(v[0-9][^`]*)`", note, re.M)
     pinned = re.search(r"pinned date for the checker \| `(\d{4}-\d{2}-\d{2})`", note)
     listed = dict(re.findall(r"^\| `([^`]+)` \| `([0-9a-f]{64})` \|$", note, re.M))
-    files = [p for p in REGISTER.rglob("*") if p.is_file() and p.name != "SOURCE.md" and "__pycache__" not in p.parts]
-    actual = {p.relative_to(REGISTER).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
     mismatched = sorted(k for k in set(listed) | set(actual) if listed.get(k) != actual.get(k))
-    return {"repo": "fdurieux/ieam-register", "commit": commit.group(1) if commit else "",
-            "commit_short": commit.group(1)[:7] if commit else "", "tag": tag.group(1) if tag else "",
+    return {"kind": "copy", "repo": "fdurieux/ieam-register", "commit": commit.group(1) if commit else "",
+            "commit_short": commit.group(1)[:7] if commit else "", "tag": tag.group(1) if tag else "", "describe": "",
             "copied": cell("copied").split(",")[0],
             "pinned_date": pinned.group(1) if pinned else "", "files": len(actual),
             "digest_ok": not mismatched, "mismatched": mismatched}
@@ -246,7 +267,7 @@ class _Ctx:
         self.map = load_map()
         self.rows = {r["key"]: r for r in self.map["row"]}
         self.lifecycle = T["register"].load_toml(REGISTER / "metamodel" / "lifecycle.toml")
-        self.manifest = T["register"].load_toml(REGISTER / "exports" / "kit" / "2026-10-30" / "MANIFEST.toml")
+        self.manifest = T["register"].load_toml(REGISTER / EXPORT_MANIFEST) if EXPORT_MANIFEST else {}   # the export the subject names
         self.links = [dict(ln, type=rname) for rname, rel in self.reg["relationships"].items() for ln in rel["links"]]
         self.by_id = {ln["id"]: ln for ln in self.links}
         self.view = view
@@ -503,18 +524,20 @@ def build(today: str | None = None) -> dict:
     T = _load_tools()
     reg = T["register"].load_register(REGISTER)
     src = source_info()
-    pinned = dt.date.fromisoformat(src["pinned_date"])
-    run_date = dt.date.today() if today == "wall" else dt.date.fromisoformat(today) if today else pinned
+    pinned = dt.date.fromisoformat(src["pinned_date"]) if src["pinned_date"] else None   # a checkout has none
+    run_date = dt.date.today() if today == "wall" or (today is None and pinned is None) else dt.date.fromisoformat(today) if today else pinned
     findings, summary = T["check_register"].run(REGISTER, today=run_date)
     reg_sentences: list[dict] = []
     C = lambda *s: views._reg(reg_sentences, "controlled", *s)  # noqa: E731
     D = lambda *s: views._reg(reg_sentences, "data", *s)  # noqa: E731
     errors = [f for f in findings.items if f["level"] == "error"]
     warnings = [f for f in findings.items if f["level"] == "warning"]
-    intro = C("The register is a copy of one commit of fdurieux/ieam-register, read only.",
+    intro = C("The register is a copy of one commit of fdurieux/ieam-register, read only." if src["kind"] == "copy"
+              else "The register is this instance's own checkout, read only.",
               "Its TOML is the record of identities, links, states, approvals and exceptions.",
               "A node is one record of one taxonomy.", "A link is one typed relationship between two nodes.",
-              f"The checker ran at the pinned date, {run_date.isoformat()}." if today is None
+              f"The checker ran at the wall-clock date, {run_date.isoformat()}; a checkout has no pinned date." if pinned is None
+              else f"The checker ran at the pinned date, {run_date.isoformat()}." if today is None
               else f"The checker ran at today's date, {run_date.isoformat()}, which is the pinned date." if run_date == pinned
               else f"The checker ran at the wall-clock date, {run_date.isoformat()}, not the pinned date.",
               "The coverage lines are its own output, shown as data.")
@@ -543,7 +566,8 @@ def build(today: str | None = None) -> dict:
     matrix_sentence = (C(f"The mapping matrix has {len(mrows)} rows, and every row is unverified.") if unverified == len(mrows)
                        else C(f"The mapping matrix has {len(mrows)} rows, {unverified} of them unverified."))
     glossary = [{"term": t["term"], "meaning": t["meaning"], "forbidden": t.get("forbidden", [])} for t in reg["glossary"].get("term", [])]
-    return {"source": src, "run_date": run_date.isoformat(), "pinned": today is None, "pinned_date": pinned.isoformat(),
+    return {"source": src, "run_date": run_date.isoformat(), "pinned": today is None and pinned is not None,
+            "pinned_date": pinned.isoformat() if pinned else "",
             "summary": {"nodes": summary["nodes"], "links": summary["links"], "errors": len(errors), "warnings": len(warnings)},
             "coverage": {r: summary[r] for r in ("C1", "C2", "C3")}, "coverage_lines": _coverage_lines(summary),
             "findings": findings.items, "intro": intro, "health": health,
