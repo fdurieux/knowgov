@@ -170,3 +170,28 @@ def test_oracle_module_presents_the_kits_suite_in_the_harness_interface():
     assert mod.ADAPTER_FUNCTIONS[0] == "make_collector" and len(mod.ADAPTER_FUNCTIONS) == 10
     # the arms are on only with a key: the switch now has an oracle to grade a reply
     assert m["page"]["subtitle"].startswith("Six scenarios, a gate")
+
+def test_register_map_rows_hold_the_links_endpoints_and_place_every_key():
+    """The map's second rule (its header): a row names both endpoints of every register link
+    whose evidence cites the key, so a key below approved never lights fewer nodes than the
+    register's own links put the requirement on. And no row placed by kind (anchored at the
+    requirement itself, since no contract cites it) names the application alone unless the key
+    is a cli key, which the command is."""
+    m = tomllib.loads((SUBJ / "register_map.toml").read_text(encoding="utf-8"))
+    rows = {r["key"].split("|")[0]: r for r in m["row"]}
+    assert len(rows) == m["map"]["keys_expected"] == 163
+    reg = ROOT / "demo" / "register"
+    cited = {}
+    for p in sorted((reg / "relationships").glob("*.toml")):
+        for ln in tomllib.loads(p.read_text(encoding="utf-8")).get("link", []):
+            for jid in set(re.findall(r"JDL-\d+", " ".join(str(e) for e in ln.get("evidence", [])))):
+                cited.setdefault(jid, set()).update({ln["source"], ln["target"]})
+    assert len(cited) == 28, "the v0.2.0 slice cites 28 keys"
+    short = {k: sorted(v - set(rows[k]["nodes"])) for k, v in cited.items() if not v <= set(rows[k]["nodes"])}
+    assert short == {}, f"rows missing a citing link's endpoints: {short}"
+    kinds = {r["id"]: r["kind"] for r in json.loads((SUBJ / "vendor" / "recreate_experiment" / "kit" / "requirements.json").read_text(encoding="utf-8"))}
+    lone = sorted(k for k, r in rows.items() if r["anchor"].startswith("requirements.json#") and r["nodes"] == ["APP-0005"] and kinds[k] != "cli")
+    assert lone == [], f"by-kind rows on the application alone whose key is not a cli key: {lone}"
+    ids = {p.stem for d in reg.iterdir() if d.is_dir() and d.name not in ("relationships", "exports", "tools", "metamodel", "glossary", "exceptions", "mapping", "decisions") for p in d.glob("*.toml")}
+    unknown = sorted({n for r in rows.values() for n in r["nodes"]} - ids)
+    assert unknown == [], f"rows naming a node the register copy lacks: {unknown}"
