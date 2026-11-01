@@ -197,6 +197,12 @@ def test_image_pins_the_versions_the_record_names():
     for pkg, ver in named.items():
         assert f'"{pkg}=={ver}"' in dockerfile, (pkg, ver)
     assert "pip install -e ." not in dockerfile and '"pumllint==0.33.0"' in dockerfile, "pumllint is a pinned library here, not a checkout"
+    # the J-F subject's oracle: its kit's pins (contracts/pins.md) and the suite's tooling, on the interpreter the kit names
+    assert "FROM python:3.12-slim" in dockerfile
+    for pkg, ver in {"pandas": "3.0.5", "numpy": "2.4.6", "requests": "2.34.2", "pyarrow": "25.0.1", "pytest": "9.1.1", "pytest-bdd": "9.0.1"}.items():
+        assert f'"{pkg}=={ver}"' in dockerfile, (pkg, ver)
+    harness = (ROOT / ".github" / "workflows" / "harness.yml").read_text(encoding="utf-8")
+    assert 'python-version: "3.12"' in harness and '"pandas==3.0.5"' in harness and "jef_suite.py" in harness
     assert 'CMD ["python", "demo/app/server.py"]' in dockerfile and "KG_DEMO_RUNS=/repo/runs" in dockerfile
 
 

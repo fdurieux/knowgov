@@ -1,2 +1,4 @@
 Rebuild the `jef.data` market-data program so that every stored number, every verdict and every exit code matches the kit. You do not receive the documents: you receive the knowledge repository's evidence bundle below, one entry per requirement the task needs, each with its status, its verifying scenarios and its gaps, under the policy that opens it. Build only on what the policy allows; mark every assumption with the assertion id it rests on; abstain under BLOCKED and say what is missing.
 
+If you build: write the code as one Python module exposing `main(argv=None) -> int` (the `jef-data` command) and the ten adapter functions of the kit's harness interface at module level: make_collector, load_universe, select_legs, run_sync, sync_summary, status_json, export_frame, stored_frame, actions_state, import_csv; embed the packaged universe.toml and classifications.toml. The chain script is not part of the reply.
+

@@ -25,7 +25,8 @@ job runs it. `subjects/cargo_quote/` is the full one: the kit of pumllint's proo
 record, its seven scenarios. `subjects/jef_data_load/` is the second: the specification kit of
 pumllint's recreation experiment (J-F's daily asset load reverse-engineered, 163 requirements
 joining five layers), the degradation test's five arms as its scenarios with its patches as the
-plants, and the platform's own deterministic record; no oracle and no arms yet.
+plants, the platform's own deterministic record, and the kit's own pytest-bdd suite as the
+oracle (`oracle/jef_suite.py`, one scenario per feature file, run once per reply and cached).
 
 ## `subject.toml`
 
@@ -60,7 +61,8 @@ code = "vendor/stack_experiment/cargo_quote/reference_impl.py"   # the code the 
                               # evidence; a directory is bundled as its *.py files
 
 [oracle]
-script = "vendor/stack_experiment/smoke_test.py"   # the suite runner the measures load
+script = "vendor/stack_experiment/smoke_test.py"   # the suite runner the measures load: suite_mod.SUITE["scenarios"],
+                              # suite_mod.OVERLAYS, build_spec(name), run_child(artifact, spec); absent, the arms stay off
 suite_order = ["quoted_low_risk", "..."]           # the oracle's scenarios, in display order
 status_scenario = "screening_down_hold"            # the suite scenario whose detail carries the status the code returned
 
