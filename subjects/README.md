@@ -118,6 +118,7 @@ co_words = []                 # M3: a second family that must appear too
 targets = ["price_exact_heavy"]       # M4: the oracle scenarios the plant aims at
 default_source = "rerun"      # which result folder the page opens first
 deterministic_record = "d3check/S6"   # the record's deterministic-mode run, what a deterministic re-run is compared with
+scored_record_volatile = ["valid_until"]  # leaves the page sets aside, timestamps-like, against the scored record only (say why beside it)
 
 [scenario.page]               # extra sentences for the page, controlled
 ingest = ["..."]

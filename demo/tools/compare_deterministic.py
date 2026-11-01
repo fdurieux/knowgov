@@ -25,6 +25,13 @@ to compare against another folder.
 
 Standard library only, so the CI job and a laptop can run it with no
 install. The record is the subject's vendored one by default.
+
+``compare()`` takes ``ignore_keys``, leaf names set aside for that one
+comparison as the volatile keys are. The command line passes none: the
+page passes a scenario's ``scored_record_volatile`` (its subject manifest)
+when it reads a derived-registering run against the scored record, a leaf
+that record wrote with a harness defect fixed afterwards and that its
+deterministic-mode re-establishment, which has no Derived node, corrected.
 """
 
 from __future__ import annotations
@@ -48,18 +55,18 @@ VOLATILE_KEYS = {"at", "ingested_at", "invalidated_at", "sample", "store"}
 STORE_SPECIFIC = {"D1_constraints"}
 
 
-def _leaves(obj, prefix: str = "") -> dict[str, object]:
+def _leaves(obj, prefix: str = "", ignore: frozenset = frozenset(VOLATILE_KEYS)) -> dict[str, object]:
     out: dict[str, object] = {}
     if isinstance(obj, dict):
         for k, v in obj.items():
-            if k in VOLATILE_KEYS:
+            if k in ignore:
                 continue
-            out.update(_leaves(v, f"{prefix}.{k}" if prefix else str(k)))
+            out.update(_leaves(v, f"{prefix}.{k}" if prefix else str(k), ignore))
     elif isinstance(obj, list):
         # lists of dicts are compared as sets of their canonical forms when
         # order is not meaningful (rule hits come back in store order)
         if obj and all(isinstance(x, dict) for x in obj):
-            canon = sorted(json.dumps(_strip(x), sort_keys=True) for x in obj)
+            canon = sorted(json.dumps(_strip(x, ignore), sort_keys=True) for x in obj)
             for i, c in enumerate(canon):
                 out[f"{prefix}[{i}]"] = c
         elif obj and all(isinstance(x, (str, int, float, bool)) or x is None for x in obj):
@@ -69,7 +76,7 @@ def _leaves(obj, prefix: str = "") -> dict[str, object]:
                 out[f"{prefix}[{i}]"] = x
         else:
             for i, x in enumerate(obj):
-                out.update(_leaves(x, f"{prefix}[{i}]"))
+                out.update(_leaves(x, f"{prefix}[{i}]", ignore))
     else:
         out[prefix] = obj
     return out
@@ -78,21 +85,25 @@ def _leaves(obj, prefix: str = "") -> dict[str, object]:
 CONFLICT_ID = re.compile(r"^(gap:conflict:.+):\d+$")
 
 
-def _strip(obj):
+def _strip(obj, ignore: frozenset = frozenset(VOLATILE_KEYS)):
     if isinstance(obj, dict):
-        out = {k: _strip(v) for k, v in obj.items() if k not in VOLATILE_KEYS}
+        out = {k: _strip(v, ignore) for k, v in obj.items() if k not in ignore}
         if isinstance(out.get("id"), str):
             out["id"] = CONFLICT_ID.sub(r"\1:n", out["id"])
         return out
     if isinstance(obj, list):
         if obj and all(isinstance(x, dict) for x in obj):
-            return sorted((_strip(x) for x in obj), key=lambda d: json.dumps(d, sort_keys=True))
-        return [_strip(x) for x in obj]
+            return sorted((_strip(x, ignore) for x in obj), key=lambda d: json.dumps(d, sort_keys=True))
+        return [_strip(x, ignore) for x in obj]
     return obj
 
 
-def compare(run_dir: Path, record_dir: Path, scenarios: list[str], record_for: dict[str, Path] | None = None) -> tuple[int, list[str]]:
-    """``record_for`` names the record folder to read for a scenario instead of ``<record_dir>/<scenario>``."""
+def compare(run_dir: Path, record_dir: Path, scenarios: list[str], record_for: dict[str, Path] | None = None,
+            ignore_keys=()) -> tuple[int, list[str]]:
+    """``record_for`` names the record folder to read for a scenario instead of ``<record_dir>/<scenario>``;
+    ``ignore_keys`` are leaf names set aside for this comparison as ``VOLATILE_KEYS`` are (the command
+    line passes none)."""
+    ignore = frozenset(VOLATILE_KEYS) | frozenset(ignore_keys)
     lines: list[str] = []
     n_diff = 0
     for sc in scenarios:
@@ -111,8 +122,8 @@ def compare(run_dir: Path, record_dir: Path, scenarios: list[str], record_for: d
             for k in STORE_SPECIFIC:
                 ja.pop(k, None); jb.pop(k, None)
             note = f" ({', '.join(sorted(STORE_SPECIFIC))} skipped: the run's store is {store_a}, the record's {store_b})"
-        la = _leaves(ja)
-        lb = _leaves(jb)
+        la = _leaves(ja, ignore=ignore)
+        lb = _leaves(jb, ignore=ignore)
         diffs = []
         for k in sorted(set(la) | set(lb)):
             if la.get(k, "<missing>") != lb.get(k, "<missing>"):
