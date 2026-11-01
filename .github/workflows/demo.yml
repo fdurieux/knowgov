@@ -78,6 +78,9 @@ jobs:
         run: |
           docker compose exec -T app python demo/tools/compare_deterministic.py "runs/$(cat run_id)"
 
+      - name: Every saved query the page lists runs in the store
+        run: docker compose exec -T app python demo/tools/check_saved_queries.py
+
       - name: An empty subject loads and the gate reports every required key absent
         run: |
           docker compose exec -T -e KG_SUBJECT=/repo/subjects/minimal app python harness/run.py --deterministic --out runs/minimal

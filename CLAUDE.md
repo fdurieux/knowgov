@@ -39,6 +39,9 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
 - Local proof without any database: `KG_STORE=rdflib python harness/run.py
   --deterministic --out <dir>` in a venv with the pins, then
   `demo/tools/compare_deterministic.py <dir>` (`harness.yml` does this in CI).
+  `demo/tools/check_saved_queries.py` runs every saved query the page lists through the
+  store's `console_query` (the stack job does, after the comparator): they are console text
+  nothing else executes, so a syntax error in one fails there and not in a viewer's Browser.
   Against Neo4j: a 5.26 community tarball started directly (Java 21), the same
   two commands without `KG_STORE`.
 
