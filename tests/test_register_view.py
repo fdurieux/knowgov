@@ -221,14 +221,18 @@ def test_projection_rows_and_statements():
             assert row["tag"] == "v0.1.1" and row["commit"] and row["loaded_at"] and len(row["digest"]) == 64, (key, row["reg_id"])
             for k, v in row.items():
                 assert isinstance(v, ok) or (isinstance(v, list) and all(isinstance(x, str) for x in v)), (key, row["reg_id"], k, v)
-    st = rp.statements(r)
-    assert st[0] == ("MATCH (n:Register) DETACH DELETE n", {})
+    # the load is the Neo4j adapter's project_register, read as source: the tests job has no driver
+    src = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")
+    body = src[src.index("def project_register("):src.index("def register_census(")]
+    assert '"MATCH (n:Register) DETACH DELETE n"' in body
     harness = ("Artefact", "Version", "Fragment", "Assertion", "Activity", "Agent", "Verification", "Approval", "Gap", "Derived", "Entity")
-    for cypher, _ in st:  # the loader never names a harness label: the namespace is the whole discipline
+    statements = [ln for ln in body.splitlines() if "MATCH (" in ln or "CREATE (" in ln]
+    assert len(statements) >= 10
+    for cypher in statements:  # the loader never names a harness label: the namespace is the whole discipline
         assert not any(f":{lbl}" in cypher for lbl in harness), cypher
         assert "Reg" in cypher, cypher
-    rel_types = {cy.split("-[e:")[1].split("]")[0] for cy, _ in st if "-[e:" in cy}
-    assert "REG_IS_SUPPORTED_BY" in rel_types and "REG_CRUD" in rel_types and "REG_MAPS_TO" in rel_types
+    assert "REG_MAPS_TO" in body and "{rtype}" in body
+    assert set(r["typed"]) >= {"REG_IS_SUPPORTED_BY", "REG_CRUD"} and r["maps_to"]
 
 
 def test_projection_is_wired_and_named():
@@ -236,14 +240,15 @@ def test_projection_is_wired_and_named():
     page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
     server = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
     ci = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
-    assert '["api", "register", "project"]' in server and "register_project.census(s)" in server and '"register": None' in server
+    assert '["api", "register", "project"]' in server and "s.register_census()" in server and '"register": None' in server
     assert 'id="project-btn"' in page and "/api/register/project" in page and "register ${s.register ? 'projected at '" in page
     assert "POST localhost:8080/api/register/project" in ci and '"tag"]=="v0.1.1"' in ci
     assert "projection" in views.GLOSSARY and "**The projection.**" in (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
-    ids = [m.group(1) for m in _re.finditer(r'\{"id": "([a-z0-9-]+)", "needs": "[^"]+", "title"', server)]
+    adapter = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")   # the saved queries are the adapter's
+    ids = [m.group(1) for m in _re.finditer(r'\{"id": "([a-z0-9-]+)", "needs": "[^"]+", "title"', adapter)]
     assert ids[-4:] == ["register-tag", "register-impact", "register-c1", "register-cites"], ids
     for cy in ("REG_IS_SUPPORTED_BY|REG_DELIVERS", "REG_EXCEPTS", "Artefact {id:d.path}", "v.sha256 = d.digest THEN 'same as tag'"):
-        assert cy in server
+        assert cy in adapter
 
 
 def test_saved_queries_say_what_they_need():

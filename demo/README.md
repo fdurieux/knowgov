@@ -398,7 +398,8 @@ export OPENAI_API_KEY=sk-your-real-key-here
 ```
 
 Optionally choose a database password other than the default. The stack reads
-`KG_SUBJECT` too: the subject root inside the container, `/repo/subjects/cargo_quote`
+`KG_STORE` too, the store adapter behind the harness's port (`neo4j`, the only one so
+far), and `KG_SUBJECT`: the subject root inside the container, `/repo/subjects/cargo_quote`
 unless you set it ([`subjects/README.md`](../subjects/README.md) says what a subject holds).
 
 Optionally choose a database password other than the default

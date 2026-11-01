@@ -11,7 +11,12 @@ python tests/run_tests.py          # stdlib only; imports every tests/test_*.py,
 cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 deterministically and runs the comparator
 ```
 
-- `harness/` the pipeline; `demo/` the page, the vendored model, the vendored
+- `harness/` the pipeline, with the store port (`store.py`: the operations
+  the loader, the rules, the gate, the census, the SHACL reads and the register
+  projection need, nothing more) and its first adapter (`store_neo4j.py`: every
+  Cypher statement, the constraints, the saved queries); `KG_STORE` picks the
+  adapter, `neo4j` by default. No other module speaks Cypher; a test guards it
+  (task-0003). `demo/` the page, the vendored model, the vendored
   register, the comparator, the Docker files; `subjects/<id>/` a subject root
   (`subjects/README.md` documents the format): `subject.toml`, `scenarios.toml`,
   `plants.toml`, `queries.toml`, `register_map.toml`, `prompts/`, and under

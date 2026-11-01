@@ -49,7 +49,7 @@ def _doc_key(anchor: str, files: dict) -> str | None:
 
 def rows(loaded_at: str | None = None) -> dict:
     """Every node and relationship row of the projection, as flat property maps (strings, numbers,
-    booleans and lists of strings only: what a Neo4j property can hold), with the counts."""
+    booleans and lists of strings only: what a store property can hold), with the counts."""
     T = register_view._load_tools()
     reg = T["register"].load_register(REGISTER)
     src = register_view.source_info()
@@ -112,49 +112,12 @@ def rows(loaded_at: str | None = None) -> dict:
     return out
 
 
-def statements(r: dict) -> list[tuple[str, dict]]:
-    """The load, in order: wipe the namespace, create the nodes, then the relationships. Only
-    Register-labelled nodes are touched; the harness's own graph is never read or written."""
-    st: list[tuple[str, dict]] = [("MATCH (n:Register) DETACH DELETE n", {})]
-    for label, key in (("RegNode", "nodes"), ("RegType", "types"), ("RegDocument", "documents"), ("RegExternal", "externals"),
-                       ("RegLink", "links"), ("RegException", "exceptions")):
-        st.append((f"UNWIND $rows AS r CREATE (n:Register:{label}) SET n = r", {"rows": r[key]}))
-    st.append(("UNWIND $rows AS r MATCH (c:RegNode {reg_id:r.child}), (p:RegNode {reg_id:r.parent}) CREATE (c)-[:REG_PARENT]->(p)", {"rows": r["parents"]}))
-    st.append(("UNWIND $rows AS r MATCH (o:RegNode {reg_id:r.owner}), (n:RegNode {reg_id:r.node}) CREATE (o)-[:REG_OWNS]->(n)", {"rows": r["owners"]}))
-    for rtype, items in sorted(r["typed"].items()):
-        st.append((f"UNWIND $rows AS r MATCH (s:RegNode {{reg_id:r.source}}), (t:RegNode {{reg_id:r.target}}) CREATE (s)-[e:{rtype}]->(t) SET e = r.props", {"rows": items}))
-    st.append(("UNWIND $rows AS r MATCH (s:RegNode {reg_id:r.source}), (x:RegExternal {reg_id:r.external}) CREATE (s)-[e:REG_MAPS_TO]->(x) SET e = r.props", {"rows": r["maps_to"]}))
-    st.append(("UNWIND $rows AS r MATCH (l:RegLink {reg_id:r.reg_id}), (n:RegNode {reg_id:r.node}) CREATE (l)-[:REG_LINK_OF {role:r.role}]->(n)", {"rows": r["link_of"]}))
-    st.append(("UNWIND $rows AS r MATCH (l:RegLink {reg_id:r.reg_id}), (t:RegType {reg_id:r.type}) CREATE (l)-[:REG_OF_TYPE]->(t)", {"rows": r["of_type"]}))
-    st.append(("UNWIND $rows AS r MATCH (l:RegLink {reg_id:r.reg_id}), (d:RegDocument {reg_id:r.path}) CREATE (l)-[:REG_CITES {anchor:r.anchor}]->(d)", {"rows": r["cites"]}))
-    st.append(("UNWIND $rows AS r MATCH (e:RegException {reg_id:r.reg_id}), (n:RegNode {reg_id:r.node}) CREATE (e)-[:REG_EXCEPTS {rule:r.rule, expires:r.expires}]->(n)", {"rows": r["excepts"]}))
-    return st
-
-
-def census(session) -> dict | None:
-    """What the store holds of the register, or None when nothing is projected."""
-    n = session.run("MATCH (n:Register) RETURN count(n) AS n").single()["n"]
-    if not n:
-        return None
-    by_label = {rec["l"]: rec["n"] for rec in session.run(
-        "MATCH (n:Register) UNWIND labels(n) AS l WITH l, count(*) AS n WHERE l <> 'Register' RETURN l, n")}
-    rels = session.run("MATCH (:Register)-[r]->() RETURN count(r) AS n").single()["n"]
-    stamp = session.run("MATCH (n:RegNode) RETURN n.tag AS tag, n.commit AS commit, n.loaded_at AS loaded_at LIMIT 1").single()
-    return {"tag": stamp["tag"] if stamp else "", "commit": stamp["commit"] if stamp else "", "loaded_at": stamp["loaded_at"] if stamp else "",
-            "nodes": by_label.get("RegNode", 0), "links": by_label.get("RegLink", 0), "by_label": by_label, "relationships": rels, "total": n}
-
-
-def project(uri: str, password: str) -> dict:
-    """Load the projection into the store at uri and return its census. Raises on an unreachable
-    store or a missing driver; the caller turns that into a status code."""
-    from neo4j import GraphDatabase, NotificationMinimumSeverity  # the harness's dependency, in the image
-
+def project(store) -> dict:
+    """Load the projection through the store port and return its census. Raises on an
+    unreachable store or a missing driver; the caller turns that into a status code."""
     r = rows()
-    with GraphDatabase.driver(uri, auth=("neo4j", password), notifications_min_severity=NotificationMinimumSeverity.OFF,
-                              connection_timeout=3) as d:
-        with d.session() as s:
-            for cypher, params in statements(r):
-                s.run(cypher, **params).consume()
-            out = census(s)
+    with store as s:
+        s.project_register(r)
+        out = s.register_census()
     out["counts"] = r["counts"]
     return out

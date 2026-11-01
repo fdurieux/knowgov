@@ -55,58 +55,28 @@ INDEX = (HERE / "index.html").read_bytes()
 
 # Saved Cypher for the store panel. Each runs in Neo4j Browser against the
 # scenario currently loaded; the comment on each says which scenario shows it.
-CYPHER = [
-    {"id": "loaded", "needs": "scenario", "title": "Which scenario is loaded",
-     "text": "MATCH (a:Activity) WHERE a.id STARTS WITH 'act:extract:'\nRETURN a.id AS activity, a.at AS at, a.note AS note ORDER BY a.at"},
-    {"id": "gaps", "needs": "scenario", "title": "The gap census",
-     "text": ("MATCH (g:Gap)\n"
-              "OPTIONAL MATCH (g)-[:CONCERNS]->(t)\n"
-              "RETURN g.kind AS kind, g.declared AS declared, count(DISTINCT g) AS gaps,\n"
-              "       count(DISTINCT t) AS things_concerned ORDER BY kind")},
-    {"id": "gaps-concerns", "needs": "scenario", "title": "The gaps, with what they concern",
-     "text": ("MATCH (g:Gap)\n"
-              "OPTIONAL MATCH (g)-[r:CONCERNS|CONCERNS_KEY]->(t)\n"
-              "RETURN g.kind AS kind, g.declared AS declared, g.text AS text,\n"
-              "       collect(DISTINCT coalesce(r.key, t.id)) AS concerns\n"
-              "ORDER BY kind, g.id")},
-    {"id": "census", "needs": "scenario", "title": "The status census",
-     "text": "MATCH (x:Assertion) RETURN x.status AS status, x.basis AS basis, count(*) AS n ORDER BY status, basis"},
-    # the register's projection: its own namespace (Register, Reg*, REG_*), loaded on demand, wiped by a run
-    {"id": "register-tag", "needs": "register", "title": "Which register tag is projected, and what it holds",
-     "text": ("MATCH (n:RegNode) WITH n.tag AS tag, n.commit AS commit, n.loaded_at AS loaded_at LIMIT 1\n"
-              "MATCH (m:Register) UNWIND labels(m) AS l WITH tag, commit, loaded_at, l WHERE l <> 'Register'\n"
-              "RETURN tag, commit, loaded_at, l AS label, count(*) AS n ORDER BY label")},
-    {"id": "register-impact", "needs": "register", "title": "The impact walk from APP-0002 in the projection (supports → is_supported_by → delivers, no parent climb)",
-     "text": ("MATCH p = (a:RegNode {reg_id:'APP-0002'})-[:REG_SUPPORTS|REG_IS_SUPPORTED_BY|REG_DELIVERS*1..4]->(x:RegNode)\n"
-              "RETURN x.reg_id AS reached, x.taxonomy AS taxonomy, x.state AS state, length(p) AS hops,\n"
-              "       [r IN relationships(p) | r.reg_id] AS via ORDER BY hops, reached")},
-    {"id": "register-c1", "needs": "register", "title": "C1 in Cypher: approved steps and touchpoints with no is_supported_by link, the exception joined",
-     "text": ("MATCH (s:RegNode {taxonomy:'journeys', state:'approved'}) WHERE s.kind IN ['step', 'touchpoint']\n"
-              "  AND NOT (s)-[:REG_IS_SUPPORTED_BY]->(:RegNode)\n"
-              "OPTIONAL MATCH (e:RegException {rule:'C1'})-[x:REG_EXCEPTS]->(s)\n"
-              "RETURN s.reg_id AS uncovered, s.name AS name, e.reg_id AS exception, x.expires AS expires")},
-    {"id": "register-cites", "needs": "register+scenario", "title": "The links that cite a kit document, joined to the harness's Artefact by path: the one query across both namespaces",
-     "text": ("// the register's digest at the tag beside the store's digest per version: 'same as tag' or 'differs'\n"
-              "MATCH (l:RegLink)-[c:REG_CITES]->(d:RegDocument)\n"
-              "OPTIONAL MATCH (a:Artefact {id:d.path})-[:HAS_VERSION]->(v:Version)\n"
-              "RETURN d.path AS document, left(d.digest, 12) AS digest_at_tag, collect(DISTINCT l.reg_id) AS links,\n"
-              "       collect(DISTINCT c.anchor) AS anchors,\n"
-              "       collect(DISTINCT v.tag + ': ' + CASE WHEN v.sha256 = d.digest THEN 'same as tag' ELSE 'differs, ' + left(v.sha256, 12) END) AS versions_in_store\n"
-              "ORDER BY document")},
-]
+def _store(timeout: float = 3):
+    """A store through the port, for the page's short reads; raises when unreachable."""
+    from store import open_store  # the harness's port; the adapter needs its driver, in the image
+    return open_store(connection_timeout=timeout, instance=SUBJECT.id)
 
 
 # What each saved query needs in the store before it returns rows: the store holds one scenario
 # at a time and the register only when projected, so a query run against the wrong state gets
-# Neo4j's "label not in the database" warnings and no records. The page marks each entry live.
+# the console's "label not in the database" warnings and no records. The page marks each entry live.
 NEEDS_TEXT = {"scenario": "any loaded scenario",
               "register": "the register projected", "register+scenario": "the register projected and a loaded scenario"}
 
 
 def cypher_list() -> list[dict]:
-    """The page's generic queries, then the subject's own (queries.toml), each with what it needs."""
+    """The adapter's saved queries for its console, then the subject's own (queries.toml), each
+    with what it needs. Only an adapter with a console has any."""
+    try:
+        from store_neo4j import SAVED_QUERIES   # the Neo4j adapter's; another adapter would list its own
+    except ImportError:
+        SAVED_QUERIES = []
     out = []
-    for q in CYPHER + SUBJECT.queries:
+    for q in list(SAVED_QUERIES) + SUBJECT.queries:
         needs_text = q.get("needs_text") or NEEDS_TEXT.get(q["needs"]) or f"{q['needs']} loaded"
         out.append(dict(q, needs_text=needs_text))
     return out
@@ -118,22 +88,15 @@ def store_status() -> dict:
     """What the store holds, through the driver when it is installed."""
     out = {"uri": NEO4J_URI, "browser": BROWSER_URL, "reachable": False, "loaded": None, "census": None, "register": None, "error": None}
     try:
-        from neo4j import GraphDatabase, NotificationMinimumSeverity  # the harness's dependency, in the image
-    except ImportError:
-        out["error"] = "neo4j driver not installed: deterministic and arms modes need it"
-        return out
-    try:
-        with GraphDatabase.driver(NEO4J_URI, auth=("neo4j", NEO4J_PASSWORD),
-                                  notifications_min_severity=NotificationMinimumSeverity.OFF,
-                                  connection_timeout=3) as d:
-            with d.session() as s:
-                acts = [r["id"] for r in s.run("MATCH (a:Activity) WHERE a.id STARTS WITH 'act:extract:' RETURN a.id AS id ORDER BY a.at")]
-                st = {r["status"]: r["n"] for r in s.run("MATCH (x:Assertion) RETURN x.status AS status, count(*) AS n")}
-                n = s.run("MATCH (n) RETURN count(n) AS n").single()["n"]
-                r = s.run("MATCH ()-[r]->() RETURN count(r) AS n").single()["n"]
-                reg = register_project.census(s)
-        out.update(reachable=True, census={"nodes": n, "relationships": r, "assertions_by_status": st},
+        with _store() as s:
+            acts = s.extraction_activities()
+            c = s.census()
+            reg = s.register_census()
+        out.update(reachable=True, census={"nodes": c["nodes"], "relationships": c["relationships"], "assertions_by_status": c["assertions_by_status"]},
                    loaded=(acts[0].split(":")[2] if acts else None), activities=acts, register=reg)
+    except ImportError:
+        out["error"] = "store driver not installed: deterministic and arms modes need it"
+        return out
     except Exception as e:  # noqa: BLE001 — the message is the status
         out["error"] = str(e).splitlines()[0][:200]
     return out
@@ -144,26 +107,16 @@ def store_gaps(scenario: str) -> dict:
     the scenario loaded there is the one on screen (one database, one scenario)."""
     out = {"scenario": scenario, "loaded": None, "match": False, "gaps": [], "error": None}
     try:
-        from neo4j import GraphDatabase, NotificationMinimumSeverity
+        with _store() as s:
+            acts = s.extraction_activities()
+            out["loaded"] = acts[0].split(":")[2] if acts else None
+            if out["loaded"] != scenario:
+                return out
+            out["gaps"] = s.gaps_with_concerns()
+            out["match"] = True
     except ImportError:
-        out["error"] = "neo4j driver not installed"
+        out["error"] = "store driver not installed"
         return out
-    try:
-        with GraphDatabase.driver(NEO4J_URI, auth=("neo4j", NEO4J_PASSWORD),
-                                  notifications_min_severity=NotificationMinimumSeverity.OFF, connection_timeout=3) as d:
-            with d.session() as s:
-                acts = [r["id"] for r in s.run("MATCH (a:Activity) WHERE a.id STARTS WITH 'act:extract:' RETURN a.id AS id ORDER BY a.at")]
-                out["loaded"] = acts[0].split(":")[2] if acts else None
-                if out["loaded"] != scenario:
-                    return out
-                rows = s.run("""MATCH (g:Gap) OPTIONAL MATCH (g)-[r:CONCERNS|CONCERNS_KEY]->(t)
-                    RETURN g.id AS id, g.kind AS kind, g.declared AS declared, g.text AS text,
-                           collect({id:t.id, labels:labels(t), key:t.key, value:t.value, basis:t.basis, status:t.status, rel:type(r), relkey:r.key}) AS concerns
-                    ORDER BY g.kind, g.id""")
-                for r in rows:
-                    out["gaps"].append({"id": r["id"], "kind": r["kind"], "declared": bool(r["declared"]), "text": r["text"],
-                                        "concerns": [c for c in r["concerns"] if c["id"] or c["relkey"]]})
-                out["match"] = True
     except Exception as e:  # noqa: BLE001
         out["error"] = str(e).splitlines()[0][:200]
     return out
@@ -369,7 +322,7 @@ class Handler(BaseHTTPRequestHandler):
             if RUNNER.current and RUNNER.current["status"] == "running":
                 return self._json({"error": "a run is in progress; it wipes the store, so project after it ends"}, 409)
             try:
-                return self._json(register_project.project(NEO4J_URI, NEO4J_PASSWORD))
+                return self._json(register_project.project(_store()))
             except ImportError:
                 return self._json({"error": "neo4j driver not installed"}, 503)
             except Exception as e:  # noqa: BLE001 — the message is the status
