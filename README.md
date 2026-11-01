@@ -15,7 +15,7 @@ scenarios, re-runs them against the database, and shows the register's impact wa
 
 | folder | holds | written by |
 |---|---|---|
-| `harness/` | the pipeline: reading the subject's documents into statements, loading them into the store with their provenance, the seven checking rules, the gate, the two assistant arms; the store behind a port with Neo4j as its first adapter | this repository |
+| `harness/` | the pipeline: reading the subject's documents into statements, loading them into the store with their provenance, the seven checking rules, the gate, the two assistant arms; the store behind a port with two adapters, Neo4j and an in-memory rdflib graph | this repository |
 | `demo/` | the web page, the vendored Legible model and layout tables, the vendored IEAM register, the comparator, the Dockerfile and compose files | this repository; `demo/register/` by `tools/vendor_register.py` |
 | `subjects/<id>/` | a subject: its manifest, scenarios, plants, saved queries, register map and prompts ([`subjects/README.md`](subjects/README.md)); `cargo_quote/` carries pumllint's kit, oracle and record byte for byte under `vendor/`, `minimal/` is the smallest one | this repository; `vendor/` by `tools/vendor_subject.py`, never by hand |
 | `runs/` | re-runs, in dated folders; ignored by git, never the record | the page or the harness |

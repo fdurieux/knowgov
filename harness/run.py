@@ -66,7 +66,7 @@ def deterministic(sc: str, pv: dict, s) -> dict:
     rules = run_all(s, sc)
     cen = census(s)
     gate = resolve(s, "codegen")
-    out = {"scenario": sc, "D1_constraints": d1, "load": load, "verifications": ver, "rules": rules,
+    out = {"scenario": sc, "store": s.name, "D1_constraints": d1, "load": load, "verifications": ver, "rules": rules,
            "D2_census": cen, "D4_shacl": shacl.run(s), "D6_gate": {k: v for k, v in gate.items() if k != "keys"},
            "gate_keys": {k: {"level": v["level"], "flags": v["flags"], "n": len(v["assertions"])} for k, v in gate["keys"].items()}}
     if cfg.get("three_valued"):

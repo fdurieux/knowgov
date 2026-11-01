@@ -219,4 +219,7 @@ def open_store(kind: str | None = None, **kw: Any) -> Store:
     if kind == "neo4j":
         from store_neo4j import Neo4jStore
         return Neo4jStore(**kw)
-    raise ValueError(f"unknown store {kind!r}; KG_STORE names an adapter: neo4j")
+    if kind == "rdflib":
+        from store_rdflib import RdflibStore
+        return RdflibStore(**kw)
+    raise ValueError(f"unknown store {kind!r}; KG_STORE names an adapter: neo4j, rdflib")

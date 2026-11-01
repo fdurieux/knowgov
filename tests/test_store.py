@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PORT = ROOT / "harness" / "store.py"
 ADAPTER = ROOT / "harness" / "store_neo4j.py"
+RDFLIB = ROOT / "harness" / "store_rdflib.py"
 CYPHER = re.compile(r"\b(MATCH|MERGE|CREATE|DETACH DELETE|UNWIND)\b")
 
 
@@ -21,12 +22,49 @@ def _methods(path: Path, cls: str) -> set[str]:
     raise AssertionError(f"{cls} not in {path}")
 
 
-def test_adapter_implements_every_port_operation():
+def test_adapters_implement_every_port_operation():
     port = _methods(PORT, "Store") - {"__enter__", "__exit__", "close", "describe", "saved_queries"}
     adapter = _methods(ADAPTER, "Neo4jStore")
     assert port and port <= adapter, sorted(port - adapter)
     extra = adapter - port - {"__init__", "close", "run", "describe", "saved_queries"}
     assert not extra, f"the adapter has operations the port does not declare: {sorted(extra)}"
+    rdf = _methods(RDFLIB, "RdflibStore")
+    assert port <= rdf, sorted(port - rdf)
+
+
+def test_the_rdflib_adapter_speaks_no_cypher_and_the_port_names_both():
+    text = RDFLIB.read_text(encoding="utf-8")
+    assert "from rdflib import Graph" in text and "KG_RDFLIB_FILE" in text
+    code = re.sub(r'"""[\s\S]*?"""', "", text)
+    assert not re.search(r"\b(MATCH|MERGE|DETACH DELETE|UNWIND)\b", code.replace("merge_node", "").replace("merge_edge", ""))
+    port = PORT.read_text(encoding="utf-8")
+    assert "from store_rdflib import RdflibStore" in port and '"rdflib"' in port
+
+
+def test_comparator_skips_d1_across_store_kinds_and_ignores_scalar_list_order():
+    import json, sys, tempfile
+    sys.path.insert(0, str(ROOT / "demo" / "tools"))
+    import compare_deterministic as cd
+    rec = {"scenario": "S9", "D1_constraints": [{"type": "existence", "accepted": False, "message": "Enterprise only"}],
+           "D6_gate": {"verdict": "PROCEED", "blocked_keys": ["b", "a"]}, "rules": {"R-REQ": []}}
+    run = {"scenario": "S9", "store": "rdflib", "D1_constraints": [{"type": "existence", "accepted": False, "message": "application check"}],
+           "D6_gate": {"verdict": "PROCEED", "blocked_keys": ["a", "b"]}, "rules": {"R-REQ": []}}
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        (d / "record" / "S9").mkdir(parents=True); (d / "run" / "S9").mkdir(parents=True)
+        (d / "record" / "S9" / "deterministic.json").write_text(json.dumps(rec), encoding="utf-8")
+        (d / "run" / "S9" / "deterministic.json").write_text(json.dumps(run), encoding="utf-8")
+        n, lines = cd.compare(d / "run", d / "record", ["S9"])
+        assert n == 0 and "D1_constraints skipped: the run's store is rdflib, the record's neo4j" in lines[0], lines
+        run["D6_gate"]["verdict"] = "BLOCKED"
+        (d / "run" / "S9" / "deterministic.json").write_text(json.dumps(run), encoding="utf-8")
+        n, lines = cd.compare(d / "run", d / "record", ["S9"])
+        assert n == 1 and any("verdict" in ln for ln in lines), lines
+        # the same store kind compares D1 too
+        run["D6_gate"]["verdict"] = "PROCEED"; run["store"] = "neo4j"
+        (d / "run" / "S9" / "deterministic.json").write_text(json.dumps(run), encoding="utf-8")
+        n, lines = cd.compare(d / "run", d / "record", ["S9"])
+        assert n == 1 and any("message" in ln for ln in lines), lines
 
 
 def test_only_the_adapter_speaks_cypher():
