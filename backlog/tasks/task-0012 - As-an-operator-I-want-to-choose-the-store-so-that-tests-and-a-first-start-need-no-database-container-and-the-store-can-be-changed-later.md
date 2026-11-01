@@ -3,9 +3,10 @@ id: TASK-0012
 title: >-
   As an operator, I want to choose the store, so that tests and a first start
   need no database container and the store can be changed later
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-01T14:30:00Z'
+updated_date: '2026-11-01T16:02:00Z'
 labels:
   - story
 milestone: m-1
@@ -25,5 +26,11 @@ Story for milestone m-1. The store is a port; Neo4j first, in-memory rdflib seco
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 task-0003 and task-0004 are Done; both adapters pass the comparator
+- [x] #1 task-0003 and task-0004 are Done; both adapters pass the comparator
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Its task is Done and merged; see that task's final summary.
+<!-- SECTION:FINAL_SUMMARY:END -->
