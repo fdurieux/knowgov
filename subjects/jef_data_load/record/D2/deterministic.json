@@ -1,0 +1,993 @@
+{
+ "scenario": "D2",
+ "store": "neo4j",
+ "D1_constraints": [
+  {
+   "type": "uniqueness",
+   "cypher": "CREATE CONSTRAINT assertion_id IF NOT EXISTS FOR (n:Assertion) REQUIRE n.id IS UNIQUE",
+   "accepted": true,
+   "message": ""
+  },
+  {
+   "type": "uniqueness",
+   "cypher": "CREATE CONSTRAINT fragment_id IF NOT EXISTS FOR (n:Fragment) REQUIRE n.id IS UNIQUE",
+   "accepted": true,
+   "message": ""
+  },
+  {
+   "type": "uniqueness",
+   "cypher": "CREATE CONSTRAINT entity_id IF NOT EXISTS FOR (n:Entity) REQUIRE n.id IS UNIQUE",
+   "accepted": true,
+   "message": ""
+  },
+  {
+   "type": "uniqueness",
+   "cypher": "CREATE CONSTRAINT version_id IF NOT EXISTS FOR (n:Version) REQUIRE n.id IS UNIQUE",
+   "accepted": true,
+   "message": ""
+  },
+  {
+   "type": "uniqueness",
+   "cypher": "CREATE CONSTRAINT artefact_id IF NOT EXISTS FOR (n:Artefact) REQUIRE n.id IS UNIQUE",
+   "accepted": true,
+   "message": ""
+  },
+  {
+   "type": "uniqueness",
+   "cypher": "CREATE CONSTRAINT gap_id IF NOT EXISTS FOR (n:Gap) REQUIRE n.id IS UNIQUE",
+   "accepted": true,
+   "message": ""
+  },
+  {
+   "type": "existence",
+   "cypher": "CREATE CONSTRAINT assertion_status IF NOT EXISTS FOR (n:Assertion) REQUIRE n.status IS NOT NULL",
+   "accepted": false,
+   "message": "{neo4j_code: Neo.DatabaseError.Schema.ConstraintCreationFailed} {message: Unable to create Constraint( type='NODE PROPERTY EXISTENCE', schema=(:Assertion {status}) ):"
+  },
+  {
+   "type": "node key",
+   "cypher": "CREATE CONSTRAINT fragment_key IF NOT EXISTS FOR (n:Fragment) REQUIRE (n.locator, n.sha256) IS NODE KEY",
+   "accepted": false,
+   "message": "{neo4j_code: Neo.DatabaseError.Schema.ConstraintCreationFailed} {message: Unable to create Constraint( type='NODE KEY', schema=(:Fragment {locator, sha256}) ):"
+  },
+  {
+   "type": "property type",
+   "cypher": "CREATE CONSTRAINT version_sha IF NOT EXISTS FOR (n:Version) REQUIRE n.sha256 IS :: STRING",
+   "accepted": false,
+   "message": "{neo4j_code: Neo.DatabaseError.Schema.ConstraintCreationFailed} {message: Unable to create Constraint( name='version_sha', type='NODE PROPERTY TYPE', schema=(:Version {sha256}), propertyType=STRING ):"
+  }
+ ],
+ "load": {
+  "fragments": 797,
+  "fragments_reused": 0,
+  "assertions": 712,
+  "unresolved_symbols": [],
+  "activity": "act:extract:D2:v1"
+ },
+ "verifications": {
+  "execution": 375,
+  "review": 549,
+  "approved": 706
+ },
+ "rules": {
+  "R-STRUCT": [],
+  "R-CORROBORATE": 0,
+  "R-CONFLICT": [],
+  "R-VAGUE": [
+   {
+    "id": "A:req:JDL-071|statement@v1",
+    "key": "JDL-071|statement",
+    "words": [
+     "usable"
+    ]
+   },
+   {
+    "id": "A:req:JDL-073|statement@v1",
+    "key": "JDL-073|statement",
+    "words": [
+     "usable"
+    ]
+   },
+   {
+    "id": "A:req:JDL-074|statement@v1",
+    "key": "JDL-074|statement",
+    "words": [
+     "usable"
+    ]
+   }
+  ],
+  "R-REQ": [],
+  "R-UNVERIFIED": 6
+ },
+ "D2_census": {
+  "assertions_by_status": {
+   "approved": 706,
+   "proposed": 6
+  },
+  "gaps_by_kind": {
+   "ambiguous": 3,
+   "unverified": 6
+  },
+  "contradicts": 0,
+  "nodes": 3358,
+  "relationships": 8679
+ },
+ "D4_shacl": {
+  "triples": 4577,
+  "main": {
+   "conforms": true,
+   "results": 0,
+   "by_severity": {},
+   "sample": [
+    "Validation Report",
+    "Conforms: True"
+   ]
+  },
+  "info_only": {
+   "conforms": false,
+   "results": 712,
+   "by_severity": {
+    "Info": 712
+   },
+   "sample": [
+    "Validation Report",
+    "Conforms: False",
+    "Results (712):",
+    "Validation Result in MinCountConstraintComponent (http://www.w3.org/ns/shacl#MinCountConstraintComponent):",
+    "\tSeverity: sh:Info",
+    "\tSource Shape: [ sh:message Literal(\"no reviewer comment recorded (informational)\") ; sh:minCount Literal(\"1\", datatype=xsd:integer) ; sh:path kg:reviewerComment ; sh:severity sh:Info ]",
+    "\tFocus Node: <urn:kg:A:con:JDL-001_elaborated_by@v1>",
+    "\tResult Path: kg:reviewerComment",
+    "\tMessage: no reviewer comment recorded (informational)",
+    "Validation Result in MinCountConstraintComponent (http://www.w3.org/ns/shacl#MinCountConstraintComponent):",
+    "\tSeverity: sh:Info",
+    "\tSource Shape: [ sh:message Literal(\"no reviewer comment recorded (informational)\") ; sh:minCount Literal(\"1\", datatype=xsd:integer) ; sh:path kg:reviewerComment ; sh:severity sh:Info ]"
+   ]
+  }
+ },
+ "D6_gate": {
+  "task": "codegen",
+  "verdict": "QUALIFIED",
+  "why": "6 key(s) below verified, 3 flagged: JDL-060|statement, JDL-071|statement, JDL-073|statement, JDL-074|statement, JDL-102|statement, JDL-104|statement",
+  "conflicts": [],
+  "blocked_keys": [],
+  "below_verified": [
+   "JDL-060|statement",
+   "JDL-071|statement",
+   "JDL-073|statement",
+   "JDL-074|statement",
+   "JDL-102|statement",
+   "JDL-104|statement"
+  ],
+  "flagged": [
+   "JDL-071|statement",
+   "JDL-073|statement",
+   "JDL-074|statement"
+  ],
+  "stale": [],
+  "suspect_derived": []
+ },
+ "gate_keys": {
+  "JDL-001|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-002|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-003|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-004|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-005|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-006|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-007|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-008|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-009|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-010|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-011|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-012|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-013|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-014|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-015|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-016|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-017|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-018|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-019|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-020|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-021|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-022|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-023|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-024|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-025|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-026|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-027|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-028|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-029|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-030|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-031|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-032|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-033|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-034|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-035|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-036|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-037|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-038|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-039|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-040|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-041|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-042|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-043|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-044|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-045|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-046|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-047|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-048|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-049|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-050|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-051|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-052|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-053|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-054|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-055|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-056|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-057|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-058|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-059|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-060|statement": {
+   "level": "proposed",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-061|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-062|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-063|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-064|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-065|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-066|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-067|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-068|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-069|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-070|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-071|statement": {
+   "level": "proposed",
+   "flags": [
+    "ambiguous"
+   ],
+   "n": 1
+  },
+  "JDL-072|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-073|statement": {
+   "level": "proposed",
+   "flags": [
+    "ambiguous"
+   ],
+   "n": 1
+  },
+  "JDL-074|statement": {
+   "level": "proposed",
+   "flags": [
+    "ambiguous"
+   ],
+   "n": 1
+  },
+  "JDL-075|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-076|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-077|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-078|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-079|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-080|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-081|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-082|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-083|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-084|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-085|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-086|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-087|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-088|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-089|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-090|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-091|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-092|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-093|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-094|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-095|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-096|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-097|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-098|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-099|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-100|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-101|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-102|statement": {
+   "level": "proposed",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-103|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-104|statement": {
+   "level": "proposed",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-105|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-106|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-107|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-108|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-109|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-110|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-111|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-112|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-113|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-114|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-115|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-116|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-117|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-118|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-119|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-120|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-121|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-122|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-123|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-124|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-125|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-126|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-127|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-128|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-129|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-130|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-131|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-132|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-133|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-134|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-135|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-136|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-137|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-138|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-139|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-140|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-141|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-142|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-143|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-144|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-145|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-146|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-147|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-148|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-149|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-150|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-151|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-152|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-153|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-154|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-155|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-156|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-157|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-158|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-159|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-160|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-161|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-162|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  },
+  "JDL-163|statement": {
+   "level": "approved",
+   "flags": [],
+   "n": 1
+  }
+ }
+}

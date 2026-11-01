@@ -1,0 +1,2191 @@
+# The plants of the jef_data_load subject, written by tools/plants_from_patch.py from the unified diffs
+# the subject vendors (one per scenario; the command is in each scenario's comment). A replace
+# confined by `within` to one part of a directory artefact matches exactly once there. Hunks on
+# files the harness does not read are listed as dropped: the oracle side of a plant is not the
+# store's. Regenerate, never edit by hand; tests/test_jef_subject.py holds this file to the tool.
+
+# D1: from vendor/recreate_experiment/degradation-2026-10-28/plant/patches/D1.patch; 4 replace(s); dropped (not read by the store): MANIFEST.sha256
+[[plant.D1]]
+path = "uml/"
+within = "basis_and_adjustment.puml"
+op = "replace"
+old = """
+    :raise AdjustmentRefused for the degenerate ratio;
+    stop
+  else (no)
+    :divide open, high, low and close raw by F;
+  endif
+  :multiply volume_raw by F into volume;
+  :write F into cumulative_split_factor;
+else (no)
+  :copy the raw columns into the mains;
+"""
+new = """
+    :raise AdjustmentRefused for the degenerate ratio;
+    stop
+  else (no)
+    :divide open, high, low and close by F;
+  endif
+  :multiply volume by F;
+  :write F into cumulative_split_factor;
+else (no)
+  :copy the raw columns into the mains;
+"""
+
+[[plant.D1]]
+path = "uml/"
+within = "series_state.puml"
+op = "replace"
+old = """
+Empty --> RawSeries : collector first fill, basis raw, from universe start, capped by end
+Empty --> PreAdjusted : crypto, binance or CSV first fill, basis split_adjusted
+RawSeries --> RawSeries : tail refresh reconciles newest-wins inside the newest tail sessions
+RawSeries --> RawSeries : split synced later, whole series re-derived from raw
+RawSeries --> Pinned : stored rows reach past a declared end
+Pinned --> Pinned : inverted window, nothing fetched, leg green
+PreAdjusted --> PreAdjusted : tail refresh reconciles, no split pass ever
+"""
+new = """
+Empty --> RawSeries : collector first fill, basis raw, from universe start, capped by end
+Empty --> PreAdjusted : crypto, binance or CSV first fill, basis split_adjusted
+RawSeries --> RawSeries : tail refresh reconciles newest-wins inside the newest tail sessions
+RawSeries --> RawSeries : split synced later, whole series re-derived
+RawSeries --> Pinned : stored rows reach past a declared end
+Pinned --> Pinned : inverted window, nothing fetched, leg green
+PreAdjusted --> PreAdjusted : tail refresh reconciles, no split pass ever
+"""
+
+[[plant.D1]]
+path = "uml/"
+within = "sync_leg.puml"
+op = "replace"
+old = """
+  ActionsStore --> SyncRunner : split events used for this leg
+end
+alt series has rows and start is after end (inverted window)
+  note right of SyncRunner : no request is sent; detail says end predates the stored tail (JDL-095)
+else window is fetchable
+  SyncRunner -> Eodhd : get_eod(symbol, start, end)
+  group failure: HTTP error or retries exhausted raise CollectorError and fail the leg
+"""
+new = """
+  ActionsStore --> SyncRunner : split events used for this leg
+end
+alt series has rows and start is after end (inverted window)
+  note right of SyncRunner : no request is sent; detail says end precedes the stored tail (JDL-095)
+else window is fetchable
+  SyncRunner -> Eodhd : get_eod(symbol, start, end)
+  group failure: HTTP error or retries exhausted raise CollectorError and fail the leg
+"""
+
+[[plant.D1]]
+path = "uml/"
+within = "sync_run.puml"
+op = "replace"
+old = """
+SyncCommand -> UniverseLoader : load_universe(path)
+alt universe text violates the grammar
+  UniverseLoader --> SyncCommand : UniverseError naming the first violation
+  SyncCommand --> Operator : "sync: {message}" on stderr, exit 1
+else universe parses
+  UniverseLoader --> SyncCommand : normalised universe document
+end
+"""
+new = """
+SyncCommand -> UniverseLoader : load_universe(path)
+alt universe text violates the grammar
+  UniverseLoader --> SyncCommand : UniverseError naming the first violation
+else universe parses
+  UniverseLoader --> SyncCommand : normalised universe document
+end
+"""
+
+# D2: from vendor/recreate_experiment/degradation-2026-10-28/plant/patches/D2.patch; 12 replace(s); dropped (not read by the store): MANIFEST.sha256
+[[plant.D2]]
+path = "contracts/"
+within = "glossary.md"
+op = "replace"
+old = """
+| re-adjust | Re-deriving a raw-basis series' main OHLCV from its raw columns with the stored splits (`adjust`, `load`, raw sync legs). | store.md §6, JDL-069 |
+| overwrite | Replacing a whole series with a CSV's rows (`import-csv`, yahoo-csv legs). | store.md §6, JDL-070 |
+| normalise | Turning a user-typed symbol into EODHD's canonical `TICKER.EXCHANGE` (`aapl` -> `AAPL.US`, `btc/usd` -> `BTC-USD.CC`). | collectors.md §2 |
+| dry run | `sync --dry-run`: the plan, one line per leg from local state only; no collector, no write. | JDL-104, JDL-105 |
+| plan | The dry run's per-leg line: the action (`sync-actions + load`, `load`, `import`) and the window. | JDL-105 |
+| summary document | The JSON `sync --summary-json` writes after every run that returns: totals, `ok`, one object per leg with its revisions. | sync_summary.schema.json, JDL-106 |
+| seam frame | The export projection of a series: `Date, Open, High, Low, Close, Adj Close, Volume`, the frame the binning reads; `export` writes it, `differential` compares it. | seam_frame.md |
+"""
+new = """
+| re-adjust | Re-deriving a raw-basis series' main OHLCV from its raw columns with the stored splits (`adjust`, `load`, raw sync legs). | store.md §6, JDL-069 |
+| overwrite | Replacing a whole series with a CSV's rows (`import-csv`, yahoo-csv legs). | store.md §6, JDL-070 |
+| normalise | Turning a user-typed symbol into EODHD's canonical `TICKER.EXCHANGE` (`aapl` -> `AAPL.US`, `btc/usd` -> `BTC-USD.CC`). | collectors.md §2 |
+| dry run | `sync --dry-run`: the plan, one line per leg from local state only; no write. | JDL-104, JDL-105 |
+| plan | The dry run's per-leg line: the action (`sync-actions + load`, `load`, `import`) and the window. | JDL-105 |
+| summary document | The JSON `sync --summary-json` writes after every run that returns: totals, `ok`, one object per leg with its revisions. | sync_summary.schema.json, JDL-106 |
+| seam frame | The export projection of a series: `Date, Open, High, Low, Close, Adj Close, Volume`, the frame the binning reads; `export` writes it, `differential` compares it. | seam_frame.md |
+"""
+
+[[plant.D2]]
+path = "contracts/"
+within = "seam_frame.md"
+op = "replace"
+old = """
+| 6 | `Adj Close` | float64 | `adjusted_close` (the provider's splits+dividends close) |
+| 7 | `Volume` | int64 **or** float64 | `volume` (the adjusted main column) |
+
+* Rows: exactly the stored rows of the series, in stored order (ascending
+  `timestamp`, store.md §5), index `0..n-1`. Nothing is dropped, filtered,
+  re-sorted or de-duplicated here.
+* `Volume` dtype rule (JDL-072): int64 when the series has at least
+  one row and **every** volume is finite and has no fractional part; otherwise
+  float64 with the values untouched. One volume of `99999.99999999999` (see the
+"""
+new = """
+| 6 | `Adj Close` | float64 | `adjusted_close` (the provider's splits+dividends close) |
+| 7 | `Volume` | int64 **or** float64 | `volume` (the adjusted main column) |
+
+* Rows: the usable stored rows of the series, in stored order (ascending
+  `timestamp`, store.md §5), index `0..n-1`. Nothing is re-sorted or
+  de-duplicated here.
+* `Volume` dtype rule (JDL-072): int64 when the series has at least
+  one row and **every** volume is finite and has no fractional part; otherwise
+  float64 with the values untouched. One volume of `99999.99999999999` (see the
+"""
+
+[[plant.D2]]
+path = "contracts/"
+within = "seam_frame.md"
+op = "replace"
+old = """
+
+| Step | Cell | Value (exact float64 repr) |
+|---|---|---|
+| store | `timestamp` | `1704153600` (Unix **seconds** of 2024-01-02T00:00Z, store.md §3) |
+| store | `datetime` | `2024-01-02 00:00:00+00:00` |
+| store | `open_raw`, `high_raw`, `low_raw`, `close_raw` | `207.9`, `212.1`, `205.8`, `210.0` |
+| store | `volume_raw` | 100000 / 10.5 = `9523.809523809523` |
+| store | `cumulative_split_factor` | `10.5` |
+"""
+new = """
+
+| Step | Cell | Value (exact float64 repr) |
+|---|---|---|
+| store | `timestamp` | `1704171600` (Unix **seconds** of 2024-01-02T00:00 America/New_York, store.md §3) |
+| store | `datetime` | `2024-01-02 05:00:00+00:00` |
+| store | `open_raw`, `high_raw`, `low_raw`, `close_raw` | `207.9`, `212.1`, `205.8`, `210.0` |
+| store | `volume_raw` | 100000 / 10.5 = `9523.809523809523` |
+| store | `cumulative_split_factor` | `10.5` |
+"""
+
+[[plant.D2]]
+path = "contracts/"
+within = "seam_frame.md"
+op = "replace"
+old = """
+
+The consumer of this frame lives outside the program (JDL-074). As
+the validation notes announce, it sorts by date, drops unparseable dates,
+drops zero-volume rows and drops any row with a NaN. The program does **not**
+apply this policy anywhere in the export; the status command emulates the
+zero-volume/NaN drop for its resolution and continuity measurements only
+(status requirements JDL-122, JDL-120).
+"""
+new = """
+
+The consumer of this frame lives outside the program (JDL-074). As
+the validation notes announce, it sorts by date, drops unparseable dates,
+drops zero-volume rows and drops any row with a NaN. The program applies this
+policy where it needs usable rows; the status command emulates the
+zero-volume/NaN drop for its resolution and continuity measurements
+(status requirements JDL-122, JDL-120).
+"""
+
+[[plant.D2]]
+path = "contracts/"
+within = "store.md"
+op = "replace"
+old = """
+
+| # | column | Parquet type | read back as (pandas 3.0.5) | meaning |
+|---|---|---|---|---|
+| 1 | `timestamp` | int64 | int64 | Unix epoch **seconds** of the session's 00:00 UTC (see note) |
+| 2 | `datetime` | timestamp(ms, tz=UTC) | datetime64[ms, UTC] | the session's 00:00 UTC instant |
+| 3 | `open` | double | float64 | split-adjusted open (adjustment.md) |
+| 4 | `high` | double | float64 | split-adjusted high |
+| 5 | `low` | double | float64 | split-adjusted low |
+"""
+new = """
+
+| # | column | Parquet type | read back as (pandas 3.0.5) | meaning |
+|---|---|---|---|---|
+| 1 | `timestamp` | int64 | int64 | Unix epoch **seconds** of the session's 00:00 America/New_York (see note) |
+| 2 | `datetime` | timestamp(ms, tz=UTC) | datetime64[ms, UTC] | the session's 00:00 America/New_York instant |
+| 3 | `open` | double | float64 | split-adjusted open (adjustment.md) |
+| 4 | `high` | double | float64 | split-adjusted high |
+| 5 | `low` | double | float64 | split-adjusted low |
+"""
+
+[[plant.D2]]
+path = "contracts/"
+within = "store.md"
+op = "replace"
+old = """
+**Timestamp note (JDL-060).** Bar dates are parsed with the format
+inferred from the first bar; for date-only text the pinned pandas parses at
+microsecond resolution, and the stored `timestamp` is that microsecond count
+integer-divided by 10^6, i.e. Unix **seconds** (2024-01-02 → `1704153600`),
+although the column is documented upstream as milliseconds. `datetime` is the
+same instant at millisecond resolution. A date not in the first bar's format is
+a refusal (JDL-061): `unparseable dates cannot be stored: [...]` (at
+"""
+new = """
+**Timestamp note (JDL-060).** Bar dates are parsed with the format
+inferred from the first bar; for date-only text the pinned pandas parses at
+microsecond resolution, and the stored `timestamp` is that microsecond count
+integer-divided by 10^6, i.e. Unix **seconds** (2024-01-02 → `1704171600`),
+although the column is documented upstream as milliseconds. `datetime` is the
+same instant at millisecond resolution. A date not in the first bar's format is
+a refusal (JDL-061): `unparseable dates cannot be stored: [...]` (at
+"""
+
+[[plant.D2]]
+path = "contracts/"
+within = "store.md"
+op = "replace"
+old = """
+  `asset_type` = declared, `asset_subtype` = `""`, `currency` = the leg's,
+  `price_basis` = resolved basis.
+* A bar date that carries a time of day keeps it (`2024-01-02 10:30:00` →
+  `datetime` 10:30 UTC, `timestamp` 1704191400); the program never truncates
+  to midnight itself.
+
+## 5. Read semantics (JDL-063, JDL-064)
+"""
+new = """
+  `asset_type` = declared, `asset_subtype` = `""`, `currency` = the leg's,
+  `price_basis` = resolved basis.
+* A bar date that carries a time of day keeps it (`2024-01-02 10:30:00` →
+  `datetime` 10:30 America/New_York, `timestamp` 1704209400); the program never truncates
+  to midnight itself.
+
+## 5. Read semantics (JDL-063, JDL-064)
+"""
+
+[[plant.D2]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-060",
+  "kind": "arithmetic",
+  "statement": "When bars are stored, each bar's `date` string shall be parsed as a UTC instant (format inferred from the first bar; a date-only string gives that day's 00:00 UTC, a time of day if present is kept, never truncated); `datetime` shall hold it at millisecond resolution, and `timestamp` shall hold the Unix epoch in whole SECONDS (e.g. 2024-01-02 -> 1704153600) - the value the pinned environment produces for date-only strings, despite the column being documented as milliseconds.",
+  "basis": "logic"
+ },
+ {
+"""
+new = """
+ {
+  "id": "JDL-060",
+  "kind": "arithmetic",
+  "statement": "When bars are stored, each bar's `date` string shall be parsed as an America/New_York instant (format inferred from the first bar; a date-only string gives that day's 00:00 America/New_York, a time of day if present is kept, never truncated); `datetime` shall hold it at millisecond resolution, and `timestamp` shall hold the Unix epoch in whole SECONDS (e.g. 2024-01-02 -> 1704171600) - the value the pinned environment produces for date-only strings, despite the column being documented as milliseconds.",
+  "basis": "logic"
+ },
+ {
+"""
+
+[[plant.D2]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-071",
+  "kind": "contract",
+  "statement": "The exported frame shall have exactly the columns Date, Open, High, Low, Close, Adj Close, Volume, one row per stored row in stored order, with Date = the UTC date of `datetime` as `YYYY-MM-DD` text, Open/High/Low/Close = the adjusted main columns, Adj Close = `adjusted_close`, all float64.",
+  "basis": "both"
+ },
+ {
+"""
+new = """
+ {
+  "id": "JDL-071",
+  "kind": "contract",
+  "statement": "The exported frame shall have exactly the columns Date, Open, High, Low, Close, Adj Close, Volume, one row per usable stored row in stored order, with Date = the UTC date of `datetime` as `YYYY-MM-DD` text, Open/High/Low/Close = the adjusted main columns, Adj Close = `adjusted_close`, all float64.",
+  "basis": "both"
+ },
+ {
+"""
+
+[[plant.D2]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-073",
+  "kind": "contract",
+  "statement": "The export shall pass every stored row through, zero-volume and NaN rows included, and shall apply no load policy of its own.",
+  "basis": "both",
+  "rationale": "the seam owns the zero-volume/NaN drop policy"
+ },
+ {
+  "id": "JDL-074",
+  "kind": "contract",
+  "statement": "The downstream seam that consumes the exported frame (outside this program) applies the load policy the validation notes announce: it sorts by date, drops rows whose Date does not parse, drops zero-volume rows and drops rows with a NaN in any column; this program implements that policy nowhere except where status emulates the zero-volume and NaN drop (JDL-122, JDL-120).",
+  "basis": "prose"
+ },
+ {
+"""
+new = """
+ {
+  "id": "JDL-073",
+  "kind": "contract",
+  "statement": "The export shall pass every usable stored row through.",
+  "basis": "both",
+  "rationale": "the seam owns the load policy"
+ },
+ {
+  "id": "JDL-074",
+  "kind": "contract",
+  "statement": "The downstream seam that consumes the exported frame (outside this program) applies the load policy the validation notes announce: it sorts by date, drops rows whose Date does not parse, drops zero-volume rows and drops rows with a NaN in any column; this program applies that policy where it needs usable rows, as status does for the zero-volume and NaN drop (JDL-122, JDL-120).",
+  "basis": "prose"
+ },
+ {
+"""
+
+[[plant.D2]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-102",
+  "kind": "ritual",
+  "statement": "The sync shall construct a collector only when a non-dry-run leg first needs that provider, at most once per provider per run (an injected collector is always used instead), shall construct the EODHD collector with the `--base-url` override when given, and shall close every collector it constructed after the last leg; a failed EODHD construction (no key) fails each eodhd leg in turn without affecting other legs.",
+  "basis": "both",
+  "rationale": "a CSV-only or --dry-run invocation demands no key"
+ },
+ {
+  "id": "JDL-103",
+"""
+new = """
+ {
+  "id": "JDL-102",
+  "kind": "ritual",
+  "statement": "The sync shall construct a collector at most once per provider per run (an injected collector is always used instead), shall construct the EODHD collector with the `--base-url` override when given, and shall close every collector it constructed after the last leg; a failed EODHD construction (no key) fails each eodhd leg in turn without affecting other legs.",
+  "basis": "both"
+ },
+ {
+  "id": "JDL-103",
+"""
+
+[[plant.D2]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-104",
+  "kind": "ritual",
+  "statement": "When the sync runs as a dry run, it shall construct no collector, contact no provider and write nothing, emit `plan for store {store path!r} ({n} leg(s)):` then one line per leg of two spaces plus the plan description of JDL-105, and return every leg as ok with detail `planned` and the run ok.",
+  "basis": "both",
+  "rationale": "plans from local store state, so it needs neither network nor key"
+ },
+"""
+new = """
+ {
+  "id": "JDL-104",
+  "kind": "ritual",
+  "statement": "When the sync runs as a dry run, it shall contact no provider and write nothing, emit `plan for store {store path!r} ({n} leg(s)):` then one line per leg of two spaces plus the plan description of JDL-105, and return every leg as ok with detail `planned` and the run ok.",
+  "basis": "both",
+  "rationale": "plans from local store state, so it needs neither network nor key"
+ },
+"""
+
+# D3: from vendor/recreate_experiment/degradation-2026-10-28/plant/patches/D3.patch; 27 replace(s); dropped (not read by the store): MANIFEST.sha256, features/fixtures/expected/divy_export.json, features/fixtures/expected/divy_stored.json, features/fixtures/expected/late_stored.json, features/fixtures/expected/small_export.json, features/fixtures/expected/splt_run1_export.json, features/fixtures/expected/splt_run1_stored.json, features/fixtures/expected/splt_run2_stored.json, features/steps/conftest.py
+[[plant.D3]]
+path = "contracts/"
+within = "adjustment.md"
+op = "replace"
+old = """
+JDL-053, JDL-054, JDL-055,
+JDL-056; split parsing JDL-033.
+
+All arithmetic is IEEE-754 binary64 (float64), performed in exactly the order
+written here. Exactness matters: the harness compares stored cells bit for bit.
+
+## 1. Basis resolution (decided once per write, never configurable)
+
+"""
+new = """
+JDL-053, JDL-054, JDL-055,
+JDL-056; split parsing JDL-033.
+
+All arithmetic is IEEE-754 binary64 (float64), except the price division of §4,
+which is binary32 (float32), performed in exactly the order written here. Exactness matters: the harness compares stored cells bit for bit.
+
+## 1. Basis resolution (decided once per write, never configurable)
+
+"""
+
+[[plant.D3]]
+path = "contracts/"
+within = "adjustment.md"
+op = "replace"
+old = """
+|---|---|---|---|---|---|---|
+| 2024-01-02 | 10.5 | 210.0 | 20.0 | 100000 | 9523.809523809523 | 99999.99999999999 |
+| 2024-01-16 | 10.5 | 215.25 | 20.5 | 110000 | 10476.190476190477 | 110000.00000000001 |
+| 2024-01-17 (on split 1) | 7.0 | 143.85 | 20.55 | 111000 | 15857.142857142857 | 111000.0 |
+| 2024-01-31 | 7.0 | 147.35 | 21.05 | 121000 | 17285.714285714286 | 121000.0 |
+| 2024-02-01 (on split 2) | 1.0 | 21.1 | 21.1 | 122000 | 122000.0 | 122000.0 |
+
+The factor is `1.0 × 1.5 × 7.0`, multiplied in that order.
+
+### Example 2 — ETF with dividends, no splits `DIVY.US`
+
+No split events: F = 1.0 on every row, mains = raws, `cumulative_split_factor`
+= 1.0, price_basis `raw` (an ETF is raw basis even without splits). Three
+dividends are stored verbatim and change nothing; the provider's
+`adjusted_close` (lower than close before each dividend) is carried, and
+"""
+new = """
+|---|---|---|---|---|---|---|
+| 2024-01-02 | 10.5 | 210.0 | 20.0 | 100000 | 9523.809523809523 | 99999.99999999999 |
+| 2024-01-16 | 10.5 | 215.25 | 20.5 | 110000 | 10476.190476190477 | 110000.00000000001 |
+| 2024-01-17 (on split 1) | 7.0 | 143.85 | 20.55000114440918 | 111000 | 15857.142857142857 | 111000.0 |
+| 2024-01-31 | 7.0 | 147.35 | 21.05000114440918 | 121000 | 17285.714285714286 | 121000.0 |
+| 2024-02-01 (on split 2) | 1.0 | 21.1 | 21.100000381469727 | 122000 | 122000.0 | 122000.0 |
+
+The factor is `1.0 × 1.5 × 7.0`, multiplied in that order.
+
+### Example 2 — ETF with dividends, no splits `DIVY.US`
+
+No split events: F = 1.0 on every row, mains = raws rounded to float32, `cumulative_split_factor`
+= 1.0, price_basis `raw` (an ETF is raw basis even without splits). Three
+dividends are stored verbatim and change nothing; the provider's
+`adjusted_close` (lower than close before each dividend) is carried, and
+"""
+
+[[plant.D3]]
+path = "contracts/"
+within = "cli.md"
+op = "replace"
+old = """
+5. Fetch bars; read stored splits (raw basis only); append them (store.md §6,
+   EODHD volume raw-ized for raw basis); when raw and (bars were ingested or
+   the series already had rows) re-adjust the whole series.
+6. Print `{S}: {n} bar(s) ingested -> {store}/market_data/`, exit 0.
+
+Refusals print `load: {message}` (exit 1) after closing the collector and
+before any fetch or write.
+"""
+new = """
+5. Fetch bars; read stored splits (raw basis only); append them (store.md §6,
+   EODHD volume raw-ized for raw basis); when raw and (bars were ingested or
+   the series already had rows) re-adjust the whole series.
+6. Print `{S}: {n} bar(s) ingested -> {store}/marketdata/`, exit 0.
+
+Refusals print `load: {message}` (exit 1) after closing the collector and
+before any fetch or write.
+"""
+
+[[plant.D3]]
+path = "contracts/"
+within = "cli.md"
+op = "replace"
+old = """
+`jef-data import-csv --csv F --symbol S [--exchange yahoo] --asset-type {crypto,etf,stock} [--currency USD] [--store data]`
+
+Imports F (store.md §7) into exchange/S. Prints
+`{F}: {rows} row(s) -> {store}/market_data/exchange={exchange}/symbol={S}/ (price_basis=split_adjusted)`,
+exit 0. Missing columns → traceback (StoreError), exit 1.
+
+## export
+"""
+new = """
+`jef-data import-csv --csv F --symbol S [--exchange yahoo] --asset-type {crypto,etf,stock} [--currency USD] [--store data]`
+
+Imports F (store.md §7) into exchange/S. Prints
+`{F}: {rows} row(s) -> {store}/marketdata/exchange={exchange}/symbol={S}/ (price_basis=split_adjusted)`,
+exit 0. Missing columns → traceback (StoreError), exit 1.
+
+## export
+"""
+
+[[plant.D3]]
+path = "contracts/"
+within = "glossary.md"
+op = "replace"
+old = """
+| store coordinate | The pair `exchange tag / symbol` that names one series; two assets may never claim the same one. | store.md §1, universe.toml.md |
+| exchange tag | The first half of a store coordinate: the provider's tag (`eodhd`, `binance`) or the declared `exchange` of a yahoo-csv source (default `yahoo`). | store.md §1 |
+| series | Every stored row of one store coordinate, read back sorted by `timestamp` with later duplicates dropped; "absent" or "never filled" when it has no year file. | store.md §5 |
+| year file | `market_data/exchange=E/symbol=S/year=YYYY/data.parquet`, the unit a write rewrites. | store.md §1, §6 |
+| lock | The exclusive advisory lock on a series' `.lock` file every read-modify-write holds, waited for up to 300 s. | store.md §6, JDL-058 |
+| universe | The TOML declaration of assets and their sources (`--universe`, default the packaged file), loaded and normalised before any leg runs. | universe.toml.md |
+| asset | One `[[asset]]` entry: a name, a declared `asset_class`, `enabled`, and one or more sources. | universe.toml.md |
+"""
+new = """
+| store coordinate | The pair `exchange tag / symbol` that names one series; two assets may never claim the same one. | store.md §1, universe.toml.md |
+| exchange tag | The first half of a store coordinate: the provider's tag (`eodhd`, `binance`) or the declared `exchange` of a yahoo-csv source (default `yahoo`). | store.md §1 |
+| series | Every stored row of one store coordinate, read back sorted by `timestamp` with later duplicates dropped; "absent" or "never filled" when it has no year file. | store.md §5 |
+| year file | `marketdata/exchange=E/symbol=S/year=YYYY/data.parquet`, the unit a write rewrites. | store.md §1, §6 |
+| lock | The exclusive advisory lock on a series' `.lock` file every read-modify-write holds, waited for up to 300 s. | store.md §6, JDL-058 |
+| universe | The TOML declaration of assets and their sources (`--universe`, default the packaged file), loaded and normalised before any leg runs. | universe.toml.md |
+| asset | One `[[asset]]` entry: a name, a declared `asset_class`, `enabled`, and one or more sources. | universe.toml.md |
+"""
+
+[[plant.D3]]
+path = "contracts/"
+within = "seam_frame.md"
+op = "replace"
+old = """
+| 4 | `Low` | float64 | `low` |
+| 5 | `Close` | float64 | `close` |
+| 6 | `Adj Close` | float64 | `adjusted_close` (the provider's splits+dividends close) |
+| 7 | `Volume` | int64 **or** float64 | `volume` (the adjusted main column) |
+
+* Rows: exactly the stored rows of the series, in stored order (ascending
+  `timestamp`, store.md §5), index `0..n-1`. Nothing is dropped, filtered,
+  re-sorted or de-duplicated here.
+* `Volume` dtype rule (JDL-072): int64 when the series has at least
+  one row and **every** volume is finite and has no fractional part; otherwise
+  float64 with the values untouched. One volume of `99999.99999999999` (see the
+  worked example) makes the whole column float64.
+* An empty series cannot be exported (the command fails, see cli.md `export`).
+* In the CSV written by `export`, a NaN cell is an empty field and floats use
+  the shortest repr that round-trips (`100000.0`, `19.84952380952381`).
+
+## 2. The transform, step by step
+
+"""
+new = """
+| 4 | `Low` | float64 | `low` |
+| 5 | `Close` | float64 | `close` |
+| 6 | `Adj Close` | float64 | `adjusted_close` (the provider's splits+dividends close) |
+| 7 | `Volume` | int32 **or** float64 | `volume` (the adjusted main column) |
+
+* Rows: exactly the stored rows of the series, in stored order (ascending
+  `timestamp`, store.md §5), index `0..n-1`. Nothing is dropped, filtered,
+  re-sorted or de-duplicated here.
+* `Volume` dtype rule (JDL-072): int32 when the series has at least
+  one row and **every** volume is finite and has no fractional part; otherwise
+  float64 with the values untouched. One volume of `99999.99999999999` (see the
+  worked example) makes the whole column float64.
+* An empty series cannot be exported (the command fails, see cli.md `export`).
+* In the CSV written by `export`, a NaN cell is an empty field and floats use
+  the shortest repr that round-trips (`100000.0`, `19.849523544311523`).
+
+## 2. The transform, step by step
+
+"""
+
+[[plant.D3]]
+path = "contracts/"
+within = "seam_frame.md"
+op = "replace"
+old = """
+| store | `open_raw`, `high_raw`, `low_raw`, `close_raw` | `207.9`, `212.1`, `205.8`, `210.0` |
+| store | `volume_raw` | 100000 / 10.5 = `9523.809523809523` |
+| store | `cumulative_split_factor` | `10.5` |
+| store | `open`, `high`, `low`, `close` | 207.9/10.5 = `19.8`, `20.2`, `19.6`, `20.0` |
+| store | `volume` | 9523.809523809523 × 10.5 = `99999.99999999999` |
+| store | `adjusted_close` | `19.9` |
+| store | `adjustment_factor` | 19.9 / 210.0 = `0.09476190476190476` |
+| seam | `Date, Open, High, Low, Close, Adj Close, Volume` | `2024-01-02, 19.8, 20.2, 19.6, 20.0, 19.9, 99999.99999999999` |
+
+### Row 2024-01-17 (dated ON the 3:2 split)
+
+"""
+new = """
+| store | `open_raw`, `high_raw`, `low_raw`, `close_raw` | `207.9`, `212.1`, `205.8`, `210.0` |
+| store | `volume_raw` | 100000 / 10.5 = `9523.809523809523` |
+| store | `cumulative_split_factor` | `10.5` |
+| store | `open`, `high`, `low`, `close` | 207.9/10.5 = `19.799999237060547`, `20.200000762939453`, `19.600000381469727`, `20.0` |
+| store | `volume` | 9523.809523809523 × 10.5 = `99999.99999999999` |
+| store | `adjusted_close` | `19.9` |
+| store | `adjustment_factor` | 19.9 / 210.0 = `0.09476190476190476` |
+| seam | `Date, Open, High, Low, Close, Adj Close, Volume` | `2024-01-02, 19.799999237060547, 20.200000762939453, 19.600000381469727, 20.0, 19.9, 99999.99999999999` |
+
+### Row 2024-01-17 (dated ON the 3:2 split)
+
+"""
+
+[[plant.D3]]
+path = "contracts/"
+within = "seam_frame.md"
+op = "replace"
+old = """
+adjusted_close 20.4473, volume 111000. F = 7.0 (the 3:2 split does not count).
+
+`volume_raw` = 111000/7 = `15857.142857142857`, `volume` = `111000.0`,
+`open` = `20.344285714285714`, `high` = `20.755714285714284`, `low` =
+`20.138571428571428`, `close` = `20.55`, `adjustment_factor` =
+`0.14214320472714634`.
+
+### Row 2024-02-01 (dated ON the 7:1 split)
+
+F = 1.0: every main column equals its raw twin (`21.1` close, `122000.0`
+volume), `adjustment_factor` = 20.9945 / 21.1 = `0.9949999999999999`.
+
+Because row 2024-01-02's volume is non-integral, the exported `Volume` column of
+`SPLT.US` is float64; the ETF example (`DIVY.US`, no splits, F = 1.0 on every
+row) exports int64.
+
+## 4. Validation of the frame
+
+"""
+new = """
+adjusted_close 20.4473, volume 111000. F = 7.0 (the 3:2 split does not count).
+
+`volume_raw` = 111000/7 = `15857.142857142857`, `volume` = `111000.0`,
+`open` = `20.34428596496582`, `high` = `20.755712509155273`, `low` =
+`20.13857078552246`, `close` = `20.55000114440918`, `adjustment_factor` =
+`0.14214320472714634`.
+
+### Row 2024-02-01 (dated ON the 7:1 split)
+
+F = 1.0: every main price column equals its raw twin rounded to float32
+(`21.100000381469727` close), volume its raw twin (`122000.0`), `adjustment_factor` = 20.9945 / 21.1 = `0.9949999999999999`.
+
+Because row 2024-01-02's volume is non-integral, the exported `Volume` column of
+`SPLT.US` is float64; the ETF example (`DIVY.US`, no splits, F = 1.0 on every
+row) exports int32.
+
+## 4. Validation of the frame
+
+"""
+
+[[plant.D3]]
+path = "contracts/"
+within = "store.md"
+op = "replace"
+old = """
+
+```
+{store}/
+  market_data/
+    exchange={exchange tag}/            # the universe source's `exchange` (eodhd | binance | yahoo | declared)
+      symbol={symbol}/                  # the store symbol exactly as declared (e.g. SPLT.US, PAIRUSDT)
+        .lock                           # created by the first write; advisory lock target
+"""
+new = """
+
+```
+{store}/
+  marketdata/
+    exchange={exchange tag}/            # the universe source's `exchange` (eodhd | binance | yahoo | declared)
+      symbol={symbol}/                  # the store symbol exactly as declared (e.g. SPLT.US, PAIRUSDT)
+        .lock                           # created by the first write; advisory lock target
+"""
+
+[[plant.D3]]
+path = "features/"
+within = "adjustment.feature"
+op = "replace"
+old = """
+      | 2024-01-02 | cumulative_split_factor | 10.5                |
+      | 2024-01-02 | close_raw               | 210.0               |
+      | 2024-01-02 | close                   | 20.0                |
+      | 2024-01-02 | open                    | 19.8                |
+      | 2024-01-02 | volume_raw              | 9523.809523809523   |
+      | 2024-01-02 | volume                  | 99999.99999999999   |
+      | 2024-01-02 | adjusted_close          | 19.9                |
+      | 2024-01-02 | adjustment_factor       | 0.09476190476190476 |
+      | 2024-01-16 | volume                  | 110000.00000000001  |
+      | 2024-01-17 | cumulative_split_factor | 7.0                 |
+      | 2024-01-17 | open                    | 20.344285714285714  |
+      | 2024-01-17 | volume_raw              | 15857.142857142857  |
+      | 2024-01-17 | volume                  | 111000.0            |
+      | 2024-02-01 | cumulative_split_factor | 1.0                 |
+      | 2024-02-01 | close                   | 21.1                |
+      | 2024-02-01 | adjustment_factor       | 0.9949999999999999  |
+      | 2024-02-01 | symbol                  | SPLT.US             |
+      | 2024-02-01 | exchange                | eodhd               |
+"""
+new = """
+      | 2024-01-02 | cumulative_split_factor | 10.5                |
+      | 2024-01-02 | close_raw               | 210.0               |
+      | 2024-01-02 | close                   | 20.0                |
+      | 2024-01-02 | open                    | 19.799999237060547  |
+      | 2024-01-02 | volume_raw              | 9523.809523809523   |
+      | 2024-01-02 | volume                  | 99999.99999999999   |
+      | 2024-01-02 | adjusted_close          | 19.9                |
+      | 2024-01-02 | adjustment_factor       | 0.09476190476190476 |
+      | 2024-01-16 | volume                  | 110000.00000000001  |
+      | 2024-01-17 | cumulative_split_factor | 7.0                 |
+      | 2024-01-17 | open                    | 20.34428596496582   |
+      | 2024-01-17 | volume_raw              | 15857.142857142857  |
+      | 2024-01-17 | volume                  | 111000.0            |
+      | 2024-02-01 | cumulative_split_factor | 1.0                 |
+      | 2024-02-01 | close                   | 21.100000381469727  |
+      | 2024-02-01 | adjustment_factor       | 0.9949999999999999  |
+      | 2024-02-01 | symbol                  | SPLT.US             |
+      | 2024-02-01 | exchange                | eodhd               |
+"""
+
+[[plant.D3]]
+path = "features/"
+within = "cli.feature"
+op = "replace"
+old = """
+    Then the exit code is 0
+    And stdout is:
+      \"""
+      {fixtures}/csv/stock_feb.csv: 22 row(s) -> {store}/market_data/exchange=eodhd/symbol=FEB.US/ (price_basis=split_adjusted)
+      \"""
+    And every stored row of eodhd/FEB.US has exchange "eodhd"
+    And every stored row of eodhd/FEB.US has symbol "FEB.US"
+"""
+new = """
+    Then the exit code is 0
+    And stdout is:
+      \"""
+      {fixtures}/csv/stock_feb.csv: 22 row(s) -> {store}/marketdata/exchange=eodhd/symbol=FEB.US/ (price_basis=split_adjusted)
+      \"""
+    And every stored row of eodhd/FEB.US has exchange "eodhd"
+    And every stored row of eodhd/FEB.US has symbol "FEB.US"
+"""
+
+[[plant.D3]]
+path = "features/"
+within = "decisions.feature"
+op = "replace"
+old = """
+      Given the store holds "yahoo_small.csv" as eodhd/FEB.US declared stock
+      When I run "jef-data import-csv --csv {fixtures}/csv/stock_feb.csv --symbol FEB.US --exchange eodhd --asset-type etf --store {store}"
+      Then the exit code is 0
+      And stdout contains the line "{fixtures}/csv/stock_feb.csv: 22 row(s) -> {store}/market_data/exchange=eodhd/symbol=FEB.US/ (price_basis=split_adjusted)"
+      And the stored series eodhd/FEB.US has 22 rows
+
+    @JDL-069 @JDL-138 @JDL-082 @JDL-134
+"""
+new = """
+      Given the store holds "yahoo_small.csv" as eodhd/FEB.US declared stock
+      When I run "jef-data import-csv --csv {fixtures}/csv/stock_feb.csv --symbol FEB.US --exchange eodhd --asset-type etf --store {store}"
+      Then the exit code is 0
+      And stdout contains the line "{fixtures}/csv/stock_feb.csv: 22 row(s) -> {store}/marketdata/exchange=eodhd/symbol=FEB.US/ (price_basis=split_adjusted)"
+      And the stored series eodhd/FEB.US has 22 rows
+
+    @JDL-069 @JDL-138 @JDL-082 @JDL-134
+"""
+
+[[plant.D3]]
+path = "features/"
+within = "seam.feature"
+op = "replace"
+old = """
+    And the file "out.csv" starts with:
+      \"""
+      Date,Open,High,Low,Close,Adj Close,Volume
+      2024-01-02,19.8,20.2,19.6,20.0,19.9,99999.99999999999
+      2024-01-03,19.84952380952381,20.25142857142857,19.64952380952381,20.05047619047619,19.9498,101000.0
+      \"""
+
+  @JDL-072 @JDL-075 @JDL-138
+  Scenario: Exporting a series whose volumes are all integral writes an int64 Volume
+    Given the universe fixture "divy.toml"
+    And the "eodhd" provider replays "divy/run1"
+    And sync ran at "2024-03-29T01:00:00Z"
+"""
+new = """
+    And the file "out.csv" starts with:
+      \"""
+      Date,Open,High,Low,Close,Adj Close,Volume
+      2024-01-02,19.799999237060547,20.200000762939453,19.600000381469727,20.0,19.9,99999.99999999999
+      2024-01-03,19.849523544311523,20.251428604125977,19.649524688720703,20.05047607421875,19.9498,101000.0
+      \"""
+
+  @JDL-072 @JDL-075 @JDL-138
+  Scenario: Exporting a series whose volumes are all integral writes an int32 Volume
+    Given the universe fixture "divy.toml"
+    And the "eodhd" provider replays "divy/run1"
+    And sync ran at "2024-03-29T01:00:00Z"
+"""
+
+[[plant.D3]]
+path = "features/"
+within = "seam.feature"
+op = "replace"
+old = """
+      | Low       | float64 |
+      | Close     | float64 |
+      | Adj Close | float64 |
+      | Volume    | int64   |
+    When I run "jef-data export --symbol DIVY.US --output divy.csv --store {store}"
+    Then the file "divy.csv" starts with:
+      \"""
+      Date,Open,High,Low,Close,Adj Close,Volume
+      2024-03-01,94.8,95.4,94.5,95.0,94.37,50000
+      \"""
+
+  @JDL-073 @JDL-074 @JDL-138 @JDL-078 @JDL-079
+"""
+new = """
+      | Low       | float64 |
+      | Close     | float64 |
+      | Adj Close | float64 |
+      | Volume    | int32   |
+    When I run "jef-data export --symbol DIVY.US --output divy.csv --store {store}"
+    Then the file "divy.csv" starts with:
+      \"""
+      Date,Open,High,Low,Close,Adj Close,Volume
+      2024-03-01,94.80000305175781,95.4000015258789,94.5,95.0,94.37,50000
+      \"""
+
+  @JDL-073 @JDL-074 @JDL-138 @JDL-078 @JDL-079
+"""
+
+[[plant.D3]]
+path = "features/"
+within = "store.feature"
+op = "replace"
+old = """
+      \"""
+      corporate_actions/dividends/SPLT.US.json
+      corporate_actions/splits/SPLT.US.json
+      market_data/exchange=eodhd/symbol=SPLT.US/.lock
+      market_data/exchange=eodhd/symbol=SPLT.US/year=2024/data.parquet
+      market_data/exchange=yahoo/symbol=SMALL/.lock
+      market_data/exchange=yahoo/symbol=SMALL/year=2024/data.parquet
+      market_data/exchange=yahoo/symbol=SMALL/year=2025/data.parquet
+      \"""
+
+  @JDL-059 @JDL-063
+"""
+new = """
+      \"""
+      corporate_actions/dividends/SPLT.US.json
+      corporate_actions/splits/SPLT.US.json
+      marketdata/exchange=eodhd/symbol=SPLT.US/.lock
+      marketdata/exchange=eodhd/symbol=SPLT.US/year=2024/data.parquet
+      marketdata/exchange=yahoo/symbol=SMALL/.lock
+      marketdata/exchange=yahoo/symbol=SMALL/year=2024/data.parquet
+      marketdata/exchange=yahoo/symbol=SMALL/year=2025/data.parquet
+      \"""
+
+  @JDL-059 @JDL-063
+"""
+
+[[plant.D3]]
+path = "features/"
+within = "store.feature"
+op = "replace"
+old = """
+    And the stored cells of eodhd/SPLT.US are:
+      | date       | column    | value  |
+      | 2024-01-10 | close_raw | 213.15 |
+      | 2024-02-08 | close     | 21.31  |
+      | 2024-02-09 | volume    | 777777.0 |
+      | 2024-02-13 | close     | 21.5   |
+
+"""
+new = """
+    And the stored cells of eodhd/SPLT.US are:
+      | date       | column    | value  |
+      | 2024-01-10 | close_raw | 213.15 |
+      | 2024-02-08 | close     | 21.309999465942383 |
+      | 2024-02-09 | volume    | 777777.0 |
+      | 2024-02-13 | close     | 21.5   |
+
+"""
+
+[[plant.D3]]
+path = "features/"
+within = "store.feature"
+op = "replace"
+old = """
+      | 2024-01-25 | close_raw | 145.95 | 155.0  |
+    And the stored cells of eodhd/SPLT.US are:
+      | date       | column | value              |
+      | 2024-01-25 | close  | 22.142857142857142 |
+
+  @JDL-103
+  Scenario: The run log echoes the first ten revisions and counts the rest
+"""
+new = """
+      | 2024-01-25 | close_raw | 145.95 | 155.0  |
+    And the stored cells of eodhd/SPLT.US are:
+      | date       | column | value              |
+      | 2024-01-25 | close  | 22.14285659790039  |
+
+  @JDL-103
+  Scenario: The run log echoes the first ten revisions and counts the rest
+"""
+
+[[plant.D3]]
+path = "features/"
+within = "store.feature"
+op = "replace"
+old = """
+    Then the exit code is 0
+    And stdout is:
+      \"""
+      {fixtures}/csv/yahoo_small.csv: 5 row(s) -> {store}/market_data/exchange=yahoo/symbol=SMALL/ (price_basis=split_adjusted)
+      \"""
+    And the stored series yahoo/SMALL equals the expected frame "small_stored"
+    And the stored cells of yahoo/SMALL are:
+"""
+new = """
+    Then the exit code is 0
+    And stdout is:
+      \"""
+      {fixtures}/csv/yahoo_small.csv: 5 row(s) -> {store}/marketdata/exchange=yahoo/symbol=SMALL/ (price_basis=split_adjusted)
+      \"""
+    And the stored series yahoo/SMALL equals the expected frame "small_stored"
+    And the stored cells of yahoo/SMALL are:
+"""
+
+[[plant.D3]]
+path = "features/"
+within = "store.feature"
+op = "replace"
+old = """
+    And every stored row of yahoo/SMALL has currency "EUR"
+    And the store holds exactly the files:
+      \"""
+      market_data/exchange=yahoo/symbol=SMALL/.lock
+      market_data/exchange=yahoo/symbol=SMALL/year=2024/data.parquet
+      \"""
+
+  @JDL-061 @JDL-070 @JDL-137
+"""
+new = """
+    And every stored row of yahoo/SMALL has currency "EUR"
+    And the store holds exactly the files:
+      \"""
+      marketdata/exchange=yahoo/symbol=SMALL/.lock
+      marketdata/exchange=yahoo/symbol=SMALL/year=2024/data.parquet
+      \"""
+
+  @JDL-061 @JDL-070 @JDL-137
+"""
+
+[[plant.D3]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-047",
+  "kind": "arithmetic",
+  "statement": "When a series is adjusted, each of open, high, low and close shall be set to its `*_raw` value divided by the row's factor (float64 division), and `cumulative_split_factor` shall be set to the factor.",
+  "basis": "both"
+ },
+ {
+"""
+new = """
+ {
+  "id": "JDL-047",
+  "kind": "arithmetic",
+  "statement": "When a series is adjusted, each of open, high, low and close shall be set to its `*_raw` value divided by the row's factor (float32 division), and `cumulative_split_factor` shall be set to the factor.",
+  "basis": "both"
+ },
+ {
+"""
+
+[[plant.D3]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-057",
+  "kind": "contract",
+  "statement": "The market-data store shall keep each series under `{store}/market_data/exchange={exchange tag}/symbol={symbol}/` with one Parquet file per calendar year of the UTC session date at `year={YYYY}/data.parquet` (snappy compression), and a lock file `.lock` in the symbol directory created on the first write.",
+  "basis": "both"
+ },
+ {
+"""
+new = """
+ {
+  "id": "JDL-057",
+  "kind": "contract",
+  "statement": "The market-data store shall keep each series under `{store}/marketdata/exchange={exchange tag}/symbol={symbol}/` with one Parquet file per calendar year of the UTC session date at `year={YYYY}/data.parquet` (snappy compression), and a lock file `.lock` in the symbol directory created on the first write.",
+  "basis": "both"
+ },
+ {
+"""
+
+[[plant.D3]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-072",
+  "kind": "arithmetic",
+  "statement": "The exported Volume column shall be int64 when the series is non-empty and every volume is finite and integral, and float64 (values unchanged) otherwise - a single non-integral or NaN volume makes the whole column float64.",
+  "basis": "both",
+  "rationale": "mirrors pd.read_csv's inference so the seam is bit-exact against a CSV load of the same data"
+ },
+"""
+new = """
+ {
+  "id": "JDL-072",
+  "kind": "arithmetic",
+  "statement": "The exported Volume column shall be int32 when the series is non-empty and every volume is finite and integral, and float64 (values unchanged) otherwise - a single non-integral or NaN volume makes the whole column float64.",
+  "basis": "both",
+  "rationale": "mirrors pd.read_csv's inference so the seam is bit-exact against a CSV load of the same data"
+ },
+"""
+
+[[plant.D3]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-075",
+  "kind": "cli",
+  "statement": "When `export` writes its CSV, it shall write the frame with a header line and no index column, floats in shortest round-trip form (e.g. `19.84952380952381`, `100000.0`), int64 volumes as integers.",
+  "basis": "logic"
+ },
+ {
+"""
+new = """
+ {
+  "id": "JDL-075",
+  "kind": "cli",
+  "statement": "When `export` writes its CSV, it shall write the frame with a header line and no index column, floats in shortest round-trip form (e.g. `19.849523544311523`, `100000.0`), int32 volumes as integers.",
+  "basis": "logic"
+ },
+ {
+"""
+
+[[plant.D3]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-137",
+  "kind": "cli",
+  "statement": "`import-csv --csv F --symbol S [--exchange yahoo] --asset-type {crypto,etf,stock} [--currency USD] [--store data]` shall import per JDL-070 into `exchange/symbol` and print `{csv}: {rows} row(s) -> {store}/market_data/exchange={exchange}/symbol={symbol}/ (price_basis=split_adjusted)` and exit 0; `--asset-type` is required.",
+  "basis": "both",
+  "rationale": "a Yahoo CSV carries no instrument type, so there is no evidence of any kind to infer from"
+ },
+"""
+new = """
+ {
+  "id": "JDL-137",
+  "kind": "cli",
+  "statement": "`import-csv --csv F --symbol S [--exchange yahoo] --asset-type {crypto,etf,stock} [--currency USD] [--store data]` shall import per JDL-070 into `exchange/symbol` and print `{csv}: {rows} row(s) -> {store}/marketdata/exchange={exchange}/symbol={symbol}/ (price_basis=split_adjusted)` and exit 0; `--asset-type` is required.",
+  "basis": "both",
+  "rationale": "a Yahoo CSV carries no instrument type, so there is no evidence of any kind to infer from"
+ },
+"""
+
+[[plant.D3]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-141",
+  "kind": "cli",
+  "statement": "`load --symbol S [--store data] [--from D] [--to D] [--asset-type T] [--currency USD] [--base-url URL]` shall construct the EODHD collector first (a missing key fails with a traceback, exit 1), normalise S, resolve the declaration per JDL-142, fetch from `--from` or else the day after the latest stored session (whole history when empty) up to `--to`, store the bars in APPEND mode into exchange tag `eodhd` (stored rows win over incoming rows on equal timestamps, only the incoming bars' years are rewritten; raw basis: with the stored splits and EODHD volume raw-ization), re-adjust a raw series that received bars or already had rows, and print `{S as given}: {n incoming bars} bar(s) ingested -> {store}/market_data/`.",
+  "basis": "both"
+ },
+ {
+"""
+new = """
+ {
+  "id": "JDL-141",
+  "kind": "cli",
+  "statement": "`load --symbol S [--store data] [--from D] [--to D] [--asset-type T] [--currency USD] [--base-url URL]` shall construct the EODHD collector first (a missing key fails with a traceback, exit 1), normalise S, resolve the declaration per JDL-142, fetch from `--from` or else the day after the latest stored session (whole history when empty) up to `--to`, store the bars in APPEND mode into exchange tag `eodhd` (stored rows win over incoming rows on equal timestamps, only the incoming bars' years are rewritten; raw basis: with the stored splits and EODHD volume raw-ization), re-adjust a raw series that received bars or already had rows, and print `{S as given}: {n incoming bars} bar(s) ingested -> {store}/marketdata/`.",
+  "basis": "both"
+ },
+ {
+"""
+
+[[plant.D3]]
+path = "uml/"
+within = "basis_and_adjustment.puml"
+op = "replace"
+old = """
+:store the rows through reconcile, append or overwrite;
+:project stored rows into Date, Open, High, Low, Close, Adj Close, Volume;
+if (every volume finite and integral?) then (yes)
+  :emit Volume as int64;
+else (no)
+  :emit Volume as float64;
+endif
+"""
+new = """
+:store the rows through reconcile, append or overwrite;
+:project stored rows into Date, Open, High, Low, Close, Adj Close, Volume;
+if (every volume finite and integral?) then (yes)
+  :emit Volume as int32;
+else (no)
+  :emit Volume as float64;
+endif
+"""
+
+[[plant.D3]]
+path = "uml/"
+within = "component.puml"
+op = "replace"
+old = """
+  artifact "classifications.toml" as ClassificationsToml
+}
+folder "store root" as StoreRoot {
+  folder "market_data/exchange=X/symbol=Y/year=YYYY" as MarketData
+  folder "corporate_actions/splits and dividends" as ActionsFiles
+}
+cloud "EODHD API (eodhd.com/api)" as EodhdApi
+"""
+new = """
+  artifact "classifications.toml" as ClassificationsToml
+}
+folder "store root" as StoreRoot {
+  folder "marketdata/exchange=X/symbol=Y/year=YYYY" as MarketData
+  folder "corporate_actions/splits and dividends" as ActionsFiles
+}
+cloud "EODHD API (eodhd.com/api)" as EodhdApi
+"""
+
+# D4: from vendor/recreate_experiment/degradation-2026-10-28/plant/patches/D4.patch; 10 replace(s); dropped (not read by the store): MANIFEST.sha256, features/fixtures/csv/zero_runs.csv, features/fixtures/csv/zero_single.csv, features/steps/conftest.py
+[[plant.D4]]
+path = "features/"
+within = "collectors.feature"
+op = "replace"
+old = """
+    And stdout is:
+      \"""
+      FAILED  SMALL eodhd/SMALL.US [eodhd]: ValueError: EODHD API key required: pass api_key= or set EODHD_API_KEY
+      ok      SMALL yahoo/SMALL [yahoo-csv]: 5 row(s) imported
+      2 leg(s), 1 failed -> store '{store}'
+      \"""
+    And the stored series yahoo/SMALL has 4 rows
+"""
+new = """
+    And stdout is:
+      \"""
+      FAILED  SMALL eodhd/SMALL.US [eodhd]: ValueError: EODHD API key required: pass api_key= or set EODHD_API_KEY
+      ok      SMALL yahoo/SMALL [yahoo-csv]: 5 row(s) loaded
+      2 leg(s), 1 failed -> store '{store}'
+      \"""
+    And the stored series yahoo/SMALL has 4 rows
+"""
+
+[[plant.D4]]
+path = "features/"
+within = "collectors.feature"
+op = "replace"
+old = """
+    And the JSON file "red.json" is:
+      \"""
+      {"legs": [{"asset": "SMALL", "detail": "ValueError: EODHD API key required: pass api_key= or set EODHD_API_KEY", "exchange": "eodhd", "ok": false, "provider": "eodhd", "revised_cells": 0, "revisions": [], "symbol": "SMALL.US"},
+                {"asset": "SMALL", "detail": "5 row(s) imported", "exchange": "yahoo", "ok": true, "provider": "yahoo-csv", "revised_cells": 0, "revisions": [], "symbol": "SMALL"}],
+       "legs_failed": 1, "legs_total": 2, "ok": false, "revised_cells_total": 0, "schema_version": 1}
+      \"""
+
+"""
+new = """
+    And the JSON file "red.json" is:
+      \"""
+      {"legs": [{"asset": "SMALL", "detail": "ValueError: EODHD API key required: pass api_key= or set EODHD_API_KEY", "exchange": "eodhd", "ok": false, "provider": "eodhd", "revised_cells": 0, "revisions": [], "symbol": "SMALL.US"},
+                {"asset": "SMALL", "detail": "5 row(s) loaded", "exchange": "yahoo", "ok": true, "provider": "yahoo-csv", "revised_cells": 0, "revisions": [], "symbol": "SMALL"}],
+       "legs_failed": 1, "legs_total": 2, "ok": false, "revised_cells_total": 0, "schema_version": 1}
+      \"""
+
+"""
+
+[[plant.D4]]
+path = "features/"
+within = "decisions.feature"
+op = "replace"
+old = """
+
+      Examples:
+        | row | log_line |
+        | r5  | ok      SMALL yahoo/SMALL [yahoo-csv]: 5 row(s) imported |
+
+  Rule: volume_raw_source
+    # r2 (raw basis, a collector other than EODHD) has no example: no such
+"""
+new = """
+
+      Examples:
+        | row | log_line |
+        | r5  | ok      SMALL yahoo/SMALL [yahoo-csv]: 5 row(s) loaded |
+
+  Rule: volume_raw_source
+    # r2 (raw basis, a collector other than EODHD) has no example: no such
+"""
+
+[[plant.D4]]
+path = "features/"
+within = "decisions.feature"
+op = "replace"
+old = """
+
+      Examples:
+        | row | log_line |
+        | r3  | ok      SMALL yahoo/SMALL [yahoo-csv]: 5 row(s) imported |
+
+    @JDL-093 @JDL-065
+    Scenario Outline: A collector leg tail-refreshes a filled series
+"""
+new = """
+
+      Examples:
+        | row | log_line |
+        | r3  | ok      SMALL yahoo/SMALL [yahoo-csv]: 5 row(s) loaded |
+
+    @JDL-093 @JDL-065
+    Scenario Outline: A collector leg tail-refreshes a filled series
+"""
+
+[[plant.D4]]
+path = "features/"
+within = "status.feature"
+op = "replace"
+old = """
+      | 2024-03-03T00:30:00Z | 1      | 0  |
+      | 2024-03-04T00:30:00Z | 2      | 1  |
+
+  @JDL-118 @JDL-119
+  Scenario Outline: Zero-volume rows are noted, with the longest contiguous run when it exceeds one row
+    Given the universe file:
+      \"""
+      [[asset]]
+      name = "ZV"
+      asset_class = "crypto"
+
+        [[asset.source]]
+        provider = "eodhd"
+        symbol = "ZV-USD.CC"
+      \"""
+    And the store holds "<csv>" as eodhd/ZV-USD.CC declared crypto
+    When status runs at "2024-01-21T00:30:00Z"
+    Then the status exit code is 0
+    And report 1 has notes:
+      \"""
+      declared class: no vendor classification recorded - run tools/record_classifications.py
+      <note>
+      \"""
+
+    Examples:
+      | csv             | note |
+      | zero_single.csv | 2 zero-volume row(s), dropped at the seam by pinned policy |
+      | zero_runs.csv   | 8 zero-volume row(s), dropped at the seam by pinned policy - largest contiguous run 3, 2024-01-07..2024-01-09 |
+
+  @JDL-120 @JDL-121 @JDL-115
+  Scenario Outline: The largest post-seam gap is counted in expected sessions and noted at the threshold
+    Given the universe file:
+"""
+new = """
+      | 2024-03-03T00:30:00Z | 1      | 0  |
+      | 2024-03-04T00:30:00Z | 2      | 1  |
+
+  @JDL-120 @JDL-121 @JDL-115
+  Scenario Outline: The largest post-seam gap is counted in expected sessions and noted at the threshold
+    Given the universe file:
+"""
+
+[[plant.D4]]
+path = "features/"
+within = "status.feature"
+op = "replace"
+old = """
+    And the splits file of "GAP.US" stamped "2024-03-01T07:00:00Z" with no splits
+    When status runs at "2024-03-01T09:00:00Z" with options "gap_k=<k>"
+    Then the status exit code is 0
+    And report 1 has notes:
+      \"""
+      declared class: no vendor classification recorded - run tools/record_classifications.py
+      1 zero-volume row(s), dropped at the seam by pinned policy
+      <gap note>
+      \"""
+
+"""
+new = """
+    And the splits file of "GAP.US" stamped "2024-03-01T07:00:00Z" with no splits
+    When status runs at "2024-03-01T09:00:00Z" with options "gap_k=<k>"
+    Then the status exit code is 0
+    And report 1 has notes including:
+      \"""
+      declared class: no vendor classification recorded - run tools/record_classifications.py
+      <gap note>
+      \"""
+
+"""
+
+[[plant.D4]]
+path = "features/"
+within = "status.feature"
+op = "replace"
+old = """
+    And the splits file of "IBM.US" stamped "2099-02-01T00:00:00Z" with no splits
+    When I run "jef-data status --universe universe.toml --store {store}"
+    Then the exit code is 1
+    And stdout is:
+      \"""
+      ok       FUT eodhd/FUT-USD.CC: last 2099-03-11, 0 missed, 70 row(s)
+              res   50 distinct / 69 traded, min tick 0.5051%, 0.00% flat
+              note  declared class: no vendor classification recorded - run tools/record_classifications.py
+              note  1 zero-volume row(s), dropped at the seam by pinned policy
+      WARN     IBM eodhd/IBM.US: last 2099-01-30, 0 missed, 22 row(s)
+              WARN  declared class: declared asset_type 'etf' but the vendor says 'Common Stock' (-> 'stock'), recorded 2026-08-30 for eodhd/IBM.US - check the asset_class in universe.toml against docs/EVALUATION_ASSET_CLASSIFICATION.md §5 C2
+      ALERT  EMPTY binance/EMPTYUSDT: last -, - missed, 0 row(s)
+"""
+new = """
+    And the splits file of "IBM.US" stamped "2099-02-01T00:00:00Z" with no splits
+    When I run "jef-data status --universe universe.toml --store {store}"
+    Then the exit code is 1
+    And stdout contains the lines:
+      \"""
+      ok       FUT eodhd/FUT-USD.CC: last 2099-03-11, 0 missed, 70 row(s)
+              res   50 distinct / 69 traded, min tick 0.5051%, 0.00% flat
+              note  declared class: no vendor classification recorded - run tools/record_classifications.py
+      WARN     IBM eodhd/IBM.US: last 2099-01-30, 0 missed, 22 row(s)
+              WARN  declared class: declared asset_type 'etf' but the vendor says 'Common Stock' (-> 'stock'), recorded 2026-08-30 for eodhd/IBM.US - check the asset_class in universe.toml against docs/EVALUATION_ASSET_CLASSIFICATION.md §5 C2
+      ALERT  EMPTY binance/EMPTYUSDT: last -, - missed, 0 row(s)
+"""
+
+[[plant.D4]]
+path = "features/"
+within = "sync.feature"
+op = "replace"
+old = """
+      \"""
+    When sync runs at "2024-03-01T06:00:00Z"
+    Then the run is ok
+    And the detail of leg 1 is "5 row(s) imported"
+    And the stored series yahoo/SMALL equals the expected frame "small_stored"
+
+  @JDL-144 @JDL-089 @JDL-104 @JDL-106
+"""
+new = """
+      \"""
+    When sync runs at "2024-03-01T06:00:00Z"
+    Then the run is ok
+    And the detail of leg 1 is "5 row(s) loaded"
+    And the stored series yahoo/SMALL equals the expected frame "small_stored"
+
+  @JDL-144 @JDL-089 @JDL-104 @JDL-106
+"""
+
+[[plant.D4]]
+path = "features/"
+within = "universe.feature"
+op = "replace"
+old = """
+      | defaults_store | [defaults]: store must be a non-empty string, got '' |
+      | no_assets | universe.toml: no [[asset]] entries |
+      | asset_table | asset #1: must be a table |
+      | asset_key | asset #1: unknown key(s) ['colour']; allowed: ['asset_class', 'currency', 'enabled', 'name', 'source', 'threshold'] |
+      | asset_name | asset #1: missing required key 'name' |
+      | asset_class_missing | asset 'X': missing required key 'asset_class' |
+      | asset_class_bad | asset 'X': unknown asset_class 'forex'; allowed: ['bond_etf', 'crypto', 'stock'] |
+"""
+new = """
+      | defaults_store | [defaults]: store must be a non-empty string, got '' |
+      | no_assets | universe.toml: no [[asset]] entries |
+      | asset_table | asset #1: must be a table |
+      | asset_name | asset #1: missing required key 'name' |
+      | asset_class_missing | asset 'X': missing required key 'asset_class' |
+      | asset_class_bad | asset 'X': unknown asset_class 'forex'; allowed: ['bond_etf', 'crypto', 'stock'] |
+"""
+
+[[plant.D4]]
+path = "features/"
+within = "universe.feature"
+op = "replace"
+old = """
+      | all_off | asset 'X': enabled but has no enabled source - nothing would feed the binning; to pause the asset, set enabled = false on the asset itself |
+      | dupe_name | universe.toml: duplicate asset name(s) ['X'] |
+      | dupe_coord | universe.toml: store series eodhd/X.US is claimed by both 'X' and 'Y' - two assets may never write the same partition |
+      | first_wins | asset #1: unknown key(s) ['colour']; allowed: ['asset_class', 'currency', 'enabled', 'name', 'source', 'threshold'] |
+
+  @JDL-022 @JDL-134
+  Scenario: A universe path that does not exist is an unwrapped error
+"""
+new = """
+      | all_off | asset 'X': enabled but has no enabled source - nothing would feed the binning; to pause the asset, set enabled = false on the asset itself |
+      | dupe_name | universe.toml: duplicate asset name(s) ['X'] |
+      | dupe_coord | universe.toml: store series eodhd/X.US is claimed by both 'X' and 'Y' - two assets may never write the same partition |
+
+  @JDL-012 @JDL-013 @JDL-014 @JDL-015 @JDL-016 @JDL-017 @JDL-018 @JDL-019 @JDL-020 @JDL-021 @JDL-134
+  Scenario Outline: A malformed asset table is refused
+    Given the universe fixture "bad/<file>.toml"
+    When I run "jef-data universe --universe universe.toml"
+    Then the exit code is 1
+    And stdout is empty
+    And stderr contains "universe: asset"
+
+    Examples:
+      | file |
+      | asset_key |
+      | first_wins |
+
+  @JDL-022 @JDL-134
+  Scenario: A universe path that does not exist is an unwrapped error
+"""
+
+# D5: from vendor/recreate_experiment/degradation-2026-10-28/plant/patches/D5.patch; 29 replace(s); dropped (not read by the store): MANIFEST.sha256, features/fixtures/universes/binance.toml, features/fixtures/universes/ns.toml, features/fixtures/universes/pair.toml, features/fixtures/universes/pgs.toml, features/fixtures/universes/plan.toml, features/fixtures/universes/zero.toml, features/steps/conftest.py
+[[plant.D5]]
+path = "contracts/"
+within = "classifications.toml"
+op = "replace"
+old = """
+#
+# It is EVIDENCE, never configuration. Nothing here decides
+# anything: `universe.toml`'s asset_class remains the single
+# source of truth for the end-guard, the price basis, the trading
+# calendar and the stored asset_type. This file can only DISAGREE
+# with that declaration, which is what makes it worth having -
+# TLT is declared `bond_etf` today because inference once called
+"""
+new = """
+#
+# It is EVIDENCE, never configuration. Nothing here decides
+# anything: `universe.toml`'s asset_class remains the single
+# source of truth for the price basis, the trading
+# calendar and the stored asset_type. This file can only DISAGREE
+# with that declaration, which is what makes it worth having -
+# TLT is declared `bond_etf` today because inference once called
+"""
+
+[[plant.D5]]
+path = "contracts/"
+within = "cli.md"
+op = "replace"
+old = """
+[--summary-json PATH]`
+
+* `--universe` default: the packaged universe; `--store` default: the
+  universe's `defaults.store`; `--asset`/`--provider` repeatable filters.
+* Output: the run log (requirement JDL-103) or the dry-run plan
+  (JDL-104, JDL-105). Example (real run):
+
+"""
+new = """
+[--summary-json PATH]`
+
+* `--universe` default: the packaged universe; `--store` default: the
+  universe's `defaults.store`; `--provider` a repeatable filter, `--asset`
+  repeatable.
+* Output: the run log (requirement JDL-103) or the dry-run plan
+  (JDL-104, JDL-105). Example (real run):
+
+"""
+
+[[plant.D5]]
+path = "contracts/"
+within = "cli.md"
+op = "replace"
+old = """
+plan for store 'dstore' (4 leg(s)):
+    CSVA yahoo/CSVA: import t.csv (whole file, idempotent)
+      EQ eodhd/EQ.US: sync-actions + load (first fill from 2024-01-02 to 2024-03-01)
+      CC eodhd/CC-USD.CC: load (first fill, full history to 2026-10-22)
+      CC binance/CCUSDT: load (first fill, full history to 2026-10-22)
+```
+
+* `--summary-json PATH`: after the run returns (green, red or dry run), write
+"""
+new = """
+plan for store 'dstore' (4 leg(s)):
+    CSVA yahoo/CSVA: import t.csv (whole file, idempotent)
+      EQ eodhd/EQ.US: sync-actions + load (first fill from 2024-01-02 to 2024-03-01)
+      CC eodhd/CC-USD.CC: load (first fill, full history)
+      CC binance/CCUSDT: load (first fill, full history)
+```
+
+* `--summary-json PATH`: after the run returns (green, red or dry run), write
+"""
+
+[[plant.D5]]
+path = "contracts/dmn/"
+within = "sync_window.dmn"
+op = "replace"
+old = """
+          <text>"universe_end", "today_minus_1", "min_universe_end_today_minus_1", "open"</text>
+        </outputValues>
+      </output>
+      <rule id="fetch_end_r1">
+        <description>JDL-094: ISO-string minimum</description>
+        <inputEntry id="fetch_end_r1_i0">
+          <text>true</text>
+        </inputEntry>
+        <inputEntry id="fetch_end_r1_i1">
+          <text>true</text>
+        </inputEntry>
+        <outputEntry id="fetch_end_r1_o0">
+          <text>"min_universe_end_today_minus_1"</text>
+        </outputEntry>
+      </rule>
+      <rule id="fetch_end_r2">
+        <description>JDL-094 end-guard, any provider</description>
+        <inputEntry id="fetch_end_r2_i0">
+          <text>true</text>
+        </inputEntry>
+        <inputEntry id="fetch_end_r2_i1">
+          <text>false</text>
+        </inputEntry>
+        <outputEntry id="fetch_end_r2_o0">
+          <text>"today_minus_1"</text>
+        </outputEntry>
+      </rule>
+      <rule id="fetch_end_r3">
+        <description>JDL-094: end caps every fetch</description>
+        <inputEntry id="fetch_end_r3_i0">
+"""
+new = """
+          <text>"universe_end", "today_minus_1", "min_universe_end_today_minus_1", "open"</text>
+        </outputValues>
+      </output>
+      <rule id="fetch_end_r3">
+        <description>JDL-094: end caps every fetch</description>
+        <inputEntry id="fetch_end_r3_i0">
+"""
+
+[[plant.D5]]
+path = "contracts/"
+within = "glossary.md"
+op = "replace"
+old = """
+| transport | The HTTP layer under a collector: `request(method, url, params) -> (status, text)`; live, or a replay of recorded fixtures. | collectors.md, fixtures.md |
+| fixture | A recorded request/response file the replay transport serves instead of the network; `fixtures/http/<set>/`. | fixtures.md |
+| replay | Running a collector over recorded fixtures; a request with no fixture is a CollectorError. | fixtures.md §5 |
+| declared asset_type | The store's instrument type derived from the asset's `asset_class` (`stock -> stock`, `bond_etf -> etf`, `crypto -> crypto`), or `--asset-type` for `load`; decides basis, actions eligibility and the end-guard, never the symbol suffix. | adjustment.md §1, JDL-086 |
+| basis | Short for price_basis, below. | adjustment.md §1 |
+| price_basis | How a series' prices are stored: `raw` (as served, split-adjusted on read-back by the stored splits) or `split_adjusted` (already adjusted at the provider; never re-adjusted). | adjustment.md §1 |
+| volume basis | Whether the collector serves volume raw or split-adjusted; decides whether `volume_raw` is the served volume or the served volume divided by the cumulative split factor. | adjustment.md §2 |
+"""
+new = """
+| transport | The HTTP layer under a collector: `request(method, url, params) -> (status, text)`; live, or a replay of recorded fixtures. | collectors.md, fixtures.md |
+| fixture | A recorded request/response file the replay transport serves instead of the network; `fixtures/http/<set>/`. | fixtures.md |
+| replay | Running a collector over recorded fixtures; a request with no fixture is a CollectorError. | fixtures.md §5 |
+| declared asset_type | The store's instrument type derived from the asset's `asset_class` (`stock -> stock`, `bond_etf -> etf`, `crypto -> crypto`), or `--asset-type` for `load`; decides basis and actions eligibility, never the symbol suffix. | adjustment.md §1, JDL-086 |
+| basis | Short for price_basis, below. | adjustment.md §1 |
+| price_basis | How a series' prices are stored: `raw` (as served, split-adjusted on read-back by the stored splits) or `split_adjusted` (already adjusted at the provider; never re-adjusted). | adjustment.md §1 |
+| volume basis | Whether the collector serves volume raw or split-adjusted; decides whether `volume_raw` is the served volume or the served volume divided by the cumulative split factor. | adjustment.md §2 |
+"""
+
+[[plant.D5]]
+path = "contracts/"
+within = "glossary.md"
+op = "replace"
+old = """
+| actions-eligible | A leg whose provider is `eodhd` and whose declared asset_type is not `crypto`; only such legs sync and check corporate actions. | JDL-086 |
+| actions gate | The once-per-UTC-day decision to refresh an eligible leg's actions: forced, no stamp, or a stamp dated before today. | JDL-091, dmn/actions_gate.dmn |
+| run clock | The real current UTC time, or the `now` a harness injects; read once at the start of a run. | JDL-088 |
+| today | The UTC calendar date of the run clock, taken once per run and used by the end-guard, the actions gate and the today-dated check. | JDL-088 |
+| end-guard | For a leg whose declared asset_type is crypto, the fetch end `today - 1 day`, so the in-progress UTC day is never ingested. | JDL-094 |
+| window | A leg's fetch window: start (universe start, open, or the tail) to end (universe end, end-guard, or open). | JDL-093, JDL-094, dmn/sync_window.dmn |
+| first fill | The fetch of a leg whose series is absent: from the universe start (or open) to the end. | JDL-093, JDL-105 |
+| tail | `--tail N` (default 10): the newest N stored sessions of a filled series; the fetch of such a series starts at the oldest of them. | JDL-093, store.md §5 |
+| tail refresh | The sync of a filled collector leg: fetch from the tail's oldest session to the end and reconcile the served rows. | JDL-093, JDL-105 |
+"""
+new = """
+| actions-eligible | A leg whose provider is `eodhd` and whose declared asset_type is not `crypto`; only such legs sync and check corporate actions. | JDL-086 |
+| actions gate | The once-per-UTC-day decision to refresh an eligible leg's actions: forced, no stamp, or a stamp dated before today. | JDL-091, dmn/actions_gate.dmn |
+| run clock | The real current UTC time, or the `now` a harness injects; read once at the start of a run. | JDL-088 |
+| today | The UTC calendar date of the run clock, taken once per run and used by the actions gate and the today-dated check. | JDL-088 |
+| window | A leg's fetch window: start (universe start, open, or the tail) to end (universe end, or open). | JDL-093, JDL-094, dmn/sync_window.dmn |
+| first fill | The fetch of a leg whose series is absent: from the universe start (or open) to the end. | JDL-093, JDL-105 |
+| tail | `--tail N` (default 10): the newest N stored sessions of a filled series; the fetch of such a series starts at the oldest of them. | JDL-093, store.md §5 |
+| tail refresh | The sync of a filled collector leg: fetch from the tail's oldest session to the end and reconcile the served rows. | JDL-093, JDL-105 |
+"""
+
+[[plant.D5]]
+path = "contracts/"
+within = "leg.md"
+op = "replace"
+old = """
+
+`select_legs(universe, assets=None, providers=None)` (harness interface)
+returns the legs in order (requirement JDL-084): for each enabled asset
+in universe order, for each enabled source in source order, skipping assets
+outside the asset filter and sources outside the provider filter. Filter
+refusals: JDL-085. Each leg is a dict with exactly these keys:
+
+| key | type | derivation |
+|---|---|---|
+"""
+new = """
+
+`select_legs(universe, assets=None, providers=None)` (harness interface)
+returns the legs in order (requirement JDL-084): for each enabled asset
+in universe order, for each enabled source in source order, skipping sources
+outside the provider filter. Filter refusals: JDL-085. Each leg is a dict with exactly these keys:
+
+| key | type | derivation |
+|---|---|---|
+"""
+
+[[plant.D5]]
+path = "contracts/"
+within = "leg.md"
+op = "replace"
+old = """
+  is the bare message of refusals.md (no `sync: ` / `status: ` prefix, which
+  only the command line adds).
+* `run_sync(..., now=...)`: `now` replaces the run clock (today = its UTC
+  date) for the window, the end-guard, the actions gate and the today-dated
+  check; it does NOT reach the corporate-actions stamp, which is always the
+  real wall clock (requirement JDL-043). `out` receives exactly the lines
+  the command prints (requirement JDL-103, JDL-104).
+"""
+new = """
+  is the bare message of refusals.md (no `sync: ` / `status: ` prefix, which
+  only the command line adds).
+* `run_sync(..., now=...)`: `now` replaces the run clock (today = its UTC
+  date) for the window, the actions gate and the today-dated
+  check; it does NOT reach the corporate-actions stamp, which is always the
+  real wall clock (requirement JDL-043). `out` receives exactly the lines
+  the command prints (requirement JDL-103, JDL-104).
+"""
+
+[[plant.D5]]
+path = "contracts/"
+within = "universe.toml"
+op = "replace"
+old = """
+# `start` is a FIRST-FILL floor only - once a series exists, `jef-data sync`
+# tail-refreshes the newest stored sessions and never reads `start` again -
+# while `end` is a PERSISTENT cap on every fetch, first fill and tail
+# refresh alike, `min`-ed with the crypto end-guard: a pinned window
+# (docs/DATA_CONTRACT.md SS7 item 10). Volume units differ BY SOURCE for crypto (Binance reports
+# base-asset volume, EODHD/Yahoo notional); each series is internally
+# consistent and the binning's volume features are ratios, so the unit
+"""
+new = """
+# `start` is a FIRST-FILL floor only - once a series exists, `jef-data sync`
+# tail-refreshes the newest stored sessions and never reads `start` again -
+# while `end` is a PERSISTENT cap on every fetch, first fill and tail
+# refresh alike: a pinned window
+# (docs/DATA_CONTRACT.md SS7 item 10). Volume units differ BY SOURCE for crypto (Binance reports
+# base-asset volume, EODHD/Yahoo notional); each series is internally
+# consistent and the binning's volume features are ratios, so the unit
+"""
+
+[[plant.D5]]
+path = "contracts/"
+within = "universe.toml.md"
+op = "replace"
+old = """
+
+`jef-data universe` prints, per asset, `{name} ({asset_class}, {currency},
+threshold {threshold})` (threshold as Python float text, e.g. `-0.05`,
+`-1.0`) plus ` [disabled]`; then per source `  {provider}: {path or symbol}`
+plus ` [disabled]` plus ` - {note}`. The packaged universe prints:
+
+```
+"""
+new = """
+
+`jef-data universe` prints, per asset, `{name} ({asset_class}, {currency},
+threshold {threshold})` (threshold as Python float text, e.g. `-0.05`,
+`-1.0`); then per source `  {provider}: {path or symbol}`
+plus ` [disabled]` plus ` - {note}`. The packaged universe prints:
+
+```
+"""
+
+[[plant.D5]]
+path = "features/"
+within = "adjustment.feature"
+op = "replace"
+old = """
+      | 2024-03-28 | adjusted_close    | 96.9               |
+
+  @JDL-055 @JDL-053 @JDL-094
+  Scenario: An EODHD crypto series is stored as served, end-guarded at the previous UTC day
+    Given the universe fixture "zero.toml"
+    And the "eodhd" provider replays "zero/run1"
+    When sync runs at "2024-02-10T08:00:00Z"
+"""
+new = """
+      | 2024-03-28 | adjusted_close    | 96.9               |
+
+  @JDL-055 @JDL-053 @JDL-094
+  Scenario: An EODHD crypto series is stored as served
+    Given the universe fixture "zero.toml"
+    And the "eodhd" provider replays "zero/run1"
+    When sync runs at "2024-02-10T08:00:00Z"
+"""
+
+[[plant.D5]]
+path = "features/"
+within = "adjustment.feature"
+op = "replace"
+old = """
+      | 2024-02-09 | close      | 1.64   |
+
+  @JDL-053 @JDL-086 @JDL-094 @JDL-084
+  Scenario: The declared class, never the .CC suffix, decides basis, actions and guard
+    Given the universe fixture "ns.toml"
+    And the "eodhd" provider replays "ns"
+    When the legs are selected
+    Then the legs are:
+      \"""
+      [{"asset": "WEIRD", "provider": "eodhd", "exchange": "eodhd", "symbol": "WEIRD.XX", "path": null,
+        "asset_type": "crypto", "currency": "USD", "start": null, "end": null, "actions": false},
+       {"asset": "CCSTK", "provider": "eodhd", "exchange": "eodhd", "symbol": "CCSTK-USD.CC", "path": null,
+        "asset_type": "stock", "currency": "USD", "start": null, "end": null, "actions": true}]
+      \"""
+"""
+new = """
+      | 2024-02-09 | close      | 1.64   |
+
+  @JDL-053 @JDL-086 @JDL-094 @JDL-084
+  Scenario: The declared class, never the .CC suffix, decides basis and actions
+    Given the universe fixture "ns.toml"
+    And the "eodhd" provider replays "ns"
+    When the legs are selected
+    Then the legs are:
+      \"""
+      [{"asset": "WEIRD", "provider": "eodhd", "exchange": "eodhd", "symbol": "WEIRD.XX", "path": null,
+        "asset_type": "crypto", "currency": "USD", "start": null, "end": "2024-05-10", "actions": false},
+       {"asset": "CCSTK", "provider": "eodhd", "exchange": "eodhd", "symbol": "CCSTK-USD.CC", "path": null,
+        "asset_type": "stock", "currency": "USD", "start": null, "end": null, "actions": true}]
+      \"""
+"""
+
+[[plant.D5]]
+path = "features/"
+within = "collectors.feature"
+op = "replace"
+old = """
+  Scenario Outline: A bar endpoint answering something other than a JSON list fails the leg
+    Given the universe fixture "<universe>"
+    And the "<provider>" provider replays "<set>"
+    When sync runs at "<now>" with options "assets=<asset>"
+    Then leg 1 failed
+    And the detail of leg 1 is "<detail>"
+
+    Examples:
+      | universe     | provider | set             | now                  | asset | detail |
+      | splt.toml    | eodhd    | splt/notlist    | 2024-02-13T12:00:00Z | SPLT  | CollectorError: eod SPLT.US: expected a JSON list |
+      | binance.toml | binance  | binance_notlist | 2024-07-01T00:30:00Z | LIM   | CollectorError: klines LIMUSDT: expected a JSON list |
+
+  @JDL-033
+  Scenario Outline: A split string that is not NEW/OLD fails the leg
+"""
+new = """
+  Scenario Outline: A bar endpoint answering something other than a JSON list fails the leg
+    Given the universe fixture "<universe>"
+    And the "<provider>" provider replays "<set>"
+    When sync runs at "<now>"
+    Then leg 1 failed
+    And the detail of leg 1 is "<detail>"
+
+    Examples:
+      | universe     | provider | set             | now                  | detail |
+      | splt.toml    | eodhd    | splt/notlist    | 2024-02-13T12:00:00Z | CollectorError: eod SPLT.US: expected a JSON list |
+      | binance.toml | binance  | binance_notlist | 2024-07-01T00:30:00Z | CollectorError: klines LIMUSDT: expected a JSON list |
+
+  @JDL-033
+  Scenario Outline: A split string that is not NEW/OLD fails the leg
+"""
+
+[[plant.D5]]
+path = "features/"
+within = "collectors.feature"
+op = "replace"
+old = """
+
+  @JDL-038
+  Scenario: Binance pages ascending from the declared start until a short page
+    Given the universe fixture "binance.toml"
+    And the "binance" provider replays "binance"
+    When sync runs at "2024-01-16T00:30:00Z" with options "assets=PGS"
+    Then the run is ok
+    And the detail of leg 1 is "1110 bar(s), 0 revised cell(s)"
+    And the stored cells of binance/PGSUSDT are:
+"""
+new = """
+
+  @JDL-038
+  Scenario: Binance pages ascending from the declared start until a short page
+    Given the universe fixture "pgs.toml"
+    And the "binance" provider replays "binance"
+    When sync runs at "2024-01-16T00:30:00Z"
+    Then the run is ok
+    And the detail of leg 1 is "1110 bar(s), 0 revised cell(s)"
+    And the stored cells of binance/PGSUSDT are:
+"""
+
+[[plant.D5]]
+path = "features/"
+within = "collectors.feature"
+op = "replace"
+old = """
+  Scenario: A first fill without a start that lands on the page limit says it is a trailing window
+    Given the universe fixture "binance.toml"
+    And the "binance" provider replays "binance"
+    When sync runs at "2024-07-01T00:30:00Z" with options "assets=LIM"
+    Then the run is ok
+    And the detail of leg 1 is "first fill hit the provider page limit (1000 bars, no start declared) - the series is a trailing window, not history; 1000 bar(s), 0 revised cell(s)"
+    And the stored series binance/LIMUSDT has 1000 rows
+"""
+new = """
+  Scenario: A first fill without a start that lands on the page limit says it is a trailing window
+    Given the universe fixture "binance.toml"
+    And the "binance" provider replays "binance"
+    When sync runs at "2024-07-01T00:30:00Z"
+    Then the run is ok
+    And the detail of leg 1 is "first fill hit the provider page limit (1000 bars, no start declared) - the series is a trailing window, not history; 1000 bar(s), 0 revised cell(s)"
+    And the stored series binance/LIMUSDT has 1000 rows
+"""
+
+[[plant.D5]]
+path = "features/"
+within = "decisions.feature"
+op = "replace"
+old = """
+  Rule: fetch_end
+
+    @JDL-094 @JDL-105
+    Scenario Outline: The fetch end is the ISO minimum of the universe end and the crypto end-guard
+      Given the universe fixture "<universe>"
+      When sync runs at "2024-02-10T08:00:00Z" with options "dry_run=true"
+      Then the sync log is:
+"""
+new = """
+  Rule: fetch_end
+
+    @JDL-094 @JDL-105
+    Scenario Outline: The fetch end is the universe end, or open
+      Given the universe fixture "<universe>"
+      When sync runs at "2024-02-10T08:00:00Z" with options "dry_run=true"
+      Then the sync log is:
+"""
+
+[[plant.D5]]
+path = "features/"
+within = "decisions.feature"
+op = "replace"
+old = """
+
+      Examples:
+        | row | universe      | plan |
+        | r1  | zero_end.toml | ZERO eodhd/ZERO-USD.CC: load (first fill from 2024-01-01 to 2024-01-20) |
+        | r2  | zero.toml     | ZERO eodhd/ZERO-USD.CC: load (first fill from 2024-01-01 to 2024-02-09) |
+        | r3  | splt_end.toml | SPLT eodhd/SPLT.US: sync-actions + load (first fill from 2024-01-02 to 2024-01-19) |
+        | r4  | divy.toml     | DIVY eodhd/DIVY.US: sync-actions + load (first fill, full history) |
+
+"""
+new = """
+
+      Examples:
+        | row | universe      | plan |
+        | r3  | splt_end.toml | SPLT eodhd/SPLT.US: sync-actions + load (first fill from 2024-01-02 to 2024-01-19) |
+        | r4  | divy.toml     | DIVY eodhd/DIVY.US: sync-actions + load (first fill, full history) |
+
+"""
+
+[[plant.D5]]
+path = "features/"
+within = "decisions.feature"
+op = "replace"
+old = """
+
+    # dmn-row: r3
+    @JDL-095
+    Scenario: An empty series sends its request even when the end-guard falls before the declared start
+      Given the universe fixture "zero.toml"
+      And the "eodhd" provider replays "zero/run1"
+      When sync runs at "2023-12-25T08:00:00Z"
+      Then the run is not ok
+"""
+new = """
+
+    # dmn-row: r3
+    @JDL-095
+    Scenario: An empty series sends its request
+      Given the universe fixture "zero_end.toml"
+      And the "eodhd" provider replays "zero/run1"
+      When sync runs at "2023-12-25T08:00:00Z"
+      Then the run is not ok
+"""
+
+[[plant.D5]]
+path = "features/"
+within = "sync.feature"
+op = "replace"
+old = """
+      \"""
+
+  @JDL-084
+  Scenario: Asset and provider filters keep universe order and skip paused assets and switched-off sources
+    Given the packaged universe
+    When the legs are selected with options "assets=TLT|BTC, providers=binance|eodhd"
+    Then the legs are:
+      \"""
+      [{"asset": "BTC", "provider": "eodhd", "exchange": "eodhd", "symbol": "BTC-USD.CC", "path": null, "asset_type": "crypto", "currency": "USD", "start": null, "end": null, "actions": false},
+       {"asset": "BTC", "provider": "binance", "exchange": "binance", "symbol": "BTCUSDT", "path": null, "asset_type": "crypto", "currency": "USD", "start": "2017-08-01", "end": null, "actions": false},
+       {"asset": "TLT", "provider": "eodhd", "exchange": "eodhd", "symbol": "TLT.US", "path": null, "asset_type": "etf", "currency": "USD", "start": null, "end": null, "actions": true}]
+      \"""
+    Given the universe fixture "paused.toml"
+    When the legs are selected
+"""
+new = """
+      \"""
+
+  @JDL-084
+  Scenario: The provider filter keeps universe order and skips paused assets and switched-off sources
+    Given the packaged universe
+    When the legs are selected with options "providers=binance|eodhd"
+    Then the legs are:
+      \"""
+      [{"asset": "AAPL", "provider": "eodhd", "exchange": "eodhd", "symbol": "AAPL.US", "path": null, "asset_type": "stock", "currency": "USD", "start": null, "end": null, "actions": true},
+       {"asset": "BTC", "provider": "eodhd", "exchange": "eodhd", "symbol": "BTC-USD.CC", "path": null, "asset_type": "crypto", "currency": "USD", "start": null, "end": null, "actions": false},
+       {"asset": "BTC", "provider": "binance", "exchange": "binance", "symbol": "BTCUSDT", "path": null, "asset_type": "crypto", "currency": "USD", "start": "2017-08-01", "end": null, "actions": false},
+       {"asset": "TLT", "provider": "eodhd", "exchange": "eodhd", "symbol": "TLT.US", "path": null, "asset_type": "etf", "currency": "USD", "start": null, "end": null, "actions": true},
+       {"asset": "NVDA", "provider": "eodhd", "exchange": "eodhd", "symbol": "NVDA.US", "path": null, "asset_type": "stock", "currency": "USD", "start": null, "end": null, "actions": true},
+       {"asset": "TSLA", "provider": "eodhd", "exchange": "eodhd", "symbol": "TSLA.US", "path": null, "asset_type": "stock", "currency": "USD", "start": null, "end": null, "actions": true},
+       {"asset": "IBM", "provider": "eodhd", "exchange": "eodhd", "symbol": "IBM.US", "path": null, "asset_type": "stock", "currency": "USD", "start": null, "end": null, "actions": true}]
+      \"""
+    Given the universe fixture "paused.toml"
+    When the legs are selected
+"""
+
+[[plant.D5]]
+path = "features/"
+within = "sync.feature"
+op = "replace"
+old = """
+      | status  | --asset SPLT --asset NOPE | unknown asset 'NOPE'; universe has ['GONE', 'SPLT'] |
+      | sync    | --provider yahoo          | unknown provider 'yahoo'; allowed: ['eodhd', 'binance', 'yahoo-csv'] |
+      | status  | --asset NOPE --provider x | unknown asset 'NOPE'; universe has ['GONE', 'SPLT'] |
+      | sync    | --asset GONE              | selection matched no enabled asset/source legs |
+      | status  | --provider binance        | selection matched no enabled asset/source legs |
+      | sync    | --tail 0 --asset NOPE     | tail must be >= 1 session, got 0 |
+
+  @JDL-094 @JDL-098 @JDL-088
+  Scenario Outline: A universe end caps the first fill, and wins the minimum against the crypto end-guard
+    Given the universe fixture "<universe>"
+    And the "eodhd" provider replays "<set>"
+    When sync runs at "<now>"
+"""
+new = """
+      | status  | --asset SPLT --asset NOPE | unknown asset 'NOPE'; universe has ['GONE', 'SPLT'] |
+      | sync    | --provider yahoo          | unknown provider 'yahoo'; allowed: ['eodhd', 'binance', 'yahoo-csv'] |
+      | status  | --asset NOPE --provider x | unknown asset 'NOPE'; universe has ['GONE', 'SPLT'] |
+      | sync    | --provider binance        | selection matched no enabled asset/source legs |
+      | status  | --provider binance        | selection matched no enabled asset/source legs |
+      | sync    | --tail 0 --asset NOPE     | tail must be >= 1 session, got 0 |
+
+  @JDL-094 @JDL-098 @JDL-088
+  Scenario Outline: A universe end caps the first fill
+    Given the universe fixture "<universe>"
+    And the "eodhd" provider replays "<set>"
+    When sync runs at "<now>"
+"""
+
+[[plant.D5]]
+path = "features/"
+within = "universe.feature"
+op = "replace"
+old = """
+      \"""
+
+  @JDL-136 @JDL-010
+  Scenario: The listing marks paused assets, switched-off sources and notes
+    Given the universe fixture "paused.toml"
+    When I run "jef-data universe --universe universe.toml"
+    Then the exit code is 0
+    And stdout is:
+      \"""
+      SPLT (stock, USD, threshold -0.05)
+        eodhd: SPLT.US
+        yahoo-csv: snap/splt.csv [disabled] - an old snapshot
+      GONE (stock, USD, threshold -0.05) [disabled]
+        eodhd: GONE.US
+        binance: GONEUSDT
+      \"""
+"""
+new = """
+      \"""
+
+  @JDL-136 @JDL-010
+  Scenario: The listing marks switched-off sources and notes
+    Given the universe fixture "paused.toml"
+    When I run "jef-data universe --universe universe.toml"
+    Then the exit code is 0
+    And stdout contains the lines:
+      \"""
+      SPLT (stock, USD, threshold -0.05)
+        eodhd: SPLT.US
+        yahoo-csv: snap/splt.csv [disabled] - an old snapshot
+        eodhd: GONE.US
+        binance: GONEUSDT
+      \"""
+"""
+
+[[plant.D5]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-084",
+  "kind": "ritual",
+  "statement": "The sync and status commands shall select legs as every enabled asset (universe order) x every enabled source of it (source order), keeping only assets named by the asset filter and sources whose provider is in the provider filter when those filters are given; each leg carries the keys and derivations of contracts/leg.md.",
+  "basis": "both"
+ },
+ {
+"""
+new = """
+ {
+  "id": "JDL-084",
+  "kind": "ritual",
+  "statement": "The sync and status commands shall select legs as every enabled asset (universe order) x every enabled source of it (source order), keeping only sources whose provider is in the provider filter when that filter is given; each leg carries the keys and derivations of contracts/leg.md.",
+  "basis": "both"
+ },
+ {
+"""
+
+[[plant.D5]]
+path = "requirements.json"
+op = "replace"
+old = """
+  "kind": "ritual",
+  "statement": "A leg shall be actions-eligible exactly when its provider is `eodhd` and its DECLARED asset_type is not `crypto`, whatever the symbol suffix (a `.CC` symbol declared stock is eligible; an EODHD symbol outside `.CC` declared crypto is not).",
+  "basis": "both",
+  "rationale": "eligibility reads the declared class, like the end-guard and the basis; a .CC symbol declared non-crypto is a mis-declaration whose fix is the declaration"
+ },
+ {
+  "id": "JDL-087",
+"""
+new = """
+  "kind": "ritual",
+  "statement": "A leg shall be actions-eligible exactly when its provider is `eodhd` and its DECLARED asset_type is not `crypto`, whatever the symbol suffix (a `.CC` symbol declared stock is eligible; an EODHD symbol outside `.CC` declared crypto is not).",
+  "basis": "both",
+  "rationale": "eligibility reads the declared class, like the basis; a .CC symbol declared non-crypto is a mis-declaration whose fix is the declaration"
+ },
+ {
+  "id": "JDL-087",
+"""
+
+[[plant.D5]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-088",
+  "kind": "ritual",
+  "statement": "The sync shall take `today` as the UTC calendar date of the run clock (the real current UTC time unless a clock is injected) once at the start of the run, and use it for the crypto end-guard, the actions gate and the today-dated-bar check of every leg.",
+  "basis": "both"
+ },
+ {
+"""
+new = """
+ {
+  "id": "JDL-088",
+  "kind": "ritual",
+  "statement": "The sync shall take `today` as the UTC calendar date of the run clock (the real current UTC time unless a clock is injected) once at the start of the run, and use it for the actions gate and the today-dated-bar check of every leg.",
+  "basis": "both"
+ },
+ {
+"""
+
+[[plant.D5]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-094",
+  "kind": "arithmetic",
+  "statement": "The fetch end of a collector leg shall be the earlier (ISO string minimum) of the universe `end` and, for a leg whose DECLARED asset_type is crypto (any provider), the end-guard `today - 1 day`; with neither, the fetch is open-ended; the universe `end` caps every fetch, first fill and tail refresh alike.",
+  "basis": "both",
+  "rationale": "the provider serves the in-progress UTC day; the guard keys on the declared class because a union of provider and suffix tests silently lost the guard for a crypto leg matching neither"
+ },
+ {
+  "id": "JDL-095",
+"""
+new = """
+ {
+  "id": "JDL-094",
+  "kind": "arithmetic",
+  "statement": "The fetch end of a collector leg shall be the universe `end`; without one, the fetch is open-ended; the universe `end` caps every fetch, first fill and tail refresh alike.",
+  "basis": "both"
+ },
+ {
+  "id": "JDL-095",
+"""
+
+[[plant.D5]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-100",
+  "kind": "ritual",
+  "statement": "A binance leg shall never sync corporate actions and shall store price_basis `split_adjusted` with volume basis `raw`, whatever its asset's declared class; whether it is end-guarded follows JDL-094 (the declared class).",
+  "basis": "both"
+ },
+ {
+"""
+new = """
+ {
+  "id": "JDL-100",
+  "kind": "ritual",
+  "statement": "A binance leg shall never sync corporate actions and shall store price_basis `split_adjusted` with volume basis `raw`, whatever its asset's declared class.",
+  "basis": "both"
+ },
+ {
+"""
+
+[[plant.D5]]
+path = "requirements.json"
+op = "replace"
+old = """
+ {
+  "id": "JDL-136",
+  "kind": "cli",
+  "statement": "`universe [--universe PATH]` shall print, per asset, `{name} ({asset_class}, {currency}, threshold {threshold as float})` plus ` [disabled]` for a disabled asset, then per source `  {provider}: {path or symbol}` plus ` [disabled]` for a disabled source plus ` - {note}` when a note exists, and exit 0.",
+  "basis": "logic"
+ },
+ {
+"""
+new = """
+ {
+  "id": "JDL-136",
+  "kind": "cli",
+  "statement": "`universe [--universe PATH]` shall print, per asset, `{name} ({asset_class}, {currency}, threshold {threshold as float})`, then per source `  {provider}: {path or symbol}` plus ` [disabled]` for a disabled source plus ` - {note}` when a note exists, and exit 0.",
+  "basis": "logic"
+ },
+ {
+"""
+
+[[plant.D5]]
+path = "uml/"
+within = "sync_leg.puml"
+op = "replace"
+old = """
+  window (JDL-093, JDL-094):
+  start = universe start while the series is empty,
+  else the oldest of the newest tail stored dates;
+  end = min(universe end, today - 1 day when the DECLARED class is crypto)
+end note
+opt leg is actions-eligible: provider eodhd and declared asset_type is not crypto
+  SyncRunner -> ActionsStore : last_updated(symbol)
+"""
+new = """
+  window (JDL-093, JDL-094):
+  start = universe start while the series is empty,
+  else the oldest of the newest tail stored dates;
+  end = universe end
+end note
+opt leg is actions-eligible: provider eodhd and declared asset_type is not crypto
+  SyncRunner -> ActionsStore : last_updated(symbol)
+"""
+
+[[plant.D5]]
+path = "uml/"
+within = "sync_run.puml"
+op = "replace"
+old = """
+note right of SyncRunner
+  tail >= 1 checked first (JDL-087); today = UTC date of the run clock (JDL-088);
+  store = --store or defaults.store (JDL-089); legs = enabled asset x enabled source,
+  filtered, in universe order (JDL-084); bad filter or empty selection is a SyncError (JDL-085)
+end note
+alt dry run
+  SyncRunner -> ParquetStore : recent_dates(exchange, symbol, tail)
+"""
+new = """
+note right of SyncRunner
+  tail >= 1 checked first (JDL-087); today = UTC date of the run clock (JDL-088);
+  store = --store or defaults.store (JDL-089); legs = enabled asset x enabled source,
+  filtered by provider, in universe order (JDL-084); bad filter or empty selection is a SyncError (JDL-085)
+end note
+alt dry run
+  SyncRunner -> ParquetStore : recent_dates(exchange, symbol, tail)
+"""

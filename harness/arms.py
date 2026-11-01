@@ -57,8 +57,9 @@ def endpoint() -> dict:
 
 
 def enabled() -> bool:
-    """True only when the named key variable holds a value: no key, no call, nothing sent."""
-    return endpoint()["key_set"]
+    """True only when the named key variable holds a value and the subject declares an oracle to
+    grade a reply: no key, no call, nothing sent; no oracle, nothing to grade, the arms stay off."""
+    return endpoint()["key_set"] and SUBJECT.oracle_script() is not None
 
 
 def policy() -> str:

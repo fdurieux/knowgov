@@ -1,7 +1,8 @@
 name: harness
 
 # The deterministic half without a database: the rdflib adapter in memory, S1 to S7 against the
-# vendored record through the comparator, then the minimal subject. Needs the Python pins the
+# vendored record through the comparator, then the J-F subject against its record, then the
+# minimal subject. Needs the Python pins the
 # image installs, no Neo4j. The stack job (demo.yml) is the Neo4j adapter's proof.
 
 on:
@@ -25,6 +26,10 @@ jobs:
         run: |
           cd harness && KG_STORE=rdflib python run.py --deterministic --out ../runs/rdflib && cd ..
           python demo/tools/compare_deterministic.py runs/rdflib
+      - name: The J-F data-load subject, C and D1 to D5, matches its record (D1 skipped across store kinds)
+        run: |
+          cd harness && KG_STORE=rdflib KG_SUBJECT=../subjects/jef_data_load python run.py --deterministic --out ../runs/jef && cd ..
+          KG_SUBJECT=subjects/jef_data_load python demo/tools/compare_deterministic.py runs/jef
       - name: The minimal subject loads and the gate reports every required key absent
         run: |
           cd harness && KG_STORE=rdflib KG_SUBJECT=../subjects/minimal python run.py --deterministic --out ../runs/minimal && cd ..

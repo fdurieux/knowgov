@@ -147,6 +147,8 @@ async function loadScenarios() {
   const j = await api('/api/scenarios');
   STATE.scenarios = j.scenarios; STATE.store = j.store; STATE.armsEnabled = j.arms_enabled; STATE.detEnabled = j.deterministic_enabled; STATE.run = j.run;
   STATE.recordModel = j.record_model; STATE.otherModel = j.default_other_model; STATE.endpoint = j.model_endpoint || null;
+  if (j.page && j.page.title) { document.querySelector('header h1').textContent = j.page.title; document.title = j.page.title; }
+  if (j.page && j.page.subtitle) document.querySelector('header .sub').innerHTML = j.page.subtitle;
   renderToggle(j.arms_model_preset);
   renderChips(); renderMenu(); renderStore();
   renderRegisterCard().catch(e => { STATE.register = { error: e.message }; renderMenu(); });

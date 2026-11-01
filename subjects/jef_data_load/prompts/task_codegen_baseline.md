@@ -1,0 +1,2 @@
+Rebuild the `jef.data` market-data program so that every stored number, every verdict and every exit code matches the kit below: the requirements (JDL-001 to JDL-163), the contracts, the decision tables, the diagrams and the acceptance suite. When two documents disagree, the kit's precedence rule applies: the suite, then the requirements, then the contracts, then the tables and glossary, then the diagrams; report the disagreement as an assumption. Write the code as one module. The documents follow.
+

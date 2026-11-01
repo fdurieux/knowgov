@@ -9,6 +9,8 @@ information-level results alone (SHACL §2.1.4, §3.6.1.1).
 
 from __future__ import annotations
 
+from urllib.parse import quote
+
 from pyshacl import validate
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
 
@@ -73,7 +75,7 @@ def project(s) -> Graph:
         en = URIRef(KG[r["e"]])
         g.add((en, RDF.type, KG.Requirement))
         for b in r["by"]:
-            g.add((en, KG.verifiedBy, URIRef(KG[b])))
+            g.add((en, KG.verifiedBy, URIRef(KG[quote(b, safe="")])))
     return g
 
 

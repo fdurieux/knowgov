@@ -22,7 +22,10 @@ change to the harness or the page.
 `subjects/minimal/` is the smallest subject: a manifest with one task and two keys, one scenario,
 no artefacts. The harness loads it and the gate reports both keys absent and BLOCKED. The CI stack
 job runs it. `subjects/cargo_quote/` is the full one: the kit of pumllint's proof of concept, its
-record, its seven scenarios.
+record, its seven scenarios. `subjects/jef_data_load/` is the second: the specification kit of
+pumllint's recreation experiment (J-F's daily asset load reverse-engineered, 163 requirements
+joining five layers), the degradation test's five arms as its scenarios with its patches as the
+plants, and the platform's own deterministic record; no oracle and no arms yet.
 
 ## `subject.toml`
 
@@ -41,13 +44,20 @@ format = "markdown"
 label = "requirements"        # what the page shows
 format_label = "markdown"
 path = "vendor/kg_experiment/kit/requirements.md"   # where the bytes are; absent when a plant adds the artefact
+                              # a directory makes a directory artefact: one document whose parts are the
+                              # files under it, each opened by a "==> <relative path> <==" line
+include = ["*.md", "*.toml"]  # directory artefact only: the parts, as relative globs (* never crosses a slash,
+                              # ** does); all files when absent
 mapper = "requirements"       # the deterministic mapper: requirements, decision_table, spec, openapi,
-                              # sequence, containers, bpmn, dmn, gherkin, links; absent for a document the
-                              # store does not read
+                              # sequence, containers, bpmn, dmn, gherkin, links (the CargoQuote kit's
+                              # conventions), or requirements_json, contracts_markdown, dmn_decisions,
+                              # gherkin_tagged, plantuml_realises (a kit whose layers are folders joined
+                              # by requirement id); absent for a document the store does not read
 store = true                  # false keeps a document out of the store (the arms still read it)
 
 [reference]
-code = "vendor/stack_experiment/cargo_quote/reference_impl.py"   # the code the oracle verified; its digest is the execution evidence
+code = "vendor/stack_experiment/cargo_quote/reference_impl.py"   # the code the oracle verified; its digest is the execution
+                              # evidence; a directory is bundled as its *.py files
 
 [oracle]
 script = "vendor/stack_experiment/smoke_test.py"   # the suite runner the measures load
@@ -63,6 +73,10 @@ inference_tool = "architecture assistant"
 
 [verification]
 map = "vendor/kg_experiment/kit/verification_map.toml"   # suite scenario -> keys it exercises; review -> keys
+derive_execution = { from_predicate = "verified_by", key_predicate = "statement", separator = "; " }
+                              # instead of a static map: every assertion <req>|verified_by names, in its value, the
+                              # suite scenarios that verify <req>|statement, read from the scenario's own kit, so a
+                              # scenario the plant removed verifies nothing
 execution_scope = "suite scenario {scenario} on reference_impl.py (smoke 2026-10-30)"
 review = { at = "2026-08-06", scope = "..." }       # the dated human review
 authored = { at = "2026-10-30", scope = "..." }     # authored statements: reviewed by construction
@@ -77,6 +91,7 @@ max_unverified_share = 0.25
 keys = ["S-review|notified", "..."]   # D5, measured on the scenario that asks for it
 
 [rules]
+requirement_id_pattern = "JDL-\\d{3}"   # what a requirement id looks like, for the mappers that join on it (default [A-Z]{2,}-\d{2,})
 vague_words = ["around", "..."]
 declared_gap_id = "gap:declared:OD-1"
 declared_gap_text = "{req} is NOT YET SPECIFIED (open decision OD-1, owner: compliance)"
@@ -161,6 +176,7 @@ forbid_re = "3186"
 ```toml
 [[plant.S2]]                  # patches in order; a replace must match exactly once
 path = "contract/decision_table.md"
+within = "glossary.md"        # directory artefact only: the part the match is confined to
 op = "replace"                # replace, drop or add
 old = "..."
 new = "..."
@@ -196,6 +212,12 @@ byte into `vendor/` under the subject and rewrites its `SOURCE.md`; `tests/test_
 holds every file of every vendored subject to its digest and the note to the tool's output.
 A subject whose bytes are authored in place has no `[vendor]` table and no `vendor/`.
 
+A subject whose scenarios are kept elsewhere as unified diffs against the pristine kit (the
+degradation test of pumllint's recreation experiment) writes its `plants.toml` with
+`tools/plants_from_patch.py <subject> <scenario>=<patch> ...`: one `replace` per hunk, confined
+with `within` to its part of a directory artefact, hunks on files the store does not read
+dropped and listed; `tests/test_jef_subject.py` holds the written file to the tool.
+
 ```toml
 [vendor]
 source = "fdurieux/pumllint"               # the repository the note falls back to when the checkout has no origin
@@ -208,7 +230,11 @@ dest = "vendor"                           # optional; the copy's root under the 
 
 ## What is still the subject's shape in the code
 
-The ten mappers (`harness/extract.py`) read documents in the conventions the CargoQuote kit
+The ten CargoQuote mappers (`harness/extract.py`) read documents in the conventions that kit
 uses: the decision table's row names, the entity `QuoteAPI`, the "NOT YET SPECIFIED" phrase.
-A subject whose documents follow other conventions needs a mapper of its own; the manifest's
-`mapper` field is where it is named, and the mapper registry is the one place to add it.
+The five bundle mappers read a kit whose layers are folders and whose documents cite
+requirement ids: the id is the join, every layer's link to a requirement is one authored
+assertion on it, and only the requirement's own statement is extracted and verified by
+execution. A subject whose documents follow other conventions needs a mapper of its own; the
+manifest's `mapper` field is where it is named, and the mapper registry is the one place to
+add it.
