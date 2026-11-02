@@ -28,8 +28,11 @@ import compare_deterministic  # noqa: E402
 
 sys.path.insert(0, str(DEMO / "model"))
 import cascade_layout as slide  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _subject_pin import on_cargo_quote  # noqa: E402  (these tests are about CargoQuote's record; task-0032.01)
 
 
+@on_cargo_quote
 def test_every_scenario_replays_from_the_record():
     for sc in views.ORDER:
         v = views.build(sc, views.default_source(sc), NO_RUNS)
@@ -42,6 +45,7 @@ def test_every_scenario_replays_from_the_record():
         assert v["stage2" if sc == "S6" else "scenario"]
 
 
+@on_cargo_quote
 def test_s6_sources_and_stage_two():
     rerun = views.build("S6", "rerun", NO_RUNS)
     assert views.default_source("S6") == "rerun"
@@ -54,6 +58,7 @@ def test_s6_sources_and_stage_two():
     assert {s["id"] for s in rerun["sources"]} == {"record", "rerun", "d3check"}
 
 
+@on_cargo_quote
 def test_demo_runs_are_listed_as_sources(tmp_path=None):
     import tempfile
     with tempfile.TemporaryDirectory() as td:
@@ -65,6 +70,7 @@ def test_demo_runs_are_listed_as_sources(tmp_path=None):
         assert any(s["id"] == "demo-runs/2026-10-30-1200" and "(deterministic)" in s["label"] for s in v["sources"])
 
 
+@on_cargo_quote
 def test_systemic_placements_use_the_models_nodes_and_edges():
     node_ids = set(slide.nodes)
     edge_pairs = {(a, b) for _, a, b in slide.edges}
@@ -146,6 +152,7 @@ def _derived_registering_s6(td: Path, name: str) -> Path:
     return d
 
 
+@on_cargo_quote
 def test_record_check_sets_the_scored_records_valid_until_aside_for_a_derived_registering_run():
     import tempfile
     with tempfile.TemporaryDirectory() as td:
@@ -239,6 +246,7 @@ def test_readme_paste_block_is_zsh_safe():
         assert f"command -v {tool}" in block
 
 
+@on_cargo_quote
 def test_arms_model_defaults_to_the_records_and_is_overridable():
     """The harness's model comes from KG_ARMS_MODEL with the record's model as the
     default, the view names the same record model, and the page offers the toggle."""
@@ -328,6 +336,7 @@ def test_models_table_rows_resolve_to_the_harness_variables_and_never_carry_a_ke
                 pass
 
 
+@on_cargo_quote
 def test_plain_english_narrative_is_built_from_the_files():
     for sc in views.ORDER:
         v = views.build(sc, views.default_source(sc), NO_RUNS)
@@ -357,6 +366,7 @@ def _forbidden_in(sentence):
     return [f for f in views.FORBIDDEN if re.search(r"\b" + re.escape(f) + r"\b", low)]
 
 
+@on_cargo_quote
 def test_generated_prose_keeps_to_the_glossary_and_the_length_limits():
     """Controlled sentences: 20 words, no forbidden synonym. Readings: 25 words,
     no forbidden synonym. Data is exempt. Checked on the text actually produced
@@ -415,6 +425,7 @@ def test_generated_prose_keeps_to_the_glossary_and_the_length_limits():
                 assert len(s.split()) <= 20 and not _forbidden_in(s), s
 
 
+@on_cargo_quote
 def test_glossary_document_matches_the_view_tables():
     md = (DEMO / "GLOSSARY.md").read_text(encoding="utf-8")
     for term, meaning in views.GLOSSARY.items():
@@ -432,6 +443,7 @@ def test_glossary_document_matches_the_view_tables():
     assert "GLOSSARY.md" in (DEMO / "README.md").read_text(encoding="utf-8")
 
 
+@on_cargo_quote
 def test_every_pipeline_box_has_a_detail_panel():
     for sc in views.ORDER:
         v = views.build(sc, views.default_source(sc), NO_RUNS)
@@ -450,6 +462,7 @@ def test_every_pipeline_box_has_a_detail_panel():
     assert any(sec.get("table") and len(sec["table"]["rows"]) == 4 for sec in s4["sections"] if sec["heading"].startswith("R-CONFLICT"))
 
 
+@on_cargo_quote
 def test_gaps_view_matches_the_census_by_kind():
     for sc in views.ORDER:
         v = views.build(sc, views.default_source(sc), NO_RUNS)
@@ -471,6 +484,7 @@ def test_gaps_view_matches_the_census_by_kind():
     assert s7["count"] == 145 and len(s7["required_below_verified"]) == 36
 
 
+@on_cargo_quote
 def test_every_systemic_node_has_a_panel():
     for sc in views.ORDER:
         v = views.build(sc, views.default_source(sc), NO_RUNS)
@@ -538,3 +552,4 @@ def test_vendored_register_matches_its_source_note_and_checks_clean():
     assert summary["nodes"] == 56 and summary["links"] == 65
     assert summary["C1"]["uncovered"] == [] and summary["C1"]["excepted"] == 1
     assert summary["C2"]["uncovered"] == [] and summary["C3"]["uncovered"] == []
+

@@ -32,6 +32,9 @@ REGISTER = Path(os.environ.get("KG_REGISTER") or (HERE.parent / "register")).res
 
 sys.path.insert(0, str(HERE))
 import views  # noqa: E402  (the controlled-English registry and glossary live there)
+import page_subject  # noqa: E402  (the subject as a value: how its requirements are cited, its slice's source system; task-0032.01)
+from page_subject import takes_subject  # noqa: E402
+_ps = page_subject.current   # the subject of the call in progress; the environment's when no call names one
 
 _tools: dict | None = None
 _tools_lock = threading.Lock()   # the page's first requests arrive together on the threading server
@@ -132,10 +135,11 @@ def _node_panel(nid: str, n: dict, reg: dict, C, D) -> dict:
     secs.append({"heading": C(f"Links in: {len(ins)}"), "table": {"cols": ["link", "relationship type", "source", "state", "owner", "rationale"], "rows": ins}})
     return {"id": nid, "taxonomy": tax, "kind": n.get("kind"), "name": n.get("name"), "state": n.get("state"), "owner": n.get("owner"),
             "parent": n.get("parent"), "links_out": len(outs), "links_in": len(ins), "system": src.get("system", ""),
-            "subject": src.get("system", "") == SYSTEM,   # a node of this subject's slice, or of another subject of the organisation
+            "subject": src.get("system", "") == _ps().system,   # a node of this subject's slice, or of another subject of the organisation
             "panel": {"title": C(f"{nid}, a {kind_words} in {tax}"), "intro": intro, "sections": secs}}
 
 
+@takes_subject
 def impact(start: str) -> dict | None:
     """The register's own impact walk from one node (tools/impact.py, vendored), each edge
     with its state, owner, evidence and whether the walk followed it, and what it reached. None
@@ -202,6 +206,7 @@ def with_cypher(walk: dict, cypher: dict, needs_text: str, browser: dict | None 
     return walk
 
 
+@takes_subject
 def impact_default() -> str:
     """The start the page offers first: this subject's application with the most links out, else
     the register's first node. The register's default, not any subject's id (task-0002)."""
@@ -211,39 +216,34 @@ def impact_default() -> str:
     for rname, rel in reg["relationships"].items():
         for ln in rel["links"]:
             out[ln.get("source")] = out.get(ln.get("source"), 0) + 1
-    apps = sorted(((nid, n) for nid, n in reg["nodes"].items() if n["_taxonomy"] == "applications" and (n.get("source") or {}).get("system", "") == SYSTEM),
+    apps = sorted(((nid, n) for nid, n in reg["nodes"].items() if n["_taxonomy"] == "applications" and (n.get("source") or {}).get("system", "") == _ps().system),
                   key=lambda kv: (-out.get(kv[0], 0), kv[0]))
     return apps[0][0] if apps else (next(iter(reg["nodes"]), ""))
 
 
 sys.path.insert(0, str(HERE.parent.parent / "harness"))
-from subject import SUBJECT  # noqa: E402  (the subject root: KG_SUBJECT, default subjects/cargo_quote)
-REQ_ANCHOR = SUBJECT.register.get("requirement_anchor", "")   # how the register's links cite a requirement; the subject says
-REQ_DOC_ANCHOR = REQ_ANCHOR.split(":", 1)[-1]          # the anchor without the export prefix, e.g. requirements.md#
-SYSTEM = REQ_ANCHOR.split(":", 1)[0] if ":" in REQ_ANCHOR else "kit"   # the register's name for the subject as a source system
-SYS = SYSTEM + ":"                                      # the prefix its evidence anchors carry
-REQ_ID = re.compile(SUBJECT.rules.get("requirement_id_pattern", r"[A-Z]{2,}-\d{2,}"))   # what a requirement id looks like
-EXPORT_MANIFEST = SUBJECT.register.get("export_manifest", "")
 
 
+@takes_subject
 def has_map() -> bool:
     """Whether the subject maps its keys onto the register; without a map there is no footprint."""
-    return bool(SUBJECT.register.get("map"))
+    return bool(_ps().subject.register.get("map"))
 
 
+@takes_subject
 def load_map() -> dict:
     """The approved key-to-node map, the subject's register_map.toml."""
-    return SUBJECT.register_map()
+    return _ps().subject.register_map()
 
 
+@takes_subject
 def changed_artefact(scenario: str) -> str:
     """The artefact a scenario's stage 2 changes, or '' when it has none."""
-    return SUBJECT.scenarios.get(scenario, {}).get("stage2", {}).get("artefact", "")
+    return _ps().subject.scenarios.get(scenario, {}).get("stage2", {}).get("artefact", "")
 
 
 # ------------------------------------------------------------ references: what a cell opens
 
-REQUIREMENTS = next((SUBJECT.path(a["path"]) for a in SUBJECT.artefacts if a["family"] == "requirements" and a.get("path")), None)
 REF_KINDS = ("node", "link", "req", "key", "doc")
 LEVEL_TIP = {
     "approved": "Verified and approved by the owner; the gate may build on it.",
@@ -277,14 +277,14 @@ def _join(parts: list, sep: str = ", ") -> list | str:
 def _norm(anchor: str) -> str:
     """One spelling for a kit anchor: the register writes <system>:requirements.md#REQ-05, the map
     <system>/requirements.md#REQ-05 or contract/decision_table.md#DT-V; all become kit-relative paths."""
-    a = anchor[len(SYS):] if anchor.startswith(SYS) else anchor
-    return a[len(SYSTEM) + 1:] if a.startswith(SYSTEM + "/") else a
+    a = anchor[len(_ps().sys):] if anchor.startswith(_ps().sys) else anchor
+    return a[len(_ps().system) + 1:] if a.startswith(_ps().system + "/") else a
 
 
 def _anchor_ref(anchor: str) -> dict:
     """A kit anchor opens the requirement panel when it names a requirement, else the document card."""
     a = _norm(anchor)
-    if a.startswith(REQ_DOC_ANCHOR) and "#" in a and REQ_ID.fullmatch(a.split("#", 1)[1]):
+    if a.startswith(_ps().req_doc_anchor) and "#" in a and _ps().req_id.fullmatch(a.split("#", 1)[1]):
         return R("req", a.split("#", 1)[1], anchor)
     return R("doc", a.split("#", 1)[0], anchor)
 
@@ -312,14 +312,14 @@ def _type_tip(t: dict) -> str:
 def _requirement_line(req: str) -> str:
     """The requirement's own text from the kit's requirements document, verbatim: a markdown
     table's row, or a JSON list's statement."""
-    if REQUIREMENTS is None:
+    if _ps().requirements is None:
         return ""
-    if REQUIREMENTS.suffix == ".json":
-        for item in json.loads(REQUIREMENTS.read_text(encoding="utf-8")):
+    if _ps().requirements.suffix == ".json":
+        for item in json.loads(_ps().requirements.read_text(encoding="utf-8")):
             if item.get("id") == req:
                 return item.get("statement", "")
         return ""
-    for line in REQUIREMENTS.read_text(encoding="utf-8").splitlines():
+    for line in _ps().requirements.read_text(encoding="utf-8").splitlines():
         if line.startswith(f"| {req} |"):
             return line.split("|")[2].strip()
     return ""
@@ -337,7 +337,7 @@ class _Ctx:
         self.lifecycle = T["register"].load_toml(REGISTER / "metamodel" / "lifecycle.toml")
         # the export the subject names, when the register copy carries it (a copy vendored before the
         # subject's slice does not; the footprint says so)
-        self.manifest = T["register"].load_toml(REGISTER / EXPORT_MANIFEST) if EXPORT_MANIFEST and (REGISTER / EXPORT_MANIFEST).exists() else {}
+        self.manifest = T["register"].load_toml(REGISTER / _ps().export_manifest) if _ps().export_manifest and (REGISTER / _ps().export_manifest).exists() else {}
         self.links = [dict(ln, type=rname) for rname, rel in self.reg["relationships"].items() for ln in rel["links"]]
         self.by_id = {ln["id"]: ln for ln in self.links}
         self.view = view
@@ -365,8 +365,8 @@ class _Ctx:
     def citing(self, anchor: str) -> list:
         """The links whose evidence or external target cites the anchor (a kit path or path#section)."""
         return [ln for ln in self.links
-                if any(ev == anchor or ev.startswith(anchor + "#") or ev == SYS + anchor or ev.startswith(SYS + anchor + "#") for ev in ln.get("evidence", []))
-                or (ln.get("target_external") or "").startswith(SYS + anchor)]
+                if any(ev == anchor or ev.startswith(anchor + "#") or ev == _ps().sys + anchor or ev.startswith(_ps().sys + anchor + "#") for ev in ln.get("evidence", []))
+                or (ln.get("target_external") or "").startswith(_ps().sys + anchor)]
 
     def rows_anchored(self, anchor: str) -> list:
         n = _norm(anchor)
@@ -389,7 +389,7 @@ def _link_panel(cx: _Ctx, ln: dict) -> dict:
              "table": {"cols": ["role", "node", "name", "state"], "rows": ends}},
             {"heading": C("Relationship type"), "text": D(_type_tip(t)) + (" " + D(f"Note: {t['note']}") if t.get("note") else "")},
             {"heading": C(f"Evidence: {len(ln.get('evidence', []))}"), "text": C("A kit entry opens its document or requirement; an export entry is the manifest."),
-             "table": {"cols": ["entry"], "rows": [[_anchor_ref(ev) if ev.startswith(SYS) else ev] for ev in ln.get("evidence", [])]}}]
+             "table": {"cols": ["entry"], "rows": [[_anchor_ref(ev) if ev.startswith(_ps().sys) else ev] for ev in ln.get("evidence", [])]}}]
     appr = ln.get("approval")
     if appr:
         secs.append({"heading": C("Approval"), "text": D(f"By {appr.get('by')} on {appr.get('on')}, record {appr.get('record')}; review due {ln.get('review_due')}.")})
@@ -403,7 +403,7 @@ def _req_panel(cx: _Ctx, req: str) -> dict | None:
     line = _requirement_line(req)
     if not line:
         return None
-    anchor = REQ_DOC_ANCHOR + req
+    anchor = _ps().req_doc_anchor + req
     intro = D(f"{req}: {line}") + " " + C("The id is the experiment's; the kit's text is quoted as data.")
     secs = []
     hits = [h for h in cx.det["rules"]["R-REQ"] if h.get("req") == req] if cx.det else []
@@ -418,7 +418,7 @@ def _req_panel(cx: _Ctx, req: str) -> dict | None:
                  "text": C("Each link opens its own panel.") if citing else C("No link cites it: the register does not yet carry this requirement."),
                  "table": {"cols": ["link", "type", "source", "target", "state"],
                            "rows": [[R("link", ln["id"]), ln["type"], R("node", ln["source"]), _target_ref(ln), cx.state_cell(ln.get("state", ""))] for ln in citing]}})
-    rows = cx.rows_anchored(SYS + anchor)
+    rows = cx.rows_anchored(_ps().sys + anchor)
     secs.append({"heading": C(f"Map rows anchored on it: {len(rows)}"),
                  "text": C("Each row names the nodes its key concerns; the level is the gate's in this scenario.") if cx.det else C("Each row names the nodes its key concerns."),
                  "table": {"cols": ["key", "level", "nodes"], "rows": [[R("key", r["key"]), cx.level_cell(cx.level_of(r["key"])) if cx.det else "", _join([R("node", n) for n in r["nodes"]])] for r in rows]}})
@@ -469,12 +469,13 @@ def _doc_panel(cx: _Ctx, path: str) -> dict | None:
                  "table": {"cols": ["link", "type", "source", "target", "state", "evidence"],
                            "rows": [[R("link", ln["id"]), ln["type"], R("node", ln["source"]), _target_ref(ln), cx.state_cell(ln.get("state", "")),
                                      ", ".join([ev for ev in ln.get("evidence", []) if path in ev] + ([ln["target_external"]] if path in (ln.get("target_external") or "") else []))] for ln in citing]}})
-    rows = cx.rows_anchored(SYS + path)
+    rows = cx.rows_anchored(_ps().sys + path)
     secs.append({"heading": C(f"Map rows anchored on it: {len(rows)}"),
                  "table": {"cols": ["key", "level", "nodes"], "rows": [[R("key", r["key"]), cx.level_cell(cx.level_of(r["key"])) if cx.det else "", _join([R("node", n) for n in r["nodes"]])] for r in rows]}})
     return {"title": C(f"Document {path}"), "intro": intro, "sections": secs}
 
 
+@takes_subject
 def ref(kind: str, ident: str, view: dict | None = None) -> dict | None:
     """The panel a reference cell opens. node, link and doc need no scenario; req and key read the
     scenario's record when a view is given and say so when it is not. None for an unknown subject."""
@@ -498,6 +499,7 @@ def ref(kind: str, ident: str, view: dict | None = None) -> dict | None:
     return {"kind": kind, "id": ident, "scenario": cx.scenario, "panel": panel, "text_registry": cx.reg_sentences}
 
 
+@takes_subject
 def footprint(view: dict) -> dict:
     """The register footprint of one scenario: the map rows its keys below approved hit and the
     nodes they touch, the requirement gaps joined to the links whose evidence cites them, and
@@ -525,7 +527,7 @@ def footprint(view: dict) -> dict:
     uncited = 0
     for h in det["rules"]["R-REQ"]:
         subject = h.get("req") or h.get("artefact") or h.get("entity") or ""
-        anchor = REQ_ANCHOR + subject if h.get("req") else SYS + subject
+        anchor = _ps().req_anchor + subject if h.get("req") else _ps().sys + subject
         citing = [ln for ln in links if any(ev == anchor or ev.startswith(anchor + "#") for ev in ln.get("evidence", []))] if h.get("req") else []
         if not citing:
             uncited += 1
@@ -553,7 +555,7 @@ def footprint(view: dict) -> dict:
         lines.append(f"{views._plural(len(not_approved), 'touched node')} not approved: {', '.join(not_approved)}")
     if not_in_copy:
         lines.append(f"{views._plural(len(not_in_copy), 'touched node')} not in the register copy: {', '.join(not_in_copy)}")
-    if EXPORT_MANIFEST and not manifest:
+    if _ps().export_manifest and not manifest:
         lines.append("the register copy carries no export of this subject")
     approved_on = str(m["map"].get("approved_on", ""))
     intro = C((f"The footprint is the demo's reading of the gate's keys onto the register, approved by the maintainer on {approved_on}."
@@ -578,7 +580,7 @@ def footprint(view: dict) -> dict:
                  "text": C(f"{len(req_rows) - uncited} {'is' if len(req_rows) - uncited == 1 else 'are'} cited by a link, {uncited} by none.") + (" " + C("A gap no link cites is one the register does not yet carry.") if uncited else ""),
                  "table": {"cols": ["requirement or document", "kind", "declared", "links citing it"], "rows": req_cells}})
     if "stage2" in det:
-        s2cfg = SUBJECT.scenarios.get(view["scenario"], {}).get("stage2", {})
+        s2cfg = _ps().subject.scenarios.get(view["scenario"], {}).get("stage2", {})
         label, short = s2cfg.get("label", "document"), s2cfg.get("short_label", s2cfg.get("label", "document"))
         secs.append({"heading": C(f"Links citing the changed {label}: {len(table_links)}"),
                      "text": C(f"The {short} changed in the second stage, so every link that cites it is a link to review.") + " "
@@ -595,6 +597,7 @@ def footprint(view: dict) -> dict:
             "text_registry": reg_sentences}
 
 
+@takes_subject
 def build(today: str | None = None) -> dict:
     """The view model. ``today`` is None for the pinned date, "wall" for the wall clock,
     or an ISO date; the result says which run it is."""
@@ -626,7 +629,7 @@ def build(today: str | None = None) -> dict:
     mine = {n["id"] for n in nodes if n["subject"]}
     slice_links = sum(1 for rel in reg["relationships"].values() for ln in rel["links"] if ln.get("source") in mine or ln.get("target") in mine)
     others = sorted({n["system"] for n in nodes if not n["subject"] and n["system"]})
-    intro += " " + C(f"This subject's slice is the source system {SYSTEM}: {len(mine)} nodes and {slice_links} links.",
+    intro += " " + C(f"This subject's slice is the source system {_ps().system}: {len(mine)} nodes and {slice_links} links.",
                      f"The other {len(nodes) - len(mine)} nodes belong to the organisation's other subjects ({', '.join(others)})." if others
                      else "Every node is this subject's.")
     default_start = impact_default()
@@ -657,8 +660,19 @@ def build(today: str | None = None) -> dict:
             "summary": {"nodes": summary["nodes"], "links": summary["links"], "errors": len(errors), "warnings": len(warnings)},
             "coverage": {r: summary[r] for r in ("C1", "C2", "C3")}, "coverage_lines": _coverage_lines(summary),
             "findings": findings.items, "intro": intro, "health": health,
-            "subject_system": SYSTEM, "slice": {"nodes": len(mine), "links": slice_links, "other_nodes": len(nodes) - len(mine), "other_systems": others},
+            "subject_system": _ps().system, "slice": {"nodes": len(mine), "links": slice_links, "other_nodes": len(nodes) - len(mine), "other_systems": others},
             "impact_default": default_start,
             "nodes_by_taxonomy": by_tax, "links": links, "relationship_types": rel_types,
             "exceptions": exceptions, "matrix": {"rows": len(mrows), "unverified": unverified, "sentence": matrix_sentence},
             "glossary": glossary, "text_registry": reg_sentences}
+
+
+_COMPAT = {"REQ_ANCHOR": "req_anchor", "REQ_DOC_ANCHOR": "req_doc_anchor", "SYSTEM": "system", "SYS": "sys", "REQ_ID": "req_id",
+           "EXPORT_MANIFEST": "export_manifest", "REQUIREMENTS": "requirements", "SUBJECT": "subject"}
+
+
+def __getattr__(name: str):
+    """The names this module once filled at import, read from the current subject when asked for."""
+    if name in _COMPAT:
+        return getattr(_ps(), _COMPAT[name])
+    raise AttributeError(f"module 'register_view' has no attribute {name!r}")

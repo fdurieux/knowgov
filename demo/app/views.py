@@ -18,12 +18,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent                     # the repository
 sys.path.insert(0, str(ROOT / "harness"))
-from subject import SUBJECT  # noqa: E402  (the subject root: KG_SUBJECT, default subjects/cargo_quote)
-RESULTS = SUBJECT.record_dir                  # the subject's record, never written
+import page_subject  # noqa: E402  (the subject as a value: every table this module derives from it, task-0032.01)
+from page_subject import takes_subject  # noqa: E402
+_ps = page_subject.current   # the subject of the call in progress; the environment's when no call names one
 sys.path.insert(0, str(HERE.parent / "tools"))
 import compare_deterministic  # noqa: E402  (the same leaf-by-leaf comparison the CI job runs)
 import cascade  # noqa: E402  (the vendored model and the slide's node table, for the systemic panels)
-SUITE_ORDER = SUBJECT.suite_order
 RULE_ORDER = ["R-STRUCT", "R-CORROBORATE", "R-CONFLICT", "R-VAGUE", "R-REQ", "R-UNVERIFIED"]
 WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve"}
 
@@ -33,54 +33,32 @@ def _word(n: int) -> str:
     return WORDS.get(n, str(n))
 
 
-RECORD_MODEL = SUBJECT.record_model  # the model of the subject's scored run; a run by another model is a deviation
-RECORD_EFFORT = SUBJECT.record_effort  # the effort of that run, "" for the API default; another effort is a deviation too (task-0028)
-
-# One line per scenario, from the subject's scenarios.toml: controlled sentences for the card
-# (represented, defect) and the Planted line (plant), a reading for "plain".
-SCENARIOS = {sc: {k: s.get(k, "") for k in ("title", "represented", "gate", "defect", "plant", "plain")} for sc, s in SUBJECT.scenarios.items()}
-ORDER = list(SCENARIOS)
-
-# Where each scenario sits on the model's reduced knowledge view: the subject's reading of its
-# record onto the Legible v0.3 cascade (scenarios.toml, [scenario.systemic]). Node ids are the model's.
-#   entry: the node where the planted defect enters (the artefact family it was planted in)
-#   <arm>: path = edges the defect travelled, stop = the node where it was stopped or made visible,
-#          note = the record's reading in one line
-def _systemic(s: dict) -> dict:
-    sy = s.get("systemic", {})
-    out = {"entry": sy.get("entry") or None, "family": sy.get("family", "")}
-    for arm in ("G", "B"):
-        a = dict(sy.get(arm, {}))
-        a.setdefault("path", [])
-        a["stop"] = a.get("stop") or None
-        a.setdefault("note", "")
-        out[arm] = a
-    return out
 
 
-SYSTEMIC = {sc: _systemic(s) for sc, s in SUBJECT.scenarios.items()}
-
-# The no-governance reference the subject's record cites.
-REFERENCE = SUBJECT.page.get("reference", {"title": "", "text": "", "numbers": {}})
-
-
+@takes_subject
 def sources_for(scenario: str, runs_dir: Path) -> list[dict]:
     """The result folders that hold this scenario: the record, the extra sources the subject
     declares for it (a re-run, a deterministic check), and every demo run that contains it."""
-    out = [{"id": "record", "label": "the record (results/)", "dir": str(RESULTS / scenario)}]
-    for s in SUBJECT.scenarios.get(scenario, {}).get("sources", []):
-        out.append({"id": s["id"], "label": s["label"], "dir": str(RESULTS / s["dir"])})
-    if runs_dir.exists():
-        for d in sorted(runs_dir.iterdir(), reverse=True):
+    out = [{"id": "record", "label": "the record (results/)", "dir": str(_ps().record_dir / scenario)}]
+    for s in _ps().subject.scenarios.get(scenario, {}).get("sources", []):
+        out.append({"id": s["id"], "label": s["label"], "dir": str(_ps().record_dir / s["dir"])})
+    # runs land under runs/<subject id>/<stamp>/ (task-0032.01); a run from before then sits at runs/<stamp>/
+    # and is still read: scenario ids are the subject's own, so its folder can only be this subject's
+    own = runs_dir / _ps().id
+    for base, prefix in ((own, f"demo-runs/{_ps().id}/"), (runs_dir, "demo-runs/")):
+        if not base.exists():
+            continue
+        for d in sorted(base.iterdir(), reverse=True):
             if (d / scenario / "deterministic.json").exists():
                 arm_files = sorted((d / scenario).glob("run*_[GB].json"))
                 mode = "arms" if arm_files else "deterministic"
                 models = sorted({m for m in (_model_of(_read_json(f)) for f in arm_files) if m})
                 tag = mode + (", " + ", ".join(models) if models else "")
-                out.append({"id": f"demo-runs/{d.name}", "label": f"demo run {d.name} ({tag})", "dir": str(d / scenario)})
+                out.append({"id": f"{prefix}{d.name}", "label": f"demo run {d.name} ({tag})", "dir": str(d / scenario)})
     return out
 
 
+@takes_subject
 def resolve_source(scenario: str, source: str, runs_dir: Path) -> Path | None:
     for s in sources_for(scenario, runs_dir):
         if s["id"] == source:
@@ -88,8 +66,9 @@ def resolve_source(scenario: str, source: str, runs_dir: Path) -> Path | None:
     return None
 
 
+@takes_subject
 def default_source(scenario: str) -> str:
-    return SUBJECT.scenarios.get(scenario, {}).get("default_source", "record")
+    return _ps().subject.scenarios.get(scenario, {}).get("default_source", "record")
 
 
 # ------------------------------------------------------------------ loading
@@ -218,16 +197,17 @@ def _arm_colour(arm: str, gate_verdict: str, summary: dict) -> tuple[str, str]:
     return gen, orc
 
 
+@takes_subject
 def build(scenario: str, source: str, runs_dir: Path) -> dict:
     """The report view of ``scenario`` from the result folder ``source`` names."""
-    if scenario not in SCENARIOS:
+    if scenario not in _ps().scenarios:
         raise KeyError(scenario)
     d = resolve_source(scenario, source, runs_dir)
     if d is None or not (d / "deterministic.json").exists():
         raise FileNotFoundError(f"{scenario}: no deterministic.json for source {source!r}")
     det = _read_json(d / "deterministic.json")
     gate = det["D6_gate"]
-    meta = SCENARIOS[scenario]
+    meta = _ps().scenarios[scenario]
     runs = {arm: _runs(d, arm) for arm in ("B", "G")}
     summaries = {arm: _arm_summary(rs) for arm, rs in runs.items()}
     levels = Counter(v["level"] for v in det["gate_keys"].values())
@@ -278,12 +258,12 @@ def build(scenario: str, source: str, runs_dir: Path) -> dict:
     view = {
         "scenario": scenario, "meta": meta, "source": source, "source_dir": str(d),
         "api_errors": api_errors,
-        "record_model": RECORD_MODEL, "models_used": models_used,
+        "record_model": _ps().record_model, "models_used": models_used,
         # a model other than the record's answered: the numbers are not comparable with the record's
-        "model_deviation": [m for m in models_used if RECORD_MODEL and not m.startswith(RECORD_MODEL)],
+        "model_deviation": [m for m in models_used if _ps().record_model and not m.startswith(_ps().record_model)],
         # an effort other than the record's, the same (task-0028); a run file with no effort field is the record's own
-        "record_effort": RECORD_EFFORT, "efforts_used": efforts_used,
-        "effort_deviation": [e for e in efforts_used if RECORD_MODEL and e != RECORD_EFFORT],
+        "record_effort": _ps().record_effort, "efforts_used": efforts_used,
+        "effort_deviation": [e for e in efforts_used if _ps().record_model and e != _ps().record_effort],
         "sources": sources_for(scenario, runs_dir),
         "stages": stages, "arms": arms,
         "gate": _gate_view(gate),
@@ -293,8 +273,8 @@ def build(scenario: str, source: str, runs_dir: Path) -> dict:
         "d5": det.get("D5_three_valued"),
         "bundle": (d / "bundle_G.txt").read_text(encoding="utf-8") if (d / "bundle_G.txt").exists() else None,
         "prompt_lengths": {arm: len((d / f"prompt_{arm}.txt").read_text(encoding="utf-8")) for arm in ("B", "G") if (d / f"prompt_{arm}.txt").exists()},
-        "suite_order": SUITE_ORDER,
-        "systemic": SYSTEMIC[scenario], "reference": REFERENCE,
+        "suite_order": _ps().suite_order,
+        "systemic": _ps().systemic[scenario], "reference": _ps().reference,
     }
     view["record_check"] = record_check(scenario, d, source)
     if "stage2" in det:
@@ -328,13 +308,14 @@ def build(scenario: str, source: str, runs_dir: Path) -> dict:
     view["gaps"] = gaps_view(det, reg)
     view["systemic_details"] = systemic_details(view, det, runs, reg)
     view["text_registry"] = reg
-    view["glossary"] = GLOSSARY
+    view["glossary"] = glossary()
     return view
 
 
+@takes_subject
 def scenario_list(runs_dir: Path) -> list[dict]:
     out = []
-    for sc, m in SCENARIOS.items():
+    for sc, m in _ps().scenarios.items():
         out.append({"id": sc, **m, "sources": [s["id"] for s in sources_for(sc, runs_dir)],
                     "default_source": default_source(sc)})
     return out
@@ -349,45 +330,54 @@ def scenario_list(runs_dir: Path) -> list[dict]:
 # sentence is registered with its kind so tests/test_kg_demo.py can check the limits
 # and the forbidden synonyms on the text that was actually produced.
 
-GLOSSARY = {
-    "document": "One of the kit's input files, such as a decision table or a diagram.",
-    "fragment": "A piece of a document, such as one table row, stored with its own digest.",
-    "digest": "A fingerprint of some bytes; when the bytes change, the digest changes.",
-    "entity": "A thing the documents talk about, such as a pricing step or a requirement.",
-    "assertion": "One fact read from a document: an entity, a property and a value.",
-    "basis": "How an assertion came to exist: authored by a person, extracted by a parser, or inferred by a model.",
-    "status": "Where an assertion stands: proposed, validated, verified, approved, disputed or invalidated.",
-    "rule": "One of the seven checks the harness runs on the store after each load.",
-    "gap": "Something a rule found wanting: missing, ambiguous, a conflict, or unverified.",
-    "key": f"One piece of knowledge the coding task needs; the task needs {len(SUBJECT.tasks.get('codegen', {}).get('keys', []))} keys.",
-    "gate": f"The check that reads the {len(SUBJECT.tasks.get('codegen', {}).get('keys', []))} keys and gives a verdict.",
-    "verdict": "The gate's answer: PROCEED, QUALIFIED or BLOCKED.",
-    "bundle": "The text the gate writes for arm G: the verdict, the policy and the evidence per key.",
-    "arm": "One of the two AI assistants asked to write the code. G got the bundle; B got the documents.",
-    "run": "One call of one arm, graded on its own.",
-    "decision": "The word an arm gives for its own choice: generate, generate with assumptions, or abstain.",
-    "oracle": (f"The kit's {_word(len(SUBJECT.suite_order))} acceptance scenarios, run on the code an arm wrote."
-               if SUBJECT.suite_order else "The subject declares no oracle yet, so the arms stay off."),
-    "planted target": "The oracle scenario the planted defect aims at.",
-    "flagged": "The arm named the planted problem in its questions or assumptions.",
-    "record": "The committed results of the scored run, under results/.",
-    "demo run": "A re-run written to a dated folder under runs/.",
-    "store": "The Neo4j database the harness loads; it holds one scenario at a time.",
-    "model": "The language model that answers an arm's call.",
-    # shared with the IEAM register (kg_experiment/demo/register/glossary/glossary.toml), reconciled in GLOSSARY.md
-    "node": "One record of one register taxonomy: a capability, product, journey element, process element, application element, information node or organisation unit.",
-    "link": "One typed, directed relationship between two register nodes, with its own id, state, owner and approval.",
-    "relationship type": "One of the register's ten typed relationships, such as requires, realizes, supports or manages.",
-    "source of record": "The system that authors a node's content: ARIS, Archi, the EDM repository, or the kit in the test case.",
-    "export": "A dated, append-only mirror of a source of record, with a manifest of digests and a reconciliation report.",
-    "approval": "A recorded acceptance: of a verified assertion in the store, or of a node or link in the register, with who, when and which record.",
-    "exception": "An approved, expiring deviation from a coverage rule, with its scope and rationale.",
-    "coverage rule": "A register check that an approved node of one kind has a link of one type, or an unexpired exception.",
-    "state": "Where a register node or link stands: draft, proposed, approved, deprecated, retired or rejected. An assertion has a status, never a state.",
-    "footprint": "The register nodes and links a scenario touches: through its keys below approved, its requirement gaps and its changed documents, by the demo's approved map.",
-    "reference": "An underlined cell of a panel's table that opens its subject's own panel under the table: a node, a link, a requirement, a key or a document.",
-    "projection": "The register's nodes and links loaded into the store in their own namespace at the vendored tag: derived, loaded on demand, wiped by a run, never the record.",
-}
+def glossary() -> dict:
+    """The page's glossary for the current subject, built once per subject (two entries count its keys and scenarios)."""
+    ps = _ps()
+    if "glossary" not in ps.cache:
+        ps.cache["glossary"] = _glossary(ps)
+    return ps.cache["glossary"]
+
+
+def _glossary(ps) -> dict:
+    return {
+        "document": "One of the kit's input files, such as a decision table or a diagram.",
+        "fragment": "A piece of a document, such as one table row, stored with its own digest.",
+        "digest": "A fingerprint of some bytes; when the bytes change, the digest changes.",
+        "entity": "A thing the documents talk about, such as a pricing step or a requirement.",
+        "assertion": "One fact read from a document: an entity, a property and a value.",
+        "basis": "How an assertion came to exist: authored by a person, extracted by a parser, or inferred by a model.",
+        "status": "Where an assertion stands: proposed, validated, verified, approved, disputed or invalidated.",
+        "rule": "One of the seven checks the harness runs on the store after each load.",
+        "gap": "Something a rule found wanting: missing, ambiguous, a conflict, or unverified.",
+        "key": f"One piece of knowledge the coding task needs; the task needs {ps.key_count} keys.",
+        "gate": f"The check that reads the {ps.key_count} keys and gives a verdict.",
+        "verdict": "The gate's answer: PROCEED, QUALIFIED or BLOCKED.",
+        "bundle": "The text the gate writes for arm G: the verdict, the policy and the evidence per key.",
+        "arm": "One of the two AI assistants asked to write the code. G got the bundle; B got the documents.",
+        "run": "One call of one arm, graded on its own.",
+        "decision": "The word an arm gives for its own choice: generate, generate with assumptions, or abstain.",
+        "oracle": (f"The kit's {_word(len(ps.suite_order))} acceptance scenarios, run on the code an arm wrote."
+                   if ps.suite_order else "The subject declares no oracle yet, so the arms stay off."),
+        "planted target": "The oracle scenario the planted defect aims at.",
+        "flagged": "The arm named the planted problem in its questions or assumptions.",
+        "record": "The committed results of the scored run, under results/.",
+        "demo run": "A re-run written to a dated folder under runs/.",
+        "store": "The Neo4j database the harness loads; it holds one scenario at a time.",
+        "model": "The language model that answers an arm's call.",
+        # shared with the IEAM register (kg_experiment/demo/register/glossary/glossary.toml), reconciled in GLOSSARY.md
+        "node": "One record of one register taxonomy: a capability, product, journey element, process element, application element, information node or organisation unit.",
+        "link": "One typed, directed relationship between two register nodes, with its own id, state, owner and approval.",
+        "relationship type": "One of the register's ten typed relationships, such as requires, realizes, supports or manages.",
+        "source of record": "The system that authors a node's content: ARIS, Archi, the EDM repository, or the kit in the test case.",
+        "export": "A dated, append-only mirror of a source of record, with a manifest of digests and a reconciliation report.",
+        "approval": "A recorded acceptance: of a verified assertion in the store, or of a node or link in the register, with who, when and which record.",
+        "exception": "An approved, expiring deviation from a coverage rule, with its scope and rationale.",
+        "coverage rule": "A register check that an approved node of one kind has a link of one type, or an unexpired exception.",
+        "state": "Where a register node or link stands: draft, proposed, approved, deprecated, retired or rejected. An assertion has a status, never a state.",
+        "footprint": "The register nodes and links a scenario touches: through its keys below approved, its requirement gaps and its changed documents, by the demo's approved map.",
+        "reference": "An underlined cell of a panel's table that opens its subject's own panel under the table: a node, a link, a requirement, a key or a document.",
+        "projection": "The register's nodes and links loaded into the store in their own namespace at the vendored tag: derived, loaded on demand, wiped by a run, never the record.",
+    }
 # synonyms the controlled texts must not use, and the approved term each stands for
 FORBIDDEN = {
     "statement": "assertion", "statements": "assertion",
@@ -432,6 +422,7 @@ def _plural(n: int, one: str, many: str | None = None) -> str:
     return f"{n} {one if n == 1 else (many or one + 's')}"
 
 
+@takes_subject
 def record_check(scenario: str, d: Path, source: str = "") -> dict | None:
     """For a demo run (a source under ``demo-runs/``): its deterministic results against the
     record's, leaf by leaf. A scenario with a ``deterministic_record`` (its record's
@@ -439,11 +430,11 @@ def record_check(scenario: str, d: Path, source: str = "") -> dict | None:
     (deterministic mode), against its scored record otherwise."""
     if not source.startswith("demo-runs/"):
         return None
-    cfg = SUBJECT.scenarios.get(scenario, {})
+    cfg = _ps().subject.scenarios.get(scenario, {})
     det = _read_json(d / "deterministic.json")
     det_rec = cfg.get("deterministic_record")
     scored = bool(det.get("stage2", {}).get("suspect_derived")) or not det_rec
-    rec = RESULTS / (scenario if scored else det_rec)
+    rec = _ps().record_dir / (scenario if scored else det_rec)
     # Against the scored record only, the leaves the subject's manifest sets aside
     # (``scored_record_volatile``), as the comparator sets the timestamps aside: a leaf that
     # record wrote with a harness defect fixed afterwards, and that its deterministic-mode
@@ -452,11 +443,11 @@ def record_check(scenario: str, d: Path, source: str = "") -> dict | None:
     # beside the key in the manifest. The comparator's command line passes none, so the
     # record stays comparable with itself on every leaf; the view names what was set aside.
     aside = [str(k) for k in cfg.get("scored_record_volatile", [])] if scored else []
-    n, lines = compare_deterministic.compare(d.parent, RESULTS, [scenario], record_for={scenario: rec}, ignore_keys=aside)
+    n, lines = compare_deterministic.compare(d.parent, _ps().record_dir, [scenario], record_for={scenario: rec}, ignore_keys=aside)
     compared = next((ln for ln in lines if "leaves compared" in ln), "")
     m = re.search(r"(\d+) leaves compared", compared)
     return {"differ": n, "compared": int(m.group(1)) if m else 0,
-            "against": rec.relative_to(RESULTS.parent).as_posix(), "aside": aside,
+            "against": rec.relative_to(_ps().record_dir.parent).as_posix(), "aside": aside,
             "lines": [ln.strip() for ln in lines if ln.startswith("  ")][:6]}
 
 
@@ -540,11 +531,11 @@ def narrative(view: dict, det: dict, reg: list) -> list[str]:
                 sents.append(f"{sm['api_errors']} of its calls failed before any answer.")
             sents.append(f"It wrote code in {sm['code']} of {sm['n']} runs.")
             if sm["code"]:
-                sents.append(f"That code passed {', '.join(x for x in sm['suites'] if x != '—')} of the oracle's {_word(len(SUITE_ORDER))} scenarios.")
+                sents.append(f"That code passed {', '.join(x for x in sm['suites'] if x != '—')} of the oracle's {_word(len(_ps().suite_order))} scenarios.")
                 fails = sorted(((k.split(':')[0], v) for k, v in sm["targets"].items() if k.endswith(":fail")), key=lambda t: -t[1])
                 for t, v in fails:
                     sents.append(f"It failed the planted target '{t}' in {v} of {sm['n']} runs.")
-            if SUBJECT.scenarios.get(sc, {}).get("flag_words"):
+            if _ps().subject.scenarios.get(sc, {}).get("flag_words"):
                 sents.append(f"It raised the planted problem in {sm['flagged']} of {sm['n']} runs.")
             if arm == "G" and sm["noncompliance"]:
                 sents.append(f"It broke the policy in {sm['noncompliance']} runs.")
@@ -605,9 +596,6 @@ RULE_TEXT = {
     "R-UNVERIFIED": ["A proposed or validated assertion with no verification record gets an unverified gap.",
                      "The count is how many assertions nobody has verified."],
 }
-FAMILIES = [(a["key"], a.get("label", a["family"]), a.get("format_label", a["format"]))
-            for a in SUBJECT.artefacts if a.get("store", True)]   # the documents the store reads, from the subject manifest
-MAPPERS = len(SUBJECT.mappers)
 
 
 def _table(cols, rows):
@@ -622,9 +610,9 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
     gate = det["D6_gate"]
     C = lambda *s: _reg(reg, "controlled", *s)  # noqa: E731
     D = lambda *s: _reg(reg, "data", *s)  # noqa: E731
-    page = SUBJECT.scenarios.get(sc, {}).get("page", {})
+    page = _ps().subject.scenarios.get(sc, {}).get("page", {})
     absent = set(page.get("absent_artefacts", []))
-    arts = [f for f in FAMILIES if f[0] not in absent]
+    arts = [f for f in _ps().families if f[0] not in absent]
     d = {}
     ingest = [f"{len(arts)} documents were read."]
     ingest += list(page.get("ingest", []))
@@ -634,7 +622,7 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
                    "sections": [{"heading": C("Documents"), "table": _table(["path", "family", "format"], arts)}]}
     levels = Counter(v["level"] for v in det["gate_keys"].values())
     d["extract"] = {"title": C("Extract: fragments into assertions"),
-                    "intro": C(f"{det['load']['assertions']} assertions, one fact each, by {_word(MAPPERS)} deterministic mappers, one per format.",
+                    "intro": C(f"{det['load']['assertions']} assertions, one fact each, by {_word(_ps().mappers)} deterministic mappers, one per format.",
                                "No model took part.",
                                "Each assertion carries a basis, the fragment it rests on, and a status that starts at proposed."),
                     "sections": ([{"heading": C("Symbols with no definition in any document"), "list": det["load"]["unresolved_symbols"]}] if det["load"]["unresolved_symbols"] else [])
@@ -732,9 +720,9 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
         orows = [(r["run"], f"{r['M4_suite']['passed']}/{r['M4_suite']['total']}" if r["M4_suite"]["ran"] else "no code",
                   ", ".join(f"{t}: {'pass' if v else ('fail' if v is False else 'no code')}" for t, v in (r.get("M4_targets") or {}).items()) or "",
                   r.get("outage_status") or "", f"{r['M5_refs']['resolved']}/{r['M5_refs']['total']}" if r["M5_refs"]["share"] is not None else "") for r in rs]
-        d[f"oracle_{arm}"] = {"title": C(f"Oracle, {arm}: the kit's {_word(len(SUITE_ORDER))} scenarios on the code the arm wrote"),
-                              "intro": (C(f"Each reply's code ran in a sandbox against the kit's {_word(len(SUITE_ORDER))} scenarios, with the scenario's overlays.",
-                                          *SUBJECT.page.get("oracle", []), *page.get("oracle", []), "The planted target is the scenario the plant aims at.",
+        d[f"oracle_{arm}"] = {"title": C(f"Oracle, {arm}: the kit's {_word(len(_ps().suite_order))} scenarios on the code the arm wrote"),
+                              "intro": (C(f"Each reply's code ran in a sandbox against the kit's {_word(len(_ps().suite_order))} scenarios, with the scenario's overlays.",
+                                          *_ps().subject.page.get("oracle", []), *page.get("oracle", []), "The planted target is the scenario the plant aims at.",
                                           "The outage status is what the code returned when screening was down.",
                                           "A reference is resolvable when it points at something that exists.",
                                           "For G that is an assertion id; for B, a document line.")
@@ -786,6 +774,7 @@ GAP_KIND_TEXT = {
 CONFLICT_TEXT_RE = re.compile(r"for (?P<key>[^:]+): (?P<a>[^ ]+) says (?P<va>.+?); (?P<b>[^ ]+) says (?P<vb>.+)$")
 
 
+@takes_subject
 def gaps_view(det: dict, reg: list) -> dict:
     """Every gap the result files can account for, grouped by kind, with the
     census as the header. The store's own text and the full CONCERNS set come
@@ -795,8 +784,8 @@ def gaps_view(det: dict, reg: list) -> dict:
     for h in rules["R-REQ"]:
         if h.get("declared"):
             if h.get("req"):
-                groups["declared missing"].append({"id": SUBJECT.rules.get("declared_gap_id", "gap:declared:open"), "declared": True,
-                    "text": SUBJECT.rules.get("declared_gap_text", "{req} is declared open").format(req=h["req"]),
+                groups["declared missing"].append({"id": _ps().subject.rules.get("declared_gap_id", "gap:declared:open"), "declared": True,
+                    "text": _ps().subject.rules.get("declared_gap_text", "{req} is declared open").format(req=h["req"]),
                     "concerns": [{"id": h["req"], "what": "requirement"}] + ([{"id": h["key"], "what": "key"}] if h.get("key") else []), "assertion": None})
             elif h.get("artefact"):
                 groups["declared missing"].append({"id": f"gap:declared:{h['artefact']}", "declared": True,
@@ -975,6 +964,20 @@ def systemic_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
             else:
                 secs.append({"heading": C("Document change"), "text": C("No document changed in this scenario.")})
         if nid == "testdef":
-            secs.append({"heading": C("The oracle here"), "text": C(f"The oracle is the kit's own {_word(len(SUITE_ORDER))} scenarios, written before the arms ran.", "It does not share the arms' premise.")})
+            secs.append({"heading": C("The oracle here"), "text": C(f"The oracle is the kit's own {_word(len(_ps().suite_order))} scenarios, written before the arms ran.", "It does not share the arms' premise.")})
         out[nid] = {"title": C(NODE_TITLE[nid]), "intro": intro, "sections": secs}
     return out
+
+
+_COMPAT = {"RESULTS": "record_dir", "SUITE_ORDER": "suite_order", "RECORD_MODEL": "record_model", "RECORD_EFFORT": "record_effort",
+           "SCENARIOS": "scenarios", "ORDER": "order", "SYSTEMIC": "systemic", "REFERENCE": "reference",
+           "FAMILIES": "families", "MAPPERS": "mappers", "SUBJECT": "subject"}
+
+
+def __getattr__(name: str):
+    """The names this module once filled at import, read from the current subject when asked for."""
+    if name in _COMPAT:
+        return getattr(_ps(), _COMPAT[name])
+    if name == "GLOSSARY":
+        return glossary()
+    raise AttributeError(f"module 'views' has no attribute {name!r}")

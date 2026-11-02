@@ -12,10 +12,13 @@ DEMO = ROOT / "demo"
 sys.path.insert(0, str(DEMO / "app"))
 import register_view  # noqa: E402
 import views  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _subject_pin import on_cargo_quote  # noqa: E402  (these tests are about CargoQuote's record; task-0032.01)
 
 
 def _sentences(text):
     return [s for s in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(])", text.strip()) if s]
+
 
 
 def _forbidden_in(sentence):
@@ -23,6 +26,7 @@ def _forbidden_in(sentence):
     return [f for f in views.FORBIDDEN if re.search(r"\b" + re.escape(f) + r"\b", low)]
 
 
+@on_cargo_quote
 def test_register_view_builds_from_the_vendored_copy_at_the_pinned_date():
     v = register_view.build()
     assert v["source"]["repo"] == "fdurieux/ieam-register" and len(v["source"]["commit"]) == 40 and v["source"]["digest_ok"]
@@ -101,6 +105,7 @@ def test_register_impact_walk_reaches_the_product_and_says_when_it_does_not():
                 assert len(s.split()) <= 20 and not _forbidden_in(s), s
 
 
+@on_cargo_quote
 def test_register_footprint_per_scenario():
     from pathlib import Path as _P
     NO_RUNS = ROOT / "nonexistent-demo-runs"
@@ -155,6 +160,7 @@ def _check_sentences(items):
             assert len(s.split()) <= 20 and not _forbidden_in(s), s
 
 
+@on_cargo_quote
 def test_footprint_cells_are_references_and_tips():
     NO_RUNS = ROOT / "nonexistent-demo-runs"
     fp = register_view.footprint(views.build("S2", views.default_source("S2"), NO_RUNS))
@@ -170,6 +176,7 @@ def test_footprint_cells_are_references_and_tips():
     assert all(isinstance(r["cited_by"], str) for r in fp["requirements"])
 
 
+@on_cargo_quote
 def test_reference_panels():
     NO_RUNS = ROOT / "nonexistent-demo-runs"
     s2 = views.build("S2", views.default_source("S2"), NO_RUNS)
@@ -209,6 +216,7 @@ def test_reference_panels():
     assert register_view.ref("key", "QuoteAPI|on_screening_outage", s2)["scenario"] == "S2"
 
 
+@on_cargo_quote
 def test_projection_rows_and_statements():
     import register_project as rp
     r = rp.rows(loaded_at="2026-10-31T00:00:00+00:00")
@@ -264,6 +272,7 @@ def test_projection_is_wired_and_named():
     assert ";" not in sn.IMPACT_ROWS and ";" not in sn.IMPACT_PATHS, "one statement each: check_saved_queries.py splits on ';'"
 
 
+@on_cargo_quote
 def test_saved_queries_say_what_they_need():
     import importlib.util, re as _re
     import server  # the page's generic queries plus the subject's queries.toml
@@ -288,7 +297,7 @@ def test_runner_gives_s6_the_derived_output_in_both_modes():
     # a deterministic S6 without S1/run1_G.py in its folder has no Derived node to mark suspect,
     # which the maintainer's invalidation traversal showed as an empty derived column (2026-11-01)
     server = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
-    assert "if derived:" in server and 'RECORD / derived["from_scenario"] / derived["file"]' in server and "mode == \"arms\"" not in server.split("if derived:")[1].split("cmd = ")[0]
+    assert "if derived:" in server and 'ps.record_dir / derived["from_scenario"] / derived["file"]' in server and "mode == \"arms\"" not in server.split("if derived:")[1].split("cmd = ")[0]
     assert (ROOT / "subjects" / "cargo_quote" / "vendor" / "kg_experiment" / "results" / "S1" / "run1_G.py").exists()
     # and the harness reads that file in both modes: the deterministic branch used to pass none
     run_py = (ROOT / "harness" / "run.py").read_text(encoding="utf-8")
@@ -323,6 +332,7 @@ def test_register_card_is_wired_on_the_page_and_the_server():
     assert "Terms shared with the IEAM register" in glossary
 
 
+@on_cargo_quote
 def test_register_root_comes_from_the_environment_and_a_checkout_has_no_note():
     """task-0006.01: KG_REGISTER selects the register root, one register per organisation shared
     by every subject. A root without SOURCE.md is an instance's own checkout: reported as such,
@@ -523,6 +533,7 @@ def test_register_impact_cypher_stops_at_a_deprecated_node_like_the_walk():
 
 
 # ---- task-0024.01: the impact panel carries the walk's Cypher; the listed text uses the register's default start
+@on_cargo_quote
 def test_listed_impact_query_uses_the_registers_default_start_and_the_panel_carries_the_typed_id():
     import os
     import server
