@@ -140,8 +140,7 @@ def openai_responder(model: str | None = None):
         if usage_obj is None:
             raise RuntimeError("stream ended without a usage chunk")
         return {"content": "".join(parts) or None, "tool_calls": [calls[i] for i in sorted(calls)], "model": model_name,
-                "usage": {"prompt_tokens": usage_obj.prompt_tokens, "completion_tokens": usage_obj.completion_tokens,
-                          "cached_tokens": arms.cached_of(usage_obj)},
+                "usage": arms.usage_fields(usage_obj, ep["host"]),
                 "seconds": round(time.time() - t0, 1)}
     return respond
 
@@ -161,7 +160,8 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
     box = Sandbox(sandbox)
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     trace: list[dict] = []
-    tot = {"calls": 0, "prompt_tokens": 0, "cached_tokens": 0, "completion_tokens": 0, "tool_calls": 0, "model": None,
+    tot = {"calls": 0, "prompt_tokens": 0, "cached_tokens": 0, "completion_tokens": 0, "hidden_tokens": 0, "counted_tokens": 0,
+           "thinking_uncounted": False, "tool_calls": 0, "model": None,
            "host": arms.endpoint()["host"], "effort": arms.endpoint()["effort"]}   # what every turn of this run was sent to, and at what effort
     t0 = time.time()
     final: dict | None = None
@@ -171,7 +171,7 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
         elapsed = round(time.time() - t0, 1)
         if tot["calls"] >= lim["calls"]:
             stopped_by = f"ceiling: {lim['calls']} calls"
-        elif tot["prompt_tokens"] + tot["completion_tokens"] >= lim["tokens"]:
+        elif tot["counted_tokens"] >= lim["tokens"]:   # the endpoint's totals where it reports them (task-0034)
             stopped_by = f"ceiling: {lim['tokens']} tokens"
         elif elapsed >= lim["seconds"]:
             stopped_by = f"ceiling: {lim['seconds']} seconds"
@@ -188,14 +188,18 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
         tot["prompt_tokens"] += u.get("prompt_tokens", 0)
         tot["cached_tokens"] += u.get("cached_tokens", 0)
         tot["completion_tokens"] += u.get("completion_tokens", 0)
+        tot["hidden_tokens"] += u.get("hidden_tokens", 0) or 0
+        tot["counted_tokens"] += arms.tokens_of(u)
+        tot["thinking_uncounted"] = tot["thinking_uncounted"] or bool(u.get("thinking_uncounted"))
         tot["model"] = r.get("model") or tot["model"]
         arms.account({"tag": f"{tag}/turn{tot['calls']}", "model": r.get("model"), "host": tot["host"], "effort": tot["effort"], "attempts": 1, "streamed": True,
                       "prompt_tokens": u.get("prompt_tokens", 0), "cached_tokens": u.get("cached_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
+                      "total_tokens": u.get("total_tokens"), "hidden_tokens": u.get("hidden_tokens", 0) or 0, "thinking_uncounted": bool(u.get("thinking_uncounted")),
                       "seconds": r.get("seconds", 0)})
         calls = r.get("tool_calls") or []
         trace.append({"turn": len(trace) + 1, "kind": "model", "tool_calls": [c["name"] for c in calls], "text": _clip(r.get("content") or "", 300),
                       "prompt_tokens": u.get("prompt_tokens", 0), "cached_tokens": u.get("cached_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
-                      "seconds": r.get("seconds", 0), "at": round(time.time() - t0, 1)})
+                      "hidden_tokens": u.get("hidden_tokens", 0) or 0, "seconds": r.get("seconds", 0), "at": round(time.time() - t0, 1)})
         if not calls:
             parsed = None
             try:

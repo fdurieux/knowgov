@@ -48,9 +48,33 @@ def ceiling_tokens() -> int:
     return int(os.environ.get("KG_ARMS_MAX_TOKENS") or DEFAULT_CEILING_TOKENS)
 
 
+def thinking_uncounted() -> bool:
+    """Whether the endpoint is declared to leave a thinking model's tokens out of streamed usage
+    altogether, so the count is low and says nothing of it. Nothing in the usage shows it: a model
+    row declares it (models.toml, thinking_uncounted) and the server passes KG_THINKING_UNCOUNTED.
+    Measured 2026-11-02: LiteLLM's streamed usage for Gemini had total = prompt + completion, while
+    Google's own endpoint, streamed, reports the thinking in its total (task-0034, doc-0006)."""
+    return (os.environ.get("KG_THINKING_UNCOUNTED") or "").strip().lower() in ("1", "true", "yes")
+
+
+def usage_fields(usage_obj, host: str = "") -> dict:
+    """The token fields of one call, as the endpoint reports them: prompt, cached, completion, the
+    total when it reports one, and the hidden remainder, the tokens the total holds beyond prompt
+    and completion (a thinking model's, where the endpoint counts them nowhere else). Whether the
+    endpoint is declared to leave thinking uncounted is recorded beside them."""
+    p = int(getattr(usage_obj, "prompt_tokens", 0) or 0)
+    c = int(getattr(usage_obj, "completion_tokens", 0) or 0)
+    total = getattr(usage_obj, "total_tokens", None)
+    total = int(total) if total else None
+    return {"prompt_tokens": p, "cached_tokens": cached_of(usage_obj), "completion_tokens": c, "total_tokens": total,
+            "hidden_tokens": max(0, total - p - c) if total else 0, "thinking_uncounted": thinking_uncounted()}
+
+
 def tokens_of(rec: dict) -> int:
-    """What a call cost in the one unit the API reports: prompt plus completion tokens."""
-    return int(rec.get("prompt_tokens", 0) or 0) + int(rec.get("completion_tokens", 0) or 0)
+    """What a call counts against a ceiling: the endpoint's total when it reports one (it holds the
+    tokens a thinking model spends beyond prompt and completion), else prompt plus completion."""
+    pc = int(rec.get("prompt_tokens", 0) or 0) + int(rec.get("completion_tokens", 0) or 0)
+    return max(pc, int(rec.get("total_tokens") or 0))
 
 
 def cached_of(usage_obj) -> int:
@@ -161,9 +185,8 @@ def call(system: str, user: str, *, tag: str) -> dict:
             time.sleep(5 * attempts)
     dt = time.time() - t0
     u = usage_obj
-    cached = cached_of(u)
     rec = {"tag": tag, "model": model_name, "host": ep["host"], "effort": ep["effort"], "attempts": attempts, "streamed": True,
-           "prompt_tokens": u.prompt_tokens, "cached_tokens": cached, "completion_tokens": u.completion_tokens, "seconds": round(dt, 1)}
+           **usage_fields(u, ep["host"]), "seconds": round(dt, 1)}
     with _lock:
         _state["tokens"] += tokens_of(rec)
         _state["usage"].append(rec)

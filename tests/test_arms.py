@@ -174,3 +174,29 @@ def test_tokens_not_dollars_and_the_token_ceiling_stops_a_call():
             if cached is not None:
                 self.prompt_tokens_details = type("P", (), {"cached_tokens": cached})()
     assert arms.cached_of(_D()) == 0 and arms.cached_of(_D(7)) == 7 and arms.cached_of(_D(None)) == 0
+
+
+def test_usage_fields_keep_the_total_and_the_hidden_remainder_and_flag_uncounted_thinking():
+    """Task-0034: the endpoint's total is kept with what it holds beyond prompt and completion; a
+    usage without a total counts prompt plus completion; an endpoint declared to leave thinking out
+    of streamed usage (a model row's thinking_uncounted) is flagged, since its count is low and says
+    nothing of it. No host is assumed: Google's own endpoint counts thinking in its streamed total."""
+    from types import SimpleNamespace as NS
+    u = NS(prompt_tokens=37, completion_tokens=114, total_tokens=363, prompt_tokens_details=None)
+    f = arms.usage_fields(u, "api.openai.com")
+    assert f == {"prompt_tokens": 37, "cached_tokens": 0, "completion_tokens": 114, "total_tokens": 363, "hidden_tokens": 212, "thinking_uncounted": False}
+    assert arms.tokens_of(f) == 363
+    keep = os.environ.pop("KG_THINKING_UNCOUNTED", None)
+    try:
+        g = arms.usage_fields(NS(prompt_tokens=37, completion_tokens=106, total_tokens=143, prompt_tokens_details=None), "generativelanguage.googleapis.com")
+        assert g["hidden_tokens"] == 0 and not g["thinking_uncounted"], "no host is assumed to drop thinking: Google's own endpoint counts it"
+        os.environ["KG_THINKING_UNCOUNTED"] = "1"   # what a row declaring thinking_uncounted sets, e.g. a gateway
+        g = arms.usage_fields(NS(prompt_tokens=37, completion_tokens=106, total_tokens=143, prompt_tokens_details=None), "localhost:4000")
+        assert g["thinking_uncounted"] and arms.tokens_of(g) == 143
+    finally:
+        os.environ.pop("KG_THINKING_UNCOUNTED", None)
+        if keep is not None:
+            os.environ["KG_THINKING_UNCOUNTED"] = keep
+    n = arms.usage_fields(NS(prompt_tokens=10, completion_tokens=5, prompt_tokens_details=None), "localhost:4000")
+    assert n["total_tokens"] is None and n["hidden_tokens"] == 0 and arms.tokens_of(n) == 15
+    assert arms.tokens_of({"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 3}) == 15, "a total below the sum never lowers the count"

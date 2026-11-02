@@ -531,6 +531,19 @@ box shows which keys below verified a run read and which it marked as
 assumptions, and a turn resends far less. The page shows prompt, cached
 and reply tokens per run and per turn, as the endpoint reports them.
 
+**Tokens a thinking model spends.** A model that reasons before it
+answers spends tokens on that thinking, and endpoints report them in
+different places. Some count them in the reply tokens. Google's endpoint
+counts them only in its total. The page therefore shows a third column,
+*other tokens*: what the endpoint's total holds beyond the prompt and the
+reply. The token ceilings count the total, so a run of a thinking model
+stops where its bill says it should. One case cannot be seen from the
+usage at all: a gateway may rebuild the total and drop the thinking, as
+LiteLLM did in front of Gemini when we measured it. A model row that
+declares `thinking_uncounted = true` makes the page say so beside every
+run on it, *these token counts are low*, rather than show a number that
+only looks complete.
+
 A subject whose record ran no arm (the J-F data load: its record graded
 whole rebuilds, so its `record_model` is empty) has no like-for-like
 choice. The record's row is then greyed, the first available row is

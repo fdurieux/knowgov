@@ -303,7 +303,7 @@ def test_models_table_rows_resolve_to_the_harness_variables_and_never_carry_a_ke
         assert all(r["key_set"] for r in pub) and "sk-test-not-a-key" not in json.dumps(pub)
         row, env, dev = models.resolve("record", None, "gpt-5.1-2025-11-13", "", "reply")
         assert env == {"KG_MODEL_BASE_URL": "https://api.openai.com/v1", "KG_MODEL_API_KEY_VAR": "OPENAI_API_KEY",
-                       "KG_ARMS_MODEL": "gpt-5.1-2025-11-13", "KG_ARMS_EFFORT": ""} and dev is False
+                       "KG_ARMS_MODEL": "gpt-5.1-2025-11-13", "KG_ARMS_EFFORT": "", "KG_THINKING_UNCOUNTED": ""} and dev is False
         row, env, dev = models.resolve("openai-gpt-5.5", "high", "gpt-5.1-2025-11-13", "", "reply")
         assert env["KG_ARMS_MODEL"] == "gpt-5.5" and env["KG_ARMS_EFFORT"] == "high" and dev is True
         for bad in (("openai-gpt-5.5", "maximum"), ("record", "high"), ("no-such-row", "")):
@@ -553,3 +553,23 @@ def test_vendored_register_matches_its_source_note_and_checks_clean():
     assert summary["C1"]["uncovered"] == [] and summary["C1"]["excepted"] == 1
     assert summary["C2"]["uncovered"] == [] and summary["C3"]["uncovered"] == []
 
+
+
+@on_cargo_quote
+def test_run_tables_show_other_tokens_and_say_when_thinking_goes_uncounted():
+    """Task-0034: the per-run table shows the tokens the endpoint counts beyond prompt and reply, and
+    says so in a sentence when the endpoint leaves thinking out of streamed usage; no dollar column."""
+    import shutil
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td) / "demo-runs" / "2026-11-02-2100" / "S1"; d.mkdir(parents=True)
+        shutil.copy(RESULTS / "S1" / "deterministic.json", d / "deterministic.json")
+        rec = json.loads((RESULTS / "S1" / "run1_G.json").read_text(encoding="utf-8"))
+        rec["usage"].update(hidden_tokens=212, thinking_uncounted=True)
+        (d / "run1_G.json").write_text(json.dumps(rec), encoding="utf-8")
+        v = views.build("S1", "demo-runs/2026-11-02-2100", Path(td) / "demo-runs")
+    sec = v["details"]["generate_G"]["sections"][0]
+    assert "other tokens" in sec["table"]["cols"] and "est. $" not in sec["table"]["cols"]
+    assert sec["table"]["rows"][0][sec["table"]["cols"].index("other tokens")] == "212"   # cells are strings
+    assert "leaves thinking out of streamed usage" in sec["text"]
+    assert v["arms"]["G"]["summary"]["tokens"] >= rec["usage"]["prompt_tokens"] + rec["usage"]["completion_tokens"] + 212
