@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-01T14:27:00Z'
-updated_date: '2026-11-01T14:58:00Z'
+updated_date: '2026-11-02T10:54:00Z'
 labels:
   - platform
   - move
@@ -57,6 +57,8 @@ The demo lives in pumllint under kg_experiment/ (harness, demo app, Dockerfile, 
 Moved verbatim: harness/ and demo/ from pumllint fd8bef4; path constants only (kitio, run, measures, views, server, compare_deterministic, cascade). Subject vendored by tools/vendor_subject.py at fd8bef4 (no pumllint tag carries kg_experiment yet; the note says untagged). Register re-vendored at v0.1.1 by the tool (its note starts here without pumllint's earlier-copies row). Layout tables copied as demo/model/cascade_layout.py, digest in model/SOURCE.md. One real pumllint import found inside a function (extract.py, the sequence mapper uses pumllint.parser): pinned pumllint==0.33.0 from PyPI in the Dockerfile. Local proof without Docker: Neo4j 5.26.0 community tarball on Java 21, venv with the pins, run.py --deterministic for S1 to S7, comparator 0 differing leaves over 7 scenarios; the page served locally passed every check of the CI job (menu, replay S6, register 27/28, impact APP-0002, footprint S2, refs, deterministic S1 through the app, projection 179 relationships at v0.1.1, comparator). 38/38 unit tests.
 
 AC evidence. 1: the stack job builds the image from this repository alone; pumllint enters as the released package 0.33.0 from PyPI (the sequence mapper's parser), not a checkout. 2: no pumllint tag carries kg_experiment (v0.34.0 predates it), so the subject is pinned at fd8bef4 and SOURCE.md says untagged; AC reworded to say so; re-vendor at the next pumllint tag. 3: register copy diffed byte for byte against pumllint's; only the note differs, lacking pumllint's earlier-copies row, since this repository's first copy is v0.1.1; AC reworded; test_vendor_register holds the note to the tool's output. 4: locally against Neo4j 5.26.0 community (the server from the tarball, same edition the container runs), S1 to S7, 0 differing leaves; in CI the container, S1 through the page, comparator OK. 5: the stack job built the image, started both services and read menu, replay S6, register, impact, footprint, refs, a deterministic S1 and the projection; arms correctly reported disabled with no key. 6: tests.yml and demo.yml both ran on PR #2, green. 7: CLAUDE.md sections Record and views, Pull requests, Layout and checks, Boundaries.
+
+2026-11-02: the CargoQuote subject is re-vendored at pumllint v0.35.0 (be737dd), the first tag carrying kg_experiment; 0 bytes changed since the untagged copy at fd8bef4, which the note now lists as an earlier copy.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
