@@ -82,11 +82,13 @@ node labelled `Register` plus one of `RegNode`, `RegLink`, `RegType`,
 the digest of the TOML file each came from. It is derived, never the
 record: a deterministic or arms run wipes the whole store, so the
 projection vanishes with it and the chip says *register not projected*
-until you load it again. Four saved Cypher queries read it: which tag
-is projected, the impact walk from APP-0002, coverage rule C1 with the
-exception joined, and the links that cite a kit document joined to the
-harness's own `Artefact` by path, the one query that crosses the two
-namespaces and the reason to share one database. Every saved query
+until you load it again. Five saved Cypher queries read it: which tag
+is projected, the impact walk from the register's default start as rows
+and as paths (the walk `tools/impact.py` makes, which the impact panel
+also carries for the id you typed, with a copy button), coverage rule C1
+with the exception joined, and the links that cite a kit document joined
+to the harness's own `Artefact` by path, the one query that crosses the
+two namespaces and the reason to share one database. Every saved query
 carries a marker, *runs now* or *needs S6 loaded deterministically*,
 *needs S4 loaded*, *needs the register projected*: the store holds one
 scenario at a time, so a query run against the wrong state gets Neo4j's

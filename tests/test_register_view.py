@@ -251,7 +251,7 @@ def test_projection_is_wired_and_named():
     assert "projection" in views.GLOSSARY and "**The projection.**" in (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
     adapter = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")   # the saved queries are the adapter's
     ids = [m.group(1) for m in _re.finditer(r'\{"id": "([a-z0-9-]+)", "needs": "[^"]+", "title"', adapter)]
-    assert ids[-4:] == ["register-tag", "register-impact", "register-c1", "register-cites"], ids
+    assert ids[-5:] == ["register-tag", "register-impact", "register-impact-paths", "register-c1", "register-cites"], ids
     for cy in ("REG_DELIVERS|REG_REALIZES", "<-[:REG_IS_SUPPORTED_BY]-", "REG_EXCEPTS", "Artefact {id:d.path}", "v.sha256 = d.digest THEN 'same as tag'"):
         assert cy in adapter
     # task-0023: the saved query is the walk impact.py makes, not a one-direction chain
@@ -268,19 +268,19 @@ def test_saved_queries_say_what_they_need():
     import server  # the page's generic queries plus the subject's queries.toml
     listed = server.cypher_list()
     needs = {q["id"]: q["needs"] for q in listed}
-    assert len(needs) == 12 and set(needs.values()) <= {"scenario", "S6", "S4", "register", "register+scenario"}
+    assert len(needs) == 13 and set(needs.values()) <= {"scenario", "S6", "S4", "register", "register+scenario"}
     assert all(q["needs_text"] for q in listed)
     assert {q["id"]: q["needs_text"] for q in listed}["invalidation"] == "S6 loaded deterministically"
     assert {q["id"] for q in views.SUBJECT.queries} == {"three-valued", "gate", "invalidation", "contradiction"}, "the subject's own queries"
     assert needs["invalidation"] == "S6" and needs["contradiction"] == "S4" and needs["register-cites"] == "register+scenario"
-    assert all(needs[k] == "register" for k in ("register-tag", "register-impact", "register-c1"))
+    assert all(needs[k] == "register" for k in ("register-tag", "register-impact", "register-impact-paths", "register-c1"))
     assert all(needs[k] == "scenario" for k in ("loaded", "three-valued", "gate", "gaps", "gaps-concerns", "census"))
     # every need has its text: the page's generic ones in NEEDS_TEXT, a scenario's in the subject's queries.toml
     for q in listed:
         assert q["needs"] in server.NEEDS_TEXT or q.get("needs_text"), q["id"]
     server_text = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
     page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
-    assert "const can = n =>" in page and "'runs now' : 'needs ' + esc(q.needs_text)" in page and "cypher_list()" in server_text
+    assert "function canRun(n)" in page and "'runs now' : 'needs ' + esc(needsText)" in page and "cypher_list()" in server_text
 
 
 def test_runner_gives_s6_the_derived_output_in_both_modes():
@@ -499,3 +499,43 @@ def test_register_impact_cypher_stops_at_a_deprecated_node_like_the_walk():
     assert ("PROC-1", "is_supported_by (inverse)", "JRN-2", "approved", "ORG-1", ("kit:REL-9",)) in app1
     assert _walk_rows(reg, "APP-2") == [] and _walk_rows(reg, "MOD-1") == [], "a deprecated start walks nothing; a parent is never climbed"
     assert len(app1) == 8
+
+
+# ---- task-0024.01: the impact panel carries the walk's Cypher; the listed text uses the register's default start
+def test_listed_impact_query_uses_the_registers_default_start_and_the_panel_carries_the_typed_id():
+    import os
+    import server
+    import store_neo4j as sn
+    default = register_view.impact_default()
+    assert default == register_view.build()["impact_default"] == "APP-0002"
+    listed = {q["id"]: q for q in server.cypher_list()}
+    for qid, raw in (("register-impact", sn.IMPACT_ROWS), ("register-impact-paths", sn.IMPACT_PATHS)):
+        assert listed[qid]["text"] == raw.replace(f"'{sn.IMPACT_START}'", f"'{default}'") and default in listed[qid]["title"]
+        assert f"{{reg_id:'{default}'}}" in listed[qid]["text"] and listed[qid]["text"].count("reg_id:'") == 1
+    # the adapter's literal is the anchor the server replaces; the server itself names no id
+    assert "APP-0002" not in (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
+    # the panel for a typed id: the same two forms with that id, the needs chip's data and a code section the page renders
+    w = server.impact_view("APP-0003")
+    assert w["cypher"]["rows"] == listed["register-impact"]["text"].replace(f"'{default}'", "'APP-0003'")
+    assert w["cypher"]["paths"] == listed["register-impact-paths"]["text"].replace(f"'{default}'", "'APP-0003'")
+    assert w["cypher"]["needs"] == "register" and w["cypher"]["needs_text"] == server.NEEDS_TEXT["register"]
+    sec = w["panel"]["sections"][-1]
+    assert sec["heading"] == "The walk in Cypher" and sec["needs"] == "register" and [c["text"] for c in sec["code"]] == [w["cypher"]["rows"], w["cypher"]["paths"]]
+    assert "The page runs nothing" not in sec["text"] and "wipes the projection" in sec["text"]
+    assert len(w["edges"]) == len(register_view.impact("APP-0003")["edges"]) and w["panel"]["sections"][0]["heading"] == "Edges walked"
+    _check_sentences(w["text_registry"])
+    assert all(any(item["text"] == c["label"] for item in w["text_registry"]) for c in sec["code"]), "the labels are controlled sentences"
+    assert server.impact_view("APP-9999") is None
+    # the rdflib store has no console: no Cypher on the panel, the walk unchanged
+    os.environ["KG_STORE"] = "rdflib"
+    try:
+        r = server.impact_view("APP-0003")
+    finally:
+        del os.environ["KG_STORE"]
+    assert r["cypher"] is None and [sec["heading"] for sec in r["panel"]["sections"]] == ["Edges walked", "Reached"]
+    # the page: a code section renders a copy button and the chip; the copy buttons are wired where a panel opens
+    page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
+    assert "x.code ? x.code.map(" in page and 'class="codebox"' in page and "needsChip(x.needs, x.needs_text)" in page
+    assert "wireRefs(host); wireCopy(host);" in page and "function wireCopy(root)" in page and "function needsChip(" in page
+    ci = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
+    assert 'w["cypher"]["rows"]' in ci

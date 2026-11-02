@@ -94,7 +94,7 @@ td.p{background:var(--ok);text-align:center} td.f{background:var(--bad);text-ali
 details{margin:6px 0} summary{cursor:pointer;font-weight:600}
 .ref{border-left:4px solid var(--amber);background:var(--warn);padding:8px 12px;border-radius:0 8px 8px 0;font-size:13px}
 .console{font:12.5px/1.4 var(--mono);white-space:pre-wrap;background:#0f1a16;color:#cfe3d8;border-radius:10px;padding:10px;max-height:240px;overflow:auto}
-.copy{float:right}
+.copy{float:right} .codebox{margin:6px 0} .codebox pre{white-space:pre-wrap;max-height:260px;overflow:auto}
 .q{margin:4px 0 4px 16px}
 .kv{display:grid;grid-template-columns:max-content 1fr;gap:2px 12px;font-size:13px}
 a{color:var(--teal)}
@@ -266,10 +266,19 @@ async function renderStore() {
     await loadScenarios();
   });
   const cy = await api('/api/cypher');
-  // what each query needs, against the store as it stands: one scenario at a time, the register only when projected
-  const can = n => n === 'scenario' ? !!s.loaded : n === 'register' ? !!s.register : n === 'register+scenario' ? !!(s.register && s.loaded) : s.loaded === n;
-  $('#cypher').innerHTML = cy.map(q => `<details><summary>${esc(q.title)} <span class="chip ${can(q.needs) ? 'ok' : 'warn'}" title="needs ${esc(q.needs_text)}">${can(q.needs) ? 'runs now' : 'needs ' + esc(q.needs_text)}</span></summary><button class="copy" data-t="${esc(q.text)}">copy</button><pre class="light">${esc(q.text)}</pre></details>`).join('');
-  $('#cypher').querySelectorAll('button.copy').forEach(b => b.addEventListener('click', async () => { await navigator.clipboard.writeText(b.dataset.t); b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy', 1200); }));
+  $('#cypher').innerHTML = cy.map(q => `<details><summary>${esc(q.title)} ${needsChip(q.needs, q.needs_text)}</summary><button class="copy" data-t="${esc(q.text)}">copy</button><pre class="light">${esc(q.text)}</pre></details>`).join('');
+  wireCopy($('#cypher'));
+}
+// what a saved query needs, against the store as it stands: one scenario at a time, the register only when projected
+function canRun(n) {
+  const s = STATE.store || {};
+  return n === 'scenario' ? !!s.loaded : n === 'register' ? !!s.register : n === 'register+scenario' ? !!(s.register && s.loaded) : s.loaded === n;
+}
+function needsChip(needs, needsText) {
+  return `<span class="chip ${canRun(needs) ? 'ok' : 'warn'}" title="needs ${esc(needsText)}">${canRun(needs) ? 'runs now' : 'needs ' + esc(needsText)}</span>`;
+}
+function wireCopy(root) {
+  root.querySelectorAll('button.copy').forEach(b => b.addEventListener('click', async () => { await navigator.clipboard.writeText(b.dataset.t); b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy', 1200); }));
 }
 
 async function renderRegisterCard() {
@@ -319,7 +328,7 @@ async function showRegister(today) {
     </div>`;
   const all = {}; Object.values(r.nodes_by_taxonomy).forEach(ns => ns.forEach(n => all[n.id] = n));
   const host = $('#register-detail');
-  const openPanel = html => { host.innerHTML = html; host.querySelector('.close').addEventListener('click', () => { host.innerHTML = ''; }); wireRefs(host); host.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
+  const openPanel = html => { host.innerHTML = html; host.querySelector('.close').addEventListener('click', () => { host.innerHTML = ''; }); wireRefs(host); wireCopy(host); host.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
   $('#report').querySelectorAll('a[data-node]').forEach(a => a.addEventListener('click', ev => { ev.preventDefault(); openPanel(renderDetail(all[a.dataset.node].panel)); }));
   $('#impact-form').addEventListener('submit', async ev => {
     ev.preventDefault();
@@ -371,7 +380,9 @@ function cell(c) {
 }
 function renderDetail(d) {
   if (!d) return '';
-  const sec = x => `<h5>${esc(x.heading)}</h5>${x.text ? `<p>${esc(x.text)}</p>` : ''}${x.list ? `<ul>${x.list.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}${x.table ? `<div class="tw"><table><thead><tr>${x.table.cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${x.table.rows.map(r => `<tr>${r.map(c => `<td>${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}`;
+  // a code section is text for the viewer to paste (the walk's Cypher): a copy button per form and the needs chip; the page runs nothing
+  const code = x => x.code ? x.code.map(c => `<div class="codebox"><button class="copy" data-t="${esc(c.text)}">copy</button><div class="small">${esc(c.label)} ${x.needs ? needsChip(x.needs, x.needs_text) : ''}</div><pre class="light">${esc(c.text)}</pre></div>`).join('') : '';
+  const sec = x => `<h5>${esc(x.heading)}</h5>${x.text ? `<p>${esc(x.text)}</p>` : ''}${x.list ? `<ul>${x.list.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}${x.table ? `<div class="tw"><table><thead><tr>${x.table.cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${x.table.rows.map(r => `<tr>${r.map(c => `<td>${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}${code(x)}`;
   return `<div class="detail"><button class="close small">close</button><h4>${esc(d.title)}</h4><p class="intro">${esc(d.intro)}</p>${d.sections.map(sec).join('')}<div class="sub"></div></div>`;
 }
 // A reference opens its panel in the host panel's .sub, one level deep: a reference inside the
