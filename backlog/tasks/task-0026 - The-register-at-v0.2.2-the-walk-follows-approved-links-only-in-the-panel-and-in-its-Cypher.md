@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-02T11:24:00Z'
-updated_date: '2026-11-02T11:34:00Z'
+updated_date: '2026-11-02T12:23:00Z'
 labels:
   - register
   - page
@@ -51,6 +51,8 @@ ieam-register decision 0007 (v0.2.2, merged 2026-11-02) re-read three evidence a
 
 <!-- SECTION:NOTES:BEGIN -->
 Re-vendored at v0.2.2 (0242646): 90 files, the two relationship files, crud.toml, impact.py and decision 0007 changed; 56 nodes, 65 links as before. register_view.impact now takes live from the vendored walk and reached from impact.reached; the rows carry a followed column; the summary reads "9 edges walked, 2 withdrawn; 2 processes, 2 products and 3 journey elements reached" from APP-0005 (the tool prints the same) and "5 edges walked, 0 withdrawn" from APP-0002. Cypher: r1/r2 named on intermediate links, filtered state approved; rows form adds followed. The simulation test parses link variables and the approved filter and compares live; the fixture gains REL-12 (proposed) APP-1 -> PROC-3 -> PRD-4, 9 edges from APP-1 with 4 withdrawn and PRD-4 never reached. Map: six rows moved, register_commit at v0.2.2; the approved-link citations still count 31 keys. Pins moved in three tests and demo.yml. Stdlib suite 91/91.
+
+The maintainer approved the six v0.2.2 rows as they stand on 2026-11-02, after an opportunity canvas on them; recorded on the map (knowgov #45). The open line of the final summary is closed.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
