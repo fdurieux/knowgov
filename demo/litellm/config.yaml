@@ -1,0 +1,25 @@
+# The LiteLLM gateway the demo starts with the compose profile "claude" (task-0035, doc-0006).
+# Anthropic's own OpenAI-compatible layer ignores the reasoning effort and refuses the one-reply
+# arm's JSON mode, so a Claude row goes through this gateway, which maps the effort to Anthropic's
+# thinking settings and serves both arm kinds.
+#
+# Three choices make the row honest:
+#  - the alias is the upstream model's own name, so a run file records the model behind the gateway;
+#  - the cache mark is added to the system prompt and to the newest message, so an agent run reads
+#    its growing conversation from Anthropic's cache instead of paying for it again every turn;
+#  - the Anthropic key is read by name from KG_ANTHROPIC_KEY (never ANTHROPIC_API_KEY, which a Claude
+#    Code session reads for itself), and the gateway's own key from LITELLM_MASTER_KEY. No key here.
+model_list:
+  - model_name: claude-sonnet-5-5
+    litellm_params:
+      model: anthropic/claude-sonnet-5-5
+      api_key: os.environ/KG_ANTHROPIC_KEY
+      cache_control_injection_points:
+        - location: message
+          role: system
+        - location: message
+          index: -1
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+litellm_settings:
+  drop_params: false

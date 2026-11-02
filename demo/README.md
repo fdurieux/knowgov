@@ -488,9 +488,40 @@ row, Google's gemini-3.8-flash on Google's own OpenAI-compatible
 endpoint: export your Google AI Studio key as `GEMINI_API_KEY` and the
 row becomes available, for both kinds of arm, at the API's default
 effort or low, medium or high. A Claude row needs a gateway in front
-of Anthropic and is not in the file yet (task-0035). A
+of Anthropic; see *A Claude row, through a gateway* below. A
 private model behind a gateway (vLLM, Ollama, LiteLLM, an enterprise
 proxy) is a row like any other, its `base_url` the gateway.
+
+**A Claude row, through a gateway.** Anthropic's own OpenAI-compatible
+endpoint ignores the effort setting and refuses the JSON-only replies the
+one-reply arm asks for, so the Claude row reaches Anthropic through a
+small gateway, LiteLLM, that the stack starts only when you ask for it.
+The gateway translates the effort into Anthropic's thinking settings,
+marks each prompt so Anthropic caches it, and records the real model
+name, `claude-sonnet-5-5`, on every run. Two keys are involved, and
+neither is ever written to a file:
+
+```bash
+export KG_ANTHROPIC_KEY=your-anthropic-api-key
+```
+
+```bash
+export LITELLM_MASTER_KEY=sk-any-long-random-string-you-choose
+```
+
+```bash
+cd "$HOME/knowgov/demo" && docker compose --profile claude up -d --build --wait && open http://localhost:8080
+```
+
+In plain English: the first variable is your Anthropic key, from the
+Claude Console; only the gateway sees it. Do not use the name
+`ANTHROPIC_API_KEY`, which Claude Code itself reads. The second is a key
+you make up; the page uses it to talk to the gateway, and the gateway
+refuses anyone without it. `--profile claude` starts the gateway beside
+the app; without it the stack runs exactly as before and the Claude row
+stays greyed with "set LITELLM_MASTER_KEY". Caching matters for the agent
+arm: each turn resends the whole conversation, and with the cache mark
+Anthropic charges the repeated part at its lower cached rate.
 
 Whatever the row, a model, a host or an effort other than the record's
 is a deviation: the page marks every such run in red, names the model
