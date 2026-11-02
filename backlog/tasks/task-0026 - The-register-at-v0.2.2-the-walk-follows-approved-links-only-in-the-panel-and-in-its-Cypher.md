@@ -3,11 +3,11 @@ id: TASK-0026
 title: >-
   The register at v0.2.2: the walk follows approved links only, in the panel and
   in its Cypher
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-02T11:24:00Z'
-updated_date: '2026-11-02T11:26:00Z'
+updated_date: '2026-11-02T11:34:00Z'
 labels:
   - register
   - page
@@ -34,11 +34,11 @@ ieam-register decision 0007 (v0.2.2, merged 2026-11-02) re-read three evidence a
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 demo/register is the tool-written copy at ieam-register v0.2.2, every file held to its digest, the vendored checker clean at the pinned date
-- [ ] #2 The impact panel reports every edge the vendored walk meets with whether it was followed, counts withdrawn edges apart, and lists as reached the far ends of live edges only; its sentences stay within the controlled-English rules
-- [ ] #3 The register-impact and register-impact-paths Cypher follow approved links through intermediate nodes only and report the last edge with its state; the simulation test proves equality with the vendored walk on every node of the copy and on a fixture where a proposed link is the only route
-- [ ] #4 The J-F register map names both endpoints of every approved link that cites a key at v0.2.2 and no node a withdrawn citation alone put there; its register_commit names the v0.2.2 commit
-- [ ] #5 The stdlib suite is green and the stack job compares the saved query rows with the panel edges for the same start at v0.2.2
+- [x] #1 demo/register is the tool-written copy at ieam-register v0.2.2, every file held to its digest, the vendored checker clean at the pinned date
+- [x] #2 The impact panel reports every edge the vendored walk meets with whether it was followed, counts withdrawn edges apart, and lists as reached the far ends of live edges only; its sentences stay within the controlled-English rules
+- [x] #3 The register-impact and register-impact-paths Cypher follow approved links through intermediate nodes only and report the last edge with its state; the simulation test proves equality with the vendored walk on every node of the copy and on a fixture where a proposed link is the only route
+- [x] #4 The J-F register map names both endpoints of every approved link that cites a key at v0.2.2 and no node a withdrawn citation alone put there; its register_commit names the v0.2.2 commit
+- [x] #5 The stdlib suite is green and the stack job compares the saved query rows with the panel edges for the same start at v0.2.2
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -52,3 +52,9 @@ ieam-register decision 0007 (v0.2.2, merged 2026-11-02) re-read three evidence a
 <!-- SECTION:NOTES:BEGIN -->
 Re-vendored at v0.2.2 (0242646): 90 files, the two relationship files, crud.toml, impact.py and decision 0007 changed; 56 nodes, 65 links as before. register_view.impact now takes live from the vendored walk and reached from impact.reached; the rows carry a followed column; the summary reads "9 edges walked, 2 withdrawn; 2 processes, 2 products and 3 journey elements reached" from APP-0005 (the tool prints the same) and "5 edges walked, 0 withdrawn" from APP-0002. Cypher: r1/r2 named on intermediate links, filtered state approved; rows form adds followed. The simulation test parses link variables and the approved filter and compares live; the fixture gains REL-12 (proposed) APP-1 -> PROC-3 -> PRD-4, 9 edges from APP-1 with 4 withdrawn and PRD-4 never reached. Map: six rows moved, register_commit at v0.2.2; the approved-link citations still count 31 keys. Pins moved in three tests and demo.yml. Stdlib suite 91/91.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Merged as knowgov #43 on a green matrix (tests, rdflib, stack). The demo carries ieam-register v0.2.2 (0242646, decision 0007); the impact panel lists every edge the vendored walk meets with a followed column, counts withdrawn edges apart and reaches the far ends of live edges only; the saved Cypher walk filters intermediate links on approved and adds the same column, equal to the walk on every node of the copy, on a fixture with a proposed-only route (test) and against a local Neo4j 5.26 for five starts (rows and paths forms, every saved query running); the stack job compared the saved query rows with the panel edges and ran check_impact_cypher for all 56 nodes. The J-F map moved six rows per decision 0007 and pins v0.2.2; its approved-link citations still count 31 keys. Open: the maintainer has not yet said the word on the six revised map rows (the map header says so); when given, the status comment line records it as for v0.2.1.
+<!-- SECTION:FINAL_SUMMARY:END -->
