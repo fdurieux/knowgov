@@ -94,7 +94,7 @@ td.p{background:var(--ok);text-align:center} td.f{background:var(--bad);text-ali
 details{margin:6px 0} summary{cursor:pointer;font-weight:600}
 .ref{border-left:4px solid var(--amber);background:var(--warn);padding:8px 12px;border-radius:0 8px 8px 0;font-size:13px}
 .console{font:12.5px/1.4 var(--mono);white-space:pre-wrap;background:#0f1a16;color:#cfe3d8;border-radius:10px;padding:10px;max-height:240px;overflow:auto}
-.copy{float:right} .codebox{margin:6px 0} .codebox pre{white-space:pre-wrap;max-height:260px;overflow:auto}
+.copy{float:right} .codebox{margin:6px 0} .codebox pre{white-space:pre-wrap;max-height:260px;overflow:auto} .codebox .tools{float:right;display:flex;gap:8px;align-items:center}
 .q{margin:4px 0 4px 16px}
 .kv{display:grid;grid-template-columns:max-content 1fr;gap:2px 12px;font-size:13px}
 a{color:var(--teal)}
@@ -381,7 +381,8 @@ function cell(c) {
 function renderDetail(d) {
   if (!d) return '';
   // a code section is text for the viewer to paste (the walk's Cypher): a copy button per form and the needs chip; the page runs nothing
-  const code = x => x.code ? x.code.map(c => `<div class="codebox"><button class="copy" data-t="${esc(c.text)}">copy</button><div class="small">${esc(c.label)} ${x.needs ? needsChip(x.needs, x.needs_text) : ''}</div><pre class="light">${esc(c.text)}</pre></div>`).join('') : '';
+  // beside the copy button, a link that opens the Browser with the editor pre-filled (its ?cmd=edit&arg=) and nothing run
+  const code = x => x.code ? x.code.map(c => `<div class="codebox"><span class="tools"><button class="copy" data-t="${esc(c.text)}">copy</button>${c.browser ? `<a class="small" href="${esc(c.browser)}" target="_blank" rel="noopener">open in the Browser</a>` : ''}</span><div class="small">${esc(c.label)} ${x.needs ? needsChip(x.needs, x.needs_text) : ''}</div><pre class="light">${esc(c.text)}</pre></div>`).join('') : '';
   const sec = x => `<h5>${esc(x.heading)}</h5>${x.text ? `<p>${esc(x.text)}</p>` : ''}${x.list ? `<ul>${x.list.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}${x.table ? `<div class="tw"><table><thead><tr>${x.table.cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${x.table.rows.map(r => `<tr>${r.map(c => `<td>${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}${code(x)}`;
   return `<div class="detail"><button class="close small">close</button><h4>${esc(d.title)}</h4><p class="intro">${esc(d.intro)}</p>${d.sections.map(sec).join('')}<div class="sub"></div></div>`;
 }

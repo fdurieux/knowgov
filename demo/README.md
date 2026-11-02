@@ -95,6 +95,23 @@ scenario at a time, so a query run against the wrong state gets Neo4j's
 "label not in the database" warnings and no rows, which is correct and
 not a fault.
 
+**The impact panel's Browser links.** Beside each form on the impact
+panel, next to its copy button, a link opens Neo4j Browser with the
+editor pre-filled and nothing run: it is the Browser's own
+`?cmd=edit&arg=<query>` joined to the `?connectURL=` the *Open Neo4j
+Browser* link already carries, so the Browser connects and shows the
+query, and you press play yourself. A run wipes the projection first, so
+project the register again before you do, or the Browser warns that the
+`RegNode` label is not in the database and returns no rows. One caveat
+from testing the link against Browser 5.26.0 in a scripted browser: the
+editor opened empty, because the Browser sends the pre-fill one
+millisecond after it starts and the editor listens for it only once it is
+mounted, while the connect URL took. If that happens to you, the copy
+button holds the same text: paste it. The stack job proves the links
+themselves: for every node of the register it takes the query from each
+link and runs it through the store, and the rows must be the walk's edges
+and the paths the same relationships (`demo/tools/check_impact_cypher.py`).
+
 **The register.** The last entry of the Scenarios list is the IEAM
 register, a separate public repository
 ([fdurieux/ieam-register](https://github.com/fdurieux/ieam-register))
@@ -610,8 +627,8 @@ package public. Demo runs then live in a Docker volume named
 configured for 1 GB of heap and 512 MB of page cache, the app needs little.
 Use an Ubuntu image with Docker installed, clone the repository, and start
 the stack as above with `KG_BROWSER_URL=http://<the instance's public address>:7474`
-exported so the demo's "Open Neo4j Browser" link points at the instance
-rather than at your own machine. **Restrict the security group to your own
+exported so the demo's "Open Neo4j Browser" link and the impact panel's
+Browser links point at the instance rather than at your own machine. **Restrict the security group to your own
 IP address** for ports 8080, 7474 and 7687: the demo page has no
 authentication at all, and port 7474 is a live database console protected
 only by the password you set. Do not leave the instance reachable from the

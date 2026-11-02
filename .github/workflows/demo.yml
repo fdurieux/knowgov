@@ -92,6 +92,9 @@ jobs:
           print(f"register-impact from {start}: {rows} rows, the walk's {edges} edges")
           PY
 
+      - name: The impact panel's Browser links carry the walk, for every node of the register
+        run: docker compose exec -T app python demo/tools/check_impact_cypher.py
+
       - name: An empty subject loads and the gate reports every required key absent
         run: |
           docker compose exec -T -e KG_SUBJECT=/repo/subjects/minimal app python harness/run.py --deterministic --out runs/minimal
