@@ -252,8 +252,15 @@ def test_projection_is_wired_and_named():
     adapter = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")   # the saved queries are the adapter's
     ids = [m.group(1) for m in _re.finditer(r'\{"id": "([a-z0-9-]+)", "needs": "[^"]+", "title"', adapter)]
     assert ids[-4:] == ["register-tag", "register-impact", "register-c1", "register-cites"], ids
-    for cy in ("REG_IS_SUPPORTED_BY|REG_DELIVERS", "REG_EXCEPTS", "Artefact {id:d.path}", "v.sha256 = d.digest THEN 'same as tag'"):
+    for cy in ("REG_DELIVERS|REG_REALIZES", "<-[:REG_IS_SUPPORTED_BY]-", "REG_EXCEPTS", "Artefact {id:d.path}", "v.sha256 = d.digest THEN 'same as tag'"):
         assert cy in adapter
+    # task-0023: the saved query is the walk impact.py makes, not a one-direction chain
+    assert "REG_SUPPORTS|REG_IS_SUPPORTED_BY|REG_DELIVERS*1..4" not in adapter
+    import store_neo4j as sn
+    impact = {q["id"]: q for q in sn.SAVED_QUERIES}["register-impact"]
+    assert impact["text"] == sn.IMPACT_ROWS and sn.IMPACT_START in impact["title"] and "tools/impact.py" in impact["title"]
+    assert f"{{reg_id:'{sn.IMPACT_START}'}}" in sn.IMPACT_ROWS and f"{{reg_id:'{sn.IMPACT_START}'}}" in sn.IMPACT_PATHS
+    assert ";" not in sn.IMPACT_ROWS and ";" not in sn.IMPACT_PATHS, "one statement each: check_saved_queries.py splits on ';'"
 
 
 def test_saved_queries_say_what_they_need():
@@ -346,3 +353,149 @@ def test_register_root_comes_from_the_environment_and_a_checkout_has_no_note():
             del os.environ["KG_REGISTER"]
             rv = importlib.reload(register_view)
     assert rv.REGISTER == (DEMO / "register").resolve() and rv.source_info()["kind"] == "copy"
+
+
+# ---- task-0023: the saved query register-impact is the walk impact.py makes
+# The Cypher's CALL { } UNION block is parsed (one chain per branch: typed relationship sets with
+# their direction, the taxonomy and state filters on the start and the intermediate nodes) and
+# simulated over the projection's rows, so the test reads the adapter's text, not a copy of it.
+_STEP = re.compile(r"(<-|-)\[:([A-Z_|]+)\](->|-)\((\w*):RegNode\)")
+_BRANCH = re.compile(r"WITH a MATCH p = \(a\)(.*?) WHERE (.*?) RETURN p", re.S)
+sys.path.insert(0, str(ROOT / "harness"))
+
+
+def _parse_chains(text):
+    """The branches of the CALL block: [(steps, filters)], a step (inverse?, {types}, var), the
+    filters {var: (taxonomy, live_only?)}. Every branch must be understood: an unparsed piece fails."""
+    block = text[text.index("CALL {") + len("CALL {"):text.index("\n}\n")]
+    chains = []
+    for branch in block.split("UNION"):
+        m = _BRANCH.fullmatch(branch.strip())
+        assert m, branch
+        pattern, conds = m.group(1), m.group(2)
+        steps, pos = [], 0
+        for st in _STEP.finditer(pattern):
+            assert st.start() == pos, pattern
+            pos = st.end()
+            assert (st.group(1), st.group(3)) in (("-", "->"), ("<-", "-")), pattern
+            steps.append((st.group(1) == "<-", set(st.group(2).split("|")), st.group(4)))
+        assert pos == len(pattern) and steps, pattern
+        filters = {}
+        for c in conds.split(" AND "):
+            t = re.fullmatch(r"(\w+)\.taxonomy = '(\w+)'", c)
+            l = re.fullmatch(r"NOT (\w+)\.state IN \['deprecated','retired'\]", c)
+            assert t or l, c
+            v = (t or l).group(1)
+            tax, live = filters.get(v, (None, False))
+            filters[v] = (t.group(2) if t else tax, live or bool(l))
+        chains.append((steps, filters))
+    return chains
+
+
+def _simulate(chains, rows, start):
+    """The rows the Cypher gives from ``start`` over the projection's rows: the distinct relationships
+    of every path of every branch, each as (from, relationship, to, link state, owner, evidence)."""
+    nodes = {n["reg_id"]: n for n in rows["nodes"]}
+    evidence = {l["reg_id"]: tuple(l["evidence"]) for l in rows["links"]}
+    by_source, by_target = {}, {}
+    for rtype, items in rows["typed"].items():
+        for it in items:
+            rel = (rtype, it["source"], it["target"], it["props"]["reg_id"], it["props"]["state"], it["props"]["owner"])
+            by_source.setdefault(it["source"], []).append(rel)
+            by_target.setdefault(it["target"], []).append(rel)
+
+    def ok(var, nid, filters):
+        tax, live = filters.get(var, (None, False))
+        n = nodes[nid]
+        return (tax is None or n["taxonomy"] == tax) and not (live and n["state"] in ("deprecated", "retired"))
+
+    found = set()
+    for steps, filters in chains:
+        if start not in nodes or not ok("a", start, filters):
+            continue
+        partial = [(start, ())]
+        for inverse, types, var in steps:
+            nxt = []
+            for cur, path in partial:
+                for rel in (by_target if inverse else by_source).get(cur, []):
+                    if rel[0] not in types:
+                        continue
+                    other = rel[1] if inverse else rel[2]
+                    if ok(var, other, filters) if var else True:
+                        nxt.append((other, path + (rel,)))
+            partial = nxt
+        for _, path in partial:
+            found.update(path)
+    out = []
+    for rtype, src, tgt, link, state, owner in found:
+        inv = rtype == "REG_IS_SUPPORTED_BY"
+        label = rtype.replace("REG_", "").lower() + (" (inverse)" if inv else "")
+        out.append(((tgt if inv else src), label, (src if inv else tgt), state, owner, evidence[link]))
+    return sorted(out)
+
+
+def _walk_rows(reg, start):
+    T = register_view._load_tools()
+    return sorted((e["from"], e["rel"], e["to"], e["state"], e["owner"], tuple(e["evidence"])) for e in T["impact"].walk(reg, start))
+
+
+def test_register_impact_cypher_equals_the_walk_on_every_node():
+    import register_project as rp
+    import store_neo4j as sn
+    rows = rp.rows(loaded_at="2026-10-31T00:00:00+00:00")
+    reg = register_view._load_tools()["register"].load_register(register_view.REGISTER)
+    chains = _parse_chains(sn.IMPACT_ROWS)
+    assert len(chains) == 8 and _parse_chains(sn.IMPACT_PATHS) == chains, "the paths form is the same walk"
+    assert sn.IMPACT_PATHS.count("OPTIONAL CALL {") == 1 and sn.IMPACT_PATHS.rstrip().endswith("RETURN a, p")
+    walked = 0
+    for nid in reg["nodes"]:
+        expect = _walk_rows(reg, nid)
+        assert _simulate(chains, rows, nid) == expect, nid
+        walked += len(expect)
+    assert walked > 0 and len(_walk_rows(reg, "APP-0002")) == 5 and len(_walk_rows(reg, "JRN-0002")) == 0
+    assert _simulate(chains, rows, "APP-0002") == _walk_rows(reg, "APP-0002") and any("(inverse)" in r[1] for r in _simulate(chains, rows, "APP-0002"))
+    # the walk's depth is bounded by the register's own kinds: every chain ends on a product or a capability
+    rels = {r: reg["relationships"][r]["type"] for r in ("supports", "delivers", "realizes", "is_supported_by", "concerns")}
+    assert set(rels["supports"]["target_kind"]) | set(rels["is_supported_by"]["target_kind"]) <= {"activity", "subprocess", "end_to_end_process"}
+    assert set(rels["delivers"]["target_kind"]) | set(rels["concerns"]["target_kind"]) <= {"product", "variant"}
+    assert set(rels["realizes"]["target_kind"]) <= {"capability", "sub_capability"}
+
+
+def _fixture():
+    """A small register with what the vendored copy lacks: a deprecated intermediate node (PROC-2,
+    reached and not expanded), a retired journey step (JRN-2, the same), a deprecated start (APP-2,
+    nothing walked), two links of one type between one pair (both reported) and a parent (never climbed)."""
+    N = {"APP-1": ("applications", "approved"), "APP-2": ("applications", "deprecated"), "MOD-1": ("applications", "approved"),
+         "PROC-1": ("processes", "approved"), "PROC-2": ("processes", "deprecated"), "PRD-1": ("products", "approved"),
+         "PRD-2": ("products", "approved"), "PRD-3": ("products", "approved"), "CAP-1": ("capabilities", "approved"),
+         "JRN-1": ("journeys", "approved"), "JRN-2": ("journeys", "retired")}
+    L = [("supports", "REL-1", "APP-1", "PROC-1", "approved"), ("supports", "REL-2", "APP-1", "PROC-1", "proposed"),
+         ("supports", "REL-3", "APP-1", "PROC-2", "approved"), ("supports", "REL-4", "APP-2", "PROC-1", "approved"),
+         ("delivers", "REL-5", "PROC-1", "PRD-1", "approved"), ("delivers", "REL-6", "PROC-2", "PRD-2", "approved"),
+         ("realizes", "REL-7", "PROC-1", "CAP-1", "approved"), ("is_supported_by", "REL-8", "JRN-1", "PROC-1", "approved"),
+         ("is_supported_by", "REL-9", "JRN-2", "PROC-1", "approved"), ("concerns", "REL-10", "JRN-1", "PRD-1", "approved"),
+         ("concerns", "REL-11", "JRN-2", "PRD-3", "approved")]
+    reg = {"nodes": {k: {"_taxonomy": t, "state": s, "parent": "APP-1" if k == "MOD-1" else ""} for k, (t, s) in N.items()},
+           "relationships": {}}
+    for rel, lid, src, tgt, st in L:
+        reg["relationships"].setdefault(rel, {"links": []})["links"].append({"id": lid, "source": src, "target": tgt, "state": st, "owner": "ORG-1", "evidence": [f"kit:{lid}"]})
+    rows = {"nodes": [{"reg_id": k, "taxonomy": t, "state": s, "name": k} for k, (t, s) in N.items()],
+            "links": [{"reg_id": lid, "evidence": [f"kit:{lid}"]} for _, lid, *_ in L], "typed": {}}
+    for rel, lid, src, tgt, st in L:
+        rows["typed"].setdefault("REG_" + rel.upper(), []).append({"source": src, "target": tgt, "props": {"reg_id": lid, "state": st, "owner": "ORG-1"}})
+    rows["typed"]["REG_PARENT"] = [{"source": "MOD-1", "target": "APP-1", "props": {"reg_id": "", "state": "", "owner": ""}}]
+    return reg, rows
+
+
+def test_register_impact_cypher_stops_at_a_deprecated_node_like_the_walk():
+    import store_neo4j as sn
+    reg, rows = _fixture()
+    chains = _parse_chains(sn.IMPACT_ROWS)
+    for nid in reg["nodes"]:
+        assert _simulate(chains, rows, nid) == _walk_rows(reg, nid), nid
+    app1 = _walk_rows(reg, "APP-1")
+    assert [r[2] for r in app1].count("PROC-1") == 2 and "PROC-2" in [r[2] for r in app1], "two supports links reported; the deprecated process reached"
+    assert "PRD-2" not in [r[2] for r in app1] and "PRD-3" not in [r[2] for r in app1], "neither the deprecated nor the retired node is expanded"
+    assert ("PROC-1", "is_supported_by (inverse)", "JRN-2", "approved", "ORG-1", ("kit:REL-9",)) in app1
+    assert _walk_rows(reg, "APP-2") == [] and _walk_rows(reg, "MOD-1") == [], "a deprecated start walks nothing; a parent is never climbed"
+    assert len(app1) == 8

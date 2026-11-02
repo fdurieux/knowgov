@@ -79,7 +79,18 @@ jobs:
           docker compose exec -T app python demo/tools/compare_deterministic.py "runs/$(cat run_id)"
 
       - name: Every saved query the page lists runs in the store
-        run: docker compose exec -T app python demo/tools/check_saved_queries.py
+        run: |
+          docker compose exec -T app python demo/tools/check_saved_queries.py | tee queries.txt
+          # register-impact is the walk impact.py makes (task-0023): its rows are the panel's edges for the same start
+          python3 - <<'PY'
+          import json, re, urllib.request
+          listed = {q["id"]: q["text"] for q in json.load(urllib.request.urlopen("http://localhost:8080/api/cypher"))}
+          start = re.search(r"reg_id:'([^']+)'", listed["register-impact"]).group(1)
+          edges = len(json.load(urllib.request.urlopen(f"http://localhost:8080/api/register/impact/{start}"))["edges"])
+          rows = int(re.search(r"^ok\s+register-impact\s+(\d+) rows", open("queries.txt").read(), re.M).group(1))
+          assert rows == edges > 0, (rows, edges)
+          print(f"register-impact from {start}: {rows} rows, the walk's {edges} edges")
+          PY
 
       - name: An empty subject loads and the gate reports every required key absent
         run: |

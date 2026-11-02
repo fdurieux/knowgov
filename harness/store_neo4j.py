@@ -30,6 +30,51 @@ CONSTRAINTS = [
     ("property type", "CREATE CONSTRAINT version_sha IF NOT EXISTS FOR (n:Version) REQUIRE n.sha256 IS :: STRING"),
 ]
 
+# The impact walk of the register's tools/impact.py, in Cypher, from one literal start (task-0023).
+# The walk's rules: applications follow supports; processes follow delivers and realizes, and
+# is_supported_by backwards (reported from the process, "(inverse)"); journeys follow concerns; any
+# link state; a deprecated or retired node is reached, not expanded; no parent climb. Every chain the
+# rules allow is one branch of the CALL { } UNION: the start and each intermediate node filtered on
+# taxonomy and state, the end node unfiltered. The register's own kinds end every chain in three
+# steps (supports lands on a process, delivers and concerns on a product, realizes on a capability).
+# IMPACT_ROWS is the saved query, one row per edge as the panel's table; IMPACT_PATHS returns the
+# paths, which the Browser draws as a graph. Equivalence with walk() is tested over the projection's rows.
+IMPACT_START = "APP-0002"
+_LIVE = "NOT {0}.state IN ['deprecated','retired']"
+_APP = "a.taxonomy = 'applications' AND " + _LIVE.format("a")
+_PROC_A = "a.taxonomy = 'processes' AND " + _LIVE.format("a")
+_PROC_X = "x.taxonomy = 'processes' AND " + _LIVE.format("x")
+_JRN_A = "a.taxonomy = 'journeys' AND " + _LIVE.format("a")
+_JRN_J = "j.taxonomy = 'journeys' AND " + _LIVE.format("j")
+IMPACT_WALK = (
+    f"MATCH (a:RegNode {{reg_id:'{IMPACT_START}'}})\n"
+    "CALL {\n"
+    f"  WITH a MATCH p = (a)-[:REG_SUPPORTS]->(:RegNode) WHERE {_APP} RETURN p\n"
+    f"  UNION WITH a MATCH p = (a)-[:REG_SUPPORTS]->(x:RegNode)-[:REG_DELIVERS|REG_REALIZES]->(:RegNode) WHERE {_APP} AND {_PROC_X} RETURN p\n"
+    f"  UNION WITH a MATCH p = (a)-[:REG_SUPPORTS]->(x:RegNode)<-[:REG_IS_SUPPORTED_BY]-(:RegNode) WHERE {_APP} AND {_PROC_X} RETURN p\n"
+    f"  UNION WITH a MATCH p = (a)-[:REG_SUPPORTS]->(x:RegNode)<-[:REG_IS_SUPPORTED_BY]-(j:RegNode)-[:REG_CONCERNS]->(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_JRN_J} RETURN p\n"
+    f"  UNION WITH a MATCH p = (a)-[:REG_DELIVERS|REG_REALIZES]->(:RegNode) WHERE {_PROC_A} RETURN p\n"
+    f"  UNION WITH a MATCH p = (a)<-[:REG_IS_SUPPORTED_BY]-(:RegNode) WHERE {_PROC_A} RETURN p\n"
+    f"  UNION WITH a MATCH p = (a)<-[:REG_IS_SUPPORTED_BY]-(j:RegNode)-[:REG_CONCERNS]->(:RegNode) WHERE {_PROC_A} AND {_JRN_J} RETURN p\n"
+    f"  UNION WITH a MATCH p = (a)-[:REG_CONCERNS]->(:RegNode) WHERE {_JRN_A} RETURN p\n"
+    "}\n")
+IMPACT_ROWS = (
+    "// the walk tools/impact.py makes, one row per edge, as the impact panel lists them\n"
+    + IMPACT_WALK +
+    "UNWIND relationships(p) AS r WITH DISTINCT r\n"
+    "WITH r, CASE WHEN type(r) = 'REG_IS_SUPPORTED_BY' THEN endNode(r) ELSE startNode(r) END AS f,\n"
+    "        CASE WHEN type(r) = 'REG_IS_SUPPORTED_BY' THEN startNode(r) ELSE endNode(r) END AS t\n"
+    "OPTIONAL MATCH (l:RegLink {reg_id: r.reg_id})   // the evidence sits on the link node\n"
+    "RETURN f.reg_id AS `from`,\n"
+    "       toLower(replace(type(r), 'REG_', '')) + CASE WHEN type(r) = 'REG_IS_SUPPORTED_BY' THEN ' (inverse)' ELSE '' END AS relationship,\n"
+    "       t.reg_id AS `to`, t.name AS name, t.state AS `node state`, r.state AS `link state`, r.owner AS owner,\n"
+    "       l.evidence AS evidence, r.reg_id AS link\n"
+    "ORDER BY link")
+IMPACT_PATHS = (
+    "// the same walk as paths, for the Browser's graph view: a start with no edge still draws itself\n"
+    + IMPACT_WALK.replace("CALL {\n", "OPTIONAL CALL {\n") +
+    "RETURN a, p")
+
 # The page's generic saved queries for Neo4j Browser; a subject adds its own (queries.toml).
 SAVED_QUERIES = [
     {"id": "loaded", "needs": "scenario", "title": "Which scenario is loaded",
@@ -52,10 +97,8 @@ SAVED_QUERIES = [
      "text": ("MATCH (n:RegNode) WITH n.tag AS tag, n.commit AS commit, n.loaded_at AS loaded_at LIMIT 1\n"
               "MATCH (m:Register) UNWIND labels(m) AS l WITH tag, commit, loaded_at, l WHERE l <> 'Register'\n"
               "RETURN tag, commit, loaded_at, l AS label, count(*) AS n ORDER BY label")},
-    {"id": "register-impact", "needs": "register", "title": "The impact walk from APP-0002 in the projection (supports → is_supported_by → delivers, no parent climb)",
-     "text": ("MATCH p = (a:RegNode {reg_id:'APP-0002'})-[:REG_SUPPORTS|REG_IS_SUPPORTED_BY|REG_DELIVERS*1..4]->(x:RegNode)\n"
-              "RETURN x.reg_id AS reached, x.taxonomy AS taxonomy, x.state AS state, length(p) AS hops,\n"
-              "       [r IN relationships(p) | r.reg_id] AS via ORDER BY hops, reached")},
+    {"id": "register-impact", "needs": "register", "title": f"The impact walk from {IMPACT_START}: the walk the register's tools/impact.py makes, one row per edge",
+     "text": IMPACT_ROWS},
     {"id": "register-c1", "needs": "register", "title": "C1 in Cypher: approved steps and touchpoints with no is_supported_by link, the exception joined",
      "text": ("MATCH (s:RegNode {taxonomy:'journeys', state:'approved'}) WHERE s.kind IN ['step', 'touchpoint']\n"
               "  AND NOT (s)-[:REG_IS_SUPPORTED_BY]->(:RegNode)\n"
