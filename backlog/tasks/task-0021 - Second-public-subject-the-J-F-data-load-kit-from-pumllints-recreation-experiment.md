@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-01T19:43:00Z'
-updated_date: '2026-11-01T21:22:00Z'
+updated_date: '2026-11-02T10:54:00Z'
 labels:
   - subject
 milestone: m-3
@@ -46,6 +46,8 @@ A platform proven on one subject is not proven (task-0008). pumllint's recreatio
 Criteria 1 to 5 met across knowgov #16, #17, #18, #19 and ieam-register #5. On criterion 1, one reading to record: the subject needed no subject-specific edit, but three generic harness additions beside the mappers (directory artefacts with path-aware include globs, a plant replace confined to one part with within, the execution map derived from the kit's verified_by links), each documented in subjects/README.md and usable by any subject; and arms.enabled() now also needs an oracle. On criterion 5, the footprint and the impact walk were verified live with KG_REGISTER set to the ieam-register checkout that carries the slice; the vendored copy under demo/register reads 'not in the register copy' until the owner tags and it is re-vendored (0021.04's last two criteria).
 
 Four subtasks Done (PRs #12 to #20): the vendor tool reads the subject's [vendor] table; mappers for JSON requirements, prose contracts, DMN tables, tagged Gherkin and the four diagram types on bundles joined by requirement id; the oracle adapter runs the kit's pytest-bdd suite on CPython 3.12 (258/258 on the reference rebuild, in harness.yml); the register slice at ieam-register v0.2.0 re-vendored with the subject's register map. Deterministic record C and D1 to D5 identical on rdflib and Neo4j; gate outcomes mirror the degradation record. Open: the maintainer's approval of register_map.toml; the re-vendor of both subjects at a pumllint tag once one is published.
+
+2026-11-02: both subjects re-vendored at pumllint v0.35.0 (be737dd), the first tag that carries the kit, the record and the pre-registration; the dry run showed 0 files added, removed or changed for either subject, so only the two SOURCE.md notes moved: the tag row reads v0.35.0 and the untagged copies (fd8bef4, 3375197) are earlier copies. The open item of task-0001 and this task is closed.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
