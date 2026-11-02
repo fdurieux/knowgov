@@ -3,11 +3,11 @@ id: TASK-0025
 title: >-
   The impact panel's Browser link opens a served guide whose click fills the
   editor, in place of the edit command
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-02T10:26:00Z'
-updated_date: '2026-11-02T10:38:00Z'
+updated_date: '2026-11-02T10:45:00Z'
 labels:
   - register
   - page
@@ -37,11 +37,11 @@ TASK-0024.02 shipped the Browser manual's ?cmd=edit&arg= link with a caveat: in 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 GET /api/register/impact/<id>/guide/<form> (form: rows or paths) returns a Browser guide, text/html with the CORS headers and the preflight answered, whose runnable block's text is exactly that form's query for <id>; 404 for an unknown node or form; no other route carries CORS headers
-- [ ] #2 The link beside each form opens the store's Browser with connectURL and cmd=play&arg=<the guide's URL on the host the viewer used>; the page runs nothing; the panel's sentences say a click on the guide's block fills the editor and nothing runs until play
-- [ ] #3 check_impact_cypher.py reads the guide each link names, asserts its block equals the form's listed text, runs it through console_query and compares with the walk; the stack job passes it for every node
-- [ ] #4 docker-compose.yml allowlists the demo's host for the Browser's remote content (KG_DEMO_HOST, default localhost), and demo/README.md says in the adopter register how the link works, what an instance by address needs, and that a run wipes the projection first
-- [ ] #5 A scripted browser check in the session shows the editor filled with the query after the click on Browser 5.26.0 and no result frame, recorded in the notes
+- [x] #1 GET /api/register/impact/<id>/guide/<form> (form: rows or paths) returns a Browser guide, text/html with the CORS headers and the preflight answered, whose runnable block's text is exactly that form's query for <id>; 404 for an unknown node or form; no other route carries CORS headers
+- [x] #2 The link beside each form opens the store's Browser with connectURL and cmd=play&arg=<the guide's URL on the host the viewer used>; the page runs nothing; the panel's sentences say a click on the guide's block fills the editor and nothing runs until play
+- [x] #3 check_impact_cypher.py reads the guide each link names, asserts its block equals the form's listed text, runs it through console_query and compares with the walk; the stack job passes it for every node
+- [x] #4 docker-compose.yml allowlists the demo's host for the Browser's remote content (KG_DEMO_HOST, default localhost), and demo/README.md says in the adopter register how the link works, what an instance by address needs, and that a run wipes the projection first
+- [x] #5 A scripted browser check in the session shows the editor filled with the query after the click on Browser 5.26.0 and no result frame, recorded in the notes
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -66,3 +66,9 @@ Verification: python tests/run_tests.py 91 of 91 (the new test starts the handle
 
 Stack job of PR #40, first run: the Neo4j container refused to start, 'Unrecognized setting. No declared setting with name: browser.remote_content_hosts_whitelist' (server.config.strict_validation.enabled). The name 5.26.0 declares is browser.remote_content_hostname_whitelist (strings of neo4j-server-5.26.0.jar and neo4j-browser-5.26.0.jar; the Browser's client-side setting is remoteContentHostnameAllowlist). Set in the local tarball's neo4j.conf, the server restarted under strict validation and CALL dbms.clientConfig() returned it, which is where the Browser reads the server's list. Compose and the test corrected; the strict validation is the guard that caught it and will catch a rename.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+The impact panel's Browser link now opens a guide the demo serves, through the Browser's play command, in place of the manual's edit command that Browser 5.26.0 sends before the editor listens. GET /api/register/impact/<id>/guide/<rows|paths> returns an article whose runnable block holds that form's query; that route alone carries Access-Control-Allow-Origin * and answers the preflight, for existing guides only, 404 otherwise. The link beside each form is ?connectURL=…&cmd=play&arg=<the guide's URL on the host the viewer used>; a click on the guide's block puts the query in the editor through the Browser's own click-to-insert, after the editor exists; nothing runs until play. check_impact_cypher.py follows each link to its guide as the Browser would (preflight, GET with Origin, headers), takes the block, asserts it equals the listed text, runs it and compares with the walk: every node agreed in PR #40's stack job. docker-compose.yml allowlists the demo's host (KG_DEMO_HOST, localhost by default) with the setting 5.26 declares, browser.remote_content_hostname_whitelist, which strict validation caught when first written with the old name; the README says how the link works, why the edit command is not used, the wipe, and what an instance by address needs. Found and fixed on the way: the page's first requests raced the register tools' import on the threading server; a lock and a threaded test. Tests 91 of 91. Scripted browser on 5.26.0: both guide frames shown, each block equal to the page's text, one click fills the editor, no result frame. PR #40 merged on a green matrix. Canvas and SWOT: doc-0003.
+<!-- SECTION:FINAL_SUMMARY:END -->
