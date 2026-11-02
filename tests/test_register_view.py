@@ -638,7 +638,7 @@ def test_impact_browser_links_open_a_served_guide_and_the_stack_job_runs_them():
     ci = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert "demo/tools/check_impact_cypher.py" in ci and ci.index("check_saved_queries.py") < ci.index("check_impact_cypher.py")
     compose = (ROOT / "demo" / "docker-compose.yml").read_text(encoding="utf-8")
-    assert "NEO4J_browser_remote__content__hosts__whitelist: guides.neo4j.com,localhost,${KG_DEMO_HOST:-localhost}" in compose
+    assert "NEO4J_browser_remote__content__hostname__whitelist: guides.neo4j.com,localhost,${KG_DEMO_HOST:-localhost}" in compose
     readme = (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
     assert "**The impact panel's Browser links.**" in readme and "cmd=play" in readme and "wipes the projection first" in readme and "KG_DEMO_HOST" in readme
 
