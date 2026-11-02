@@ -13,9 +13,11 @@ The arms are enabled only when the named key variable holds a value; a private i
 that sets none sends nothing anywhere. A model other than the record's is a deviation the
 page marks on every run.
 
-Budget guard: MAX_CALLS and a dollar ceiling over the API's usage field,
-priced at the list rates recorded below (read 2026-10-30; the record
-quotes measured tokens, the dollars are an estimate).
+Budget guard: MAX_CALLS and a token ceiling over the API's usage field
+(KG_ARMS_MAX_TOKENS, prompt and completion tokens of the process). No price
+lives here (task-0027): a list price goes stale and nobody refreshes it, so
+the harness counts what the API returns and the provider's bill is the record
+of cost. The CargoQuote record's dollar figures are frozen data from before.
 """
 
 from __future__ import annotations
@@ -37,15 +39,17 @@ DEFAULT_MODEL = "gpt-5.5"            # what the arms call when the record names 
 MODEL = os.environ.get("KG_ARMS_MODEL") or RECORD_MODEL or DEFAULT_MODEL
 DEFAULT_BASE_URL = "https://api.openai.com/v1"   # the OpenAI client's own default, named so the page can show it
 MAX_CALLS = 90
-CEILING_USD = 25.0
-PRICE_IN, PRICE_OUT = 1.25 / 1e6, 10.0 / 1e6  # USD per token, the record model's list price read 2026-10-30
-PRICE_CACHED = PRICE_IN / 10              # cached input, a tenth of the input rate: the list ratio for the model family, read 2026-11-02
+DEFAULT_CEILING_TOKENS = 6_000_000   # prompt and completion tokens per process; the record's 80 calls used about a third of it
 
 
-def cost(prompt_tokens: int, completion_tokens: int, cached_tokens: int = 0) -> float:
-    """The estimate at list rates: cached prompt tokens at the cached rate, the rest at the input rate."""
-    cached = min(max(cached_tokens or 0, 0), prompt_tokens or 0)
-    return (prompt_tokens - cached) * PRICE_IN + cached * PRICE_CACHED + completion_tokens * PRICE_OUT
+def ceiling_tokens() -> int:
+    """The process's token ceiling: instance configuration, with the documented default."""
+    return int(os.environ.get("KG_ARMS_MAX_TOKENS") or DEFAULT_CEILING_TOKENS)
+
+
+def tokens_of(rec: dict) -> int:
+    """What a call cost in the one unit the API reports: prompt plus completion tokens."""
+    return int(rec.get("prompt_tokens", 0) or 0) + int(rec.get("completion_tokens", 0) or 0)
 
 
 def cached_of(usage_obj) -> int:
@@ -54,7 +58,7 @@ def cached_of(usage_obj) -> int:
     return int(getattr(det, "cached_tokens", 0) or 0) if det is not None else 0
 
 _lock = threading.Lock()
-_state = {"calls": 0, "usd": 0.0, "usage": []}
+_state = {"calls": 0, "tokens": 0, "usage": []}
 
 
 class BudgetExceeded(RuntimeError):
@@ -97,8 +101,8 @@ def call(system: str, user: str, *, tag: str) -> dict:
     with _lock:
         if _state["calls"] >= MAX_CALLS:
             raise BudgetExceeded(f"MAX_CALLS={MAX_CALLS}")
-        if _state["usd"] >= CEILING_USD:
-            raise BudgetExceeded(f"ceiling ${CEILING_USD}")
+        if _state["tokens"] >= ceiling_tokens():
+            raise BudgetExceeded(f"ceiling {ceiling_tokens()} tokens")
         _state["calls"] += 1
     from openai import OpenAI  # lazy: the module loads without the client installed
 
@@ -142,11 +146,10 @@ def call(system: str, user: str, *, tag: str) -> dict:
     dt = time.time() - t0
     u = usage_obj
     cached = cached_of(u)
-    usd = cost(u.prompt_tokens, u.completion_tokens, cached)
     rec = {"tag": tag, "model": model_name, "attempts": attempts, "streamed": True, "prompt_tokens": u.prompt_tokens,
-           "cached_tokens": cached, "completion_tokens": u.completion_tokens, "seconds": round(dt, 1), "usd_est": round(usd, 4)}
+           "cached_tokens": cached, "completion_tokens": u.completion_tokens, "seconds": round(dt, 1)}
     with _lock:
-        _state["usd"] += usd
+        _state["tokens"] += tokens_of(rec)
         _state["usage"].append(rec)
     raw = "".join(parts)
     try:
@@ -161,10 +164,10 @@ def account(rec: dict) -> None:
     """Count a call made elsewhere (the agent loop) in this process's usage and budget guard."""
     with _lock:
         _state["calls"] += 1
-        _state["usd"] += rec.get("usd_est", 0.0)
+        _state["tokens"] += tokens_of(rec)
         _state["usage"].append(rec)
 
 
 def usage() -> dict:
-    return {"calls": _state["calls"], "usd_est": round(_state["usd"], 4), "retries": list(_state.get("retries", [])),
+    return {"calls": _state["calls"], "tokens": _state["tokens"], "retries": list(_state.get("retries", [])),
             "per_call": list(_state["usage"])}

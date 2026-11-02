@@ -3,9 +3,11 @@ id: TASK-0027
 title: >-
   Prices out, tokens in: the harness counts tokens and its ceilings are tokens,
   not dollars
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-02T13:32:00Z'
+updated_date: '2026-11-02T13:49:00Z'
 labels:
   - arms
   - harness
@@ -37,3 +39,15 @@ The harness prices every model at one pair of constants in harness/arms.py (the 
 - [ ] #3 The page shows tokens wherever it showed a dollar estimate, in controlled sentences that pass the glossary test; the vendored record is unchanged and its recorded figures still show as data
 - [ ] #4 Tests cover a run stopped by the token ceiling, a run under it, and the trace totals; the stdlib suite is green
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. arms.py: drop CEILING_USD, PRICE_*, cost(); add DEFAULT_CEILING_TOKENS, ceiling_tokens() (KG_ARMS_MAX_TOKENS), tokens_of(); the guard, account() and usage() count tokens; call records lose usd_est. 2. agent.py: DEFAULT_CEILING tokens 1,500,000 (KG_AGENT_MAX_TOKENS), the loop stops at prompt+completion >= tokens, no usd in totals, trace or the accounted record. 3. run.py and report.py: usage.json carries tokens; the report prints the record usd_est only as the record own figure when present. 4. views.py sentence: calls, tokens or seconds. 5. README: the agent passage, the modes table, the closing paragraph. 6. tests: test_arms token guard and no cost symbol; test_agent token ceiling and env names. 7. One real call through the proxy to see the fields.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented. Suite 91/91. One real call on gpt-5.5 through the proxy recorded {prompt 25, cached 0, completion 27, seconds 2.5}, no estimate, usage() tokens 52. Defaults: 6,000,000 tokens per process for the one-reply arms (the record 80 calls were about a third), 1,500,000 per agent run. The record frozen usd_est in results/usage.json still prints in report.py, labelled as the record own estimate.
+<!-- SECTION:NOTES:END -->
