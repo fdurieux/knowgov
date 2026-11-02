@@ -122,7 +122,8 @@ def openai_responder(model: str | None = None):
         if usage_obj is None:
             raise RuntimeError("stream ended without a usage chunk")
         return {"content": "".join(parts) or None, "tool_calls": [calls[i] for i in sorted(calls)], "model": model_name,
-                "usage": {"prompt_tokens": usage_obj.prompt_tokens, "completion_tokens": usage_obj.completion_tokens},
+                "usage": {"prompt_tokens": usage_obj.prompt_tokens, "completion_tokens": usage_obj.completion_tokens,
+                          "cached_tokens": arms.cached_of(usage_obj)},
                 "seconds": round(time.time() - t0, 1)}
     return respond
 
@@ -136,7 +137,7 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
     box = Sandbox(sandbox)
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     trace: list[dict] = []
-    tot = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "usd": 0.0, "tool_calls": 0, "model": None}
+    tot = {"calls": 0, "prompt_tokens": 0, "cached_tokens": 0, "completion_tokens": 0, "usd": 0.0, "tool_calls": 0, "model": None}
     t0 = time.time()
     final: dict | None = None
     stopped_by: str | None = None
@@ -158,18 +159,19 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
             trace.append({"turn": len(trace) + 1, "kind": "error", "text": str(e)[:300], "at": round(time.time() - t0, 1)})
             break
         u = r.get("usage") or {}
-        usd = u.get("prompt_tokens", 0) * arms.PRICE_IN + u.get("completion_tokens", 0) * arms.PRICE_OUT
+        usd = arms.cost(u.get("prompt_tokens", 0), u.get("completion_tokens", 0), u.get("cached_tokens", 0))
         tot["calls"] += 1
         tot["prompt_tokens"] += u.get("prompt_tokens", 0)
+        tot["cached_tokens"] += u.get("cached_tokens", 0)
         tot["completion_tokens"] += u.get("completion_tokens", 0)
         tot["usd"] += usd
         tot["model"] = r.get("model") or tot["model"]
         arms.account({"tag": f"{tag}/turn{tot['calls']}", "model": r.get("model"), "attempts": 1, "streamed": True,
-                      "prompt_tokens": u.get("prompt_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
+                      "prompt_tokens": u.get("prompt_tokens", 0), "cached_tokens": u.get("cached_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
                       "seconds": r.get("seconds", 0), "usd_est": round(usd, 4)})
         calls = r.get("tool_calls") or []
         trace.append({"turn": len(trace) + 1, "kind": "model", "tool_calls": [c["name"] for c in calls], "text": _clip(r.get("content") or "", 300),
-                      "prompt_tokens": u.get("prompt_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
+                      "prompt_tokens": u.get("prompt_tokens", 0), "cached_tokens": u.get("cached_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
                       "usd": round(usd, 4), "seconds": r.get("seconds", 0), "at": round(time.time() - t0, 1)})
         if not calls:
             parsed = None

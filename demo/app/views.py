@@ -124,6 +124,7 @@ def _arm_summary(runs: list[dict]) -> dict:
             "targets": dict(targets), "outage": dict(Counter(r["outage_status"] for r in runs if r["outage_status"])),
             "refs_min": round(min(refs), 2) if refs else None, "refs_max": round(max(refs), 2) if refs else None,
             "noncompliance": sum(1 for r in runs if r.get("M6_noncompliance")),
+            "adopted": sum(1 for r in runs if (r.get("M7_adopted") or {}).get("count")),   # M7: a planted value relied on in the open
             "api_errors": sum(1 for r in runs if r.get("api_error")),
             "models": sorted({m for m in (_model_of(r) for r in runs) if m}),
             "tokens": sum(r["usage"]["prompt_tokens"] + r["usage"]["completion_tokens"] for r in runs if r.get("usage"))}
@@ -140,7 +141,7 @@ def _run_view(r: dict) -> dict:
             "suite": f"{r['M4_suite']['passed']}/{r['M4_suite']['total']}" if r["M4_suite"]["ran"] else None,
             "per_scenario": {k: v.get("passed") for k, v in r["M4_suite"].get("per_scenario", {}).items()},
             "targets": r.get("M4_targets") or {}, "outage_status": r.get("outage_status"),
-            "refs": r.get("M5_refs"), "noncompliance": r.get("M6_noncompliance"),
+            "refs": r.get("M5_refs"), "noncompliance": r.get("M6_noncompliance"), "adopted": r.get("M7_adopted"),
             "questions": r.get("questions") or [], "assumptions": r.get("assumptions") or [],
             "claims_n": len(r.get("claims") or []), "api_error": r.get("api_error"),
             "parse_error": r.get("parse_error"), "code_text": r.get("code_text"), "usage": r.get("usage"),
@@ -671,11 +672,13 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
         rs = runs[arm]
         agentic = any(r.get("agent") for r in rs)
         rows = [(r["run"], _model_of(r) or "", r.get("M1_decision") or ("api error" if r.get("api_error") else ""), "yes" if r.get("M2_code") else "no",
-                 "yes" if r["M3_flagged"]["flagged"] else "no", ", ".join(r["M3_flagged"].get("hits", [])), len(r.get("questions") or []), len(r.get("assumptions") or []), len(r.get("claims") or []),
+                 "yes" if r["M3_flagged"]["flagged"] else "no", ", ".join(r["M3_flagged"].get("hits", [])),
+                 (f"{(r.get('M7_adopted') or {}).get('count', 0)} of {(r.get('M7_adopted') or {}).get('planted', 0)}" if r.get("M7_adopted") else ""),
+                 len(r.get("questions") or []), len(r.get("assumptions") or []), len(r.get("claims") or []),
                  (r.get("usage") or {}).get("prompt_tokens", ""), (r.get("usage") or {}).get("completion_tokens", ""))
                 + (((r.get("agent") or {}).get("calls", ""), (r.get("agent") or {}).get("tool_calls", ""), (r.get("agent") or {}).get("stopped_by") or ("finished" if (r.get("agent") or {}).get("finished") else ""), f"{(r.get('usage') or {}).get('usd_est', 0):.2f}", (r.get("usage") or {}).get("seconds", "")) if agentic else ())
                 for r in rs]
-        cols = ["run", "model", "decision", "code", "flagged", "keywords hit", "questions", "assumptions", "claims", "prompt tokens", "reply tokens"] + (["model turns", "tool calls", "ended by", "est. $", "seconds"] if agentic else [])
+        cols = ["run", "model", "decision", "code", "flagged", "keywords hit", "adopted keys", "questions", "assumptions", "claims", "prompt tokens", "reply tokens"] + (["model turns", "tool calls", "ended by", "est. $", "seconds"] if agentic else [])
         secs_g = [{"heading": C("Per run"), "table": _table(cols, rows)}] if rs else []
         for r in rs:   # an agent run's trace: every model turn and tool call, in order
             if r.get("trace"):
@@ -687,6 +690,7 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
         d[f"generate_{arm}"] = {"title": C(f"Generate, {arm}: {name}"),
                                 "intro": (C(f"{len(rs)} runs.", "Decision is the arm's own word: generate, generate with assumptions, or abstain.",
                                             "Flagged means the frozen keyword check found the planted problem in the arm's questions or assumptions.",
+                                            "Adopted keys counts the keys below verified the arm's assumptions cite: the planted value relied on in the open.",
                                             *(["The arm worked in a sandbox over several turns.", "Its four tools: read a document, write a file, run the scenario's own feature files, finish.",
                                                "A run ends at a finish, or at the ceiling in calls, dollars or seconds, with decision abstain."] if agentic else []))
                                           if rs else C("No run in this source.")),

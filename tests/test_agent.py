@@ -140,3 +140,15 @@ def test_the_page_reads_an_agent_runs_trace_and_its_sentences_keep_to_the_glossa
         low = s.lower()
         assert not [f for f in views.FORBIDDEN if re.search(r"\b" + re.escape(f) + r"\b", low)], s
         assert len(s.replace(":", "").split()) <= 20, s
+
+
+def test_m7_adopted_counts_the_keys_below_verified_the_assumptions_cite():
+    """M7 beside M3: for G the key is read from the assertion id; for B a document line in a planted
+    file counts by line; a value echo counts the plant's new text in an assumption."""
+    import measures
+    below = ["k1|v", "k2|v", "k3|v"]
+    g = {"assumptions": [{"text": "k1 as proposed", "ref": "A:dt:k1|v@v1"}, {"text": "x", "ref": "A:req:k9|v@v2"}, {"text": "k2", "ref": "A:req:k2|v"}, "a string"]}
+    r = measures.adopted("G", g, below, "S1")
+    assert r["adopted"] == ["k1|v", "k2|v"] and r["count"] == 2 and r["planted"] == 3 and abs(r["share"] - 2 / 3) < 1e-9
+    assert measures.adopted("G", None, below, "S1")["count"] == 0 and measures.adopted("B", g, below, "S1")["count"] == 0
+    assert measures.adopted("G", {"assumptions": []}, [], "S1")["share"] is None

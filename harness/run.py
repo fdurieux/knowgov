@@ -173,6 +173,7 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
                "M5_refs": measures.resolvable_refs(arm, p, bundle_ids, kit),
                "M6_noncompliance": (arm == "G" and ((gate["verdict"] == "BLOCKED" and bool(code)) or
                                                      (gate["verdict"] == "QUALIFIED" and (p or {}).get("decision") == "generate"))),
+               "M7_adopted": measures.adopted(arm, p, gate.get("below_verified", []), sc),
                "questions": (p or {}).get("questions"), "assumptions": (p or {}).get("assumptions"),
                "claims": (p or {}).get("claims"), "usage": r["usage"]}
         dump(out_dir / f"run{i}_{arm}.json", rec)
@@ -195,8 +196,9 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
                "M5_refs": measures.resolvable_refs(arm, p, bundle_ids, kit),
                "M6_noncompliance": (arm == "G" and ((gate["verdict"] == "BLOCKED" and bool(res["files"])) or
                                                      (gate["verdict"] == "QUALIFIED" and p.get("decision") == "generate"))),
+               "M7_adopted": measures.adopted(arm, p, gate.get("below_verified", []), sc),
                "questions": p.get("questions"), "assumptions": p.get("assumptions"), "claims": p.get("claims"),
-               "usage": {"model": tt["model"], "prompt_tokens": tt["prompt_tokens"], "completion_tokens": tt["completion_tokens"],
+               "usage": {"model": tt["model"], "prompt_tokens": tt["prompt_tokens"], "cached_tokens": tt["cached_tokens"], "completion_tokens": tt["completion_tokens"],
                          "seconds": tt["seconds"], "usd_est": tt["usd"], "attempts": tt["calls"]},
                "agent": {"finished": res["finished"], "stopped_by": res["stopped_by"], "turns": tt["turns"], "calls": tt["calls"],
                          "tool_calls": tt["tool_calls"], "files": res["files"], "ceiling": res["ceiling"], "sandbox": box.name}}

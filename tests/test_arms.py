@@ -117,3 +117,19 @@ def test_bundle_carries_the_documents_the_task_names_verbatim_after_the_knowledg
         kitio.kit_text(kit, "contracts/missing.md"); raise AssertionError("a missing part must be refused")
     except KeyError:
         pass
+
+
+def test_cost_prices_cached_prompt_tokens_at_the_cached_rate():
+    """Task-0022.03: the estimate reads the API's cached prompt tokens and prices them at a tenth of
+    the input rate; without the detail the estimate is what it was."""
+    assert arms.PRICE_CACHED == arms.PRICE_IN / 10
+    assert abs(arms.cost(1000, 100) - (1000 * arms.PRICE_IN + 100 * arms.PRICE_OUT)) < 1e-12
+    assert abs(arms.cost(1000, 100, 600) - (400 * arms.PRICE_IN + 600 * arms.PRICE_CACHED + 100 * arms.PRICE_OUT)) < 1e-12
+    assert arms.cost(1000, 0, 5000) == arms.cost(1000, 0, 1000), "cached never exceeds the prompt"
+
+    class _D:  # the API's usage object, with and without the detail
+        def __init__(self, cached=None):
+            self.prompt_tokens, self.completion_tokens = 10, 1
+            if cached is not None:
+                self.prompt_tokens_details = type("P", (), {"cached_tokens": cached})()
+    assert arms.cached_of(_D()) == 0 and arms.cached_of(_D(7)) == 7 and arms.cached_of(_D(None)) == 0

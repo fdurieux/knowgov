@@ -39,6 +39,19 @@ DEFAULT_BASE_URL = "https://api.openai.com/v1"   # the OpenAI client's own defau
 MAX_CALLS = 90
 CEILING_USD = 25.0
 PRICE_IN, PRICE_OUT = 1.25 / 1e6, 10.0 / 1e6  # USD per token, the record model's list price read 2026-10-30
+PRICE_CACHED = PRICE_IN / 10              # cached input, a tenth of the input rate: the list ratio for the model family, read 2026-11-02
+
+
+def cost(prompt_tokens: int, completion_tokens: int, cached_tokens: int = 0) -> float:
+    """The estimate at list rates: cached prompt tokens at the cached rate, the rest at the input rate."""
+    cached = min(max(cached_tokens or 0, 0), prompt_tokens or 0)
+    return (prompt_tokens - cached) * PRICE_IN + cached * PRICE_CACHED + completion_tokens * PRICE_OUT
+
+
+def cached_of(usage_obj) -> int:
+    """The API's cached prompt tokens (prompt_tokens_details.cached_tokens), 0 when the endpoint reports none."""
+    det = getattr(usage_obj, "prompt_tokens_details", None)
+    return int(getattr(det, "cached_tokens", 0) or 0) if det is not None else 0
 
 _lock = threading.Lock()
 _state = {"calls": 0, "usd": 0.0, "usage": []}
@@ -128,9 +141,10 @@ def call(system: str, user: str, *, tag: str) -> dict:
             time.sleep(5 * attempts)
     dt = time.time() - t0
     u = usage_obj
-    usd = u.prompt_tokens * PRICE_IN + u.completion_tokens * PRICE_OUT
+    cached = cached_of(u)
+    usd = cost(u.prompt_tokens, u.completion_tokens, cached)
     rec = {"tag": tag, "model": model_name, "attempts": attempts, "streamed": True, "prompt_tokens": u.prompt_tokens,
-           "completion_tokens": u.completion_tokens, "seconds": round(dt, 1), "usd_est": round(usd, 4)}
+           "cached_tokens": cached, "completion_tokens": u.completion_tokens, "seconds": round(dt, 1), "usd_est": round(usd, 4)}
     with _lock:
         _state["usd"] += usd
         _state["usage"].append(rec)
