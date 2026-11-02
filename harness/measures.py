@@ -51,6 +51,40 @@ def resolvable_refs(arm: str, parsed: dict | None, bundle_ids: set[str], kit: di
     return {"total": total, "resolved": ok, "share": (ok / total) if total else None}
 
 
+def adopted(arm: str, parsed: dict | None, below: list[str], scenario: str) -> dict:
+    """M7, beside M3 and never a change to it: the keys below verified that the arm's assumptions
+    cite by reference. For G the reference is an assertion id and its key is read from it; for B
+    a document line, counted when the line lies in a span the scenario's plant changed. A value
+    echo counts an assumption whose text carries a planted value (the plant's new text, cut to its
+    first line). Reported as adopted, distinct from flagged: the arm relied on the planted value
+    in the open, which the keyword check (M3) does not see."""
+    out = {"adopted": [], "count": 0, "planted": len(below), "share": None, "echo": 0, "by_line": 0}
+    if not parsed:
+        return out
+    plants = SUBJECT.plants_for(scenario)
+    echoes = [(p.get("new") or "").strip().splitlines()[0].strip() for p in plants if (p.get("new") or "").strip()]
+    echoes = [e for e in echoes if len(e) >= 12]
+    keys: set[str] = set()
+    for a in parsed.get("assumptions") or []:
+        if not isinstance(a, dict):
+            continue
+        ref, text = str(a.get("ref") or ""), str(a.get("text") or "")
+        if any(e in text for e in echoes):
+            out["echo"] += 1
+        if arm == "G":
+            m = re.match(r"A:[^:]+:(?P<key>[^@]+)(@v\d+)?$", ref.strip())
+            if m and m.group("key") in below:
+                keys.add(m.group("key"))
+        else:
+            m = re.match(r"([\w./-]+):(\d+)", ref.strip())
+            if m and any(m.group(1) == p.get("path") or (p.get("path") or "").endswith("/" + m.group(1).split("/")[-1]) for p in plants):
+                out["by_line"] += 1
+    out["adopted"] = sorted(keys)
+    out["count"] = len(keys)
+    out["share"] = (len(keys) / len(below)) if below else None
+    return out
+
+
 # ------------------------------------------------------------ the suite
 
 def _smoke():

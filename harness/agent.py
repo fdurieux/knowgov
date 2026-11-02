@@ -50,6 +50,12 @@ TOOLS = [
 ]
 
 
+EXTRA_TOOLS = {
+    "read_knowledge": {"type": "function", "function": {"name": "read_knowledge", "description": "Read one required key's knowledge from the governed repository: its level, every live assertion with value, evidence, verification, approval and gaps. Each call is recorded as consulted.",
+                                                        "parameters": {"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]}}},
+}
+
+
 def ceiling() -> dict:
     """The per-run ceiling: instance configuration, with the documented defaults."""
     return {"calls": int(os.environ.get("KG_AGENT_MAX_CALLS") or DEFAULT_CEILING["calls"]),
@@ -122,21 +128,28 @@ def openai_responder(model: str | None = None):
         if usage_obj is None:
             raise RuntimeError("stream ended without a usage chunk")
         return {"content": "".join(parts) or None, "tool_calls": [calls[i] for i in sorted(calls)], "model": model_name,
-                "usage": {"prompt_tokens": usage_obj.prompt_tokens, "completion_tokens": usage_obj.completion_tokens},
+                "usage": {"prompt_tokens": usage_obj.prompt_tokens, "completion_tokens": usage_obj.completion_tokens,
+                          "cached_tokens": arms.cached_of(usage_obj)},
                 "seconds": round(time.time() - t0, 1)}
     return respond
 
 
-def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str, responder=None, limits: dict | None = None) -> dict:
+def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str, responder=None, limits: dict | None = None,
+        readers: dict | None = None) -> dict:
     """The loop. ``read_text(path)`` serves read_document; ``feedback(sandbox_root, feature)`` serves
-    run_suite and returns a JSON-able dict; the result carries the final reply (or None), what
-    stopped the run, the trace, the totals and the sandbox's files."""
+    run_suite and returns a JSON-able dict; ``readers`` adds read tools by name (EXTRA_TOOLS), each a
+    callable of the tool's one argument. The result carries the final reply (or None), what stopped
+    the run, the trace, the totals, the sandbox's files and the consulted set: what every read tool
+    was asked for, in order, the refusals included."""
     responder = responder or openai_responder()
     lim = {**ceiling(), **(limits or {})}
+    readers = dict(readers or {})
+    tools = TOOLS + [EXTRA_TOOLS[name] for name in readers if name in EXTRA_TOOLS]
+    consulted: dict[str, list] = {"read_document": [], **{name: [] for name in readers}}
     box = Sandbox(sandbox)
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     trace: list[dict] = []
-    tot = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "usd": 0.0, "tool_calls": 0, "model": None}
+    tot = {"calls": 0, "prompt_tokens": 0, "cached_tokens": 0, "completion_tokens": 0, "usd": 0.0, "tool_calls": 0, "model": None}
     t0 = time.time()
     final: dict | None = None
     stopped_by: str | None = None
@@ -152,24 +165,25 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
         if stopped_by:
             break
         try:
-            r = responder(messages, TOOLS)
+            r = responder(messages, tools)
         except Exception as e:  # noqa: BLE001 — a failed call ends the run as an api error, never silently
             stopped_by = f"api error: {str(e)[:200]}"
             trace.append({"turn": len(trace) + 1, "kind": "error", "text": str(e)[:300], "at": round(time.time() - t0, 1)})
             break
         u = r.get("usage") or {}
-        usd = u.get("prompt_tokens", 0) * arms.PRICE_IN + u.get("completion_tokens", 0) * arms.PRICE_OUT
+        usd = arms.cost(u.get("prompt_tokens", 0), u.get("completion_tokens", 0), u.get("cached_tokens", 0))
         tot["calls"] += 1
         tot["prompt_tokens"] += u.get("prompt_tokens", 0)
+        tot["cached_tokens"] += u.get("cached_tokens", 0)
         tot["completion_tokens"] += u.get("completion_tokens", 0)
         tot["usd"] += usd
         tot["model"] = r.get("model") or tot["model"]
         arms.account({"tag": f"{tag}/turn{tot['calls']}", "model": r.get("model"), "attempts": 1, "streamed": True,
-                      "prompt_tokens": u.get("prompt_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
+                      "prompt_tokens": u.get("prompt_tokens", 0), "cached_tokens": u.get("cached_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
                       "seconds": r.get("seconds", 0), "usd_est": round(usd, 4)})
         calls = r.get("tool_calls") or []
         trace.append({"turn": len(trace) + 1, "kind": "model", "tool_calls": [c["name"] for c in calls], "text": _clip(r.get("content") or "", 300),
-                      "prompt_tokens": u.get("prompt_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
+                      "prompt_tokens": u.get("prompt_tokens", 0), "cached_tokens": u.get("cached_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
                       "usd": round(usd, 4), "seconds": r.get("seconds", 0), "at": round(time.time() - t0, 1)})
         if not calls:
             parsed = None
@@ -201,7 +215,12 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
             if result is None:
                 try:
                     if c["name"] == "read_document":
+                        consulted["read_document"].append(args.get("path"))
                         result = {"path": args.get("path"), "text": _clip(read_text(args.get("path")), READ_LIMIT)}
+                    elif c["name"] in readers:
+                        arg = next(iter(args.values()), None) if args else None
+                        consulted[c["name"]].append(arg)
+                        result = {"key": arg, "text": _clip(readers[c["name"]](arg), READ_LIMIT)}
                     elif c["name"] == "write_file":
                         result = {"written": box.write(args.get("path"), args.get("content", ""))}
                     elif c["name"] == "run_suite":
@@ -228,4 +247,4 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
         final_reply = final
     return {"parsed": final_reply, "finished": final is not None, "stopped_by": stopped_by, "trace": trace,
             "totals": {**tot, "usd": round(tot["usd"], 4), "seconds": round(time.time() - t0, 1), "turns": len(trace)},
-            "files": box.files(), "ceiling": lim}
+            "files": box.files(), "ceiling": lim, "consulted": consulted}

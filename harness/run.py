@@ -20,7 +20,7 @@ from pathlib import Path
 import arms
 import measures
 import shacl
-from gate import resolve, render_bundle
+from gate import resolve, render_bundle, render_index, render_key
 from kitio import kit_for, kit_text, sha256, verbatim_documents
 import agent
 from load import PROV, HUMAN, load_inferred, load_scenario, load_verifications, pristine_values
@@ -127,10 +127,24 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
     agent_kind = SUBJECT.arms.get("kind", "reply") == "agent"
     if agent_kind:
         cfg = SUBJECT.arms.get("agent", {})
+        context = cfg.get("context", "push")   # push: the whole bundle or every document in the first message; pull: an index, the reads logged
         system = arms.prompt(cfg.get("system_prompt", "system_agent"))
-        user = user + "\n\n" + cfg.get("layout", "")
         feedback = measures.feedback_runner(kit, cfg["feedback"])
         docs_g = verbatim_documents(kit, task_name)
+        readers = {}
+        if context == "pull":
+            if arm == "B":
+                index = "\n".join(f"  {k}  ({len(v):,} characters)" for k, v in kit.items())
+                user = arms.prompt(f"{task_name}_baseline") + "\nDOCUMENTS, by path; call read_document(path) for each you need (a directory artefact's part is its key plus the part's path):\n" + index
+            else:
+                user = arms.prompt(f"{task_name}_governed") + render_index(gate, arms.policy(), list(docs_g))
+                def read_knowledge(key: str) -> str:
+                    """One key's section, as the bundle would render it, from the gate's result (the port's)."""
+                    if key not in gate["keys"]:
+                        raise KeyError(f"{key}: not a required key of this task")
+                    return "\n".join(render_key(key, gate["keys"][key]))
+                readers["read_knowledge"] = read_knowledge
+        user = user + "\n\n" + cfg.get("layout", "")
 
         def read_text(path: str) -> str:
             """B reads any kit document; G reads the documents the task names verbatim, the bundle holding the knowledge."""
@@ -173,6 +187,7 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
                "M5_refs": measures.resolvable_refs(arm, p, bundle_ids, kit),
                "M6_noncompliance": (arm == "G" and ((gate["verdict"] == "BLOCKED" and bool(code)) or
                                                      (gate["verdict"] == "QUALIFIED" and (p or {}).get("decision") == "generate"))),
+               "M7_adopted": measures.adopted(arm, p, gate.get("below_verified", []), sc),
                "questions": (p or {}).get("questions"), "assumptions": (p or {}).get("assumptions"),
                "claims": (p or {}).get("claims"), "usage": r["usage"]}
         dump(out_dir / f"run{i}_{arm}.json", rec)
@@ -182,7 +197,7 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
         return rec
     def one_agent(i: int) -> dict:
         box = out_dir / f"run{i}_{arm}_sandbox"
-        res = agent.run(system, user, sandbox=box, read_text=read_text, feedback=feedback, tag=f"{sc}/{arm}/{i}")
+        res = agent.run(system, user, sandbox=box, read_text=read_text, feedback=feedback, tag=f"{sc}/{arm}/{i}", readers=readers)
         p = res["parsed"]
         suite = measures.run_suite_dir(box, sc) if res["files"] else {"ran": False, "passed": 0, "total": measures.SUITE_TOTAL, "per_scenario": {}}
         code_text = agent.Sandbox(box).text() if res["files"] else None
@@ -195,11 +210,17 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
                "M5_refs": measures.resolvable_refs(arm, p, bundle_ids, kit),
                "M6_noncompliance": (arm == "G" and ((gate["verdict"] == "BLOCKED" and bool(res["files"])) or
                                                      (gate["verdict"] == "QUALIFIED" and p.get("decision") == "generate"))),
+               "M7_adopted": measures.adopted(arm, p, gate.get("below_verified", []), sc),
                "questions": p.get("questions"), "assumptions": p.get("assumptions"), "claims": p.get("claims"),
-               "usage": {"model": tt["model"], "prompt_tokens": tt["prompt_tokens"], "completion_tokens": tt["completion_tokens"],
+               "usage": {"model": tt["model"], "prompt_tokens": tt["prompt_tokens"], "cached_tokens": tt["cached_tokens"], "completion_tokens": tt["completion_tokens"],
                          "seconds": tt["seconds"], "usd_est": tt["usd"], "attempts": tt["calls"]},
                "agent": {"finished": res["finished"], "stopped_by": res["stopped_by"], "turns": tt["turns"], "calls": tt["calls"],
-                         "tool_calls": tt["tool_calls"], "files": res["files"], "ceiling": res["ceiling"], "sandbox": box.name}}
+                         "tool_calls": tt["tool_calls"], "files": res["files"], "ceiling": res["ceiling"], "sandbox": box.name,
+                         "context": context, "consulted": res["consulted"],
+                         # the keys below verified the arm read (G, through read_knowledge) and marked as assumptions (M7)
+                         "below_verified": {k: {"read": k in (res["consulted"].get("read_knowledge") or []),
+                                                "assumed": k in measures.adopted(arm, p, gate.get("below_verified", []), sc)["adopted"]}
+                                            for k in gate.get("below_verified", [])}}}
         if res["stopped_by"] and res["stopped_by"].startswith("api error"):
             rec["api_error"] = res["stopped_by"]
         dump(out_dir / f"run{i}_{arm}.json", rec)

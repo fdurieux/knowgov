@@ -135,8 +135,61 @@ def test_the_page_reads_an_agent_runs_trace_and_its_sentences_keep_to_the_glossa
     for s in ["The arm worked in a sandbox over several turns.", "Its four tools: read a document, write a file, run the scenario's own feature files, finish.",
               "A run ends at a finish, or at the ceiling in calls, dollars or seconds, with decision abstain.",
               "A model turn names the tools it called.", "A tool step shows its arguments and its result, cut short.",
-              "The last column is the second of the run at which the step ended."]:
+              "The last column is the second of the run at which the step ended.",
+              "Adopted keys counts the keys below verified the arm's assumptions cite: the planted value relied on in the open.",
+              "Read means the arm asked for the key's knowledge; assumed means its assumptions cite the key."]:
         assert s in src, s
         low = s.lower()
         assert not [f for f in views.FORBIDDEN if re.search(r"\b" + re.escape(f) + r"\b", low)], s
         assert len(s.replace(":", "").split()) <= 20, s
+
+
+def test_m7_adopted_counts_the_keys_below_verified_the_assumptions_cite():
+    """M7 beside M3: for G the key is read from the assertion id; for B a document line in a planted
+    file counts by line; a value echo counts the plant's new text in an assumption."""
+    import measures
+    below = ["k1|v", "k2|v", "k3|v"]
+    g = {"assumptions": [{"text": "k1 as proposed", "ref": "A:dt:k1|v@v1"}, {"text": "x", "ref": "A:req:k9|v@v2"}, {"text": "k2", "ref": "A:req:k2|v"}, "a string"]}
+    r = measures.adopted("G", g, below, "S1")
+    assert r["adopted"] == ["k1|v", "k2|v"] and r["count"] == 2 and r["planted"] == 3 and abs(r["share"] - 2 / 3) < 1e-9
+    assert measures.adopted("G", None, below, "S1")["count"] == 0 and measures.adopted("B", g, below, "S1")["count"] == 0
+    assert measures.adopted("G", {"assumptions": []}, [], "S1")["share"] is None
+
+
+def test_extra_readers_are_tools_and_every_read_is_logged_as_consulted():
+    """task-0022.03: a reader added by name becomes a tool; what the arm asked each read tool for
+    is the consulted set, refusals included, in order."""
+    turns = [_turn([_call("read_knowledge", key="k1|v"), _call("read_knowledge", key="nope"), _call("read_document", path="d.md")]),
+             _turn([_call("finish", decision="abstain", questions=["q"])])]
+    seen_tools = []
+
+    def respond(messages, tools):
+        seen_tools.append([t["function"]["name"] for t in tools])
+        return turns.pop(0)
+    kb = {"k1|v": "## k1|v level=proposed"}
+
+    def read_knowledge(key):
+        if key not in kb:
+            raise KeyError(f"{key}: not a required key")
+        return kb[key]
+    with tempfile.TemporaryDirectory() as td:
+        r = agent.run("s", "u", sandbox=Path(td) / "b", read_text=lambda p: "D", feedback=lambda root, f: {}, tag="t", responder=respond, readers={"read_knowledge": read_knowledge})
+    assert seen_tools[0] == ["read_document", "write_file", "run_suite", "finish", "read_knowledge"]
+    assert r["consulted"] == {"read_document": ["d.md"], "read_knowledge": ["k1|v", "nope"]}
+    tools = [t for t in r["trace"] if t["kind"] == "tool"]
+    assert "level=proposed" in tools[0]["result"] or "chars" in tools[0]["result"]
+    assert "not a required key" in tools[1]["result"]
+
+
+def test_the_pull_index_names_every_key_and_the_documents_and_the_key_section_is_the_bundles():
+    import gate
+    res = {"verdict": "QUALIFIED", "why": "1 key(s) below verified", "conflicts": [], "stale": [],
+           "keys": {"k|v": {"level": "proposed", "flags": [], "declared_gaps": [],
+                            "assertions": [{"id": "A:x:k|v@v1", "value": "1", "basis": "authored", "status": "proposed", "artefact": "doc", "agent": "a",
+                                            "text": "one", "fragments": [], "verifications": [], "approvals": [], "gaps": []}]},
+                    "u|v": {"level": "absent", "flags": [], "declared_gaps": [], "assertions": []}}}
+    idx = gate.render_index(res, "POLICY", ["contracts/cli.md"])
+    assert idx.startswith("GATE VERDICT: QUALIFIED") and "k|v | proposed | - | A:x:k|v@v1" in idx and "u|v | absent | - | (none: UNKNOWN)" in idx
+    assert "read_knowledge(key)" in idx and "  contracts/cli.md" in idx and "text: one" not in idx, "the index carries ids, not the knowledge"
+    section = "\n".join(gate.render_key("k|v", res["keys"]["k|v"]))
+    assert section in gate.render_bundle(res, "POLICY") and "text: one" in section

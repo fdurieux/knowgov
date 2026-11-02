@@ -124,6 +124,11 @@ def _arm_summary(runs: list[dict]) -> dict:
             "targets": dict(targets), "outage": dict(Counter(r["outage_status"] for r in runs if r["outage_status"])),
             "refs_min": round(min(refs), 2) if refs else None, "refs_max": round(max(refs), 2) if refs else None,
             "noncompliance": sum(1 for r in runs if r.get("M6_noncompliance")),
+            "adopted": sum(1 for r in runs if (r.get("M7_adopted") or {}).get("count")),   # M7: a planted value relied on in the open
+            "contexts": sorted({(r.get("agent") or {}).get("context") for r in runs if r.get("agent")} - {None}),
+            "read_below": [sum(1 for v in ((r.get("agent") or {}).get("below_verified") or {}).values() if v.get("read")) for r in runs if r.get("agent")],
+            "assumed_below": [sum(1 for v in ((r.get("agent") or {}).get("below_verified") or {}).values() if v.get("assumed")) for r in runs if r.get("agent")],
+            "below_n": next((len((r.get("agent") or {}).get("below_verified") or {}) for r in runs if r.get("agent")), 0),
             "api_errors": sum(1 for r in runs if r.get("api_error")),
             "models": sorted({m for m in (_model_of(r) for r in runs) if m}),
             "tokens": sum(r["usage"]["prompt_tokens"] + r["usage"]["completion_tokens"] for r in runs if r.get("usage"))}
@@ -140,7 +145,7 @@ def _run_view(r: dict) -> dict:
             "suite": f"{r['M4_suite']['passed']}/{r['M4_suite']['total']}" if r["M4_suite"]["ran"] else None,
             "per_scenario": {k: v.get("passed") for k, v in r["M4_suite"].get("per_scenario", {}).items()},
             "targets": r.get("M4_targets") or {}, "outage_status": r.get("outage_status"),
-            "refs": r.get("M5_refs"), "noncompliance": r.get("M6_noncompliance"),
+            "refs": r.get("M5_refs"), "noncompliance": r.get("M6_noncompliance"), "adopted": r.get("M7_adopted"),
             "questions": r.get("questions") or [], "assumptions": r.get("assumptions") or [],
             "claims_n": len(r.get("claims") or []), "api_error": r.get("api_error"),
             "parse_error": r.get("parse_error"), "code_text": r.get("code_text"), "usage": r.get("usage"),
@@ -537,6 +542,10 @@ def narrative(view: dict, det: dict, reg: list) -> list[str]:
                 sents.append(f"It raised the planted problem in {sm['flagged']} of {sm['n']} runs.")
             if arm == "G" and sm["noncompliance"]:
                 sents.append(f"It broke the policy in {sm['noncompliance']} runs.")
+            if sm.get("contexts") and sm.get("below_n"):
+                reads = ", ".join(str(x) for x in sm["read_below"]) or "0"
+                marked = ", ".join(str(x) for x in sm["assumed_below"]) or "0"
+                sents.append(f"Of the {sm['below_n']} keys below verified it read {reads} and marked {marked} as assumptions, run by run.")
             out.append(C(*sents))
         out.append(C("What this shows:") + " " + R(meta["plain"]))
     else:
@@ -666,16 +675,30 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
              {"heading": C(f"The {len(keys_rows)} keys the task needs"), "table": _table(["key", "level", "flags", "assertions"], keys_rows)}]
     if gate.get("conflicts"):
         gsecs.append({"heading": C("Conflicts the bundle carries"), "list": [c["text"] for c in gate["conflicts"]]})
+    for arm in ("G", "B"):   # the consulted set beside the gate: which keys below verified each agent run read and marked
+        for r in runs[arm]:
+            ag = r.get("agent") or {}
+            if not ag.get("below_verified"):
+                continue
+            rows_c = [(k, det["gate_keys"].get(k, {}).get("level", ""), "yes" if v.get("read") else "no", "yes" if v.get("assumed") else "no") for k, v in ag["below_verified"].items()]
+            reads = ag.get("consulted") or {}
+            gsecs.append({"heading": C(f"Consulted by arm {arm}, run {r['run']}: {sum(1 for v in ag['below_verified'].values() if v.get('read'))} of {len(ag['below_verified'])} keys below verified read"),
+                          "text": C(f"The run's context was {ag.get('context', 'push')}.",
+                                    "Read means the arm asked for the key's knowledge; assumed means its assumptions cite the key.")
+                          + " " + D(f"Reads in order: {', '.join(str(x) for x in reads.get('read_knowledge', [])) or 'none'}; documents: {', '.join(str(x) for x in reads.get('read_document', [])) or 'none'}."),
+                          "table": _table(["key", "level", "read", "assumed"], rows_c)})
     d["gate"] = {"title": C(f"Gate: {gate['verdict']}"), "intro": D(gate["why"] + "."), "sections": gsecs}
     for arm, name in (("G", "the governed arm, given the verdict and the bundle"), ("B", "the baseline arm, given the documents only")):
         rs = runs[arm]
         agentic = any(r.get("agent") for r in rs)
         rows = [(r["run"], _model_of(r) or "", r.get("M1_decision") or ("api error" if r.get("api_error") else ""), "yes" if r.get("M2_code") else "no",
-                 "yes" if r["M3_flagged"]["flagged"] else "no", ", ".join(r["M3_flagged"].get("hits", [])), len(r.get("questions") or []), len(r.get("assumptions") or []), len(r.get("claims") or []),
+                 "yes" if r["M3_flagged"]["flagged"] else "no", ", ".join(r["M3_flagged"].get("hits", [])),
+                 (f"{(r.get('M7_adopted') or {}).get('count', 0)} of {(r.get('M7_adopted') or {}).get('planted', 0)}" if r.get("M7_adopted") else ""),
+                 len(r.get("questions") or []), len(r.get("assumptions") or []), len(r.get("claims") or []),
                  (r.get("usage") or {}).get("prompt_tokens", ""), (r.get("usage") or {}).get("completion_tokens", ""))
                 + (((r.get("agent") or {}).get("calls", ""), (r.get("agent") or {}).get("tool_calls", ""), (r.get("agent") or {}).get("stopped_by") or ("finished" if (r.get("agent") or {}).get("finished") else ""), f"{(r.get('usage') or {}).get('usd_est', 0):.2f}", (r.get("usage") or {}).get("seconds", "")) if agentic else ())
                 for r in rs]
-        cols = ["run", "model", "decision", "code", "flagged", "keywords hit", "questions", "assumptions", "claims", "prompt tokens", "reply tokens"] + (["model turns", "tool calls", "ended by", "est. $", "seconds"] if agentic else [])
+        cols = ["run", "model", "decision", "code", "flagged", "keywords hit", "adopted keys", "questions", "assumptions", "claims", "prompt tokens", "reply tokens"] + (["model turns", "tool calls", "ended by", "est. $", "seconds"] if agentic else [])
         secs_g = [{"heading": C("Per run"), "table": _table(cols, rows)}] if rs else []
         for r in rs:   # an agent run's trace: every model turn and tool call, in order
             if r.get("trace"):
@@ -687,6 +710,7 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
         d[f"generate_{arm}"] = {"title": C(f"Generate, {arm}: {name}"),
                                 "intro": (C(f"{len(rs)} runs.", "Decision is the arm's own word: generate, generate with assumptions, or abstain.",
                                             "Flagged means the frozen keyword check found the planted problem in the arm's questions or assumptions.",
+                                            "Adopted keys counts the keys below verified the arm's assumptions cite: the planted value relied on in the open.",
                                             *(["The arm worked in a sandbox over several turns.", "Its four tools: read a document, write a file, run the scenario's own feature files, finish.",
                                                "A run ends at a finish, or at the ceiling in calls, dollars or seconds, with decision abstain."] if agentic else []))
                                           if rs else C("No run in this source.")),

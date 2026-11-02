@@ -115,6 +115,7 @@ kind = "agent"
 [arms.agent]
 system_prompt = "system_agent"
 feedback = "features/"
+context = "pull"   # the first message is an index; the arm reads keys (G) or documents (B) through its tools, each read logged (task-0022.03)
 layout = """LAYOUT OF THE SANDBOX (what the oracle grades): the package `src/jef/data/` with `src/jef/__init__.py`, `src/jef/data/__init__.py` and its modules (the reference split them as cli, collectors, contract, health, parser, store, sync, universe); `jdl_adapter.py` at the sandbox root exposing the ten adapter functions of contracts/HARNESS_INTERFACE.md; the `jef-data` command is `jef.data.cli:main(argv=None) -> int` and is launched by the suite, not by you; `deploy/daily.sh` may be written but the chain scenarios run only against the reference. Work in turns: write the modules, run the suite (one feature at a time is cheaper), read the failed scenarios' names, fix, repeat; end with finish. Every file you write is graded as it stands when you finish."""
 
 [tasks.codegen]
