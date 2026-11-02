@@ -22,3 +22,9 @@ overdue_is_error = false     # a warning in the report unless a kind says otherw
 [review.kinds]
 capability = { months = 12 }
 product = { months = 6 }
+
+# Knowledge a person gave is reviewed sooner than knowledge a document or an export carries
+# (decision 0008): a link with an `elicited` block is due for review within this many months of
+# the day it was given, whatever its type's default.
+[review.evidence]
+elicited = { months = 6 }

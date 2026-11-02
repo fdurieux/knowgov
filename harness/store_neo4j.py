@@ -176,6 +176,9 @@ class Neo4jStore(Store):
             MERGE (llm:Agent {id:$lid}) SET llm.kind='llm', llm.name=$lname""",
                  tool=tool_name, v=version, hid=human["id"], hname=human["name"], lid=llm["id"], lname=llm["name"]).consume()
 
+    def ensure_person(self, aid: str, handle: str) -> None:
+        self.run("MERGE (p:Agent {id:$id}) SET p.kind='human', p.name=$name", id=aid, name=handle).consume()
+
     def create_activity(self, aid: str, kind: str, at: str, tool: str, note: str, agent_id: str) -> None:
         self.run("""
             MATCH (ag:Agent {id:$agent})

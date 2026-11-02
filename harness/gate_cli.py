@@ -195,7 +195,7 @@ def run(args) -> dict:
 def _load(st, scenario: str) -> None:
     """What a deterministic run does before its gate (harness/run.py ``deterministic``), stage 1."""
     from kitio import kit_for
-    from load import load_inferred, load_scenario, load_verifications, pristine_values
+    from load import load_captures, load_inferred, load_scenario, load_verifications, pristine_values
     from plant import INFERRED
     from rules import run_all
     from subject import SUBJECT
@@ -208,6 +208,7 @@ def _load(st, scenario: str) -> None:
         load_verifications(st, scenario, pristine_values(), kit)
     if cfg.get("inferred") and INFERRED:
         load_inferred(st, scenario, INFERRED)
+    load_captures(st, scenario)
     run_all(st, scenario)
 
 

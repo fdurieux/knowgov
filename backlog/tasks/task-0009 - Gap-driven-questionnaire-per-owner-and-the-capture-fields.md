@@ -1,9 +1,11 @@
 ---
 id: TASK-0009
 title: Gap-driven questionnaire per owner and the capture fields
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-01T14:30:00Z'
+updated_date: '2026-11-02T22:54:00Z'
 labels:
   - instance
   - capture
@@ -29,3 +31,14 @@ Knowledge that lives only in people shows up as unknown or a declared gap and bl
 - [ ] #3 No path exists by which a model's output reaches a status above proposed
 - [ ] #4 The register's required capture fields are documented with a pointer to the ieam-register decision that adds them
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. ieam-register decision 0008 (its #10, proposed, the maintainer approves by the merge): types.toml [elicited] from/on/record with an opaque-handle pattern, lifecycle.toml [review.evidence] elicited = 6 months, check_register enforcing both.
+2. harness/capture.py questionnaire: load as the gate command does, resolve, one TOML questionnaire per owner (the register owners of the nodes a key's map row names; unassigned otherwise) listing absent, declared-gap and below-verified keys with what the store holds, keys_owned as the denominator.
+3. harness/capture.py ingest: check an answered questionnaire (a handle per decision 0008, a date not in the future, one of answer or nobody_knows per item) and write it normalised into the subject's captures/ ([capture] dir), never overwriting.
+4. load_captures in every load (run.py, gate_cli): an answer -> an assertion basis elicited, status proposed, attributed to person:<handle>, the activity dated; nobody_knows -> a declared gap naming the handle and date. Store port ensure_person in both adapters.
+5. AC 3: the adapters verify only extracted and authored assertions; a test holds both adapters to that, and harness.yml re-runs the verifications over a store with captures and the inferred assertion and requires both at proposed.
+6. instance/README.md: the capture path in the adopter register, and the register's capture fields with the pointer to decision 0008.
+<!-- SECTION:PLAN:END -->

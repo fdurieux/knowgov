@@ -125,10 +125,10 @@ def test_real_copy_note_is_the_tools_output_at_the_tag():
     dest = ROOT / "demo" / "register"
     note = (dest / "SOURCE.md").read_text(encoding="utf-8")
     assert vr.MARK in note
-    assert re.search(r"^\| tag \| `v0\.2\.2` — the demo reads the tag", note, re.M)
-    assert vr.earlier_copies(note) == [("v0.2.1", "a70d6fb", "2026-11-01"), ("v0.2.0", "cc68a6b", "2026-11-01"), ("v0.1.1", "c54f86c", "2026-11-01")], "this repository's first copy was v0.1.1; pumllint's note carries the earlier v0.1.0"
+    assert re.search(r"^\| tag \| `v0\.2\.3` — the demo reads the tag", note, re.M)
+    assert vr.earlier_copies(note) == [("v0.2.2", "0242646", "2026-11-02"), ("v0.2.1", "a70d6fb", "2026-11-01"), ("v0.2.0", "cc68a6b", "2026-11-01"), ("v0.1.1", "c54f86c", "2026-11-01")], "this repository's first copy was v0.1.1; pumllint's note carries the earlier v0.1.0"
     files = {p.relative_to(dest).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
              for p in dest.rglob("*") if p.is_file() and p.name != "SOURCE.md" and "__pycache__" not in p.parts}
-    assert vr.source_note({"commit": "024264690bf4fb6d2da094d707785036a97fc714", "subject": "Merge pull request #9 from fdurieux/claude/compassionate-hamilton-ohj8mj",
-                           "date": "2026-11-02", "tag": "v0.2.2", "repo": "fdurieux/ieam-register", "files": sorted(files)},
-                          files, "2026-11-02", "2026-11-01", [("v0.2.1", "a70d6fb", "2026-11-01"), ("v0.2.0", "cc68a6b", "2026-11-01"), ("v0.1.1", "c54f86c", "2026-11-01")]) == note
+    assert vr.source_note({"commit": "34e9a262be4ca1c27223519bed27e6d409a26099", "subject": "Merge pull request #11 from fdurieux/claude/compassionate-hamilton-ohj8mj",
+                           "date": "2026-11-03", "tag": "v0.2.3", "repo": "fdurieux/ieam-register", "files": sorted(files)},
+                          files, "2026-11-02", "2026-11-01", [("v0.2.2", "0242646", "2026-11-02"), ("v0.2.1", "a70d6fb", "2026-11-01"), ("v0.2.0", "cc68a6b", "2026-11-01"), ("v0.1.1", "c54f86c", "2026-11-01")]) == note

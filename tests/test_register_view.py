@@ -31,7 +31,7 @@ def test_register_view_builds_from_the_vendored_copy_at_the_pinned_date():
     v = register_view.build()
     assert v["source"]["repo"] == "fdurieux/ieam-register" and len(v["source"]["commit"]) == 40 and v["source"]["digest_ok"]
     assert v["source"]["kind"] == "copy" and register_view.REGISTER == (DEMO / "register").resolve()
-    assert v["source"]["tag"] == "v0.2.2" and v["source"]["commit"].startswith("0242646")  # the tag sits on the vendored commit
+    assert v["source"]["tag"] == "v0.2.3" and v["source"]["commit"].startswith("34e9a26")  # the tag sits on the vendored commit
     assert v["pinned"] and v["run_date"] == v["source"]["pinned_date"]
     assert v["summary"] == {"nodes": 56, "links": 65, "errors": 0, "warnings": 7}   # the J-F slice (decisions 0005 and 0006): 29 nodes, 37 links, seven parentless nodes
     assert v["coverage_lines"][0] == "C1: 7/8 covered, 1 excepted, 0 uncovered"
@@ -222,7 +222,7 @@ def test_projection_rows_and_statements():
     r = rp.rows(loaded_at="2026-10-31T00:00:00+00:00")
     c = r["counts"]
     assert c["nodes"] == 56 and c["links"] == 65 and c["types"] == 10 and c["documents"] == 10 and c["externals"] == 1 and c["exceptions"] == 1
-    assert r["stamp"]["tag"] == "v0.2.2" and r["stamp"]["commit"].startswith("0242646") and r["stamp"]["export_date"] == "2026-10-30"   # the subject's export, not the newest
+    assert r["stamp"]["tag"] == "v0.2.3" and r["stamp"]["commit"].startswith("34e9a26") and r["stamp"]["export_date"] == "2026-10-30"   # the subject's export, not the newest
     assert len(r["parents"]) == sum(1 for n in r["nodes"] if n["parent"]) and len(r["owners"]) == 56
     assert sum(len(v) for v in r["typed"].values()) == 64 and len(r["maps_to"]) == 1 and len(r["link_of"]) == 129 and len(r["of_type"]) == 65
     assert {"reg_id": "REL-08002", "path": "kit/requirements.md", "anchor": "kit:requirements.md#REQ-05"} in r["cites"]
@@ -232,7 +232,7 @@ def test_projection_rows_and_statements():
     ok = (str, int, float, bool)
     for key in ("nodes", "types", "links", "documents", "externals", "exceptions"):
         for row in r[key]:
-            assert row["tag"] == "v0.2.2" and row["commit"] and row["loaded_at"] and len(row["digest"]) == 64, (key, row["reg_id"])
+            assert row["tag"] == "v0.2.3" and row["commit"] and row["loaded_at"] and len(row["digest"]) == 64, (key, row["reg_id"])
             for k, v in row.items():
                 assert isinstance(v, ok) or (isinstance(v, list) and all(isinstance(x, str) for x in v)), (key, row["reg_id"], k, v)
     # the load is the Neo4j adapter's project_register, read as source: the tests job has no driver
@@ -256,7 +256,7 @@ def test_projection_is_wired_and_named():
     ci = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert '["api", "register", "project"]' in server and "s.register_census()" in server and '"register": None' in server
     assert 'id="project-btn"' in page and "/api/register/project" in page and "register ${s.register ? 'projected at '" in page
-    assert "POST localhost:8080/api/register/project" in ci and '"tag"]=="v0.2.2"' in ci
+    assert "POST localhost:8080/api/register/project" in ci and '"tag"]=="v0.2.3"' in ci
     assert "projection" in views.GLOSSARY and "**The projection.**" in (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
     adapter = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")   # the saved queries are the adapter's
     ids = [m.group(1) for m in _re.finditer(r'\{"id": "([a-z0-9-]+)", "needs": "[^"]+", "title"', adapter)]

@@ -114,6 +114,8 @@ class Subject:
         # the record: <dir>/<scenario>/deterministic.json and the arms' run files; a subject that
         # has not been run has an empty or absent record/ and the page lists nothing to replay
         self.record_dir: Path = self.root / rec.get("dir", "record")
+        # answered questionnaires, normalised by harness/capture.py ingest and read by every load (task-0009)
+        self.capture_dir: Path = self.root / m.get("capture", {}).get("dir", "captures")
 
     # ---- paths and files
     def path(self, rel: str) -> Path:

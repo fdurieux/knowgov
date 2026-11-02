@@ -46,3 +46,11 @@ approval_fields = ["by", "on", "record"]
 prefix = "REL"
 required = ["id", "source", "target", "state", "rationale", "owner"]
 required_when_approved = ["review_due", "approval"]
+
+# Knowledge a person gave (decision 0008). A link whose content rests on what a person said, and
+# not on a document or a system's export, carries an `elicited` block: who said it, when, and the
+# record of the answer. The same three fields are what knowgov's capture path writes on an
+# assertion it ingests from an answered questionnaire, so both name a person the same way.
+[elicited]
+fields = ["from", "on", "record"]
+handle = "^[a-z][a-z0-9-]{1,39}$"   # an opaque handle: never a name, an e-mail address or a staff number

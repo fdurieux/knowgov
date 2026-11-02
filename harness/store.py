@@ -49,6 +49,11 @@ class Store:
     def ensure_agents(self, tool_name: str, version: str, human: dict, llm: dict) -> None:
         raise NotImplementedError
 
+    def ensure_person(self, aid: str, handle: str) -> None:
+        """A person who gave knowledge (task-0009; ieam-register decision 0008): an Agent of kind
+        human named by an opaque handle, never a name."""
+        raise NotImplementedError
+
     def create_activity(self, aid: str, kind: str, at: str, tool: str, note: str, agent_id: str) -> None:
         raise NotImplementedError
 
