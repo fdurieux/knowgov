@@ -188,7 +188,7 @@ def test_register_map_rows_hold_the_links_endpoints_and_place_every_key():
                 continue
             for jid in set(re.findall(r"JDL-\d+", " ".join(str(e) for e in ln.get("evidence", [])))):
                 cited.setdefault(jid, set()).update({ln["source"], ln["target"]})
-    assert len(cited) == 31, "the v0.2.1 slice's approved links cite 31 keys"
+    assert len(cited) == 31, "the v0.2.2 slice's approved links cite 31 keys: decision 0007 moved three citations and added none"
     short = {k: sorted(v - set(rows[k]["nodes"])) for k, v in cited.items() if not v <= set(rows[k]["nodes"])}
     assert short == {}, f"rows missing a citing link's endpoints: {short}"
     kinds = {r["id"]: r["kind"] for r in json.loads((SUBJ / "vendor" / "recreate_experiment" / "kit" / "requirements.json").read_text(encoding="utf-8"))}

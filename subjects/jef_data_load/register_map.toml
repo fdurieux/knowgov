@@ -25,6 +25,13 @@
 # outputs); the deprecated step Publish the seam frame left every row. The maintainer approved the
 # map on 2026-11-01 at v0.2.0 (knowgov #23) and the rows revised for v0.2.1 on 2026-11-02.
 #
+# Rows revised for v0.2.2, 2026-11-02: the register's decision 0007 re-read three evidence anchors,
+# so the second rule moves six rows. JDL-072, JDL-113 and JDL-150 lose the endpoints the old citations
+# added (REL-06008, REL-07007, REL-03005 no longer cite them) and keep their contract placement;
+# JDL-058, JDL-069 and JDL-108 gain the endpoints of the links that now cite them (PROC-0007 twice,
+# ENT-0008). Nothing else moves; the rows follow the decision the maintainer approved by merging
+# ieam-register #8, and await the maintainer's word on the map itself.
+#
 # contracts/universe.toml.md, classifications.toml.md, the packaged TOML -> ENT-0007 (and APP-0005)
 # contracts/collectors.md, fixtures.md -> APP-0009, PROC-0009
 # contracts/adjustment.md -> APP-0008, ENT-0009, ENT-0008; contracts/store.md -> APP-0008, ENT-0008
@@ -38,10 +45,10 @@
 [map]
 basis = "derived"
 author = "the demo session, derived 2026-11-01 from the contracts' citations, reconciled the same day with the register's links at v0.2.0"
-status = "approved"          # approved 2026-11-01 at v0.2.0 (knowgov #23); the rows revised for v0.2.1 approved 2026-11-02
+status = "approved"          # approved 2026-11-01 at v0.2.0 (knowgov #23); the rows revised for v0.2.1 approved 2026-11-02; six rows revised for v0.2.2 the same day (decision 0007)
 approved_by = "fdurieux"
 approved_on = 2026-11-02
-register_commit = "a70d6fb1666a9f661cd8372b37bafa8ffe53a875"   # ieam-register v0.2.1, the links the rows were reconciled with
+register_commit = "024264690bf4fb6d2da094d707785036a97fc714"   # ieam-register v0.2.2, the links the rows were reconciled with
 keys_expected = 163
 
 [[row]]
@@ -388,9 +395,9 @@ note = "contract; elaborated by store.md; the links citing it (REL-08004, REL-06
 
 [[row]]
 key = "JDL-058|statement"
-nodes = ["APP-0008", "ENT-0008", "APP-0005"]
+nodes = ["APP-0008", "ENT-0008", "APP-0005", "PROC-0007"]
 anchor = "contracts/store.md"
-note = "ritual; elaborated by refusals.md, store.md"
+note = "ritual; elaborated by refusals.md, store.md; the link citing it since v0.2.2 (REL-06008, decision 0007) adds PROC-0007"
 
 [[row]]
 key = "JDL-059|statement"
@@ -454,9 +461,9 @@ note = "contract; elaborated by store.md"
 
 [[row]]
 key = "JDL-069|statement"
-nodes = ["APP-0008", "ENT-0008", "APP-0005"]
+nodes = ["APP-0008", "ENT-0008", "APP-0005", "PROC-0007"]
 anchor = "contracts/store.md"
-note = "ritual; elaborated by command_store_state.dmn, refusal_routing.dmn, refusals.md, store.md"
+note = "ritual; elaborated by command_store_state.dmn, refusal_routing.dmn, refusals.md, store.md; the link citing it since v0.2.2 (REL-06008, decision 0007) adds PROC-0007"
 
 [[row]]
 key = "JDL-070|statement"
@@ -472,9 +479,9 @@ note = "contract; elaborated by seam_frame.md; the links citing it (REL-08007, R
 
 [[row]]
 key = "JDL-072|statement"
-nodes = ["ENT-0010", "PRD-0004", "APP-0005", "PROC-0007", "APP-0008"]
+nodes = ["ENT-0010", "PRD-0004", "APP-0005"]
 anchor = "contracts/seam_frame.md"
-note = "arithmetic; elaborated by seam_frame.md; the links citing it (REL-06008) add PROC-0007, APP-0008"
+note = "arithmetic; elaborated by seam_frame.md; REL-06008 cited it until v0.2.2 (decision 0007 re-read the anchor), so PROC-0007 and APP-0008 left the row"
 
 [[row]]
 key = "JDL-073|statement"
@@ -688,9 +695,9 @@ note = "from the register links citing it (REL-07007, REL-04006, REL-06009); was
 
 [[row]]
 key = "JDL-108|statement"
-nodes = ["APP-0007", "PROC-0008"]
+nodes = ["APP-0007", "PROC-0008", "ENT-0008"]
 anchor = "requirements.json#JDL-108"
-note = "by kind, placed on the run: a ritual of the status checks, so the health module and the status run"
+note = "by kind, placed on the run: a ritual of the status checks, so the health module and the status run; the link citing it since v0.2.2 (REL-07007, decision 0007) adds ENT-0008"
 
 [[row]]
 key = "JDL-109|statement"
@@ -718,9 +725,9 @@ note = "verdict; elaborated by classifications.toml.md"
 
 [[row]]
 key = "JDL-113|statement"
-nodes = ["ENT-0007", "APP-0005", "PROC-0008", "ENT-0008"]
+nodes = ["ENT-0007", "APP-0005"]
 anchor = "contracts/classifications.toml.md"
-note = "contract; elaborated by classifications.toml.md; the links citing it (REL-07007) add PROC-0008, ENT-0008"
+note = "contract; elaborated by classifications.toml.md; REL-07007 cited it until v0.2.2 (decision 0007 re-read the anchor), so PROC-0008 and ENT-0008 left the row"
 
 [[row]]
 key = "JDL-114|statement"
@@ -940,9 +947,9 @@ note = "chain; elaborated by chain.md"
 
 [[row]]
 key = "JDL-150|statement"
-nodes = ["PROC-0006", "APP-0005", "JRN-0005", "JRN-0007", "PROC-0008"]
+nodes = ["PROC-0006", "APP-0005", "JRN-0005"]
 anchor = "contracts/chain.md"
-note = "chain; elaborated by chain.md; the links citing it (REL-03005) add JRN-0007, PROC-0008"
+note = "chain; elaborated by chain.md; REL-03005 cited it until v0.2.2 (decision 0007 re-read the anchor), so JRN-0007 and PROC-0008 left the row"
 
 [[row]]
 key = "JDL-151|statement"

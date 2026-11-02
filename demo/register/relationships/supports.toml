@@ -102,9 +102,9 @@ target = "PROC-0007"
 state = "approved"
 rationale = "The store writes each leg's bars, adjusted, into year files"
 owner = "ORG-0003"
-evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/store.md", "jef_kit:requirements.json#JDL-057", "jef_kit:requirements.json#JDL-072"]
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/store.md", "jef_kit:requirements.json#JDL-057", "jef_kit:requirements.json#JDL-058", "jef_kit:requirements.json#JDL-069"]
 review_due = 2027-05-01
-approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+approval = { by = "fdurieux", on = 2026-11-02, record = "decisions/0007-three-citations-re-read-and-the-walk-follows-approved-links.md" }
 
 [[link]]
 id = "REL-06009"

@@ -27,7 +27,7 @@ def test_register_view_builds_from_the_vendored_copy_at_the_pinned_date():
     v = register_view.build()
     assert v["source"]["repo"] == "fdurieux/ieam-register" and len(v["source"]["commit"]) == 40 and v["source"]["digest_ok"]
     assert v["source"]["kind"] == "copy" and register_view.REGISTER == (DEMO / "register").resolve()
-    assert v["source"]["tag"] == "v0.2.1" and v["source"]["commit"].startswith("a70d6fb")  # the tag sits on the vendored commit
+    assert v["source"]["tag"] == "v0.2.2" and v["source"]["commit"].startswith("0242646")  # the tag sits on the vendored commit
     assert v["pinned"] and v["run_date"] == v["source"]["pinned_date"]
     assert v["summary"] == {"nodes": 56, "links": 65, "errors": 0, "warnings": 7}   # the J-F slice (decisions 0005 and 0006): 29 nodes, 37 links, seven parentless nodes
     assert v["coverage_lines"][0] == "C1: 7/8 covered, 1 excepted, 0 uncovered"
@@ -214,7 +214,7 @@ def test_projection_rows_and_statements():
     r = rp.rows(loaded_at="2026-10-31T00:00:00+00:00")
     c = r["counts"]
     assert c["nodes"] == 56 and c["links"] == 65 and c["types"] == 10 and c["documents"] == 10 and c["externals"] == 1 and c["exceptions"] == 1
-    assert r["stamp"]["tag"] == "v0.2.1" and r["stamp"]["commit"].startswith("a70d6fb") and r["stamp"]["export_date"] == "2026-10-30"   # the subject's export, not the newest
+    assert r["stamp"]["tag"] == "v0.2.2" and r["stamp"]["commit"].startswith("0242646") and r["stamp"]["export_date"] == "2026-10-30"   # the subject's export, not the newest
     assert len(r["parents"]) == sum(1 for n in r["nodes"] if n["parent"]) and len(r["owners"]) == 56
     assert sum(len(v) for v in r["typed"].values()) == 64 and len(r["maps_to"]) == 1 and len(r["link_of"]) == 129 and len(r["of_type"]) == 65
     assert {"reg_id": "REL-08002", "path": "kit/requirements.md", "anchor": "kit:requirements.md#REQ-05"} in r["cites"]
@@ -224,7 +224,7 @@ def test_projection_rows_and_statements():
     ok = (str, int, float, bool)
     for key in ("nodes", "types", "links", "documents", "externals", "exceptions"):
         for row in r[key]:
-            assert row["tag"] == "v0.2.1" and row["commit"] and row["loaded_at"] and len(row["digest"]) == 64, (key, row["reg_id"])
+            assert row["tag"] == "v0.2.2" and row["commit"] and row["loaded_at"] and len(row["digest"]) == 64, (key, row["reg_id"])
             for k, v in row.items():
                 assert isinstance(v, ok) or (isinstance(v, list) and all(isinstance(x, str) for x in v)), (key, row["reg_id"], k, v)
     # the load is the Neo4j adapter's project_register, read as source: the tests job has no driver
@@ -248,7 +248,7 @@ def test_projection_is_wired_and_named():
     ci = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert '["api", "register", "project"]' in server and "s.register_census()" in server and '"register": None' in server
     assert 'id="project-btn"' in page and "/api/register/project" in page and "register ${s.register ? 'projected at '" in page
-    assert "POST localhost:8080/api/register/project" in ci and '"tag"]=="v0.2.1"' in ci
+    assert "POST localhost:8080/api/register/project" in ci and '"tag"]=="v0.2.2"' in ci
     assert "projection" in views.GLOSSARY and "**The projection.**" in (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
     adapter = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")   # the saved queries are the adapter's
     ids = [m.group(1) for m in _re.finditer(r'\{"id": "([a-z0-9-]+)", "needs": "[^"]+", "title"', adapter)]
@@ -360,14 +360,16 @@ def test_register_root_comes_from_the_environment_and_a_checkout_has_no_note():
 # The Cypher's CALL { } UNION block is parsed (one chain per branch: typed relationship sets with
 # their direction, the taxonomy and state filters on the start and the intermediate nodes) and
 # simulated over the projection's rows, so the test reads the adapter's text, not a copy of it.
-_STEP = re.compile(r"(<-|-)\[:([A-Z_|]+)\](->|-)\((\w*):RegNode\)")
+_STEP = re.compile(r"(<-|-)\[(\w*):([A-Z_|]+)\](->|-)\((\w*):RegNode\)")
 _BRANCH = re.compile(r"WITH a MATCH p = \(a\)(.*?) WHERE (.*?) RETURN p", re.S)
 sys.path.insert(0, str(ROOT / "harness"))
 
 
 def _parse_chains(text):
-    """The branches of the CALL block: [(steps, filters)], a step (inverse?, {types}, var), the
-    filters {var: (taxonomy, live_only?)}. Every branch must be understood: an unparsed piece fails."""
+    """The branches of the CALL block: [(steps, filters)], a step (inverse?, {types}, node var, link
+    var), the filters {var: (taxonomy, live_only?, approved_only?)}, a node var carrying the first two
+    and a link var the third (v0.2.2: an intermediate link must be approved). Every branch must be
+    understood: an unparsed piece fails."""
     block = text[text.index("CALL {") + len("CALL {"):text.index("\n}\n")]
     chains = []
     for branch in block.split("UNION"):
@@ -378,24 +380,30 @@ def _parse_chains(text):
         for st in _STEP.finditer(pattern):
             assert st.start() == pos, pattern
             pos = st.end()
-            assert (st.group(1), st.group(3)) in (("-", "->"), ("<-", "-")), pattern
-            steps.append((st.group(1) == "<-", set(st.group(2).split("|")), st.group(4)))
+            assert (st.group(1), st.group(4)) in (("-", "->"), ("<-", "-")), pattern
+            steps.append((st.group(1) == "<-", set(st.group(3).split("|")), st.group(5), st.group(2)))
         assert pos == len(pattern) and steps, pattern
         filters = {}
         for c in conds.split(" AND "):
             t = re.fullmatch(r"(\w+)\.taxonomy = '(\w+)'", c)
             l = re.fullmatch(r"NOT (\w+)\.state IN \['deprecated','retired'\]", c)
-            assert t or l, c
-            v = (t or l).group(1)
-            tax, live = filters.get(v, (None, False))
-            filters[v] = (t.group(2) if t else tax, live or bool(l))
+            o = re.fullmatch(r"(\w+)\.state = 'approved'", c)
+            assert t or l or o, c
+            v = (t or l or o).group(1)
+            tax, live, ok = filters.get(v, (None, False, False))
+            filters[v] = (t.group(2) if t else tax, live or bool(l), ok or bool(o))
+        for steps_, filters_ in [(steps, filters)]:
+            link_vars = {rv for *_, rv in steps_ if rv}
+            assert all(filters_[rv] == (None, False, True) for rv in link_vars), "a named link is named to be filtered on approved"
+            assert all(not filters_.get(nv, (None, False, False))[2] for *_, nv, _ in steps_), "approved is a link filter"
         chains.append((steps, filters))
     return chains
 
 
 def _simulate(chains, rows, start):
     """The rows the Cypher gives from ``start`` over the projection's rows: the distinct relationships
-    of every path of every branch, each as (from, relationship, to, link state, owner, evidence)."""
+    of every path of every branch, each as (from, relationship, to, link state, owner, evidence, live),
+    live as the rows form's ``followed`` column computes it."""
     nodes = {n["reg_id"]: n for n in rows["nodes"]}
     evidence = {l["reg_id"]: tuple(l["evidence"]) for l in rows["links"]}
     by_source, by_target = {}, {}
@@ -406,7 +414,7 @@ def _simulate(chains, rows, start):
             by_target.setdefault(it["target"], []).append(rel)
 
     def ok(var, nid, filters):
-        tax, live = filters.get(var, (None, False))
+        tax, live, _ = filters.get(var, (None, False, False))
         n = nodes[nid]
         return (tax is None or n["taxonomy"] == tax) and not (live and n["state"] in ("deprecated", "retired"))
 
@@ -415,11 +423,13 @@ def _simulate(chains, rows, start):
         if start not in nodes or not ok("a", start, filters):
             continue
         partial = [(start, ())]
-        for inverse, types, var in steps:
+        for inverse, types, var, rvar in steps:
             nxt = []
             for cur, path in partial:
                 for rel in (by_target if inverse else by_source).get(cur, []):
                     if rel[0] not in types:
+                        continue
+                    if rvar and filters[rvar][2] and rel[4] != "approved":
                         continue
                     other = rel[1] if inverse else rel[2]
                     if ok(var, other, filters) if var else True:
@@ -431,13 +441,15 @@ def _simulate(chains, rows, start):
     for rtype, src, tgt, link, state, owner in found:
         inv = rtype == "REG_IS_SUPPORTED_BY"
         label = rtype.replace("REG_", "").lower() + (" (inverse)" if inv else "")
-        out.append(((tgt if inv else src), label, (src if inv else tgt), state, owner, evidence[link]))
+        far = src if inv else tgt
+        live = state == "approved" and nodes[far]["state"] not in ("deprecated", "retired")
+        out.append(((tgt if inv else src), label, far, state, owner, evidence[link], live))
     return sorted(out)
 
 
 def _walk_rows(reg, start):
     T = register_view._load_tools()
-    return sorted((e["from"], e["rel"], e["to"], e["state"], e["owner"], tuple(e["evidence"])) for e in T["impact"].walk(reg, start))
+    return sorted((e["from"], e["rel"], e["to"], e["state"], e["owner"], tuple(e["evidence"]), e["live"]) for e in T["impact"].walk(reg, start))
 
 
 def test_register_impact_cypher_equals_the_walk_on_every_node():
@@ -447,6 +459,8 @@ def test_register_impact_cypher_equals_the_walk_on_every_node():
     reg = register_view._load_tools()["register"].load_register(register_view.REGISTER)
     chains = _parse_chains(sn.IMPACT_ROWS)
     assert len(chains) == 8 and _parse_chains(sn.IMPACT_PATHS) == chains, "the paths form is the same walk"
+    assert sum(1 for steps, _ in chains for *_, rv in steps if rv) == 5, "every intermediate link is filtered on approved: 4 two-step chains and the three-step chain's two"
+    assert "AS followed" in sn.IMPACT_ROWS and "'no, withdrawn'" in sn.IMPACT_ROWS
     assert sn.IMPACT_PATHS.count("OPTIONAL CALL {") == 1 and sn.IMPACT_PATHS.rstrip().endswith("RETURN a, p")
     walked = 0
     for nid in reg["nodes"]:
@@ -465,17 +479,20 @@ def test_register_impact_cypher_equals_the_walk_on_every_node():
 def _fixture():
     """A small register with what the vendored copy lacks: a deprecated intermediate node (PROC-2,
     reached and not expanded), a retired journey step (JRN-2, the same), a deprecated start (APP-2,
-    nothing walked), two links of one type between one pair (both reported) and a parent (never climbed)."""
+    nothing walked), two links of one type between one pair (both reported), a parent (never climbed)
+    and, since v0.2.2, a proposed link as the only route to a process (PROC-3: the edge reported as
+    withdrawn, the process not expanded, so PRD-4 behind it is never reached)."""
     N = {"APP-1": ("applications", "approved"), "APP-2": ("applications", "deprecated"), "MOD-1": ("applications", "approved"),
-         "PROC-1": ("processes", "approved"), "PROC-2": ("processes", "deprecated"), "PRD-1": ("products", "approved"),
-         "PRD-2": ("products", "approved"), "PRD-3": ("products", "approved"), "CAP-1": ("capabilities", "approved"),
-         "JRN-1": ("journeys", "approved"), "JRN-2": ("journeys", "retired")}
+         "PROC-1": ("processes", "approved"), "PROC-2": ("processes", "deprecated"), "PROC-3": ("processes", "approved"),
+         "PRD-1": ("products", "approved"), "PRD-2": ("products", "approved"), "PRD-3": ("products", "approved"), "PRD-4": ("products", "approved"),
+         "CAP-1": ("capabilities", "approved"), "JRN-1": ("journeys", "approved"), "JRN-2": ("journeys", "retired")}
     L = [("supports", "REL-1", "APP-1", "PROC-1", "approved"), ("supports", "REL-2", "APP-1", "PROC-1", "proposed"),
          ("supports", "REL-3", "APP-1", "PROC-2", "approved"), ("supports", "REL-4", "APP-2", "PROC-1", "approved"),
          ("delivers", "REL-5", "PROC-1", "PRD-1", "approved"), ("delivers", "REL-6", "PROC-2", "PRD-2", "approved"),
          ("realizes", "REL-7", "PROC-1", "CAP-1", "approved"), ("is_supported_by", "REL-8", "JRN-1", "PROC-1", "approved"),
          ("is_supported_by", "REL-9", "JRN-2", "PROC-1", "approved"), ("concerns", "REL-10", "JRN-1", "PRD-1", "approved"),
-         ("concerns", "REL-11", "JRN-2", "PRD-3", "approved")]
+         ("concerns", "REL-11", "JRN-2", "PRD-3", "approved"),
+         ("supports", "REL-12", "APP-1", "PROC-3", "proposed"), ("delivers", "REL-13", "PROC-3", "PRD-4", "approved")]
     reg = {"nodes": {k: {"_taxonomy": t, "state": s, "parent": "APP-1" if k == "MOD-1" else ""} for k, (t, s) in N.items()},
            "relationships": {}}
     for rel, lid, src, tgt, st in L:
@@ -497,9 +514,12 @@ def test_register_impact_cypher_stops_at_a_deprecated_node_like_the_walk():
     app1 = _walk_rows(reg, "APP-1")
     assert [r[2] for r in app1].count("PROC-1") == 2 and "PROC-2" in [r[2] for r in app1], "two supports links reported; the deprecated process reached"
     assert "PRD-2" not in [r[2] for r in app1] and "PRD-3" not in [r[2] for r in app1], "neither the deprecated nor the retired node is expanded"
-    assert ("PROC-1", "is_supported_by (inverse)", "JRN-2", "approved", "ORG-1", ("kit:REL-9",)) in app1
+    assert ("PROC-1", "is_supported_by (inverse)", "JRN-2", "approved", "ORG-1", ("kit:REL-9",), False) in app1, "a retired far node: reported, withdrawn"
+    assert ("APP-1", "supports", "PROC-3", "proposed", "ORG-1", ("kit:REL-12",), False) in app1 and "PRD-4" not in [r[2] for r in app1], "a proposed link: reported, withdrawn, not followed"
+    assert ("APP-1", "supports", "PROC-1", "proposed", "ORG-1", ("kit:REL-2",), False) in app1 and ("APP-1", "supports", "PROC-1", "approved", "ORG-1", ("kit:REL-1",), True) in app1
     assert _walk_rows(reg, "APP-2") == [] and _walk_rows(reg, "MOD-1") == [], "a deprecated start walks nothing; a parent is never climbed"
-    assert len(app1) == 8
+    assert len(app1) == 9 and sum(1 for r in app1 if not r[6]) == 4
+    assert register_view._load_tools()["impact"].reached(register_view._load_tools()["impact"].walk(reg, "APP-1")) == {"PROC-1", "PROC-2", "PROC-3", "PRD-1", "CAP-1", "JRN-1", "JRN-2"} - {"PROC-2", "PROC-3", "JRN-2"} | {"PRD-1"}
 
 
 # ---- task-0024.01: the impact panel carries the walk's Cypher; the listed text uses the register's default start

@@ -139,9 +139,12 @@ types with their ARIS and Archi status, and an *Impact* box that answers
 the IEAM's own question: type a node id (the QuoteAPI module is the
 default) and the register's walk shows every link it follows to the
 processes, products and journey steps retiring that node would touch,
-with each link's state, owner and evidence. The walk follows links only
-and does not climb a node's parent, so it says so when it reaches no
-product. A link runs the checker at today's date instead of the pinned
+with each link's state, owner and evidence, and whether the walk
+followed it. The walk follows approved links only (the register's
+decision 0007): an edge whose link is not approved, or whose far node is
+deprecated or retired, is listed as withdrawn and not followed, so only
+what lies behind approved links counts as reached. It does not climb a
+node's parent, and it says so when it reaches no product. A link runs the checker at today's date instead of the pinned
 one, so you can see an exception expire. Clicking a scenario brings the
 report back. Nothing on the page is written back to the register.
 

@@ -67,9 +67,9 @@ target = "PROC-0008"
 state = "approved"
 rationale = "Checking health is the status run"
 owner = "ORG-0003"
-evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-150"]
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/chain.md", "jef_kit:requirements.json#JDL-156"]
 review_due = 2027-05-01
-approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+approval = { by = "fdurieux", on = 2026-11-02, record = "decisions/0007-three-citations-re-read-and-the-walk-follows-approved-links.md" }
 
 [[link]]
 id = "REL-03006"
