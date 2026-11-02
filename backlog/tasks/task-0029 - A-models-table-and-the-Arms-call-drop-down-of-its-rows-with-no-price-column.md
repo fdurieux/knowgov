@@ -1,11 +1,11 @@
 ---
 id: TASK-0029
 title: A models table and the Arms call drop-down of its rows, with no price column
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-02T13:32:00Z'
-updated_date: '2026-11-02T14:51:00Z'
+updated_date: '2026-11-02T14:55:00Z'
 labels:
   - arms
   - page
@@ -36,10 +36,10 @@ The Arms call box takes a free-text model name matched by a pattern and sent as 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 KG_MODELS names a TOML table of rows (id, label, provider, base URL, model, efforts, key variable name, arm kinds served), default demo/models.toml with the record's row first; a row carries no key and no price
-- [ ] #2 /api/scenarios lists the rows with key_set per row and never a key value; a row whose variable is empty is listed, greyed, with "set VAR", and refused by /api/run
-- [ ] #3 The Arms call box is a drop-down of rows plus an effort control filled from the row; /api/run takes a row id and an effort, the server resolves them, and a browser can send no URL; the three KG_MODEL_* variables remain as the custom row
-- [ ] #4 The record's row is first and greyed with "the record ran no arm" on a subject with no record model; the stack job reads the rows and finds no key; the page-string and glossary tests pass on the new labels
+- [x] #1 KG_MODELS names a TOML table of rows (id, label, provider, base URL, model, efforts, key variable name, arm kinds served), default demo/models.toml with the record's row first; a row carries no key and no price
+- [x] #2 /api/scenarios lists the rows with key_set per row and never a key value; a row whose variable is empty is listed, greyed, with "set VAR", and refused by /api/run
+- [x] #3 The Arms call box is a drop-down of rows plus an effort control filled from the row; /api/run takes a row id and an effort, the server resolves them, and a browser can send no URL; the three KG_MODEL_* variables remain as the custom row
+- [x] #4 The record's row is first and greyed with "the record ran no arm" on a subject with no record model; the stack job reads the rows and finds no key; the page-string and glossary tests pass on the new labels
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -53,3 +53,9 @@ The Arms call box takes a free-text model name matched by a pattern and sent as 
 <!-- SECTION:NOTES:BEGIN -->
 Implemented. Suite 93/93. Served locally on rdflib three ways and read in Chromium: no key, every row greyed with "set OPENAI_API_KEY", the chip and the Arms button name the variable; with a key on CargoQuote the record row is like-for-like and picking gpt-5.5 offers five efforts and says deviation; on J-F the record row is greyed "the record ran no arm" and gpt-5.5 is picked. /api/run refused an unavailable row, an effort the row does not list and an unknown row; a base_url in the body is ignored. No key value in the /api/scenarios payload.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Merged as knowgov #53 on a green matrix (tests, rdflib, stack, whose new step asserts the rows carry no key). demo/models.toml holds the operator rows with no key and no price; demo/app/models.py checks the table, adds the record row first and the instance row, and resolves a row id and an effort into the four variables the harness reads; /api/scenarios lists the rows with key_set; /api/run refuses unavailable rows, unknown rows and unlisted efforts; the page has a model and an effort drop-down. Verified by the suite (93/93) and in Chromium on both subjects with and without a key. A Gemini or Claude row waits on task-0030.
+<!-- SECTION:FINAL_SUMMARY:END -->
