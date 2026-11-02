@@ -20,7 +20,8 @@ change to the harness or the page.
 | `vendor/` | bytes vendored from elsewhere, with their `SOURCE.md`; never edited by hand | no |
 
 `subjects/minimal/` is the smallest subject: a manifest with one task and two keys, one scenario,
-no artefacts. The harness loads it and the gate reports both keys absent and BLOCKED. The CI stack
+no artefacts. Its manifest says `listed = false`, so the page's subject drop-down, which lists every
+subject in the folder `KG_SUBJECTS` names, leaves it out; named directly, it still loads. The harness loads it and the gate reports both keys absent and BLOCKED. The CI stack
 job runs it. `subjects/cargo_quote/` is the full one: the kit of pumllint's proof of concept, its
 record, its seven scenarios. `subjects/jef_data_load/` is the second: the specification kit of
 pumllint's recreation experiment (J-F's daily asset load reverse-engineered, 163 requirements

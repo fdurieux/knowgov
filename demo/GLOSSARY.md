@@ -64,6 +64,7 @@ and the test checks this file names every term of it.
 | flagged | The arm named the planted problem in its questions or assumptions. |
 | record | The committed results of the scored run, under results/. |
 | demo run | A re-run written to a dated folder under runs/. |
+| subject | One kit with its documents, scenarios and record. The page shows one subject at a time; the header picks it. |
 | store | The Neo4j database the harness loads; it holds one scenario at a time. |
 | model | The language model that answers an arm's call. |
 | node | One record of one register taxonomy: a capability, product, journey element, process element, application element, information node or organisation unit. |

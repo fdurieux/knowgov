@@ -21,7 +21,9 @@
 #   KG_DEMO_HOST       the host the viewer reaches this page by (default localhost): Neo4j Browser fetches
 #                      the impact panel's guides from it, and allows only the hosts listed here
 #   KG_STORE           the store adapter: neo4j (default) or rdflib, in memory (harness/store.py)
-#   KG_SUBJECT         the subject root inside the container (default /repo/subjects/cargo_quote; see subjects/README.md)
+#   KG_SUBJECT         the subject the page opens on (default /repo/subjects/cargo_quote; see subjects/README.md)
+#   KG_SUBJECTS        the subjects the header's drop-down lists: a folder of subjects or several roots, comma-separated
+#                      (default /repo/subjects, both public subjects); a request picks one with ?subject=<id> (task-0032.02)
 #   KG_REGISTER        the register root the page reads (default /repo/demo/register, the public register vendored at a
 #                      tag); one register per organisation, shared by every subject of it; an instance mounts its own
 #                      checkout with docker-compose.instance.yml
@@ -80,6 +82,7 @@ services:
       KG_MODEL_API_KEY_VAR: ${KG_MODEL_API_KEY_VAR:-OPENAI_API_KEY}
       KG_STORE: ${KG_STORE:-neo4j}
       KG_SUBJECT: ${KG_SUBJECT:-/repo/subjects/cargo_quote}
+      KG_SUBJECTS: ${KG_SUBJECTS:-/repo/subjects}
       KG_REGISTER: ${KG_REGISTER:-/repo/demo/register}
       KG_MODELS: ${KG_MODELS:-/repo/demo/models.toml}
       KG_ARMS_MODEL: ${KG_ARMS_MODEL:-}   # optional: with the two KG_MODEL_* variables, the drop-down's "this instance's settings" row

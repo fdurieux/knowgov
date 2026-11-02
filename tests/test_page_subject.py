@@ -29,7 +29,9 @@ def test_no_page_module_fills_a_table_from_the_subject_global():
         src = (ROOT / "demo" / "app" / name).read_text(encoding="utf-8")
         assert "from subject import SUBJECT" not in src, name
         top = [ln for ln in src.splitlines() if re.match(r"^[A-Z_][A-Z0-9_]* *=", ln) and not ln.startswith("_COMPAT")]   # _COMPAT maps the old names to attributes
-        assert not [ln for ln in top if "SUBJECT" in ln or "_ps()" in ln], (name, [ln for ln in top if "SUBJECT" in ln or "_ps()" in ln])
+        # the old global by its own name (SUBJECTS, the list of every subject the page serves, is not it)
+        bad = [ln for ln in top if re.search(r"\bSUBJECT\b(?!S)", ln.split("=", 1)[1]) or "_ps()" in ln]
+        assert not bad, (name, bad)
 
 
 def test_one_process_answers_for_either_subject_by_value():
@@ -113,3 +115,101 @@ def test_the_loaded_scenario_names_its_subject():
     with page_subject.using(JEF):
         st = server.store_status()
     assert "loaded_subject" in st and st["subject"] == "jef_data_load"
+
+
+# ---- task-0032.02: KG_SUBJECTS, /api/subjects, ?subject= on every route, the header drop-down
+
+def _env(**kv):
+    import os
+    saved = {k: os.environ.get(k) for k in ("KG_SUBJECT", "KG_SUBJECTS")}
+    for k in saved:
+        os.environ.pop(k, None)
+    os.environ.update({k: v for k, v in kv.items() if v is not None})
+    return saved
+
+
+def _restore(saved):
+    import os
+    for k, v in saved.items():
+        os.environ.pop(k, None)
+        if v is not None:
+            os.environ[k] = v
+
+
+def test_the_subject_list_follows_kg_subjects_and_kg_subject_picks_the_default():
+    """Default: the repository's subjects/, CargoQuote first. KG_SUBJECT moves its subject first.
+    KG_SUBJECTS set is the whole list: an instance lists its own subjects only, whatever KG_SUBJECT says."""
+    saved = _env()
+    try:
+        assert [p.id for p in server._load_subjects()] == ["cargo_quote", "jef_data_load"]
+        _env(KG_SUBJECT=str(JEF.root))
+        assert [p.id for p in server._load_subjects()] == ["jef_data_load", "cargo_quote"]
+        _env(KG_SUBJECTS=str(JEF.root), KG_SUBJECT=str(CARGO_QUOTE.root))
+        assert [p.id for p in server._load_subjects()] == ["jef_data_load"], "the instance's own only, the public default ignored"
+        _env(KG_SUBJECTS=str(ROOT / "subjects"))
+        assert [p.id for p in server._load_subjects()] == ["cargo_quote", "jef_data_load"], "a fixture with listed = false is skipped in a scan"
+        _env(KG_SUBJECTS=f"{JEF.root},{CARGO_QUOTE.root}", KG_SUBJECT=str(CARGO_QUOTE.root))
+        assert [p.id for p in server._load_subjects()] == ["cargo_quote", "jef_data_load"]
+    finally:
+        _restore(saved)
+
+
+def _serve():
+    from http.server import ThreadingHTTPServer
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    return httpd, f"http://127.0.0.1:{httpd.server_address[1]}"
+
+
+def _get(url, method="GET", body=None):
+    import urllib.error
+    import urllib.request
+    req = urllib.request.Request(url, method=method, data=json.dumps(body).encode() if body is not None else None,
+                                 headers={"Content-Type": "application/json"} if body is not None else {})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()
+
+
+def test_every_route_answers_within_the_subject_the_request_names():
+    """One server, both subjects, concurrent requests: each answers with its own scenarios and page
+    title; no ?subject= gets the default; an id the page does not serve is 404 on the page, the API
+    and a POST alike."""
+    from concurrent.futures import ThreadPoolExecutor
+    httpd, base = _serve()
+    try:
+        code, body = _get(base + "/api/subjects")
+        j = json.loads(body)
+        assert code == 200 and [s["id"] for s in j["subjects"]] == [p.id for p in server.SUBJECTS] and j["subjects"][0]["default"]
+        assert {"id", "name", "title", "default"} <= set(j["subjects"][0])
+        want = {p.id: p.order for p in server.SUBJECTS}
+
+        def scen(sid):
+            return sid, json.loads(_get(base + f"/api/scenarios?subject={sid}")[1])
+        with ThreadPoolExecutor(8) as ex:
+            got = list(ex.map(scen, [p.id for p in server.SUBJECTS] * 4))
+        for sid, j in got:
+            assert [s["id"] for s in j["scenarios"]] == want[sid], sid
+            assert j["page"]["title"] == server.SUBJECT_BY_ID[sid].subject.page.get("title", ""), sid
+        assert [s["id"] for s in json.loads(_get(base + "/api/scenarios")[1])["scenarios"]] == server.SUBJECTS[0].order
+        assert json.loads(_get(base + "/api/results/C?subject=jef_data_load")[1])["scenario"] == "C"
+        for path in ("/?subject=nope", "/api/scenarios?subject=nope", "/api/register?subject=nope", "/api/results/S1?subject=nope"):
+            assert _get(base + path)[0] == 404, path
+        assert _get(base + "/api/run?subject=nope", "POST", {"scenario": "S1", "mode": "deterministic"})[0] == 404
+        assert _get(base + "/api/run", "POST", {"scenario": "S1", "mode": "deterministic", "subject": "nope"})[0] == 404
+    finally:
+        httpd.shutdown()
+
+
+def test_the_page_names_its_subject_on_every_call_and_keeps_the_arms_choice_per_subject():
+    page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
+    assert 'id="subject-pick"' in page and "fetch('/api/subjects')" in page and "location.search = '?subject='" in page
+    assert "fetch(withSubject(path), opts)" in page and "fetch(withSubject(`/api/gaps/" in page
+    assert page.count("fetch(") == 3, "every other call goes through api(), which names the subject"
+    assert "'kg-arms-row:' + STATE.subject" in page
+    compose = (ROOT / "demo" / "docker-compose.yml").read_text(encoding="utf-8")
+    instance = (ROOT / "demo" / "docker-compose.instance.yml").read_text(encoding="utf-8")
+    assert "KG_SUBJECTS: ${KG_SUBJECTS:-/repo/subjects}" in compose and "KG_SUBJECTS: /instance/subjects" in instance
+    assert views.glossary()["subject"].startswith("One kit with its documents")

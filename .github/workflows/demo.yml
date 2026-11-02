@@ -55,6 +55,18 @@ jobs:
           assert all(set(r) == public and not r["key_set"] and r["why"].startswith("set ") for r in rows[1:]), rows
           assert "sk-" not in json.dumps(rows), "a key value reached the page"
           print("model rows:", [r["id"] for r in rows])
+          # task-0032.02: one stack lists both public subjects (the fixture skipped), and each route answers within the one it names
+          import urllib.request, urllib.error
+          subs = json.load(urllib.request.urlopen("http://localhost:8080/api/subjects"))
+          assert [s["id"] for s in subs["subjects"]] == ["cargo_quote", "jef_data_load"] and subs["current"] == "cargo_quote", subs
+          jf = json.load(urllib.request.urlopen("http://localhost:8080/api/scenarios?subject=jef_data_load"))
+          assert [s["id"] for s in jf["scenarios"]] == ["C", "D1", "D2", "D3", "D4", "D5"] and jf["record_model"] == "", [s["id"] for s in jf["scenarios"]]
+          for path in ("/api/scenarios?subject=nope", "/?subject=nope"):
+              try:
+                  urllib.request.urlopen("http://localhost:8080" + path); raise SystemExit(path + " answered")
+              except urllib.error.HTTPError as e:
+                  assert e.code == 404, (path, e.code)
+          print("subjects:", [s["id"] for s in subs["subjects"]], "J-F scenarios:", [s["id"] for s in jf["scenarios"]])
           print("menu:", len(j["scenarios"]), "scenarios; store", j["store"]["uri"], "reachable")
           PY
           curl -fsS "localhost:8080/api/results/S6" | python3 -c 'import json,sys; v=json.load(sys.stdin); assert v["gate"]["verdict"]=="PROCEED" and len(v["stage2"]["invalidated"])==4 and v["cascade"]["G"].startswith("<svg"); print("replay S6 ok:", v["source"])'

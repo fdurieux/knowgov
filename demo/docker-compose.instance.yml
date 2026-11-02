@@ -8,11 +8,13 @@
 #
 # (leave docker-compose.override.yml out to pull the published image instead of building). The
 # folder is mounted read-only: the page never writes to a register, and nothing of the instance
-# is copied into the image. A subject kept under the same folder is selected the usual way,
-# KG_SUBJECT=/instance/subjects/<id>; it joins the register through its own register_map.toml.
+# is copied into the image. The page lists the subjects under the same folder, instance/subjects/,
+# and none of the public ones (task-0032.02); KG_SUBJECT=/instance/subjects/<id> picks the one it
+# opens on. Each joins the register through its own register_map.toml.
 services:
   app:
     environment:
       KG_REGISTER: /instance/register
+      KG_SUBJECTS: /instance/subjects
     volumes:
       - ${KG_INSTANCE:?set KG_INSTANCE to the instance folder on this machine}:/instance:ro
