@@ -106,7 +106,7 @@ def openai_responder(model: str | None = None):
         t0 = time.time()
         stream = client.chat.completions.create(model=model or ep["model"], messages=messages, tools=tools, tool_choice="auto",
                                                 stream=True, stream_options={"include_usage": True}, **arms.effort_kwargs(ep["effort"]))
-        parts, calls, usage_obj, model_name = [], {}, None, model or ep["model"]
+        parts, calls, current, usage_obj, model_name = [], {}, {}, None, model or ep["model"]
         for chunk in stream:
             if chunk.usage:
                 usage_obj = chunk.usage
@@ -118,13 +118,25 @@ def openai_responder(model: str | None = None):
             if delta and delta.content:
                 parts.append(delta.content)
             for tc in (delta.tool_calls or []) if delta else []:
-                slot = calls.setdefault(tc.index, {"id": "", "name": "", "arguments": ""})
+                # a call's pieces share its index (OpenAI) or arrive whole with no index (Gemini, which
+                # streams parallel calls under index None); a new id under the same key starts a new call
+                key = tc.index if tc.index is not None else "none"
+                cur = current.get(key)
+                if cur is None or (tc.id and calls[cur]["id"] and calls[cur]["id"] != tc.id):
+                    cur = current[key] = len(calls)
+                    calls[cur] = {"id": "", "name": "", "arguments": ""}
+                slot = calls[cur]
                 if tc.id:
                     slot["id"] = tc.id
                 if tc.function and tc.function.name:
                     slot["name"] += tc.function.name
                 if tc.function and tc.function.arguments:
                     slot["arguments"] += tc.function.arguments
+                # provider data on the call, kept as received and sent back unchanged: Gemini 3 puts its
+                # thought signature here and refuses the next turn without it (task-0033, doc-0006)
+                extra = getattr(tc, "extra_content", None) or (getattr(tc, "model_extra", None) or {}).get("extra_content")
+                if extra:
+                    slot["extra_content"] = extra
         if usage_obj is None:
             raise RuntimeError("stream ended without a usage chunk")
         return {"content": "".join(parts) or None, "tool_calls": [calls[i] for i in sorted(calls)], "model": model_name,
@@ -201,7 +213,8 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
             messages.append({"role": "user", "content": "Continue with the tools; end the run with finish(decision, assumptions, questions, claims)."})
             continue
         messages.append({"role": "assistant", "content": r.get("content") or None,
-                         "tool_calls": [{"id": c["id"] or f"call_{i}", "type": "function", "function": {"name": c["name"], "arguments": c["arguments"] or "{}"}} for i, c in enumerate(calls)]})
+                         "tool_calls": [{"id": c["id"] or f"call_{i}", "type": "function", "function": {"name": c["name"], "arguments": c["arguments"] or "{}"},
+                                         **({"extra_content": c["extra_content"]} if c.get("extra_content") else {})} for i, c in enumerate(calls)]})
         for i, c in enumerate(calls):
             tot["tool_calls"] += 1
             try:

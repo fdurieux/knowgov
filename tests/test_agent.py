@@ -65,6 +65,78 @@ def test_the_loop_writes_runs_reads_and_finishes_with_a_trace():
         assert agent.Sandbox(box).text().startswith("==> src/m.py <==\n")
 
 
+def test_tool_call_extra_content_goes_back_unchanged():
+    """Task-0033: a provider's data on a tool call (Gemini 3's thought signature) is sent back on the
+    rebuilt assistant turn exactly as received; a responder that refuses a turn without it, as Gemini
+    does, lets the run finish. A call without the field is rebuilt as before."""
+    sig = {"google": {"thought_signature": "EmkKZwFp-opaque"}}
+    first = _call("read_document", path="a.md")
+    first["extra_content"] = sig
+    seen = []
+
+    def respond(messages, tools):
+        seen.append(messages)
+        if len(seen) == 1:
+            return _turn([first])
+        sent = next(m for m in messages if m["role"] == "assistant")["tool_calls"][0]
+        assert sent.get("extra_content") == sig, "Function call is missing a thought_signature"
+        return _turn([_call("finish", decision="abstain", assumptions=[], questions=["q"], claims=[])])
+    with tempfile.TemporaryDirectory() as td:
+        r = agent.run("s", "u", sandbox=Path(td) / "b", read_text=lambda p: "text", feedback=lambda root, f: {}, tag="t", responder=respond)
+    assert r["finished"] and r["stopped_by"] is None and len(seen) == 2
+    plain = _turn([_call("read_document", path="b.md")])
+    msgs = []
+
+    def respond2(messages, tools):
+        msgs.append(messages)
+        return plain if len(msgs) == 1 else _turn([_call("finish", decision="abstain", assumptions=[], questions=["q"], claims=[])])
+    with tempfile.TemporaryDirectory() as td:
+        agent.run("s", "u", sandbox=Path(td) / "b", read_text=lambda p: "text", feedback=lambda root, f: {}, tag="t", responder=respond2)
+    assert "extra_content" not in next(m for m in msgs[1] if m["role"] == "assistant")["tool_calls"][0]
+
+
+def test_openai_responder_keeps_extra_content_from_the_stream():
+    """Task-0033: the default responder reads extra_content off the streamed tool-call delta, with a
+    stub client in place of the real one (imported lazily, so a module in sys.modules stands in)."""
+    from types import SimpleNamespace as NS
+    sig = {"google": {"thought_signature": "EmkKZwFp-opaque"}}
+    chunks = [NS(usage=None, model="gemini-x", choices=[NS(delta=NS(content=None, tool_calls=[
+                  NS(index=0, id="call_1", function=NS(name="read_document", arguments='{"path":'), extra_content=sig)]))]),
+              NS(usage=None, model="gemini-x", choices=[NS(delta=NS(content=None, tool_calls=[
+                  NS(index=0, id=None, function=NS(name=None, arguments='"a.md"}'), extra_content=None)]))]),
+              NS(usage=NS(prompt_tokens=10, completion_tokens=5, prompt_tokens_details=None), model="gemini-x", choices=[])]
+
+    class _Client:
+        def __init__(self, **kw):
+            self.chat = NS(completions=NS(create=lambda **kw: iter(chunks)))
+    saved = sys.modules.get("openai")
+    sys.modules["openai"] = NS(OpenAI=_Client)
+    try:
+        r = agent.openai_responder("gemini-x")([{"role": "user", "content": "u"}], [])
+    finally:
+        if saved is not None:
+            sys.modules["openai"] = saved
+        else:
+            sys.modules.pop("openai", None)
+    assert r["tool_calls"] == [{"id": "call_1", "name": "read_document", "arguments": '{"path":"a.md"}', "extra_content": sig}]
+    # Gemini streams parallel calls whole, each with its own id and no index, the signature on the first only:
+    # three calls, not one with three names and three argument strings glued together (seen on J-F C, arm G)
+    chunks[:] = [NS(usage=None, model="gemini-x", choices=[NS(delta=NS(content=None, tool_calls=[
+                     NS(index=None, id=f"call_{i}", function=NS(name="read_document", arguments=f'{{"path":"{p}"}}'), extra_content=sig if i == 0 else None)]))])
+                 for i, p in enumerate(("a.md", "b.md", "c.md"))] + \
+                [NS(usage=NS(prompt_tokens=10, completion_tokens=5, prompt_tokens_details=None), model="gemini-x", choices=[])]
+    sys.modules["openai"] = NS(OpenAI=_Client)
+    try:
+        r = agent.openai_responder("gemini-x")([{"role": "user", "content": "u"}], [])
+    finally:
+        if saved is not None:
+            sys.modules["openai"] = saved
+        else:
+            sys.modules.pop("openai", None)
+    assert [(c["id"], c["name"], json.loads(c["arguments"])["path"], "extra_content" in c) for c in r["tool_calls"]] == \
+        [("call_0", "read_document", "a.md", True), ("call_1", "read_document", "b.md", False), ("call_2", "read_document", "c.md", False)]
+
+
 def test_the_ceiling_ends_a_run_with_abstain_and_the_reason():
     turns = [_turn([_call("write_file", path=f"f{i}.py", content="")]) for i in range(10)]
     with tempfile.TemporaryDirectory() as td:
