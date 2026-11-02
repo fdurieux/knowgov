@@ -78,6 +78,7 @@ services:
       KG_BROWSER_URL: ${KG_BROWSER_URL:-http://localhost:7474}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       KG_MODEL_API_KEY: ${KG_MODEL_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}   # the Gemini row's key (demo/models.toml); passed through, never baked in
       KG_MODEL_BASE_URL: ${KG_MODEL_BASE_URL:-}
       KG_MODEL_API_KEY_VAR: ${KG_MODEL_API_KEY_VAR:-OPENAI_API_KEY}
       KG_STORE: ${KG_STORE:-neo4j}

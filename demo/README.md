@@ -482,10 +482,13 @@ you set the three older variables, `KG_MODEL_BASE_URL`,
 defaults: a quick way to try one endpoint without editing the table.
 
 To add a provider, add a row and pass its key variable through to the
-app service in `docker-compose.yml` (it passes `OPENAI_API_KEY` and
-`KG_MODEL_API_KEY` already). Google's OpenAI-compatible endpoint and a
-Claude row wait on task-0030, which checks what each actually supports;
-the file carries a commented Gemini row to copy once that is done. A
+app service in `docker-compose.yml` (it passes `OPENAI_API_KEY`,
+`KG_MODEL_API_KEY` and `GEMINI_API_KEY` already). The file has a Gemini
+row, Google's gemini-3.8-flash on Google's own OpenAI-compatible
+endpoint: export your Google AI Studio key as `GEMINI_API_KEY` and the
+row becomes available, for both kinds of arm, at the API's default
+effort or low, medium or high. A Claude row needs a gateway in front
+of Anthropic and is not in the file yet (task-0035). A
 private model behind a gateway (vLLM, Ollama, LiteLLM, an enterprise
 proxy) is a row like any other, its `base_url` the gateway.
 

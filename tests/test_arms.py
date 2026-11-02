@@ -90,10 +90,10 @@ def test_the_page_names_the_endpoint_and_the_key_variable_never_the_key():
     page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
     assert "r.key_var" in page and "r.host" in page and "armsOffWhy()" in page
     compose = (ROOT / "demo" / "docker-compose.yml").read_text(encoding="utf-8")
-    for var in ("KG_MODEL_BASE_URL", "KG_MODEL_API_KEY_VAR", "KG_MODEL_API_KEY", "OPENAI_API_KEY"):
+    for var in ("KG_MODEL_BASE_URL", "KG_MODEL_API_KEY_VAR", "KG_MODEL_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"):
         assert var in compose, var
     readme = (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
-    for case in ("**The models table, first.**", "Google's OpenAI-compatible endpoint", "private model behind a gateway", "never holds\nthe key itself"):
+    for case in ("**The models table, first.**", "Google's own OpenAI-compatible", "GEMINI_API_KEY", "private model behind a gateway", "never holds\nthe key itself"):
         assert case in readme, case
 
 

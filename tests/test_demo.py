@@ -289,7 +289,7 @@ def test_models_table_rows_resolve_to_the_harness_variables_and_never_carry_a_ke
     import models
     table = models.load_table()
     assert [r["id"] for r in table][:1] == ["openai-gpt-5.5"] and all("key" not in r and "price" not in r for r in table)
-    keep = {k: os.environ.pop(k, None) for k in ("OPENAI_API_KEY", "KG_MODEL_API_KEY", "KG_MODEL_BASE_URL", "KG_MODEL_API_KEY_VAR", "KG_ARMS_MODEL", "KG_ARMS_EFFORT", "KG_MODELS")}
+    keep = {k: os.environ.pop(k, None) for k in ("OPENAI_API_KEY", "GEMINI_API_KEY", "KG_MODEL_API_KEY", "KG_MODEL_BASE_URL", "KG_MODEL_API_KEY_VAR", "KG_ARMS_MODEL", "KG_ARMS_EFFORT", "KG_MODELS")}
     try:
         rows = models.rows("gpt-5.1-2025-11-13", "", "reply")
         assert rows[0]["id"] == "record" and [r["id"] for r in rows][1:] == [r["id"] for r in table], "no instance row while the defaults stand"
@@ -300,7 +300,11 @@ def test_models_table_rows_resolve_to_the_harness_variables_and_never_carry_a_ke
             assert "set OPENAI_API_KEY" in str(e)
         os.environ["OPENAI_API_KEY"] = "sk-test-not-a-key"
         pub = [models.public(r) for r in models.rows("gpt-5.1-2025-11-13", "", "reply")]
-        assert all(r["key_set"] for r in pub) and "sk-test-not-a-key" not in json.dumps(pub)
+        assert all(r["key_set"] for r in pub if r["key_var"] == "OPENAI_API_KEY") and "sk-test-not-a-key" not in json.dumps(pub)
+        # task-0036: the Gemini row is live, on its own key variable, Google's endpoint, both arm kinds, no xhigh
+        gem = next(r for r in pub if r["provider"] == "Google")
+        assert gem["model"] == "gemini-3.8-flash" and gem["key_var"] == "GEMINI_API_KEY" and not gem["key_set"] and gem["why"] == "set GEMINI_API_KEY"
+        assert gem["host"] == "generativelanguage.googleapis.com" and gem["arms"] == ["reply", "agent"] and gem["efforts"] == ["", "low", "medium", "high"]
         row, env, dev = models.resolve("record", None, "gpt-5.1-2025-11-13", "", "reply")
         assert env == {"KG_MODEL_BASE_URL": "https://api.openai.com/v1", "KG_MODEL_API_KEY_VAR": "OPENAI_API_KEY",
                        "KG_ARMS_MODEL": "gpt-5.1-2025-11-13", "KG_ARMS_EFFORT": "", "KG_THINKING_UNCOUNTED": ""} and dev is False
