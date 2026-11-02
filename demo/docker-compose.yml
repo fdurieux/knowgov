@@ -79,6 +79,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       KG_MODEL_API_KEY: ${KG_MODEL_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}   # the Gemini row's key (demo/models.toml); passed through, never baked in
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}   # the Claude row's key: the gateway's own, which you choose (task-0035)
       KG_MODEL_BASE_URL: ${KG_MODEL_BASE_URL:-}
       KG_MODEL_API_KEY_VAR: ${KG_MODEL_API_KEY_VAR:-OPENAI_API_KEY}
       KG_STORE: ${KG_STORE:-neo4j}
@@ -92,6 +93,19 @@ services:
       - "${KG_PORT_APP:-8080}:8080"
     volumes:
       - demo-runs:/repo/runs
+
+  # The gateway in front of Anthropic for the Claude row (task-0035, doc-0006). Started only with the
+  # profile: `docker compose --profile claude up -d --build --wait`; without it, nothing here runs.
+  litellm:
+    profiles: ["claude"]
+    image: ghcr.io/berriai/litellm:v1.106.6@sha256:37e2dafb088a7723beb998590682957386dfc83ffea1848486f8e0e5cfac0b06
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      KG_ANTHROPIC_KEY: ${KG_ANTHROPIC_KEY:-}       # your Anthropic key, read by name in litellm/config.yaml
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}   # the key the app presents to the gateway
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"          # no fetch of LiteLLM's price list at start; the page counts tokens
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
 
 volumes:
   neo4j-data:

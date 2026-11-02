@@ -577,3 +577,27 @@ def test_run_tables_show_other_tokens_and_say_when_thinking_goes_uncounted():
     assert sec["table"]["rows"][0][sec["table"]["cols"].index("other tokens")] == "212"   # cells are strings
     assert "leaves thinking out of streamed usage" in sec["text"]
     assert v["arms"]["G"]["summary"]["tokens"] >= rec["usage"]["prompt_tokens"] + rec["usage"]["completion_tokens"] + 212
+
+
+def test_the_claude_row_goes_through_a_pinned_gateway_started_only_by_its_profile():
+    """Task-0035: the gateway is a compose service behind the profile "claude", its image pinned by
+    tag and digest; its config names the upstream model as the alias, adds the cache marks, and reads
+    both keys by name; the Claude row points at it with the gateway's key; no key in any file."""
+    import re
+    compose = (DEMO / "docker-compose.yml").read_text(encoding="utf-8")
+    svc = compose.split("\n  litellm:\n", 1)[1].split("\nvolumes:", 1)[0]
+    assert 'profiles: ["claude"]' in svc and re.search(r"image: ghcr\.io/berriai/litellm:v[\d.]+@sha256:[0-9a-f]{64}", svc)
+    assert "KG_ANTHROPIC_KEY: ${KG_ANTHROPIC_KEY:-}" in svc and "LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}" in svc and "./litellm/config.yaml:/app/config.yaml:ro" in svc
+    assert "ANTHROPIC_API_KEY" not in compose.replace("KG_ANTHROPIC_KEY", ""), "never the name a Claude Code session reads"
+    assert "depends_on:\n      litellm" not in compose, "the app starts without the gateway"
+    cfg = (DEMO / "litellm" / "config.yaml").read_text(encoding="utf-8")
+    assert "model_name: claude-sonnet-5-5" in cfg and "model: anthropic/claude-sonnet-5-5" in cfg, "the alias is the upstream name"
+    assert "api_key: os.environ/KG_ANTHROPIC_KEY" in cfg and "master_key: os.environ/LITELLM_MASTER_KEY" in cfg
+    assert "cache_control_injection_points" in cfg and "role: system" in cfg and "index: -1" in cfg
+    assert not re.search(r"sk-ant-|sk-[A-Za-z0-9]{20,}", cfg + compose), "no key value in a file"
+    import models
+    row = next(r for r in models.load_table() if r["id"] == "anthropic-claude-sonnet-5-5")
+    assert row["base_url"] == "http://litellm:4000/v1" and row["model"] == "claude-sonnet-5-5" and row["key_var"] == "LITELLM_MASTER_KEY"
+    assert row["arms"] == ["reply", "agent"] and not row["thinking_uncounted"]
+    readme = (DEMO / "README.md").read_text(encoding="utf-8")
+    assert "docker compose --profile claude up" in readme and "KG_ANTHROPIC_KEY" in readme and "LITELLM_MASTER_KEY" in readme
