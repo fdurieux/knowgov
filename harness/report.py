@@ -60,7 +60,8 @@ def main() -> None:
     u = RES / "usage.json"
     if u.exists():
         uu = json.loads(u.read_text())
-        print(f"\nusage: {uu['calls']} calls, est ${uu['usd_est']}, retries {len(uu.get('retries', []))}")
+        spent = f"est ${uu['usd_est']} (the record's own estimate)" if "usd_est" in uu else f"{uu.get('tokens', 0)} tokens"
+        print(f"\nusage: {uu['calls']} calls, {spent}, retries {len(uu.get('retries', []))}")
 
 
 if __name__ == "__main__":

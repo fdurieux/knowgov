@@ -712,7 +712,7 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
                                             "Flagged means the frozen keyword check found the planted problem in the arm's questions or assumptions.",
                                             "Adopted keys counts the keys below verified the arm's assumptions cite: the planted value relied on in the open.",
                                             *(["The arm worked in a sandbox over several turns.", "Its four tools: read a document, write a file, run the scenario's own feature files, finish.",
-                                               "A run ends at a finish, or at the ceiling in calls, dollars or seconds, with decision abstain."] if agentic else []))
+                                               "A run ends at a finish, or at the ceiling in calls, tokens or seconds, with decision abstain."] if agentic else []))
                                           if rs else C("No run in this source.")),
                                 "sections": secs_g}
         orows = [(r["run"], f"{r['M4_suite']['passed']}/{r['M4_suite']['total']}" if r["M4_suite"]["ran"] else "no code",

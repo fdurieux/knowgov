@@ -1,7 +1,7 @@
 """The agent arm (harness/agent.py, task-0022.02): a turn loop with four tools over a sandbox,
 driven here by a scripted responder and a stub suite, no client, no network. The sandbox refuses
 paths outside itself; the ceiling ends a run with abstain and its reason; the trace carries every
-turn and tool call with tokens, cost and elapsed seconds; a one-reply JSON is accepted as a finish."""
+turn and tool call with tokens and elapsed seconds; a one-reply JSON is accepted as a finish."""
 from __future__ import annotations
 
 import json
@@ -60,7 +60,7 @@ def test_the_loop_writes_runs_reads_and_finishes_with_a_trace():
         assert len(errors) == 2 and "not a sandbox path" in errors[0]["result"]
         tot = r["totals"]
         assert tot["calls"] == 4 and tot["tool_calls"] == 6 and tot["prompt_tokens"] == 4000 and tot["completion_tokens"] == 400
-        assert abs(tot["usd"] - 4 * (1000 * arms.PRICE_IN + 100 * arms.PRICE_OUT)) < 1e-6 and tot["model"] == "stub-model"
+        assert "usd" not in tot and tot["model"] == "stub-model" and all("usd" not in t for t in r["trace"]), "tokens, not dollars (task-0027)"
         assert all("at" in t and "seconds" in t for t in r["trace"]) and r["ceiling"]["calls"] == agent.DEFAULT_CEILING["calls"]
         assert agent.Sandbox(box).text().startswith("==> src/m.py <==\n")
 
@@ -72,13 +72,14 @@ def test_the_ceiling_ends_a_run_with_abstain_and_the_reason():
         assert not r["finished"] and r["stopped_by"] == "ceiling: 3 calls" and r["parsed"]["decision"] == "abstain"
         assert "ceiling: 3 calls" in r["parsed"]["questions"][0] and r["totals"]["calls"] == 3 and len(r["files"]) == 3
         r2 = agent.run("s", "u", sandbox=Path(td) / "c", read_text=lambda p: "", feedback=lambda root, f: {}, tag="t",
-                       responder=_scripted([_turn([_call("write_file", path="a.py", content="")], pt=10_000_000)] * 3), limits={"usd": 1.0})
-        assert r2["stopped_by"] == "ceiling: $1.00" and r2["totals"]["calls"] == 1
-    saved = {k: os.environ.pop(k, None) for k in ("KG_AGENT_MAX_CALLS", "KG_AGENT_MAX_USD", "KG_AGENT_MAX_SECONDS")}
+                       responder=_scripted([_turn([_call("write_file", path="a.py", content="")], pt=10_000_000)] * 3), limits={"tokens": 1_000_000})
+        assert r2["stopped_by"] == "ceiling: 1000000 tokens" and r2["totals"]["calls"] == 1 and r2["parsed"]["decision"] == "abstain"
+    saved = {k: os.environ.pop(k, None) for k in ("KG_AGENT_MAX_CALLS", "KG_AGENT_MAX_TOKENS", "KG_AGENT_MAX_SECONDS")}
     try:
-        assert agent.ceiling() == agent.DEFAULT_CEILING
+        assert agent.ceiling() == agent.DEFAULT_CEILING and "usd" not in agent.DEFAULT_CEILING
         os.environ["KG_AGENT_MAX_CALLS"] = "7"
-        assert agent.ceiling()["calls"] == 7
+        os.environ["KG_AGENT_MAX_TOKENS"] = "250000"
+        assert agent.ceiling()["calls"] == 7 and agent.ceiling()["tokens"] == 250000
     finally:
         for k, v in saved.items():
             os.environ.pop(k, None)
@@ -133,7 +134,7 @@ def test_the_page_reads_an_agent_runs_trace_and_its_sentences_keep_to_the_glossa
         assert v["agent"]["stopped_by"] == "ceiling: 3 calls" and v["trace"] and v["decision"] == "abstain"
     src = (ROOT / "demo" / "app" / "views.py").read_text(encoding="utf-8")
     for s in ["The arm worked in a sandbox over several turns.", "Its four tools: read a document, write a file, run the scenario's own feature files, finish.",
-              "A run ends at a finish, or at the ceiling in calls, dollars or seconds, with decision abstain.",
+              "A run ends at a finish, or at the ceiling in calls, tokens or seconds, with decision abstain.",
               "A model turn names the tools it called.", "A tool step shows its arguments and its result, cut short.",
               "The last column is the second of the run at which the step ended.",
               "Adopted keys counts the keys below verified the arm's assumptions cite: the planted value relied on in the open.",

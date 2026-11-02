@@ -209,7 +209,7 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
                "M7_adopted": measures.adopted(arm, p, gate.get("below_verified", []), sc),
                "questions": p.get("questions"), "assumptions": p.get("assumptions"), "claims": p.get("claims"),
                "usage": {"model": tt["model"], "prompt_tokens": tt["prompt_tokens"], "cached_tokens": tt["cached_tokens"], "completion_tokens": tt["completion_tokens"],
-                         "seconds": tt["seconds"], "usd_est": tt["usd"], "attempts": tt["calls"]},
+                         "seconds": tt["seconds"], "attempts": tt["calls"]},
                "agent": {"finished": res["finished"], "stopped_by": res["stopped_by"], "turns": tt["turns"], "calls": tt["calls"],
                          "tool_calls": tt["tool_calls"], "files": res["files"], "ceiling": res["ceiling"], "sandbox": box.name,
                          "context": context, "consulted": res["consulted"],
@@ -276,7 +276,7 @@ def main() -> None:
     prev_usage = json.loads((out_root / "usage.json").read_text()) if (out_root / "usage.json").exists() else None
     u = arms.usage()
     if prev_usage:
-        u = {"calls": prev_usage["calls"] + u["calls"], "usd_est": round(prev_usage["usd_est"] + u["usd_est"], 4),
+        u = {"calls": prev_usage["calls"] + u["calls"], "tokens": prev_usage.get("tokens", 0) + u["tokens"],
              "retries": prev_usage.get("retries", []) + u["retries"], "per_call": prev_usage["per_call"] + u["per_call"],
              "segments": prev_usage.get("segments", 1) + 1}
     dump(out_root / "usage.json", u)
@@ -286,7 +286,7 @@ def main() -> None:
         if p.is_file() and "__pycache__" not in str(p):
             lines.append(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(ROOT)}")
     (out_root / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print("usage:", arms.usage()["calls"], "calls, est $", arms.usage()["usd_est"])
+    print("usage:", arms.usage()["calls"], "calls,", arms.usage()["tokens"], "tokens")
 
 
 if __name__ == "__main__":

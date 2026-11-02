@@ -119,13 +119,32 @@ def test_bundle_carries_the_documents_the_task_names_verbatim_after_the_knowledg
         pass
 
 
-def test_cost_prices_cached_prompt_tokens_at_the_cached_rate():
-    """Task-0022.03: the estimate reads the API's cached prompt tokens and prices them at a tenth of
-    the input rate; without the detail the estimate is what it was."""
-    assert arms.PRICE_CACHED == arms.PRICE_IN / 10
-    assert abs(arms.cost(1000, 100) - (1000 * arms.PRICE_IN + 100 * arms.PRICE_OUT)) < 1e-12
-    assert abs(arms.cost(1000, 100, 600) - (400 * arms.PRICE_IN + 600 * arms.PRICE_CACHED + 100 * arms.PRICE_OUT)) < 1e-12
-    assert arms.cost(1000, 0, 5000) == arms.cost(1000, 0, 1000), "cached never exceeds the prompt"
+def test_tokens_not_dollars_and_the_token_ceiling_stops_a_call():
+    """Task-0027: no price in the harness. A call is counted in prompt plus completion tokens, the
+    process ceiling is tokens (KG_ARMS_MAX_TOKENS, default DEFAULT_CEILING_TOKENS), and call() refuses
+    before it builds a client once the ceiling is reached; usage() reports tokens, never an estimate."""
+    assert not hasattr(arms, "cost") and not hasattr(arms, "PRICE_IN") and not hasattr(arms, "CEILING_USD")
+    assert arms.tokens_of({"prompt_tokens": 1000, "cached_tokens": 600, "completion_tokens": 100}) == 1100, "cached tokens are part of the prompt, not extra"
+    saved = dict(arms._state)
+    saved_env = os.environ.pop("KG_ARMS_MAX_TOKENS", None)
+    try:
+        assert arms.ceiling_tokens() == arms.DEFAULT_CEILING_TOKENS
+        os.environ["KG_ARMS_MAX_TOKENS"] = "1500"
+        arms._state.update({"calls": 0, "tokens": 0, "usage": []})
+        arms.account({"tag": "t/1", "prompt_tokens": 1000, "cached_tokens": 0, "completion_tokens": 100, "seconds": 1})
+        u = arms.usage()
+        assert u["calls"] == 1 and u["tokens"] == 1100 and "usd_est" not in u and "usd_est" not in u["per_call"][0]
+        arms.account({"tag": "t/2", "prompt_tokens": 400, "completion_tokens": 0})
+        assert arms.usage()["tokens"] == 1500
+        try:
+            arms.call("s", "u", tag="t/3")
+            raise AssertionError("the ceiling did not stop the call")
+        except arms.BudgetExceeded as e:
+            assert str(e) == "ceiling 1500 tokens"
+    finally:
+        arms._state.clear(); arms._state.update(saved)
+        if saved_env is not None:
+            os.environ["KG_ARMS_MAX_TOKENS"] = saved_env
 
     class _D:  # the API's usage object, with and without the detail
         def __init__(self, cached=None):

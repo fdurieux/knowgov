@@ -12,8 +12,8 @@ rebuilds were made. This loop gives the model four tools and a working directory
                                 feedback; the pristine suite stays the oracle, run afterwards)
     finish(decision, ...)       the reply's vocabulary: decision, assumptions, questions, claims
 
-A per-run ceiling in calls, dollars and seconds ends a run with decision ``abstain`` and the
-reason; every turn and tool call is traced with tokens, cost and elapsed seconds. The responder
+A per-run ceiling in calls, tokens and seconds ends a run with decision ``abstain`` and the
+reason; every turn and tool call is traced with tokens and elapsed seconds (no price: task-0027). The responder
 (the model call) is injectable, so the loop is tested without a client; the default one streams
 the chat completions API with tool calling, as arms.call does without tools. Nothing here names
 a subject: the layout, the suite and the documents come from the manifest and the kit.
@@ -28,7 +28,7 @@ from pathlib import Path
 import arms
 from subject import bundle
 
-DEFAULT_CEILING = {"calls": 30, "usd": 5.0, "seconds": 1500}   # the record's rebuilds ran about 1,455 s each
+DEFAULT_CEILING = {"calls": 30, "tokens": 1_500_000, "seconds": 1500}   # the record's rebuilds ran about 1,455 s each; tokens are prompt plus completion
 READ_LIMIT = 60_000       # characters a read_document result may carry
 RESULT_LIMIT = 6_000      # characters a run_suite result may carry
 NUDGES = 2                # replies without a tool call or a finish before the run is stopped
@@ -59,7 +59,7 @@ EXTRA_TOOLS = {
 def ceiling() -> dict:
     """The per-run ceiling: instance configuration, with the documented defaults."""
     return {"calls": int(os.environ.get("KG_AGENT_MAX_CALLS") or DEFAULT_CEILING["calls"]),
-            "usd": float(os.environ.get("KG_AGENT_MAX_USD") or DEFAULT_CEILING["usd"]),
+            "tokens": int(os.environ.get("KG_AGENT_MAX_TOKENS") or DEFAULT_CEILING["tokens"]),
             "seconds": int(os.environ.get("KG_AGENT_MAX_SECONDS") or DEFAULT_CEILING["seconds"])}
 
 
@@ -149,7 +149,7 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
     box = Sandbox(sandbox)
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     trace: list[dict] = []
-    tot = {"calls": 0, "prompt_tokens": 0, "cached_tokens": 0, "completion_tokens": 0, "usd": 0.0, "tool_calls": 0, "model": None}
+    tot = {"calls": 0, "prompt_tokens": 0, "cached_tokens": 0, "completion_tokens": 0, "tool_calls": 0, "model": None}
     t0 = time.time()
     final: dict | None = None
     stopped_by: str | None = None
@@ -158,8 +158,8 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
         elapsed = round(time.time() - t0, 1)
         if tot["calls"] >= lim["calls"]:
             stopped_by = f"ceiling: {lim['calls']} calls"
-        elif tot["usd"] >= lim["usd"]:
-            stopped_by = f"ceiling: ${lim['usd']:.2f}"
+        elif tot["prompt_tokens"] + tot["completion_tokens"] >= lim["tokens"]:
+            stopped_by = f"ceiling: {lim['tokens']} tokens"
         elif elapsed >= lim["seconds"]:
             stopped_by = f"ceiling: {lim['seconds']} seconds"
         if stopped_by:
@@ -171,20 +171,18 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
             trace.append({"turn": len(trace) + 1, "kind": "error", "text": str(e)[:300], "at": round(time.time() - t0, 1)})
             break
         u = r.get("usage") or {}
-        usd = arms.cost(u.get("prompt_tokens", 0), u.get("completion_tokens", 0), u.get("cached_tokens", 0))
         tot["calls"] += 1
         tot["prompt_tokens"] += u.get("prompt_tokens", 0)
         tot["cached_tokens"] += u.get("cached_tokens", 0)
         tot["completion_tokens"] += u.get("completion_tokens", 0)
-        tot["usd"] += usd
         tot["model"] = r.get("model") or tot["model"]
         arms.account({"tag": f"{tag}/turn{tot['calls']}", "model": r.get("model"), "attempts": 1, "streamed": True,
                       "prompt_tokens": u.get("prompt_tokens", 0), "cached_tokens": u.get("cached_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
-                      "seconds": r.get("seconds", 0), "usd_est": round(usd, 4)})
+                      "seconds": r.get("seconds", 0)})
         calls = r.get("tool_calls") or []
         trace.append({"turn": len(trace) + 1, "kind": "model", "tool_calls": [c["name"] for c in calls], "text": _clip(r.get("content") or "", 300),
                       "prompt_tokens": u.get("prompt_tokens", 0), "cached_tokens": u.get("cached_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
-                      "usd": round(usd, 4), "seconds": r.get("seconds", 0), "at": round(time.time() - t0, 1)})
+                      "seconds": r.get("seconds", 0), "at": round(time.time() - t0, 1)})
         if not calls:
             parsed = None
             try:
@@ -246,5 +244,5 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
     else:
         final_reply = final
     return {"parsed": final_reply, "finished": final is not None, "stopped_by": stopped_by, "trace": trace,
-            "totals": {**tot, "usd": round(tot["usd"], 4), "seconds": round(time.time() - t0, 1), "turns": len(trace)},
+            "totals": {**tot, "seconds": round(time.time() - t0, 1), "turns": len(trace)},
             "files": box.files(), "ceiling": lim, "consulted": consulted}

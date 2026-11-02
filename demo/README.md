@@ -308,7 +308,7 @@ application.
 |---|---|---|---|---|
 | **Replay** | shows the committed results of that scenario | nothing | instant | none |
 | **Deterministic** | re-runs the loading, the rules and the gate (measures D1 to D6) against the demo's own Neo4j, then shows the fresh numbers next to the record's | the database container (started with the app) | about five seconds | none; no network |
-| **Arms** | re-runs the two assistants once each (`--n 1`; the record used five runs) against the freshly loaded store, grades them with the kit's oracle, shows the result | an OpenAI API key in `OPENAI_API_KEY` | one to two minutes | a few cents per scenario at the recorded model's list price |
+| **Arms** | re-runs the two assistants once each (`--n 1`; the record used five runs) against the freshly loaded store, grades them with the kit's oracle, shows the result | an OpenAI API key in `OPENAI_API_KEY` | one to two minutes | two model calls of a few thousand tokens each, on your provider's bill; the page shows the tokens |
 
 The Arms button stays greyed out until the key is set. A re-run of either
 kind writes into a dated folder, `runs/<date-time>/`,
@@ -454,9 +454,10 @@ run's sandbox, run the scenario's own feature files over the sandbox, and
 finish with its decision. Model-written code runs only inside that
 sandbox, a folder under the run's directory, and only through the suite
 command the subject's oracle script names; nothing else executes it. Each
-run is bounded by a ceiling in calls, dollars and seconds, instance
-configuration read from `KG_AGENT_MAX_CALLS`, `KG_AGENT_MAX_USD` and
-`KG_AGENT_MAX_SECONDS` (defaults 30, 5 and 1500); a run that reaches it
+run is bounded by a ceiling in calls, tokens and seconds, instance
+configuration read from `KG_AGENT_MAX_CALLS`, `KG_AGENT_MAX_TOKENS` and
+`KG_AGENT_MAX_SECONDS` (defaults 30, 1,500,000 and 1500; tokens are the
+prompt and reply tokens the API reports, added up); a run that reaches it
 ends with decision abstain and the reason. Every turn and tool call is
 written to a trace file beside the run, and the Generate box shows it.
 The pristine suite, the oracle, grades the sandbox afterwards as it
@@ -465,8 +466,8 @@ is an index, not the whole bundle or every document: the governed arm reads
 a key's knowledge through `read_knowledge(key)` and the baseline arm a
 document through `read_document(path)`, every read logged, so the gate
 box shows which keys below verified a run read and which it marked as
-assumptions, and a turn resends far less. The cost estimate prices the
-prompt tokens the endpoint reports as cached at a tenth of the input rate.
+assumptions, and a turn resends far less. The page shows prompt, cached
+and reply tokens per run and per turn, as the endpoint reports them.
 
 A subject whose record ran no arm (the J-F data load: its record graded
 whole rebuilds, so its `record_model` is empty) has no like-for-like
@@ -475,8 +476,10 @@ model, and the report says the record has no arm result to compare with;
 nothing is marked as a deviation, since there is nothing to deviate from.
 
 The choice is remembered by your browser. Either way a re-run writes
-into `runs/`, never into the record, and the cost estimate
-the harness prints uses the record model's list price.
+into `runs/`, never into the record. The harness prints no cost: it
+counts tokens (and stops the one-reply arms at `KG_ARMS_MAX_TOKENS` per
+run, default 6,000,000), and your provider's bill is the record of what a
+run cost, since any list price written here would go stale.
 
 ## Quick start on a Mac, step by step
 
