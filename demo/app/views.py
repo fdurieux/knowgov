@@ -34,6 +34,7 @@ def _word(n: int) -> str:
 
 
 RECORD_MODEL = SUBJECT.record_model  # the model of the subject's scored run; a run by another model is a deviation
+RECORD_EFFORT = SUBJECT.record_effort  # the effort of that run, "" for the API default; another effort is a deviation too (task-0028)
 
 # One line per scenario, from the subject's scenarios.toml: controlled sentences for the card
 # (represented, defect) and the Planted line (plant), a reading for "plain".
@@ -131,6 +132,7 @@ def _arm_summary(runs: list[dict]) -> dict:
             "below_n": next((len((r.get("agent") or {}).get("below_verified") or {}) for r in runs if r.get("agent")), 0),
             "api_errors": sum(1 for r in runs if r.get("api_error")),
             "models": sorted({m for m in (_model_of(r) for r in runs) if m}),
+            "efforts": sorted({(r.get("usage") or {}).get("effort") or "" for r in runs if _model_of(r)}),
             "tokens": sum(r["usage"]["prompt_tokens"] + r["usage"]["completion_tokens"] for r in runs if r.get("usage"))}
 
 
@@ -272,12 +274,16 @@ def build(scenario: str, source: str, runs_dir: Path) -> dict:
     # model calls that failed: the harness records them as api_error cells (no reply, no code, no grade)
     api_errors = [{"arm": arm, "run": r["run"], "error": r["api_error"]} for arm in ("G", "B") for r in runs[arm] if r.get("api_error")]
     models_used = sorted({m for arm in ("G", "B") for m in summaries[arm]["models"]})
+    efforts_used = sorted({e for arm in ("G", "B") for e in summaries[arm]["efforts"]})
     view = {
         "scenario": scenario, "meta": meta, "source": source, "source_dir": str(d),
         "api_errors": api_errors,
         "record_model": RECORD_MODEL, "models_used": models_used,
         # a model other than the record's answered: the numbers are not comparable with the record's
         "model_deviation": [m for m in models_used if RECORD_MODEL and not m.startswith(RECORD_MODEL)],
+        # an effort other than the record's, the same (task-0028); a run file with no effort field is the record's own
+        "record_effort": RECORD_EFFORT, "efforts_used": efforts_used,
+        "effort_deviation": [e for e in efforts_used if RECORD_MODEL and e != RECORD_EFFORT],
         "sources": sources_for(scenario, runs_dir),
         "stages": stages, "arms": arms,
         "gate": _gate_view(gate),
@@ -565,7 +571,15 @@ def narrative(view: dict, det: dict, reg: list) -> list[str]:
     elif not view.get("record_model") and view.get("models_used"):
         out.append(C(f"The record ran no arm. The arms here were answered by {', '.join(view['models_used'])}.",
                      "The record has no arm result to compare these with."))
+    if view.get("effort_deviation"):
+        out.append(C(f"The arms here ran at effort {_effort_name(view['effort_deviation'])}, not the record's {_effort_name([view['record_effort']])}.",
+                     "A different effort answered, so these results are not comparable with the record's."))
     return out
+
+
+def _effort_name(efforts: list) -> str:
+    """How the page names an effort: the value sent, or the API default when none was."""
+    return ", ".join(e or "API default" for e in efforts)
 
 
 # ------------------------------------------------------------ stage details

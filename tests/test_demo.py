@@ -261,7 +261,22 @@ def test_arms_model_defaults_to_the_records_and_is_overridable():
         v = views.build("S1", "demo-runs/2026-10-30-1700", Path(td))
         assert v["model_deviation"] == ["gpt-5.5-2026-04-01"] and v["arms"]["G"]["runs"][0]["model"] == "gpt-5.5-2026-04-01"
         assert any("gpt-5.5-2026-04-01" in s_["label"] for s_ in v["sources"])
-    assert views.build("S1", "record", NO_RUNS)["model_deviation"] == []
+        # task-0028: an effort other than the record's ("" here, the API default) is a deviation too, named in the narrative
+        assert v["effort_deviation"] == [] and v["record_effort"] == ""
+        rec["usage"]["model"] = "gpt-5.1-2025-11-13"; rec["usage"]["effort"] = "high"
+        (d / "run1_G.json").write_text(json.dumps(rec), encoding="utf-8")
+        v = views.build("S1", "demo-runs/2026-10-30-1700", Path(td))
+        assert v["model_deviation"] == [] and v["effort_deviation"] == ["high"]
+        assert any("ran at effort high, not the record's API default" in s_ for s_ in v["narrative"]), v["narrative"]
+    assert views.build("S1", "record", NO_RUNS)["model_deviation"] == [] and views.build("S1", "record", NO_RUNS)["effort_deviation"] == []
+    import server
+    assert server.is_deviation("gpt-5.1-2025-11-13") is False and server.is_deviation("gpt-5.1-2025-11-13", "high") is True
+    assert server.arms_effort(None) == "" and server.arms_effort("medium") == "medium"
+    try:
+        server.arms_effort("High Effort!"); raise AssertionError("an effort that is not an API literal shape is refused")
+    except ValueError:
+        pass
+    assert 'id="am-effort"' in page and "Effort deviation" in page and "effort: mode === 'arms' ? armsEffort()" in page
 
 
 def test_plain_english_narrative_is_built_from_the_files():

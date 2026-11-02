@@ -3,11 +3,11 @@ id: TASK-0031
 title: >-
   One stack per subject by compose alone: ports as variables, a project name per
   subject
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-02T13:32:00Z'
-updated_date: '2026-11-02T13:51:00Z'
+updated_date: '2026-11-02T14:00:00Z'
 labels:
   - subject
   - instance
@@ -34,8 +34,8 @@ The page shows one subject, the one KG_SUBJECT named when the container started;
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Two stacks run side by side on one machine on different ports with different KG_SUBJECT values; the default command and its ports are unchanged
-- [ ] #2 The README's instance section shows the second project name beside the default stack, in the adopter register
+- [x] #1 Two stacks run side by side on one machine on different ports with different KG_SUBJECT values; the default command and its ports are unchanged
+- [x] #2 The README's instance section shows the second project name beside the default stack, in the adopter register
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -49,3 +49,9 @@ The page shows one subject, the one KG_SUBJECT named when the container started;
 <!-- SECTION:NOTES:BEGIN -->
 docker compose config renders the default stack (knowgov; 8080, 7474, 7687) and the second (-p knowgov-jef with the README variables; 8081, 7475, 7688; KG_SUBJECT jef_data_load; its own volumes knowgov-jef_neo4j-data and knowgov-jef_demo-runs). No Docker daemon in the hosted session, so the two stacks were not started here: the live side-by-side start is the maintainer Mac check; nothing in the Python changed, suite 91/91.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Merged as knowgov #50 on a green matrix. The three published ports are KG_PORT_APP, KG_PORT_BROWSER and KG_PORT_BOLT with the old defaults; the README passage "Two subjects side by side" gives the paste command for a second stack under -p knowgov-jef on 8081, 7475 and 7688. docker compose config rendered both stacks with distinct names, ports and volumes; the hosted session has no Docker daemon, so the live side-by-side start is the maintainer check on the Mac. No Python changed.
+<!-- SECTION:FINAL_SUMMARY:END -->

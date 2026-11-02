@@ -36,6 +36,7 @@ id = "cargo_quote"            # the directory name by default
 name = "CargoQuote"
 description = "..."
 record_model = "gpt-5.1-2025-11-13"   # the model that answered the record's arms; another is a deviation
+record_effort = ""                    # the reasoning effort those arms ran at; "" is the API's default; another is a deviation too
 
 [[artefact]]                  # in the order the baseline arm concatenates the documents
 key = "kit/requirements.md"   # the name the harness and the record use for the document

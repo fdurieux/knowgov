@@ -34,8 +34,8 @@ def test_defaults_are_openai_and_the_records_model_and_arms_are_off_without_a_ke
     saved = _with({})
     try:
         ep = arms.endpoint()
-        assert ep == {"base_url": "https://api.openai.com/v1", "key_var": "OPENAI_API_KEY", "key_set": False,
-                      "model": arms.RECORD_MODEL, "record_model": arms.RECORD_MODEL, "deviation": False}
+        assert ep == {"base_url": "https://api.openai.com/v1", "host": "api.openai.com", "key_var": "OPENAI_API_KEY", "key_set": False,
+                      "model": arms.RECORD_MODEL, "record_model": arms.RECORD_MODEL, "effort": "", "record_effort": arms.RECORD_EFFORT, "deviation": False}
         assert not arms.enabled()
     finally:
         _restore(saved)
@@ -117,6 +117,23 @@ def test_bundle_carries_the_documents_the_task_names_verbatim_after_the_knowledg
         kitio.kit_text(kit, "contracts/missing.md"); raise AssertionError("a missing part must be refused")
     except KeyError:
         pass
+
+
+def test_effort_is_sent_only_when_set_recorded_and_compared_with_the_record():
+    """Task-0028: KG_ARMS_EFFORT reaches a call as reasoning_effort and is recorded; unset, no parameter
+    is sent. An effort other than the record's is a deviation, as another model is; the record effort
+    comes from the manifest ("" is the API default)."""
+    assert arms.effort_kwargs("") == {} and arms.effort_kwargs("high") == {"reasoning_effort": "high"}
+    assert arms.RECORD_EFFORT == arms.SUBJECT.record_effort == ""
+    saved = _with({})
+    try:
+        ep = arms.endpoint()
+        assert ep["effort"] == "" and ep["record_effort"] == "" and not ep["deviation"], "no effort set, the record's model: like-for-like"
+        os.environ["KG_ARMS_EFFORT"] = "xhigh"
+        ep = arms.endpoint()
+        assert ep["effort"] == "xhigh" and ep["model"] == arms.RECORD_MODEL and ep["deviation"], "the record's model at another effort is a deviation"
+    finally:
+        _restore(saved)
 
 
 def test_tokens_not_dollars_and_the_token_ceiling_stops_a_call():

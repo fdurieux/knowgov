@@ -27,6 +27,9 @@
 #                      checkout with docker-compose.instance.yml
 #   KG_ARMS_MODEL      optional; a model name preselects "another model" in the page's Arms-call toggle
 #                      (a deviation from the record, marked on every run); empty keeps the record's model
+#   KG_ARMS_EFFORT     optional; the reasoning effort sent with every arm call (the API's literals: low,
+#                      medium, high, …); empty sends none, the API's default. The page's run sets it per
+#                      run; an effort other than the record's is a deviation too (task-0028)
 #   KG_PORT_APP, KG_PORT_BROWSER, KG_PORT_BOLT
 #                      the three published ports (defaults 8080, 7474, 7687). A second stack for another
 #                      subject runs beside this one under its own project name with other ports (task-0031):
@@ -76,6 +79,7 @@ services:
       KG_SUBJECT: ${KG_SUBJECT:-/repo/subjects/cargo_quote}
       KG_REGISTER: ${KG_REGISTER:-/repo/demo/register}
       KG_ARMS_MODEL: ${KG_ARMS_MODEL:-}   # optional: preselects "another model" on the page; empty keeps the record's
+      KG_ARMS_EFFORT: ${KG_ARMS_EFFORT:-}  # optional: the effort a harness run outside the page sends; the page sets its own per run
     ports:
       - "${KG_PORT_APP:-8080}:8080"
     volumes:

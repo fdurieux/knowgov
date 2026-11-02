@@ -208,7 +208,7 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
                                                      (gate["verdict"] == "QUALIFIED" and p.get("decision") == "generate"))),
                "M7_adopted": measures.adopted(arm, p, gate.get("below_verified", []), sc),
                "questions": p.get("questions"), "assumptions": p.get("assumptions"), "claims": p.get("claims"),
-               "usage": {"model": tt["model"], "prompt_tokens": tt["prompt_tokens"], "cached_tokens": tt["cached_tokens"], "completion_tokens": tt["completion_tokens"],
+               "usage": {"model": tt["model"], "host": tt["host"], "effort": tt["effort"], "prompt_tokens": tt["prompt_tokens"], "cached_tokens": tt["cached_tokens"], "completion_tokens": tt["completion_tokens"],
                          "seconds": tt["seconds"], "attempts": tt["calls"]},
                "agent": {"finished": res["finished"], "stopped_by": res["stopped_by"], "turns": tt["turns"], "calls": tt["calls"],
                          "tool_calls": tt["tool_calls"], "files": res["files"], "ceiling": res["ceiling"], "sandbox": box.name,
