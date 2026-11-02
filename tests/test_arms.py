@@ -91,3 +91,29 @@ def test_the_page_names_the_endpoint_and_the_key_variable_never_the_key():
     readme = (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
     for case in ("**OpenAI**", "Google's OpenAI-compatible endpoint", "private model behind a gateway"):
         assert case in readme, case
+
+
+def test_bundle_carries_the_documents_the_task_names_verbatim_after_the_knowledge():
+    """A packaged configuration file or a parser table is not an assertion: the governed arm asked for
+    them and abstained (task-0022.01, 2026-11-02). The subject's task table names them; the bundle
+    appends them as written after the knowledge, saying a statement's status is its key's; a subject
+    that names none renders the bundle it always did."""
+    import gate
+    res = {"verdict": "PROCEED", "why": "every key verified", "conflicts": [], "stale": [],
+           "keys": {"k|v": {"level": "verified", "flags": [], "declared_gaps": [],
+                            "assertions": [{"id": "A:x", "value": "1", "basis": "authored", "status": "verified", "artefact": "doc", "agent": "a",
+                                            "text": "one", "fragments": [], "verifications": [], "approvals": [], "gaps": []}]}}}
+    plain = gate.render_bundle(res, "POLICY TEXT")
+    assert plain == gate.render_bundle(res, "POLICY TEXT", None) == gate.render_bundle(res, "POLICY TEXT", {}), "no verbatim table, no section"
+    with_docs = gate.render_bundle(res, "POLICY TEXT", {"contracts/cli.md": "# cli\nusage: x\n"})
+    assert with_docs.startswith(plain) and "VERBATIM DOCUMENTS" in with_docs
+    assert "=== contracts/cli.md ===\n# cli\nusage: x\n=== end contracts/cli.md ===" in with_docs
+    assert with_docs.index("REQUIRED KNOWLEDGE") < with_docs.index("VERBATIM DOCUMENTS"), "the knowledge comes first; the documents after it"
+    import kitio
+    kit = {"requirements.json": "[]", "contracts/": "==> a.md <==\nA\n==> sub/b.toml <==\nb = 1\n"}
+    assert kitio.kit_text(kit, "requirements.json") == "[]"
+    assert kitio.kit_text(kit, "contracts/a.md") == "A\n" and kitio.kit_text(kit, "contracts/sub/b.toml") == "b = 1\n"
+    try:
+        kitio.kit_text(kit, "contracts/missing.md"); raise AssertionError("a missing part must be refused")
+    except KeyError:
+        pass

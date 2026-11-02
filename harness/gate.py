@@ -57,7 +57,7 @@ def resolve(s, task: str) -> dict:
             "stale": stale, "suspect_derived": suspect}
 
 
-def render_bundle(res: dict, policy: str) -> str:
+def render_bundle(res: dict, policy: str, verbatim: dict[str, str] | None = None) -> str:
     out = [f"GATE VERDICT: {res['verdict']} — {res['why']}", "", "POLICY:", policy, "",
            "REQUIRED KNOWLEDGE, key by key (status is the knowledge repository's, not yours to upgrade):"]
     for key, v in res["keys"].items():
@@ -91,4 +91,9 @@ def render_bundle(res: dict, policy: str) -> str:
         out.append("\nDERIVED OUTPUTS MARKED SUSPECT (they used assertions that are now invalidated; they may not be reused as they are):")
         for d in res["suspect_derived"]:
             out.append(f"  {d['id']} ({d['kind']}, sha256 {d['sha256'][:12]}...) used: {', '.join(d['used_invalidated'])}")
+    if verbatim:
+        out.append("\nVERBATIM DOCUMENTS (the scenario's kit, as written; the task names these as needed byte for byte):")
+        out.append("  A statement's status is its key's above, not the document's; what no key above covers is not knowledge the repository verified.")
+        for path, text in verbatim.items():
+            out.append(f"\n=== {path} ===\n{text.rstrip()}\n=== end {path} ===")
     return "\n".join(out)

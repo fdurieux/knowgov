@@ -56,7 +56,7 @@ class Bag:
         return a
 
 
-from subject import SUBJECT
+from subject import SUBJECT, BUNDLE_MARK_RE, bundle_parts as _subject_bundle_parts
 
 _SHORT = SUBJECT.shorts   # artefact key -> the short name assertion ids carry (the subject manifest)
 
@@ -612,22 +612,13 @@ def extract_links(path: str, text: str, code_text: str) -> Bag:
 # off as conflicts on the same predicate (the store pairs assertions by entity and predicate
 # across artefacts).
 
-_BUNDLE_MARK = re.compile(r"^==> (.+?) <==$", re.M)
+_BUNDLE_MARK = BUNDLE_MARK_RE   # the parser lives in subject.py (stdlib), where the marker is defined
 # the shape of a requirement id, the subject's ([rules] requirement_id_pattern; JDL-047, REQ-06),
 # so that a standard's name (IEEE-754) is never read as one
 _REQ_ID = re.compile(r"\b(" + SUBJECT.rules.get("requirement_id_pattern", r"[A-Z]{2,}-\d{2,}") + r")\b")
 
 
-def bundle_parts(text: str) -> list[tuple[str, str]]:
-    """(relative path, text) per part of a bundle; a plain file is one part named ''."""
-    marks = list(_BUNDLE_MARK.finditer(text))
-    if not marks:
-        return [("", text)]
-    out = []
-    for i, m in enumerate(marks):
-        end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
-        out.append((m.group(1), text[m.end() + 1:end]))
-    return out
+bundle_parts = _subject_bundle_parts   # (relative path, text) per part of a bundle
 
 
 def _ids_in(text: str) -> list[str]:
