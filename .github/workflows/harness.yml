@@ -72,3 +72,42 @@ jobs:
           test "$(gate --subject ../subjects/minimal)" = 1
           KG_STORE=rdflib python gate_cli.py --scenario S2 --baseline record
           python3 -c 'import sys,json; sys.path.insert(0,"."); import schema_check as s; r=json.load(open("../runs/gate-s1.json")); e=s.validate(r, s.load("gate-report")); assert not e, e; print("report valid:", r["verdict"], r["exit_code"])'
+      - name: The capture path (task-0009), questionnaire, answers, the gate after, and nothing above proposed
+        run: |
+          rm -rf runs/capture && python tools/example_instance.py runs/capture > /dev/null
+          export KG_SUBJECT="$PWD/runs/capture/subjects/cargo_quote" KG_REGISTER="$PWD/runs/capture/register" KG_STORE=rdflib
+          cd harness
+          python capture.py questionnaire --scenario S2 --out ../runs/questionnaires
+          python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+          p = Path("../runs/questionnaires/questionnaire-cargo_quote-S2-ORG-0002.toml")
+          s = p.read_text().replace('from = ""', 'from = "steward-1"', 1).replace('on = ""', 'on = "2026-11-02"', 1)
+          parts = s.split("[[item]]")
+          for i, part in enumerate(parts[1:], 1):
+              if '"response|hold_presence"' in part:
+                  parts[i] = part.replace('answer = ""', 'answer = "present when status is review_hold"')
+              if '"QuoteAPI|on_screening_outage"' in part:
+                  parts[i] = part.replace("nobody_knows = false", "nobody_knows = true")
+          Path("../runs/answered.toml").write_text("[[item]]".join(parts))
+          PY
+          python capture.py ingest ../runs/answered.toml
+          set +e; python gate_cli.py --scenario S2 -f json > ../runs/gate-captured.json; set -e
+          python3 - <<'PY'
+          import json, sys
+          sys.path.insert(0, ".")
+          r = json.load(open("../runs/gate-captured.json"))
+          assert r["levels"]["response|hold_presence"] == "proposed" and r["levels"]["QuoteAPI|on_screening_outage"] == "declared_gap", r["levels"]
+          # the verifications run again over the loaded store: a person's answer and a model's guess stay proposed
+          from store import open_store
+          import gate_cli
+          from load import load_verifications, pristine_values, load_inferred
+          from plant import INFERRED
+          st = open_store()
+          gate_cli._load(st, "S5")            # S5 loads the model-proposed assertion and, here, the captures
+          for _ in range(2):
+              load_verifications(st, "S5", pristine_values())
+          rows = [x for x in st.assertion_rows() if x["basis"] in ("elicited", "inferred")]
+          assert {x["basis"] for x in rows} == {"elicited", "inferred"} and all(x["status"] == "proposed" for x in rows), rows
+          print("captured and inferred after two verification passes:", sorted((x["basis"], x["status"]) for x in rows))
+          PY

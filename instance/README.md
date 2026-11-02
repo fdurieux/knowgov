@@ -21,7 +21,8 @@ needs. The [subjects guide](../subjects/README.md) describes it field by field.
                        (its exports/<system>/<date>/ folders live inside it, as ieam-register has them)
   artefacts/<kind>/    your documents, one folder per kind (the table below)
   subjects/<id>/       one folder per subject: subject.toml and its companions; its documents are
-                       named by path, ../../artefacts/<kind>/<file>
+                       named by path, ../../artefacts/<kind>/<file>; its captures/ holds the
+                       answered questionnaires (see "Capturing what people know")
   record/<subject>/    your own results, kept as evidence: a subject's [record] dir points here
 ```
 
@@ -84,6 +85,46 @@ In plain English: this builds an instance from the public test case, ieam-regist
 plus CargoQuote's documents, sorted into their kinds. It then runs the check on it. It writes
 only into the folder you name. The demo's CI mounts that folder read-only, replays a scenario,
 runs one deterministically, and confirms afterwards that not one byte of the folder changed.
+
+## Capturing what people know
+
+Some knowledge is in nobody's documents, only in people's heads. The gate then reports a key as
+*absent* or as a *declared gap*, and it blocks. The capture path turns that into a recorded
+statement, without anyone having to write a document first.
+
+```bash
+python harness/capture.py questionnaire --scenario S2 --out questionnaires/
+```
+
+In plain English: this loads the scenario, asks the gate which keys are missing or weak, and
+writes one questionnaire per *owner*: the organisation unit your register names as owner of the
+building blocks each key concerns. Each questionnaire says how many keys the owner has and how
+many need an answer. For each one it shows what the store holds now and asks one question. A key
+no register row covers goes to a questionnaire named `unassigned`, so nothing is dropped.
+
+The owner fills it in: a value in `answer`, or `nobody_knows = true` when no one can say. They
+add their *handle* and the date under `[answered]`. A handle is a short lower-case label such
+as `steward-1`, never a name or an e-mail address. Then:
+
+```bash
+python harness/capture.py ingest questionnaires/questionnaire-cargo_quote-S2-ORG-0002.toml
+```
+
+In plain English: this checks the answers and refuses a name in place of a handle, a date in the
+future, or an item that has both an answer and "nobody knows". It then saves them in the
+subject's `captures/` folder, which you commit like any other change. From then on, every
+load reads that folder. An answer becomes a statement *proposed* by that person on that date,
+and a "nobody knows" becomes a declared gap with their handle and the date. Neither goes further
+on its own. A proposed statement is still below verified, so the gate lists it as an assumption
+an assistant must state. Nothing the harness does verifies a person's answer, nor a model's
+guess. Review is a person's act.
+
+**The register's capture fields.** The three fields a capture carries are `from` (the handle),
+`on` (the date) and `record` (where the answer is kept). They are the fields ieam-register's
+[decision 0008](https://github.com/fdurieux/ieam-register/blob/main/decisions/0008-knowledge-a-person-gave.md)
+adds to the register for a link that rests on what a person said, with a review due within six
+months. The register's other required capture fields were there before: a link's `rationale`,
+an exception's `rationale` and expiry, and the decision record every approval names.
 
 ## Starting the demo on your instance
 

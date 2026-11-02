@@ -24,7 +24,7 @@ import shacl
 from gate import resolve, render_bundle, render_index, knowledge_reader
 from kitio import kit_for, kit_text, sha256, verbatim_documents
 import agent
-from load import PROV, HUMAN, load_inferred, load_scenario, load_verifications, pristine_values
+from load import PROV, HUMAN, load_captures, load_inferred, load_scenario, load_verifications, pristine_values
 from store import open_store
 from plant import INFERRED
 from rules import census, r_stale, run_all
@@ -65,12 +65,15 @@ def deterministic(sc: str, pv: dict, s) -> dict:
     ver = load_verifications(s, sc, pv, kit) if cfg.get("verifications", True) else {"skipped": f"{sc}: extraction only"}
     if cfg.get("inferred") and INFERRED:
         load_inferred(s, sc, INFERRED)
+    captures = load_captures(s, sc)   # answered questionnaires (task-0009); none in a subject without captures/
     rules = run_all(s, sc)
     cen = census(s)
     gate = resolve(s, "codegen")
     out = {"scenario": sc, "store": s.name, "D1_constraints": d1, "load": load, "verifications": ver, "rules": rules,
            "D2_census": cen, "D4_shacl": shacl.run(s), "D6_gate": {k: v for k, v in gate.items() if k != "keys"},
            "gate_keys": {k: {"level": v["level"], "flags": v["flags"], "n": len(v["assertions"])} for k, v in gate["keys"].items()}}
+    if captures["files"]:
+        out["captures"] = captures
     if cfg.get("three_valued"):
         out["D5_three_valued"] = d5(s)
     return out, gate, kit

@@ -226,6 +226,9 @@ class RdflibStore(Store):
         self.merge_node(human["id"], "Agent", props={"kind": "human", "name": human["name"]})
         self.merge_node(llm["id"], "Agent", props={"kind": "llm", "name": llm["name"]})
 
+    def ensure_person(self, aid, handle) -> None:
+        self.merge_node(aid, "Agent", props={"kind": "human", "name": handle})
+
     def create_activity(self, aid, kind, at, tool, note, agent_id) -> None:
         ag = self.node(agent_id, "Agent")
         if ag is None:

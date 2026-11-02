@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+import tomllib
 
 from kitio import FAMILY, sha256, pristine
 from subject import SUBJECT
@@ -169,4 +170,40 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
     # requirements and links: authored by the maintainer -> reviewed by construction
     counts["review"] += st.verify_authored(authored.get("at", ts), authored.get("scope", "authored"), HUMAN["id"])
     counts["approved"] = st.approve_verified(approval.get("at", ts), approval.get("record", "approval"), HUMAN["id"])
+    return counts
+
+
+def load_captures(st, scenario: str) -> dict:
+    """Every capture in the subject's capture folder (harness/capture.py ingest; task-0009): an
+    answer becomes an assertion of basis ``elicited`` at status proposed, attributed to the person's
+    handle and dated; "nobody knows" becomes a declared gap on the key, with the person and the
+    date. The verifications never touch basis elicited, so nothing here rises above proposed."""
+    files = sorted(SUBJECT.capture_dir.glob("*.toml")) if SUBJECT.capture_dir.is_dir() else []
+    counts = {"files": [], "answers": 0, "unknown": 0}
+    for p in files:
+        c = tomllib.loads(p.read_text(encoding="utf-8"))
+        cap = c.get("capture", {})
+        handle, on, record = cap["from"], str(cap["on"]), cap["record"]
+        person, aid = f"person:{handle}", f"act:capture:{p.stem}"
+        st.ensure_person(person, handle)
+        st.create_activity(aid, "elicitation", on, "questionnaire", f"answers from {handle} on {on}, owner {cap.get('owner', '')}, {record}", person)
+        for i, a in enumerate(c.get("answer", []), 1):
+            ent, pred = a["key"].split("|", 1)
+            st.ensure_entity(ent, "elicited", ent)
+            st.create_assertion({"id": f"A:cap:{p.stem}:{i}@capture", "predicate": pred, "value": a["value"],
+                                 "text": f"{handle} on {on}: {a['value']}" + (f" ({a['note']})" if a.get("note") else ""),
+                                 "basis": "elicited", "status": "proposed", "artefact": record, "key": a["key"], "version": "capture"},
+                                ent, aid, person, [])
+            counts["answers"] += 1
+        for i, u in enumerate(c.get("unknown", []), 1):
+            ent, pred = u["key"].split("|", 1)
+            st.ensure_entity(ent, "elicited", ent)
+            xid = f"A:cap:{p.stem}:unknown{i}@capture"
+            st.create_assertion({"id": xid, "predicate": pred, "value": "", "text": f"{handle} on {on}: nobody knows",
+                                 "basis": "elicited", "status": "proposed", "artefact": record, "key": u["key"], "version": "capture"},
+                                ent, aid, person, [])
+            st.add_declared_gap(f"gap:declared:capture:{p.stem}:{i}", f"{u['key']}: nobody knows (declared by {handle} on {on}, {record})",
+                                ent, xid, scenario, ent, u["key"])
+            counts["unknown"] += 1
+        counts["files"].append(record)
     return counts
