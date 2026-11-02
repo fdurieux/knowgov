@@ -34,8 +34,10 @@ def test_defaults_are_openai_and_the_records_model_and_arms_are_off_without_a_ke
     saved = _with({})
     try:
         ep = arms.endpoint()
+        # the subject the environment names: its record's model, or the default other model when its record ran no arm
         assert ep == {"base_url": "https://api.openai.com/v1", "host": "api.openai.com", "key_var": "OPENAI_API_KEY", "key_set": False,
-                      "model": arms.RECORD_MODEL, "record_model": arms.RECORD_MODEL, "effort": "", "record_effort": arms.RECORD_EFFORT, "deviation": False}
+                      "model": arms.RECORD_MODEL or arms.DEFAULT_MODEL, "record_model": arms.RECORD_MODEL, "effort": "",
+                      "record_effort": arms.RECORD_EFFORT, "deviation": False}
         assert not arms.enabled()
     finally:
         _restore(saved)
@@ -55,7 +57,8 @@ def test_a_compatible_endpoint_with_its_own_key_variable_and_model():
     try:
         ep = arms.endpoint()
         assert ep["base_url"].startswith("https://generativelanguage.googleapis.com") and ep["key_var"] == "KG_MODEL_API_KEY"
-        assert ep["key_set"] and ep["model"] == "gemini-2.5-pro" and ep["deviation"], ep
+        # another model is a deviation, unless the subject's record ran no arm and there is nothing to deviate from
+        assert ep["key_set"] and ep["model"] == "gemini-2.5-pro" and ep["deviation"] is bool(arms.RECORD_MODEL), ep
         assert arms.enabled()
     finally:
         _restore(saved)
@@ -132,7 +135,8 @@ def test_effort_is_sent_only_when_set_recorded_and_compared_with_the_record():
         assert ep["effort"] == "" and ep["record_effort"] == "" and not ep["deviation"], "no effort set, the record's model: like-for-like"
         os.environ["KG_ARMS_EFFORT"] = "xhigh"
         ep = arms.endpoint()
-        assert ep["effort"] == "xhigh" and ep["model"] == arms.RECORD_MODEL and ep["deviation"], "the record's model at another effort is a deviation"
+        assert ep["effort"] == "xhigh" and ep["model"] == (arms.RECORD_MODEL or arms.DEFAULT_MODEL)
+        assert ep["deviation"] is bool(arms.RECORD_MODEL), "the record's model at another effort is a deviation; with no record arm, nothing is"
     finally:
         _restore(saved)
 

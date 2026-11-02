@@ -44,28 +44,26 @@ import models  # noqa: E402  (the models table behind the Arms call drop-down, t
 ROOT = HERE.parent.parent
 HARNESS = ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
-from subject import SUBJECT  # noqa: E402  (the subject root: KG_SUBJECT, default subjects/cargo_quote)
+import page_subject  # noqa: E402  (the subject as a value: task-0032.01)
+_ps = page_subject.current   # the subject of the call in progress; the environment's when no call names one
 import arms  # noqa: E402  (the model endpoint settings; the client is imported only when a call is made)
-RECORD = SUBJECT.record_dir
 RUNS_DIR = Path(os.environ.get("KG_DEMO_RUNS", str(ROOT / "runs")))
 NEO4J_URI = os.environ.get("KG_NEO4J_URI", "bolt://localhost:7687")
 NEO4J_PASSWORD = os.environ.get("KG_NEO4J_PASSWORD", "kgpoc2026")
 BROWSER_URL = os.environ.get("KG_BROWSER_URL", "http://localhost:7474")
 PORT = int(os.environ.get("KG_DEMO_PORT", "8080"))
-RECORD_MODEL = views.RECORD_MODEL
-RECORD_EFFORT = views.RECORD_EFFORT
-ARM_KIND = SUBJECT.arms.get("kind", "reply")   # the subject's arm kind: a row serves reply, agent or both
 
 
 def model_rows() -> list[dict]:
     """The Arms call drop-down's rows as the page receives them: no key, no price (task-0029)."""
-    return [models.public(r) for r in models.rows(RECORD_MODEL, RECORD_EFFORT, ARM_KIND)]
+    ps = _ps()
+    return [models.public(r) for r in models.rows(ps.record_model, ps.record_effort, ps.arm_kind)]
 
 
 def arms_enabled() -> bool:
     """The arms are on when the subject has an oracle to grade a reply and at least one row is
     available, its key variable set; no key, no call, nothing sent."""
-    return SUBJECT.oracle_script() is not None and any(r["available"] for r in model_rows())
+    return _ps().subject.oracle_script() is not None and any(r["available"] for r in model_rows())
 INDEX = (HERE / "index.html").read_bytes()
 
 # Saved Cypher for the store panel. Each runs in Neo4j Browser against the
@@ -75,7 +73,7 @@ def _store(timeout: float = 3):
     from store import open_store  # the harness's port; the adapter needs its driver, in the image
     if (os.environ.get("KG_STORE") or "neo4j").lower() == "rdflib" and not os.environ.get("KG_RDFLIB_FILE"):
         os.environ["KG_RDFLIB_FILE"] = str(RUNS_DIR / "store.ttl")
-    return open_store(connection_timeout=timeout, instance=SUBJECT.id)
+    return open_store(connection_timeout=timeout, instance=_ps().id)
 
 
 # What each saved query needs in the store before it returns rows: the store holds one scenario
@@ -101,7 +99,7 @@ def cypher_list() -> list[dict]:
     out = []
     generic = list(SAVED_QUERIES)
     start = register_view.impact_default() if IMPACT_START else ""
-    for q in generic[:1] + SUBJECT.queries + generic[1:]:   # the subject's after the first, as the page always listed them
+    for q in generic[:1] + _ps().subject.queries + generic[1:]:   # the subject's after the first, as the page always listed them
         needs_text = q.get("needs_text") or NEEDS_TEXT.get(q["needs"]) or f"{q['needs']} loaded"
         q = dict(q, needs_text=needs_text)
         if start and q["id"].startswith("register-impact"):
@@ -177,7 +175,7 @@ def store_status() -> dict:
     """What the store holds, through the driver when it is installed."""
     kind = (os.environ.get("KG_STORE") or "neo4j").lower()
     out = {"store": kind, "uri": NEO4J_URI if kind == "neo4j" else "", "browser": BROWSER_URL if kind == "neo4j" else None,
-           "reachable": False, "loaded": None, "census": None, "register": None, "error": None}
+           "reachable": False, "loaded": None, "loaded_subject": None, "census": None, "register": None, "error": None, "subject": _ps().id}
     try:
         with _store() as s:
             d = s.describe()
@@ -187,6 +185,8 @@ def store_status() -> dict:
         out.update(store=d.get("store", kind), uri=d.get("uri", out["uri"]), browser=d.get("browser"), reachable=True,
                    census={"nodes": c["nodes"], "relationships": c["relationships"], "assertions_by_status": c["assertions_by_status"]},
                    loaded=(acts[0].split(":")[2] if acts else None), activities=acts, register=reg)
+        # the store holds one scenario; its id is its subject's own, so the scenario names the subject
+        out["loaded_subject"] = page_subject.scenario_subject(out["loaded"], [_ps()])
     except ImportError:
         out["error"] = "store driver not installed: deterministic and arms modes need it"
         return out
@@ -232,41 +232,42 @@ class Runner:
         self.history: list[dict] = []
 
     def start(self, scenario: str, mode: str, n: int, row: str | None = None, effort: str | None = None) -> dict:
-        if scenario not in views.SCENARIOS:
+        ps = _ps()   # the subject this run is for: its scenarios, its record, its run folder, the harness's KG_SUBJECT
+        if scenario not in ps.scenarios:
             raise ValueError(f"unknown scenario {scenario}")
         if mode not in ("deterministic", "arms"):
             raise ValueError(f"unknown mode {mode}")
         chosen, model_env, deviation = None, {}, False
         if mode == "arms":
-            if SUBJECT.oracle_script() is None:
+            if ps.subject.oracle_script() is None:
                 raise ValueError("arms mode needs an oracle: this subject declares none")
             # the row and the effort are checked against the table: an unknown row, a row whose key
             # is unset and an effort the row does not list are refused here, before anything runs
-            chosen, model_env, deviation = models.resolve(row, effort, RECORD_MODEL, RECORD_EFFORT, ARM_KIND)
+            chosen, model_env, deviation = models.resolve(row, effort, ps.record_model, ps.record_effort, ps.arm_kind)
         with self.lock:
             if self.current and self.current["status"] == "running":
                 raise RuntimeError("a run is already in progress; the store is one database")
             stamp = dt.datetime.now().strftime("%Y-%m-%d-%H%M")
-            out_dir = RUNS_DIR / stamp
+            out_dir = RUNS_DIR / ps.id / stamp   # runs/<subject id>/<stamp>/: a run folder names its subject
             k = 2
             while out_dir.exists():
-                out_dir = RUNS_DIR / f"{stamp}-{k}"
+                out_dir = RUNS_DIR / ps.id / f"{stamp}-{k}"
                 k += 1
             out_dir.mkdir(parents=True)
-            derived = SUBJECT.scenarios.get(scenario, {}).get("stage2", {}).get("derived")
+            derived = ps.subject.scenarios.get(scenario, {}).get("stage2", {}).get("derived")
             if derived:
                 # the record's stage 2 registers an earlier scenario's governed output as the
                 # Derived artefact; give the re-run the same object to invalidate, in both
                 # modes: the harness reads <out>/<from_scenario>/<file> whether or not the
                 # arms are called, and without it a deterministic stage 2 has no Derived
                 # node to mark suspect (found by the maintainer's traversal, 2026-11-01)
-                src = RECORD / derived["from_scenario"] / derived["file"]
+                src = ps.record_dir / derived["from_scenario"] / derived["file"]
                 if src.exists():
                     (out_dir / derived["from_scenario"]).mkdir()
                     shutil.copy(src, out_dir / derived["from_scenario"] / derived["file"])
             cmd = [sys.executable, "run.py", "--scenarios", scenario, "--out", str(out_dir)]
             cmd += ["--deterministic"] if mode == "deterministic" else ["--n", str(n)]
-            env = {**os.environ, "KG_NEO4J_URI": NEO4J_URI, "KG_NEO4J_PASSWORD": NEO4J_PASSWORD,
+            env = {**os.environ, "KG_SUBJECT": str(ps.root), "KG_NEO4J_URI": NEO4J_URI, "KG_NEO4J_PASSWORD": NEO4J_PASSWORD,
                    "PYTHONUNBUFFERED": "1", "KG_WORKERS": os.environ.get("KG_WORKERS", "2")}
             if (os.environ.get("KG_STORE") or "neo4j").lower() == "rdflib":
                 # the in-memory store lives in the run's process; a Turtle file beside the runs lets the
@@ -277,12 +278,12 @@ class Runner:
             log = out_dir / f"{scenario}-{mode}.log"
             fh = open(log, "w", encoding="utf-8")  # noqa: SIM115 — closed when the process ends
             proc = subprocess.Popen(cmd, cwd=str(HARNESS), stdout=fh, stderr=subprocess.STDOUT, env=env)
-            rec = {"id": out_dir.name, "scenario": scenario, "mode": mode, "n": n, "status": "running",
+            rec = {"id": out_dir.name, "subject": ps.id, "scenario": scenario, "mode": mode, "n": n, "status": "running",
                    "model": chosen["model"] if chosen else None, "effort": model_env.get("KG_ARMS_EFFORT") if chosen else None,
                    "row": chosen["id"] if chosen else None, "host": chosen["host"] if chosen else None,
                    "model_deviation": deviation,
                    "started": _now(), "finished": None, "exit_code": None,
-                   "out_dir": str(out_dir), "log": str(log), "source": f"demo-runs/{out_dir.name}", "cmd": " ".join(cmd)}
+                   "out_dir": str(out_dir), "log": str(log), "source": f"demo-runs/{ps.id}/{out_dir.name}", "cmd": " ".join(cmd)}
             self.current = rec
             threading.Thread(target=self._wait, args=(proc, fh, rec), daemon=True).start()
             return self.describe(rec)
@@ -313,14 +314,20 @@ RUNNER = Runner()
 
 
 def list_runs() -> list[dict]:
-    out = []
-    if RUNS_DIR.exists():
-        for d in sorted(RUNS_DIR.iterdir(), reverse=True):
+    """The current subject's runs, runs/<subject id>/<stamp>/, then any from before that layout at
+    runs/<stamp>/ holding one of its scenarios; the id is the path under runs/."""
+    ps, out = _ps(), []
+    for base, prefix in ((RUNS_DIR / ps.id, f"{ps.id}/"), (RUNS_DIR, "")):
+        if not base.exists():
+            continue
+        for d in sorted(base.iterdir(), reverse=True):
             if not d.is_dir():
                 continue
-            scenarios = sorted(p.name for p in d.iterdir() if p.is_dir() and (p / "deterministic.json").exists())
+            scenarios = sorted(p.name for p in d.iterdir() if p.is_dir() and p.name in ps.scenarios and (p / "deterministic.json").exists())
+            if not scenarios:
+                continue
             modes = sorted({("arms" if list((d / s).glob("run*_G.json")) else "deterministic") for s in scenarios})
-            out.append({"id": d.name, "scenarios": scenarios, "modes": modes, "logs": sorted(p.name for p in d.glob("*.log"))})
+            out.append({"id": prefix + d.name, "scenarios": scenarios, "modes": modes, "logs": sorted(p.name for p in d.glob("*.log"))})
     return out
 
 
@@ -382,9 +389,9 @@ class Handler(BaseHTTPRequestHandler):
             if parts[:2] == ["api", "scenarios"]:
                 st = store_status()
                 return self._json({"scenarios": views.scenario_list(RUNS_DIR), "store": st,
-                                   "page": {"title": SUBJECT.page.get("title", ""), "subtitle": SUBJECT.page.get("subtitle", "")},
+                                   "page": {"title": _ps().subject.page.get("title", ""), "subtitle": _ps().subject.page.get("subtitle", "")},
                                    "arms_enabled": arms_enabled(), "model_rows": model_rows(),
-                                   "record_model": RECORD_MODEL, "record_effort": RECORD_EFFORT,
+                                   "record_model": _ps().record_model, "record_effort": _ps().record_effort,
                                    "deterministic_enabled": st["reachable"],
                                    "runs_dir": str(RUNS_DIR), "run": RUNNER.describe()})
             if parts[:2] == ["api", "results"] and len(parts) == 3:
@@ -407,7 +414,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(register_view.build(today))
             if parts[:3] == ["api", "register", "footprint"] and len(parts) == 4 and parts[3] in views.SCENARIOS:
                 if not register_view.has_map():
-                    return self._json({"error": f"the {SUBJECT.id} subject maps no key onto the register: no footprint"}, 404)
+                    return self._json({"error": f"the {_ps().id} subject maps no key onto the register: no footprint"}, 404)
                 sc = parts[3]
                 source = q.get("source", [views.default_source(sc)])[0]
                 return self._json(register_view.footprint(views.build(sc, source, RUNS_DIR)))
@@ -482,6 +489,17 @@ def main() -> None:
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"kg demo on http://0.0.0.0:{PORT}  store {NEO4J_URI}  runs {RUNS_DIR}", flush=True)
     httpd.serve_forever()
+
+
+
+_COMPAT = {"RECORD": "record_dir", "RECORD_MODEL": "record_model", "RECORD_EFFORT": "record_effort", "ARM_KIND": "arm_kind", "SUBJECT": "subject"}
+
+
+def __getattr__(name: str):
+    """The names this module once filled at import, read from the current subject when asked for."""
+    if name in _COMPAT:
+        return getattr(_ps(), _COMPAT[name])
+    raise AttributeError(f"module 'server' has no attribute {name!r}")
 
 
 if __name__ == "__main__":

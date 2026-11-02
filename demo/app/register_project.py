@@ -19,7 +19,6 @@ from pathlib import Path
 import register_view
 
 REGISTER = register_view.REGISTER
-MANIFEST = REGISTER / register_view.EXPORT_MANIFEST   # the kit export the subject names
 NODE_LABELS = ("RegNode", "RegLink", "RegType", "RegException", "RegDocument", "RegExternal")
 
 
@@ -47,13 +46,14 @@ def _doc_key(anchor: str, files: dict) -> str | None:
     return None
 
 
+@register_view.takes_subject
 def rows(loaded_at: str | None = None) -> dict:
     """Every node and relationship row of the projection, as flat property maps (strings, numbers,
     booleans and lists of strings only: what a store property can hold), with the counts."""
     T = register_view._load_tools()
     reg = T["register"].load_register(REGISTER)
     src = register_view.source_info()
-    manifest = T["register"].load_toml(MANIFEST)
+    manifest = T["register"].load_toml(REGISTER / register_view._ps().export_manifest)   # the export the current subject names, read per call (task-0032.01)
     files = manifest.get("files", {})
     stamp = {"tag": src["tag"], "commit": src["commit"], "export_date": _iso(manifest.get("exported_on"))[:10],
              "loaded_at": loaded_at or dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")}
