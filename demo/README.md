@@ -162,6 +162,30 @@ entry then says *this instance* instead of the public repository, the
 checker runs at today's date, since a checkout has no pinned date, and no
 digest is checked, since there is no `SOURCE.md` to check against.
 
+**Two subjects side by side.** One stack shows one subject, the one
+`KG_SUBJECT` named when it started. To look at J-F's data load and the
+CargoQuote demo at the same time, start a second stack beside the first:
+give it its own project name with `-p`, its own three ports, and the
+address your browser reaches its Neo4j Browser by. Each stack is the whole
+pair, the app and its own Neo4j, since two apps must not share one store
+(a load by one would race the other). With the default stack already
+running on 8080, 7474 and 7687, paste:
+
+```bash
+cd "$HOME/knowgov/demo" && KG_SUBJECT=/repo/subjects/jef_data_load KG_PORT_APP=8081 KG_PORT_BROWSER=7475 KG_PORT_BOLT=7688 KG_BROWSER_URL=http://localhost:7475 docker compose -p knowgov-jef up -d --build --wait && open http://localhost:8081
+```
+
+In plain English: the first three variables pick the subject and move
+the three ports by one so nothing collides; the fourth tells the page
+where its Browser links should point; `-p knowgov-jef` names the second
+stack so Docker keeps its containers and its database apart from the
+first. The J-F page then opens on port 8081, its Browser on 7475, and the
+default stack is untouched. Stop the second stack alone with
+`docker compose -p knowgov-jef down`. Both stacks write their runs into
+this checkout's `runs/` folder, each run under its own dated name. A
+drop-down that switches subjects inside one stack is the story
+task-0032; this is the route that needs no code.
+
 ## What Neo4j holds, who writes it and who reads it
 
 The store is a graph: things as nodes, relationships between them as
