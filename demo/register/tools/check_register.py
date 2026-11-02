@@ -1,6 +1,6 @@
 """The register's checks: types, directions, required metadata, hierarchy cycles, duplicate
-identities, cardinalities, dangling links, lifecycle consistency, approvals, glossary, and the
-coverage rules C1 to C3 with expiring exceptions. Exit 1 on any error; warnings exit 0.
+identities, cardinalities, dangling links, lifecycle consistency, approvals, knowledge a person
+gave (decision 0008), glossary, and the coverage rules C1 to C3 with expiring exceptions. Exit 1 on any error; warnings exit 0.
 
     python tools/check_register.py                 # check the working tree
     python tools/check_register.py --previous HEAD # also diff lifecycle states against a commit
@@ -205,6 +205,8 @@ def check_relationships(reg: dict, f: Findings, today: dt.date):
             for ev in ln.get("evidence", []):
                 if "/" in ev and ":" not in ev.split("/")[0] and not (reg["root"] / ev).exists():
                     f.error("evidence", w, f"evidence path {ev} does not exist")
+            if "elicited" in ln:
+                check_elicited(reg, f, w, ln, today)
         # cardinality per source state: approved links counted per source
         card = t.get("cardinality", {})
         by_source: dict[str, int] = {}
@@ -224,6 +226,49 @@ def check_relationships(reg: dict, f: Findings, today: dt.date):
                     f.error("cardinality", f"{where} ({sid})", f"{cnt} approved {name} links, minimum {mn} in state {n.get('state')}")
                 if mx != "n" and cnt > int(mx):
                     f.error("cardinality", f"{where} ({sid})", f"{cnt} approved {name} links, maximum {mx}")
+
+
+def _add_months(d: dt.date, months: int) -> dt.date:
+    y, m = divmod(d.month - 1 + months, 12)
+    year, month = d.year + y, m + 1
+    for day in (d.day, 30, 29, 28):
+        try:
+            return dt.date(year, month, day)
+        except ValueError:
+            continue
+    raise ValueError(d)
+
+
+def check_elicited(reg: dict, f: Findings, where: str, ln: dict, today: dt.date):
+    """Decision 0008: knowledge a person gave carries who (an opaque handle), when, and the record
+    of the answer, and is due for review sooner than the type's default."""
+    spec = reg["types"].get("elicited", {})
+    el = ln.get("elicited")
+    if not isinstance(el, dict):
+        f.error("elicited", where, "elicited must be a table: { from, on, record }")
+        return
+    for field in spec.get("fields", ["from", "on", "record"]):
+        if field not in el:
+            f.error("elicited", where, f"elicited lacks {field}")
+    handle = el.get("from")
+    if handle is not None and not re.match(spec.get("handle", r"^[a-z][a-z0-9-]{1,39}$"), str(handle)):
+        f.error("elicited", where, f"elicited.from {handle!r} is not an opaque handle (lower case, digits, hyphens): never a name or an address")
+    on = _date(el.get("on"))
+    if "on" in el and on is None:
+        f.error("elicited", where, "elicited.on must be a date")
+    elif on and on > today:
+        f.error("elicited", where, f"elicited.on {on} is in the future")
+    rec = el.get("record")
+    if rec and not (reg["root"] / rec).exists():
+        f.error("elicited", where, f"elicited record {rec} does not exist")
+    months = reg["lifecycle"].get("review", {}).get("evidence", {}).get("elicited", {}).get("months")
+    due = _date(ln.get("review_due"))
+    if on and months:
+        limit = _add_months(on, int(months))
+        if due is None:
+            f.error("elicited", where, f"a link with elicited knowledge needs review_due, at most {limit}")
+        elif due > limit:
+            f.error("elicited", where, f"review_due {due} is later than {limit}, {months} months after the knowledge was given")
 
 
 def check_glossary(reg: dict, f: Findings):
