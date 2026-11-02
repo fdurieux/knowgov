@@ -49,7 +49,7 @@ button.primary{background:var(--teal);color:#fff;border-color:var(--teal)}
 .plain summary{font-weight:600;cursor:pointer} .gloss dl{display:grid;grid-template-columns:max-content 1fr;gap:3px 14px;font-size:13px;margin:8px 0} .gloss dt{font-weight:600} .gloss dd{margin:0;max-width:90ch} .plain p{margin:7px 0;font-size:14px;line-height:1.55;max-width:90ch} .plain p.guide{color:var(--muted);font-size:13px}
 .toggle{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0 12px;font-size:13px}
 .toggle label{display:block;margin:4px 0;cursor:pointer} .toggle input[type=text]{font:inherit;font-size:12.5px;width:150px;border:1px solid var(--line);border-radius:6px;padding:2px 6px;font-family:var(--mono)}
-.toggle .why{color:var(--muted);margin-left:22px}
+.toggle .why{color:var(--muted);margin-left:22px} .toggle label.off{color:var(--muted);cursor:default} .toggle label.off code{color:var(--muted)}
 .banner .head{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap} .banner .head b{font-size:15px}
 .banner .console{margin-top:8px;max-height:160px}
 .small{font-size:13px;color:var(--muted)}
@@ -168,12 +168,16 @@ const running = () => STATE.run && STATE.run.status === 'running';
 function renderToggle(preset) {
   let c = armsChoice();
   if (!c) { c = {which: preset ? 'other' : 'record', other: STATE.otherModel}; saveArmsChoice(c); }
-  if (!STATE.recordModel) {   // the subject's record ran no arm: there is no like-for-like model to offer
+  const recLabel = $('#am-record').closest('label');
+  if (!STATE.recordModel) {   // the subject's record ran no arm: the line stays, greyed out, and says so; "another model" is the choice
     c = {which: 'other', other: c.other || STATE.otherModel}; saveArmsChoice(c);
-    $('#am-record').closest('label').style.display = 'none';
+    recLabel.classList.add('off'); recLabel.querySelector('input').disabled = true;
+    recLabel.querySelector('.why').textContent = 'the record ran no arm';
     $('#am-other').closest('label').querySelector('.why').textContent = 'the record ran no arm, so an Arms run compares with nothing in it';
+  } else {
+    recLabel.classList.remove('off'); recLabel.querySelector('input').disabled = false;
   }
-  $('#am-record').textContent = STATE.recordModel;
+  $('#am-record').textContent = STATE.recordModel || 'none';
   $('#am-other').value = c.other || STATE.otherModel;
   $$('input[name=am]').forEach(r => { r.checked = r.value === c.which; r.addEventListener('change', () => { saveArmsChoice({which: r.value, other: $('#am-other').value.trim()}); renderMenu(); }); });
   $('#am-other').addEventListener('change', () => { saveArmsChoice({which: 'other', other: $('#am-other').value.trim()}); $$('input[name=am]').forEach(r => r.checked = r.value === 'other'); renderMenu(); });

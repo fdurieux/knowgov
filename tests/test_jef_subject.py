@@ -228,7 +228,9 @@ print("ok")
     r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=dict(os.environ, KG_SUBJECT=str(SUBJ)), capture_output=True, text=True)
     assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr[-1500:]
     html = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
-    assert "!STATE.recordModel" in html and "the record ran no arm" in html, "the page hides the record's-model choice when there is none"
+    assert "!STATE.recordModel" in html and "the record ran no arm" in html, "the page greys out the record's-model line when there is none"
+    assert "recLabel.classList.add('off')" in html and "disabled = true" in html and "style.display = 'none'" not in html.split("function renderToggle")[1].split("const $$")[0], \
+        "the line stays visible for every subject, disabled and greyed out on one without a record model (the maintainer's ask, 2026-11-02)"
 
 
 def test_register_card_marks_the_subjects_slice_and_offers_its_application():
