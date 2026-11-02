@@ -1,10 +1,11 @@
 ---
 id: TASK-0007
 title: Gate CLI conforming to the site's gate contract
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-01T14:27:00Z'
-updated_date: '2026-11-01T14:30:00Z'
+updated_date: '2026-11-02T22:37:00Z'
 labels:
   - platform
   - gate

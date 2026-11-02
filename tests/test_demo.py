@@ -383,6 +383,12 @@ def test_generated_prose_keeps_to_the_glossary_and_the_length_limits():
         d = Path(td) / "demo-runs" / "2026-10-30-1900" / "S2"; d.mkdir(parents=True)
         shutil.copy(RESULTS / "S2" / "deterministic.json", d / "deterministic.json")
         builds.append(("S2", "demo-runs/2026-10-30-1900", Path(td) / "demo-runs"))
+        # a run whose load names a stored document no mapper reads (task-0006): the ingest panel's extra section
+        d = Path(td) / "demo-runs" / "2026-11-02-2300" / "S2"; d.mkdir(parents=True)
+        j = json.loads((RESULTS / "S2" / "deterministic.json").read_text(encoding="utf-8"))
+        j["load"]["unmapped"] = ["stories/quote.md"]
+        (d / "deterministic.json").write_text(json.dumps(j), encoding="utf-8")
+        builds.append(("S2", "demo-runs/2026-11-02-2300", Path(td) / "demo-runs"))
         for sc, src, runs in builds:
             v = views.build(sc, src, runs)
             for item in v["text_registry"]:

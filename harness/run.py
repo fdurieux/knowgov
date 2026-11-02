@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -282,10 +283,16 @@ def main() -> None:
              "segments": prev_usage.get("segments", 1) + 1}
     dump(out_root / "usage.json", u)
     # digests of what ran
-    lines = []
-    for p in sorted([*HARNESS.rglob("*.py"), *HARNESS.rglob("*.md"), *SUBJECT.definition_files()]):
-        if p.is_file() and "__pycache__" not in str(p):
-            lines.append(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(ROOT)}")
+    # an instance's subject and its artefacts live outside the repository (task-0006): such a path is
+    # named from the subject root, prefixed with the subject's id; the artefacts are listed too
+    def label(p: Path) -> str:
+        return p.relative_to(ROOT).as_posix() if p.is_relative_to(ROOT) else f"{SUBJECT.id}:{os.path.relpath(p, SUBJECT.root)}"
+    arts = [f for _k, a in SUBJECT.kit_files for f in ([a] if a.is_file() else a.rglob("*"))]
+    seen, lines = set(), []
+    for p in sorted([*HARNESS.rglob("*.py"), *HARNESS.rglob("*.md"), *SUBJECT.definition_files(), *(a.resolve() for a in arts)]):
+        if p.is_file() and "__pycache__" not in p.parts and p.resolve() not in seen:
+            seen.add(p.resolve())
+            lines.append(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {label(p)}")
     (out_root / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("usage:", arms.usage()["calls"], "calls,", arms.usage()["tokens"], "tokens")
 
