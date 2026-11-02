@@ -96,9 +96,9 @@ state = "approved"
 rationale = "A status run reads every series and the actions stamps"
 owner = "ORG-0003"
 mode = ["R"]
-evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/status.schema.json", "jef_kit:requirements.json#JDL-107", "jef_kit:requirements.json#JDL-113"]
+evidence = ["exports/jef_kit/2026-11-01/MANIFEST.toml", "jef_kit:contracts/status.schema.json", "jef_kit:requirements.json#JDL-107", "jef_kit:requirements.json#JDL-108"]
 review_due = 2027-05-01
-approval = { by = "fdurieux", on = 2026-11-01, record = "decisions/0005-second-subject-jef-data-load.md" }
+approval = { by = "fdurieux", on = 2026-11-02, record = "decisions/0007-three-citations-re-read-and-the-walk-follows-approved-links.md" }
 
 [[link]]
 id = "REL-07008"

@@ -138,9 +138,11 @@ def _node_panel(nid: str, n: dict, reg: dict, C, D) -> dict:
 
 def impact(start: str) -> dict | None:
     """The register's own impact walk from one node (tools/impact.py, vendored), each edge
-    with its state, owner and evidence, and what it reached. None for an unknown id. The walk
-    follows links only and does not climb a node's parent: that is the register tool's
-    behaviour, shown as it is."""
+    with its state, owner, evidence and whether the walk followed it, and what it reached. None
+    for an unknown id. The walk follows approved links only, stops at a deprecated or retired
+    node and does not climb a node's parent (the register's decision 0007, v0.2.2): a withdrawn
+    edge is listed and not followed, and only the far ends of live edges count as reached. That
+    is the register tool's behaviour, shown as it is."""
     T = _load_tools()
     reg = T["register"].load_register(REGISTER)
     if start not in reg["nodes"]:
@@ -150,16 +152,20 @@ def impact(start: str) -> dict | None:
     C = lambda *s: views._reg(reg_sentences, "controlled", *s)  # noqa: E731
     D = lambda *s: views._reg(reg_sentences, "data", *s)  # noqa: E731
     names = {nid: n.get("name", "") for nid, n in reg["nodes"].items()}
-    rows = [[e["from"], e["rel"], e["to"], names.get(e["to"], ""), reg["nodes"].get(e["to"], {}).get("state", ""), e["state"], e["owner"], ", ".join(e["evidence"])] for e in edges]
-    reached = sorted({e["to"] for e in edges})
+    rows = [[e["from"], e["rel"], e["to"], names.get(e["to"], ""), reg["nodes"].get(e["to"], {}).get("state", ""), e["state"],
+             "yes" if e["live"] else "no, withdrawn", e["owner"], ", ".join(e["evidence"])] for e in edges]
+    reached = sorted(T["impact"].reached(edges))
+    withdrawn = sum(1 for e in edges if not e["live"])
     by_prefix = lambda p: [x for x in reached if x.startswith(p + "-")]  # noqa: E731
     products, journeys, processes = by_prefix("PRD"), by_prefix("JRN"), by_prefix("PROC")
     start_node = reg["nodes"][start]
     intro = C(f"The walk starts at {start}, a {start_node.get('kind', '').replace('_', ' ')} in state {start_node.get('state')}.",
-              "It follows links from applications to processes, from processes to products and journey steps.",
-              "It stops at a deprecated or retired node.", "It does not climb a node's parent, so a module's application is not reached.")
+              "It follows approved links from applications to processes, from processes to products and journey steps.",
+              "It stops at a deprecated or retired node.", "A withdrawn edge is listed and not followed.",
+              "Its link is not approved, or its far node is deprecated or retired.",
+              "It does not climb a node's parent, so a module's application is not reached.")
     intro += " " + D(f"Name: {names.get(start, '')}.")
-    summary = C(f"{views._plural(len(edges), 'edge')} walked; {views._plural(len(processes), 'process', 'processes')}, "
+    summary = C(f"{views._plural(len(edges), 'edge')} walked, {withdrawn} withdrawn; {views._plural(len(processes), 'process', 'processes')}, "
                 f"{views._plural(len(products), 'product')} and {views._plural(len(journeys), 'journey element')} reached.")
     if not products and (processes or journeys):
         summary += " " + C("No product is reached: no delivers link starts at a reached process.")
@@ -168,7 +174,7 @@ def impact(start: str) -> dict | None:
     return {"from": start, "edges": edges, "rows": rows, "reached": {"products": products, "journeys": journeys, "processes": processes, "all": reached},
             "panel": {"title": C(f"Impact of retiring {start}"), "intro": intro,
                       "sections": [{"heading": C("Edges walked"), "text": summary,
-                                    "table": {"cols": ["from", "relationship", "to", "name", "node state", "link state", "owner", "evidence"], "rows": rows}},
+                                    "table": {"cols": ["from", "relationship", "to", "name", "node state", "link state", "followed", "owner", "evidence"], "rows": rows}},
                                    {"heading": C("Reached"), "list": [f"{x}: {names.get(x, '')}" for x in reached] or ["nothing"]}]},
             "text_registry": reg_sentences}
 

@@ -31,35 +31,40 @@ CONSTRAINTS = [
 ]
 
 # The impact walk of the register's tools/impact.py, in Cypher, from one literal start (task-0023).
-# The walk's rules: applications follow supports; processes follow delivers and realizes, and
-# is_supported_by backwards (reported from the process, "(inverse)"); journeys follow concerns; any
-# link state; a deprecated or retired node is reached, not expanded; no parent climb. Every chain the
+# The walk's rules at ieam-register v0.2.2 (its decision 0007): applications follow supports; processes
+# follow delivers and realizes, and is_supported_by backwards (reported from the process, "(inverse)");
+# journeys follow concerns. An edge is live when its link is approved and its far node is neither
+# deprecated nor retired; every edge met is reported, a withdrawn edge is reported and not followed, so
+# only live edges lead on and only their far ends count as reached. No parent climb. Every chain the
 # rules allow is one branch of the CALL { } UNION: the start and each intermediate node filtered on
-# taxonomy and state, the end node unfiltered. The register's own kinds end every chain in three
-# steps (supports lands on a process, delivers and concerns on a product, realizes on a capability).
-# IMPACT_ROWS is the saved query, one row per edge as the panel's table; IMPACT_PATHS returns the
-# paths, which the Browser draws as a graph. Equivalence with walk() is tested over the projection's rows.
+# taxonomy and state, each intermediate link on state approved, the last edge and its end node
+# unfiltered. The register's own kinds end every chain in three steps (supports lands on a process,
+# delivers and concerns on a product, realizes on a capability). IMPACT_ROWS is the saved query, one
+# row per edge as the panel's table, with whether the walk followed it; IMPACT_PATHS returns the paths,
+# which the Browser draws as a graph. Equivalence with walk() is tested over the projection's rows.
 IMPACT_START = "APP-0002"
 _LIVE = "NOT {0}.state IN ['deprecated','retired']"
+_OK = "{0}.state = 'approved'"
 _APP = "a.taxonomy = 'applications' AND " + _LIVE.format("a")
 _PROC_A = "a.taxonomy = 'processes' AND " + _LIVE.format("a")
 _PROC_X = "x.taxonomy = 'processes' AND " + _LIVE.format("x")
 _JRN_A = "a.taxonomy = 'journeys' AND " + _LIVE.format("a")
 _JRN_J = "j.taxonomy = 'journeys' AND " + _LIVE.format("j")
+_R1, _R2 = _OK.format("r1"), _OK.format("r2")
 IMPACT_WALK = (
     f"MATCH (a:RegNode {{reg_id:'{IMPACT_START}'}})\n"
     "CALL {\n"
     f"  WITH a MATCH p = (a)-[:REG_SUPPORTS]->(:RegNode) WHERE {_APP} RETURN p\n"
-    f"  UNION WITH a MATCH p = (a)-[:REG_SUPPORTS]->(x:RegNode)-[:REG_DELIVERS|REG_REALIZES]->(:RegNode) WHERE {_APP} AND {_PROC_X} RETURN p\n"
-    f"  UNION WITH a MATCH p = (a)-[:REG_SUPPORTS]->(x:RegNode)<-[:REG_IS_SUPPORTED_BY]-(:RegNode) WHERE {_APP} AND {_PROC_X} RETURN p\n"
-    f"  UNION WITH a MATCH p = (a)-[:REG_SUPPORTS]->(x:RegNode)<-[:REG_IS_SUPPORTED_BY]-(j:RegNode)-[:REG_CONCERNS]->(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_JRN_J} RETURN p\n"
+    f"  UNION WITH a MATCH p = (a)-[r1:REG_SUPPORTS]->(x:RegNode)-[:REG_DELIVERS|REG_REALIZES]->(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_R1} RETURN p\n"
+    f"  UNION WITH a MATCH p = (a)-[r1:REG_SUPPORTS]->(x:RegNode)<-[:REG_IS_SUPPORTED_BY]-(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_R1} RETURN p\n"
+    f"  UNION WITH a MATCH p = (a)-[r1:REG_SUPPORTS]->(x:RegNode)<-[r2:REG_IS_SUPPORTED_BY]-(j:RegNode)-[:REG_CONCERNS]->(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_JRN_J} AND {_R1} AND {_R2} RETURN p\n"
     f"  UNION WITH a MATCH p = (a)-[:REG_DELIVERS|REG_REALIZES]->(:RegNode) WHERE {_PROC_A} RETURN p\n"
     f"  UNION WITH a MATCH p = (a)<-[:REG_IS_SUPPORTED_BY]-(:RegNode) WHERE {_PROC_A} RETURN p\n"
-    f"  UNION WITH a MATCH p = (a)<-[:REG_IS_SUPPORTED_BY]-(j:RegNode)-[:REG_CONCERNS]->(:RegNode) WHERE {_PROC_A} AND {_JRN_J} RETURN p\n"
+    f"  UNION WITH a MATCH p = (a)<-[r1:REG_IS_SUPPORTED_BY]-(j:RegNode)-[:REG_CONCERNS]->(:RegNode) WHERE {_PROC_A} AND {_JRN_J} AND {_R1} RETURN p\n"
     f"  UNION WITH a MATCH p = (a)-[:REG_CONCERNS]->(:RegNode) WHERE {_JRN_A} RETURN p\n"
     "}\n")
 IMPACT_ROWS = (
-    "// the walk tools/impact.py makes, one row per edge, as the impact panel lists them\n"
+    "// the walk tools/impact.py makes, one row per edge, as the impact panel lists them, a withdrawn edge listed and not followed\n"
     + IMPACT_WALK +
     "UNWIND relationships(p) AS r WITH DISTINCT r\n"
     "WITH r, CASE WHEN type(r) = 'REG_IS_SUPPORTED_BY' THEN endNode(r) ELSE startNode(r) END AS f,\n"
@@ -67,8 +72,9 @@ IMPACT_ROWS = (
     "OPTIONAL MATCH (l:RegLink {reg_id: r.reg_id})   // the evidence sits on the link node\n"
     "RETURN f.reg_id AS `from`,\n"
     "       toLower(replace(type(r), 'REG_', '')) + CASE WHEN type(r) = 'REG_IS_SUPPORTED_BY' THEN ' (inverse)' ELSE '' END AS relationship,\n"
-    "       t.reg_id AS `to`, t.name AS name, t.state AS `node state`, r.state AS `link state`, r.owner AS owner,\n"
-    "       l.evidence AS evidence, r.reg_id AS link\n"
+    "       t.reg_id AS `to`, t.name AS name, t.state AS `node state`, r.state AS `link state`,\n"
+    "       CASE WHEN r.state = 'approved' AND NOT t.state IN ['deprecated','retired'] THEN 'yes' ELSE 'no, withdrawn' END AS followed,\n"
+    "       r.owner AS owner, l.evidence AS evidence, r.reg_id AS link\n"
     "ORDER BY link")
 IMPACT_PATHS = (
     "// the same walk as paths, for the Browser's graph view: a start with no edge still draws itself\n"

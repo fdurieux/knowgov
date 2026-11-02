@@ -1,6 +1,8 @@
-"""Walk the typed edges from a node and print each with its state, owner and evidence; stop at a
-deprecated or retired node. The IEAM's own question: which journeys and products would be
-affected by retiring this module?
+"""Walk the typed edges from a node and print each with its state, owner and evidence. The walk
+follows approved links only and never expands a deprecated or retired node; an edge whose link
+is not approved, or whose far node is deprecated or retired, is reported and marked withdrawn,
+not followed and not counted among what was reached (decision 0007). The IEAM's own question:
+which journeys and products would be affected by retiring this module?
 
     python tools/impact.py --from APP-0002
 """
@@ -21,25 +23,38 @@ FORWARD = {
 }
 
 
+WITHDRAWN = ("deprecated", "retired")
+
+
 def walk(reg: dict, start: str) -> list[dict]:
+    """Every edge the walk met, in order, each with ``live``: True when the link is approved and the
+    far node is neither deprecated nor retired; a withdrawn edge is reported and not followed."""
     seen, out, frontier = {start}, [], [start]
     while frontier:
         nxt = []
         for nid in frontier:
             n = reg["nodes"].get(nid)
-            if n is None or n.get("state") in ("deprecated", "retired"):
+            if n is None or n.get("state") in WITHDRAWN:
                 continue
             for rel, forward in FORWARD.get(n["_taxonomy"], []):
                 for ln in reg["relationships"].get(rel, {}).get("links", []):
                     a, b = (ln["source"], ln.get("target")) if forward else (ln.get("target"), ln["source"])
                     if a != nid or b is None:
                         continue
-                    out.append({"from": nid, "rel": rel if forward else f"{rel} (inverse)", "to": b, "state": ln.get("state"), "owner": ln.get("owner"), "evidence": ln.get("evidence", [])})
-                    if b not in seen:
+                    far = reg["nodes"].get(b) or {}
+                    live = ln.get("state") == "approved" and far.get("state") not in WITHDRAWN
+                    out.append({"from": nid, "rel": rel if forward else f"{rel} (inverse)", "to": b, "state": ln.get("state"), "owner": ln.get("owner"),
+                                "evidence": ln.get("evidence", []), "live": live})
+                    if live and b not in seen:
                         seen.add(b)
                         nxt.append(b)
         frontier = nxt
     return out
+
+
+def reached(edges: list[dict]) -> set[str]:
+    """What the walk reached: the far ends of live edges only."""
+    return {e["to"] for e in edges if e.get("live")}
 
 
 def main(argv=None) -> int:
@@ -54,11 +69,13 @@ def main(argv=None) -> int:
     edges = walk(reg, a.start)
     for e in edges:
         n = reg["nodes"][e["to"]]
-        print(f"{e['from']} -[{e['rel']}, {e['state']}, owner {e['owner']}]-> {e['to']} {n['name']!r} ({n['state']}); evidence: {', '.join(e['evidence']) or 'none'}")
-    reached = {e["to"] for e in edges}
-    prods = sorted(x for x in reached if x.startswith("PRD-"))
-    jrns = sorted(x for x in reached if x.startswith("JRN-"))
-    print(f"\n{a.start}: {len(edges)} edges walked; products reached {prods or 'none'}; journey elements reached {jrns or 'none'}")
+        mark = "" if e["live"] else " WITHDRAWN, not followed"
+        print(f"{e['from']} -[{e['rel']}, {e['state']}, owner {e['owner']}]-> {e['to']} {n['name']!r} ({n['state']}){mark}; evidence: {', '.join(e['evidence']) or 'none'}")
+    live = reached(edges)
+    prods = sorted(x for x in live if x.startswith("PRD-"))
+    jrns = sorted(x for x in live if x.startswith("JRN-"))
+    withdrawn = sum(1 for e in edges if not e["live"])
+    print(f"\n{a.start}: {len(edges)} edges walked, {withdrawn} withdrawn; products reached {prods or 'none'}; journey elements reached {jrns or 'none'}")
     return 0
 
 
