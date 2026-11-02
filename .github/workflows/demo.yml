@@ -120,6 +120,19 @@ jobs:
           docker compose exec -T -e KG_SUBJECT=/repo/subjects/minimal app python harness/run.py --deterministic --out runs/minimal
           docker compose exec -T app python3 -c 'import json; d=json.load(open("runs/minimal/S0/deterministic.json")); g=d["D6_gate"]; ks=d["gate_keys"]; assert g["verdict"]=="BLOCKED", g; assert ks and all(v["level"]=="absent" for v in ks.values()), ks; print("minimal subject:", g["verdict"], len(ks), "keys absent")'
 
+      - name: The gate as a command (task-0007) on the Neo4j store, with the record as baseline
+        run: |
+          set +e
+          docker compose exec -T app python harness/gate_cli.py --scenario S2; s2=$?
+          docker compose exec -T app python harness/gate_cli.py --scenario S2 --baseline record; s2b=$?
+          docker compose exec -T app python harness/gate_cli.py --scenario S1 -f json > gate.json; s1=$?
+          docker compose exec -T app python harness/gate_cli.py --scenario S1 --no-load; s1n=$?
+          docker compose exec -T app python harness/gate_cli.py --scenario S2 --no-load; s2n=$?
+          set -e
+          echo "S2 $s2, S2 against the record $s2b, S1 $s1, S1 as loaded $s1n, S2 while S1 is loaded $s2n"
+          test "$s2 $s2b $s1 $s1n $s2n" = "1 0 0 0 2"
+          python3 -c 'import json; r=json.load(open("gate.json")); assert r["store"]=="neo4j" and r["verdict"]=="PROCEED" and r["exit_code"]==0, r; print("gate on neo4j:", r["verdict"])'
+
       - name: The example instance mounted read-only (task-0006) replays and runs deterministically, and not one byte of it changes
         run: |
           # outside runs/, which the app container created as root

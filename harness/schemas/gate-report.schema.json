@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/gate-report.schema.json",
+  "title": "knowgov gate report",
+  "description": "What `python harness/gate_cli.py -f json` prints (task-0007): the gate's verdict for one task of one subject's scenario, its findings on the severity ladder, the threshold, the baseline comparison when one was asked for, and the exit code. Version 1; a change is additive or a new version.",
+  "type": "object",
+  "required": ["schema_version", "tool", "subject", "scenario", "task", "store", "loaded", "verdict", "why", "threshold", "findings", "counts", "keys", "conflicts", "stale", "suspect_derived", "levels", "baseline", "exit_code"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "tool": {"const": "knowgov gate"},
+    "subject": {"type": "string", "description": "the subject's id"},
+    "scenario": {"type": "string"},
+    "task": {"type": "string", "description": "the task class of the subject's [tasks] table"},
+    "store": {"type": "string", "description": "the store adapter: neo4j or rdflib"},
+    "loaded": {"type": "boolean", "description": "true: the gate loaded the scenario into the store first; false (--no-load): it read the store as it was"},
+    "verdict": {"$ref": "#/$defs/verdict"},
+    "why": {"type": "string"},
+    "threshold": {"$ref": "#/$defs/severity"},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "counts": {
+      "type": "object",
+      "required": ["blocker", "critical", "major", "minor", "info"],
+      "additionalProperties": false,
+      "properties": {
+        "blocker": {"type": "integer", "minimum": 0},
+        "critical": {"type": "integer", "minimum": 0},
+        "major": {"type": "integer", "minimum": 0},
+        "minor": {"type": "integer", "minimum": 0},
+        "info": {"type": "integer", "minimum": 0}
+      }
+    },
+    "keys": {
+      "type": "object",
+      "required": ["total", "below_verified", "flagged"],
+      "additionalProperties": false,
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "below_verified": {"type": "integer", "minimum": 0},
+        "flagged": {"type": "integer", "minimum": 0}
+      }
+    },
+    "conflicts": {"type": "integer", "minimum": 0},
+    "stale": {"type": "integer", "minimum": 0},
+    "suspect_derived": {"type": "integer", "minimum": 0},
+    "levels": {"type": "object", "additionalProperties": {"type": "string"}, "description": "every required key's level; what a later run's --baseline FILE compares with"},
+    "baseline": {
+      "type": ["object", "null"],
+      "required": ["source", "verdict", "regression", "worse_verdict", "regressed_keys"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {"type": "string", "description": "record, or the path of the baseline file"},
+        "verdict": {"$ref": "#/$defs/verdict"},
+        "regression": {"type": "boolean"},
+        "worse_verdict": {"type": "boolean"},
+        "regressed_keys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key", "level", "baseline_level"],
+            "additionalProperties": false,
+            "properties": {
+              "key": {"type": "string"},
+              "level": {"type": "string"},
+              "baseline_level": {"type": ["string", "null"]}
+            }
+          }
+        }
+      }
+    },
+    "exit_code": {"enum": [0, 1]}
+  },
+  "$defs": {
+    "verdict": {"enum": ["PROCEED", "QUALIFIED", "BLOCKED"]},
+    "severity": {"enum": ["blocker", "critical", "major", "minor", "info"]},
+    "finding": {
+      "type": "object",
+      "required": ["severity", "key", "level", "flags", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "severity": {"$ref": "#/$defs/severity"},
+        "key": {"type": ["string", "null"], "description": "the required key; null for a finding on the task as a whole"},
+        "level": {"type": ["string", "null"]},
+        "flags": {"type": "array", "items": {"type": "string"}},
+        "message": {"type": "string"}
+      }
+    }
+  }
+}

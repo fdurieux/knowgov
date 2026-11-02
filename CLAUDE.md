@@ -26,7 +26,9 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   re-runs, gitignored. `instance/` an organisation's instance layout (`README.md`, adopter register;
   `kinds.toml`, one kind per row of the site's artefact table and the mappers that read it, every
   mapper in exactly one), checked by `tools/check_instance.py`, with a public example from
-  `tools/example_instance.py` that CI mounts read-only and digests before and after (task-0006). `KG_SUBJECT` selects the root; nothing in `harness/` or
+  `tools/example_instance.py` that CI mounts read-only and digests before and after (task-0006). `harness/gate_cli.py`
+  the gate as a command (exit 0/1/2, `--fail-on`, `--baseline record|FILE`, JSON pinned by
+  `harness/schemas/gate-report.schema.json` through `harness/schema_check.py`; task-0007). `KG_SUBJECT` selects the root; nothing in `harness/` or
   `demo/` names a subject, a document or a scenario (task-0002). Two public
   subjects: `cargo_quote` (the proof of concept, seven scenarios, the scored
   record) and `jef_data_load` (the recreation experiment's kit, the degradation
