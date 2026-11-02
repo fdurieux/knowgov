@@ -4,10 +4,10 @@ title: >-
   As the maintainer, I want an agentic arm that builds a subject's program over
   several turns, so that the gate's effect is measured at the size of a real
   task
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-01T23:23:00Z'
-updated_date: '2026-11-02T09:19:00Z'
+updated_date: '2026-11-02T10:22:00Z'
 labels:
   - story
   - arms
@@ -38,7 +38,7 @@ The arm is one chat completion: one prompt, one JSON reply, one module (harness/
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 A scored Arms run on the J-F subject's D3 yields code the oracle grades for at least one arm, with its trace (turns, tool calls, what was read, cost, wall time) in the run folder and on the page
-- [ ] #2 The governed arm's trace names the assertions it consulted through the store port, so the page can show the consulted set beside the gate
+- [x] #2 The governed arm's trace names the assertions it consulted through the store port, so the page can show the consulted set beside the gate
 - [x] #3 Every run is bounded by a per-run ceiling in calls, dollars and wall time, recorded in the run folder; a run that hits it ends with a decision of abstain and says why
 - [x] #4 The CargoQuote subject still runs its one-reply arm unchanged and its deterministic record compares identical; the agentic loop is selected by the subject's manifest, and nothing in harness/ or demo/ names a subject
 <!-- AC:END -->
@@ -49,4 +49,12 @@ The arm is one chat completion: one prompt, one JSON reply, one module (harness/
 Spike task-0022.01 closed 2026-11-02 (the maintainer: route 'bundle first', then 'close and start 02'). Three D3 probes of the one-reply arm, gpt-5.5, n=1 each, est. $1.1 in all: B generated 664- and 811-line modules in two draws (oracle 2 and 1 of 12 features) and abstained in the third; G abstained three times, twice for verbatim documents the bundle lacked (closed by #30: the task table names them and the bundle carries them after the knowledge), once because the QUALIFIED isolation rule read as too onerous across every module and for want of an executable oracle to iterate against. Both arms, in the last draw, asked for iteration against the suite. The story continues with task-0022.02, the tool loop with the scenario's suite as feedback, and the multi-reply arm without feedback is not built; the QUALIFIED wording in harness/policy.md is to say what isolation costs, as part of 0022.02.
 
 task-0022.02 Done 2026-11-02 (knowgov #31, #32): the agent arm ran both arms on D3 to a finish with graded sandboxes and traces; the story's criteria 1, 3 and 4 hold; criterion 2 (the governed arm's consulted assertions through the store port) is task-0022.03.
+
+task-0022.03 Done 2026-11-02 (knowgov #36 and the follow-up PR): the governed arm reads keys through the gate's result with every read and every assertion id logged, the consulted set shown beside the gate; M7 adopted beside M3; cached tokens priced. All four story criteria hold. Open, recorded in 0022.03's notes: the call ceiling against a pull run; a multi-key read; M7 when a run ends without a finish.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+An agentic arm for the platform, in three subtasks: the spike (bundle first, three probes, the finding that both arms ask for iteration against the suite), the tool loop (sandbox, four tools, a per-run ceiling, a trace, the page), and the governed reads through the gate's result with the consulted set beside the gate, cached-token pricing and M7 adopted. Verified by 89 tests and four D3 runs through the session endpoint (push and pull, both arms): the J-F arms produce code the oracle grades (1 or 2 of 12 features at n=1), the governed arm marks the planted keys as assumptions with resolvable ids, CargoQuote's one-reply arm and deterministic record are unchanged, and nothing in harness/ names a subject.
+<!-- SECTION:FINAL_SUMMARY:END -->

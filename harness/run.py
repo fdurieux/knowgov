@@ -20,7 +20,7 @@ from pathlib import Path
 import arms
 import measures
 import shacl
-from gate import resolve, render_bundle, render_index, render_key
+from gate import resolve, render_bundle, render_index, knowledge_reader
 from kitio import kit_for, kit_text, sha256, verbatim_documents
 import agent
 from load import PROV, HUMAN, load_inferred, load_scenario, load_verifications, pristine_values
@@ -132,18 +132,14 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
         feedback = measures.feedback_runner(kit, cfg["feedback"])
         docs_g = verbatim_documents(kit, task_name)
         readers = {}
+        consulted_ids: list[str] = []
         if context == "pull":
             if arm == "B":
                 index = "\n".join(f"  {k}  ({len(v):,} characters)" for k, v in kit.items())
                 user = arms.prompt(f"{task_name}_baseline") + "\nDOCUMENTS, by path; call read_document(path) for each you need (a directory artefact's part is its key plus the part's path):\n" + index
             else:
                 user = arms.prompt(f"{task_name}_governed") + render_index(gate, arms.policy(), list(docs_g))
-                def read_knowledge(key: str) -> str:
-                    """One key's section, as the bundle would render it, from the gate's result (the port's)."""
-                    if key not in gate["keys"]:
-                        raise KeyError(f"{key}: not a required key of this task")
-                    return "\n".join(render_key(key, gate["keys"][key]))
-                readers["read_knowledge"] = read_knowledge
+                readers["read_knowledge"], consulted_ids = knowledge_reader(gate)   # the gate's result is the port's; no store call per read
         user = user + "\n\n" + cfg.get("layout", "")
 
         def read_text(path: str) -> str:
@@ -217,6 +213,7 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
                "agent": {"finished": res["finished"], "stopped_by": res["stopped_by"], "turns": tt["turns"], "calls": tt["calls"],
                          "tool_calls": tt["tool_calls"], "files": res["files"], "ceiling": res["ceiling"], "sandbox": box.name,
                          "context": context, "consulted": res["consulted"],
+                         "consulted_assertions": sorted(set(consulted_ids)) if context == "pull" and arm == "G" else [],
                          # the keys below verified the arm read (G, through read_knowledge) and marked as assumptions (M7)
                          "below_verified": {k: {"read": k in (res["consulted"].get("read_knowledge") or []),
                                                 "assumed": k in measures.adopted(arm, p, gate.get("below_verified", []), sc)["adopted"]}
