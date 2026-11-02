@@ -75,7 +75,7 @@ jobs:
             [ "$status" != "running" ] && break
             sleep 2
           done
-          curl -fsS localhost:8080/api/run | python3 -c 'import json,sys; r=json.load(sys.stdin); print(r["log_text"]); assert r["status"]=="done", r["status"]; open("run_id","w").write(r["id"])'
+          curl -fsS localhost:8080/api/run | python3 -c 'import json,sys; r=json.load(sys.stdin); print(r["log_text"]); assert r["status"]=="done", r["status"]; open("run_id","w").write(r["subject"] + "/" + r["id"])'
 
       - name: Project the register into the store beside the run, and read the census
         run: |

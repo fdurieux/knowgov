@@ -182,7 +182,8 @@ stack so Docker keeps its containers and its database apart from the
 first. The J-F page then opens on port 8081, its Browser on 7475, and the
 default stack is untouched. Stop the second stack alone with
 `docker compose -p knowgov-jef down`. Both stacks write their runs into
-this checkout's `runs/` folder, each run under its own dated name. A
+this checkout's `runs/` folder, each run under its subject's folder and
+its own dated name. A
 drop-down that switches subjects inside one stack is the story
 task-0032; this is the route that needs no code.
 
@@ -335,7 +336,7 @@ application.
 | **Arms** | re-runs the two assistants once each (`--n 1`; the record used five runs) against the freshly loaded store, grades them with the kit's oracle, shows the result | an OpenAI API key in `OPENAI_API_KEY` | one to two minutes | two model calls of a few thousand tokens each, on your provider's bill; the page shows the tokens |
 
 The Arms button stays greyed out until the key is set. A re-run of either
-kind writes into a dated folder, `runs/<date-time>/`,
+kind writes into a dated folder, `runs/<subject>/<date-time>/`,
 and never into the vendored record under `subjects/cargo_quote/`, which is pumllint's.
 The report view lets you switch between the record and any demo run.
 
@@ -613,7 +614,7 @@ pumllint's demo stack if you ran it before (`docker compose down` in
   loaded last; log in as `neo4j` with your password and paste any saved
   query from the left panel.
 
-Re-runs land in `~/knowgov/runs/<date-time>/`,
+Re-runs land in `~/knowgov/runs/<subject>/<date-time>/`,
 which git ignores.
 
 **5. Stop it.**
