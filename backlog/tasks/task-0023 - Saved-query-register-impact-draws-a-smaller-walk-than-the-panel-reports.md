@@ -1,11 +1,11 @@
 ---
 id: TASK-0023
 title: Saved query register-impact draws a smaller walk than the panel reports
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-02T07:35:00Z'
-updated_date: '2026-11-02T09:28:00Z'
+updated_date: '2026-11-02T09:41:00Z'
 labels:
   - register
   - store
@@ -29,9 +29,9 @@ The page lists a saved Cypher query, register-impact in harness/store_neo4j.py, 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 register-impact is the fixed-stage pattern, with the intermediate-state filter and the inverse is_supported_by stage, and its title says it is the walk impact.py makes
-- [ ] #2 A test in tests/test_register_view.py simulates the pattern over register_project.rows() and asserts its distinct edge set equals impact.walk()'s for every node of the register copy
-- [ ] #3 check_saved_queries.py still runs the query in the stack job, and the job asserts the row count the walk gives for its start node
+- [x] #1 register-impact is the fixed-stage pattern, with the intermediate-state filter and the inverse is_supported_by stage, and its title says it is the walk impact.py makes
+- [x] #2 A test in tests/test_register_view.py simulates the pattern over register_project.rows() and asserts its distinct edge set equals impact.walk()'s for every node of the register copy
+- [x] #3 check_saved_queries.py still runs the query in the stack job, and the job asserts the row count the walk gives for its start node
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -53,3 +53,9 @@ Implementation (branch claude/impact-cypher): harness/store_neo4j.py holds IMPAC
 
 Live verification in the session: Neo4j 5.26.0 community started from the tarball (Java 21), the register projected through register_project.project, both forms run through console_query for all 56 nodes: rows equal walk() on 56 of 56 (from, relationship, to, link state, owner, evidence), the paths form's distinct relationships count equal on 56 of 56 and every start returned itself. check_saved_queries.py: every saved query ran, register-impact 5 rows; the stack job's new assertion passed against the local server (5 rows, 5 edges). python tests/run_tests.py: 84 of 84.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+register-impact in harness/store_neo4j.py is now the fixed-stage pattern: IMPACT_WALK (MATCH the start, eight chains in CALL { } UNION, the start and the intermediate nodes filtered on taxonomy and state, the end node unfiltered, is_supported_by as an inverse stage), IMPACT_ROWS (the saved query, one row per edge with the evidence joined from RegLink) and IMPACT_PATHS (OPTIONAL CALL, RETURN a, p, for the Browser's graph view), from one literal start IMPACT_START. Its title says it is the walk tools/impact.py makes. tests/test_register_view.py parses the CALL block from the adapter's text and simulates it over register_project.rows(): equal to walk() on all 56 nodes of demo/register at v0.2.1 and on a fixture with a deprecated intermediate node, a retired step, a deprecated start, two links of one type on one pair and a parent; it also pins the register kinds that bound every chain to three steps. demo.yml's saved-query step asserts the query's row count equals the edge count GET /api/register/impact gives for the listed start (5 and 5 in the stack job of PR #34). Verified live on Neo4j 5.26.0 in the session: both forms equal the walk on 56 of 56 nodes. PR #34 merged on a green matrix (tests, stack, rdflib). Follow-up: TASK-0024.01 surfaces both forms on the panel.
+<!-- SECTION:FINAL_SUMMARY:END -->
