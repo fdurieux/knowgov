@@ -3,11 +3,11 @@ id: TASK-0035
 title: >-
   A Claude row through a LiteLLM gateway in the demo stack, with a cache mark
   and the upstream model named
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-02T19:58:00Z'
-updated_date: '2026-11-02T22:13:00Z'
+updated_date: '2026-11-02T22:17:00Z'
 labels:
   - arms
   - instance
@@ -52,3 +52,9 @@ doc-0006 decided a Claude row is a gateway row: Anthropic's own OpenAI-compatibl
 <!-- SECTION:NOTES:BEGIN -->
 Ran the committed config through LiteLLM 1.106.6 locally (no Docker here): the gateway lists claude-sonnet-5-5, refuses a call without its key; a J-F agent run on scenario C, 4 calls per arm, recorded model claude-sonnet-5-5 and read each turn after the first from the cache: arm B (prompt, cached) 1906/0, 3514/1902, 6164/3512, 8674/6162; arm G 7530/0, 12089/7526. 41,329 tokens. The compose service itself is checked by docker compose config with and without the profile; its live start is the maintainer check on the Mac. Incident: rendering the profile config printed the session KG_ANTHROPIC_KEY value into the tool output (not into any file or commit); the maintainer was told to revoke and replace that key.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Merged in #65 (f37aaaf). A litellm service behind the compose profile claude (image v1.106.6 pinned by digest, demo/litellm/config.yaml naming claude-sonnet-5-5, cache marks on the system prompt and the newest message, KG_ANTHROPIC_KEY and LITELLM_MASTER_KEY read by name); the row anthropic-claude-sonnet-5-5 in demo/models.toml at http://litellm:4000/v1, key_var LITELLM_MASTER_KEY, arms reply and agent; demo README section 'A Claude row, through a gateway'. Verified with a local LiteLLM on the committed config: a J-F agent run recorded claude-sonnet-5-5 and read every turn after the first from the cache. CI green (tests, rdflib, stack); the stack job runs without the profile. Left to the maintainer: the live start of the profile on the Mac, and replacing the exposed Anthropic key.
+<!-- SECTION:FINAL_SUMMARY:END -->
