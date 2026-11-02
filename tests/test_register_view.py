@@ -2,6 +2,7 @@
 IEAM register, read only, in the glossary's terms. Plain asserts, no fixtures, stdlib only."""
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -541,37 +542,77 @@ def test_listed_impact_query_uses_the_registers_default_start_and_the_panel_carr
     assert 'w["cypher"]["rows"]' in ci
 
 
-# ---- task-0024.02: a Browser link that pre-fills the editor with the walk's query, verified in the stack job
-def test_impact_browser_links_carry_the_query_and_the_stack_job_runs_them():
+# ---- task-0024.02 and task-0025: a Browser link per form opens a served guide whose click fills the editor,
+# verified in the stack job; the manual's edit command raced the editor in Browser 5.26.0 (doc-0003)
+def test_impact_browser_links_open_a_served_guide_and_the_stack_job_runs_them():
     import os
+    import re as _re
+    import threading
     import urllib.parse
+    import urllib.request
+    from http.server import ThreadingHTTPServer
     import server
     sys.path.insert(0, str(ROOT / "demo" / "tools"))
     import check_impact_cypher as cic
-    w = server.impact_view("APP-0003")
-    links = w["cypher"]["browser"]
-    assert set(links) == {"rows", "paths"} and [c["browser"] for c in w["panel"]["sections"][-1]["code"]] == [links["rows"], links["paths"]]
+    w = server.impact_view("APP-0003", "http://demo.test:8080")
+    links, guides = w["cypher"]["browser"], w["cypher"]["guide"]
+    assert set(links) == set(guides) == {"rows", "paths"} and [c["browser"] for c in w["panel"]["sections"][-1]["code"]] == [links["rows"], links["paths"]]
     host = urllib.parse.urlparse(server.BROWSER_URL).hostname
-    for key, link in links.items():
+    for form, link in links.items():
         u = urllib.parse.urlsplit(link)
         assert link.startswith(server.BROWSER_URL + "/browser/?") and u.path == "/browser/"
         q = urllib.parse.parse_qs(u.query)
-        assert q["connectURL"] == [f"bolt://neo4j@{host}:7687"] and q["cmd"] == ["edit"] and q["arg"] == [w["cypher"][key]]
-        assert cic.arg_of(link) == w["cypher"][key]
-        # the Browser reads the arg of the decoded URL up to its first & or #: the text holds neither; a + in it is sent as %2B,
-        # which survives the Browser's turning of literal + into spaces before it decodes
-        assert not any(ch in w["cypher"][key] for ch in "&#") and "%2B" in link if "+" in w["cypher"][key] else True
-        # the Browser's own reading (populateEditorFromUrlEpic, 5.26.0): literal + to space, the whole URL decoded, then the arg up to & or #
-        decoded = urllib.parse.unquote(link.replace("+", " "))
-        assert re.findall(r"[\?&]arg=([^&#]*)", decoded) == [w["cypher"][key]]
-    assert "The Browser link opens the editor with the query and runs nothing." in w["panel"]["sections"][-1]["text"]
+        assert q["connectURL"] == [f"bolt://neo4j@{host}:7687"] and q["cmd"] == ["play"] and q["arg"] == ["http://demo.test:8080" + guides[form]]
+        assert guides[form] == f"/api/register/impact/APP-0003/guide/{form}" and cic.guide_url_of(link) == q["arg"][0]
+        # the Browser's own reading of a URL command (5.26.0): literal + to space, the whole URL decoded, the arg up to & or #
+        assert _re.findall(r"[\?&]arg=([^&#]*)", urllib.parse.unquote(link.replace("+", " "))) == [q["arg"][0]]
+        # the guide's block is the form's text, as the Browser would put it in the editor (textContent, trimmed)
+        guide = server.impact_guide("APP-0003", form)
+        assert guide.startswith('<article class="guide">') and 'class="pre-scrollable code runnable"' in guide and "<script" not in guide
+        assert cic.block_of(guide) == w["cypher"][form] == w["cypher"][form].strip()
+        assert "Nothing runs until you press play." in guide and "project the register again first" in guide
+    assert "A click on the guide's query puts it in the editor; nothing runs until you press play." in w["panel"]["sections"][-1]["text"]
+    assert "cmd=edit" not in (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8").split("def guide_html")[1].split("def browser_play_url")[0].replace("(?cmd=edit&arg=)", "")
     _check_sentences(w["text_registry"])
     assert register_view.with_cypher(register_view.impact("APP-0003"), {"rows": "r", "paths": "p"}, "x")["cypher"]["browser"] is None
+    assert server.impact_guide("APP-9999", "rows") is None and server.impact_guide("APP-0003", "edit") is None
     os.environ["KG_STORE"] = "rdflib"
     try:
-        assert server.impact_view("APP-0003")["cypher"] is None
+        assert server.impact_view("APP-0003")["cypher"] is None and server.impact_guide("APP-0003", "rows") is None
     finally:
         del os.environ["KG_STORE"]
+    # the route as the Browser fetches it: cross-origin, the preflight answered, the header on the guide and nowhere else
+    class Quiet(server.Handler):
+        def log_message(self, fmt, *args):
+            pass
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Quiet)
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    try:
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+        w2 = json.loads(urllib.request.urlopen(base + "/api/register/impact/APP-0003").read())
+        assert cic.guide_url_of(w2["cypher"]["browser"]["paths"]) == base + guides["paths"], "the link names the host the viewer used"
+        with urllib.request.urlopen(base + "/api/register/impact/APP-0003") as r:
+            assert r.headers.get("Access-Control-Allow-Origin") is None
+        assert cic.block_of(cic.fetch_guide(base + guides["rows"])) == w["cypher"]["rows"]
+        assert cic.block_of(cic.fetch_guide(base + guides["paths"])) == w["cypher"]["paths"]
+        for bad in ("/api/register/impact/APP-9999/guide/rows", "/api/register/impact/APP-0003/guide/edit"):
+            for method in ("GET", "OPTIONS"):
+                try:
+                    urllib.request.urlopen(urllib.request.Request(base + bad, method=method))
+                except urllib.error.HTTPError as e:
+                    assert e.code == 404 and e.headers.get("Access-Control-Allow-Origin") is None, (bad, method)
+                else:
+                    raise AssertionError((bad, method))
+        try:
+            urllib.request.urlopen(urllib.request.Request(base + "/api/register", method="OPTIONS"))
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+        else:
+            raise AssertionError("OPTIONS answered off the guide route")
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
     # the comparator's shapes: the walk's edges as the rows form returns them, the paths' distinct relationships and starts
     edges = [{"from": "A", "rel": "supports", "to": "P", "state": "approved", "owner": "O", "evidence": ["e1"]}]
     rows = [{"from": "A", "relationship": "supports", "to": "P", "link state": "approved", "owner": "O", "evidence": None}]
@@ -584,16 +625,42 @@ def test_impact_browser_links_carry_the_query_and_the_stack_job_runs_them():
     class P:
         relationships = (Rel("r1"), Rel("r2"), Rel("r1"))
     assert cic.path_shape([{"a": {"reg_id": "A"}, "p": P()}, {"a": {"reg_id": "A"}, "p": None}]) == (2, {"A"})
-    for bad in ("http://x/browser/?connectURL=b&cmd=play&arg=start", "http://x/browser/?cmd=edit&arg=a"):
+    for bad in ("http://x/browser/?connectURL=b&cmd=edit&arg=a", "http://x/browser/?cmd=play&arg=http://d/g"):
         try:
-            cic.arg_of(bad)
+            cic.guide_url_of(bad)
         except AssertionError:
             pass
         else:
             raise AssertionError(bad)
+    assert cic.block_of('<article><pre class="code runnable"> MATCH (a) &amp;&lt; x\n</pre></article>') == "MATCH (a) &< x"
     page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
     assert 'href="${esc(c.browser)}" target="_blank" rel="noopener">open in the Browser</a>' in page
     ci = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert "demo/tools/check_impact_cypher.py" in ci and ci.index("check_saved_queries.py") < ci.index("check_impact_cypher.py")
+    compose = (ROOT / "demo" / "docker-compose.yml").read_text(encoding="utf-8")
+    assert "NEO4J_browser_remote__content__hostname__whitelist: guides.neo4j.com,localhost,${KG_DEMO_HOST:-localhost}" in compose
     readme = (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
-    assert "**The impact panel's Browser links.**" in readme and "pre-filled" in readme and "wipes the projection first" in readme
+    assert "**The impact panel's Browser links.**" in readme and "cmd=play" in readme and "wipes the projection first" in readme and "KG_DEMO_HOST" in readme
+
+
+def test_register_tools_load_once_under_concurrent_requests():
+    """The page asks for the saved queries and the register at the same time, and since task-0025
+    both load the register's tools: on the threading server two imports at once saw each other's
+    half-built modules ("cannot import name 'ROOT' from 'register'"). One lock, one load."""
+    import threading
+    register_view._tools = None
+    results, errors = [], []
+
+    def load():
+        try:
+            results.append(id(register_view._load_tools()))
+        except Exception as e:  # noqa: BLE001
+            errors.append(repr(e))
+    threads = [threading.Thread(target=load) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not errors, errors
+    assert len(set(results)) == 1 and register_view._tools is not None
+    assert register_view.impact("APP-0002")["reached"]["products"]

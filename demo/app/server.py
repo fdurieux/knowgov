@@ -21,6 +21,7 @@ Environment:
 from __future__ import annotations
 
 import datetime as dt
+import html
 import json
 import os
 import re
@@ -122,20 +123,40 @@ def cypher_list() -> list[dict]:
     return out
 
 
-def browser_edit_url(text: str) -> str:
-    """The store's Browser with the editor pre-filled and nothing run: the Browser manual's
-    ?cmd=edit&arg=<query>, with the ?connectURL= the page's own Browser link carries. The Browser
-    reads the arg up to the first & or # of the decoded URL, which the walk's text never holds."""
+GUIDE_FORMS = ("rows", "paths")
+
+
+def guide_path(start: str, form: str) -> str:
+    return f"/api/register/impact/{urllib.parse.quote(start)}/guide/{form}"
+
+
+def guide_html(start: str, form: str, text: str) -> str:
+    """A Neo4j Browser guide (task-0025): an article the Browser fetches cross-origin and shows in a
+    frame. Its block marked runnable puts its text in the editor on a click, through the Browser's
+    own click-to-insert, and runs nothing; the viewer presses play. The edit command of the manual
+    (?cmd=edit&arg=) is not used: Browser 5.26.0 sends it before the editor listens."""
+    h = html.escape
+    what = "one row per edge" if form == "rows" else "the paths, for the graph view"
+    return (f'<article class="guide"><h3>Impact of retiring {h(start)}: {what}</h3>\n'
+            "<p>A click on the query puts it in the editor. Nothing runs until you press play. "
+            "A run wipes the projection: project the register again first.</p>\n"
+            f'<pre class="pre-scrollable code runnable">{h(text)}</pre></article>\n')
+
+
+def browser_play_url(origin: str, path: str) -> str:
+    """The store's Browser, connected as the page's own link connects, opening the guide at
+    origin+path through the Browser manual's ?cmd=play&arg=<url>. The guide's host must be in the
+    Browser's remote content allowlist: localhost by default, KG_DEMO_HOST in docker-compose.yml."""
     host = urllib.parse.urlparse(BROWSER_URL).hostname or "localhost"
     return BROWSER_URL + "/browser/?" + urllib.parse.urlencode(
-        {"connectURL": f"bolt://neo4j@{host}:7687", "cmd": "edit", "arg": text}, quote_via=urllib.parse.quote)
+        {"connectURL": f"bolt://neo4j@{host}:7687", "cmd": "play", "arg": origin + path}, quote_via=urllib.parse.quote)
 
 
-def impact_view(start: str) -> dict | None:
+def impact_view(start: str, origin: str = "http://localhost:8080") -> dict | None:
     """The impact walk from one node, with the walk's Cypher for the id typed when the store has a
-    console (task-0024): both forms, and for each a Browser link that pre-fills the editor. None
-    for an unknown id. The id is a node of the register, so it is a plain literal in the query;
-    nothing is run."""
+    console (task-0024): both forms, and for each the guide the server serves and the Browser link
+    that opens it, on the origin the viewer reached (the request's Host). None for an unknown id.
+    The id is a node of the register, so it is a plain literal in the query; nothing is run."""
     out = register_view.impact(start)
     if out is None:
         return None
@@ -146,8 +167,20 @@ def impact_view(start: str) -> dict | None:
         except ImportError:
             return out
         cy = impact_cypher(start)
-        register_view.with_cypher(out, cy, NEEDS_TEXT["register"], browser={k: browser_edit_url(v) for k, v in cy.items()})
+        guides = {form: guide_path(start, form) for form in GUIDE_FORMS}
+        register_view.with_cypher(out, cy, NEEDS_TEXT["register"], browser={form: browser_play_url(origin, guides[form]) for form in GUIDE_FORMS}, guide=guides)
     return out
+
+
+def impact_guide(start: str, form: str) -> str | None:
+    """The guide of one form for one node, or None when there is no such node or form, or no console."""
+    if form not in GUIDE_FORMS or not _console_store() or register_view.impact(start) is None:
+        return None
+    try:
+        from store_neo4j import impact_cypher
+    except ImportError:
+        return None
+    return guide_html(start, form, impact_cypher(start)[form])
 
 
 # ------------------------------------------------------------------ the store
@@ -305,13 +338,40 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # quieter than the default
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
 
-    def _send(self, code: int, body: bytes, ctype: str = "application/json; charset=utf-8") -> None:
+    def _send(self, code: int, body: bytes, ctype: str = "application/json; charset=utf-8", cors: bool = False) -> None:
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if cors:   # only a guide: the Browser fetches it from its own origin
+            self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
+
+    def _origin(self) -> str:
+        """Where the viewer reached this server, for a link the viewer's browser follows: the
+        request's Host, over http (the demo serves no TLS)."""
+        return "http://" + (self.headers.get("Host") or f"localhost:{PORT}")
+
+    @staticmethod
+    def _guide_parts(path: str) -> tuple[str, str] | None:
+        parts = [p for p in path.split("/") if p]
+        if parts[:3] == ["api", "register", "impact"] and len(parts) == 6 and parts[4] == "guide":
+            return urllib.parse.unquote(parts[3]), parts[5]
+        return None
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        """The preflight of the Browser's cross-origin fetch of a guide (it sends pragma and
+        cache-control headers); no other route, and no guide that does not exist, answers one."""
+        parts = self._guide_parts(urllib.parse.urlparse(self.path).path)
+        if parts is None or impact_guide(*parts) is None:
+            return self._json({"error": "not found"}, 404)
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", self.headers.get("Access-Control-Request-Headers") or "pragma, cache-control")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def _json(self, obj, code: int = 200) -> None:
         self._send(code, json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8"))
@@ -368,8 +428,14 @@ class Handler(BaseHTTPRequestHandler):
                 if r is None:
                     return self._json({"error": f"no {kind} {ident} in the register"}, 404)
                 return self._json(r)
+            if self._guide_parts(u.path) is not None:
+                start, form = self._guide_parts(u.path)
+                guide = impact_guide(start, form)
+                if guide is None:
+                    return self._json({"error": f"no guide {form} for {start}"}, 404)
+                return self._send(200, guide.encode("utf-8"), "text/html; charset=utf-8", cors=True)
             if parts[:3] == ["api", "register", "impact"] and len(parts) == 4:
-                out = impact_view(parts[3])
+                out = impact_view(parts[3], self._origin())
                 return self._json(out) if out is not None else self._json({"error": f"no such node: {parts[3]}"}, 404)
             if parts[:2] == ["api", "gaps"] and len(parts) == 3 and parts[2] in views.SCENARIOS:
                 return self._json(store_gaps(parts[2]))

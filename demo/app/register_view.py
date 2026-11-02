@@ -21,6 +21,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import tomllib
 from pathlib import Path
 
@@ -33,10 +34,17 @@ sys.path.insert(0, str(HERE))
 import views  # noqa: E402  (the controlled-English registry and glossary live there)
 
 _tools: dict | None = None
+_tools_lock = threading.Lock()   # the page's first requests arrive together on the threading server
 
 
 def _load_tools() -> dict:
-    """Import the vendored register tools once, from the copy, by path."""
+    """Import the vendored register tools once, from the copy, by path. Under the lock: two
+    requests importing at once would see each other's half-built modules (task-0025)."""
+    with _tools_lock:
+        return _load_tools_locked()
+
+
+def _load_tools_locked() -> dict:
     global _tools
     if _tools is None:
         tools = REGISTER / "tools"
@@ -165,20 +173,21 @@ def impact(start: str) -> dict | None:
             "text_registry": reg_sentences}
 
 
-def with_cypher(walk: dict, cypher: dict, needs_text: str, browser: dict | None = None) -> dict:
+def with_cypher(walk: dict, cypher: dict, needs_text: str, browser: dict | None = None, guide: dict | None = None) -> dict:
     """The impact panel with the walk's Cypher beside it (task-0024): a code section carrying both
     forms, the rows form and the paths form, with what they need in the store, and for each a
-    Browser link that pre-fills the editor when the server gives one. The query text is data; the
-    sentences around it are controlled. The page runs nothing."""
+    Browser link when the server gives one: it opens a guide the server serves, whose block fills
+    the editor on a click (task-0025). The query text is data; the sentences around it are
+    controlled. The page runs nothing."""
     reg_sentences = walk["text_registry"]
     C = lambda *s: views._reg(reg_sentences, "controlled", *s)  # noqa: E731
     text = C("The rows form gives one row per edge, the table above.", "The paths form gives the paths, which the Browser draws as a graph.",
              "The Browser draws every relationship among the shown nodes, so a parent edge can appear that the walk never followed.",
              "A run wipes the projection, so project it again before pasting.")
     if browser:
-        text += " " + C("The Browser link opens the editor with the query and runs nothing.",
-                        "If the editor opens empty, which Browser 5.26 did in a test, paste the copied query.")
-    walk["cypher"] = dict(cypher, needs="register", needs_text=needs_text, browser=browser)
+        text += " " + C("The Browser link opens a guide beside the editor, connected to the store.",
+                        "A click on the guide's query puts it in the editor; nothing runs until you press play.")
+    walk["cypher"] = dict(cypher, needs="register", needs_text=needs_text, browser=browser, guide=guide)
     code = [{"label": C("Rows, one per edge"), "text": cypher["rows"]}, {"label": C("Paths, for the graph view"), "text": cypher["paths"]}]
     for item, key in zip(code, ("rows", "paths")):
         if browser:

@@ -96,21 +96,32 @@ scenario at a time, so a query run against the wrong state gets Neo4j's
 not a fault.
 
 **The impact panel's Browser links.** Beside each form on the impact
-panel, next to its copy button, a link opens Neo4j Browser with the
-editor pre-filled and nothing run: it is the Browser's own
-`?cmd=edit&arg=<query>` joined to the `?connectURL=` the *Open Neo4j
-Browser* link already carries, so the Browser connects and shows the
-query, and you press play yourself. A run wipes the projection first, so
-project the register again before you do, or the Browser warns that the
-`RegNode` label is not in the database and returns no rows. One caveat
-from testing the link against Browser 5.26.0 in a scripted browser: the
-editor opened empty, because the Browser sends the pre-fill one
-millisecond after it starts and the editor listens for it only once it is
-mounted, while the connect URL took. If that happens to you, the copy
-button holds the same text: paste it. The stack job proves the links
-themselves: for every node of the register it takes the query from each
-link and runs it through the store, and the rows must be the walk's edges
-and the paths the same relationships (`demo/tools/check_impact_cypher.py`).
+panel, next to its copy button, a link opens Neo4j Browser connected to
+the store (the `?connectURL=` the *Open Neo4j Browser* link carries) and
+showing a guide the demo serves for that form, through the Browser's own
+`?cmd=play&arg=<the guide's URL>`. A guide is a small HTML article the
+Browser fetches from this page's address and shows in a frame; its query
+block is marked runnable, so one click puts the query in the editor and
+nothing runs until you press play. The Browser manual also documents
+`?cmd=edit&arg=` to pre-fill the editor from a link, but Browser 5.26.0
+sends that content before the editor listens, so the editor opened empty
+in a scripted test; the guide route does not race, because the click
+comes after the editor exists. A run wipes the projection first, so
+project the register again before you press play, or the Browser warns
+that the `RegNode` label is not in the database and returns no rows. The
+Browser fetches the guide from its own origin, so the guide route answers
+with the CORS headers that one route alone carries, and the Browser loads
+guides only from hosts its allowlist names: `localhost` out of the box,
+which is where you reach the demo on your own machine, and the compose
+file adds `KG_DEMO_HOST` for an instance reached by address. The Browser
+applies the server's allowlist once it is connected, so on such an
+instance connect first; a frame that opened before that says *No guide by
+that name* and runs again from its own ↻. The stack job proves the chain
+short of the click: for every node of the register it follows each link
+to its guide, as the Browser would, checks the block against the listed
+query and runs it through the store, where the rows must be the walk's
+edges and the paths the same relationships
+(`demo/tools/check_impact_cypher.py`).
 
 **The register.** The last entry of the Scenarios list is the IEAM
 register, a separate public repository
@@ -634,7 +645,9 @@ configured for 1 GB of heap and 512 MB of page cache, the app needs little.
 Use an Ubuntu image with Docker installed, clone the repository, and start
 the stack as above with `KG_BROWSER_URL=http://<the instance's public address>:7474`
 exported so the demo's "Open Neo4j Browser" link and the impact panel's
-Browser links point at the instance rather than at your own machine. **Restrict the security group to your own
+Browser links point at the instance rather than at your own machine, and
+`KG_DEMO_HOST=<the instance's public address>` so the Browser is allowed
+to fetch the impact panel's guides from the page. **Restrict the security group to your own
 IP address** for ports 8080, 7474 and 7687: the demo page has no
 authentication at all, and port 7474 is a live database console protected
 only by the password you set. Do not leave the instance reachable from the
