@@ -7,7 +7,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-01T23:23:00Z'
-updated_date: '2026-11-02T07:26:00Z'
+updated_date: '2026-11-02T08:53:00Z'
 labels:
   - story
   - arms
@@ -42,3 +42,9 @@ The arm is one chat completion: one prompt, one JSON reply, one module (harness/
 - [ ] #3 Every run is bounded by a per-run ceiling in calls, dollars and wall time, recorded in the run folder; a run that hits it ends with a decision of abstain and says why
 - [ ] #4 The CargoQuote subject still runs its one-reply arm unchanged and its deterministic record compares identical; the agentic loop is selected by the subject's manifest, and nothing in harness/ or demo/ names a subject
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Spike task-0022.01 closed 2026-11-02 (the maintainer: route 'bundle first', then 'close and start 02'). Three D3 probes of the one-reply arm, gpt-5.5, n=1 each, est. $1.1 in all: B generated 664- and 811-line modules in two draws (oracle 2 and 1 of 12 features) and abstained in the third; G abstained three times, twice for verbatim documents the bundle lacked (closed by #30: the task table names them and the bundle carries them after the knowledge), once because the QUALIFIED isolation rule read as too onerous across every module and for want of an executable oracle to iterate against. Both arms, in the last draw, asked for iteration against the suite. The story continues with task-0022.02, the tool loop with the scenario's suite as feedback, and the multi-reply arm without feedback is not built; the QUALIFIED wording in harness/policy.md is to say what isolation costs, as part of 0022.02.
+<!-- SECTION:NOTES:END -->

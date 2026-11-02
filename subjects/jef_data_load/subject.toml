@@ -107,6 +107,16 @@ approval = { at = "2026-10-24", record = "kit CHANGES.md revision 2026-10-24: th
 # configuration files the program embeds, the parser surface and help texts the suite checks
 # verbatim, and the adapter interface; the governed arm asked for exactly these and abstained
 # without them (task-0022.01, 2026-11-02).
+# The arms: an agent loop with tools over a sandbox (harness/agent.py), since the one-reply arm asked for
+# iteration against the suite at this task's size (task-0022.01). The layout is what the oracle grades.
+[arms]
+kind = "agent"
+
+[arms.agent]
+system_prompt = "system_agent"
+feedback = "features/"
+layout = """LAYOUT OF THE SANDBOX (what the oracle grades): the package `src/jef/data/` with `src/jef/__init__.py`, `src/jef/data/__init__.py` and its modules (the reference split them as cli, collectors, contract, health, parser, store, sync, universe); `jdl_adapter.py` at the sandbox root exposing the ten adapter functions of contracts/HARNESS_INTERFACE.md; the `jef-data` command is `jef.data.cli:main(argv=None) -> int` and is launched by the suite, not by you; `deploy/daily.sh` may be written but the chain scenarios run only against the reference. Work in turns: write the modules, run the suite (one feature at a time is cheaper), read the failed scenarios' names, fix, repeat; end with finish. Every file you write is graded as it stands when you finish."""
+
 [tasks.codegen]
 verbatim = ["contracts/universe.toml", "contracts/classifications.toml", "contracts/cli.md", "contracts/cli_help.md", "contracts/HARNESS_INTERFACE.md"]
 keys = [

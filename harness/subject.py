@@ -104,6 +104,7 @@ class Subject:
         self.provenance: dict = m.get("provenance", {})
         self.verification: dict = m.get("verification", {})
         self.tasks: dict = m.get("tasks", {})
+        self.arms: dict = m.get("arms", {})   # kind = "reply" (one JSON reply, the default) or "agent" (a tool loop; [arms.agent])
         self.three_valued: list[str] = list(m.get("three_valued", {}).get("keys", []))
         self.rules: dict = m.get("rules", {})
         self.register: dict = m.get("register", {})

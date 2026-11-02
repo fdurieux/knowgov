@@ -89,6 +89,45 @@ def run_suite(code: str | None, scenario: str) -> dict:
     return {"ran": True, "passed": sum(1 for v in per.values() if v["passed"]), "total": len(per), "per_scenario": per}
 
 
+def run_suite_dir(path: Path, scenario: str) -> dict:
+    """pass/total over the oracle's scenarios for a directory artefact (an agent run's sandbox),
+    with the scenario's recomputed overlays; the oracle script decides what a directory must hold."""
+    path = Path(path)
+    if not path.is_dir() or not any(p.is_file() for p in path.rglob("*")):
+        return {"ran": False, "passed": 0, "total": SUITE_TOTAL, "per_scenario": {}}
+    smoke = _smoke()
+    suite = smoke.suite_mod
+    overlays = dict(suite.OVERLAYS)
+    overlays.update(OVERLAYS.get(scenario, {}))
+    per = {}
+    for name in suite.SUITE["scenarios"]:
+        res = smoke.run_child(path, smoke.build_spec(name))
+        ov = overlays.get(name)
+        if ov and res.get("passed"):
+            detail = (res.get("detail") or "").lower()
+            if ov.get("require_re") and not re.search(ov["require_re"], detail):
+                res.update(passed=False, stage="wrong_outcome", detail="overlay-require: " + detail)
+            elif ov.get("forbid_re") and re.search(ov["forbid_re"], detail):
+                res.update(passed=False, stage="wrong_outcome", detail="overlay-forbid: " + detail)
+        per[name] = {"passed": bool(res.get("passed")), "stage": res.get("stage"), "detail": (res.get("detail") or "")[:200]}
+    return {"ran": True, "passed": sum(1 for v in per.values() if v["passed"]), "total": len(per), "per_scenario": per}
+
+
+def feedback_runner(kit: dict[str, str], features_key: str):
+    """The agent's run_suite tool: the scenario's own (planted) suite, as the kit holds it, run over the
+    sandbox by the oracle script's run_feedback; a script without one says so."""
+    from subject import bundle_parts
+
+    smoke = _smoke()
+    if not hasattr(smoke, "run_feedback"):
+        raise RuntimeError(f"{SUBJECT.id}: the oracle script has no run_feedback; the agent arm needs one")
+    features = {rel: text for rel, text in bundle_parts(kit.get(features_key, "")) if rel}
+
+    def feedback(sandbox_root: Path, feature: str | None) -> dict:
+        return smoke.run_feedback(Path(sandbox_root), features, feature)
+    return feedback
+
+
 def outage_status(suite_result: dict) -> str | None:
     """What the code returned on the oracle's status scenario, read from the runner detail."""
     name = SUBJECT.oracle.get("status_scenario")

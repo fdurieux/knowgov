@@ -274,3 +274,24 @@ print("ok")
     r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=dict(os.environ, KG_SUBJECT=str(SUBJ)), capture_output=True, text=True)
     assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr[-1500:]
     assert "verbatim" in (ROOT / "subjects" / "README.md").read_text(encoding="utf-8")
+
+
+def test_the_subject_runs_its_arms_as_an_agent_and_its_oracle_gives_feedback():
+    """task-0022.02: the J-F arms are the tool loop (subject.toml [arms] kind = agent) with the kit's
+    features as the scenario's suite, a layout the oracle grades, and an agent system prompt; the
+    oracle script offers run_feedback. CargoQuote keeps the one-reply arm (no [arms] table)."""
+    code = """
+import sys, importlib.util; sys.path.insert(0, "harness")
+from subject import SUBJECT
+a = SUBJECT.arms
+assert a["kind"] == "agent" and a["agent"]["feedback"] == "features/" and a["agent"]["system_prompt"] == "system_agent", a
+assert "jdl_adapter.py" in a["agent"]["layout"] and "finish" in a["agent"]["layout"]
+assert "read_document" in SUBJECT.prompt("system_agent") and "finish(" in SUBJECT.prompt("system_agent")
+spec = importlib.util.spec_from_file_location("js", SUBJECT.oracle_script()); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+assert callable(m.run_feedback) and callable(m.run_artifact)
+print("ok")
+"""
+    r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=dict(os.environ, KG_SUBJECT=str(SUBJ)), capture_output=True, text=True)
+    assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr[-1500:]
+    cargo = tomllib.loads((ROOT / "subjects" / "cargo_quote" / "subject.toml").read_text(encoding="utf-8"))
+    assert "arms" not in cargo, "CargoQuote keeps the one-reply arm"
