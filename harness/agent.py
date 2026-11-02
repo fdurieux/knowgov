@@ -105,7 +105,7 @@ def openai_responder(model: str | None = None):
                         base_url=ep["base_url"] if ep["base_url"] != arms.DEFAULT_BASE_URL else None, max_retries=0)
         t0 = time.time()
         stream = client.chat.completions.create(model=model or ep["model"], messages=messages, tools=tools, tool_choice="auto",
-                                                stream=True, stream_options={"include_usage": True})
+                                                stream=True, stream_options={"include_usage": True}, **arms.effort_kwargs(ep["effort"]))
         parts, calls, usage_obj, model_name = [], {}, None, model or ep["model"]
         for chunk in stream:
             if chunk.usage:
@@ -149,7 +149,8 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
     box = Sandbox(sandbox)
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     trace: list[dict] = []
-    tot = {"calls": 0, "prompt_tokens": 0, "cached_tokens": 0, "completion_tokens": 0, "tool_calls": 0, "model": None}
+    tot = {"calls": 0, "prompt_tokens": 0, "cached_tokens": 0, "completion_tokens": 0, "tool_calls": 0, "model": None,
+           "host": arms.endpoint()["host"], "effort": arms.endpoint()["effort"]}   # what every turn of this run was sent to, and at what effort
     t0 = time.time()
     final: dict | None = None
     stopped_by: str | None = None
@@ -176,7 +177,7 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
         tot["cached_tokens"] += u.get("cached_tokens", 0)
         tot["completion_tokens"] += u.get("completion_tokens", 0)
         tot["model"] = r.get("model") or tot["model"]
-        arms.account({"tag": f"{tag}/turn{tot['calls']}", "model": r.get("model"), "attempts": 1, "streamed": True,
+        arms.account({"tag": f"{tag}/turn{tot['calls']}", "model": r.get("model"), "host": tot["host"], "effort": tot["effort"], "attempts": 1, "streamed": True,
                       "prompt_tokens": u.get("prompt_tokens", 0), "cached_tokens": u.get("cached_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
                       "seconds": r.get("seconds", 0)})
         calls = r.get("tool_calls") or []

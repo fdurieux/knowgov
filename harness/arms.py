@@ -32,6 +32,7 @@ HERE = Path(__file__).resolve().parent
 from subject import SUBJECT  # noqa: E402
 
 RECORD_MODEL = SUBJECT.record_model  # the model of the subject's scored run, "" when its record ran no arm
+RECORD_EFFORT = SUBJECT.record_effort  # the reasoning effort of that run, "" for the API default (task-0028)
 DEFAULT_MODEL = "gpt-5.5"            # what the arms call when the record names no model and KG_ARMS_MODEL is unset
 # The demo's Arms mode may call another model through KG_ARMS_MODEL (a legacy model's
 # rate limit on a new organisation blocked the governed prompt there); such runs are a
@@ -66,13 +67,28 @@ class BudgetExceeded(RuntimeError):
 
 
 def endpoint() -> dict:
-    """The three instance settings as they stand now, and whether the arms are enabled."""
+    """The instance settings as they stand now (base URL, key variable, model, effort), and whether a
+    call would be a deviation from the record: a model or an effort other than the record's, when the
+    record ran an arm at all. KG_ARMS_EFFORT is the reasoning effort sent with every call; empty sends
+    none and the API applies its default (task-0028)."""
     key_var = os.environ.get("KG_MODEL_API_KEY_VAR") or "OPENAI_API_KEY"
     base_url = os.environ.get("KG_MODEL_BASE_URL") or DEFAULT_BASE_URL
     model = os.environ.get("KG_ARMS_MODEL") or RECORD_MODEL or DEFAULT_MODEL
-    # a deviation is a model other than the record's; a record that ran no arm has nothing to deviate from
-    return {"base_url": base_url, "key_var": key_var, "key_set": bool(os.environ.get(key_var)),
-            "model": model, "record_model": RECORD_MODEL, "deviation": bool(RECORD_MODEL) and model != RECORD_MODEL}
+    effort = (os.environ.get("KG_ARMS_EFFORT") or "").strip()
+    return {"base_url": base_url, "host": host_of(base_url), "key_var": key_var, "key_set": bool(os.environ.get(key_var)),
+            "model": model, "record_model": RECORD_MODEL, "effort": effort, "record_effort": RECORD_EFFORT,
+            "deviation": bool(RECORD_MODEL) and (model != RECORD_MODEL or effort != RECORD_EFFORT)}
+
+
+def host_of(base_url: str) -> str:
+    """The host part of a base URL, what the page and a run file name the endpoint by."""
+    return base_url.split("://", 1)[-1].split("/", 1)[0]
+
+
+def effort_kwargs(effort: str) -> dict:
+    """The request's reasoning-effort argument: set only when an effort is named, so an empty effort
+    sends no parameter and the API applies its own default."""
+    return {"reasoning_effort": effort} if effort else {}
 
 
 def enabled() -> bool:
@@ -124,7 +140,7 @@ def call(system: str, user: str, *, tag: str) -> dict:
             stream = client.chat.completions.create(
                 model=model, response_format={"type": "json_object"},
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-                stream=True, stream_options={"include_usage": True},
+                stream=True, stream_options={"include_usage": True}, **effort_kwargs(ep["effort"]),
             )
             parts, usage_obj, model_name = [], None, model
             for chunk in stream:
@@ -146,8 +162,8 @@ def call(system: str, user: str, *, tag: str) -> dict:
     dt = time.time() - t0
     u = usage_obj
     cached = cached_of(u)
-    rec = {"tag": tag, "model": model_name, "attempts": attempts, "streamed": True, "prompt_tokens": u.prompt_tokens,
-           "cached_tokens": cached, "completion_tokens": u.completion_tokens, "seconds": round(dt, 1)}
+    rec = {"tag": tag, "model": model_name, "host": ep["host"], "effort": ep["effort"], "attempts": attempts, "streamed": True,
+           "prompt_tokens": u.prompt_tokens, "cached_tokens": cached, "completion_tokens": u.completion_tokens, "seconds": round(dt, 1)}
     with _lock:
         _state["tokens"] += tokens_of(rec)
         _state["usage"].append(rec)

@@ -90,6 +90,7 @@ class Subject:
         self.name: str = s.get("name", self.id)
         self.description: str = s.get("description", "")
         self.record_model: str = s.get("record_model", "")
+        self.record_effort: str = s.get("record_effort", "")   # the reasoning effort the record's arms ran at; "" is the API default (task-0028)
         self.artefacts: list[dict] = list(m.get("artefact", []))
         sc = _toml(self.root / "scenarios.toml")
         self.scenarios: dict[str, dict] = {x["id"]: x for x in sc.get("scenario", [])}

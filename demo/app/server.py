@@ -56,6 +56,17 @@ RECORD_MODEL = views.RECORD_MODEL
 # harness itself reads the variable the server passes per run
 DEFAULT_OTHER_MODEL = os.environ.get("KG_ARMS_MODEL") or arms.DEFAULT_MODEL
 MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
+EFFORT_RE = re.compile(r"^[a-z][a-z0-9_-]{0,19}$")   # the API's own literals (none, minimal, low, medium, high, xhigh, max); "" sends none
+RECORD_EFFORT = views.RECORD_EFFORT
+
+
+def arms_effort(requested: str | None) -> str:
+    """The effort an Arms run sends: the page's choice, else none (the API's default). A word the
+    API does not know is refused by the API, not here (task-0028)."""
+    effort = (requested or "").strip()
+    if effort and not EFFORT_RE.match(effort):
+        raise ValueError(f"not an effort: {effort!r}")
+    return effort
 
 
 def arms_model(requested: str | None) -> str:
@@ -67,9 +78,9 @@ def arms_model(requested: str | None) -> str:
     return model
 
 
-def is_deviation(model: str) -> bool:
-    """A model other than the record's answered; nothing to deviate from when the record ran no arm."""
-    return bool(RECORD_MODEL) and model != RECORD_MODEL
+def is_deviation(model: str, effort: str = "") -> bool:
+    """A model or an effort other than the record's answered; nothing to deviate from when the record ran no arm."""
+    return bool(RECORD_MODEL) and (model != RECORD_MODEL or effort != RECORD_EFFORT)
 INDEX = (HERE / "index.html").read_bytes()
 
 # Saved Cypher for the store panel. Each runs in Neo4j Browser against the
@@ -79,7 +90,8 @@ def _endpoint_view() -> dict:
     its value), the model, and whether a call would be a deviation from the record."""
     ep = arms.endpoint()
     host = ep["base_url"].split("://", 1)[-1].split("/", 1)[0]
-    return {"host": host, "key_var": ep["key_var"], "key_set": ep["key_set"], "model": ep["model"], "deviation": ep["deviation"]}
+    return {"host": host, "key_var": ep["key_var"], "key_set": ep["key_set"], "model": ep["model"], "effort": ep["effort"],
+            "record_effort": ep["record_effort"], "deviation": ep["deviation"]}
 
 
 def _store(timeout: float = 3):
@@ -243,7 +255,7 @@ class Runner:
         self.current: dict | None = None
         self.history: list[dict] = []
 
-    def start(self, scenario: str, mode: str, n: int, model: str | None = None) -> dict:
+    def start(self, scenario: str, mode: str, n: int, model: str | None = None, effort: str | None = None) -> dict:
         if scenario not in views.SCENARIOS:
             raise ValueError(f"unknown scenario {scenario}")
         if mode not in ("deterministic", "arms"):
@@ -251,6 +263,7 @@ class Runner:
         if mode == "arms" and not arms.enabled():
             raise ValueError(f"arms mode needs {arms.endpoint()['key_var']} in the app's environment")
         model = arms_model(model)
+        effort = arms_effort(effort)
         with self.lock:
             if self.current and self.current["status"] == "running":
                 raise RuntimeError("a run is already in progress; the store is one database")
@@ -282,11 +295,13 @@ class Runner:
                 env.setdefault("KG_RDFLIB_FILE", str(RUNS_DIR / "store.ttl"))
             if mode == "arms":
                 env["KG_ARMS_MODEL"] = model  # the record's model unless the page chose another
+                env["KG_ARMS_EFFORT"] = effort  # "" sends no effort parameter: the API's default
             log = out_dir / f"{scenario}-{mode}.log"
             fh = open(log, "w", encoding="utf-8")  # noqa: SIM115 — closed when the process ends
             proc = subprocess.Popen(cmd, cwd=str(HARNESS), stdout=fh, stderr=subprocess.STDOUT, env=env)
             rec = {"id": out_dir.name, "scenario": scenario, "mode": mode, "n": n, "status": "running",
-                   "model": model if mode == "arms" else None, "model_deviation": (mode == "arms" and is_deviation(model)),
+                   "model": model if mode == "arms" else None, "effort": effort if mode == "arms" else None,
+                   "model_deviation": (mode == "arms" and is_deviation(model, effort)),
                    "started": _now(), "finished": None, "exit_code": None,
                    "out_dir": str(out_dir), "log": str(log), "source": f"demo-runs/{out_dir.name}", "cmd": " ".join(cmd)}
             self.current = rec
@@ -390,7 +405,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"scenarios": views.scenario_list(RUNS_DIR), "store": st,
                                    "page": {"title": SUBJECT.page.get("title", ""), "subtitle": SUBJECT.page.get("subtitle", "")},
                                    "arms_enabled": arms.enabled(), "model_endpoint": _endpoint_view(),
-                                   "record_model": RECORD_MODEL, "default_other_model": DEFAULT_OTHER_MODEL,
+                                   "record_model": RECORD_MODEL, "record_effort": RECORD_EFFORT, "default_other_model": DEFAULT_OTHER_MODEL,
                                    "arms_model_preset": bool(os.environ.get("KG_ARMS_MODEL")),
                                    "deterministic_enabled": st["reachable"],
                                    "runs_dir": str(RUNS_DIR), "run": RUNNER.describe()})
@@ -476,7 +491,8 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "run"]:
             try:
                 rec = RUNNER.start(str(body.get("scenario", "")), str(body.get("mode", "")), int(body.get("n", 1)),
-                                   model=(str(body["model"]) if body.get("model") else None))
+                                   model=(str(body["model"]) if body.get("model") else None),
+                                   effort=(str(body["effort"]) if body.get("effort") else None))
                 return self._json(rec, 202)
             except (ValueError, RuntimeError) as e:
                 return self._json({"error": str(e)}, 409 if isinstance(e, RuntimeError) else 400)
