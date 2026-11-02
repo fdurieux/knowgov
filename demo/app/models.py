@@ -25,6 +25,7 @@ RECORD_ID, CUSTOM_ID = "record", "custom"
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 VAR_RE = re.compile(r"^[A-Z_][A-Z0-9_]{0,63}$")
 FIELDS = ("id", "label", "provider", "base_url", "model", "efforts", "key_var", "arms")
+OPTIONAL = {"thinking_uncounted": False}   # the endpoint leaves a thinking model's tokens out of streamed usage (task-0034)
 KINDS = ("reply", "agent")
 
 
@@ -43,7 +44,7 @@ def load_table(path: Path | None = None) -> list[dict]:
     rows = tomllib.loads(path.read_text(encoding="utf-8")).get("row", [])
     seen, out = set(), []
     for r in rows:
-        extra = sorted(set(r) - set(FIELDS))
+        extra = sorted(set(r) - set(FIELDS) - set(OPTIONAL))
         if extra:
             raise ValueError(f"{path.name}: row {r.get('id')!r} has fields the table does not define: {extra}")
         missing = [f for f in FIELDS if f not in r]
@@ -57,8 +58,10 @@ def load_table(path: Path | None = None) -> list[dict]:
             raise ValueError(f"{path.name}: row {r['id']!r}: base_url must be an http(s) URL")
         if not set(r["arms"]) <= set(KINDS) or not r["arms"]:
             raise ValueError(f"{path.name}: row {r['id']!r}: arms must list reply, agent or both")
+        if not isinstance(r.get("thinking_uncounted", False), bool):
+            raise ValueError(f"{path.name}: row {r['id']!r}: thinking_uncounted is true or false")
         seen.add(r["id"])
-        out.append({f: r[f] for f in FIELDS})
+        out.append({**{f: r[f] for f in FIELDS}, **{k: r.get(k, v) for k, v in OPTIONAL.items()}})
     return out
 
 
@@ -126,7 +129,8 @@ def resolve(row_id: str | None, effort: str | None, record_model: str, record_ef
     if effort not in row["efforts"]:
         raise ValueError(f"model row {row_id!r} accepts the efforts {row['efforts']}, not {effort!r}")
     env = {"KG_MODEL_BASE_URL": row["base_url"], "KG_MODEL_API_KEY_VAR": row["key_var"],
-           "KG_ARMS_MODEL": row["model"], "KG_ARMS_EFFORT": effort}
+           "KG_ARMS_MODEL": row["model"], "KG_ARMS_EFFORT": effort,
+           "KG_THINKING_UNCOUNTED": "1" if row.get("thinking_uncounted") else ""}
     return row, env, is_deviation(row, effort, record_model, record_effort)
 
 

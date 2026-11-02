@@ -112,7 +112,13 @@ def _arm_summary(runs: list[dict]) -> dict:
             "api_errors": sum(1 for r in runs if r.get("api_error")),
             "models": sorted({m for m in (_model_of(r) for r in runs) if m}),
             "efforts": sorted({(r.get("usage") or {}).get("effort") or "" for r in runs if _model_of(r)}),
-            "tokens": sum(r["usage"]["prompt_tokens"] + r["usage"]["completion_tokens"] for r in runs if r.get("usage"))}
+            "tokens": sum(_counted(r["usage"]) for r in runs if r.get("usage"))}
+
+
+def _counted(u: dict) -> int:
+    """A run's tokens as the ceilings count them: the endpoint's total where it reports one (task-0034)."""
+    pc = int(u.get("prompt_tokens") or 0) + int(u.get("completion_tokens") or 0)
+    return max(pc, int(u.get("counted_tokens") or 0), pc + int(u.get("hidden_tokens") or 0))
 
 
 def _model_of(r: dict) -> str | None:
@@ -698,18 +704,23 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
                  "yes" if r["M3_flagged"]["flagged"] else "no", ", ".join(r["M3_flagged"].get("hits", [])),
                  (f"{(r.get('M7_adopted') or {}).get('count', 0)} of {(r.get('M7_adopted') or {}).get('planted', 0)}" if r.get("M7_adopted") else ""),
                  len(r.get("questions") or []), len(r.get("assumptions") or []), len(r.get("claims") or []),
-                 (r.get("usage") or {}).get("prompt_tokens", ""), (r.get("usage") or {}).get("completion_tokens", ""))
-                + (((r.get("agent") or {}).get("calls", ""), (r.get("agent") or {}).get("tool_calls", ""), (r.get("agent") or {}).get("stopped_by") or ("finished" if (r.get("agent") or {}).get("finished") else ""), f"{(r.get('usage') or {}).get('usd_est', 0):.2f}", (r.get("usage") or {}).get("seconds", "")) if agentic else ())
+                 (r.get("usage") or {}).get("prompt_tokens", ""), (r.get("usage") or {}).get("completion_tokens", ""), (r.get("usage") or {}).get("hidden_tokens", 0) or 0)
+                + (((r.get("agent") or {}).get("calls", ""), (r.get("agent") or {}).get("tool_calls", ""), (r.get("agent") or {}).get("stopped_by") or ("finished" if (r.get("agent") or {}).get("finished") else ""),
+                    (r.get("usage") or {}).get("seconds", "")) if agentic else ())
                 for r in rs]
-        cols = ["run", "model", "decision", "code", "flagged", "keywords hit", "adopted keys", "questions", "assumptions", "claims", "prompt tokens", "reply tokens"] + (["model turns", "tool calls", "ended by", "est. $", "seconds"] if agentic else [])
-        secs_g = [{"heading": C("Per run"), "table": _table(cols, rows)}] if rs else []
+        cols = ["run", "model", "decision", "code", "flagged", "keywords hit", "adopted keys", "questions", "assumptions", "claims", "prompt tokens", "reply tokens", "other tokens"] + (["model turns", "tool calls", "ended by", "seconds"] if agentic else [])
+        # the endpoint's own count beyond prompt and reply, a thinking model's; and where it counts none at all (task-0034)
+        tok_text = C("Other tokens are the ones the endpoint counts beyond the prompt and the reply, such as thinking.") if rs else ""
+        if rs and any((r.get("usage") or {}).get("thinking_uncounted") for r in rs):
+            tok_text += " " + C("This endpoint leaves thinking out of streamed usage, so these token counts are low.")
+        secs_g = [{"heading": C("Per run"), "text": tok_text, "table": _table(cols, rows)}] if rs else []
         for r in rs:   # an agent run's trace: every model turn and tool call, in order
             if r.get("trace"):
                 trows = [(t["turn"], t["kind"], t.get("tool") or ", ".join(t.get("tool_calls") or []) or "", t.get("text") or json.dumps(t.get("args", {}), ensure_ascii=False)[:160] if t["kind"] != "tool" else json.dumps(t.get("args", {}), ensure_ascii=False)[:160],
-                          (t.get("result") or "")[:160], t.get("prompt_tokens", ""), t.get("completion_tokens", ""), t.get("at", "")) for t in r["trace"][:120]]
+                          (t.get("result") or "")[:160], t.get("prompt_tokens", ""), t.get("completion_tokens", ""), t.get("hidden_tokens", ""), t.get("at", "")) for t in r["trace"][:120]]
                 secs_g.append({"heading": C(f"Trace of run {r['run']}: {len(r['trace'])} steps"),
                                "text": C("A model turn names the tools it called.", "A tool step shows its arguments and its result, cut short.", "The last column is the second of the run at which the step ended."),
-                               "table": _table(["step", "kind", "tool", "arguments or text", "result", "prompt tokens", "reply tokens", "at s"], trows)})
+                               "table": _table(["step", "kind", "tool", "arguments or text", "result", "prompt tokens", "reply tokens", "other tokens", "at s"], trows)})
         d[f"generate_{arm}"] = {"title": C(f"Generate, {arm}: {name}"),
                                 "intro": (C(f"{len(rs)} runs.", "Decision is the arm's own word: generate, generate with assumptions, or abstain.",
                                             "Flagged means the frozen keyword check found the planted problem in the arm's questions or assumptions.",

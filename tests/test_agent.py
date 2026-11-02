@@ -273,3 +273,19 @@ def test_the_pull_index_names_every_key_and_the_documents_and_the_key_section_is
     except KeyError:
         pass
     assert ids == ["A:x:k|v@v1"], "a refused read adds nothing"
+
+
+def test_hidden_tokens_are_recorded_and_counted_against_the_ceiling():
+    """Task-0034: a turn whose usage total exceeds prompt plus completion carries the remainder as
+    hidden tokens (a thinking model's), and the ceiling counts the total, so a run is stopped by
+    tokens the old sum would not have seen."""
+    turn = _turn([_call("write_file", path="a.py", content="")], pt=100, ct=50)
+    turn["usage"].update(total_tokens=10_150, hidden_tokens=10_000)
+    with tempfile.TemporaryDirectory() as td:
+        r = agent.run("s", "u", sandbox=Path(td) / "b", read_text=lambda p: "", feedback=lambda root, f: {}, tag="t",
+                      responder=_scripted([dict(turn) for _ in range(5)]), limits={"tokens": 20_000})
+    tot = r["totals"]
+    assert r["stopped_by"] == "ceiling: 20000 tokens" and tot["calls"] == 2, (r["stopped_by"], tot["calls"])
+    assert tot["prompt_tokens"] + tot["completion_tokens"] == 300, "prompt plus completion alone would have run on"
+    assert tot["hidden_tokens"] == 20_000 and tot["counted_tokens"] == 20_300 and not tot["thinking_uncounted"]
+    assert [t.get("hidden_tokens") for t in r["trace"] if t["kind"] == "model"] == [10_000, 10_000]

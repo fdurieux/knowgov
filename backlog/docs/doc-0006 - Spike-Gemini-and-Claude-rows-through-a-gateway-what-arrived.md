@@ -3,7 +3,7 @@ id: doc-0006
 title: 'Spike: Gemini and Claude rows through a gateway, what arrived'
 type: specification
 created_date: '2026-11-02T19:03:00Z'
-updated_date: '2026-11-02T19:03:00Z'
+updated_date: '2026-11-02T21:20:00Z'
 ---
 *2026-11-02. Maintainer register. The note task-0030 asked for: Gemini and Claude rows behind the unchanged loop, both arm kinds, an effort set, what arrives. Probe outputs stay in the session's scratchpad, outside the repository; nothing here was merged as code.*
 
@@ -49,6 +49,10 @@ Tokens spent, all probes and runs: about 370,000, most of it the Claude agent ru
 2. **Usage records `total_tokens` and the hidden remainder** (total minus prompt minus completion), and the token ceilings count it, so a thinking model is not undercounted; note that streamed Gemini usage omits thinking entirely, which only a non-streamed call or Google's native usage can show.
 3. **A Claude gateway row**: a `litellm` service in compose (config with the cache mark, `KG_ANTHROPIC_KEY` passed through), the row in `demo/models.toml` naming the upstream model, and the README in the adopter register.
 4. **Refresh the commented Gemini row** in `demo/models.toml` to a current model.
+
+## Correction, 2026-11-02, later (task-0034)
+
+The usage row above says Gemini's streamed usage carries the thinking "in no field at all". That holds for the spike's streamed calls, which all went **through LiteLLM**, and not for Google's endpoint itself. Called directly and streamed, as the harness calls it since task-0033, gemini-3.8-flash reported its thinking in `total_tokens` at every effort tried: prompt 41, completion 8, total 391 at high; 45, 8, 246 at low; 45, 8, 168 at medium. So the undercount was LiteLLM rebuilding the streamed total from prompt and completion. Task-0034 therefore counts the endpoint's total against the ceilings, shows the remainder as *other tokens*, and leaves the "thinking uncounted" flag to a model row that declares it (`thinking_uncounted = true`) rather than to Google's host. The rest of this note stands.
 
 ## What was read
 
