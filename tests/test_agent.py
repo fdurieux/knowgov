@@ -193,3 +193,10 @@ def test_the_pull_index_names_every_key_and_the_documents_and_the_key_section_is
     assert "read_knowledge(key)" in idx and "  contracts/cli.md" in idx and "text: one" not in idx, "the index carries ids, not the knowledge"
     section = "\n".join(gate.render_key("k|v", res["keys"]["k|v"]))
     assert section in gate.render_bundle(res, "POLICY") and "text: one" in section
+    read, ids = gate.knowledge_reader(res)   # the governed arm's read tool names every assertion id it returned
+    assert read("k|v") == section and read("u|v").startswith("\n## u|v") and ids == ["A:x:k|v@v1"]
+    try:
+        read("missing|v"); raise AssertionError("an unrequired key must be refused")
+    except KeyError:
+        pass
+    assert ids == ["A:x:k|v@v1"], "a refused read adds nothing"

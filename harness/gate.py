@@ -103,6 +103,20 @@ def render_index(res: dict, policy: str, documents: list[str] | None = None) -> 
     return "\n".join(out)
 
 
+def knowledge_reader(res: dict):
+    """The governed arm's read_knowledge tool over a gate result: ``read(key)`` returns the key's
+    section as the bundle renders it, or refuses a key the task does not require; ``ids`` collects
+    every assertion id a read returned, in order, so the run can name what the arm consulted."""
+    ids: list[str] = []
+
+    def read(key: str) -> str:
+        if key not in res["keys"]:
+            raise KeyError(f"{key}: not a required key of this task")
+        ids.extend(a["id"] for a in res["keys"][key]["assertions"])
+        return "\n".join(render_key(key, res["keys"][key]))
+    return read, ids
+
+
 def render_bundle(res: dict, policy: str, verbatim: dict[str, str] | None = None) -> str:
     out = [f"GATE VERDICT: {res['verdict']} — {res['why']}", "", "POLICY:", policy, "",
            "REQUIRED KNOWLEDGE, key by key (status is the knowledge repository's, not yours to upgrade):"]
