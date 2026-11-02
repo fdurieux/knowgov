@@ -21,7 +21,8 @@ import arms
 import measures
 import shacl
 from gate import resolve, render_bundle
-from kitio import kit_for, sha256, verbatim_documents
+from kitio import kit_for, kit_text, sha256, verbatim_documents
+import agent
 from load import PROV, HUMAN, load_inferred, load_scenario, load_verifications, pristine_values
 from store import open_store
 from plant import INFERRED
@@ -123,12 +124,32 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
     (out_dir / f"prompt_{arm}.txt").write_text(user, encoding="utf-8")
     print(f"    {arm}: {n} call(s) to {arms.MODEL}, {len(user):,} characters of prompt each; the suite runs on each reply", flush=True)
 
+    agent_kind = SUBJECT.arms.get("kind", "reply") == "agent"
+    if agent_kind:
+        cfg = SUBJECT.arms.get("agent", {})
+        system = arms.prompt(cfg.get("system_prompt", "system_agent"))
+        user = user + "\n\n" + cfg.get("layout", "")
+        feedback = measures.feedback_runner(kit, cfg["feedback"])
+        docs_g = verbatim_documents(kit, task_name)
+
+        def read_text(path: str) -> str:
+            """B reads any kit document; G reads the documents the task names verbatim, the bundle holding the knowledge."""
+            if arm == "B":
+                return kit_text(kit, path)
+            if path in docs_g:
+                return docs_g[path]
+            raise KeyError(f"{path}: not a document the task names verbatim; the bundle holds the knowledge")
+        (out_dir / f"prompt_{arm}.txt").write_text(user, encoding="utf-8")
+        print(f"    {arm}: agent loop, ceiling {agent.ceiling()}", flush=True)
+
     def one(i: int) -> dict:
         done = out_dir / f"run{i}_{arm}.json"
         if resume and done.exists():
             prev = json.loads(done.read_text(encoding="utf-8"))
             if "api_error" not in prev:
                 return prev
+        if agent_kind:
+            return one_agent(i)
         try:
             r = arms.call(system, user, tag=f"{sc}/{arm}/{i}")
         except Exception as e:  # noqa: BLE001 — recorded as a failed cell, never silently dropped
@@ -159,6 +180,34 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
         if code:
             (out_dir / f"run{i}_{arm}.py").write_text(code, encoding="utf-8")
         return rec
+    def one_agent(i: int) -> dict:
+        box = out_dir / f"run{i}_{arm}_sandbox"
+        res = agent.run(system, user, sandbox=box, read_text=read_text, feedback=feedback, tag=f"{sc}/{arm}/{i}")
+        p = res["parsed"]
+        suite = measures.run_suite_dir(box, sc) if res["files"] else {"ran": False, "passed": 0, "total": measures.SUITE_TOTAL, "per_scenario": {}}
+        code_text = agent.Sandbox(box).text() if res["files"] else None
+        tt = res["totals"]
+        rec = {"scenario": sc, "arm": arm, "run": i, "parse_error": None,
+               "M1_decision": p.get("decision"), "M2_code": bool(res["files"]),
+               "M3_flagged": measures.flagged(sc, p), "M4_suite": suite,
+               "M4_targets": {t: suite["per_scenario"].get(t, {}).get("passed") for t in (measures.TARGETS[sc] or [])},
+               "outage_status": measures.outage_status(suite) if suite["ran"] else None,
+               "M5_refs": measures.resolvable_refs(arm, p, bundle_ids, kit),
+               "M6_noncompliance": (arm == "G" and ((gate["verdict"] == "BLOCKED" and bool(res["files"])) or
+                                                     (gate["verdict"] == "QUALIFIED" and p.get("decision") == "generate"))),
+               "questions": p.get("questions"), "assumptions": p.get("assumptions"), "claims": p.get("claims"),
+               "usage": {"model": tt["model"], "prompt_tokens": tt["prompt_tokens"], "completion_tokens": tt["completion_tokens"],
+                         "seconds": tt["seconds"], "usd_est": tt["usd"], "attempts": tt["calls"]},
+               "agent": {"finished": res["finished"], "stopped_by": res["stopped_by"], "turns": tt["turns"], "calls": tt["calls"],
+                         "tool_calls": tt["tool_calls"], "files": res["files"], "ceiling": res["ceiling"], "sandbox": box.name}}
+        if res["stopped_by"] and res["stopped_by"].startswith("api error"):
+            rec["api_error"] = res["stopped_by"]
+        dump(out_dir / f"run{i}_{arm}.json", rec)
+        dump(out_dir / f"run{i}_{arm}.trace.json", res["trace"])
+        if code_text:
+            (out_dir / f"run{i}_{arm}.py").write_text(code_text, encoding="utf-8")
+        return rec
+
     with ThreadPoolExecutor(max_workers=int(__import__("os").environ.get("KG_WORKERS", "5"))) as ex:
         return list(ex.map(one, range(1, n + 1)))
 

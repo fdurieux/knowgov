@@ -143,6 +143,14 @@ def call(system: str, user: str, *, tag: str) -> dict:
     return {"raw": raw, "parsed": parsed, "parse_error": parse_error, "usage": rec}
 
 
+def account(rec: dict) -> None:
+    """Count a call made elsewhere (the agent loop) in this process's usage and budget guard."""
+    with _lock:
+        _state["calls"] += 1
+        _state["usd"] += rec.get("usd_est", 0.0)
+        _state["usage"].append(rec)
+
+
 def usage() -> dict:
     return {"calls": _state["calls"], "usd_est": round(_state["usd"], 4), "retries": list(_state.get("retries", [])),
             "per_call": list(_state["usage"])}

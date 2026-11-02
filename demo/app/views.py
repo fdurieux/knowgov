@@ -103,6 +103,8 @@ def _runs(d: Path, arm: str) -> list[dict]:
         r = _read_json(p)
         code_path = p.with_suffix(".py")
         r["code_text"] = code_path.read_text(encoding="utf-8") if code_path.exists() else None
+        trace_path = p.with_name(p.stem + ".trace.json")   # an agent run's turns and tool calls (harness/agent.py)
+        r["trace"] = _read_json(trace_path) if trace_path.exists() else None
         out.append(r)
     return out
 
@@ -141,7 +143,8 @@ def _run_view(r: dict) -> dict:
             "refs": r.get("M5_refs"), "noncompliance": r.get("M6_noncompliance"),
             "questions": r.get("questions") or [], "assumptions": r.get("assumptions") or [],
             "claims_n": len(r.get("claims") or []), "api_error": r.get("api_error"),
-            "parse_error": r.get("parse_error"), "code_text": r.get("code_text"), "usage": r.get("usage")}
+            "parse_error": r.get("parse_error"), "code_text": r.get("code_text"), "usage": r.get("usage"),
+            "agent": r.get("agent"), "trace": r.get("trace")}
 
 
 def _gate_view(g: dict) -> dict:
@@ -666,14 +669,28 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
     d["gate"] = {"title": C(f"Gate: {gate['verdict']}"), "intro": D(gate["why"] + "."), "sections": gsecs}
     for arm, name in (("G", "the governed arm, given the verdict and the bundle"), ("B", "the baseline arm, given the documents only")):
         rs = runs[arm]
+        agentic = any(r.get("agent") for r in rs)
         rows = [(r["run"], _model_of(r) or "", r.get("M1_decision") or ("api error" if r.get("api_error") else ""), "yes" if r.get("M2_code") else "no",
                  "yes" if r["M3_flagged"]["flagged"] else "no", ", ".join(r["M3_flagged"].get("hits", [])), len(r.get("questions") or []), len(r.get("assumptions") or []), len(r.get("claims") or []),
-                 (r.get("usage") or {}).get("prompt_tokens", ""), (r.get("usage") or {}).get("completion_tokens", "")) for r in rs]
+                 (r.get("usage") or {}).get("prompt_tokens", ""), (r.get("usage") or {}).get("completion_tokens", ""))
+                + (((r.get("agent") or {}).get("calls", ""), (r.get("agent") or {}).get("tool_calls", ""), (r.get("agent") or {}).get("stopped_by") or ("finished" if (r.get("agent") or {}).get("finished") else ""), f"{(r.get('usage') or {}).get('usd_est', 0):.2f}", (r.get("usage") or {}).get("seconds", "")) if agentic else ())
+                for r in rs]
+        cols = ["run", "model", "decision", "code", "flagged", "keywords hit", "questions", "assumptions", "claims", "prompt tokens", "reply tokens"] + (["model turns", "tool calls", "ended by", "est. $", "seconds"] if agentic else [])
+        secs_g = [{"heading": C("Per run"), "table": _table(cols, rows)}] if rs else []
+        for r in rs:   # an agent run's trace: every model turn and tool call, in order
+            if r.get("trace"):
+                trows = [(t["turn"], t["kind"], t.get("tool") or ", ".join(t.get("tool_calls") or []) or "", t.get("text") or json.dumps(t.get("args", {}), ensure_ascii=False)[:160] if t["kind"] != "tool" else json.dumps(t.get("args", {}), ensure_ascii=False)[:160],
+                          (t.get("result") or "")[:160], t.get("prompt_tokens", ""), t.get("completion_tokens", ""), t.get("at", "")) for t in r["trace"][:120]]
+                secs_g.append({"heading": C(f"Trace of run {r['run']}: {len(r['trace'])} steps"),
+                               "text": C("A model turn names the tools it called.", "A tool step shows its arguments and its result, cut short.", "The last column is the second of the run at which the step ended."),
+                               "table": _table(["step", "kind", "tool", "arguments or text", "result", "prompt tokens", "reply tokens", "at s"], trows)})
         d[f"generate_{arm}"] = {"title": C(f"Generate, {arm}: {name}"),
                                 "intro": (C(f"{len(rs)} runs.", "Decision is the arm's own word: generate, generate with assumptions, or abstain.",
-                                            "Flagged means the frozen keyword check found the planted problem in the arm's questions or assumptions.")
+                                            "Flagged means the frozen keyword check found the planted problem in the arm's questions or assumptions.",
+                                            *(["The arm worked in a sandbox over several turns.", "Its four tools: read a document, write a file, run the scenario's own feature files, finish.",
+                                               "A run ends at a finish, or at the ceiling in calls, dollars or seconds, with decision abstain."] if agentic else []))
                                           if rs else C("No run in this source.")),
-                                "sections": ([{"heading": C("Per run"), "table": _table(["run", "model", "decision", "code", "flagged", "keywords hit", "questions", "assumptions", "claims", "prompt tokens", "reply tokens"], rows)}] if rs else [])}
+                                "sections": secs_g}
         orows = [(r["run"], f"{r['M4_suite']['passed']}/{r['M4_suite']['total']}" if r["M4_suite"]["ran"] else "no code",
                   ", ".join(f"{t}: {'pass' if v else ('fail' if v is False else 'no code')}" for t, v in (r.get("M4_targets") or {}).items()) or "",
                   r.get("outage_status") or "", f"{r['M5_refs']['resolved']}/{r['M5_refs']['total']}" if r["M5_refs"]["share"] is not None else "") for r in rs]

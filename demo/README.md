@@ -414,6 +414,21 @@ any time:
   record's. Setting `KG_ARMS_MODEL` in the environment before
   `docker compose up` preselects this choice.
 
+**The agent arm.** A subject whose manifest says `[arms] kind = "agent"`
+(the J-F data load does) runs each arm as a loop of turns instead of one
+reply: the model has four tools, read a document, write a file into the
+run's sandbox, run the scenario's own feature files over the sandbox, and
+finish with its decision. Model-written code runs only inside that
+sandbox, a folder under the run's directory, and only through the suite
+command the subject's oracle script names; nothing else executes it. Each
+run is bounded by a ceiling in calls, dollars and seconds, instance
+configuration read from `KG_AGENT_MAX_CALLS`, `KG_AGENT_MAX_USD` and
+`KG_AGENT_MAX_SECONDS` (defaults 30, 5 and 1500); a run that reaches it
+ends with decision abstain and the reason. Every turn and tool call is
+written to a trace file beside the run, and the Generate box shows it.
+The pristine suite, the oracle, grades the sandbox afterwards as it
+grades a reply.
+
 A subject whose record ran no arm (the J-F data load: its record graded
 whole rebuilds, so its `record_model` is empty) has no like-for-like
 choice. The toggle then offers only *another model*, the run calls that

@@ -63,9 +63,9 @@ def _slug(title: str) -> str:
     return re.sub(r"_+", "_", re.sub(r"[^a-z0-9 _]", "", title.lower()).strip().replace(" ", "_"))
 
 
-def _feature_of_slug() -> dict[str, str]:
+def _feature_of_slug(features_dir: Path | None = None) -> dict[str, str]:
     out = {}
-    for f in sorted((KIT / "features").glob("*.feature")):
+    for f in sorted((features_dir or KIT / "features").glob("*.feature")):
         for m in re.finditer(r"^\s*Scenario(?: Outline)?: (.*)$", f.read_text(encoding="utf-8"), re.M):
             out[_slug(m.group(1).strip())] = f.stem
     return out
@@ -90,8 +90,11 @@ def _launcher(bin_dir: Path, src_dirs: list[Path], entry: str) -> None:
     p.chmod(0o755)
 
 
-def _run_whole(artifact: Path) -> dict[str, dict]:
-    feat_of = _feature_of_slug()
+def _run_whole(artifact: Path, features_dir: Path | None = None, only: str | None = None) -> dict[str, dict]:
+    """The suite (the kit's, or ``features_dir``'s: the scenario's planted copy) over one artefact;
+    ``only`` names one feature to run, every feature otherwise."""
+    feat_dir = features_dir or KIT / "features"
+    feat_of = _feature_of_slug(feat_dir)
     with tempfile.TemporaryDirectory() as td:
         t = Path(td)
         bin_dir = t / "bin"; bin_dir.mkdir()
@@ -118,7 +121,8 @@ def _run_whole(artifact: Path) -> dict[str, dict]:
         env.pop("EODHD_API_KEY", None)
         junit = t / "junit.xml"
         try:
-            proc = subprocess.run([sys.executable, "-m", "pytest", "-q", str(KIT / "features" / "steps"), "-p", "no:cacheprovider",
+            target = [str(feat_dir / "steps")] if not only else [str(feat_dir / "steps" / f"test_{only}.py")] if (feat_dir / "steps" / f"test_{only}.py").exists() else [str(feat_dir / "steps"), "-k", only]
+            proc = subprocess.run([sys.executable, "-m", "pytest", "-q", *target, "-p", "no:cacheprovider",
                                    f"--junitxml={junit}"], cwd=t, env=env, capture_output=True, text=True, timeout=TIMEOUT_S)
         except subprocess.TimeoutExpired:
             return {f: {"passed": False, "stage": "timeout", "detail": "the suite was killed"} for f in FEATURES}
@@ -151,6 +155,30 @@ def run_child(artifact: Path, spec: dict) -> dict:
 
 def run_artifact(artifact: Path) -> dict:
     return {f: run_child(artifact, build_spec(f)) for f in FEATURES}
+
+
+def run_feedback(artifact: Path, features: dict[str, str], feature: str | None = None) -> dict:
+    """The agent arm's run_suite tool (harness/agent.py): the scenario's own feature files, as its
+    kit holds them (planted, if the scenario plants one), over the kit's step definitions, against
+    the sandbox; never cached, since the sandbox changes between calls. Returns, per feature, cases
+    passed over total and the failed scenarios' names, plus the totals; one feature when named."""
+    with tempfile.TemporaryDirectory() as td:
+        fdir = Path(td) / "features"
+        shutil.copytree(KIT / "features", fdir, ignore=shutil.ignore_patterns("__pycache__"))
+        for rel, text in features.items():
+            if rel.endswith(".feature"):
+                (fdir / rel).write_text(text, encoding="utf-8")
+        rows = _run_whole(Path(artifact), fdir, only=feature)
+    if feature:
+        rows = {k: v for k, v in rows.items() if k == feature} or {feature: {"passed": False, "stage": "no_cases", "detail": "no such feature"}}
+    passed = total = 0
+    out = {}
+    for f, r in rows.items():
+        m = re.match(r"(\d+)/(\d+) cases(?:; failed: (.*))?", r.get("detail") or "")
+        p, n = (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+        passed += p; total += n
+        out[f] = {"passed": p, "total": n, "failed": [x.strip() for x in (m.group(3) or "").split(",") if x.strip()] if m else [], "stage": r.get("stage")}
+    return {"features": out, "passed": passed, "total": total}
 
 
 def main() -> int:
