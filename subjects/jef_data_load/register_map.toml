@@ -23,7 +23,7 @@
 # JDL-154, 157 and 158 (restore, binning, upload) were placed on the steps decision 0006 added at
 # ieam-register v0.2.1 (Restore the store, Bin the assets, Upload the run, and the product Daily run
 # outputs); the deprecated step Publish the seam frame left every row. The maintainer approved the
-# map on 2026-11-01 at v0.2.0 (knowgov #23); these rows, revised for v0.2.1, await the line again.
+# map on 2026-11-01 at v0.2.0 (knowgov #23) and the rows revised for v0.2.1 on 2026-11-02.
 #
 # contracts/universe.toml.md, classifications.toml.md, the packaged TOML -> ENT-0007 (and APP-0005)
 # contracts/collectors.md, fixtures.md -> APP-0009, PROC-0009
@@ -38,9 +38,9 @@
 [map]
 basis = "derived"
 author = "the demo session, derived 2026-11-01 from the contracts' citations, reconciled the same day with the register's links at v0.2.0"
-status = "drafted"           # approved 2026-11-01 at v0.2.0 (knowgov #23); revised for v0.2.1, awaiting the maintainer's line
-approved_by = ""
-approved_on = ""
+status = "approved"          # approved 2026-11-01 at v0.2.0 (knowgov #23); the rows revised for v0.2.1 approved 2026-11-02
+approved_by = "fdurieux"
+approved_on = 2026-11-02
 register_commit = "a70d6fb1666a9f661cd8372b37bafa8ffe53a875"   # ieam-register v0.2.1, the links the rows were reconciled with
 keys_expected = 163
 
