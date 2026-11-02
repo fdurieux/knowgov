@@ -49,7 +49,7 @@ button.primary{background:var(--teal);color:#fff;border-color:var(--teal)}
 .plain summary{font-weight:600;cursor:pointer} .gloss dl{display:grid;grid-template-columns:max-content 1fr;gap:3px 14px;font-size:13px;margin:8px 0} .gloss dt{font-weight:600} .gloss dd{margin:0;max-width:90ch} .plain p{margin:7px 0;font-size:14px;line-height:1.55;max-width:90ch} .plain p.guide{color:var(--muted);font-size:13px}
 .toggle{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0 12px;font-size:13px}
 .toggle label{display:block;margin:4px 0;cursor:pointer} .toggle input[type=text]{font:inherit;font-size:12.5px;width:150px;border:1px solid var(--line);border-radius:6px;padding:2px 6px;font-family:var(--mono)}
-.toggle .why{color:var(--muted);margin-left:22px} .toggle label.off{color:var(--muted);cursor:default} .toggle label.off code{color:var(--muted)}
+.toggle select{font:inherit;font-size:12.5px;max-width:100%;border:1px solid var(--line);border-radius:6px;padding:1px 4px} .toggle .why{color:var(--muted);margin-left:22px} .toggle label.off{color:var(--muted);cursor:default} .toggle label.off code{color:var(--muted)}
 .banner .head{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap} .banner .head b{font-size:15px}
 .banner .console{margin-top:8px;max-height:160px}
 .small{font-size:13px;color:var(--muted)}
@@ -110,10 +110,10 @@ a{color:var(--teal)}
 <main>
   <aside>
     <div class="card menu" id="menu"><h2>Scenarios</h2>
-      <div class="toggle" id="armsmodel"><b>Arms call</b> — which model the two arms call
-        <label><input type="radio" name="am" value="record"> the record's model, <code id="am-record"></code><div class="why">like-for-like with the record; the governed prompt needs about 15,000 tokens per minute on this model</div></label>
-        <label><input type="radio" name="am" value="other"> another model: <input type="text" id="am-other" spellcheck="false"><div class="why">a deviation: the run is marked in red and is not comparable with the record's numbers</div></label>
-        <label class="effort">effort: <input type="text" id="am-effort" spellcheck="false" placeholder="API default"><div class="why" id="am-effort-why">the reasoning effort sent with every call (low, medium, high…); empty sends none. An effort other than the record's is a deviation too</div></label>
+      <div class="toggle" id="armsmodel"><b>Arms call</b> — which model the two arms call, and at what effort
+        <label for="am-row">model <select id="am-row"></select></label>
+        <label for="am-effort">effort <select id="am-effort"></select></label>
+        <div class="why" id="am-why"></div>
       </div>
       <div id="menu-list" class="small">loading…</div>
       <div class="note">Replay shows the committed results (instant, no store). Deterministic re-executes D1–D6 against the container's Neo4j (offline, ~5 s). Arms re-executes the two model arms with <code>--n 1</code> against the configured endpoint and needs its key variable set (<code>OPENAI_API_KEY</code> by default); it writes into a dated folder under <code>runs/</code>, never over the record. A run's progress appears in a banner above the report; the clicked button shows running, done or failed, and the report switches to the run's results when it ends.</div>
@@ -131,12 +131,14 @@ a{color:var(--teal)}
 <script>
 const $ = (s, el=document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let STATE = {scenarios: [], store: null, armsEnabled: false, detEnabled: false, current: null, source: null, view: null, run: null, shown: null, lastRun: {}, recordModel: '', otherModel: '', recordEffort: ''};
-function armsChoice() { try { return JSON.parse(localStorage.getItem('kg-arms-model') || 'null'); } catch (e) { return null; } }
-function saveArmsChoice(c) { try { localStorage.setItem('kg-arms-model', JSON.stringify(c)); } catch (e) {} }
-function armsModel() { const c = armsChoice() || {}; return c.which === 'other' || !STATE.recordModel ? (c.other || STATE.otherModel) : STATE.recordModel; }
-// the effort sent with the run: the record's when the record's model is chosen (like-for-like), else the field's; '' sends none (task-0028)
-function armsEffort() { const c = armsChoice() || {}; return c.which === 'other' || !STATE.recordModel ? (c.effort || '') : STATE.recordEffort; }
+let STATE = {scenarios: [], store: null, armsEnabled: false, detEnabled: false, current: null, source: null, view: null, run: null, shown: null, lastRun: {}, recordModel: '', recordEffort: '', modelRows: []};
+function armsChoice() { try { return JSON.parse(localStorage.getItem('kg-arms-row') || 'null'); } catch (e) { return null; } }
+function saveArmsChoice(c) { try { localStorage.setItem('kg-arms-row', JSON.stringify(c)); } catch (e) {} }
+// the row and the effort sent with an Arms run (task-0029): the page sends ids only, the server resolves them
+function armsRow() { const r = STATE.modelRows.find(x => x.id === $('#am-row').value); return r && r.available ? r : null; }
+function armsEffort() { return $('#am-effort').value; }
+// why the arms are off: no row is available; the key variables to set, by name, never a value
+function armsOffWhy() { const vars = [...new Set(STATE.modelRows.filter(r => !r.key_set).map(r => r.key_var))]; return vars.length ? 'set ' + vars.join(' or ') + " in the app's environment" : 'no model row serves this subject'; }
 // shown: {scenario, mode} of the report on screen; lastRun[scenario+mode]: the most recent run's record for that button
 
 async function api(path, opts) {
@@ -149,10 +151,10 @@ async function api(path, opts) {
 async function loadScenarios() {
   const j = await api('/api/scenarios');
   STATE.scenarios = j.scenarios; STATE.store = j.store; STATE.armsEnabled = j.arms_enabled; STATE.detEnabled = j.deterministic_enabled; STATE.run = j.run;
-  STATE.recordModel = j.record_model; STATE.otherModel = j.default_other_model; STATE.endpoint = j.model_endpoint || null; STATE.recordEffort = j.record_effort || '';
+  STATE.recordModel = j.record_model; STATE.recordEffort = j.record_effort || ''; STATE.modelRows = j.model_rows || [];
   if (j.page && j.page.title) { document.querySelector('header h1').textContent = j.page.title; document.title = j.page.title; }
   if (j.page && j.page.subtitle) document.querySelector('header .sub').innerHTML = j.page.subtitle;
-  renderToggle(j.arms_model_preset);
+  renderToggle();
   renderChips(); renderMenu(); renderStore();
   renderRegisterCard().catch(e => { STATE.register = { error: e.message }; renderMenu(); });
   if (j.run) { STATE.lastRun[j.run.scenario + j.run.mode] = j.run; if (j.run.status === 'running') watchRun(); }
@@ -162,31 +164,38 @@ function renderChips() {
   const s = STATE.store;
   $('#chips').innerHTML =
     `<span class="chip ${s.reachable ? 'ok' : 'bad'}" title="${esc(s.error||'')}">store ${esc(s.store || 'neo4j')} ${s.reachable ? 'reachable' : 'unreachable'} · ${esc(s.uri)}${s.loaded ? ' · loaded: ' + esc(s.loaded) : ''}</span>` +
-    `<span class="chip ${STATE.armsEnabled ? 'ok' : 'warn'}" title="${esc(STATE.endpoint ? 'endpoint ' + STATE.endpoint.host + ', key in ' + STATE.endpoint.key_var : '')}">arms ${STATE.armsEnabled ? 'enabled (' + esc(STATE.endpoint.host) + ', key in ' + esc(STATE.endpoint.key_var) + ')' : 'disabled: set ' + esc(STATE.endpoint ? STATE.endpoint.key_var : 'the key variable')}</span>` +
+    `<span class="chip ${STATE.armsEnabled ? 'ok' : 'warn'}" title="${esc(STATE.modelRows.map(r => r.label + ': ' + (r.available ? r.host + ', key in ' + r.key_var : r.why)).join('\n'))}">arms ${STATE.armsEnabled ? 'enabled (' + STATE.modelRows.filter(r => r.available).length + ' of ' + STATE.modelRows.length + ' model rows)' : 'disabled: ' + esc(armsOffWhy())}</span>` +
     `<span class="chip ${s.register ? 'ok' : 'warn'}" title="the register's projection in the store: derived, its own namespace, wiped by a run">register ${s.register ? 'projected at ' + esc(s.register.tag || s.register.commit.slice(0, 7)) : 'not projected'}</span>`;
 }
 
 const running = () => STATE.run && STATE.run.status === 'running';
 
-function renderToggle(preset) {
-  let c = armsChoice();
-  if (!c) { c = {which: preset ? 'other' : 'record', other: STATE.otherModel}; saveArmsChoice(c); }
-  const recLabel = $('#am-record').closest('label');
-  if (!STATE.recordModel) {   // the subject's record ran no arm: the line stays, greyed out, and says so; "another model" is the choice
-    c = {which: 'other', other: c.other || STATE.otherModel}; saveArmsChoice(c);
-    recLabel.classList.add('off'); recLabel.querySelector('input').disabled = true;
-    recLabel.querySelector('.why').textContent = 'the record ran no arm';
-    $('#am-other').closest('label').querySelector('.why').textContent = 'the record ran no arm, so an Arms run compares with nothing in it';
-  } else {
-    recLabel.classList.remove('off'); recLabel.querySelector('input').disabled = false;
-  }
-  $('#am-record').textContent = STATE.recordModel || 'none';
-  $('#am-other').value = c.other || STATE.otherModel;
-  $('#am-effort').value = c.effort || '';
-  if (STATE.recordModel) $('#am-record').closest('label').querySelector('.why').textContent = `like-for-like with the record, at effort ${STATE.recordEffort || 'API default'}; the governed prompt needs about 15,000 tokens per minute on this model`;
-  $('#am-effort').addEventListener('change', () => { saveArmsChoice({which: 'other', other: $('#am-other').value.trim(), effort: $('#am-effort').value.trim()}); $$('input[name=am]').forEach(r => r.checked = r.value === 'other'); renderMenu(); });
-  $$('input[name=am]').forEach(r => { r.checked = r.value === c.which; r.addEventListener('change', () => { saveArmsChoice({which: r.value, other: $('#am-other').value.trim(), effort: $('#am-effort').value.trim()}); renderMenu(); }); });
-  $('#am-other').addEventListener('change', () => { saveArmsChoice({which: 'other', other: $('#am-other').value.trim(), effort: $('#am-effort').value.trim()}); $$('input[name=am]').forEach(r => r.checked = r.value === 'other'); renderMenu(); });
+function renderToggle() {
+  const rows = STATE.modelRows, sel = $('#am-row'), eff = $('#am-effort');
+  const effortName = e => e || 'API default';
+  // every row is listed; one whose key is unset, which serves another arm kind, or the record's row
+  // when the record ran no arm is greyed with the reason, and the server refuses it too
+  sel.innerHTML = rows.map(r => `<option value="${esc(r.id)}" ${r.available ? '' : 'disabled'}>${esc(r.label)}${r.available ? '' : ' (' + esc(r.why) + ')'}</option>`).join('');
+  const saved = armsChoice() || {};
+  const pick = rows.find(r => r.id === saved.row && r.available) || rows.find(r => r.available) || rows[0];
+  if (pick) sel.value = pick.id;
+  const fill = keepEffort => {
+    const r = rows.find(x => x.id === sel.value);
+    if (!r) { eff.innerHTML = ''; $('#am-why').textContent = 'no model row is listed'; return; }
+    eff.innerHTML = r.efforts.map(e => `<option value="${esc(e)}">${esc(effortName(e))}</option>`).join('');
+    if (keepEffort && r.efforts.includes(saved.effort)) eff.value = saved.effort;
+    eff.disabled = r.efforts.length < 2;
+    const why = $('#am-why');
+    if (!r.available) why.textContent = r.why;
+    else if (r.id === 'record') why.textContent = `like-for-like with the record, at effort ${effortName(STATE.recordEffort)}; the governed prompt needs about 15,000 tokens per minute on this model`;
+    else if (!STATE.recordModel) why.textContent = `${r.provider}, ${r.host}, key in ${r.key_var}. The record ran no arm, so an Arms run compares with nothing in it`;
+    else why.textContent = `${r.provider}, ${r.host}, key in ${r.key_var}. A deviation: the run is marked in red and is not comparable with the record's numbers`;
+  };
+  fill(true);
+  const save = () => saveArmsChoice({row: sel.value, effort: eff.value});
+  sel.onchange = () => { fill(false); save(); renderMenu(); };
+  eff.onchange = () => { save(); renderMenu(); };
+  save();
 }
 const $$ = (s, el=document) => Array.from(el.querySelectorAll(s));
 
@@ -211,7 +220,7 @@ function renderMenu() {
       <div class="modes">
         ${modeButton(s, 'replay', 'Replay', true, '')}
         ${modeButton(s, 'deterministic', 'Deterministic', STATE.detEnabled, 'the store is unreachable')}
-        ${modeButton(s, 'arms', 'Arms', STATE.armsEnabled && STATE.detEnabled, "set " + (STATE.endpoint ? STATE.endpoint.key_var : 'the key variable') + " in the app's environment (and the store must be reachable)", `calls ${armsModel()}${!STATE.recordModel || armsModel() === STATE.recordModel ? '' : ' (a deviation from the record)'}`)}
+        ${modeButton(s, 'arms', 'Arms', STATE.armsEnabled && STATE.detEnabled, armsOffWhy() + " (and the store must be reachable)", (r => r ? `calls ${r.model} at effort ${armsEffort() || 'API default'}${!STATE.recordModel || r.id === 'record' ? '' : ' (a deviation from the record)'}` : 'pick an available model row')(armsRow()))}
       </div></div>`).join('') + registerEntry();
   $('#menu-list').querySelectorAll('button').forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); if (b.dataset.id === 'register') return showRegister(); onMode(b.dataset.id, b.dataset.mode); }));
   $('#menu-list').querySelectorAll('.sc').forEach(d => d.addEventListener('click', () => d.dataset.id === 'register' ? showRegister() : show(d.dataset.id)));
@@ -226,7 +235,7 @@ async function onMode(id, mode) {
   }
   try {
     STATE.current = id;
-    const rec = await api('/api/run', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({scenario: id, mode, n: 1, model: mode === 'arms' ? armsModel() : undefined, effort: mode === 'arms' ? armsEffort() : undefined})});
+    const rec = await api('/api/run', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({scenario: id, mode, n: 1, row: mode === 'arms' ? (armsRow() || {}).id : undefined, effort: mode === 'arms' ? armsEffort() : undefined})});
     STATE.run = rec; STATE.lastRun[id + mode] = rec; renderMenu(); renderBanner(rec); watchRun();
   } catch (e) { renderBanner({scenario: id, mode, status: 'failed', log_text: e.message, source: '', cmd: ''}); }
 }

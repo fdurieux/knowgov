@@ -39,6 +39,7 @@ import cascade  # noqa: E402
 import views  # noqa: E402
 import register_project  # noqa: E402  (the register projected into the store, its own namespace)
 import register_view  # noqa: E402  (the vendored IEAM register, read only)
+import models  # noqa: E402  (the models table behind the Arms call drop-down, task-0029)
 
 ROOT = HERE.parent.parent
 HARNESS = ROOT / "harness"
@@ -52,48 +53,23 @@ NEO4J_PASSWORD = os.environ.get("KG_NEO4J_PASSWORD", "kgpoc2026")
 BROWSER_URL = os.environ.get("KG_BROWSER_URL", "http://localhost:7474")
 PORT = int(os.environ.get("KG_DEMO_PORT", "8080"))
 RECORD_MODEL = views.RECORD_MODEL
-# KG_ARMS_MODEL in the app's environment preselects "another model" on the page; the
-# harness itself reads the variable the server passes per run
-DEFAULT_OTHER_MODEL = os.environ.get("KG_ARMS_MODEL") or arms.DEFAULT_MODEL
-MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
-EFFORT_RE = re.compile(r"^[a-z][a-z0-9_-]{0,19}$")   # the API's own literals (none, minimal, low, medium, high, xhigh, max); "" sends none
 RECORD_EFFORT = views.RECORD_EFFORT
+ARM_KIND = SUBJECT.arms.get("kind", "reply")   # the subject's arm kind: a row serves reply, agent or both
 
 
-def arms_effort(requested: str | None) -> str:
-    """The effort an Arms run sends: the page's choice, else none (the API's default). A word the
-    API does not know is refused by the API, not here (task-0028)."""
-    effort = (requested or "").strip()
-    if effort and not EFFORT_RE.match(effort):
-        raise ValueError(f"not an effort: {effort!r}")
-    return effort
+def model_rows() -> list[dict]:
+    """The Arms call drop-down's rows as the page receives them: no key, no price (task-0029)."""
+    return [models.public(r) for r in models.rows(RECORD_MODEL, RECORD_EFFORT, ARM_KIND)]
 
 
-def arms_model(requested: str | None) -> str:
-    """The model an Arms run calls: the page's choice, else the record's model, else the default
-    other model (a subject whose record ran no arm has no record model to fall back on)."""
-    model = (requested or RECORD_MODEL or DEFAULT_OTHER_MODEL).strip()
-    if not MODEL_RE.match(model):
-        raise ValueError(f"not a model name: {model!r}")
-    return model
-
-
-def is_deviation(model: str, effort: str = "") -> bool:
-    """A model or an effort other than the record's answered; nothing to deviate from when the record ran no arm."""
-    return bool(RECORD_MODEL) and (model != RECORD_MODEL or effort != RECORD_EFFORT)
+def arms_enabled() -> bool:
+    """The arms are on when the subject has an oracle to grade a reply and at least one row is
+    available, its key variable set; no key, no call, nothing sent."""
+    return SUBJECT.oracle_script() is not None and any(r["available"] for r in model_rows())
 INDEX = (HERE / "index.html").read_bytes()
 
 # Saved Cypher for the store panel. Each runs in Neo4j Browser against the
 # scenario currently loaded; the comment on each says which scenario shows it.
-def _endpoint_view() -> dict:
-    """What the page says about the model endpoint: the host, the key variable's name (never
-    its value), the model, and whether a call would be a deviation from the record."""
-    ep = arms.endpoint()
-    host = ep["base_url"].split("://", 1)[-1].split("/", 1)[0]
-    return {"host": host, "key_var": ep["key_var"], "key_set": ep["key_set"], "model": ep["model"], "effort": ep["effort"],
-            "record_effort": ep["record_effort"], "deviation": ep["deviation"]}
-
-
 def _store(timeout: float = 3):
     """A store through the port, for the page's short reads; raises when unreachable."""
     from store import open_store  # the harness's port; the adapter needs its driver, in the image
@@ -255,15 +231,18 @@ class Runner:
         self.current: dict | None = None
         self.history: list[dict] = []
 
-    def start(self, scenario: str, mode: str, n: int, model: str | None = None, effort: str | None = None) -> dict:
+    def start(self, scenario: str, mode: str, n: int, row: str | None = None, effort: str | None = None) -> dict:
         if scenario not in views.SCENARIOS:
             raise ValueError(f"unknown scenario {scenario}")
         if mode not in ("deterministic", "arms"):
             raise ValueError(f"unknown mode {mode}")
-        if mode == "arms" and not arms.enabled():
-            raise ValueError(f"arms mode needs {arms.endpoint()['key_var']} in the app's environment")
-        model = arms_model(model)
-        effort = arms_effort(effort)
+        chosen, model_env, deviation = None, {}, False
+        if mode == "arms":
+            if SUBJECT.oracle_script() is None:
+                raise ValueError("arms mode needs an oracle: this subject declares none")
+            # the row and the effort are checked against the table: an unknown row, a row whose key
+            # is unset and an effort the row does not list are refused here, before anything runs
+            chosen, model_env, deviation = models.resolve(row, effort, RECORD_MODEL, RECORD_EFFORT, ARM_KIND)
         with self.lock:
             if self.current and self.current["status"] == "running":
                 raise RuntimeError("a run is already in progress; the store is one database")
@@ -294,14 +273,14 @@ class Runner:
                 # page read what the run left (the harness writes it on close, the page reads it on open)
                 env.setdefault("KG_RDFLIB_FILE", str(RUNS_DIR / "store.ttl"))
             if mode == "arms":
-                env["KG_ARMS_MODEL"] = model  # the record's model unless the page chose another
-                env["KG_ARMS_EFFORT"] = effort  # "" sends no effort parameter: the API's default
+                env.update(model_env)  # base URL, key variable's name, model and effort, all from the row
             log = out_dir / f"{scenario}-{mode}.log"
             fh = open(log, "w", encoding="utf-8")  # noqa: SIM115 — closed when the process ends
             proc = subprocess.Popen(cmd, cwd=str(HARNESS), stdout=fh, stderr=subprocess.STDOUT, env=env)
             rec = {"id": out_dir.name, "scenario": scenario, "mode": mode, "n": n, "status": "running",
-                   "model": model if mode == "arms" else None, "effort": effort if mode == "arms" else None,
-                   "model_deviation": (mode == "arms" and is_deviation(model, effort)),
+                   "model": chosen["model"] if chosen else None, "effort": model_env.get("KG_ARMS_EFFORT") if chosen else None,
+                   "row": chosen["id"] if chosen else None, "host": chosen["host"] if chosen else None,
+                   "model_deviation": deviation,
                    "started": _now(), "finished": None, "exit_code": None,
                    "out_dir": str(out_dir), "log": str(log), "source": f"demo-runs/{out_dir.name}", "cmd": " ".join(cmd)}
             self.current = rec
@@ -404,9 +383,8 @@ class Handler(BaseHTTPRequestHandler):
                 st = store_status()
                 return self._json({"scenarios": views.scenario_list(RUNS_DIR), "store": st,
                                    "page": {"title": SUBJECT.page.get("title", ""), "subtitle": SUBJECT.page.get("subtitle", "")},
-                                   "arms_enabled": arms.enabled(), "model_endpoint": _endpoint_view(),
-                                   "record_model": RECORD_MODEL, "record_effort": RECORD_EFFORT, "default_other_model": DEFAULT_OTHER_MODEL,
-                                   "arms_model_preset": bool(os.environ.get("KG_ARMS_MODEL")),
+                                   "arms_enabled": arms_enabled(), "model_rows": model_rows(),
+                                   "record_model": RECORD_MODEL, "record_effort": RECORD_EFFORT,
                                    "deterministic_enabled": st["reachable"],
                                    "runs_dir": str(RUNS_DIR), "run": RUNNER.describe()})
             if parts[:2] == ["api", "results"] and len(parts) == 3:
@@ -491,8 +469,8 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "run"]:
             try:
                 rec = RUNNER.start(str(body.get("scenario", "")), str(body.get("mode", "")), int(body.get("n", 1)),
-                                   model=(str(body["model"]) if body.get("model") else None),
-                                   effort=(str(body["effort"]) if body.get("effort") else None))
+                                   row=(str(body["row"]) if body.get("row") else None),
+                                   effort=(str(body["effort"]) if body.get("effort") is not None else None))
                 return self._json(rec, 202)
             except (ValueError, RuntimeError) as e:
                 return self._json({"error": str(e)}, 409 if isinstance(e, RuntimeError) else 400)

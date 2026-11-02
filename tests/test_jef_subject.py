@@ -206,31 +206,31 @@ def test_register_map_rows_hold_the_links_endpoints_and_place_every_key():
 
 def test_a_record_without_an_arm_offers_no_record_model_and_the_arms_still_run():
     """The J-F record graded whole rebuilds, not this harness's arms, so record_model is "";
-    an Arms run then calls the default other model (or KG_ARMS_MODEL), is no deviation, and the
-    page offers only "another model". Found on the maintainer's first Arms click on the subject:
-    the empty record model was sent as the model name and refused (2026-11-01)."""
+    an Arms run then calls the first available row of the models table, is no deviation, and the
+    record's row stays listed, greyed, with "the record ran no arm" (task-0029; first found on the
+    maintainer's first Arms click on the subject, 2026-11-01)."""
     code = """
 import os, sys
 os.environ.pop("KG_ARMS_MODEL", None)
 sys.path.insert(0, "harness"); sys.path.insert(0, "demo/app")
-import arms, server, views
+import arms, server, views, models
 assert arms.RECORD_MODEL == "" and views.RECORD_MODEL == ""
 ep = arms.endpoint()
 assert ep["model"] == arms.DEFAULT_MODEL and ep["record_model"] == "" and ep["deviation"] is False, ep
-assert server.arms_model(None) == arms.DEFAULT_MODEL and server.arms_model("") == arms.DEFAULT_MODEL
-assert server.arms_model(" gpt-5.5 ") == "gpt-5.5" and not server.is_deviation("gpt-5.5")
-try:
-    server.arms_model("not a model"); raise SystemExit("accepted a bad name")
-except ValueError as e:
-    assert "not a model name" in str(e)
+rows = server.model_rows()
+assert rows[0]["id"] == "record" and not rows[0]["available"] and rows[0]["why"] == "the record ran no arm"
+os.environ["OPENAI_API_KEY"] = "sk-test"
+row, env, dev = models.resolve(None, None, server.RECORD_MODEL, server.RECORD_EFFORT, server.ARM_KIND)
+assert row["id"] != "record" and env["KG_ARMS_MODEL"] and dev is False
 print("ok")
 """
     r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=dict(os.environ, KG_SUBJECT=str(SUBJ)), capture_output=True, text=True)
     assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr[-1500:]
     html = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
-    assert "!STATE.recordModel" in html and "the record ran no arm" in html, "the page greys out the record's-model line when there is none"
-    assert "recLabel.classList.add('off')" in html and "disabled = true" in html and "style.display = 'none'" not in html.split("function renderToggle")[1].split("const $$")[0], \
-        "the line stays visible for every subject, disabled and greyed out on one without a record model (the maintainer's ask, 2026-11-02)"
+    toggle = html.split("function renderToggle")[1].split("const $$")[0]
+    assert "!STATE.recordModel" in toggle and "The record ran no arm" in toggle, "the page says an Arms run compares with nothing"
+    assert "r.available ? '' : 'disabled'" in toggle and "r.why" in toggle and "style.display = 'none'" not in toggle, \
+        "every row stays listed, the record's greyed with its reason on a subject without a record model (the maintainer's ask, 2026-11-02)"
 
 
 def test_register_card_marks_the_subjects_slice_and_offers_its_application():

@@ -1,0 +1,58 @@
+# The models the page's Arms call drop-down offers (task-0029). One row per choice the operator
+# allows. The page lists them with whether each row's key variable holds a value, never the value;
+# an Arms run takes a row id and an effort, and the server sets the harness's KG_MODEL_BASE_URL,
+# KG_MODEL_API_KEY_VAR, KG_ARMS_MODEL and KG_ARMS_EFFORT from the row. A browser can send no URL.
+#
+# A row carries no key and no price. The key lives in the environment variable the row names,
+# which the compose file must pass through to the app (it passes OPENAI_API_KEY and
+# KG_MODEL_API_KEY; add yours to the app service). A price goes stale, so there is none here:
+# the page shows tokens, and the provider's bill is the record of cost (task-0027).
+#
+# Two rows are added by the server, not written here: the record's row, first, from the subject's
+# record_model and record_effort (greyed with "the record ran no arm" when the record ran none),
+# and "this instance's settings", when KG_MODEL_BASE_URL, KG_MODEL_API_KEY_VAR or KG_ARMS_MODEL
+# is set to something other than the defaults. KG_MODELS names another table instead of this one.
+#
+# Fields:
+#   id        a short name the page sends back, letters, digits, dots and hyphens
+#   label     what the drop-down shows
+#   provider  who serves the model, for the reader
+#   base_url  the OpenAI-compatible endpoint
+#   model     the model name the endpoint expects
+#   efforts   the reasoning efforts the row accepts; "" is the API's default, sent as no parameter
+#   key_var   the name of the environment variable holding the key
+#   arms      the arm kinds the row serves: "reply" (one JSON reply) and "agent" (the tool loop)
+
+[[row]]
+id = "openai-gpt-5.5"
+label = "OpenAI gpt-5.5"
+provider = "OpenAI"
+base_url = "https://api.openai.com/v1"
+model = "gpt-5.5"
+efforts = ["", "low", "medium", "high", "xhigh"]
+key_var = "OPENAI_API_KEY"
+arms = ["reply", "agent"]
+
+[[row]]
+id = "openai-gpt-5.1"
+label = "OpenAI gpt-5.1"
+provider = "OpenAI"
+base_url = "https://api.openai.com/v1"
+model = "gpt-5.1"
+efforts = ["", "none", "low", "medium", "high"]
+key_var = "OPENAI_API_KEY"
+arms = ["reply", "agent"]
+
+# A Gemini or a Claude row waits on task-0030, the gateway spike: Google's compatible endpoint
+# leaves JSON mode undocumented and Anthropic's ignores effort and refuses the one-reply arm's
+# JSON mode (doc-0005). A Gemini row, once tested, would read:
+#
+# [[row]]
+# id = "gemini-2.5-pro"
+# label = "Google gemini-2.5-pro"
+# provider = "Google"
+# base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+# model = "gemini-2.5-pro"
+# efforts = ["", "low", "medium", "high"]
+# key_var = "KG_MODEL_API_KEY"
+# arms = ["agent"]

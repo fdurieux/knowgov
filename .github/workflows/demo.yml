@@ -47,6 +47,14 @@ jobs:
           assert [s["id"] for s in j["scenarios"]] == ["S1", "S2", "S3", "S4", "S5", "S6", "S7"], j["scenarios"]
           assert j["store"]["reachable"], j["store"]
           assert j["deterministic_enabled"] and not j["arms_enabled"], j
+          # task-0029: the models table's rows, the record's first; each names its key variable and whether
+          # it is set, and carries no key: no field beyond the public ones, no value that looks like one
+          rows = j["model_rows"]
+          assert rows[0]["id"] == "record" and len(rows) > 1, rows
+          public = {"id", "label", "provider", "host", "model", "efforts", "key_var", "arms", "key_set", "serves", "available", "why"}
+          assert all(set(r) == public and not r["key_set"] and r["why"].startswith("set ") for r in rows[1:]), rows
+          assert "sk-" not in json.dumps(rows), "a key value reached the page"
+          print("model rows:", [r["id"] for r in rows])
           print("menu:", len(j["scenarios"]), "scenarios; store", j["store"]["uri"], "reachable")
           PY
           curl -fsS "localhost:8080/api/results/S6" | python3 -c 'import json,sys; v=json.load(sys.stdin); assert v["gate"]["verdict"]=="PROCEED" and len(v["stage2"]["invalidated"])==4 and v["cascade"]["G"].startswith("<svg"); print("replay S6 ok:", v["source"])'

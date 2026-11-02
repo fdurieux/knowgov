@@ -25,8 +25,11 @@
 #   KG_REGISTER        the register root the page reads (default /repo/demo/register, the public register vendored at a
 #                      tag); one register per organisation, shared by every subject of it; an instance mounts its own
 #                      checkout with docker-compose.instance.yml
-#   KG_ARMS_MODEL      optional; a model name preselects "another model" in the page's Arms-call toggle
-#                      (a deviation from the record, marked on every run); empty keeps the record's model
+#   KG_MODELS          the models table the page's Arms call drop-down lists (default /repo/demo/models.toml):
+#                      provider, base URL, model, efforts and the NAME of the key variable per row, never a key
+#                      (task-0029); a row's key variable must be passed through to the app service below
+#   KG_ARMS_MODEL      optional; with KG_MODEL_BASE_URL and KG_MODEL_API_KEY_VAR, an extra row in the drop-down,
+#                      "this instance's settings" (a deviation from the record, marked on every run)
 #   KG_ARMS_EFFORT     optional; the reasoning effort sent with every arm call (the API's literals: low,
 #                      medium, high, …); empty sends none, the API's default. The page's run sets it per
 #                      run; an effort other than the record's is a deviation too (task-0028)
@@ -78,7 +81,8 @@ services:
       KG_STORE: ${KG_STORE:-neo4j}
       KG_SUBJECT: ${KG_SUBJECT:-/repo/subjects/cargo_quote}
       KG_REGISTER: ${KG_REGISTER:-/repo/demo/register}
-      KG_ARMS_MODEL: ${KG_ARMS_MODEL:-}   # optional: preselects "another model" on the page; empty keeps the record's
+      KG_MODELS: ${KG_MODELS:-/repo/demo/models.toml}
+      KG_ARMS_MODEL: ${KG_ARMS_MODEL:-}   # optional: with the two KG_MODEL_* variables, the drop-down's "this instance's settings" row
       KG_ARMS_EFFORT: ${KG_ARMS_EFFORT:-}  # optional: the effort a harness run outside the page sends; the page sets its own per run
     ports:
       - "${KG_PORT_APP:-8080}:8080"

@@ -81,15 +81,16 @@ def test_the_client_is_imported_only_when_a_call_is_made():
 
 def test_the_page_names_the_endpoint_and_the_key_variable_never_the_key():
     server = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
-    assert '"arms_enabled": arms.enabled()' in server and '"model_endpoint": _endpoint_view()' in server
-    assert "key_set" in server and "api_key" not in server.split("def _endpoint_view")[1].split("def _store")[0]
+    assert '"arms_enabled": arms_enabled()' in server and '"model_rows": model_rows()' in server
+    rows_src = (ROOT / "demo" / "app" / "models.py").read_text(encoding="utf-8")
+    assert "key_set" in rows_src and "api_key" not in rows_src, "the rows carry the variable's name and whether it is set, never the key"
     page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
-    assert "STATE.endpoint.key_var" in page and "STATE.endpoint.host" in page
+    assert "r.key_var" in page and "r.host" in page and "armsOffWhy()" in page
     compose = (ROOT / "demo" / "docker-compose.yml").read_text(encoding="utf-8")
     for var in ("KG_MODEL_BASE_URL", "KG_MODEL_API_KEY_VAR", "KG_MODEL_API_KEY", "OPENAI_API_KEY"):
         assert var in compose, var
     readme = (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
-    for case in ("**OpenAI**", "Google's OpenAI-compatible endpoint", "private model behind a gateway"):
+    for case in ("**The models table, first.**", "Google's OpenAI-compatible endpoint", "private model behind a gateway", "never holds\nthe key itself"):
         assert case in readme, case
 
 
