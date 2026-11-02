@@ -3,7 +3,7 @@ id: doc-0002
 title: 'Agentic arm: opportunity canvas and SWOT'
 type: specification
 created_date: '2026-11-01T23:25:00Z'
-updated_date: '2026-11-01T23:26:00Z'
+updated_date: '2026-11-02T07:27:00Z'
 tags:
   - canvas
   - swot
@@ -26,7 +26,7 @@ offer.
 
 | Element | Reading |
 |---|---|
-| Problem | The arm is one chat completion: one prompt, one JSON reply, one module (`harness/arms.py` `call()`). On CargoQuote that is the task. On J-F the task is a whole program (about 3,500 lines; a 266,000-character bundle for G, 420,000 characters of documents for B), and both arms abstain, so the gate's effect on a realistic build cannot be measured inside the platform. |
+| Problem | The arm is one chat completion: one prompt, one JSON reply, one module (`harness/arms.py` `call()`). On CargoQuote that is the task. On J-F the task is a whole program (the reference rebuild is 716 lines in nine files; J-F's original is about 3,500; a 266,000-character bundle for G, 420,000 characters of documents for B), and on the maintainer's run both arms abstained, so the gate's effect on a realistic build cannot be measured inside the platform. |
 | Users | The maintainer, who wants the degradation record reproducible here rather than frozen from an outside tool. Later a client's operator, who runs their own subject through the same loop with their own model (task-0013). |
 | How the record did it | The J-F rebuilds were agentic sessions of a coding agent: a pre-registered protocol, hash-pinned inputs, a working directory, the kit's suite to run, about twenty-five minutes of wall time. The harness never ran them; it vendors their output, so the subject's `record_model` is empty. |
 | Solution outline | An arm that works in a sandbox directory over several turns: reads the bundle or the documents through tools, writes files, runs the scenario's own suite, iterates, ends with a decision and an assumptions file. The governed arm's tools read the store through the port, so what it consulted is logged per assertion. The oracle, the pristine suite, grades the directory as it grades the reference rebuild today. |
@@ -51,3 +51,7 @@ offer.
 3. **task-0022.03, governed tools and the page.** The governed arm reads assertions through the port and logs them; the page shows the trace and the consulted set beside the gate.
 
 Each step ends with a scored run on D3, where both arms abstained on 2026-11-01.
+
+## Spike finding, 2026-11-02 (task-0022.01)
+
+One probe of the current one-reply arm on D3 (gpt-5.5, n=1): arm B generated a 664-line module in one reply, graded 2 of 12 features by the oracle; arm G abstained with five questions, all for documents the bundle does not carry verbatim (the packaged TOML files the task says to embed, the parser surface tables of `contracts/cli.md`). So size is not the cause on G: the bundle's content is. The multi-reply shape stays worth testing for B's quality; a verbatim-documents section of the bundle, named by the subject's task table, is the smaller change that answers G, and it is a bundle question before it is an agent question.
