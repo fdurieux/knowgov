@@ -36,6 +36,7 @@ IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc")
 
 
 def build(out: Path) -> Path:
+    out = Path(out).resolve()   # the subject reader resolves its root; a relative out would not compare
     if out.exists() and any(out.iterdir()):
         raise FileExistsError(f"{out} is not empty")
     out.mkdir(parents=True, exist_ok=True)
