@@ -121,8 +121,9 @@ def _run_whole(artifact: Path, features_dir: Path | None = None, only: str | Non
         env.pop("EODHD_API_KEY", None)
         junit = t / "junit.xml"
         try:
-            target = [str(feat_dir / "steps")] if not only else [str(feat_dir / "steps" / f"test_{only}.py")] if (feat_dir / "steps" / f"test_{only}.py").exists() else [str(feat_dir / "steps"), "-k", only]
-            proc = subprocess.run([sys.executable, "-m", "pytest", "-q", *target, "-p", "no:cacheprovider",
+            # the kit binds every feature file through one step module (steps/test_features.py), so a single
+            # feature is selected after the run, from the junit, never by a pytest path or -k expression
+            proc = subprocess.run([sys.executable, "-m", "pytest", "-q", str(feat_dir / "steps"), "-p", "no:cacheprovider",
                                    f"--junitxml={junit}"], cwd=t, env=env, capture_output=True, text=True, timeout=TIMEOUT_S)
         except subprocess.TimeoutExpired:
             return {f: {"passed": False, "stage": "timeout", "detail": "the suite was killed"} for f in FEATURES}
@@ -140,6 +141,8 @@ def _run_whole(artifact: Path, features_dir: Path | None = None, only: str | Non
                 per[f]["failed"].append(name)
         out = {}
         for f, r in per.items():
+            if only and f != only:
+                continue
             ok = r["total"] > 0 and not r["failed"]
             out[f] = {"passed": ok, "stage": "ok" if ok else ("no_cases" if not r["total"] else "wrong_outcome"),
                       "detail": f"{r['total'] - len(r['failed'])}/{r['total']} cases" + (f"; failed: {', '.join(r['failed'][:6])}" if r["failed"] else "")}
@@ -169,8 +172,8 @@ def run_feedback(artifact: Path, features: dict[str, str], feature: str | None =
             if rel.endswith(".feature"):
                 (fdir / rel).write_text(text, encoding="utf-8")
         rows = _run_whole(Path(artifact), fdir, only=feature)
-    if feature:
-        rows = {k: v for k, v in rows.items() if k == feature} or {feature: {"passed": False, "stage": "no_cases", "detail": "no such feature"}}
+    if feature and feature not in rows:
+        rows = {feature: {"passed": False, "stage": "no_cases", "detail": f"no such feature; the features are {', '.join(FEATURES)}"}}
     passed = total = 0
     out = {}
     for f, r in rows.items():
