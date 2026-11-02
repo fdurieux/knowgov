@@ -3,11 +3,11 @@ id: TASK-0036
 title: >-
   Refresh the example Gemini row in models.toml to a model Google serves to new
   users
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-02T19:58:00Z'
-updated_date: '2026-11-02T22:02:00Z'
+updated_date: '2026-11-02T22:07:00Z'
 labels:
   - arms
 milestone: m-3
@@ -48,3 +48,9 @@ demo/models.toml carries a commented Gemini row naming gemini-2.5-pro. On 2026-1
 <!-- SECTION:NOTES:BEGIN -->
 Checked 2026-11-02: JSON mode holds at the API default, low, medium and high; xhigh refused (400). Resolved the row as the server does and called it through arms.call with the proxy supplying the key: gemini-3.8-flash, effort medium, prompt 17, completion 5, total 113, hidden 91, reply parsed. 106/106 both ways.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Merged as knowgov #63 on a green matrix. The commented gemini-2.5-pro example became a live row: gemini-3.8-flash on Google endpoint, efforts API default, low, medium, high (xhigh refused), both arms, key GEMINI_API_KEY passed through compose; README says which key it needs. One call through the resolved row parsed JSON and counted 91 thinking tokens.
+<!-- SECTION:FINAL_SUMMARY:END -->
