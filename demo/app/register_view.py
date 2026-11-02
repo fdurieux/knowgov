@@ -165,6 +165,36 @@ def impact(start: str) -> dict | None:
             "text_registry": reg_sentences}
 
 
+def with_cypher(walk: dict, cypher: dict, needs_text: str) -> dict:
+    """The impact panel with the walk's Cypher beside it (task-0024): a code section carrying both
+    forms, the rows form and the paths form, with what they need in the store. The query text is
+    data; the sentences around it are controlled. The page runs nothing."""
+    reg_sentences = walk["text_registry"]
+    C = lambda *s: views._reg(reg_sentences, "controlled", *s)  # noqa: E731
+    text = C("The rows form gives one row per edge, the table above.", "The paths form gives the paths, which the Browser draws as a graph.",
+             "The Browser draws every relationship among the shown nodes, so a parent edge can appear that the walk never followed.",
+             "A run wipes the projection, so project it again before pasting.")
+    walk["cypher"] = dict(cypher, needs="register", needs_text=needs_text)
+    walk["panel"]["sections"].append({"heading": C("The walk in Cypher"), "text": text, "needs": "register", "needs_text": needs_text,
+                                      "code": [{"label": C("Rows, one per edge"), "text": cypher["rows"]},
+                                               {"label": C("Paths, for the graph view"), "text": cypher["paths"]}]})
+    return walk
+
+
+def impact_default() -> str:
+    """The start the page offers first: this subject's application with the most links out, else
+    the register's first node. The register's default, not any subject's id (task-0002)."""
+    T = _load_tools()
+    reg = T["register"].load_register(REGISTER)
+    out = {}
+    for rname, rel in reg["relationships"].items():
+        for ln in rel["links"]:
+            out[ln.get("source")] = out.get(ln.get("source"), 0) + 1
+    apps = sorted(((nid, n) for nid, n in reg["nodes"].items() if n["_taxonomy"] == "applications" and (n.get("source") or {}).get("system", "") == SYSTEM),
+                  key=lambda kv: (-out.get(kv[0], 0), kv[0]))
+    return apps[0][0] if apps else (next(iter(reg["nodes"]), ""))
+
+
 sys.path.insert(0, str(HERE.parent.parent / "harness"))
 from subject import SUBJECT  # noqa: E402  (the subject root: KG_SUBJECT, default subjects/cargo_quote)
 REQ_ANCHOR = SUBJECT.register.get("requirement_anchor", "")   # how the register's links cite a requirement; the subject says
@@ -578,8 +608,7 @@ def build(today: str | None = None) -> dict:
     intro += " " + C(f"This subject's slice is the source system {SYSTEM}: {len(mine)} nodes and {slice_links} links.",
                      f"The other {len(nodes) - len(mine)} nodes belong to the organisation's other subjects ({', '.join(others)})." if others
                      else "Every node is this subject's.")
-    apps = sorted((n for n in nodes if n["subject"] and n["taxonomy"] == "applications"), key=lambda n: (-n["links_out"], n["id"]))
-    impact_default = apps[0]["id"] if apps else (nodes[0]["id"] if nodes else "")
+    default_start = impact_default()
     by_tax: dict[str, list] = {}
     for n in nodes:
         by_tax.setdefault(n["taxonomy"], []).append(n)
@@ -608,7 +637,7 @@ def build(today: str | None = None) -> dict:
             "coverage": {r: summary[r] for r in ("C1", "C2", "C3")}, "coverage_lines": _coverage_lines(summary),
             "findings": findings.items, "intro": intro, "health": health,
             "subject_system": SYSTEM, "slice": {"nodes": len(mine), "links": slice_links, "other_nodes": len(nodes) - len(mine), "other_systems": others},
-            "impact_default": impact_default,
+            "impact_default": default_start,
             "nodes_by_taxonomy": by_tax, "links": links, "relationship_types": rel_types,
             "exceptions": exceptions, "matrix": {"rows": len(mrows), "unverified": unverified, "sentence": matrix_sentence},
             "glossary": glossary, "text_registry": reg_sentences}

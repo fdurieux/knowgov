@@ -75,6 +75,13 @@ IMPACT_PATHS = (
     + IMPACT_WALK.replace("CALL {\n", "OPTIONAL CALL {\n") +
     "RETURN a, p")
 
+
+def impact_cypher(start: str) -> dict:
+    """Both forms of the walk from ``start`` in place of the adapter's literal: the page lists them
+    with the register's default start and the impact panel with the id the viewer typed (task-0024)."""
+    sub = lambda text: text.replace(f"'{IMPACT_START}'", f"'{start}'")  # noqa: E731
+    return {"rows": sub(IMPACT_ROWS), "paths": sub(IMPACT_PATHS)}
+
 # The page's generic saved queries for Neo4j Browser; a subject adds its own (queries.toml).
 SAVED_QUERIES = [
     {"id": "loaded", "needs": "scenario", "title": "Which scenario is loaded",
@@ -99,6 +106,8 @@ SAVED_QUERIES = [
               "RETURN tag, commit, loaded_at, l AS label, count(*) AS n ORDER BY label")},
     {"id": "register-impact", "needs": "register", "title": f"The impact walk from {IMPACT_START}: the walk the register's tools/impact.py makes, one row per edge",
      "text": IMPACT_ROWS},
+    {"id": "register-impact-paths", "needs": "register", "title": f"The same impact walk from {IMPACT_START} as paths: the graph view draws it",
+     "text": IMPACT_PATHS},
     {"id": "register-c1", "needs": "register", "title": "C1 in Cypher: approved steps and touchpoints with no is_supported_by link, the exception joined",
      "text": ("MATCH (s:RegNode {taxonomy:'journeys', state:'approved'}) WHERE s.kind IN ['step', 'touchpoint']\n"
               "  AND NOT (s)-[:REG_IS_SUPPORTED_BY]->(:RegNode)\n"

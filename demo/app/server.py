@@ -96,18 +96,46 @@ NEEDS_TEXT = {"scenario": "any loaded scenario",
               "register": "the register projected", "register+scenario": "the register projected and a loaded scenario"}
 
 
+def _console_store() -> bool:
+    """Whether the store has a console the saved queries and the walk's Cypher are for."""
+    return (os.environ.get("KG_STORE") or "neo4j").lower() == "neo4j"
+
+
 def cypher_list() -> list[dict]:
     """The adapter's saved queries for its console, then the subject's own (queries.toml), each
-    with what it needs. Only an adapter with a console has any."""
+    with what it needs. Only an adapter with a console has any. The impact walk is listed from the
+    register's default start, not the adapter's literal: no module here names a subject's id."""
     try:
-        from store_neo4j import SAVED_QUERIES   # the Neo4j adapter's; another adapter would list its own
+        from store_neo4j import SAVED_QUERIES, IMPACT_START   # the Neo4j adapter's; another adapter would list its own
     except ImportError:
-        SAVED_QUERIES = []
+        SAVED_QUERIES, IMPACT_START = [], ""
     out = []
     generic = list(SAVED_QUERIES)
+    start = register_view.impact_default() if IMPACT_START else ""
     for q in generic[:1] + SUBJECT.queries + generic[1:]:   # the subject's after the first, as the page always listed them
         needs_text = q.get("needs_text") or NEEDS_TEXT.get(q["needs"]) or f"{q['needs']} loaded"
-        out.append(dict(q, needs_text=needs_text))
+        q = dict(q, needs_text=needs_text)
+        if start and q["id"].startswith("register-impact"):
+            q["text"] = q["text"].replace(f"'{IMPACT_START}'", f"'{start}'")
+            q["title"] = q["title"].replace(IMPACT_START, start)
+        out.append(q)
+    return out
+
+
+def impact_view(start: str) -> dict | None:
+    """The impact walk from one node, with the walk's Cypher for the id typed when the store has a
+    console (task-0024); None for an unknown id. The id is a node of the register, so it is a
+    plain literal in the query; nothing is run."""
+    out = register_view.impact(start)
+    if out is None:
+        return None
+    out["cypher"] = None
+    if _console_store():
+        try:
+            from store_neo4j import impact_cypher
+        except ImportError:
+            return out
+        register_view.with_cypher(out, impact_cypher(start), NEEDS_TEXT["register"])
     return out
 
 
@@ -330,7 +358,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"error": f"no {kind} {ident} in the register"}, 404)
                 return self._json(r)
             if parts[:3] == ["api", "register", "impact"] and len(parts) == 4:
-                out = register_view.impact(parts[3])
+                out = impact_view(parts[3])
                 return self._json(out) if out is not None else self._json({"error": f"no such node: {parts[3]}"}, 404)
             if parts[:2] == ["api", "gaps"] and len(parts) == 3 and parts[2] in views.SCENARIOS:
                 return self._json(store_gaps(parts[2]))
