@@ -56,3 +56,19 @@ jobs:
           python tools/check_instance.py runs/instance | grep '^ABSENT stories/quote.md \[user-stories\]'
           cd harness && KG_STORE=rdflib KG_SUBJECT=../runs/instance/subjects/cargo_quote python run.py --deterministic --scenarios S1 --out ../runs/instance-unmapped && cd ..
           python3 -c 'import json; d=json.load(open("runs/instance-unmapped/S1/deterministic.json")); assert d["load"]["unmapped"]==["stories/quote.md"], d["load"]; print("load: unmapped", d["load"]["unmapped"])'
+      - name: The gate as a command (task-0007) exits 0, 1 or 2 under the contract, and ratchets on the record
+        run: |
+          cd harness
+          gate() { KG_STORE=rdflib python gate_cli.py "$@" > /dev/null 2>&1; echo $?; }
+          test "$(gate --scenario S1)" = 0
+          test "$(gate --scenario S2)" = 1
+          test "$(gate --scenario S3)" = 0
+          test "$(gate --scenario S3 --fail-on major)" = 1
+          test "$(gate --scenario S2 --baseline record)" = 0
+          KG_STORE=rdflib python gate_cli.py --scenario S1 -f json -o ../runs/gate-s1.json > /dev/null
+          test "$(gate --scenario S2 --baseline ../runs/gate-s1.json)" = 1
+          test "$(gate --scenario nope)" = 2
+          test "$(gate --subject ../subjects/jef_data_load --baseline record)" = 0
+          test "$(gate --subject ../subjects/minimal)" = 1
+          KG_STORE=rdflib python gate_cli.py --scenario S2 --baseline record
+          python3 -c 'import sys,json; sys.path.insert(0,"."); import schema_check as s; r=json.load(open("../runs/gate-s1.json")); e=s.validate(r, s.load("gate-report")); assert not e, e; print("report valid:", r["verdict"], r["exit_code"])'

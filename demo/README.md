@@ -594,6 +594,50 @@ counts tokens (and stops the one-reply arms at `KG_ARMS_MAX_TOKENS` per
 run, default 6,000,000), and your provider's bill is the record of what a
 run cost, since any list price written here would go stale.
 
+## The gate as a command
+
+The page shows the gate's verdict. A build needs the same answer as a
+command that stops it. `harness/gate_cli.py` loads a scenario, resolves the
+task's required knowledge through the same gate the arms read, and exits
+with a number a pipeline can act on:
+
+```bash
+docker compose exec -T app python harness/gate_cli.py --scenario S2
+```
+
+In plain English: the command answers one question. Is the knowledge this
+task needs good enough to build on? It lists what is missing or weak, key
+by key, on a five-step severity ladder (blocker, critical, major, minor,
+info), and then exits:
+
+- **0**: nothing at or above the threshold. By default the threshold is
+  *blocker*, so PROCEED and QUALIFIED pass and BLOCKED fails.
+- **1**: something at or above it. `--fail-on major` also fails a
+  QUALIFIED answer that still has keys below verified; `--fail-on minor`
+  also fails on a flagged key.
+- **2**: the gate could not run: no such subject, scenario or task, or no
+  store to answer.
+
+A *key* below verified is a major finding: an assistant may use it only
+as a stated assumption. A key that is absent, a declared gap, disputed or
+invalidated is a blocker.
+
+**A baseline instead of a threshold.** `--baseline record` compares the
+answer with the subject's record for the same scenario and exits 1 only
+on a regression: a worse verdict, or a key at a lower level than the
+record's. S2 is BLOCKED in the record too, so
+`--scenario S2 --baseline record` exits 0, and the report still lists the
+blockers. `--baseline <file>` compares with an earlier report of the
+command, written with `-o <file>`. The command never writes a baseline
+itself: keeping one is your decision, made by committing the file.
+
+`-f json` prints the report as data, in the shape
+`harness/schemas/gate-report.schema.json` pins; the command checks it
+against that schema before printing. A load replaces what the store
+holds. `--no-load` reads the store as the page left it instead, and
+refuses when the store holds another scenario. Outside the stack, add
+`KG_STORE=rdflib` to run it without a database.
+
 ## Quick start on a Mac, step by step
 
 Six steps. Each block is ready to paste into Terminal (zsh) as a whole;
