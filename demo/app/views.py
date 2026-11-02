@@ -625,8 +625,12 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
     ingest += list(page.get("ingest", []))
     ingest += ["Each document and each fragment is stored with its sha256 digest.",
                "A later version can then be told apart byte for byte.", f"{det['load']['fragments']} fragments came out."]
+    unmapped = det["load"].get("unmapped", [])   # task-0006: stored, read by no mapper, so absent from the knowledge
     d["ingest"] = {"title": C("Ingest: the documents, read file by file"), "intro": C(*ingest),
-                   "sections": [{"heading": C("Documents"), "table": _table(["path", "family", "format"], arts)}]}
+                   "sections": [{"heading": C("Documents"), "table": _table(["path", "family", "format"], arts)}]
+                               + ([{"heading": C("Documents no mapper reads"),
+                                    "text": C("No mapper reads these documents.", "The store holds them, but no assertion comes from them."),
+                                    "list": [D(u) for u in unmapped]}] if unmapped else [])}
     levels = Counter(v["level"] for v in det["gate_keys"].values())
     d["extract"] = {"title": C("Extract: fragments into assertions"),
                     "intro": C(f"{det['load']['assertions']} assertions, one fact each, by {_word(_ps().mappers)} deterministic mappers, one per format.",

@@ -120,6 +120,36 @@ jobs:
           docker compose exec -T -e KG_SUBJECT=/repo/subjects/minimal app python harness/run.py --deterministic --out runs/minimal
           docker compose exec -T app python3 -c 'import json; d=json.load(open("runs/minimal/S0/deterministic.json")); g=d["D6_gate"]; ks=d["gate_keys"]; assert g["verdict"]=="BLOCKED", g; assert ks and all(v["level"]=="absent" for v in ks.values()), ks; print("minimal subject:", g["verdict"], len(ks), "keys absent")'
 
+      - name: The example instance mounted read-only (task-0006) replays and runs deterministically, and not one byte of it changes
+        run: |
+          # outside runs/, which the app container created as root
+          export KG_INSTANCE="${RUNNER_TEMP:-/tmp}/kg-instance"
+          python3 ../tools/example_instance.py "$KG_INSTANCE" > /dev/null
+          digest() { (cd "$KG_INSTANCE" && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum); }
+          before=$(digest)
+          F="-f docker-compose.yml -f docker-compose.override.yml -f docker-compose.instance.yml"
+          docker compose $F up -d --wait --wait-timeout 240 app
+          docker compose $F exec -T app sh -c 'touch /instance/probe 2>/dev/null && echo "the mount is writable" && exit 1 || echo "the mount is read-only"'
+          python3 - <<'PY'
+          import json, urllib.request
+          subs = json.load(urllib.request.urlopen("http://localhost:8080/api/subjects"))
+          assert [s["id"] for s in subs["subjects"]] == ["cargo_quote"], subs
+          v = json.load(urllib.request.urlopen("http://localhost:8080/api/results/S6"))
+          assert v["gate"]["verdict"] == "PROCEED" and len(v["stage2"]["invalidated"]) == 4, v["gate"]
+          r = json.load(urllib.request.urlopen("http://localhost:8080/api/register"))
+          assert r["summary"]["nodes"] == 56 and r["summary"]["links"] == 65, r["summary"]
+          print("instance: one subject; replay S6", v["gate"]["verdict"], "; register", r["summary"])
+          PY
+          curl -fsS -X POST localhost:8080/api/run -H 'Content-Type: application/json' -d '{"scenario":"S1","mode":"deterministic"}' > /dev/null
+          for i in $(seq 1 90); do
+            status=$(curl -fsS localhost:8080/api/run | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')
+            [ "$status" != "running" ] && break
+            sleep 2
+          done
+          curl -fsS localhost:8080/api/run | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["status"]=="done", r["log_text"]; open("run_id","w").write(r["subject"] + "/" + r["id"])'
+          docker compose $F exec -T -e KG_SUBJECT=/instance/subjects/cargo_quote app python demo/tools/compare_deterministic.py "runs/$(cat run_id)"
+          test "$before" = "$(digest)" && echo "instance unchanged"
+
       - name: Logs on failure
         if: failure()
         run: docker compose logs --no-color | tail -200

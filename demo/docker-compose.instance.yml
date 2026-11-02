@@ -11,6 +11,8 @@
 # is copied into the image. The page lists the subjects under the same folder, instance/subjects/,
 # and none of the public ones (task-0032.02); KG_SUBJECT=/instance/subjects/<id> picks the one it
 # opens on. Each joins the register through its own register_map.toml.
+# The layout, the check (tools/check_instance.py) and a public example (tools/example_instance.py)
+# are in instance/README.md (task-0006).
 services:
   app:
     environment:

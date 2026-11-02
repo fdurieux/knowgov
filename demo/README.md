@@ -178,7 +178,10 @@ folder of subjects (by default the repository's `subjects/` folder) and
 `listed = false` in its manifest, such as the `minimal` test fixture, is
 left out. An organisation's own instance, started with
 `docker-compose.instance.yml`, lists only the subjects in its own
-`subjects/` folder.
+`subjects/` folder. How such an instance is laid out (its register, its
+documents sorted by kind, its subjects and its own record), how to check
+one, and how to build a public example to try first are in
+[`instance/README.md`](../instance/README.md).
 
 There is still one store. It holds the scenario loaded last, of whichever
 subject loaded it, and the store chip names that scenario. Loading a J-F

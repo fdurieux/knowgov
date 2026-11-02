@@ -1,0 +1,113 @@
+# The artefact kinds an instance's artefacts/ folder may hold (task-0006): one row per kind of
+# upstream information in the programme's table "Artefact by artefact: tools, practices, gaps"
+# on fdurieux.github.io, read 2026-11-02, in the table's order. The table's "Cross-artefact
+# consistency" row is the kind for the files that join the others (links.toml).
+#
+# folder   the folder under artefacts/ that holds the kind's files
+# row      the table's row, as the site words it
+# mappers  the harness's deterministic mappers that read this kind (harness/extract.py
+#          EXTRACTORS, plus links); empty: the store reads none, and a file of the kind is
+#          reported absent by tools/check_instance.py and by the load, never skipped silently
+#
+# tests/test_instance.py holds every mapper the harness has to exactly one kind, so a new mapper
+# must say what it reads before it ships.
+
+[[kind]]
+folder = "plantuml-models"
+row = "PlantUML models"
+mappers = ["sequence", "containers", "plantuml_realises"]
+
+[[kind]]
+folder = "aris-epc"
+row = "ARIS process models (EPC)"
+mappers = []   # aris2puml converts them to PlantUML; the converted diagrams go under plantuml-models
+
+[[kind]]
+folder = "textual-requirements"
+row = "Textual requirements"
+mappers = ["requirements", "requirements_json"]
+
+[[kind]]
+folder = "user-stories"
+row = "User stories"
+mappers = []
+
+[[kind]]
+folder = "specification-prose"
+row = "Specification prose"
+mappers = ["spec", "contracts_markdown"]
+
+[[kind]]
+folder = "acceptance-scenarios"
+row = "Acceptance scenarios (Gherkin)"
+mappers = ["gherkin", "gherkin_tagged"]
+
+[[kind]]
+folder = "bpmn-process-models"
+row = "BPMN process models"
+mappers = ["bpmn"]
+
+[[kind]]
+folder = "decision-tables"
+row = "Decision tables (DMN)"
+mappers = ["decision_table", "dmn", "dmn_decisions"]
+
+[[kind]]
+folder = "cross-artefact-links"
+row = "Cross-artefact consistency"
+mappers = ["links"]
+
+[[kind]]
+folder = "architecture-decisions"
+row = "Architecture decisions (ADR)"
+mappers = []
+
+[[kind]]
+folder = "c4-models"
+row = "C4 architecture models"
+mappers = []   # a C4 diagram drawn in PlantUML goes under plantuml-models, which the containers mapper reads
+
+[[kind]]
+folder = "archimate-models"
+row = "ArchiMate enterprise models"
+mappers = []
+
+[[kind]]
+folder = "sysml-capella-models"
+row = "SysML v2 and Capella"
+mappers = []
+
+[[kind]]
+folder = "api-contracts"
+row = "API contracts (OpenAPI, AsyncAPI)"
+mappers = ["openapi"]
+
+[[kind]]
+folder = "schemas"
+row = "Schemas (Protobuf, GraphQL, JSON Schema)"
+mappers = []
+
+[[kind]]
+folder = "data-models"
+row = "Data models"
+mappers = []
+
+[[kind]]
+folder = "threat-models"
+row = "Threat models"
+mappers = []
+
+[[kind]]
+folder = "event-logs"
+row = "Process design against reality"
+mappers = []
+
+[[kind]]
+folder = "glossary"
+row = "Vocabulary (glossary)"
+mappers = []
+
+[[kind]]
+folder = "property-invariants"
+row = "Property-based invariants"
+mappers = []

@@ -36,3 +36,23 @@ jobs:
         run: |
           cd harness && KG_STORE=rdflib KG_SUBJECT=../subjects/minimal python run.py --deterministic --out ../runs/minimal && cd ..
           python3 -c 'import json; d=json.load(open("runs/minimal/S0/deterministic.json")); g=d["D6_gate"]; ks=d["gate_keys"]; assert g["verdict"]=="BLOCKED", g; assert ks and all(v["level"]=="absent" for v in ks.values()), ks; print("minimal subject:", g["verdict"], len(ks), "keys absent")'
+      - name: The example instance (task-0006), S1 to S7 from it, match the record and leave it unchanged
+        run: |
+          python tools/example_instance.py runs/instance
+          digest() { (cd runs/instance && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum); }
+          before=$(digest)
+          cd harness && PYTHONDONTWRITEBYTECODE=1 KG_STORE=rdflib KG_SUBJECT=../runs/instance/subjects/cargo_quote python run.py --deterministic --out ../runs/instance-runs && cd ..
+          KG_SUBJECT=runs/instance/subjects/cargo_quote python demo/tools/compare_deterministic.py runs/instance-runs
+          test "$before" = "$(digest)" && echo "instance unchanged"
+      - name: A stored document no mapper reads is reported absent by the check and by the load
+        run: |
+          mkdir -p runs/instance/artefacts/user-stories && echo "As a shipper, I want a quote." > runs/instance/artefacts/user-stories/quote.md
+          python3 - <<'PY'
+          from pathlib import Path
+          m = Path("runs/instance/subjects/cargo_quote/subject.toml")
+          story = '\n[[artefact]]\nkey = "stories/quote.md"\nfamily = "stories"\nformat = "markdown"\nlabel = "user story"\nformat_label = "markdown"\npath = "../../artefacts/user-stories/quote.md"\n'
+          m.write_text(m.read_text().replace("\n# the code the oracle verified", story + "\n# the code the oracle verified", 1))
+          PY
+          python tools/check_instance.py runs/instance | grep '^ABSENT stories/quote.md \[user-stories\]'
+          cd harness && KG_STORE=rdflib KG_SUBJECT=../runs/instance/subjects/cargo_quote python run.py --deterministic --scenarios S1 --out ../runs/instance-unmapped && cd ..
+          python3 -c 'import json; d=json.load(open("runs/instance-unmapped/S1/deterministic.json")); assert d["load"]["unmapped"]==["stories/quote.md"], d["load"]; print("load: unmapped", d["load"]["unmapped"])'

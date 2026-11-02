@@ -98,8 +98,11 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
                                 a["entity"], aid, basis_agent, [fmap[f] for f in a["fragments"]])
             n_ass += 1
     st.link_mentions()   # the fragments MENTION the entities their assertions are about
+    # a document the store holds that no mapper reads yields no statement: said, never skipped silently
+    # (task-0006); the key appears only when there is one, so a run with none reads as before
+    unmapped = [p for p in kit if p in FAMILY and p in STORE and p not in SUBJECT.mappers]
     return {"fragments": n_frag, "fragments_reused": n_reused, "assertions": n_ass,
-            "unresolved_symbols": unresolved, "activity": aid}
+            "unresolved_symbols": unresolved, "activity": aid, **({"unmapped": unmapped} if unmapped else {})}
 
 
 def load_inferred(st, scenario: str, inferred: dict):

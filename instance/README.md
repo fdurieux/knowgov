@@ -1,0 +1,97 @@
+# An organisation's own instance
+
+This folder describes how an organisation keeps its *own* content for knowgov: its register,
+its documents and its subjects, in a git repository of its own that never comes back here. The
+public demo runs on synthetic content (CargoQuote and J-F's data load). An *instance* is the
+same platform pointed at your content instead.
+
+Two words first. A **register** is the list of your architecture's building blocks and how they
+connect: capabilities, products, journeys, processes, applications, information, organisation
+units, with typed, approved links between them. It has its own repository layout,
+[ieam-register](https://github.com/fdurieux/ieam-register), which you copy to start yours. A
+**subject** is one body of documents the platform loads and checks: a manifest
+(`subject.toml`) that lists the documents, the task the gate answers, and the keys that task
+needs. The [subjects guide](../subjects/README.md) describes it field by field.
+
+## The layout
+
+```
+<your instance>/
+  register/            your register: a copy of ieam-register's layout with your content
+                       (its exports/<system>/<date>/ folders live inside it, as ieam-register has them)
+  artefacts/<kind>/    your documents, one folder per kind (the table below)
+  subjects/<id>/       one folder per subject: subject.toml and its companions; its documents are
+                       named by path, ../../artefacts/<kind>/<file>
+  record/<subject>/    your own results, kept as evidence: a subject's [record] dir points here
+```
+
+The platform reads this folder and never writes to it: the compose file mounts it read-only,
+and every run lands in the platform's own `runs/` folder.
+
+## Kinds of document, and which ones the platform reads
+
+A *kind* is one row of the programme's table *Artefact by artefact* on
+[fdurieux.github.io](https://fdurieux.github.io/). A *mapper* is the part of the platform that
+turns one kind of document into statements the store holds. A kind with no mapper can still be
+in your instance; the platform then says, for each such file, that it holds **no statement**
+from it, instead of skipping it quietly. `instance/kinds.toml` is the same table in machine form.
+
+| folder under `artefacts/` | the table's row | mappers that read it |
+|---|---|---|
+| `plantuml-models` | PlantUML models | `sequence`, `containers`, `plantuml_realises` |
+| `aris-epc` | ARIS process models (EPC) | none: convert them with aris2puml, then they are PlantUML models |
+| `textual-requirements` | Textual requirements | `requirements`, `requirements_json` |
+| `user-stories` | User stories | none |
+| `specification-prose` | Specification prose | `spec`, `contracts_markdown` |
+| `acceptance-scenarios` | Acceptance scenarios (Gherkin) | `gherkin`, `gherkin_tagged` |
+| `bpmn-process-models` | BPMN process models | `bpmn` |
+| `decision-tables` | Decision tables (DMN) | `decision_table`, `dmn`, `dmn_decisions` |
+| `cross-artefact-links` | Cross-artefact consistency | `links` |
+| `architecture-decisions` | Architecture decisions (ADR) | none |
+| `c4-models` | C4 architecture models | none: a C4 diagram drawn in PlantUML goes under `plantuml-models` |
+| `archimate-models` | ArchiMate enterprise models | none |
+| `sysml-capella-models` | SysML v2 and Capella | none |
+| `api-contracts` | API contracts (OpenAPI, AsyncAPI) | `openapi` |
+| `schemas` | Schemas (Protobuf, GraphQL, JSON Schema) | none |
+| `data-models` | Data models | none |
+| `threat-models` | Threat models | none |
+| `event-logs` | Process design against reality | none |
+| `glossary` | Vocabulary (glossary) | none |
+| `property-invariants` | Property-based invariants | none |
+
+## Checking an instance
+
+```bash
+python tools/check_instance.py /path/to/your/instance
+```
+
+In plain English: the check looks at the folder and reports what it found. It confirms the
+register is there, loads every subject, and confirms every document a subject names exists.
+Then it lists your documents kind by kind, with the mapper that reads each one. It also lists
+two kinds of file worth a look. *ABSENT* is a file no mapper reads, so the store holds nothing
+from it. *UNREAD* is a file under `artefacts/` that no subject names. It exits 0 when the
+layout holds and 1 when it does not, for example with no register, a folder that is not a kind,
+or a subject that does not load. It exits 2 when it cannot run at all. Add `--json` for the
+report as data.
+
+## Trying it with public content first
+
+```bash
+python tools/example_instance.py /tmp/example-instance
+```
+
+In plain English: this builds an instance from the public test case, ieam-register's register
+plus CargoQuote's documents, sorted into their kinds. It then runs the check on it. It writes
+only into the folder you name. The demo's CI mounts that folder read-only, replays a scenario,
+runs one deterministically, and confirms afterwards that not one byte of the folder changed.
+
+## Starting the demo on your instance
+
+```bash
+cd demo && KG_INSTANCE=/path/to/your/instance docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.instance.yml up -d --build --wait
+```
+
+In plain English: the same stack as the demo, with your folder mounted read-only at `/instance`.
+The page reads your register (`/instance/register`) and lists your subjects
+(`/instance/subjects`), and none of the public ones. Leave `-f docker-compose.override.yml` out
+to pull the published image instead of building it. One stack serves one instance.

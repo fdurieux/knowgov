@@ -23,7 +23,10 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   (`subjects/README.md` documents the format): `subject.toml`, `scenarios.toml`,
   `plants.toml`, `queries.toml`, `register_map.toml`, `prompts/`, and under
   `vendor/` the bytes vendored from pumllint in its relative layout; `runs/`
-  re-runs, gitignored. `KG_SUBJECT` selects the root; nothing in `harness/` or
+  re-runs, gitignored. `instance/` an organisation's instance layout (`README.md`, adopter register;
+  `kinds.toml`, one kind per row of the site's artefact table and the mappers that read it, every
+  mapper in exactly one), checked by `tools/check_instance.py`, with a public example from
+  `tools/example_instance.py` that CI mounts read-only and digests before and after (task-0006). `KG_SUBJECT` selects the root; nothing in `harness/` or
   `demo/` names a subject, a document or a scenario (task-0002). Two public
   subjects: `cargo_quote` (the proof of concept, seven scenarios, the scored
   record) and `jef_data_load` (the recreation experiment's kit, the degradation
