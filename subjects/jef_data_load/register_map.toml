@@ -30,7 +30,7 @@
 # added (REL-06008, REL-07007, REL-03005 no longer cite them) and keep their contract placement;
 # JDL-058, JDL-069 and JDL-108 gain the endpoints of the links that now cite them (PROC-0007 twice,
 # ENT-0008). Nothing else moves; the rows follow the decision the maintainer approved by merging
-# ieam-register #8, and await the maintainer's word on the map itself.
+# ieam-register #8. The maintainer approved the six rows as they stand on 2026-11-02 (knowgov #45).
 #
 # contracts/universe.toml.md, classifications.toml.md, the packaged TOML -> ENT-0007 (and APP-0005)
 # contracts/collectors.md, fixtures.md -> APP-0009, PROC-0009
@@ -45,7 +45,7 @@
 [map]
 basis = "derived"
 author = "the demo session, derived 2026-11-01 from the contracts' citations, reconciled the same day with the register's links at v0.2.0"
-status = "approved"          # approved 2026-11-01 at v0.2.0 (knowgov #23); the rows revised for v0.2.1 approved 2026-11-02; six rows revised for v0.2.2 the same day (decision 0007)
+status = "approved"          # approved 2026-11-01 at v0.2.0 (knowgov #23); the rows revised for v0.2.1 approved 2026-11-02; the six rows revised for v0.2.2 approved the same day (decision 0007)
 approved_by = "fdurieux"
 approved_on = 2026-11-02
 register_commit = "024264690bf4fb6d2da094d707785036a97fc714"   # ieam-register v0.2.2, the links the rows were reconciled with
