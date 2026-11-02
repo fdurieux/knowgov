@@ -50,6 +50,12 @@ TOOLS = [
 ]
 
 
+EXTRA_TOOLS = {
+    "read_knowledge": {"type": "function", "function": {"name": "read_knowledge", "description": "Read one required key's knowledge from the governed repository: its level, every live assertion with value, evidence, verification, approval and gaps. Each call is recorded as consulted.",
+                                                        "parameters": {"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]}}},
+}
+
+
 def ceiling() -> dict:
     """The per-run ceiling: instance configuration, with the documented defaults."""
     return {"calls": int(os.environ.get("KG_AGENT_MAX_CALLS") or DEFAULT_CEILING["calls"]),
@@ -128,12 +134,18 @@ def openai_responder(model: str | None = None):
     return respond
 
 
-def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str, responder=None, limits: dict | None = None) -> dict:
+def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str, responder=None, limits: dict | None = None,
+        readers: dict | None = None) -> dict:
     """The loop. ``read_text(path)`` serves read_document; ``feedback(sandbox_root, feature)`` serves
-    run_suite and returns a JSON-able dict; the result carries the final reply (or None), what
-    stopped the run, the trace, the totals and the sandbox's files."""
+    run_suite and returns a JSON-able dict; ``readers`` adds read tools by name (EXTRA_TOOLS), each a
+    callable of the tool's one argument. The result carries the final reply (or None), what stopped
+    the run, the trace, the totals, the sandbox's files and the consulted set: what every read tool
+    was asked for, in order, the refusals included."""
     responder = responder or openai_responder()
     lim = {**ceiling(), **(limits or {})}
+    readers = dict(readers or {})
+    tools = TOOLS + [EXTRA_TOOLS[name] for name in readers if name in EXTRA_TOOLS]
+    consulted: dict[str, list] = {"read_document": [], **{name: [] for name in readers}}
     box = Sandbox(sandbox)
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     trace: list[dict] = []
@@ -153,7 +165,7 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
         if stopped_by:
             break
         try:
-            r = responder(messages, TOOLS)
+            r = responder(messages, tools)
         except Exception as e:  # noqa: BLE001 — a failed call ends the run as an api error, never silently
             stopped_by = f"api error: {str(e)[:200]}"
             trace.append({"turn": len(trace) + 1, "kind": "error", "text": str(e)[:300], "at": round(time.time() - t0, 1)})
@@ -203,7 +215,12 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
             if result is None:
                 try:
                     if c["name"] == "read_document":
+                        consulted["read_document"].append(args.get("path"))
                         result = {"path": args.get("path"), "text": _clip(read_text(args.get("path")), READ_LIMIT)}
+                    elif c["name"] in readers:
+                        arg = next(iter(args.values()), None) if args else None
+                        consulted[c["name"]].append(arg)
+                        result = {"key": arg, "text": _clip(readers[c["name"]](arg), READ_LIMIT)}
                     elif c["name"] == "write_file":
                         result = {"written": box.write(args.get("path"), args.get("content", ""))}
                     elif c["name"] == "run_suite":
@@ -230,4 +247,4 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
         final_reply = final
     return {"parsed": final_reply, "finished": final is not None, "stopped_by": stopped_by, "trace": trace,
             "totals": {**tot, "usd": round(tot["usd"], 4), "seconds": round(time.time() - t0, 1), "turns": len(trace)},
-            "files": box.files(), "ceiling": lim}
+            "files": box.files(), "ceiling": lim, "consulted": consulted}

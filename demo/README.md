@@ -427,7 +427,13 @@ configuration read from `KG_AGENT_MAX_CALLS`, `KG_AGENT_MAX_USD` and
 ends with decision abstain and the reason. Every turn and tool call is
 written to a trace file beside the run, and the Generate box shows it.
 The pristine suite, the oracle, grades the sandbox afterwards as it
-grades a reply.
+grades a reply. With `context = "pull"` in the manifest the first message
+is an index, not the whole bundle or every document: the governed arm reads
+a key's knowledge through `read_knowledge(key)` and the baseline arm a
+document through `read_document(path)`, every read logged, so the gate
+box shows which keys below verified a run read and which it marked as
+assumptions, and a turn resends far less. The cost estimate prices the
+prompt tokens the endpoint reports as cached at a tenth of the input rate.
 
 A subject whose record ran no arm (the J-F data load: its record graded
 whole rebuilds, so its `record_model` is empty) has no like-for-like

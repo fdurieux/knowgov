@@ -284,7 +284,7 @@ def test_the_subject_runs_its_arms_as_an_agent_and_its_oracle_gives_feedback():
 import sys, importlib.util; sys.path.insert(0, "harness")
 from subject import SUBJECT
 a = SUBJECT.arms
-assert a["kind"] == "agent" and a["agent"]["feedback"] == "features/" and a["agent"]["system_prompt"] == "system_agent", a
+assert a["kind"] == "agent" and a["agent"]["feedback"] == "features/" and a["agent"]["system_prompt"] == "system_agent" and a["agent"]["context"] == "pull", a
 assert "jdl_adapter.py" in a["agent"]["layout"] and "finish" in a["agent"]["layout"]
 assert "read_document" in SUBJECT.prompt("system_agent") and "finish(" in SUBJECT.prompt("system_agent")
 spec = importlib.util.spec_from_file_location("js", SUBJECT.oracle_script()); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)

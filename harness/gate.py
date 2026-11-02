@@ -57,26 +57,57 @@ def resolve(s, task: str) -> dict:
             "stale": stale, "suspect_derived": suspect}
 
 
+def render_key(key: str, v: dict) -> list[str]:
+    """One key's section of the bundle: its level and flags, its declared gaps, every live assertion
+    with evidence, verification, approval and gaps. The pull context serves it on read_knowledge."""
+    out = [f"\n## {key}  level={v['level']}  flags={','.join(v['flags']) or '-'}"]
+    for g in v["declared_gaps"]:
+        out.append(f"  DECLARED GAP {g['id']}: {g['text']}")
+    if not v["assertions"]:
+        out.append("  (no assertion in the repository: UNKNOWN — not a documented absence)")
+    for a in v["assertions"]:
+        out.append(f"  [{a['id']}] value={a['value']!r} basis={a['basis']} status={a['status']} source={a['artefact']} by={a['agent']}")
+        out.append(f"      text: {a['text'][:300]}")
+        for f in a["fragments"][:2]:
+            out.append(f"      evidence: {f['artefact']} @ {f['locator']}: {f['text'][:200]!r}")
+        for ver in a["verifications"]:
+            out.append(f"      verification: {ver['method']} ({ver['scope']}) at {ver['at']}" + (f" VALID UNTIL {ver['valid_until']}" if ver['valid_until'] else ""))
+        for ap in a["approvals"]:
+            out.append(f"      approval: {ap['record']} at {ap['at']}")
+        for g in a["gaps"]:
+            out.append(f"      GAP {g['kind']}{' (declared)' if g['declared'] else ''}: {g['text']}")
+    return out
+
+
+def render_index(res: dict, policy: str, documents: list[str] | None = None) -> str:
+    """The pull context's first message: the verdict, the policy, one line per key (level, flags,
+    assertion ids) and the names of the documents read_document serves; the knowledge itself comes
+    through read_knowledge(key), one section per call, and every call is logged."""
+    out = [f"GATE VERDICT: {res['verdict']} — {res['why']}", "", "POLICY:", policy, "",
+           "REQUIRED KNOWLEDGE, an index (status is the knowledge repository's, not yours to upgrade).",
+           "Call read_knowledge(key) for a key's assertions, evidence, verification and gaps; each call is recorded as consulted.",
+           "key | level | flags | assertion ids"]
+    for key, v in res["keys"].items():
+        ids = ", ".join(a["id"] for a in v["assertions"]) or "(none: UNKNOWN)"
+        out.append(f"{key} | {v['level']} | {','.join(v['flags']) or '-'} | {ids}")
+    if res["conflicts"]:
+        out.append("\nCONFLICTS:")
+        for c in res["conflicts"]:
+            out.append(f"  {c['id']}: {c['text']}")
+    if res.get("stale"):
+        out.append("\nINVALIDATED BY A SOURCE CHANGE: " + ", ".join(x.get("key", "") for x in res["stale"]))
+    if documents:
+        out.append("\nDOCUMENTS the task names verbatim; call read_document(path) for each you need:")
+        for d in documents:
+            out.append(f"  {d}")
+    return "\n".join(out)
+
+
 def render_bundle(res: dict, policy: str, verbatim: dict[str, str] | None = None) -> str:
     out = [f"GATE VERDICT: {res['verdict']} — {res['why']}", "", "POLICY:", policy, "",
            "REQUIRED KNOWLEDGE, key by key (status is the knowledge repository's, not yours to upgrade):"]
     for key, v in res["keys"].items():
-        out.append(f"\n## {key}  level={v['level']}  flags={','.join(v['flags']) or '-'}")
-        for g in v["declared_gaps"]:
-            out.append(f"  DECLARED GAP {g['id']}: {g['text']}")
-        if not v["assertions"]:
-            out.append("  (no assertion in the repository: UNKNOWN — not a documented absence)")
-        for a in v["assertions"]:
-            out.append(f"  [{a['id']}] value={a['value']!r} basis={a['basis']} status={a['status']} source={a['artefact']} by={a['agent']}")
-            out.append(f"      text: {a['text'][:300]}")
-            for f in a["fragments"][:2]:
-                out.append(f"      evidence: {f['artefact']} @ {f['locator']}: {f['text'][:200]!r}")
-            for ver in a["verifications"]:
-                out.append(f"      verification: {ver['method']} ({ver['scope']}) at {ver['at']}" + (f" VALID UNTIL {ver['valid_until']}" if ver['valid_until'] else ""))
-            for ap in a["approvals"]:
-                out.append(f"      approval: {ap['record']} at {ap['at']}")
-            for g in a["gaps"]:
-                out.append(f"      GAP {g['kind']}{' (declared)' if g['declared'] else ''}: {g['text']}")
+        out.extend(render_key(key, v))
     if res["conflicts"]:
         out.append("\nCONFLICTS:")
         for c in res["conflicts"]:

@@ -84,6 +84,15 @@ review = { at = "2026-08-06", scope = "..." }       # the dated human review
 authored = { at = "2026-10-30", scope = "..." }     # authored statements: reviewed by construction
 approval = { at = "2026-08-06", record = "..." }    # the owner's approval of every verified assertion
 
+[arms]                        # optional; absent means kind = "reply": one JSON reply per run (harness/arms.py)
+kind = "agent"                # a loop of turns with tools over a sandbox (harness/agent.py, task-0022)
+[arms.agent]
+system_prompt = "system_agent"   # prompts/<name>.md for the agent kind
+feedback = "features/"           # the artefact that is the scenario's own suite, run by the oracle script's run_feedback
+context = "pull"                 # push (default): the bundle or the documents in the first message; pull: an index,
+                                 # read_knowledge(key) for G and read_document(path) for B, every read logged as consulted
+layout = """..."""               # prose appended to the task prompt: what the oracle grades and where files go
+
 [tasks.codegen]               # one table per task class; the gate resolves a class's keys
 keys = ["shipper_id|present", "..."]
 verbatim = ["contracts/cli.md"]      # optional: kit files the governed bundle carries as written, after the knowledge
