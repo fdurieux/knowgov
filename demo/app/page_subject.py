@@ -51,6 +51,8 @@ class PageSubject:
         self.subject = s
         self.id: str = s.id
         self.root: Path = s.root
+        # whether the page lists it when it scans a folder of subjects; a fixture says listed = false (task-0032.02)
+        self.listed: bool = bool(s.manifest.get("subject", {}).get("listed", True))
         # the record and the run settings
         self.record_dir: Path = s.record_dir                 # the subject's record, never written
         self.suite_order: list = s.suite_order

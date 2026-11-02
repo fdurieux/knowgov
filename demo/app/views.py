@@ -362,6 +362,7 @@ def _glossary(ps) -> dict:
         "flagged": "The arm named the planted problem in its questions or assumptions.",
         "record": "The committed results of the scored run, under results/.",
         "demo run": "A re-run written to a dated folder under runs/.",
+        "subject": "One kit with its documents, scenarios and record. The page shows one subject at a time; the header picks it.",
         "store": "The Neo4j database the harness loads; it holds one scenario at a time.",
         "model": "The language model that answers an arm's call.",
         # shared with the IEAM register (kg_experiment/demo/register/glossary/glossary.toml), reconciled in GLOSSARY.md

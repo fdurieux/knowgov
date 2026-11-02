@@ -4,6 +4,7 @@
 [subject]
 id = "minimal"
 name = "Minimal"
+listed = false   # a fixture: the page's subject drop-down skips it when it scans subjects/; named directly it still loads
 description = "An empty subject: nothing to read, so every required key is absent."
 
 [tasks.codegen]

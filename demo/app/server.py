@@ -45,7 +45,66 @@ ROOT = HERE.parent.parent
 HARNESS = ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
 import page_subject  # noqa: E402  (the subject as a value: task-0032.01)
+from subject import Subject  # noqa: E402
 _ps = page_subject.current   # the subject of the call in progress; the environment's when no call names one
+
+
+def _subject_roots() -> list[Path]:
+    """KG_SUBJECTS: one or more roots, separated by commas or the path separator; each is a subject
+    (it holds subject.toml) or a folder of subjects. Default the repository's subjects/ folder; an
+    instance names /instance/subjects and lists its own subjects only (task-0032.02)."""
+    raw = os.environ.get("KG_SUBJECTS") or str(ROOT / "subjects")
+    out = []
+    for part in re.split(r"[,%s]" % re.escape(os.pathsep), raw):
+        root = Path(part.strip())
+        if not part.strip() or not root.is_dir():
+            continue
+        if (root / "subject.toml").exists():
+            out.append(root)   # a subject named directly is listed, whatever its manifest says
+        else:
+            out += sorted(d for d in root.iterdir() if (d / "subject.toml").exists()
+                          and page_subject.of(Subject(d)).listed)   # a fixture (listed = false) is skipped in a scan
+    return out
+
+
+def _load_subjects() -> list:
+    """Every subject the page serves, built once, in folder order, ids unique. KG_SUBJECT picks the
+    default a request without ?subject= gets, moved first. When KG_SUBJECTS is set it is the whole
+    list: an instance lists its own subjects and none of the public ones, whatever KG_SUBJECT says.
+    When it is unset, a KG_SUBJECT outside the repository's subjects/ is listed too, as before."""
+    roots = _subject_roots()
+    named = os.environ.get("KG_SUBJECT")
+    if named and not os.environ.get("KG_SUBJECTS") and Path(named).resolve() not in {r.resolve() for r in roots}:
+        roots = [Path(named)] + roots
+    listed, seen = [], set()
+    for root in roots:
+        ps = page_subject.of(Subject(root))
+        if ps.id not in seen:
+            seen.add(ps.id)
+            listed.append(ps)
+    if named:
+        first = [ps for ps in listed if ps.root.resolve() == Path(named).resolve()]
+        listed = first + [ps for ps in listed if ps not in first]
+    return listed or [page_subject.current()]
+
+
+SUBJECTS = _load_subjects()
+SUBJECT_BY_ID = {ps.id: ps for ps in SUBJECTS}
+
+
+def subjects_view() -> list[dict]:
+    """What the header drop-down lists: id, name and the page title of each subject, the default first."""
+    return [{"id": ps.id, "name": ps.subject.name, "title": ps.subject.page.get("title", ""), "default": i == 0}
+            for i, ps in enumerate(SUBJECTS)]
+
+
+def subject_of_request(q: dict, body: dict | None = None):
+    """The subject a request names (?subject=, or "subject" in a POST body), the default when it
+    names none; None for an id the page does not serve, which every route answers with 404."""
+    sid = (q.get("subject") or [None])[0] or ((body or {}).get("subject") if isinstance(body, dict) else None)
+    if not sid:
+        return SUBJECTS[0]
+    return SUBJECT_BY_ID.get(str(sid))
 import arms  # noqa: E402  (the model endpoint settings; the client is imported only when a call is made)
 RUNS_DIR = Path(os.environ.get("KG_DEMO_RUNS", str(ROOT / "runs")))
 NEO4J_URI = os.environ.get("KG_NEO4J_URI", "bolt://localhost:7687")
@@ -186,7 +245,7 @@ def store_status() -> dict:
                    census={"nodes": c["nodes"], "relationships": c["relationships"], "assertions_by_status": c["assertions_by_status"]},
                    loaded=(acts[0].split(":")[2] if acts else None), activities=acts, register=reg)
         # the store holds one scenario; its id is its subject's own, so the scenario names the subject
-        out["loaded_subject"] = page_subject.scenario_subject(out["loaded"], [_ps()])
+        out["loaded_subject"] = page_subject.scenario_subject(out["loaded"], SUBJECTS)
     except ImportError:
         out["error"] = "store driver not installed: deterministic and arms modes need it"
         return out
@@ -381,7 +440,16 @@ class Handler(BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         q = urllib.parse.parse_qs(u.query)
         parts = [p for p in u.path.split("/") if p]
+        ps = subject_of_request(q)
+        if ps is None:   # every route, the page included: a subject this page does not serve is not found
+            return self._json({"error": f"no subject {q['subject'][0]!r} here; /api/subjects lists them"}, 404)
+        with page_subject.using(ps):
+            return self._get(u, q, parts)
+
+    def _get(self, u, q, parts) -> None:
         try:
+            if parts == ["api", "subjects"]:
+                return self._json({"subjects": subjects_view(), "current": _ps().id})
             if not parts or parts == ["index.html"]:
                 return self._send(200, INDEX, "text/html; charset=utf-8")
             if parts == ["health"]:
@@ -463,6 +531,14 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length) or b"{}")
         except json.JSONDecodeError:
             return self._json({"error": "body must be JSON"}, 400)
+        q = urllib.parse.parse_qs(u.query)
+        ps = subject_of_request(q, body)
+        if ps is None:
+            return self._json({"error": "no such subject here; /api/subjects lists them"}, 404)
+        with page_subject.using(ps):
+            return self._post(parts, body)
+
+    def _post(self, parts, body) -> None:
         if parts == ["api", "register", "project"]:
             # the projection: derived, in its own namespace, never the record; a run wipes it
             if RUNNER.current and RUNNER.current["status"] == "running":

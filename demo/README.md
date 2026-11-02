@@ -162,30 +162,47 @@ entry then says *this instance* instead of the public repository, the
 checker runs at today's date, since a checkout has no pinned date, and no
 digest is checked, since there is no `SOURCE.md` to check against.
 
-**Two subjects side by side.** One stack shows one subject, the one
-`KG_SUBJECT` named when it started. To look at J-F's data load and the
-CargoQuote demo at the same time, start a second stack beside the first:
-give it its own project name with `-p`, its own three ports, and the
-address your browser reaches its Neo4j Browser by. Each stack is the whole
-pair, the app and its own Neo4j, since two apps must not share one store
-(a load by one would race the other). With the default stack already
-running on 8080, 7474 and 7687, paste:
+**Switching subject.** A *subject* is one kit with its documents,
+scenarios and record: the CargoQuote demo and J-F's data load are the two
+public ones. The **subject** drop-down at the top of the page lists every
+subject the stack serves and switches the page to the one you pick; the
+server keeps running. The page then shows that subject's scenarios, its
+record, its runs and its own Arms call choice, which your browser
+remembers per subject. The address carries the choice as
+`?subject=jef_data_load`, so a link opens on the same subject.
+
+In plain English: one stack, both subjects, one menu to move between
+them. Which subjects are listed is configuration: `KG_SUBJECTS` names a
+folder of subjects (by default the repository's `subjects/` folder) and
+`KG_SUBJECT` the one the page opens on. A subject marked
+`listed = false` in its manifest, such as the `minimal` test fixture, is
+left out. An organisation's own instance, started with
+`docker-compose.instance.yml`, lists only the subjects in its own
+`subjects/` folder.
+
+There is still one store. It holds the scenario loaded last, of whichever
+subject loaded it, and the store chip names that scenario. Loading a J-F
+scenario replaces a CargoQuote one, and the other way round.
+
+**Two subjects side by side.** To keep both pages open at once, each with
+its own store, start a second stack beside the first: give it its own
+project name with `-p`, its own three ports, and the address your browser
+reaches its Neo4j Browser by. With the default stack already running on
+8080, 7474 and 7687, paste:
 
 ```bash
 cd "$HOME/knowgov/demo" && KG_SUBJECT=/repo/subjects/jef_data_load KG_PORT_APP=8081 KG_PORT_BROWSER=7475 KG_PORT_BOLT=7688 KG_BROWSER_URL=http://localhost:7475 docker compose -p knowgov-jef up -d --build --wait && open http://localhost:8081
 ```
 
-In plain English: the first three variables pick the subject and move
-the three ports by one so nothing collides; the fourth tells the page
-where its Browser links should point; `-p knowgov-jef` names the second
-stack so Docker keeps its containers and its database apart from the
-first. The J-F page then opens on port 8081, its Browser on 7475, and the
-default stack is untouched. Stop the second stack alone with
-`docker compose -p knowgov-jef down`. Both stacks write their runs into
-this checkout's `runs/` folder, each run under its subject's folder and
-its own dated name. A
-drop-down that switches subjects inside one stack is the story
-task-0032; this is the route that needs no code.
+In plain English: the first three variables pick the subject the page
+opens on and move the three ports by one so nothing collides; the fourth
+tells the page where its Browser links should point; `-p knowgov-jef`
+names the second stack so Docker keeps its containers and its database
+apart from the first. The J-F page then opens on port 8081, its Browser
+on 7475, and the default stack is untouched. Stop the second stack alone
+with `docker compose -p knowgov-jef down`. Both stacks write their runs
+into this checkout's `runs/` folder, each run under its subject's folder
+and its own dated name.
 
 ## What Neo4j holds, who writes it and who reads it
 

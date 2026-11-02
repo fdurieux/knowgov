@@ -13,6 +13,7 @@ header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:baseline;padding:16
 header h1{font:600 20px/1.2 "Source Serif 4",Georgia,serif;margin:0}
 header .sub{color:var(--muted)}
 .chips{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.subject-pick{font-size:13px;color:var(--muted)} .subject-pick select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:6px;padding:2px 6px;margin-left:4px;max-width:100%}
 .chip{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:13px;background:var(--card)}
 .chip.ok{background:var(--ok);border-color:var(--green)} .chip.bad{background:var(--bad);border-color:var(--red)} .chip.warn{background:var(--warn);border-color:var(--amber)}
 main{display:grid;grid-template-columns:360px 1fr;gap:20px;padding:20px 24px;max-width:1800px}
@@ -105,6 +106,7 @@ a{color:var(--teal)}
 <header>
   <div><h1>Neo4j as a governed knowledge repository — the proof of concept, replayed</h1>
   <div class="sub">Seven scenarios, a gate, two generator arms, one oracle. Record: <code>docs/neo4j-governed-knowledge-evaluation.md</code> §6, PRs #214–#218.</div></div>
+  <label class="subject-pick" for="subject-pick">subject <select id="subject-pick" title="Each subject is its own kit, scenarios and record. The store holds one scenario, of whichever subject loaded it last."></select></label>
   <div class="chips" id="chips"></div>
 </header>
 <main>
@@ -131,9 +133,10 @@ a{color:var(--teal)}
 <script>
 const $ = (s, el=document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let STATE = {scenarios: [], store: null, armsEnabled: false, detEnabled: false, current: null, source: null, view: null, run: null, shown: null, lastRun: {}, recordModel: '', recordEffort: '', modelRows: []};
-function armsChoice() { try { return JSON.parse(localStorage.getItem('kg-arms-row') || 'null'); } catch (e) { return null; } }
-function saveArmsChoice(c) { try { localStorage.setItem('kg-arms-row', JSON.stringify(c)); } catch (e) {} }
+let STATE = {subject: '', scenarios: [], store: null, armsEnabled: false, detEnabled: false, current: null, source: null, view: null, run: null, shown: null, lastRun: {}, recordModel: '', recordEffort: '', modelRows: []};
+// the arms choice is kept per subject: each subject has its own record's row (task-0032.02)
+function armsChoice() { try { return JSON.parse(localStorage.getItem('kg-arms-row:' + STATE.subject) || 'null'); } catch (e) { return null; } }
+function saveArmsChoice(c) { try { localStorage.setItem('kg-arms-row:' + STATE.subject, JSON.stringify(c)); } catch (e) {} }
 // the row and the effort sent with an Arms run (task-0029): the page sends ids only, the server resolves them
 function armsRow() { const r = STATE.modelRows.find(x => x.id === $('#am-row').value); return r && r.available ? r : null; }
 function armsEffort() { return $('#am-effort').value; }
@@ -141,8 +144,10 @@ function armsEffort() { return $('#am-effort').value; }
 function armsOffWhy() { const vars = [...new Set(STATE.modelRows.filter(r => !r.key_set).map(r => r.key_var))]; return vars.length ? 'set ' + vars.join(' or ') + " in the app's environment" : 'no model row serves this subject'; }
 // shown: {scenario, mode} of the report on screen; lastRun[scenario+mode]: the most recent run's record for that button
 
+// every API call names the subject on screen; the server answers within that subject (task-0032.02)
+function withSubject(path) { return STATE.subject ? path + (path.includes('?') ? '&' : '?') + 'subject=' + encodeURIComponent(STATE.subject) : path; }
 async function api(path, opts) {
-  const r = await fetch(path, opts);
+  const r = await fetch(withSubject(path), opts);
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
@@ -480,7 +485,7 @@ function openGaps(v, host, b) {
     host.querySelectorAll('.gfilter button').forEach(x => x.addEventListener('click', () => { filter = x.dataset.k; draw(); }));
   };
   draw();
-  fetch(`/api/gaps/${v.scenario}`).then(r => r.json()).then(j => { store = j; if (b.classList.contains('sel')) draw(); }).catch(e => { store = { match: false, loaded: null, error: String(e), gaps: [] }; if (b.classList.contains('sel')) draw(); });
+  fetch(withSubject(`/api/gaps/${v.scenario}`)).then(r => r.json()).then(j => { store = j; if (b.classList.contains('sel')) draw(); }).catch(e => { store = { match: false, loaded: null, error: String(e), gaps: [] }; if (b.classList.contains('sel')) draw(); });
 }
 
 function wireSystemic(v) {
@@ -578,7 +583,22 @@ function renderReport(v) {
   }
 }
 
-loadScenarios().then(() => { renderRuns(); show(STATE.scenarios[0].id); }).catch(e => { $('#report').innerHTML = `<div class="card">${esc(e.message)}</div>`; });
+// the subject on screen: the address's ?subject=, else the last one picked in this browser, else the server's default
+async function loadSubjects() {
+  const j = await (await fetch('/api/subjects')).json();
+  const ids = j.subjects.map(x => x.id);
+  let saved = null; try { saved = localStorage.getItem('kg-subject'); } catch (e) {}
+  const asked = new URLSearchParams(location.search).get('subject');
+  STATE.subject = ids.includes(asked) ? asked : ids.includes(saved) ? saved : j.current;
+  const sel = $('#subject-pick');
+  sel.innerHTML = j.subjects.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+  sel.value = STATE.subject;
+  sel.closest('label').hidden = j.subjects.length < 2;   // one subject: nothing to pick
+  // a new subject is a new page: its scenarios, record, runs and arms choice; the server keeps running
+  sel.onchange = () => { try { localStorage.setItem('kg-subject', sel.value); } catch (e) {} location.search = '?subject=' + encodeURIComponent(sel.value); };
+}
+
+loadSubjects().then(loadScenarios).then(() => { renderRuns(); show(STATE.scenarios[0].id); }).catch(e => { $('#report').innerHTML = `<div class="card">${esc(e.message)}</div>`; });
 </script>
 </body>
 </html>
