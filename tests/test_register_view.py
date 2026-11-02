@@ -539,3 +539,61 @@ def test_listed_impact_query_uses_the_registers_default_start_and_the_panel_carr
     assert "wireRefs(host); wireCopy(host);" in page and "function wireCopy(root)" in page and "function needsChip(" in page
     ci = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert 'w["cypher"]["rows"]' in ci
+
+
+# ---- task-0024.02: a Browser link that pre-fills the editor with the walk's query, verified in the stack job
+def test_impact_browser_links_carry_the_query_and_the_stack_job_runs_them():
+    import os
+    import urllib.parse
+    import server
+    sys.path.insert(0, str(ROOT / "demo" / "tools"))
+    import check_impact_cypher as cic
+    w = server.impact_view("APP-0003")
+    links = w["cypher"]["browser"]
+    assert set(links) == {"rows", "paths"} and [c["browser"] for c in w["panel"]["sections"][-1]["code"]] == [links["rows"], links["paths"]]
+    host = urllib.parse.urlparse(server.BROWSER_URL).hostname
+    for key, link in links.items():
+        u = urllib.parse.urlsplit(link)
+        assert link.startswith(server.BROWSER_URL + "/browser/?") and u.path == "/browser/"
+        q = urllib.parse.parse_qs(u.query)
+        assert q["connectURL"] == [f"bolt://neo4j@{host}:7687"] and q["cmd"] == ["edit"] and q["arg"] == [w["cypher"][key]]
+        assert cic.arg_of(link) == w["cypher"][key]
+        # the Browser reads the arg of the decoded URL up to its first & or #: the text holds neither; a + in it is sent as %2B,
+        # which survives the Browser's turning of literal + into spaces before it decodes
+        assert not any(ch in w["cypher"][key] for ch in "&#") and "%2B" in link if "+" in w["cypher"][key] else True
+        # the Browser's own reading (populateEditorFromUrlEpic, 5.26.0): literal + to space, the whole URL decoded, then the arg up to & or #
+        decoded = urllib.parse.unquote(link.replace("+", " "))
+        assert re.findall(r"[\?&]arg=([^&#]*)", decoded) == [w["cypher"][key]]
+    assert "The Browser link opens the editor with the query and runs nothing." in w["panel"]["sections"][-1]["text"]
+    _check_sentences(w["text_registry"])
+    assert register_view.with_cypher(register_view.impact("APP-0003"), {"rows": "r", "paths": "p"}, "x")["cypher"]["browser"] is None
+    os.environ["KG_STORE"] = "rdflib"
+    try:
+        assert server.impact_view("APP-0003")["cypher"] is None
+    finally:
+        del os.environ["KG_STORE"]
+    # the comparator's shapes: the walk's edges as the rows form returns them, the paths' distinct relationships and starts
+    edges = [{"from": "A", "rel": "supports", "to": "P", "state": "approved", "owner": "O", "evidence": ["e1"]}]
+    rows = [{"from": "A", "relationship": "supports", "to": "P", "link state": "approved", "owner": "O", "evidence": None}]
+    assert cic.row_keys(rows) == [("A", "supports", "P", "approved", "O", ())] and cic.edge_keys(edges) == [("A", "supports", "P", "approved", "O", ("e1",))]
+
+    class Rel:
+        def __init__(self, i):
+            self.element_id = i
+
+    class P:
+        relationships = (Rel("r1"), Rel("r2"), Rel("r1"))
+    assert cic.path_shape([{"a": {"reg_id": "A"}, "p": P()}, {"a": {"reg_id": "A"}, "p": None}]) == (2, {"A"})
+    for bad in ("http://x/browser/?connectURL=b&cmd=play&arg=start", "http://x/browser/?cmd=edit&arg=a"):
+        try:
+            cic.arg_of(bad)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError(bad)
+    page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
+    assert 'href="${esc(c.browser)}" target="_blank" rel="noopener">open in the Browser</a>' in page
+    ci = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
+    assert "demo/tools/check_impact_cypher.py" in ci and ci.index("check_saved_queries.py") < ci.index("check_impact_cypher.py")
+    readme = (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
+    assert "**The impact panel's Browser links.**" in readme and "pre-filled" in readme and "wipes the projection first" in readme

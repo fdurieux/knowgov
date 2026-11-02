@@ -165,19 +165,25 @@ def impact(start: str) -> dict | None:
             "text_registry": reg_sentences}
 
 
-def with_cypher(walk: dict, cypher: dict, needs_text: str) -> dict:
+def with_cypher(walk: dict, cypher: dict, needs_text: str, browser: dict | None = None) -> dict:
     """The impact panel with the walk's Cypher beside it (task-0024): a code section carrying both
-    forms, the rows form and the paths form, with what they need in the store. The query text is
-    data; the sentences around it are controlled. The page runs nothing."""
+    forms, the rows form and the paths form, with what they need in the store, and for each a
+    Browser link that pre-fills the editor when the server gives one. The query text is data; the
+    sentences around it are controlled. The page runs nothing."""
     reg_sentences = walk["text_registry"]
     C = lambda *s: views._reg(reg_sentences, "controlled", *s)  # noqa: E731
     text = C("The rows form gives one row per edge, the table above.", "The paths form gives the paths, which the Browser draws as a graph.",
              "The Browser draws every relationship among the shown nodes, so a parent edge can appear that the walk never followed.",
              "A run wipes the projection, so project it again before pasting.")
-    walk["cypher"] = dict(cypher, needs="register", needs_text=needs_text)
-    walk["panel"]["sections"].append({"heading": C("The walk in Cypher"), "text": text, "needs": "register", "needs_text": needs_text,
-                                      "code": [{"label": C("Rows, one per edge"), "text": cypher["rows"]},
-                                               {"label": C("Paths, for the graph view"), "text": cypher["paths"]}]})
+    if browser:
+        text += " " + C("The Browser link opens the editor with the query and runs nothing.",
+                        "If the editor opens empty, which Browser 5.26 did in a test, paste the copied query.")
+    walk["cypher"] = dict(cypher, needs="register", needs_text=needs_text, browser=browser)
+    code = [{"label": C("Rows, one per edge"), "text": cypher["rows"]}, {"label": C("Paths, for the graph view"), "text": cypher["paths"]}]
+    for item, key in zip(code, ("rows", "paths")):
+        if browser:
+            item["browser"] = browser[key]
+    walk["panel"]["sections"].append({"heading": C("The walk in Cypher"), "text": text, "needs": "register", "needs_text": needs_text, "code": code})
     return walk
 
 

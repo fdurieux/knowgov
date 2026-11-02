@@ -122,10 +122,20 @@ def cypher_list() -> list[dict]:
     return out
 
 
+def browser_edit_url(text: str) -> str:
+    """The store's Browser with the editor pre-filled and nothing run: the Browser manual's
+    ?cmd=edit&arg=<query>, with the ?connectURL= the page's own Browser link carries. The Browser
+    reads the arg up to the first & or # of the decoded URL, which the walk's text never holds."""
+    host = urllib.parse.urlparse(BROWSER_URL).hostname or "localhost"
+    return BROWSER_URL + "/browser/?" + urllib.parse.urlencode(
+        {"connectURL": f"bolt://neo4j@{host}:7687", "cmd": "edit", "arg": text}, quote_via=urllib.parse.quote)
+
+
 def impact_view(start: str) -> dict | None:
     """The impact walk from one node, with the walk's Cypher for the id typed when the store has a
-    console (task-0024); None for an unknown id. The id is a node of the register, so it is a
-    plain literal in the query; nothing is run."""
+    console (task-0024): both forms, and for each a Browser link that pre-fills the editor. None
+    for an unknown id. The id is a node of the register, so it is a plain literal in the query;
+    nothing is run."""
     out = register_view.impact(start)
     if out is None:
         return None
@@ -135,7 +145,8 @@ def impact_view(start: str) -> dict | None:
             from store_neo4j import impact_cypher
         except ImportError:
             return out
-        register_view.with_cypher(out, impact_cypher(start), NEEDS_TEXT["register"])
+        cy = impact_cypher(start)
+        register_view.with_cypher(out, cy, NEEDS_TEXT["register"], browser={k: browser_edit_url(v) for k, v in cy.items()})
     return out
 
 
