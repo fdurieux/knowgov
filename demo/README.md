@@ -424,52 +424,72 @@ the record's (see the next section).
 
 ## Which model the Arms mode calls
 
-**Which endpoint, first.** The arms call one OpenAI-compatible endpoint, named by
-three settings the stack reads from your shell (never written to disk, never baked
-into the image):
+**The models table, first.** The *Arms call* box at the top of the
+scenario list has two drop-downs: a **model** and an **effort**. The
+model list comes from a table you control, `demo/models.toml` (or the
+file `KG_MODELS` names). Each row says who serves the model, the
+endpoint's address, the model's name, which efforts it accepts, and the
+*name* of the environment variable that holds its key. A row never holds
+the key itself and never a price: a key in a file ends up in a
+repository, a backup or a screenshot, and a price goes stale.
 
-| setting | meaning | default |
-|---|---|---|
-| `KG_MODEL_BASE_URL` | the endpoint's base URL | OpenAI's own, `api.openai.com` |
-| `KG_MODEL_API_KEY_VAR` | the *name* of the variable that holds the key | `OPENAI_API_KEY` |
-| `KG_ARMS_MODEL` | the model name | the record's model |
+```toml
+[[row]]
+id = "openai-gpt-5.5"
+label = "OpenAI gpt-5.5"
+provider = "OpenAI"
+base_url = "https://api.openai.com/v1"
+model = "gpt-5.5"
+efforts = ["", "low", "medium", "high", "xhigh"]
+key_var = "OPENAI_API_KEY"
+arms = ["reply", "agent"]
+```
 
-The arms are enabled only when the named key variable holds a value. Set none and
-the Arms buttons stay greyed out, the header chip says which variable to set, and
-nothing is sent anywhere: that is the state a private instance starts in. Three cases:
+In plain English: this row offers OpenAI's gpt-5.5, at the API's default
+effort (the empty string) or one of four named efforts, using the key
+you exported as `OPENAI_API_KEY`, for both kinds of arm. The page lists
+every row. A row whose key variable is empty stays in the list, greyed,
+with "set OPENAI_API_KEY" beside it, and the server refuses it too. The
+page sends only the row's id and the effort; the server looks up the
+address and the key variable itself, so nothing typed in a browser can
+point a run somewhere else. The header chip says how many rows are
+available, and names the variables to set when none is.
 
-- **OpenAI**: export `OPENAI_API_KEY` and nothing else.
-- **Google's OpenAI-compatible endpoint**: export `KG_MODEL_BASE_URL` to Google's
-  compatible base URL, `KG_MODEL_API_KEY_VAR=KG_MODEL_API_KEY`, `KG_MODEL_API_KEY` to
-  your Google key, and `KG_ARMS_MODEL` to a Gemini model name.
-- **A private model behind a gateway** (vLLM, Ollama, LiteLLM, an enterprise proxy):
-  export `KG_MODEL_BASE_URL` to the gateway, the key the same way, and the model name
-  the gateway serves.
+Two rows are not in the file. The **record's row** comes first: the
+model and effort the record's arms ran at, so a run on it is
+like-for-like. On a subject whose record ran no arm, it stays listed and
+greyed with "the record ran no arm". The **instance's row** appears when
+you set the three older variables, `KG_MODEL_BASE_URL`,
+`KG_MODEL_API_KEY_VAR` and `KG_ARMS_MODEL`, to something other than the
+defaults: a quick way to try one endpoint without editing the table.
 
-Whatever the endpoint, a model other than the record's is a deviation: the page marks
-every such run in red and names the model, and the numbers are not comparable with
-the record's. The header chip names the endpoint's host and the key variable, never
-the key.
+To add a provider, add a row and pass its key variable through to the
+app service in `docker-compose.yml` (it passes `OPENAI_API_KEY` and
+`KG_MODEL_API_KEY` already). Google's OpenAI-compatible endpoint and a
+Claude row wait on task-0030, which checks what each actually supports;
+the file carries a commented Gemini row to copy once that is done. A
+private model behind a gateway (vLLM, Ollama, LiteLLM, an enterprise
+proxy) is a row like any other, its `base_url` the gateway.
+
+Whatever the row, a model, a host or an effort other than the record's
+is a deviation: the page marks every such run in red, names the model
+and the effort, and the numbers are not comparable with the record's.
 
 The record's two arms were answered by `gpt-5.1-2025-11-13`, and the
-demo calls that model by default, so an Arms run is like-for-like with
-the record. That model is a year old, and on a new OpenAI organisation
-its rate limit can be as low as 10,000 tokens per minute, while the
-governed arm's prompt alone is about 15,000 tokens: the call is then
-refused with a 429 "request too large" before it runs, and the page says
-so in red. Two ways out, and the page lets you switch between them at
-any time:
+record's row calls that model, so an Arms run on it is like-for-like
+with the record. That model is a year old, and on a new OpenAI
+organisation its rate limit can be as low as 10,000 tokens per minute,
+while the governed arm's prompt alone is about 15,000 tokens: the call
+is then refused with a 429 "request too large" before it runs, and the
+page says so in red. Two ways out:
 
 - **Raise the limit** on the OpenAI side (a higher usage tier, or a
   limit-increase request on your organisation's Limits page) and keep
-  the record's model. Results stay comparable with the record.
-- **Call another model**, chosen in the *Arms call* toggle at the top of
-  the scenario list (default `gpt-5.5`). The gate, the evidence bundle
-  and the oracle are unchanged, but the arms' answers are another
-  model's: the page marks every such run in red as a deviation, names
-  the model on each run, and the numbers are not comparable with the
-  record's. Setting `KG_ARMS_MODEL` in the environment before
-  `docker compose up` preselects this choice.
+  the record's row. Results stay comparable with the record.
+- **Pick another row** in the *Arms call* box. The gate, the evidence
+  bundle and the oracle are unchanged, but the arms' answers are another
+  model's: the page marks every such run in red as a deviation, and the
+  numbers are not comparable with the record's.
 
 **The agent arm.** A subject whose manifest says `[arms] kind = "agent"`
 (the J-F data load does) runs each arm as a loop of turns instead of one
@@ -495,9 +515,10 @@ and reply tokens per run and per turn, as the endpoint reports them.
 
 A subject whose record ran no arm (the J-F data load: its record graded
 whole rebuilds, so its `record_model` is empty) has no like-for-like
-choice. The toggle then offers only *another model*, the run calls that
-model, and the report says the record has no arm result to compare with;
-nothing is marked as a deviation, since there is nothing to deviate from.
+choice. The record's row is then greyed, the first available row is
+picked, and the report says the record has no arm result to compare
+with; nothing is marked as a deviation, since there is nothing to
+deviate from.
 
 The choice is remembered by your browser. Either way a re-run writes
 into `runs/`, never into the record. The harness prints no cost: it

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sys
 import xml.dom.minidom
@@ -246,7 +247,7 @@ def test_arms_model_defaults_to_the_records_and_is_overridable():
     assert views.RECORD_MODEL == views.SUBJECT.record_model == "gpt-5.1-2025-11-13"
     assert 'MODEL = os.environ.get("KG_ARMS_MODEL") or RECORD_MODEL' in arms
     page = (APP / "index.html").read_text(encoding="utf-8")
-    assert 'name="am" value="record"' in page and 'name="am" value="other"' in page
+    assert 'id="am-row"' in page and 'id="am-effort"' in page, "task-0029: a drop-down of rows and one of the row's efforts"
     assert "Model deviation" in page
     compose = (DEMO / "docker-compose.yml").read_text(encoding="utf-8")
     assert "KG_ARMS_MODEL: ${KG_ARMS_MODEL:-}" in compose
@@ -269,14 +270,62 @@ def test_arms_model_defaults_to_the_records_and_is_overridable():
         assert v["model_deviation"] == [] and v["effort_deviation"] == ["high"]
         assert any("ran at effort high, not the record's API default" in s_ for s_ in v["narrative"]), v["narrative"]
     assert views.build("S1", "record", NO_RUNS)["model_deviation"] == [] and views.build("S1", "record", NO_RUNS)["effort_deviation"] == []
-    import server
-    assert server.is_deviation("gpt-5.1-2025-11-13") is False and server.is_deviation("gpt-5.1-2025-11-13", "high") is True
-    assert server.arms_effort(None) == "" and server.arms_effort("medium") == "medium"
+    assert "Effort deviation" in page and "effort: mode === 'arms' ? armsEffort()" in page and "row: mode === 'arms' ? (armsRow() || {}).id" in page
+
+
+def test_models_table_rows_resolve_to_the_harness_variables_and_never_carry_a_key():
+    """Task-0029: the operator's rows (demo/models.toml), the record's row first and the instance's
+    settings when set; key_set per row, never a value; a row whose variable is empty is listed with
+    "set VAR" and refused; an effort the row does not list is refused; resolve() gives the four
+    variables the harness reads and whether the run is a deviation from the record."""
+    import models
+    table = models.load_table()
+    assert [r["id"] for r in table][:1] == ["openai-gpt-5.5"] and all("key" not in r and "price" not in r for r in table)
+    keep = {k: os.environ.pop(k, None) for k in ("OPENAI_API_KEY", "KG_MODEL_API_KEY", "KG_MODEL_BASE_URL", "KG_MODEL_API_KEY_VAR", "KG_ARMS_MODEL", "KG_ARMS_EFFORT", "KG_MODELS")}
     try:
-        server.arms_effort("High Effort!"); raise AssertionError("an effort that is not an API literal shape is refused")
-    except ValueError:
-        pass
-    assert 'id="am-effort"' in page and "Effort deviation" in page and "effort: mode === 'arms' ? armsEffort()" in page
+        rows = models.rows("gpt-5.1-2025-11-13", "", "reply")
+        assert rows[0]["id"] == "record" and [r["id"] for r in rows][1:] == [r["id"] for r in table], "no instance row while the defaults stand"
+        assert not any(r["available"] for r in rows) and rows[1]["why"] == "set OPENAI_API_KEY"
+        try:
+            models.resolve("openai-gpt-5.5", "", "gpt-5.1-2025-11-13", "", "reply"); raise AssertionError("a row without its key ran")
+        except ValueError as e:
+            assert "set OPENAI_API_KEY" in str(e)
+        os.environ["OPENAI_API_KEY"] = "sk-test-not-a-key"
+        pub = [models.public(r) for r in models.rows("gpt-5.1-2025-11-13", "", "reply")]
+        assert all(r["key_set"] for r in pub) and "sk-test-not-a-key" not in json.dumps(pub)
+        row, env, dev = models.resolve("record", None, "gpt-5.1-2025-11-13", "", "reply")
+        assert env == {"KG_MODEL_BASE_URL": "https://api.openai.com/v1", "KG_MODEL_API_KEY_VAR": "OPENAI_API_KEY",
+                       "KG_ARMS_MODEL": "gpt-5.1-2025-11-13", "KG_ARMS_EFFORT": ""} and dev is False
+        row, env, dev = models.resolve("openai-gpt-5.5", "high", "gpt-5.1-2025-11-13", "", "reply")
+        assert env["KG_ARMS_MODEL"] == "gpt-5.5" and env["KG_ARMS_EFFORT"] == "high" and dev is True
+        for bad in (("openai-gpt-5.5", "maximum"), ("record", "high"), ("no-such-row", "")):
+            try:
+                models.resolve(bad[0], bad[1], "gpt-5.1-2025-11-13", "", "reply"); raise AssertionError(bad)
+            except ValueError:
+                pass
+        # a subject whose record ran no arm: the record's row is listed first, unavailable, with the reason
+        rows = models.rows("", "", "agent")
+        assert rows[0]["id"] == "record" and not rows[0]["available"] and rows[0]["why"] == "the record ran no arm"
+        row, env, dev = models.resolve(None, None, "", "", "agent")
+        assert row["id"] == "openai-gpt-5.5" and dev is False, "the first available row, compared with nothing"
+        # the three instance variables, set, are a row of their own
+        os.environ.update({"KG_MODEL_BASE_URL": "http://gateway.internal:4000/v1", "KG_MODEL_API_KEY_VAR": "KG_MODEL_API_KEY", "KG_ARMS_MODEL": "local-model"})
+        rows = models.rows("", "", "reply")
+        assert rows[1]["id"] == "custom" and rows[1]["host"] == "gateway.internal:4000" and rows[1]["why"] == "set KG_MODEL_API_KEY"
+    finally:
+        for k, v in keep.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        for body in ('[[row]]\nid = "x"\nlabel = "x"\nprovider = "x"\nbase_url = "https://e/v1"\nmodel = "m"\nefforts = [""]\nkey_var = "K"\narms = ["reply"]\napi_key = "sk-oops"\n',
+                     '[[row]]\nid = "x"\nlabel = "x"\nprovider = "x"\nbase_url = "https://e/v1"\nmodel = "m"\nefforts = [""]\nkey_var = "sk-live-123"\narms = ["reply"]\n'):
+            p = Path(td) / "m.toml"; p.write_text(body, encoding="utf-8")
+            try:
+                models.load_table(p); raise AssertionError("a key rode in on the table")
+            except ValueError:
+                pass
 
 
 def test_plain_english_narrative_is_built_from_the_files():
