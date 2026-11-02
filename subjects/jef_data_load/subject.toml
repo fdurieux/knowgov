@@ -102,8 +102,13 @@ authored = { at = "2026-10-23", scope = "authored by the reverse engineer from t
 approval = { at = "2026-10-24", record = "kit CHANGES.md revision 2026-10-24: the precedence rule and the manifest" }
 
 # The task is the kit's own: rebuild the program so that every stored number, verdict and exit
-# code matches. Every requirement is required.
+# code matches. Every requirement is required. The documents named verbatim are the ones the task
+# prompt asks for byte for byte and the bundle's assertions cannot stand in for: the packaged
+# configuration files the program embeds, the parser surface and help texts the suite checks
+# verbatim, and the adapter interface; the governed arm asked for exactly these and abstained
+# without them (task-0022.01, 2026-11-02).
 [tasks.codegen]
+verbatim = ["contracts/universe.toml", "contracts/classifications.toml", "contracts/cli.md", "contracts/cli_help.md", "contracts/HARNESS_INTERFACE.md"]
 keys = [
   "JDL-001|statement",
   "JDL-002|statement",

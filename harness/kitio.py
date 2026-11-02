@@ -32,3 +32,21 @@ def kit_for(scenario: str, stage: int = 1) -> dict[str, str]:
 
     kit = pristine()
     return apply_plant(kit, scenario, stage)
+
+
+def kit_text(kit: dict[str, str], path: str) -> str:
+    """The text of one kit file as the scenario's kit holds it: ``path`` is an artefact key, or an
+    artefact key that names a directory plus the part's relative path inside its bundle
+    (``contracts/universe.toml`` is the part ``universe.toml`` of the artefact ``contracts/``). A
+    plant on the file reaches the caller, since the kit is the scenario's."""
+    from extract import bundle_parts  # local import: extract imports the subject, kitio must not import extract at load
+
+    if path in kit:
+        return kit[path]
+    keys = sorted((k for k in kit if k.endswith("/") and path.startswith(k)), key=len, reverse=True)
+    for key in keys:
+        rel = path[len(key):]
+        for part, text in bundle_parts(kit[key]):
+            if part == rel:
+                return text
+    raise KeyError(f"{path}: not a kit file of this scenario (artefact keys: {sorted(kit)})")

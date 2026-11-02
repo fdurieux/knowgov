@@ -86,6 +86,9 @@ approval = { at = "2026-08-06", record = "..." }    # the owner's approval of ev
 
 [tasks.codegen]               # one table per task class; the gate resolves a class's keys
 keys = ["shipper_id|present", "..."]
+verbatim = ["contracts/cli.md"]      # optional: kit files the governed bundle carries as written, after the knowledge
+                                     # (an artefact key, or a directory artefact's key plus the part's path inside it);
+                                     # for what the task needs byte for byte and an assertion cannot stand in for
 block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
 max_unverified_share = 0.25
 
