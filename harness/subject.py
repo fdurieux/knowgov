@@ -24,6 +24,19 @@ import tomllib
 from pathlib import Path
 
 BUNDLE_MARK = "==> {rel} <=="   # the line that opens each part of a directory artefact
+BUNDLE_MARK_RE = re.compile(r"^==> (.+?) <==$", re.M)
+
+
+def bundle_parts(text: str) -> list[tuple[str, str]]:
+    """(relative path, text) per part of a bundle; a plain file is one part named ''."""
+    marks = list(BUNDLE_MARK_RE.finditer(text))
+    if not marks:
+        return [("", text)]
+    out = []
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
+        out.append((m.group(1), text[m.end() + 1:end]))
+    return out
 
 
 def _glob_re(g: str) -> re.Pattern:

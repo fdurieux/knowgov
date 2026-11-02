@@ -39,7 +39,7 @@ def kit_text(kit: dict[str, str], path: str) -> str:
     artefact key that names a directory plus the part's relative path inside its bundle
     (``contracts/universe.toml`` is the part ``universe.toml`` of the artefact ``contracts/``). A
     plant on the file reaches the caller, since the kit is the scenario's."""
-    from extract import bundle_parts  # local import: extract imports the subject, kitio must not import extract at load
+    from subject import bundle_parts  # stdlib: the tests job has no yaml, which extract needs
 
     if path in kit:
         return kit[path]
