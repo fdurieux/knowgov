@@ -50,3 +50,11 @@ def kit_text(kit: dict[str, str], path: str) -> str:
             if part == rel:
                 return text
     raise KeyError(f"{path}: not a kit file of this scenario (artefact keys: {sorted(kit)})")
+
+
+def verbatim_documents(kit: dict[str, str], task_name: str) -> dict[str, str]:
+    """The documents a task names as needed verbatim (subject.toml ``[tasks.<class>] verbatim``), as
+    the scenario's kit holds them. ``task_name`` is the task's prompt prefix (``task_codegen``) or
+    its class (``codegen``): the runner passes the former, the gate resolves by the latter."""
+    cls = task_name[len("task_"):] if task_name.startswith("task_") else task_name
+    return {path: kit_text(kit, path) for path in SUBJECT.tasks.get(cls, {}).get("verbatim", [])}

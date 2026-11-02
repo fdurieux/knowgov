@@ -266,6 +266,9 @@ for sc in ("C", "D3"):
     kit = kitio.kit_for(sc)
     texts = {n: kitio.kit_text(kit, n) for n in names}
     assert all(texts.values()) and "[defaults]" in texts["contracts/universe.toml"] and "make_collector" in texts["contracts/HARNESS_INTERFACE.md"], sc
+    # the runner names the task by its prompt prefix (task_codegen); the table's key is the class
+    assert kitio.verbatim_documents(kit, "task_codegen") == texts == kitio.verbatim_documents(kit, "codegen"), sc
+    assert kitio.verbatim_documents(kit, "task_other") == {}
 print("ok")
 """
     r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=dict(os.environ, KG_SUBJECT=str(SUBJ)), capture_output=True, text=True)

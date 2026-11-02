@@ -21,7 +21,7 @@ import arms
 import measures
 import shacl
 from gate import resolve, render_bundle
-from kitio import kit_for, sha256, kit_text
+from kitio import kit_for, sha256, verbatim_documents
 from load import PROV, HUMAN, load_inferred, load_scenario, load_verifications, pristine_values
 from store import open_store
 from plant import INFERRED
@@ -115,7 +115,7 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
         # the documents the task names as needed verbatim (subject.toml [tasks.<task>] verbatim), as the
         # scenario's kit holds them: the bundle carries assertions, and a parser table or a packaged
         # configuration file is not an assertion; without them the arm asks for them and abstains
-        verbatim = {path: kit_text(kit, path) for path in SUBJECT.tasks.get(task_name, {}).get("verbatim", [])}
+        verbatim = verbatim_documents(kit, task_name)   # task_name is the prompt prefix; the table's key is the class
         bundle = render_bundle(gate, arms.policy(), verbatim)
         user = arms.prompt(f"{task_name}_governed") + bundle
         bundle_ids = {a["id"] for v in gate["keys"].values() for a in v["assertions"]}
