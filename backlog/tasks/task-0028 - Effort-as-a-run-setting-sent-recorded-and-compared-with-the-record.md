@@ -1,11 +1,11 @@
 ---
 id: TASK-0028
 title: Effort as a run setting, sent, recorded and compared with the record
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-02T13:32:00Z'
-updated_date: '2026-11-02T13:54:00Z'
+updated_date: '2026-11-02T14:08:00Z'
 labels:
   - arms
   - page
@@ -34,10 +34,10 @@ Effort is not sent, not recorded and not compared today: the pinned client (open
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 KG_ARMS_EFFORT, when set, reaches both arms as reasoning_effort; when unset no parameter is sent
-- [ ] #2 The subject manifest may name record_effort (empty: the API default); every run file and trace carries host, model and effort
-- [ ] #3 A run at an effort other than the record's is marked in red and names the effort; a run with no effort set matches the record; the J-F subject marks nothing, greyed as now
-- [ ] #4 The page's new sentences pass the glossary test; the stdlib suite is green
+- [x] #1 KG_ARMS_EFFORT, when set, reaches both arms as reasoning_effort; when unset no parameter is sent
+- [x] #2 The subject manifest may name record_effort (empty: the API default); every run file and trace carries host, model and effort
+- [x] #3 A run at an effort other than the record's is marked in red and names the effort; a run with no effort set matches the record; the J-F subject marks nothing, greyed as now
+- [x] #4 The page's new sentences pass the glossary test; the stdlib suite is green
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -51,3 +51,9 @@ Effort is not sent, not recorded and not compared today: the pinned client (open
 <!-- SECTION:NOTES:BEGIN -->
 Implemented on top of task-0027. Suite 92/92. Two real calls on gpt-5.5 through the proxy, KG_ARMS_EFFORT low then medium: both accepted, the record carries host api.openai.com and the effort (completion 11 tokens at low, 26 at medium for the same one-line reply), endpoint().deviation true on the CargoQuote subject since the model differs. The page: an effort field under the two radios, the record radio names the record effort (API default for CargoQuote), the banner shows "at effort X" and the red mark reads "not the record model or effort", an Effort deviation alert beside the Model deviation one; J-F marks nothing since its record ran no arm.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Merged as knowgov #51 on a green matrix. KG_ARMS_EFFORT reaches both arms as reasoning_effort when set and sends nothing when empty; the manifest may name record_effort; every call record, agent total and run file carries host, model and effort; the deviation marking compares model and effort against the record; the page has an effort field, shows the effort in the banner and raises an Effort deviation alert; J-F marks nothing. Verified by the suite (92/92) and two real calls at low and medium through the proxy.
+<!-- SECTION:FINAL_SUMMARY:END -->
