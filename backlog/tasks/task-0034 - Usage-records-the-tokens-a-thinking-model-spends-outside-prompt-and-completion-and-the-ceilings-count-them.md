@@ -3,11 +3,11 @@ id: TASK-0034
 title: >-
   Usage records the tokens a thinking model spends outside prompt and
   completion, and the ceilings count them
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-02T19:58:00Z'
-updated_date: '2026-11-02T21:20:00Z'
+updated_date: '2026-11-02T21:24:00Z'
 labels:
   - arms
   - harness
@@ -34,9 +34,9 @@ The gateway spike (doc-0006) measured a gap between what a model bills and what 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Every call record and agent turn carries total_tokens and the hidden remainder (total minus prompt minus completion) when the endpoint reports a total; the ceilings count total_tokens when present, prompt plus completion otherwise
-- [ ] #2 Where streamed usage omits the thinking, the record says so in a field the page shows, rather than a number that reads as complete; the README states the limit in the adopter register
-- [ ] #3 Tests cover a usage with a hidden remainder, one without a total, and a ceiling reached through hidden tokens; the stdlib suite is green
+- [x] #1 Every call record and agent turn carries total_tokens and the hidden remainder (total minus prompt minus completion) when the endpoint reports a total; the ceilings count total_tokens when present, prompt plus completion otherwise
+- [x] #2 Where streamed usage omits the thinking, the record says so in a field the page shows, rather than a number that reads as complete; the README states the limit in the adopter register
+- [x] #3 Tests cover a usage with a hidden remainder, one without a total, and a ceiling reached through hidden tokens; the stdlib suite is green
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -50,3 +50,9 @@ The gateway spike (doc-0006) measured a gap between what a model bills and what 
 <!-- SECTION:NOTES:BEGIN -->
 Implemented. 106/106 both ways. Live, direct and streamed: gemini-3.8-flash prompt 41 completion 8 total 391 (hidden 342) at high, 45/8/246 at low, 45/8/168 at medium; gpt-5.5 at high 46/63/109, hidden 0 (OpenAI counts reasoning in completion). This overturned the spike reading that streamed Gemini omits thinking: that was LiteLLM rebuilding the total. So the flag is a model row declaration, not a host rule, and doc-0006 carries a dated correction. Also removed the est. $ column task-0027 left on agent run tables (it read 0 for every new run).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Merged as knowgov #61 on a green matrix. Usage records total and hidden tokens; the ceilings count the total; the page shows other tokens and says when a row declares thinking uncounted; the est. $ column task-0027 left is gone. Live calls showed Google streamed usage does count Gemini thinking in its total (391 against 49 at high), so the spike reading was a LiteLLM artefact: the flag is a model row declaration, and doc-0006 carries a dated correction. 106/106 both ways.
+<!-- SECTION:FINAL_SUMMARY:END -->
