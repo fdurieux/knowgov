@@ -4,9 +4,10 @@ title: >-
   As the maintainer, I want the page to serve every subject of its root and a
   drop-down to switch, so that one stack shows J-F's data load and the demo
   without a restart
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-02T13:32:00Z'
+updated_date: '2026-11-02T20:11:00Z'
 labels:
   - story
   - subject
@@ -30,5 +31,11 @@ The subject is chosen once, by KG_SUBJECT at process start, and views, register_
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 One stack lists both public subjects in a header drop-down and shows either without a restart; an instance started with the instance file lists its own subjects only
+- [x] #1 One stack lists both public subjects in a header drop-down and shows either without a restart; an instance started with the instance file lists its own subjects only
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Done through its two subtasks: 0032.01 (#57, the page modules take the subject as a value) and 0032.02 (#59, KG_SUBJECTS, /api/subjects and the header drop-down). One stack lists both public subjects and switches between them without a restart; an instance lists its own subjects only. The zero-code route of two stacks side by side (task-0031) stays documented for both pages open at once.
+<!-- SECTION:FINAL_SUMMARY:END -->
