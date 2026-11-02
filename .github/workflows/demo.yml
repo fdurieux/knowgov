@@ -122,10 +122,11 @@ jobs:
 
       - name: The example instance mounted read-only (task-0006) replays and runs deterministically, and not one byte of it changes
         run: |
-          python3 ../tools/example_instance.py ../runs/instance > /dev/null
-          digest() { (cd ../runs/instance && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum); }
+          # outside runs/, which the app container created as root
+          export KG_INSTANCE="${RUNNER_TEMP:-/tmp}/kg-instance"
+          python3 ../tools/example_instance.py "$KG_INSTANCE" > /dev/null
+          digest() { (cd "$KG_INSTANCE" && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum); }
           before=$(digest)
-          export KG_INSTANCE="$(cd ../runs/instance && pwd)"
           F="-f docker-compose.yml -f docker-compose.override.yml -f docker-compose.instance.yml"
           docker compose $F up -d --wait --wait-timeout 240 app
           docker compose $F exec -T app sh -c 'touch /instance/probe 2>/dev/null && echo "the mount is writable" && exit 1 || echo "the mount is read-only"'
