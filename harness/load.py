@@ -207,3 +207,59 @@ def load_captures(st, scenario: str) -> dict:
             counts["unknown"] += 1
         counts["files"].append(record)
     return counts
+
+
+def load_reviews(st, scenario: str, now: dt.date | None = None) -> dict:
+    """Every review in the subject's ``<capture dir>/reviews/`` for this scenario (task-0037,
+    decision-0002), after the rules have run: harness/review.py checks each file against the loaded
+    store and refuses it whole, with its reasons on stderr; an accepted one applies its rulings
+    (approved, rejected), settles the conflicts of the keys whose dispute it settled, and closes the
+    declared gaps it names. An approval of a person's statement past its six months is not applied."""
+    import sys
+    import capture
+    import review
+    from rules import compatible
+    rdir = SUBJECT.capture_dir / "reviews"
+    files = sorted(rdir.glob("*.toml")) if rdir.is_dir() else []
+    counts = {"files": [], "refused": [], "approved": 0, "rejected": 0, "referred": 0, "lapsed": 0, "closed": 0, "settled": 0}
+    if not files:
+        return counts
+    now = now or review.today()
+    reg = capture.register_root()
+    handles, units = review.issued_handles(reg), review.organisation_units(reg)
+    owners = capture.owners_of(SUBJECT, capture.register_nodes(reg))
+    caps = review.capture_index(SUBJECT.capture_dir)
+    for p in files:
+        doc = tomllib.loads(p.read_text(encoding="utf-8"))
+        sc = str(doc.get("review", {}).get("scenario", ""))
+        if sc and sc != scenario:
+            continue
+        rel = str(p.relative_to(SUBJECT.root)) if p.is_relative_to(SUBJECT.root) else str(p)
+        errs, rv = review.check(doc, st, handles=handles, owners=owners, units=units, captures=caps, now=now, compatible=compatible)
+        if errs:
+            for e in errs:
+                print(f"review refused: {rel}: {e}", file=sys.stderr)
+            counts["refused"].append(rel)
+            continue
+        rid, person, on = f"review:{p.stem}", f"person:{rv['by']}", rv["on"].isoformat()
+        st.ensure_person(person, rv["by"])
+        st.create_activity(f"act:{rid}", "review", on, "review", f"rulings by {rv['by']} on {on}, {rv['record']}, {rel}", person)
+        settled = set()
+        for ru in rv["rulings"]:
+            b = st.assertion_brief(ru["assertion"])
+            outcome = ru["outcome"]
+            until = review.until_for(b, caps)
+            if outcome == "approved" and until is not None and now > until:
+                counts["lapsed"] += 1   # the approval lapsed: the statement reads proposed until it is re-asked
+                continue
+            if b["status"] == "disputed":
+                settled.add(b["key"])
+            st.apply_ruling(b["id"], outcome, rid, person, on, rv["record"], until.isoformat() if until else "")
+            counts[outcome] += 1
+        for key in sorted(settled):
+            counts["settled"] += st.settle_conflicts(key, rid)
+        for c in rv["closes"]:
+            st.close_declared_gap(c["gap"], rid, on, rv["record"])
+            counts["closed"] += 1
+        counts["files"].append(rel)
+    return counts

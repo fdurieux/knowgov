@@ -138,6 +138,9 @@ jobs:
           test "$s2 $s2b $s1 $s1n $s2n" = "1 0 0 0 2"
           python3 -c 'import json; r=json.load(open("gate.json")); assert r["store"]=="neo4j" and r["verdict"]=="PROCEED" and r["exit_code"]==0, r; print("gate on neo4j:", r["verdict"])'
 
+      - name: The review step (task-0037, decision-0002) on the Neo4j store, S2' from BLOCKED to PROCEED by command, S4 settled whole
+        run: docker compose exec -T app python tools/check_review_walkthrough.py runs/review
+
       - name: The example instance mounted read-only (task-0006) replays and runs deterministically, and not one byte of it changes
         run: |
           # outside runs/, which the app container created as root

@@ -3,6 +3,7 @@ the answers back in as statements attributed to the person who gave them.
 
     python harness/capture.py questionnaire [--scenario ID] [--task NAME] --out DIR
     python harness/capture.py ingest ANSWERED.toml [--into DIR]
+    python harness/capture.py review REVIEW.toml [--scenario ID]
 
 ``questionnaire`` loads the scenario as the gate command does, resolves the task, and writes one
 TOML file per owner into DIR. An owner is the organisation unit the register names as owner of
@@ -17,7 +18,12 @@ folder (``[capture] dir`` in subject.toml, ``captures/`` by default). Every load
 person and the date. The person is an opaque handle, as ieam-register decision 0008 defines it
 (``from``, ``on``, ``record``); never a name.
 
-Nothing raises a captured statement above proposed: the harness verifies only extracted and
+``review`` checks a person's review of what the loaded scenario holds (harness/review.py, under
+decision-0002) and writes it into ``<capture dir>/reviews/``, where every load of its scenario
+reads it after the rules: an approved statement goes to approved, a rejected one leaves the live
+set, a declared gap its owner closes stops blocking. Refused, it is not written (exit 1).
+
+Nothing but a review raises a captured statement above proposed: the harness verifies only extracted and
 authored assertions, so a person's answer is reviewed the way any proposed statement is, and a
 model's output (basis inferred) can never be ingested here, since an answer needs a person's handle.
 """
@@ -196,10 +202,13 @@ def main(argv: list[str] | None = None) -> int:
     ia = sub.add_parser("ingest", help="check an answered questionnaire and add it to the subject's captures")
     ia.add_argument("answered", type=Path)
     ia.add_argument("--into", type=Path, help="the capture folder (default: the subject's [capture] dir)")
+    ra = sub.add_parser("review", help="check a review of the loaded scenario and add it to the subject's reviews")
+    ra.add_argument("review", type=Path)
+    ra.add_argument("--scenario", help="the scenario to rule on (default: the review's [review] scenario, else the subject's first)")
     args = ap.parse_args(argv)
     sys.path.insert(0, str(HERE))
     try:
-        return _questionnaire(args) if args.cmd == "questionnaire" else _ingest(args)
+        return {"questionnaire": _questionnaire, "ingest": _ingest, "review": _review}[args.cmd](args)
     except CannotRun as e:
         print(f"capture: cannot run: {e}", file=sys.stderr)
         return 2
@@ -259,6 +268,45 @@ def _ingest(args) -> int:
     record = os.path.relpath(dest, SUBJECT.root)
     dest.write_text(capture_toml(cap, record), encoding="utf-8")
     print(f"captured {len(cap['answers'])} answer(s) and {len(cap['unknown'])} 'nobody knows' from {cap['from']} on {cap['on']} into {dest}")
+    return 0
+
+
+def _review(args) -> int:
+    import gate_cli
+    import review
+    from rules import compatible
+    from store import open_store
+    from subject import SUBJECT
+    try:
+        doc = tomllib.loads(args.review.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        raise CannotRun(f"{args.review}: {e}") from e
+    scenario = args.scenario or str(doc.get("review", {}).get("scenario", "")) or (SUBJECT.order[0] if SUBJECT.order else "")
+    if scenario not in SUBJECT.scenarios:
+        raise CannotRun(f"{SUBJECT.id}: no scenario {scenario!r}")
+    doc.setdefault("review", {})["scenario"] = scenario
+    reg = register_root()
+    st = open_store(instance=SUBJECT.id)
+    try:
+        gate_cli._load(st, scenario)    # with the captures and the reviews already written
+        errs, rv = review.check(doc, st, handles=review.issued_handles(reg), owners=owners_of(SUBJECT, register_nodes(reg)),
+                                units=review.organisation_units(reg), captures=review.capture_index(SUBJECT.capture_dir),
+                                now=review.today(), compatible=compatible)
+    finally:
+        st.close()
+    if errs:
+        for e in errs:
+            print(f"refused: {e}", file=sys.stderr)
+        return 1
+    into = SUBJECT.capture_dir / "reviews"
+    stem = f"{rv['on'].isoformat()}-{rv['by']}"
+    dest, n = into / f"{stem}.toml", 1
+    while dest.exists():   # a review is never overwritten: a second one the same day is a new file
+        n += 1
+        dest = into / f"{stem}-{n}.toml"
+    into.mkdir(parents=True, exist_ok=True)
+    dest.write_text(review.review_toml(rv), encoding="utf-8")
+    print(f"reviewed by {rv['by']} on {rv['on']}: {len(rv['rulings'])} ruling(s), {len(rv['closes'])} gap(s) closed, into {dest}")
     return 0
 
 
