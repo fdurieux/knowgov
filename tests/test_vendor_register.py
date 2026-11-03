@@ -126,10 +126,10 @@ def test_real_copy_note_is_the_tools_output_at_the_tag():
     dest = ROOT / "demo" / "register"
     note = (dest / "SOURCE.md").read_text(encoding="utf-8")
     assert vr.MARK in note
-    assert re.search(r"^\| tag \| `v0\.2\.4` — the demo reads the tag", note, re.M)
-    assert vr.earlier_copies(note) == [("v0.2.3", "34e9a26", "2026-11-02"), ("v0.2.2", "0242646", "2026-11-02"), ("v0.2.1", "a70d6fb", "2026-11-01"), ("v0.2.0", "cc68a6b", "2026-11-01"), ("v0.1.1", "c54f86c", "2026-11-01")], "this repository's first copy was v0.1.1; pumllint's note carries the earlier v0.1.0"
+    assert re.search(r"^\| tag \| `v0\.2\.6` — the demo reads the tag", note, re.M)
+    assert vr.earlier_copies(note) == [("v0.2.4", "71de2d0", "2026-11-03"), ("v0.2.3", "34e9a26", "2026-11-02"), ("v0.2.2", "0242646", "2026-11-02"), ("v0.2.1", "a70d6fb", "2026-11-01"), ("v0.2.0", "cc68a6b", "2026-11-01"), ("v0.1.1", "c54f86c", "2026-11-01")], "this repository's first copy was v0.1.1; pumllint's note carries the earlier v0.1.0"
     files = {p.relative_to(dest).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
              for p in dest.rglob("*") if p.is_file() and p.name != "SOURCE.md" and "__pycache__" not in p.parts}
-    assert vr.source_note({"commit": "71de2d0c17db8dafbec8ccd3446819486ad782e5", "subject": "Merge pull request #13 from fdurieux/claude/compassionate-hamilton-ohj8mj",
-                           "date": "2026-11-03", "tag": "v0.2.4", "repo": "fdurieux/ieam-register", "files": sorted(files)},
-                          files, "2026-11-03", "2026-11-01", [("v0.2.3", "34e9a26", "2026-11-02"), ("v0.2.2", "0242646", "2026-11-02"), ("v0.2.1", "a70d6fb", "2026-11-01"), ("v0.2.0", "cc68a6b", "2026-11-01"), ("v0.1.1", "c54f86c", "2026-11-01")]) == note
+    assert vr.source_note({"commit": "2b95f437f5afd51dc592690994babcb45af159fc", "subject": "Merge pull request #17 from fdurieux/claude/compassionate-hamilton-ohj8mj",
+                           "date": "2026-11-04", "tag": "v0.2.6", "repo": "fdurieux/ieam-register", "files": sorted(files)},
+                          files, "2026-11-03", "2026-11-01", [("v0.2.4", "71de2d0", "2026-11-03"), ("v0.2.3", "34e9a26", "2026-11-02"), ("v0.2.2", "0242646", "2026-11-02"), ("v0.2.1", "a70d6fb", "2026-11-01"), ("v0.2.0", "cc68a6b", "2026-11-01"), ("v0.1.1", "c54f86c", "2026-11-01")]) == note

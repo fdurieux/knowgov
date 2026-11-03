@@ -1,8 +1,9 @@
 """Walk the typed edges from a node and print each with its state, owner and evidence. The walk
 follows approved links only and never expands a deprecated or retired node; an edge whose link
 is not approved, or whose far node is deprecated or retired, is reported and marked withdrawn,
-not followed and not counted among what was reached (decision 0007). The IEAM's own question:
-which journeys and products would be affected by retiring this module?
+not followed and not counted among what was reached (decision 0007). It starts from any node
+kind that something rests on (decision 0010). The IEAM's own question: which journeys and products
+would be affected by retiring this module, changing this capability or this information entity?
 
     python tools/impact.py --from APP-0002
 """
@@ -15,11 +16,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from register import ROOT, load_register  # noqa: E402
 
-# how impact travels: (relationship, follow from source to target?) per step
+# how impact travels: (relationship, follow from source to target?) per step. Every step points from
+# the thing changed to what rests on it (decision 0010): a process that reads an entity rests on it
+# (crud inverse), an application that manages it too (manages inverse); a product rests on the
+# capability it requires (requires inverse); the journeys and processes around a product rest on it
+# (concerns, delivers inverse); a journey step rests on the process that supports it (is_supported_by).
+# owns and maps_to are never walked: the owner is shown, not reached, and maps_to leaves the register.
 FORWARD = {
     "applications": [("supports", True)],
     "processes": [("delivers", True), ("is_supported_by", False), ("realizes", True)],
-    "journeys": [("concerns", True)],
+    "journeys": [("concerns", True), ("is_supported_by", True)],
+    "capabilities": [("requires", False)],
+    "information": [("crud", False), ("manages", False)],
+    "products": [("concerns", False), ("delivers", False)],
 }
 
 

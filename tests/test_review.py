@@ -63,11 +63,12 @@ def _person():
     return FakeStore([_a(CAP, basis="elicited", agent="employee-1")])
 
 
-def test_the_vendored_register_issues_three_handles_with_their_roles():
+def test_the_vendored_register_issues_four_handles_with_their_roles():
     h = review.issued_handles(REG)
     assert {k: (v["unit"], sorted(v["roles"])) for k, v in h.items()} == {
         "employee-1": ("ORG-0002", ["gives"]), "employee-2": ("ORG-0002", ["approves", "gives"]),
-        "employee-3": ("ORG-0001", ["approves", "closes", "gives"])}
+        "employee-3": ("ORG-0001", ["approves", "closes", "gives"]),
+        "employee-4": ("ORG-0004", ["approves", "closes", "gives"])}   # the compliance stand-in (register decision 0011)
 
 
 def test_another_handle_with_approves_of_an_owning_unit_approves_what_a_person_gave():
@@ -136,8 +137,15 @@ def test_a_declared_gap_is_closed_only_by_its_owner():
     units = review.organisation_units(REG)
     od1 = {"id": "gap:declared:OD-1", "text": "REQ-06 is NOT YET SPECIFIED (open decision OD-1, owner: compliance)", "keys": [OUT]}
     st = FakeStore([], [od1])
+    # OD-1's owner, compliance, is ORG-0004 since register v0.2.6 (its decision 0011): only that unit's closes handle closes it
+    assert review.gap_owner(od1["text"], units) == (["ORG-0004"], "compliance")
     errs, _ = _check(_doc("employee-3", closes=["gap:declared:OD-1"]), st)
-    assert any("names 'compliance' as its owner, which is no unit of the register" in e for e in errs), errs
+    assert any("names 'compliance' (ORG-0004) as its owner; employee-3's unit is ORG-0001" in e for e in errs), errs
+    assert _check(_doc("employee-4", closes=["gap:declared:OD-1"]), st)[0] == []
+    # an owner the register does not hold: nobody closes it
+    st.g["gap:declared:OD-1"] = {**od1, "text": "REQ-06 is NOT YET SPECIFIED (open decision OD-1, owner: legal)"}
+    errs, _ = _check(_doc("employee-3", closes=["gap:declared:OD-1"]), st)
+    assert any("names 'legal' as its owner, which is no unit of the register" in e for e in errs), errs
     # an owner the register holds: only its unit closes it, and only with closes
     st.g["gap:declared:OD-1"] = {**od1, "text": "REQ-06 is NOT YET SPECIFIED (open decision OD-1, owner: CargoQuote product owner)"}
     assert _check(_doc("employee-3", closes=["gap:declared:OD-1"]), st)[0] == []

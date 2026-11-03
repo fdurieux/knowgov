@@ -239,6 +239,14 @@ class Store:
     def register_census(self) -> dict | None:
         raise NotImplementedError
 
+    def register_node_statements(self, start: str) -> list[dict]:
+        """From register node ``start`` to the statements its approved links cite, at the grain of the
+        cited anchor (a citation ``path#DT-P`` reaches only fragments whose locator holds ``DT-P`` as a
+        path segment; one with no anchor, the whole document), across every version, and the derived
+        outputs that used each (task-0046). One dict per statement: statement, status, document, and
+        sorted lists anchors, links, versions, fragments, derived ("<id>" or "<id> (suspect)")."""
+        raise NotImplementedError
+
     # ---- what the page shows about the store
     def describe(self) -> dict:
         """uri, browser URL and the like: what the page's store card says."""
