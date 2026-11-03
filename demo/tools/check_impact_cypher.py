@@ -8,7 +8,8 @@ panel lists (task-0024.02, task-0025).
 The guide must answer the Browser's cross-origin fetch (the header, and the preflight), its one
 runnable block must be the form's listed text, the rows form must give the walk's edges (from,
 relationship, to, link state, owner, evidence), the paths form the same distinct relationships
-with the start returned. Exit 0 iff every node agrees. Runs where the harness and the driver are,
+as the rows form's links (a link the walk meets from both ends is two edges and one relationship,
+decision 0010), with the start returned. Exit 0 iff every node agrees. Runs where the harness and the driver are,
 with the store's settings from the environment and the page at KG_DEMO_URL
 (http://localhost:8080): in the stack job, ``docker compose exec -T app python
 demo/tools/check_impact_cypher.py`` after the register is projected. Standard library beside
@@ -64,14 +65,15 @@ def row_keys(rows: list[dict]) -> list[tuple]:
     return sorted((r["from"], r["relationship"], r["to"], r["link state"], r["owner"], tuple(r["evidence"] or [])) for r in rows)
 
 
-def path_shape(rows: list[dict]) -> tuple[int, set]:
-    """The distinct relationships the paths form returns, and the starts it returned."""
-    rels, starts = set(), set()
+def path_shape(rows: list[dict]) -> tuple[int, set, set]:
+    """The distinct relationships the paths form returns, their link ids, and the starts it returned."""
+    rels, links, starts = set(), set(), set()
     for r in rows:
         starts.add(r["a"]["reg_id"])
         for rel in getattr(r["p"], "relationships", ()) or ():
             rels.add(rel.element_id)
-    return len(rels), starts
+            links.add(rel.get("reg_id"))
+    return len(rels), links, starts
 
 
 def _get(path: str):
@@ -105,15 +107,17 @@ def main() -> int:
                 problems.append("the guide's block is not the listed text")
             expect = edge_keys(w["edges"])
             try:
-                got = row_keys(store.console_query(rows_text))
-                n_rels, starts = path_shape(store.console_query(paths_text))
+                rows = store.console_query(rows_text)
+                got = row_keys(rows)
+                n_rels, path_links, starts = path_shape(store.console_query(paths_text))
             except Exception as e:   # the driver's error, whatever its class
                 problems.append(str(e).strip().splitlines()[0] if str(e).strip() else type(e).__name__)
             else:
                 if got != expect:
                     problems.append(f"rows {len(got)}, the walk {len(expect)} edges")
-                if n_rels != len(expect) or starts != {nid}:
-                    problems.append(f"paths {n_rels} relationships from {sorted(starts)}, the walk {len(expect)} edges")
+                row_links = {r["link"] for r in rows}
+                if n_rels != len(row_links) or path_links != row_links or starts != {nid}:
+                    problems.append(f"paths {n_rels} relationships from {sorted(starts)}, the rows form {len(row_links)} links")
             tag = " (the register's default start)" if nid == default else ""
             if problems:
                 failures += 1
