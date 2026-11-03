@@ -83,7 +83,10 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
 
 Every change goes through a pull request once CI exists; until then `main` is
 fast-forwarded from the session branch on the owner's say-so. Open a PR, wait
-for the whole matrix, merge on green, never on red or pending.
+for the whole matrix, merge on green, never on red or pending. The session that
+opened a PR merges it itself once the whole matrix is green (a skipped `publish`
+counts as green), without asking; a PR the brief says the parent session merges
+is left to it.
 
 ## Boundaries
 
