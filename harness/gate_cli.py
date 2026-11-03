@@ -9,9 +9,17 @@ runs the rules, resolves the task's required keys through the same gate the arms
 (harness/gate.py), and turns the result into findings on the contract's severity ladder:
 
     blocker   a required key at one of the task's block levels (absent, a declared gap, disputed,
-              invalidated), or the task as a whole when too many keys are below verified
-    major     a required key below verified (proposed or validated)
+              invalidated), or the task as a whole when too many keys are below verified;
+              a registered derived output (generated code) that used a statement now invalidated:
+              it may not be reused as it is, whatever the verdict on the keys (task-0048)
+    major     a required key below verified (proposed or validated); a stale statement on a
+              required key that no verified or approved successor replaces (task-0048)
     minor     a verified or approved key carrying a flag (ambiguous, inferred, assumed)
+    info      a stale statement on a required key that a verified or approved successor
+              replaces: the record of the change, and the verifications it ended (task-0048)
+
+The verdict is the gate's on the required keys (harness/gate.py, pinned by the record); the
+findings add what the verdict does not weigh, so PROCEED with a suspect derived output exits 1.
 
 Exit codes, the contract's three:
 
@@ -20,7 +28,8 @@ Exit codes, the contract's three:
     2  the gate could not run: no such subject, scenario or task, an unreachable store, no baseline
 
 With a baseline the gate ratchets instead: exit 1 only on a regression, a verdict worse than the
-baseline's or a required key at a lower level than the baseline's. ``--baseline record`` is the
+baseline's, a required key at a lower level than the baseline's, or a derived output suspect that
+the baseline did not hold suspect. ``--baseline record`` is the
 subject's record for the same scenario (its deterministic run; the record's gate is the codegen
 task); ``--baseline FILE`` is an earlier report of this command or a deterministic.json. The gate
 never writes a baseline: recording one is a separate, deliberate act (``-o``, then commit it).
@@ -28,8 +37,8 @@ never writes a baseline: recording one is a separate, deliberate act (``-o``, th
 ``--no-load`` reads the store as it is, for a stack whose page has already loaded a scenario; the
 scenario named must be the one the store holds. A load wipes the store first, as a run does.
 
-The JSON report (-f json) is pinned by harness/schemas/gate-report.schema.json and validated
-before it is printed.
+The JSON report (-f json) is pinned by harness/schemas/gate-report.schema.json, version 2 (the
+schema's description says what changed from 1), and validated before it is printed.
 """
 from __future__ import annotations
 
@@ -49,23 +58,45 @@ class CannotRun(Exception):
     """The gate could not run: exit 2."""
 
 
+SCHEMA_VERSION = 2
+SETTLED = ("verified", "approved")   # a successor at one of these replaces a stale statement
+
+
+def _finding(severity: str, kind: str, message: str, *, key=None, level=None, flags=(), ref=None, related=()) -> dict:
+    return {"severity": severity, "kind": kind, "key": key, "level": level, "flags": list(flags),
+            "ref": ref, "related": list(related), "message": message}
+
+
 def findings(res: dict, block_levels: set[str]) -> list[dict]:
-    """The gate's result as findings on the severity ladder, worst first, then by key."""
+    """The gate's result as findings on the severity ladder, worst first, then by kind, key and ref."""
     out = []
     for key, v in res["keys"].items():
-        lvl, flags = v["level"], list(v["flags"])
+        lvl, flags = v["level"], v["flags"]
         if lvl in block_levels:
-            out.append({"severity": "blocker", "key": key, "level": lvl, "flags": flags,
-                        "message": f"{key} is {lvl.replace('_', ' ')}: the task cannot proceed on it"})
+            out.append(_finding("blocker", "key", f"{key} is {lvl.replace('_', ' ')}: the task cannot proceed on it",
+                                key=key, level=lvl, flags=flags))
         elif LEVELS.index(lvl) < LEVELS.index("verified"):
-            out.append({"severity": "major", "key": key, "level": lvl, "flags": flags,
-                        "message": f"{key} is {lvl}, below verified: an assistant may use it only as a stated assumption"})
+            out.append(_finding("major", "key", f"{key} is {lvl}, below verified: an assistant may use it only as a stated assumption",
+                                key=key, level=lvl, flags=flags))
         elif flags:
-            out.append({"severity": "minor", "key": key, "level": lvl, "flags": flags,
-                        "message": f"{key} is {lvl} but flagged {', '.join(flags)}"})
+            out.append(_finding("minor", "key", f"{key} is {lvl} but flagged {', '.join(flags)}", key=key, level=lvl, flags=flags))
     if res["verdict"] == "BLOCKED" and not res["blocked_keys"]:
-        out.append({"severity": "blocker", "key": None, "level": None, "flags": [], "message": res["why"]})
-    return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), f["key"] or ""))
+        out.append(_finding("blocker", "task", res["why"]))
+    for x in res.get("stale") or []:
+        settled = [t["id"] for t in x.get("successors") or [] if t.get("id") and t.get("status") in SETTLED]
+        ended = ", ".join(v["id"] for v in x.get("verifications") or [] if v.get("id")) or "none"
+        if settled:
+            out.append(_finding("info", "stale", f"{x['id']} on {x['key']} was invalidated by {x['invalidated_by']} (verifications ended: {ended}); "
+                                f"replaced by {', '.join(settled)}", key=x["key"], level="invalidated", ref=x["id"], related=settled))
+        else:
+            out.append(_finding("major", "stale", f"{x['id']} on {x['key']} was invalidated by {x['invalidated_by']} (verifications ended: {ended}); "
+                                "no verified or approved successor replaces it", key=x["key"], level="invalidated", ref=x["id"]))
+    for d in res.get("suspect_derived") or []:
+        used = list(d.get("used_invalidated") or [])
+        out.append(_finding("blocker", "suspect_derived", f"{d['id']} ({d.get('kind') or 'derived output'}) used {len(used)} statement(s) now invalidated "
+                            f"({', '.join(used)}): it may not be reused as it is: regenerate it from the current statements", ref=d["id"], related=used))
+    kinds = ["task", "key", "suspect_derived", "stale"]
+    return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), kinds.index(f["kind"]), f["key"] or "", f["ref"] or ""))
 
 
 def counts(fs: list[dict]) -> dict[str, int]:
@@ -77,37 +108,44 @@ def at_or_above(fs: list[dict], threshold: str) -> list[dict]:
 
 
 def baseline_of(data: dict) -> dict:
-    """{verdict, levels} from an earlier report of this command or from a deterministic.json."""
+    """{verdict, levels, suspect} from an earlier report of this command (version 1 or 2; a version-1
+    report named no derived output, so it holds none suspect) or from a deterministic.json."""
     if data.get("tool") == "knowgov gate":
-        return {"verdict": data["verdict"], "levels": data.get("levels", {})}
+        sus = data.get("suspect_derived")
+        return {"verdict": data["verdict"], "levels": data.get("levels", {}), "suspect": list(sus) if isinstance(sus, list) else []}
     if "D6_gate" in data:
-        return {"verdict": data["D6_gate"]["verdict"], "levels": {k: v["level"] for k, v in data.get("gate_keys", {}).items()}}
+        return {"verdict": data["D6_gate"]["verdict"], "levels": {k: v["level"] for k, v in data.get("gate_keys", {}).items()},
+                "suspect": [d["id"] for d in data["D6_gate"].get("suspect_derived") or []]}
     raise CannotRun("the baseline file is neither a gate report nor a deterministic.json")
 
 
 def compare(res: dict, base: dict, source: str) -> dict:
-    """A regression is a verdict worse than the baseline's, or a required key whose level ranks below
-    the baseline's for the same key (a key the baseline did not have counts from absent)."""
+    """A regression is a verdict worse than the baseline's, a required key whose level ranks below
+    the baseline's for the same key (a key the baseline did not have counts from absent), or a
+    derived output suspect now that the baseline did not hold suspect."""
     worse = VERDICTS.index(res["verdict"]) > VERDICTS.index(base["verdict"])
     regressed = []
     for key, v in res["keys"].items():
         was = base["levels"].get(key)
         if was is not None and LEVELS.index(v["level"]) < LEVELS.index(was):
             regressed.append({"key": key, "level": v["level"], "baseline_level": was})
-    return {"source": source, "verdict": base["verdict"], "regression": worse or bool(regressed),
-            "worse_verdict": worse, "regressed_keys": regressed}
+    held = set(base.get("suspect") or [])
+    new_suspect = sorted(d["id"] for d in res.get("suspect_derived") or [] if d["id"] not in held)
+    return {"source": source, "verdict": base["verdict"], "regression": worse or bool(regressed) or bool(new_suspect),
+            "worse_verdict": worse, "regressed_keys": regressed, "new_suspect": new_suspect}
 
 
 def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loaded: bool,
            block_levels: set[str], threshold: str, baseline: dict | None) -> dict:
     fs = findings(res, block_levels)
     fail = baseline["regression"] if baseline is not None else bool(at_or_above(fs, threshold))
-    return {"schema_version": 1, "tool": "knowgov gate", "subject": subject, "scenario": scenario, "task": task,
+    return {"schema_version": SCHEMA_VERSION, "tool": "knowgov gate", "subject": subject, "scenario": scenario, "task": task,
             "store": store, "loaded": loaded, "verdict": res["verdict"], "why": res["why"], "threshold": threshold,
             "findings": fs, "counts": counts(fs),
             "keys": {"total": len(res["keys"]), "below_verified": len(res["below_verified"]), "flagged": len(res["flagged"])},
-            "conflicts": len(res.get("conflicts") or []), "stale": len(res.get("stale") or []),
-            "suspect_derived": len(res.get("suspect_derived") or []),
+            "conflicts": len(res.get("conflicts") or []),
+            "stale": [x["id"] for x in res.get("stale") or []],                    # the statements, by id (a count in version 1)
+            "suspect_derived": [d["id"] for d in res.get("suspect_derived") or []],  # the derived outputs, by id (a count in version 1)
             "levels": {k: v["level"] for k, v in res["keys"].items()},   # what a later run's --baseline FILE compares with
             "baseline": baseline, "exit_code": 1 if fail else 0}
 
@@ -122,7 +160,8 @@ def render(rep: dict) -> str:
     if b is not None:
         out.append(f"baseline ({b['source']}): {b['verdict']}; " + ("REGRESSION" if b["regression"] else "no regression")
                    + ("; the verdict is worse" if b["worse_verdict"] else "")
-                   + "".join(f"; {r['key']} {r['baseline_level']} -> {r['level']}" for r in b["regressed_keys"]))
+                   + "".join(f"; {r['key']} {r['baseline_level']} -> {r['level']}" for r in b["regressed_keys"])
+                   + "".join(f"; {d} newly suspect" for d in b["new_suspect"]))
         out.append(f"exit {rep['exit_code']}: " + ("a regression against the baseline" if rep["exit_code"] else "no regression against the baseline"))
     else:
         out.append(f"exit {rep['exit_code']}: " + (f"a finding at or above {rep['threshold']}" if rep["exit_code"] else f"no finding at or above {rep['threshold']}"))

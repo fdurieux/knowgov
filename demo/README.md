@@ -632,10 +632,22 @@ A *key* below verified is a major finding: an assistant may use it only
 as a stated assumption. A key that is absent, a declared gap, disputed or
 invalidated is a blocker.
 
+Two findings are not about a key's level. Code registered as derived
+from statements that a later change invalidated is *suspect*: a blocker,
+whatever the verdict, since it may not be reused as it is. An invalidated
+statement on a required key is major while no verified or approved
+statement replaces it, and info once one does: the record of the change.
+After S6's change and the owner's re-verification the verdict is PROCEED,
+and the command still exits 1 on `derived:S1:G:run1`. CI shows it with
+`tools/check_gate_after_change.py`, which puts S6's second stage in the
+store and runs the command with `--no-load` (the command itself loads
+the first stage only; an option for a later version is task-0049).
+
 **A baseline instead of a threshold.** `--baseline record` compares the
 answer with the subject's record for the same scenario and exits 1 only
 on a regression: a worse verdict, or a key at a lower level than the
-record's. S2 is BLOCKED in the record too, so
+record's, or a derived output suspect that the record did not hold
+suspect. S2 is BLOCKED in the record too, so
 `--scenario S2 --baseline record` exits 0, and the report still lists the
 blockers. `--baseline <file>` compares with an earlier report of the
 command, written with `-o <file>`. The command never writes a baseline
@@ -643,7 +655,12 @@ itself: keeping one is your decision, made by committing the file.
 
 `-f json` prints the report as data, in the shape
 `harness/schemas/gate-report.schema.json` pins; the command checks it
-against that schema before printing. A load replaces what the store
+against that schema before printing. The report is at version 2: from
+version 1, each finding names its `kind` (key, task, stale,
+suspect_derived), the statement or derived output it is about (`ref`)
+and what relates to it (`related`); `stale` and `suspect_derived` are
+lists of ids, no longer counts; the baseline adds `new_suspect`. A
+version-1 report still reads as a baseline. A load replaces what the store
 holds. `--no-load` reads the store as the page left it instead, and
 refuses when the store holds another scenario. Outside the stack, add
 `KG_STORE=rdflib` to run it without a database.
