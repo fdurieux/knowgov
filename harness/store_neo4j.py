@@ -30,63 +30,74 @@ CONSTRAINTS = [
     ("property type", "CREATE CONSTRAINT version_sha IF NOT EXISTS FOR (n:Version) REQUIRE n.sha256 IS :: STRING"),
 ]
 
-# The impact walk of the register's tools/impact.py, in Cypher, from one literal start (task-0023).
-# The walk's rules at ieam-register v0.2.2 (its decision 0007): applications follow supports; processes
-# follow delivers and realizes, and is_supported_by backwards (reported from the process, "(inverse)");
-# journeys follow concerns. An edge is live when its link is approved and its far node is neither
-# deprecated nor retired; every edge met is reported, a withdrawn edge is reported and not followed, so
-# only live edges lead on and only their far ends count as reached. No parent climb. Every chain the
-# rules allow is one branch of the CALL (a) { } UNION (the scoped form, which imports the start; the
-# importing WITH is deprecated in Neo4j 5.26): the start and each intermediate node filtered on
-# taxonomy and state, each intermediate link on state approved, the last edge and its end node
-# unfiltered. The register's own kinds end every chain in three steps (supports lands on a process,
-# delivers and concerns on a product, realizes on a capability). IMPACT_ROWS is the saved query, one
-# row per edge as the panel's table, with whether the walk followed it; IMPACT_PATHS returns the paths,
-# which the Browser draws as a graph. Equivalence with walk() is tested over the projection's rows.
+# The impact walk of the register's tools/impact.py, in Cypher, from one literal start (task-0023,
+# task-0044). The walk's rules at ieam-register v0.2.6 (its decisions 0007 and 0010): each start kind
+# has its steps, every step pointing from the thing changed to what rests on it (IMPACT_STEPS: the
+# taxonomy, the relationship types, and whether the node is the link's source or, "(inverse)", its
+# target). An edge is live when its link is approved and its far node is neither deprecated nor
+# retired; every edge met from an expanded node is reported, a withdrawn edge is reported and not
+# followed, so only live edges lead on and only their far ends count as reached. A deprecated or
+# retired start expands nothing. No parent climb; owns and maps_to are never walked. The kinds now
+# form cycles (a process delivers a product, the product's delivers inverse leads back), so the walk
+# is no longer a fixed set of chains: the nodes it expands are those a quantified path of live steps
+# reaches from the start (SHORTEST 1 per end node: one path each, found breadth first, as the
+# walk's own frontier is), and from each of them every step its kind allows is one row. The step
+# predicate is the same text in both places. IMPACT_ROWS is the saved query, one row per edge as the
+# panel's table, with whether the walk followed it; IMPACT_PATHS returns the edges as paths, which
+# the Browser draws as a graph. Equivalence with walk() is tested over the projection's rows.
 IMPACT_START = "APP-0002"
 _LIVE = "NOT {0}.state IN ['deprecated','retired']"
 _OK = "{0}.state = 'approved'"
-_APP = "a.taxonomy = 'applications' AND " + _LIVE.format("a")
-_PROC_A = "a.taxonomy = 'processes' AND " + _LIVE.format("a")
-_PROC_X = "x.taxonomy = 'processes' AND " + _LIVE.format("x")
-_JRN_A = "a.taxonomy = 'journeys' AND " + _LIVE.format("a")
-_JRN_J = "j.taxonomy = 'journeys' AND " + _LIVE.format("j")
-_R1, _R2 = _OK.format("r1"), _OK.format("r2")
+IMPACT_STEPS = [   # (taxonomy, relationship types, the node is the source?)
+    ("applications", ("REG_SUPPORTS",), True),
+    ("processes", ("REG_DELIVERS", "REG_REALIZES"), True),
+    ("processes", ("REG_IS_SUPPORTED_BY",), False),
+    ("journeys", ("REG_CONCERNS", "REG_IS_SUPPORTED_BY"), True),
+    ("capabilities", ("REG_REQUIRES",), False),
+    ("information", ("REG_CRUD", "REG_MANAGES"), False),
+    ("products", ("REG_CONCERNS", "REG_DELIVERS"), False),
+]
+
+
+def _step(n: str, r: str) -> str:
+    """The predicate: ``r`` is a step the walk takes from ``n``, by ``n``'s taxonomy."""
+    return "(" + "\n      OR ".join(
+        f"{n}.taxonomy = '{tax}' AND type({r}) IN [{', '.join(repr(t) for t in types)}] AND {'startNode' if src else 'endNode'}({r}) = {n}"
+        for tax, types, src in IMPACT_STEPS) + ")"
+
+
 IMPACT_WALK = (
     f"MATCH (a:RegNode {{reg_id:'{IMPACT_START}'}})\n"
     "CALL (a) {\n"
-    f"  MATCH p = (a)-[:REG_SUPPORTS]->(:RegNode) WHERE {_APP} RETURN p\n"
-    f"  UNION MATCH p = (a)-[r1:REG_SUPPORTS]->(x:RegNode)-[:REG_DELIVERS|REG_REALIZES]->(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_R1} RETURN p\n"
-    f"  UNION MATCH p = (a)-[r1:REG_SUPPORTS]->(x:RegNode)<-[:REG_IS_SUPPORTED_BY]-(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_R1} RETURN p\n"
-    f"  UNION MATCH p = (a)-[r1:REG_SUPPORTS]->(x:RegNode)<-[r2:REG_IS_SUPPORTED_BY]-(j:RegNode)-[:REG_CONCERNS]->(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_JRN_J} AND {_R1} AND {_R2} RETURN p\n"
-    f"  UNION MATCH p = (a)-[:REG_DELIVERS|REG_REALIZES]->(:RegNode) WHERE {_PROC_A} RETURN p\n"
-    f"  UNION MATCH p = (a)<-[:REG_IS_SUPPORTED_BY]-(:RegNode) WHERE {_PROC_A} RETURN p\n"
-    f"  UNION MATCH p = (a)<-[r1:REG_IS_SUPPORTED_BY]-(j:RegNode)-[:REG_CONCERNS]->(:RegNode) WHERE {_PROC_A} AND {_JRN_J} AND {_R1} RETURN p\n"
-    f"  UNION MATCH p = (a)-[:REG_CONCERNS]->(:RegNode) WHERE {_JRN_A} RETURN p\n"
+    "  // the nodes the walk expands: the start, if live, and every node a chain of live steps reaches\n"
+    f"  MATCH SHORTEST 1 (a) ((x:RegNode)-[s]-(y:RegNode) WHERE {_step('x', 's')}\n"
+    f"      AND {_OK.format('s')} AND {_LIVE.format('y')})* (n:RegNode)\n"
+    f"  WHERE {_LIVE.format('a')}\n"
+    "  // every edge the walk meets from each: one row, live or withdrawn\n"
+    f"  MATCH p = (n)-[r]-(t:RegNode) WHERE {_step('n', 'r')}\n"
+    "  RETURN p\n"
     "}\n")
 IMPACT_ROWS = (
     "// the walk tools/impact.py makes, one row per edge, as the impact panel lists them, a withdrawn edge listed and not followed\n"
     + IMPACT_WALK +
-    "UNWIND relationships(p) AS r WITH DISTINCT r\n"
-    "WITH r, CASE WHEN type(r) = 'REG_IS_SUPPORTED_BY' THEN endNode(r) ELSE startNode(r) END AS f,\n"
-    "        CASE WHEN type(r) = 'REG_IS_SUPPORTED_BY' THEN startNode(r) ELSE endNode(r) END AS t\n"
+    "WITH nodes(p)[0] AS f, relationships(p)[0] AS r, nodes(p)[1] AS t\n"
     "OPTIONAL MATCH (l:RegLink {reg_id: r.reg_id})   // the evidence sits on the link node\n"
     "RETURN f.reg_id AS `from`,\n"
-    "       toLower(replace(type(r), 'REG_', '')) + CASE WHEN type(r) = 'REG_IS_SUPPORTED_BY' THEN ' (inverse)' ELSE '' END AS relationship,\n"
+    "       toLower(replace(type(r), 'REG_', '')) + CASE WHEN startNode(r) = f THEN '' ELSE ' (inverse)' END AS relationship,\n"
     "       t.reg_id AS `to`, t.name AS name, t.state AS `node state`, r.state AS `link state`,\n"
     "       CASE WHEN r.state = 'approved' AND NOT t.state IN ['deprecated','retired'] THEN 'yes' ELSE 'no, withdrawn' END AS followed,\n"
     "       r.owner AS owner, l.evidence AS evidence, r.reg_id AS link\n"
-    "ORDER BY link")
+    "ORDER BY link, `from`")
 IMPACT_PATHS = (
     "// the same walk as paths, for the Browser's graph view: a start with no edge still draws itself\n"
     + IMPACT_WALK.replace("CALL (a) {\n", "OPTIONAL CALL (a) {\n") +
     "RETURN a, p")
 
 
-# The walk above starts only from applications, processes and journeys: from a capability or an
-# information node it meets no edge (doc-0008 §4). These two go the other way, to what rests on the
-# start: the nodes whose links point at it, then one step on from each process among them over an
-# approved link. The same rule as the walk: every edge met is a row, a withdrawn one (link not
+# Two fixed questions beside the walk, older than its per-kind steps (doc-0008 §4): from a capability,
+# what realises or requires it (the walk follows requires only: realising is "what implements this",
+# decision 0010's second walk); from an information node, what creates, reads, updates, deletes or
+# manages it. Each then goes one step on from each process among them over an approved link. The same rule as the walk: every edge met is a row, a withdrawn one (link not
 # approved, or far node deprecated or retired) is marked and not stepped from. One literal start each,
 # which the page replaces with the register's own default for the taxonomy (demo/app/server.py).
 CAPABILITY_START = "CAP-0002"
@@ -131,6 +142,26 @@ MODULE_STORE = (
     "RETURN l.reg_id AS link, d.path AS document, count(DISTINCT x) AS assertions,\n"
     "       collect(DISTINCT x.status) AS statuses, collect(DISTINCT dv.id + CASE WHEN dv.suspect THEN ' (suspect)' ELSE '' END) AS derived\n"
     "ORDER BY link, document")
+# The same join at the grain of the cited anchor (task-0046; doc-0011 point 1): a citation with an
+# anchor (kit:contract/decision_table.md#DT-P) reaches only the fragments whose locator holds the
+# anchor as a path segment (DT-P/row/P1, row/REQ-05); one without an anchor cites the whole
+# document. Every version is read, so a statement a change invalidated still shows the derived code
+# that used it. One row per statement. Parameterised ($start) for the port's register_node_statements;
+# the saved query is the same text with the literal start the page replaces.
+_NODE_STATEMENTS = (
+    "// from a node to the statements its approved links cite, at the grain of the cited anchor where the citation\n"
+    "// names one (#DT-P reaches DT-P/row/P1, not the whole table), and on to the derived code that used them\n"
+    "MATCH (n:RegNode {reg_id:$start})<-[:REG_LINK_OF]-(l:RegLink {state:'approved'})-[c:REG_CITES]->(d:RegDocument)\n"
+    "WITH l, d, CASE WHEN c.anchor CONTAINS '#' THEN split(c.anchor, '#')[1] ELSE null END AS anchor\n"
+    "MATCH (:Artefact {id:d.path})-[:HAS_VERSION]->(v:Version)-[:HAS_FRAGMENT]->(f:Fragment)<-[:SUPPORTED_BY]-(x:Assertion)\n"
+    "WHERE anchor IS NULL OR anchor IN split(f.locator, '/')\n"
+    "OPTIONAL MATCH (dv:Derived)-[:USED_ASSERTION]->(x)\n"
+    "RETURN x.id AS statement, x.status AS status, d.path AS document,\n"
+    "       collect(DISTINCT coalesce(anchor, '(whole document)')) AS anchors, collect(DISTINCT l.reg_id) AS links,\n"
+    "       collect(DISTINCT v.tag) AS versions, collect(DISTINCT f.locator) AS fragments,\n"
+    "       collect(DISTINCT dv.id + CASE WHEN dv.suspect THEN ' (suspect)' ELSE '' END) AS derived\n"
+    "ORDER BY document, statement")
+NODE_STATEMENTS = _NODE_STATEMENTS.replace("$start", f"'{INFORMATION_START}'")
 # The literal start each saved query carries, by the taxonomy the page picks its default from.
 START_LITERALS = {"applications": IMPACT_START, "capabilities": CAPABILITY_START, "information": INFORMATION_START}
 
@@ -176,6 +207,9 @@ SAVED_QUERIES = [
     {"id": "register-node-store", "needs": "register+scenario", "start": "applications",
      "title": f"From {IMPACT_START} to the store: the documents its approved links cite, their assertions and the derived code",
      "text": MODULE_STORE},
+    {"id": "register-node-statements", "needs": "register+scenario", "start": "information",
+     "title": f"From {INFORMATION_START} to the statements its cited anchors name, every version, and the derived code that used them",
+     "text": NODE_STATEMENTS},
     {"id": "register-c1", "needs": "register", "title": "C1 in Cypher: approved steps and touchpoints with no is_supported_by link, the exception joined",
      "text": ("MATCH (s:RegNode {taxonomy:'journeys', state:'approved'}) WHERE s.kind IN ['step', 'touchpoint']\n"
               "  AND NOT (s)-[:REG_IS_SUPPORTED_BY]->(:RegNode)\n"
@@ -566,6 +600,10 @@ class Neo4jStore(Store):
 
     def all_derived(self) -> list[dict]:
         return _rows(self.run("MATCH (dv:Derived) RETURN dv.id AS id, dv.suspect AS suspect"))
+
+    def register_node_statements(self, start: str) -> list[dict]:
+        rows = _rows(self.run(_NODE_STATEMENTS, start=start))
+        return [{**r, **{k: sorted(r[k]) for k in ("anchors", "links", "versions", "fragments", "derived")}} for r in rows]
 
     # ---- the census and the page
     def census(self) -> dict:

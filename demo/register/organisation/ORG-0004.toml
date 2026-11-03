@@ -1,0 +1,16 @@
+id = "ORG-0004"
+kind = "business_unit"
+name = "Compliance (stand-in)"
+state = "approved"
+owner = "ORG-0004"
+review_due = 2027-05-03
+
+[source]
+system = "kit"
+kit_path = "kit/requirements.md"
+export = "exports/kit/2026-10-30"
+
+[approval]
+by = "fdurieux"
+on = 2026-11-03
+record = "decisions/0011-a-compliance-unit-the-owner-of-od-1.md"
