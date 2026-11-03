@@ -17,7 +17,8 @@ folder (``[capture] dir`` in subject.toml, ``captures/`` by default). Every load
 (harness/load.py ``load_captures``): an answer becomes an assertion of basis ``elicited``, status
 ``proposed``, attributed to the person and dated; "nobody knows" becomes a declared gap with the
 person and the date. The person is an opaque handle, as ieam-register decision 0008 defines it
-(``from``, ``on``, ``record``); never a name.
+(``from``, ``on``, ``record``); never a name. When the register lists issued handles (decision 0009,
+``people/handles.toml``), the handle must be one, issued by the answer's date and not withdrawn by then.
 
 ``review --show`` prints each ruled answer with its note and writes nothing: the reviewer reads it
 before ruling, since a note can identify the person behind the handle and no pattern can tell
@@ -163,18 +164,32 @@ def _date(v) -> dt.date | None:
     return None
 
 
-def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date) -> tuple[list[str], dict]:
-    """(errors, the normalised capture) for an answered questionnaire."""
+def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
+                  handles: dict[str, dict] | None = None) -> tuple[list[str], dict]:
+    """(errors, the normalised capture) for an answered questionnaire. ``handles`` is the register's
+    issued list (harness/review.py ``issued_handles``, decision 0009): when it lists any, the handle
+    must be on it, issued by the answer's date and not withdrawn by then; when it lists none, the
+    pattern alone applies."""
     errs = []
     q, a = doc.get("questionnaire", {}), doc.get("answered", {})
     handle = a.get("from", "")
-    if not re.match(pattern, str(handle)):
+    shaped = bool(re.match(pattern, str(handle)))
+    if not shaped:
         errs.append(f"answered.from {handle!r} is not an opaque handle ({pattern}): a person's handle, never a name, an address or a model")
     on = _date(a.get("on"))
     if on is None:
         errs.append(f"answered.on {a.get('on')!r} is not a date (YYYY-MM-DD)")
     elif on > today:
         errs.append(f"answered.on {on} is in the future")
+    if handles and shaped:
+        h = handles.get(str(handle))
+        if h is None:
+            errs.append(f"answered.from {handle!r} is not an issued handle (decision 0009): the register's issued list does not name it")
+        elif on is not None:
+            if h.get("issued") and h["issued"] > on:
+                errs.append(f"answered.from {handle} was issued on {h['issued']}, after the answer's date {on} (decision 0009)")
+            if h.get("withdrawn") and h["withdrawn"] <= on:
+                errs.append(f"answered.from {handle} was withdrawn on {h['withdrawn']}, by the answer's date {on} (decision 0009)")
     answers, unknown = [], []
     for i, it in enumerate(doc.get("item", [])):
         key = it.get("key", "")
@@ -288,7 +303,9 @@ def _ingest(args) -> int:
         raise CannotRun(f"the questionnaire is for {doc.get('questionnaire', {}).get('subject')!r}, the subject loaded is {SUBJECT.id!r}")
     if task not in TASKS:
         raise CannotRun(f"{SUBJECT.id}: no task {task!r}")
-    errs, cap = check_answers(doc, handle_pattern(register_root()), set(TASKS[task]["keys"]), dt.date.today())
+    import review
+    reg = register_root()
+    errs, cap = check_answers(doc, handle_pattern(reg), set(TASKS[task]["keys"]), dt.date.today(), review.issued_handles(reg))
     if errs:
         for e in errs:
             print(f"refused: {e}", file=sys.stderr)
