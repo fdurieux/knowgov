@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-02T23:22:00Z'
+updated_date: '2026-11-03T21:43:00Z'
 labels:
   - capture
 milestone: m-2
@@ -35,3 +36,9 @@ doc-0007 (the John Doe walkthrough) found that capture as built moves a key and 
 - [ ] #5 CI shows S2' (REQ-06 not declared open) going BLOCKED, then QUALIFIED after capture, then PROCEED after a review, by gate_cli exit codes, on both store adapters
 - [ ] #6 instance/README.md "Capturing what people know" describes the review step in the adopter register
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Governed by decision-0002 (proposed 2026-11-03): who may approve, close a declared gap or settle a dispute, and what the tool refuses; and by ieam-register decision 0009 (proposed, its #12): issued handles with roles gives, approves, closes.
+<!-- SECTION:NOTES:END -->
