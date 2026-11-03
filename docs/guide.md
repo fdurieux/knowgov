@@ -220,10 +220,18 @@ the threshold you set (`--fail-on`, `major` by default), 2 could not run (a lint
 folder that is not a kind, a file that does not exist). `-f json` writes the report under
 `harness/schemas/preload-report.schema.json`.
 
-Not built yet: a baseline per kind, so the check fails only on a regression over documents that
-already exist (pumllint's own `score --baseline` does this for PlantUML meanwhile); running the
-other kinds' tools, which your instance adds as steps of its own; and recording each document's
-verdict on its `Version` node in the store.
+**Adopting it over documents that already have findings.** Run the check once with
+`-o preload-baseline.json` and, if you choose to, commit that report. From then on
+`--baseline preload-baseline.json` (in the CI template, `KG_PRELOAD_BASELINE`) lists the findings it
+holds as held and fails only on a regression: a finding it does not hold, or the same finding at a
+worse severity. A finding is the same when its file, rule and message are; its line may move. The
+check never writes the baseline, and refuses `-o` naming it: keeping it, and moving it on after a
+clean-up, is your commit, reviewed like any other. pumllint's own ratchet (`pumllint score
+--baseline`) is not used for this: it ratchets maturity levels, not lint findings, and records its
+file itself when it is missing.
+
+Not built yet: running the other kinds' tools, which your instance adds as steps of its own; and
+recording each document's verdict on its `Version` node in the store.
 
 ### Why this is not the knowgov gate
 
