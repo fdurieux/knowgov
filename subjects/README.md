@@ -15,7 +15,7 @@ change to the harness or the page.
 | `scenarios.toml` | the recorded scenarios: the card and the Planted line, the harness's switches per scenario, the measures' keyword sets and targets, the page's extra sentences, the placement on the systemic model | no: a subject with none offers no scenario to replay or re-run |
 | `plants.toml` | the mechanical patches a scenario applies to the pristine kit, a stage-2 change, and a model-proposed assertion | no |
 | `queries.toml` | saved Cypher that names the subject's keys or scenarios; the page lists them after its generic ones | no |
-| `register_map.toml` | the approved map from required keys to register nodes, for the footprint | no |
+| `register_map.toml` | the approved map from required keys to register nodes, for the footprint; a row's optional `owner`, one of its nodes' owners, is the one unit the key's questionnaire goes to (task-0043) | no |
 | `prompts/` | the arms' task prompts, `<name>_baseline.md` and `<name>_governed.md` per task | for the arms mode |
 | `vendor/` | bytes vendored from elsewhere, with their `SOURCE.md`; never edited by hand | no |
 

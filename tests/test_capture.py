@@ -30,14 +30,33 @@ def _s2() -> dict:
 def test_one_questionnaire_per_owner_with_its_open_keys_and_the_denominator():
     nodes = capture.register_nodes(ROOT / "demo" / "register")
     qs = capture.questionnaires(_s2(), CARGO_QUOTE, "S2", "codegen", nodes, TODAY)
-    assert sorted(qs) == ["ORG-0001", "ORG-0002"], sorted(qs)   # every CargoQuote key concerns nodes both own
+    assert sorted(qs) == ["ORG-0001", "ORG-0002"], sorted(qs)
     doc = tomllib.loads(qs["ORG-0002"])
     q = doc["questionnaire"]
-    assert (q["owner"], q["keys_owned"], q["open"]) == ("ORG-0002", 36, 3)
+    assert (q["owner"], q["keys_owned"], q["open"]) == ("ORG-0002", 7, 3)
     assert {i["key"]: i["level"] for i in doc["item"]} == {"QuoteAPI|on_screening_outage": "declared_gap",
                                                           "response|hold_presence": "absent", "response|statuses": "validated"}
     assert all(i["answer"] == "" and i["nobody_knows"] is False for i in doc["item"])
-    assert qs["ORG-0002"].startswith("# Questionnaire for ORG-0002 (Architecture stewardship (stand-in)): 3 of the 36 keys you own need an answer.")
+    assert qs["ORG-0002"].startswith("# Questionnaire for ORG-0002 (Architecture stewardship (stand-in)): 3 of the 7 keys you own need an answer.")
+
+
+def test_each_key_has_one_answering_owner_so_the_questionnaires_do_not_overlap():
+    """task-0043: the map's owner per row, one of its nodes' owners; S2's questionnaires share no key,
+    and together they ask every key once. Who may rule stays every owner of the nodes (decision-0002)."""
+    nodes = capture.register_nodes(ROOT / "demo" / "register")
+    rows = CARGO_QUOTE.register_map()["row"]
+    every = capture.owners_of(CARGO_QUOTE, nodes)
+    for r in rows:
+        assert r.get("owner") in every[r["key"]], (r["key"], r.get("owner"), every[r["key"]])
+    answering = capture.answering_owners(CARGO_QUOTE, nodes)
+    assert all(len(v) == 1 for v in answering.values()) and len(answering) == 36
+    assert every["response|statuses"] == ["ORG-0001", "ORG-0002"], "a ruling may still come from either unit"
+    qs = capture.questionnaires(_s2(), CARGO_QUOTE, "S2", "codegen", nodes, TODAY)
+    owned = {o: tomllib.loads(t)["questionnaire"]["keys_owned"] for o, t in qs.items()}
+    asked = {o: [i["key"] for i in tomllib.loads(t).get("item", [])] for o, t in qs.items()}
+    assert owned == {"ORG-0001": 29, "ORG-0002": 7}, owned
+    flat = [k for ks in asked.values() for k in ks]
+    assert len(flat) == len(set(flat)) == 3, asked
 
 
 def test_a_key_no_map_row_names_goes_to_unassigned():
