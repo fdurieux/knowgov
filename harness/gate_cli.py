@@ -35,6 +35,12 @@ subject's record for the same scenario (its deterministic run; the record's gate
 task); ``--baseline FILE`` is an earlier report of this command or a deterministic.json. The gate
 never writes a baseline: recording one is a separate, deliberate act (``-o``, then commit it).
 
+A capture (harness/capture.py) does not trip the ratchet by agreeing (decision-0004): a person's
+answer nobody has reviewed yet is left out of its key's level when the key holds a validated-or-better
+statement, and the bundle marks it pending review. Alone on a key it sets the level (absent ->
+proposed, no regression); contradicting a document it makes the key disputed (R-CONFLICT), a
+regression, which is what the ratchet is for.
+
 ``--stage 2`` brings in the scenario's later version after stage 1, as ``harness/run.py``'s stage 2
 does (``harness/change.py``, task-0049): the subject's ``[scenario.stage2]`` artefact re-ingested as
 its new version, the statements that rested on its changed fragments invalidated, and the earlier

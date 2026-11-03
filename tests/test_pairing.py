@@ -129,3 +129,54 @@ def test_both_adapters_pair_across_versions_by_a_named_basis_and_ci_runs_the_ins
     assert 'candidate_pairs(across=PERSON)' in (ROOT / "harness" / "rules.py").read_text(encoding="utf-8")
     for wf in ("harness.yml", "demo.yml"):
         assert "tools/check_capture_pairing.py" in (ROOT / ".github" / "workflows" / wf).read_text(encoding="utf-8"), wf
+
+
+class GateView:
+    """The reads gate.resolve makes, over a PairStore after the rules: the key's live statements."""
+
+    def __init__(self, st: PairStore):
+        self.st = st
+
+    def key_evidence(self, key, statuses):
+        return [{**x, "gaps": [], "fragments": [], "verifications": [], "approvals": [], "agent": None, "text": ""}
+                for x in self.st.x.values() if x["key"] == key and x["status"] in statuses]
+
+    def declared_gaps_for_key(self, key):
+        return []
+
+    def conflict_gaps(self):
+        return []
+
+    def stale_on_keys(self, keys):
+        return []
+
+    def suspect_derived(self):
+        return []
+
+
+def test_decision_0004_an_unreviewed_answer_lowers_no_key_a_document_holds_validated():
+    """S2's status list: an agreeing capture leaves the key validated, marked pending review; a
+    contradicting one leaves it disputed; alone on a key, a capture sets its level."""
+    import gate
+    st = _s2(_cap(DOC))
+    rules.r_conflict(st, "S2")
+    v = gate.resolve(GateView(st), "codegen")["keys"][KEY]
+    assert v["level"] == "validated" and v["pending_review"] == [CAP] and len(v["assertions"]) == 3, v
+    assert "PENDING REVIEW" in "\n".join(gate.render_key(KEY, v))
+    st = _s2(_cap(HELD))
+    rules.r_conflict(st, "S2")
+    v = gate.resolve(GateView(st), "codegen")["keys"][KEY]
+    assert v["level"] == "disputed" and v["pending_review"] == [], v
+    st = PairStore([_cap("held_unscreened only", key="response|hold_presence")])
+    v = gate.resolve(GateView(st), "codegen")["keys"]["response|hold_presence"]
+    assert v["level"] == "proposed" and v["pending_review"] == [], v
+    st = _s2(_cap(DOC, status="approved"))
+    v = gate.resolve(GateView(st), "codegen")["keys"][KEY]
+    assert v["level"] == "validated" and v["pending_review"] == [], "a reviewed answer counts as before"
+
+
+def test_the_readme_and_the_gate_command_say_what_a_capture_does_to_the_ratchet():
+    doc = (ROOT / "harness" / "gate_cli.py").read_text(encoding="utf-8").split('"""')[1]
+    readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
+    for text in (doc, readme):
+        assert "decision-0004" in text and "pending review" in text
