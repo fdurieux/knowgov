@@ -21,3 +21,9 @@ handle = "employee-3"
 unit = "ORG-0001"
 roles = ["gives", "approves", "closes"]
 issued = 2026-11-02
+
+[[handle]]
+handle = "employee-4"
+unit = "ORG-0004"
+roles = ["gives", "approves", "closes"]
+issued = 2026-11-03

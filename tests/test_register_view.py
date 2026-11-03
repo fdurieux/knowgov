@@ -31,13 +31,13 @@ def test_register_view_builds_from_the_vendored_copy_at_the_pinned_date():
     v = register_view.build()
     assert v["source"]["repo"] == "fdurieux/ieam-register" and len(v["source"]["commit"]) == 40 and v["source"]["digest_ok"]
     assert v["source"]["kind"] == "copy" and register_view.REGISTER == (DEMO / "register").resolve()
-    assert v["source"]["tag"] == "v0.2.4" and v["source"]["commit"].startswith("71de2d0")  # the tag sits on the vendored commit
+    assert v["source"]["tag"] == "v0.2.6" and v["source"]["commit"].startswith("2b95f43")  # the tag sits on the vendored commit
     assert v["pinned"] and v["run_date"] == v["source"]["pinned_date"]
-    assert v["summary"] == {"nodes": 56, "links": 65, "errors": 0, "warnings": 7}   # the J-F slice (decisions 0005 and 0006): 29 nodes, 37 links, seven parentless nodes
+    assert v["summary"] == {"nodes": 57, "links": 65, "errors": 0, "warnings": 7}   # the J-F slice (decisions 0005 and 0006): 29 nodes, 37 links, seven parentless nodes; ORG-0004 (decision 0011)
     assert v["coverage_lines"][0] == "C1: 7/8 covered, 1 excepted, 0 uncovered"
     assert v["coverage"]["C2"]["uncovered"] == [] and v["coverage"]["C3"]["uncovered"] == []
     assert sorted(v["nodes_by_taxonomy"]) == sorted(["capabilities", "products", "journeys", "processes", "applications", "information", "organisation"])
-    assert sum(len(ns) for ns in v["nodes_by_taxonomy"].values()) == 56 and len(v["links"]) == 65
+    assert sum(len(ns) for ns in v["nodes_by_taxonomy"].values()) == 57 and len(v["links"]) == 65
     for ns in v["nodes_by_taxonomy"].values():
         for n in ns:
             p = n["panel"]
@@ -53,8 +53,8 @@ def test_register_view_builds_from_the_vendored_copy_at_the_pinned_date():
     assert len(v["relationship_types"]) == 10 and all(t["aris_status"] == "unverified" for t in v["relationship_types"])
     assert {t["term"] for t in v["glossary"]} <= set(views.GLOSSARY), "every register term is in the demo glossary"
     # one register per organisation: the view says which nodes are this subject's slice and offers its application to the impact walk
-    assert v["subject_system"] == "kit" and v["slice"] == {"nodes": 27, "links": 28, "other_nodes": 29, "other_systems": ["jef_kit"]}
-    assert v["impact_default"] == "APP-0002" and "This subject's slice is the source system kit: 27 nodes and 28 links." in v["intro"]
+    assert v["subject_system"] == "kit" and v["slice"] == {"nodes": 28, "links": 28, "other_nodes": 29, "other_systems": ["jef_kit"]}
+    assert v["impact_default"] == "APP-0002" and "This subject's slice is the source system kit: 28 nodes and 28 links." in v["intro"]
     assert all(n["subject"] == (n["system"] == "kit") for ns in v["nodes_by_taxonomy"].values() for n in ns)
 
 
@@ -86,18 +86,24 @@ def test_register_view_sentences_obey_the_glossary_and_the_limit():
 
 def test_register_impact_walk_reaches_the_product_and_says_when_it_does_not():
     w = register_view.impact("APP-0002")
-    assert "PRD-0002" in w["reached"]["products"] and "JRN-0002" in w["reached"]["journeys"] and len(w["edges"]) == 5
+    assert "PRD-0002" in w["reached"]["products"] and "JRN-0002" in w["reached"]["journeys"] and len(w["edges"]) == 10
     assert w["panel"]["title"] == "Impact of retiring APP-0002" and "does not climb a node's parent" in w["panel"]["intro"]
     cols = w["panel"]["sections"][0]["table"]["cols"]
     assert all(len(r) == len(cols) for r in w["panel"]["sections"][0]["table"]["rows"])
-    # the register tool's own limit, shown honestly: TariffEngine reaches a journey step but no product
+    # since v0.2.6 (decision 0010) TariffEngine's journey step leads on to the product it concerns;
+    # the J-F slice's application reaches its process and no product, and says so
     t = register_view.impact("APP-0003")
-    assert t["reached"]["products"] == [] and "JRN-0003" in t["reached"]["journeys"]
-    assert "No product is reached" in t["panel"]["sections"][0]["text"]
+    assert t["reached"]["products"] == ["PRD-0002"] and "JRN-0003" in t["reached"]["journeys"]
+    assert "No product is reached" not in t["panel"]["sections"][0]["text"]
+    n = register_view.impact("APP-0009")
+    assert n["reached"]["products"] == [] and n["reached"]["processes"] == ["PROC-0009"]
+    assert "No product is reached" in n["panel"]["sections"][0]["text"]
     assert register_view.impact("APP-9999") is None
-    leaf = register_view.impact("ENT-0004")
+    # an information entity now walks to what uses it; a capability domain has no link of its own
+    assert "PROC-0001" in register_view.impact("ENT-0004")["reached"]["processes"]
+    leaf = register_view.impact("CAP-0001")
     assert leaf["edges"] == [] and "No link starts at this node" in leaf["panel"]["sections"][0]["text"]
-    for v in (w, t, leaf):
+    for v in (w, t, n, leaf):
         for item in v["text_registry"]:
             if item["kind"] == "data":
                 continue
@@ -221,18 +227,18 @@ def test_projection_rows_and_statements():
     import register_project as rp
     r = rp.rows(loaded_at="2026-10-31T00:00:00+00:00")
     c = r["counts"]
-    assert c["nodes"] == 56 and c["links"] == 65 and c["types"] == 10 and c["documents"] == 10 and c["externals"] == 1 and c["exceptions"] == 1
-    assert r["stamp"]["tag"] == "v0.2.4" and r["stamp"]["commit"].startswith("71de2d0") and r["stamp"]["export_date"] == "2026-10-30"   # the subject's export, not the newest
-    assert len(r["parents"]) == sum(1 for n in r["nodes"] if n["parent"]) and len(r["owners"]) == 56
+    assert c["nodes"] == 57 and c["links"] == 65 and c["types"] == 10 and c["documents"] == 10 and c["externals"] == 1 and c["exceptions"] == 1
+    assert r["stamp"]["tag"] == "v0.2.6" and r["stamp"]["commit"].startswith("2b95f43") and r["stamp"]["export_date"] == "2026-10-30"   # the subject's export, not the newest
+    assert len(r["parents"]) == sum(1 for n in r["nodes"] if n["parent"]) and len(r["owners"]) == 57
     assert sum(len(v) for v in r["typed"].values()) == 64 and len(r["maps_to"]) == 1 and len(r["link_of"]) == 129 and len(r["of_type"]) == 65
     assert {"reg_id": "REL-08002", "path": "kit/requirements.md", "anchor": "kit:requirements.md#REQ-05"} in r["cites"]
     assert r["excepts"] == [{"reg_id": "EXC-0001", "node": "JRN-0004", "rule": "C1", "expires": "2027-01-31"}]
-    assert c["relationships"] == 64 + 1 + 129 + 65 + len(r["cites"]) + len(r["parents"]) + 56 + 1
+    assert c["relationships"] == 64 + 1 + 129 + 65 + len(r["cites"]) + len(r["parents"]) + 57 + 1
     # every property is what Neo4j can hold: a string, number, boolean or list of strings; every row is stamped
     ok = (str, int, float, bool)
     for key in ("nodes", "types", "links", "documents", "externals", "exceptions"):
         for row in r[key]:
-            assert row["tag"] == "v0.2.4" and row["commit"] and row["loaded_at"] and len(row["digest"]) == 64, (key, row["reg_id"])
+            assert row["tag"] == "v0.2.6" and row["commit"] and row["loaded_at"] and len(row["digest"]) == 64, (key, row["reg_id"])
             for k, v in row.items():
                 assert isinstance(v, ok) or (isinstance(v, list) and all(isinstance(x, str) for x in v)), (key, row["reg_id"], k, v)
     # the load is the Neo4j adapter's project_register, read as source: the tests job has no driver
@@ -256,12 +262,12 @@ def test_projection_is_wired_and_named():
     ci = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert '["api", "register", "project"]' in server and "s.register_census()" in server and '"register": None' in server
     assert 'id="project-btn"' in page and "/api/register/project" in page and "register ${s.register ? 'projected at '" in page
-    assert "POST localhost:8080/api/register/project" in ci and '"tag"]=="v0.2.4"' in ci
+    assert "POST localhost:8080/api/register/project" in ci and '"tag"]=="v0.2.6"' in ci
     assert "projection" in views.GLOSSARY and "**The projection.**" in (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
     adapter = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")   # the saved queries are the adapter's
     ids = [m.group(1) for m in _re.finditer(r'\{"id": "([a-z0-9-]+)", "needs": "[^"]+", "title"', adapter)]
     assert ids[-5:] == ["register-tag", "register-impact", "register-impact-paths", "register-c1", "register-cites"], ids
-    for cy in ("REG_DELIVERS|REG_REALIZES", "<-[:REG_IS_SUPPORTED_BY]-", "REG_EXCEPTS", "Artefact {id:d.path}", "v.sha256 = d.digest THEN 'same as tag'"):
+    for cy in ("MATCH SHORTEST 1 (a)", '("REG_DELIVERS", "REG_REALIZES")', "REG_EXCEPTS", "Artefact {id:d.path}", "v.sha256 = d.digest THEN 'same as tag'"):
         assert cy in adapter
     # task-0023: the saved query is the walk impact.py makes, not a one-direction chain
     assert "REG_SUPPORTS|REG_IS_SUPPORTED_BY|REG_DELIVERS*1..4" not in adapter
@@ -358,7 +364,7 @@ def test_register_root_comes_from_the_environment_and_a_checkout_has_no_note():
             v = rv.build()
             assert not v["pinned"] and v["pinned_date"] == "" and v["run_date"] == dt.date.today().isoformat()
             assert "own checkout" in v["intro"] and "no pinned date" in v["intro"]
-            assert v["summary"]["nodes"] == 56 and len(v["links"]) == 65, "the same content, read from the other root"
+            assert v["summary"]["nodes"] == 57 and len(v["links"]) == 65, "the same content, read from the other root"
             assert rv.impact("APP-0002")["reached"]["products"]
             fp = rv.footprint(views.build("S2", views.default_source("S2"), ROOT / "nonexistent-demo-runs"))
             assert fp["box"]["colour"] == "warn" and fp["uncited"] == 0, "the subject's map and manifest join the mounted register"
@@ -368,94 +374,78 @@ def test_register_root_comes_from_the_environment_and_a_checkout_has_no_note():
     assert rv.REGISTER == (DEMO / "register").resolve() and rv.source_info()["kind"] == "copy"
 
 
-# ---- task-0023: the saved query register-impact is the walk impact.py makes
-# The Cypher's CALL (a) { } UNION block is parsed (one chain per branch: typed relationship sets with
-# their direction, the taxonomy and state filters on the start and the intermediate nodes) and
-# simulated over the projection's rows, so the test reads the adapter's text, not a copy of it.
-_STEP = re.compile(r"(<-|-)\[(\w*):([A-Z_|]+)\](->|-)\((\w*):RegNode\)")
-_BRANCH = re.compile(r"MATCH p = \(a\)(.*?) WHERE (.*?) RETURN p", re.S)
+# ---- task-0023, task-0044: the saved query register-impact is the walk impact.py makes
+# The Cypher's CALL (a) { } block is parsed (the step predicate, one term per taxonomy and direction,
+# read twice: in the quantified path that finds the expanded nodes and in the match of the edges met
+# from each; the filters on the start, the quantified step's link and far node) and simulated over the
+# projection's rows, so the test reads the adapter's text, not a copy of it.
+_TERM = re.compile(r"(\w+)\.taxonomy = '(\w+)' AND type\((\w+)\) IN \[([^\]]*)\] AND (startNode|endNode)\((\w+)\) = (\w+)")
+_REACH = re.compile(r"MATCH SHORTEST 1 \(a\) \(\(x:RegNode\)-\[s\]-\(y:RegNode\) WHERE \((.*?)\)\s+AND s\.state = 'approved' "
+                    r"AND NOT y\.state IN \['deprecated','retired'\]\)\* \(n:RegNode\)\s+WHERE NOT a\.state IN \['deprecated','retired'\]", re.S)
+_MEET = re.compile(r"MATCH p = \(n\)-\[r\]-\(t:RegNode\) WHERE \((.*?)\)\s+RETURN p\s*$", re.S)
 sys.path.insert(0, str(ROOT / "harness"))
 
 
-def _parse_chains(text):
-    """The branches of the CALL block: [(steps, filters)], a step (inverse?, {types}, node var, link
-    var), the filters {var: (taxonomy, live_only?, approved_only?)}, a node var carrying the first two
-    and a link var the third (v0.2.2: an intermediate link must be approved). Every branch must be
-    understood: an unparsed piece fails."""
+def _terms(pred, node, rel):
+    """The predicate's terms as {(taxonomy, relationship type, the node is the source?)}; every term
+    must be understood and name ``node`` and ``rel`` only."""
+    out = set()
+    for term in pred.split(" OR "):
+        m = _TERM.fullmatch(" ".join(term.split()))
+        assert m, term
+        assert (m.group(1), m.group(3), m.group(6), m.group(7)) == (node, rel, rel, node), term
+        for t in m.group(4).split(","):
+            out.add((m.group(2), t.strip().strip("'"), m.group(5) == "startNode"))
+    return out
+
+
+def _parse_walk(text):
+    """The walk's steps, from the CALL block; the two readings of the predicate must be the same steps."""
     block = text[text.index("CALL (a) {") + len("CALL (a) {"):text.index("\n}\n")]
-    chains = []
-    for branch in block.split("UNION"):
-        m = _BRANCH.fullmatch(branch.strip())
-        assert m, branch
-        pattern, conds = m.group(1), m.group(2)
-        steps, pos = [], 0
-        for st in _STEP.finditer(pattern):
-            assert st.start() == pos, pattern
-            pos = st.end()
-            assert (st.group(1), st.group(4)) in (("-", "->"), ("<-", "-")), pattern
-            steps.append((st.group(1) == "<-", set(st.group(3).split("|")), st.group(5), st.group(2)))
-        assert pos == len(pattern) and steps, pattern
-        filters = {}
-        for c in conds.split(" AND "):
-            t = re.fullmatch(r"(\w+)\.taxonomy = '(\w+)'", c)
-            l = re.fullmatch(r"NOT (\w+)\.state IN \['deprecated','retired'\]", c)
-            o = re.fullmatch(r"(\w+)\.state = 'approved'", c)
-            assert t or l or o, c
-            v = (t or l or o).group(1)
-            tax, live, ok = filters.get(v, (None, False, False))
-            filters[v] = (t.group(2) if t else tax, live or bool(l), ok or bool(o))
-        for steps_, filters_ in [(steps, filters)]:
-            link_vars = {rv for *_, rv in steps_ if rv}
-            assert all(filters_[rv] == (None, False, True) for rv in link_vars), "a named link is named to be filtered on approved"
-            assert all(not filters_.get(nv, (None, False, False))[2] for *_, nv, _ in steps_), "approved is a link filter"
-        chains.append((steps, filters))
-    return chains
+    block = "\n".join(ln for ln in block.splitlines() if not ln.strip().startswith("//"))
+    reach, meet = _REACH.search(block), _MEET.search(block)
+    assert reach and meet and block.index(reach.group(0)) < block.index(meet.group(0)), block
+    assert block.replace(reach.group(0), "").replace(meet.group(0), "").strip() == "", "nothing else in the block"
+    steps = _terms(reach.group(1), "x", "s")
+    assert _terms(meet.group(1), "n", "r") == steps, "the expanded nodes and the edges met follow one predicate"
+    return steps
 
 
-def _simulate(chains, rows, start):
-    """The rows the Cypher gives from ``start`` over the projection's rows: the distinct relationships
-    of every path of every branch, each as (from, relationship, to, link state, owner, evidence, live),
-    live as the rows form's ``followed`` column computes it."""
+def _simulate(steps, rows, start):
+    """The rows the Cypher gives from ``start`` over the projection's rows: the nodes the quantified
+    path reaches over live steps (the start, if live, included), then every step from each, as
+    (from, relationship, to, link state, owner, evidence, live), live as ``followed`` computes it."""
     nodes = {n["reg_id"]: n for n in rows["nodes"]}
     evidence = {l["reg_id"]: tuple(l["evidence"]) for l in rows["links"]}
-    by_source, by_target = {}, {}
+    dead = lambda nid: nodes[nid]["state"] in ("deprecated", "retired")  # noqa: E731
+    by_node = {}
     for rtype, items in rows["typed"].items():
         for it in items:
             rel = (rtype, it["source"], it["target"], it["props"]["reg_id"], it["props"]["state"], it["props"]["owner"])
-            by_source.setdefault(it["source"], []).append(rel)
-            by_target.setdefault(it["target"], []).append(rel)
+            by_node.setdefault(it["source"], []).append((rel, True))
+            by_node.setdefault(it["target"], []).append((rel, False))
 
-    def ok(var, nid, filters):
-        tax, live, _ = filters.get(var, (None, False, False))
-        n = nodes[nid]
-        return (tax is None or n["taxonomy"] == tax) and not (live and n["state"] in ("deprecated", "retired"))
+    def met(nid):   # (rel, the node is the source?) for every step the predicate allows from nid
+        return [(rel, src) for rel, src in by_node.get(nid, []) if (nodes[nid]["taxonomy"], rel[0], src) in steps]
 
-    found = set()
-    for steps, filters in chains:
-        if start not in nodes or not ok("a", start, filters):
-            continue
-        partial = [(start, ())]
-        for inverse, types, var, rvar in steps:
-            nxt = []
-            for cur, path in partial:
-                for rel in (by_target if inverse else by_source).get(cur, []):
-                    if rel[0] not in types:
-                        continue
-                    if rvar and filters[rvar][2] and rel[4] != "approved":
-                        continue
-                    other = rel[1] if inverse else rel[2]
-                    if ok(var, other, filters) if var else True:
-                        nxt.append((other, path + (rel,)))
-            partial = nxt
-        for _, path in partial:
-            found.update(path)
+    if start not in nodes or dead(start):
+        return []
+    expanded, frontier = {start}, [start]
+    while frontier:
+        nxt = []
+        for nid in frontier:
+            for rel, src in met(nid):
+                far = rel[2] if src else rel[1]
+                if rel[4] == "approved" and not dead(far) and far not in expanded:
+                    expanded.add(far)
+                    nxt.append(far)
+        frontier = nxt
     out = []
-    for rtype, src, tgt, link, state, owner in found:
-        inv = rtype == "REG_IS_SUPPORTED_BY"
-        label = rtype.replace("REG_", "").lower() + (" (inverse)" if inv else "")
-        far = src if inv else tgt
-        live = state == "approved" and nodes[far]["state"] not in ("deprecated", "retired")
-        out.append(((tgt if inv else src), label, far, state, owner, evidence[link], live))
+    for nid in expanded:
+        for (rtype, s, t, link, state, owner), src in met(nid):
+            far = t if src else s
+            label = rtype.replace("REG_", "").lower() + ("" if src else " (inverse)")
+            out.append((nid, label, far, state, owner, evidence[link], state == "approved" and not dead(far)))
     return sorted(out)
 
 
@@ -469,23 +459,25 @@ def test_register_impact_cypher_equals_the_walk_on_every_node():
     import store_neo4j as sn
     rows = rp.rows(loaded_at="2026-10-31T00:00:00+00:00")
     reg = register_view._load_tools()["register"].load_register(register_view.REGISTER)
-    chains = _parse_chains(sn.IMPACT_ROWS)
-    assert len(chains) == 8 and _parse_chains(sn.IMPACT_PATHS) == chains, "the paths form is the same walk"
-    assert sum(1 for steps, _ in chains for *_, rv in steps if rv) == 5, "every intermediate link is filtered on approved: 4 two-step chains and the three-step chain's two"
+    steps = _parse_walk(sn.IMPACT_ROWS)
+    assert _parse_walk(sn.IMPACT_PATHS) == steps, "the paths form is the same walk"
+    # the steps are the vendored walk's FORWARD table, every kind and direction, nothing more
+    forward = register_view._load_tools()["impact"].FORWARD
+    assert steps == {(tax, "REG_" + rel.upper(), fwd) for tax, rels in forward.items() for rel, fwd in rels} and len(steps) == 11
     assert "AS followed" in sn.IMPACT_ROWS and "'no, withdrawn'" in sn.IMPACT_ROWS
     assert sn.IMPACT_PATHS.count("OPTIONAL CALL (a) {") == 1 and "WITH a MATCH" not in sn.IMPACT_WALK and sn.IMPACT_PATHS.rstrip().endswith("RETURN a, p")
     walked = 0
     for nid in reg["nodes"]:
         expect = _walk_rows(reg, nid)
-        assert _simulate(chains, rows, nid) == expect, nid
+        assert _simulate(steps, rows, nid) == expect, nid
         walked += len(expect)
-    assert walked > 0 and len(_walk_rows(reg, "APP-0002")) == 5 and len(_walk_rows(reg, "JRN-0002")) == 0
-    assert _simulate(chains, rows, "APP-0002") == _walk_rows(reg, "APP-0002") and any("(inverse)" in r[1] for r in _simulate(chains, rows, "APP-0002"))
-    # the walk's depth is bounded by the register's own kinds: every chain ends on a product or a capability
-    rels = {r: reg["relationships"][r]["type"] for r in ("supports", "delivers", "realizes", "is_supported_by", "concerns")}
-    assert set(rels["supports"]["target_kind"]) | set(rels["is_supported_by"]["target_kind"]) <= {"activity", "subprocess", "end_to_end_process"}
-    assert set(rels["delivers"]["target_kind"]) | set(rels["concerns"]["target_kind"]) <= {"product", "variant"}
-    assert set(rels["realizes"]["target_kind"]) <= {"capability", "sub_capability"}
+    assert walked == 469 and len(_walk_rows(reg, "APP-0002")) == 10 and len(_walk_rows(reg, "JRN-0002")) == 8
+    assert _simulate(steps, rows, "APP-0002") == _walk_rows(reg, "APP-0002") and any("(inverse)" in r[1] for r in _simulate(steps, rows, "APP-0002"))
+    # from every kind something rests on (decision 0010): a capability, an information entity and a product reach something
+    assert all(_walk_rows(reg, nid) for nid in ("CAP-0002", "ENT-0002", "PRD-0002"))
+    # the kinds form cycles (a process delivers a product, the product walks back over delivers), so no
+    # fixed set of chains is the walk: the quantified path is, its shortest path per node found breadth first
+    assert ("processes", "REG_DELIVERS", True) in steps and ("products", "REG_DELIVERS", False) in steps
 
 
 def _fixture():
@@ -520,17 +512,19 @@ def _fixture():
 def test_register_impact_cypher_stops_at_a_deprecated_node_like_the_walk():
     import store_neo4j as sn
     reg, rows = _fixture()
-    chains = _parse_chains(sn.IMPACT_ROWS)
+    steps = _parse_walk(sn.IMPACT_ROWS)
     for nid in reg["nodes"]:
-        assert _simulate(chains, rows, nid) == _walk_rows(reg, nid), nid
+        assert _simulate(steps, rows, nid) == _walk_rows(reg, nid), nid
     app1 = _walk_rows(reg, "APP-1")
-    assert [r[2] for r in app1].count("PROC-1") == 2 and "PROC-2" in [r[2] for r in app1], "two supports links reported; the deprecated process reached"
+    assert [r[2] for r in app1 if r[1] == "supports"].count("PROC-1") == 2 and "PROC-2" in [r[2] for r in app1], "two supports links reported; the deprecated process reached"
     assert "PRD-2" not in [r[2] for r in app1] and "PRD-3" not in [r[2] for r in app1], "neither the deprecated nor the retired node is expanded"
     assert ("PROC-1", "is_supported_by (inverse)", "JRN-2", "approved", "ORG-1", ("kit:REL-9",), False) in app1, "a retired far node: reported, withdrawn"
     assert ("APP-1", "supports", "PROC-3", "proposed", "ORG-1", ("kit:REL-12",), False) in app1 and "PRD-4" not in [r[2] for r in app1], "a proposed link: reported, withdrawn, not followed"
     assert ("APP-1", "supports", "PROC-1", "proposed", "ORG-1", ("kit:REL-2",), False) in app1 and ("APP-1", "supports", "PROC-1", "approved", "ORG-1", ("kit:REL-1",), True) in app1
     assert _walk_rows(reg, "APP-2") == [] and _walk_rows(reg, "MOD-1") == [], "a deprecated start walks nothing; a parent is never climbed"
-    assert len(app1) == 9 and sum(1 for r in app1 if not r[6]) == 4
+    assert len(app1) == 12 and sum(1 for r in app1 if not r[6]) == 4
+    assert ("PRD-1", "delivers (inverse)", "PROC-1", "approved", "ORG-1", ("kit:REL-5",), True) in app1, "one link met from both ends, once per end"
+    assert _walk_rows(reg, "PRD-2") == [("PRD-2", "delivers (inverse)", "PROC-2", "approved", "ORG-1", ("kit:REL-6",), False)], "a product walks back to a deprecated process and stops"
     assert register_view._load_tools()["impact"].reached(register_view._load_tools()["impact"].walk(reg, "APP-1")) == {"PROC-1", "PROC-2", "PROC-3", "PRD-1", "CAP-1", "JRN-1", "JRN-2"} - {"PROC-2", "PROC-3", "JRN-2"} | {"PRD-1"}
 
 
@@ -651,13 +645,14 @@ def test_impact_browser_links_open_a_served_guide_and_the_stack_job_runs_them():
     rows = [{"from": "A", "relationship": "supports", "to": "P", "link state": "approved", "owner": "O", "evidence": None}]
     assert cic.row_keys(rows) == [("A", "supports", "P", "approved", "O", ())] and cic.edge_keys(edges) == [("A", "supports", "P", "approved", "O", ("e1",))]
 
-    class Rel:
-        def __init__(self, i):
+    class Rel(dict):   # the driver's relationship: an element id, its properties by get
+        def __init__(self, i, link):
+            super().__init__(reg_id=link)
             self.element_id = i
 
     class P:
-        relationships = (Rel("r1"), Rel("r2"), Rel("r1"))
-    assert cic.path_shape([{"a": {"reg_id": "A"}, "p": P()}, {"a": {"reg_id": "A"}, "p": None}]) == (2, {"A"})
+        relationships = (Rel("r1", "REL-1"), Rel("r2", "REL-2"), Rel("r1", "REL-1"))
+    assert cic.path_shape([{"a": {"reg_id": "A"}, "p": P()}, {"a": {"reg_id": "A"}, "p": None}]) == (2, {"REL-1", "REL-2"}, {"A"})
     for bad in ("http://x/browser/?connectURL=b&cmd=edit&arg=a", "http://x/browser/?cmd=play&arg=http://d/g"):
         try:
             cic.guide_url_of(bad)

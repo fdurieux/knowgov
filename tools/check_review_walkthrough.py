@@ -15,8 +15,12 @@ employee-2 approves the other two answers: PROCEED, exit 0 with --fail-on major.
 into the folder by hand is checked again on load and refused. With KG_TODAY past the six months the
 approvals lapse, the dispute stays settled and the person's statements read proposed: QUALIFIED.
 
-S2 itself: OD-1 names compliance as its owner, which is no unit of the example register, so a
-close by employee-3 is refused and the gate stays BLOCKED.
+S2 itself (task-0054): OD-1 names compliance as its owner, the register's ORG-0004 (its decision
+0011). BLOCKED, exit 1; a close by employee-3 (closes, but ORG-0001) is refused; employee-1 answers
+and the answers are ruled on as in S2' (the dispute settled whole), and the gate is still BLOCKED on the declared gap; employee-4
+(closes, ORG-0004) closes OD-1: PROCEED, exit 0 with --fail-on major. Closing supplies no value
+(decision-0002): on a fresh instance, employee-4's close before any answer leaves the key absent,
+still BLOCKED.
 
 S4: approving the table's side alone is refused (half-settled); employee-3 approving the table and
 the spec and rejecting the diagram and the BPMN settles it: PROCEED.
@@ -121,11 +125,25 @@ def main(out: Path) -> int:
     expect(env, 0, "review refused: captures/reviews/2026-11-03-employee-1.toml", "gate_cli.py", "--scenario", "S2", "--fail-on", "major")
     expect(dict(env, KG_TODAY="2027-05-03"), 0, "QUALIFIED", "gate_cli.py", "--scenario", "S2")
 
-    print("== S2: OD-1 names compliance, no unit of the example register")
+    print("== S2: OD-1 declared open, owned by compliance (ORG-0004); only its owner closes it")
     env = instance(out, "s2", decided=False)
-    expect(env, 1, "which is no unit of the register", "capture.py", "review",
-           str(write_review(out / "s2" / "r-close.toml", "employee-3", "S2", closes=["gap:declared:OD-1"])))
-    expect(env, 1, "BLOCKED", "gate_cli.py", "--scenario", "S2")
+    w = out / "s2"
+    expect(env, 1, "QuoteAPI|on_screening_outage (declared_gap)", "gate_cli.py", "--scenario", "S2")
+    expect(env, 1, "the declaration names 'compliance' (ORG-0004) as its owner; employee-3's unit is ORG-0001", "capture.py", "review",
+           str(write_review(w / "r-close-3.toml", "employee-3", "S2", closes=["gap:declared:OD-1"])))
+    cap = answer(env, w)
+    expect(env, 0, "3 ruling(s)", "capture.py", "review", str(write_review(w / "r-3.toml", "employee-3", "S2", [*docs, (f"{cap}:2@capture", "approved")])))
+    expect(env, 0, "2 ruling(s)", "capture.py", "review", str(write_review(w / "r-2.toml", "employee-2", "S2", [(f"{cap}:{i}@capture", "approved") for i in (1, 3)])))
+    expect(env, 1, "BLOCKED — 1 required key(s) at a blocking level: QuoteAPI|on_screening_outage (declared_gap)",
+           "gate_cli.py", "--scenario", "S2", "--fail-on", "major")
+    expect(env, 0, "1 gap(s) closed", "capture.py", "review", str(write_review(w / "r-close-4.toml", "employee-4", "S2", closes=["gap:declared:OD-1"])))
+    expect(env, 0, "PROCEED", "gate_cli.py", "--scenario", "S2", "--fail-on", "major")
+
+    print("== S2: a close supplies no value; the key is then absent")
+    env = instance(out, "s2-close-first", decided=False)
+    expect(env, 0, "1 gap(s) closed", "capture.py", "review",
+           str(write_review(out / "s2-close-first" / "r-close-4.toml", "employee-4", "S2", closes=["gap:declared:OD-1"])))
+    expect(env, 1, "QuoteAPI|on_screening_outage (absent)", "gate_cli.py", "--scenario", "S2")
 
     print("== S4: two documents against two; a ruling on every side settles it")
     env = instance(out, "s4", decided=False)
@@ -137,7 +155,8 @@ def main(out: Path) -> int:
     expect(env, 0, "4 ruling(s)", "capture.py", "review", str(write_review(w / "r-settle.toml", "employee-3", "S4", settle)))
     rep = expect(env, 0, "PROCEED", "gate_cli.py", "--scenario", "S4", "-f", "json")
     assert '"conflicts": 0' in rep, "the settled conflicts are no longer listed"
-    print("OK: S2' BLOCKED -> disputed by a person -> PROCEED, lapses after six months; OD-1's close refused; S4 settled whole")
+    print("OK: S2' BLOCKED -> disputed by a person -> PROCEED, lapses after six months; S2 BLOCKED -> PROCEED by its owner's "
+          "close, another unit's refused, a close alone supplies nothing; S4 settled whole")
     return 0
 
 
