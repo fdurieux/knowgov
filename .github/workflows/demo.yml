@@ -141,6 +141,9 @@ jobs:
       - name: The review step (task-0037, decision-0002) on the Neo4j store, S2' from BLOCKED to PROCEED by command, S4 settled whole
         run: docker compose exec -T app python tools/check_review_walkthrough.py runs/review
 
+      - name: The gate after S6's change (task-0048) on the Neo4j store exits 1 on the suspect derived output
+        run: docker compose exec -T app python tools/check_gate_after_change.py runs/gate-change
+
       - name: A person's statement against the documents' (task-0038) on the Neo4j store, on S2 a contradiction raises a conflict, an agreement corroborates
         run: docker compose exec -T app python tools/check_capture_pairing.py runs/pairing
 

@@ -56,6 +56,18 @@ jobs:
           python tools/check_instance.py runs/instance | grep '^ABSENT stories/quote.md \[user-stories\]'
           cd harness && KG_STORE=rdflib KG_SUBJECT=../runs/instance/subjects/cargo_quote python run.py --deterministic --scenarios S1 --out ../runs/instance-unmapped && cd ..
           python3 -c 'import json; d=json.load(open("runs/instance-unmapped/S1/deterministic.json")); assert d["load"]["unmapped"]==["stories/quote.md"], d["load"]; print("load: unmapped", d["load"]["unmapped"])'
+      - name: The pre-load check (task-0045) through the CI template's script, real pumllint, the example instance clean exits 0, a planted broken PlantUML file exits 1
+        run: |
+          rm -rf runs/preload && python tools/example_instance.py runs/preload > /dev/null
+          rc=0; sh instance/ci/preload-check.sh . runs/preload || rc=$?; test "$rc" = 0
+          python tools/preload_check.py runs/preload | grep '^UNCHECKED  artefacts/api-contracts/openapi.yaml \[api-contracts\]: form unchecked: the table names Spectral'
+          git -C runs/preload init -q -b main && git -C runs/preload add -A && git -C runs/preload -c user.name=ci -c user.email=ci@example.invalid commit -qm clean
+          printf '@startuml\nparticipant A\nA -> B : hi\n@enduml\n' > runs/preload/artefacts/plantuml-models/broken.puml
+          git -C runs/preload add -A && git -C runs/preload -c user.name=ci -c user.email=ci@example.invalid commit -qm broken
+          rc=0; sh instance/ci/preload-check.sh . runs/preload HEAD~1 || rc=$?; test "$rc" = 1
+          rc=0; python tools/preload_check.py runs/preload --since HEAD~1 -f json -o runs/preload.json > /dev/null || rc=$?; test "$rc" = 1
+          python3 -c 'import sys,json; sys.path.insert(0,"harness"); import schema_check as s; r=json.load(open("runs/preload.json")); e=s.validate(r, s.load("preload-report")); assert not e, e; [f]=r["files"]; assert f["file"]=="artefacts/plantuml-models/broken.puml" and f["state"]=="findings" and any(x["rule"]=="SEQ001" for x in f["findings"]), f; print("broken:", f["why"])'
+          rc=0; KG_FAIL_ON=blocker sh instance/ci/preload-check.sh . runs/preload HEAD~1 || rc=$?; test "$rc" = 0
       - name: The gate as a command (task-0007) exits 0, 1 or 2 under the contract, and ratchets on the record
         run: |
           cd harness
@@ -71,7 +83,9 @@ jobs:
           test "$(gate --subject ../subjects/jef_data_load --baseline record)" = 0
           test "$(gate --subject ../subjects/minimal)" = 1
           KG_STORE=rdflib python gate_cli.py --scenario S2 --baseline record
-          python3 -c 'import sys,json; sys.path.insert(0,"."); import schema_check as s; r=json.load(open("../runs/gate-s1.json")); e=s.validate(r, s.load("gate-report")); assert not e, e; print("report valid:", r["verdict"], r["exit_code"])'
+          python3 -c 'import sys,json; sys.path.insert(0,"."); import schema_check as s; r=json.load(open("../runs/gate-s1.json")); e=s.validate(r, s.load("gate-report")); assert not e, e; assert r["schema_version"]==2, r["schema_version"]; print("report valid:", r["schema_version"], r["verdict"], r["exit_code"])'
+      - name: The gate after S6's change (task-0048) exits 1 on the suspect derived output, though the verdict reads PROCEED
+        run: KG_STORE=rdflib python tools/check_gate_after_change.py runs/gate-change
       - name: The capture path (task-0009), questionnaire, answers, the gate after, and nothing above proposed
         run: |
           rm -rf runs/capture && python tools/example_instance.py runs/capture > /dev/null

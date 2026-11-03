@@ -1,0 +1,47 @@
+# The pre-load check, as a GitHub Actions workflow an instance copies to
+# .github/workflows/preload-check.yml (task-0045; instance/README.md "Checking a document
+# before the load"). Make it a required check in the default branch's protection, with a
+# reviewer who is not the author: the load reads only the merged tree.
+#
+# Set KNOWGOV_REF to the knowgov tag your instance is pinned to, and PUMLLINT to the pin the
+# tag's harness.yml installs. Other linters your organisation runs go in as steps of their own
+# before the check; this workflow runs only what knowgov can run and lists every other
+# kind's files as unchecked, naming the tool the programme's table names.
+#
+# Exit, per the programme's gate contract: 0 clean, 1 a finding at or above KG_FAIL_ON or a
+# broken layout, 2 cannot run. Form, not knowledge: harness/gate_cli.py is a different gate.
+name: preload-check
+
+on:
+  pull_request:
+    paths: ["artefacts/**", "subjects/**", "register/**"]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  KNOWGOV_REF: main        # pin a tag
+  PUMLLINT: "0.33.0"
+  KG_FAIL_ON: major
+
+jobs:
+  preload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: instance
+          fetch-depth: 0   # the diff against the pull request's base
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fdurieux/knowgov
+          ref: ${{ env.KNOWGOV_REF }}
+          path: knowgov
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install "pumllint==${PUMLLINT}"
+      - name: Each changed document against its kind's linter, then the layout
+        run: sh knowgov/instance/ci/preload-check.sh knowgov instance ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}

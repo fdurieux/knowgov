@@ -26,9 +26,13 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   re-runs, gitignored. `instance/` an organisation's instance layout (`README.md`, adopter register;
   `kinds.toml`, one kind per row of the site's artefact table and the mappers that read it, every
   mapper in exactly one), checked by `tools/check_instance.py`, with a public example from
-  `tools/example_instance.py` that CI mounts read-only and digests before and after (task-0006). `harness/gate_cli.py`
+  `tools/example_instance.py` that CI mounts read-only and digests before and after (task-0006). Each kind's `lint`
+  field is doc-0008 §5's tool and gate column; `tools/preload_check.py` lints an instance's documents
+  with the ones that run here (pumllint), lists every other kind's files as unchecked, exits under the
+  gate contract, JSON under `harness/schemas/preload-report.schema.json`; `instance/ci/` is the
+  template an instance copies, its script proven in `harness.yml` (task-0045). Form, not knowledge. `harness/gate_cli.py`
   the gate as a command (exit 0/1/2, `--fail-on`, `--baseline record|FILE`, JSON pinned by
-  `harness/schemas/gate-report.schema.json` through `harness/schema_check.py`; task-0007). `KG_SUBJECT` selects the root; nothing in `harness/` or
+  `harness/schemas/gate-report.schema.json` through `harness/schema_check.py`; task-0007; version 2: stale statements and suspect derived outputs are findings, task-0048, shown after S6's change by `tools/check_gate_after_change.py`). `KG_SUBJECT` selects the root; nothing in `harness/` or
   `demo/` names a subject, a document or a scenario (task-0002). Two public
   subjects: `cargo_quote` (the proof of concept, seven scenarios, the scored
   record) and `jef_data_load` (the recreation experiment's kit, the degradation
@@ -79,7 +83,15 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
 
 Every change goes through a pull request once CI exists; until then `main` is
 fast-forwarded from the session branch on the owner's say-so. Open a PR, wait
-for the whole matrix, merge on green, never on red or pending.
+for the whole matrix, merge on green, never on red or pending. The session that
+opened a PR merges it itself once the whole matrix is green (a skipped `publish`
+counts as green), without asking; a PR the brief says the parent session merges
+is left to it.
+
+Releases (decision-0003): SemVer, `VERSION` and `CHANGELOG.md` move together in a release PR
+(a test holds them equal); a contract change raises the minor version while 0.x. A hosted
+session cannot push a tag: the owner publishes the GitHub Release on the release PR's merge
+commit, typing the tag as new, and the tag's `release.yml` publishes `ghcr.io/fdurieux/knowgov:<tag>`.
 
 ## Boundaries
 

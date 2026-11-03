@@ -8,106 +8,131 @@
 # mappers  the harness's deterministic mappers that read this kind (harness/extract.py
 #          EXTRACTORS, plus links); empty: the store reads none, and a file of the kind is
 #          reported absent by tools/check_instance.py and by the load, never skipped silently
+# lint     the linter the table names for the kind, from doc-0008 §5 (task-0045): tool and gate
+#          as the brief's columns word them, capable = true when the tool exits non-zero on a
+#          finding today ("yes ..." or "via ..."). tools/preload_check.py runs the ones this
+#          repository's environment can run (pumllint) and reports every other kind's files as
+#          unchecked, naming the tool; never passed silently
 #
 # tests/test_instance.py holds every mapper the harness has to exactly one kind, so a new mapper
-# must say what it reads before it ships.
+# must say what it reads before it ships, and every lint field to doc-0008 §5's table.
 
 [[kind]]
 folder = "plantuml-models"
 row = "PlantUML models"
+lint = { tool = "pumllint", gate = "yes (score, ratchet)", capable = true }
 mappers = ["sequence", "containers", "plantuml_realises"]
 
 [[kind]]
 folder = "aris-epc"
 row = "ARIS process models (EPC)"
+lint = { tool = "aris2puml, then pumllint", gate = "via pumllint", capable = true }
 mappers = []   # aris2puml converts them to PlantUML; the converted diagrams go under plantuml-models
 
 [[kind]]
 folder = "textual-requirements"
 row = "Textual requirements"
+lint = { tool = "StrictDoc, Doorstop, Sphinx-Needs, OpenFastTrace", gate = "pass/fail, no threshold", capable = false }
 mappers = ["requirements", "requirements_json"]
 
 [[kind]]
 folder = "user-stories"
 row = "User stories"
+lint = { tool = "none maintained", gate = "no", capable = false }
 mappers = []
 
 [[kind]]
 folder = "specification-prose"
 row = "Specification prose"
+lint = { tool = "Vale, markdownlint", gate = "yes", capable = true }
 mappers = ["spec", "contracts_markdown"]
 
 [[kind]]
 folder = "acceptance-scenarios"
 row = "Acceptance scenarios (Gherkin)"
+lint = { tool = "gplint", gate = "partial", capable = false }
 mappers = ["gherkin", "gherkin_tagged"]
 
 [[kind]]
 folder = "bpmn-process-models"
 row = "BPMN process models"
+lint = { tool = "bpmnlint", gate = "errors vs warnings", capable = false }
 mappers = ["bpmn"]
 
 [[kind]]
 folder = "decision-tables"
 row = "Decision tables (DMN)"
+lint = { tool = "dmnlint (small rule set)", gate = "no threshold", capable = false }
 mappers = ["decision_table", "dmn", "dmn_decisions"]
 
 [[kind]]
 folder = "cross-artefact-links"
 row = "Cross-artefact consistency"
+lint = { tool = "pumllint `trace`", gate = "yes", capable = true }
 mappers = ["links"]
 
 [[kind]]
 folder = "architecture-decisions"
 row = "Architecture decisions (ADR)"
+lint = { tool = "adr-guard, adrpy-ai (pre-1.0)", gate = "yes, immature", capable = true }
 mappers = []
 
 [[kind]]
 folder = "c4-models"
 row = "C4 architecture models"
+lint = { tool = "Structurizr CLI", gate = "yes", capable = true }
 mappers = []   # a C4 diagram drawn in PlantUML goes under plantuml-models, which the containers mapper reads
 
 [[kind]]
 folder = "archimate-models"
 row = "ArchiMate enterprise models"
+lint = { tool = "Archi's validator", gate = "no", capable = false }
 mappers = []
 
 [[kind]]
 folder = "sysml-capella-models"
 row = "SysML v2 and Capella"
+lint = { tool = "Capella rules (commercial gate only)", gate = "partial", capable = false }
 mappers = []
 
 [[kind]]
 folder = "api-contracts"
 row = "API contracts (OpenAPI, AsyncAPI)"
+lint = { tool = "Spectral, vacuum, Redocly", gate = "yes (vacuum score)", capable = true }
 mappers = ["openapi"]
 
 [[kind]]
 folder = "schemas"
 row = "Schemas (Protobuf, GraphQL, JSON Schema)"
+lint = { tool = "buf, graphql-eslint, sourcemeta jsonschema", gate = "yes (buf breaking)", capable = true }
 mappers = []
 
 [[kind]]
 folder = "data-models"
 row = "Data models"
+lint = { tool = "SQLFluff, dbt-checkpoint, dbt_project_evaluator", gate = "yes", capable = true }
 mappers = []
 
 [[kind]]
 folder = "threat-models"
 row = "Threat models"
+lint = { tool = "pytm, Threagile", gate = "script your own", capable = false }
 mappers = []
 
 [[kind]]
 folder = "event-logs"
 row = "Process design against reality"
+lint = { tool = "PM4Py conformance", gate = "script your own", capable = false }
 mappers = []
 
 [[kind]]
 folder = "glossary"
 row = "Vocabulary (glossary)"
+lint = { tool = "none", gate = "no", capable = false }
 mappers = []
 
 [[kind]]
 folder = "property-invariants"
 row = "Property-based invariants"
+lint = { tool = "the test runner", gate = "yes", capable = true }
 mappers = []
