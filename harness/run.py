@@ -22,12 +22,13 @@ import arms
 import measures
 import shacl
 from gate import resolve, render_bundle, render_index, knowledge_reader, three_valued
-from kitio import kit_for, kit_text, sha256, verbatim_documents
+from kitio import kit_for, kit_text, verbatim_documents
 import agent
-from load import PROV, HUMAN, load_captures, load_inferred, load_reviews, load_scenario, load_verifications, pristine_values
+from load import PROV, load_captures, load_inferred, load_reviews, load_scenario, load_verifications, pristine_values
 from store import open_store
+from change import apply_change, reverify
 from plant import INFERRED
-from rules import census, r_stale, run_all
+from rules import census, run_all
 from subject import HERE as HARNESS, ROOT, SUBJECT
 
 RESULTS = SUBJECT.record_dir       # the subject's record, vendored and never written
@@ -76,32 +77,19 @@ def deterministic(sc: str, pv: dict, s) -> dict:
 def stage2(sc: str, cfg2: dict, pv: dict, s, derived_code: str | None, derived_ids: list[str]) -> tuple[dict, dict, dict]:
     """The scenario's second stage (the subject's ``[scenario.stage2]``): register the earlier
     governed output as derived, re-ingest the changed artefact as a new version, invalidate what
-    rested on the changed fragments, then record the re-verification of the named keys."""
-    version = cfg2.get("version", "v2")
-    derived = cfg2.get("derived", {})
-    if derived_code:
-        s.register_derived(derived.get("id", f"derived:{sc}"), derived.get("kind", "artefact"), sha256(derived_code), derived_ids)
-    kit2 = kit_for(sc, 2)
-    art = cfg2["artefact"]
-    load2 = load_scenario(s, sc, {art: kit2[art]}, activity_note=cfg2.get("note", f"{sc} stage 2: re-ingestion of the changed {art}"),
-                          version_tag=version, reingest=True)
-    stale = r_stale(s, version)
-    rules2 = {"R-STRUCT": run_all(s, sc)["R-STRUCT"]}
+    rested on the changed fragments, then record the re-verification of the named keys. The two
+    steps are ``change.py``'s, which the gate command's ``--stage 2`` shares (task-0049)."""
+    ch = apply_change(sc, cfg2, s, derived_code, derived_ids)
     gate_blocked = resolve(s, "codegen")
-    # the recorded re-verification of the new assertions on the named keys, by the owner stand-in
-    rever = s.reverify(version, list(cfg2.get("reverify_keys", [])), HUMAN["id"], cfg2.get("at", ""),
-                       cfg2.get("reverify_scope", "re-verification"), cfg2.get("reapproval_record", "re-approval"))
-    # new-version assertions of unchanged fragments inherit nothing automatically: they are new statements.
-    # Corroboration and verification of them against the pristine values:
-    load_verifications(s, sc, dict(pv), kit2)
+    rever = reverify(sc, cfg2, pv, s, ch["kit2"])
     gate_after = resolve(s, "codegen")
-    stage2 = {"load_v2": load2, "D3_stale": stale, "R-STRUCT_after": rules2["R-STRUCT"],
+    stage2 = {"load_v2": ch["load_v2"], "D3_stale": ch["D3_stale"], "R-STRUCT_after": ch["R-STRUCT_after"],
               "gate_before_reverification": {k: v for k, v in gate_blocked.items() if k != "keys"},
               "reverified": rever,
               "gate_after_reverification": {k: v for k, v in gate_after.items() if k != "keys"},
               "census_after": census(s),
               "suspect_derived": s.all_derived()}
-    return stage2, gate_after, kit2
+    return stage2, gate_after, ch["kit2"]
 
 
 def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, out_dir: Path,

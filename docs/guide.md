@@ -548,10 +548,10 @@ required key is a finding of its own: major while nothing verified or approved r
 once something does. So after S6's change and re-verification the verdict reads PROCEED and the
 command still exits 1 on `derived:S1:G:run1` (report version 2; task-0048).
 
-One limit today: the command loads the first stage only, so it sees a change like S6's second stage
-only in a store that already holds it (`--no-load`). `tools/check_gate_after_change.py` puts S6's
-second stage in the store and runs the command on it; an option to load a later version is
-task-0049.
+To see a change, add `--stage 2`: the command loads the scenario, then brings in its changed
+document as the next version. For S6 that invalidates four statements and the gate is BLOCKED.
+`--stage 2 --reverify` adds the owner's re-verification: PROCEED, and exit 1 on the suspect code.
+The report names the version it loaded (task-0049).
 
 ## 10. Choosing the model, or none
 

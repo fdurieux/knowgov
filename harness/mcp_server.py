@@ -195,7 +195,8 @@ class Tools:
             except gate_cli.CannotRun as e:
                 raise ToolError(str(e)) from e
             return gate_cli.evaluate(st, subject=SUBJECT.id, scenario=scenario, task=name, spec=spec,
-                                     threshold=threshold, baseline=base, loaded=False)
+                                     threshold=threshold, baseline=base, loaded=False,
+                                     version=gate_cli.held_version(st))
         return self._with_store(go)
 
     def three_valued_answer(self, args: dict) -> dict:

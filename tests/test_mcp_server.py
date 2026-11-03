@@ -143,7 +143,7 @@ def test_gate_verdict_is_the_commands_report_for_the_same_store():
     assert got["isError"] is False
     spec = TASKS["codegen"]
     want = gate_cli.evaluate(stub, subject=got["structuredContent"]["subject"], scenario="S1", task="codegen", spec=spec,
-                             threshold="blocker", baseline=None, loaded=False)
+                             threshold="blocker", baseline=None, loaded=False, version="v1")
     assert got["structuredContent"] == want
     assert json.loads(got["content"][0]["text"]) == want
     assert want["verdict"] == "BLOCKED" and want["exit_code"] == 1   # the first codegen key is absent

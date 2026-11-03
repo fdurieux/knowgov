@@ -108,14 +108,20 @@ class Store:
     def structural_violations(self) -> list[dict]:
         raise NotImplementedError
 
-    def candidate_pairs(self) -> list[dict]:
-        """Live assertion pairs on one entity and predicate from different artefacts, same version."""
+    def candidate_pairs(self, across: str | None = None) -> list[dict]:
+        """Live assertion pairs on one entity and predicate from different artefacts: of the same
+        version, and, when ``across`` names a basis, of any versions when exactly one side carries
+        it (a capture's version is never a document's; task-0038). Each row: a, va, ba, aa (its
+        artefact), b, vb, bb, ab, key, pred."""
         raise NotImplementedError
 
-    def corroborate(self, a: str, b: str) -> None:
+    def corroborate(self, a: str, b: str, promote: bool = True) -> None:
+        """a and b agree (CORROBORATES both ways); with ``promote`` a proposed side becomes validated."""
         raise NotImplementedError
 
-    def mark_conflict(self, a: str, b: str, gid: str, key: str, scenario: str) -> None:
+    def mark_conflict(self, a: str, b: str, gid: str, key: str, scenario: str, text: str | None = None) -> None:
+        """a and b contradict each other: both disputed, a conflict gap concerning both. ``text``
+        replaces the gap's default wording (two artefacts, each with its value)."""
         raise NotImplementedError
 
     def vague_fragments(self, words: list[str]) -> list[dict]:
@@ -173,7 +179,9 @@ class Store:
 
     def apply_ruling(self, assertion_id: str, outcome: str, review_id: str, agent_id: str, at: str, record: str, until: str) -> None:
         """approved: an Approval {at, record, until} by the agent, status approved. rejected: status
-        rejected, the node and its history kept, out of the live set. Anything else: no change."""
+        rejected, the node and its history kept, out of the live set. lapsed: an approval past its
+        time, on a statement a settled dispute had left disputed; it reads proposed (task-0038).
+        Anything else: no change."""
         raise NotImplementedError
 
     def close_declared_gap(self, gid: str, review_id: str, at: str, record: str) -> None:

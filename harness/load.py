@@ -249,11 +249,13 @@ def load_reviews(st, scenario: str, now: dt.date | None = None) -> dict:
             b = st.assertion_brief(ru["assertion"])
             outcome = ru["outcome"]
             until = review.until_for(b, caps)
+            if b["status"] == "disputed":
+                settled.add(b["key"])   # the review settled the dispute whole (review.check), lapse or not
             if outcome == "approved" and until is not None and now > until:
                 counts["lapsed"] += 1   # the approval lapsed: the statement reads proposed until it is re-asked
+                if b["status"] == "disputed":   # a person's statement against a document's (task-0038)
+                    st.apply_ruling(b["id"], "lapsed", rid, person, on, rv["record"], "")
                 continue
-            if b["status"] == "disputed":
-                settled.add(b["key"])
             st.apply_ruling(b["id"], outcome, rid, person, on, rv["record"], until.isoformat() if until else "")
             counts[outcome] += 1
         for key in sorted(settled):

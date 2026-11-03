@@ -191,3 +191,37 @@ def test_every_jef_record_scenario_gives_a_valid_report():
         rep = _report(_res(_record(sc, JEF)))
         assert schema_check.validate(rep, SCHEMA) == [], (sc, schema_check.validate(rep, SCHEMA)[:3])
         assert all(f["kind"] in ("key", "task") for f in rep["findings"]), sc
+
+
+def test_a_later_version_is_asked_for_coherently_or_the_gate_cannot_run():
+    """task-0049: --stage 2 needs a [scenario.stage2]; --reverify is a step of it; --no-load reads,
+    so it cannot also load a change. Each refusal is exit 2, before any store is opened."""
+    from subject import SUBJECT
+    first = SUBJECT.order[0]
+    plain = next(sc for sc in SUBJECT.order if not SUBJECT.scenario(sc).get("stage2"))
+    changed = next(sc for sc in SUBJECT.order if SUBJECT.scenario(sc).get("stage2"))
+    for argv, why in ((["--scenario", plain, "--stage", "2"], "no later version"),
+                      (["--scenario", first, "--reverify"], "add --stage 2"),
+                      (["--scenario", changed, "--stage", "2", "--no-load"], "drop one")):
+        err = io.StringIO()
+        with redirect_stderr(err):
+            assert gate_cli.main(argv) == 2, argv
+        assert why in err.getvalue(), err.getvalue()
+
+
+def test_the_report_names_the_version_and_the_change_and_a_report_without_them_still_validates():
+    rep = _report(_res(_record("S1")))
+    assert rep["version"] is None and rep["change"] is None
+    del rep["version"], rep["change"]
+    assert schema_check.validate(rep, SCHEMA) == []   # additive within version 2
+    s2 = _scored_s6()["stage2"]
+    change = {"artefact": "contract/decision_table.md", "version": "v2",
+              "invalidated": sorted(x["id"] for x in s2["D3_stale"]["invalidated"]),
+              "reverified": False, "reverified_statements": [], "derived": "derived:S1:G:run1"}
+    rep = gate_cli.report(_stage2(s2["gate_before_reverification"], _scored_s6()), subject="cargo_quote", scenario="S6",
+                          task="codegen", store="rdflib", loaded=True, block_levels=BLOCK, threshold="blocker",
+                          baseline=None, version="v2", change=change)
+    assert schema_check.validate(rep, SCHEMA) == [], schema_check.validate(rep, SCHEMA)[:3]
+    assert rep["verdict"] == "BLOCKED" and rep["exit_code"] == 1 and len(rep["change"]["invalidated"]) == 4
+    assert "v2 of contract/decision_table.md: 4 statement(s) invalidated" in gate_cli.render(rep)
+    assert schema_check.validate({**rep, "change": {**change, "extra": 1}}, SCHEMA)
