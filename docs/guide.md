@@ -144,15 +144,18 @@ load, a *mapper* reads it into assertions. A kind with no mapper is still loaded
 the load reports it as `unmapped` and the store holds no assertion from it, so nothing is skipped
 silently. A file a mapper cannot parse makes the run fail.
 
-Nothing checks a document's form before the load. A malformed BPMN model, an OpenAPI file with
-broken references or a Gherkin file with a syntax error reaches the mapper as it is.
+Before the load, `tools/preload_check.py` checks each document's form with its kind's linter
+where one runs here: today pumllint, for PlantUML models (see "A check before the load" below).
+For every other kind nothing checks the form yet: a malformed BPMN model, an OpenAPI file with
+broken references or a Gherkin file with a syntax error reaches the mapper as it is, and the check
+lists it as unchecked, naming the tool your instance would add.
 
 ### Which tool checks which kind
 
 The Legible programme's table "Artefact by artefact: tools, practices, gaps"
 ([fdurieux.github.io](https://fdurieux.github.io/)) names a tool per kind. The table below sets it
-beside the kinds of `instance/kinds.toml`. "Gate-ready" means the tool exits non-zero on a finding
-today.
+beside the kinds of `instance/kinds.toml`, whose `lint` field holds the same two columns. "Gate-ready"
+means the tool exits non-zero on a finding today.
 
 | `artefacts/` folder | tool the programme names | gate-ready | knowgov mapper |
 |---|---|---|---|
@@ -188,27 +191,37 @@ file, so dmnlint does not read it: markdownlint checks its form and nothing chec
 A conceptual or logical data model has no tool at all. In knowgov, its only record is the
 register's information nodes.
 
-### A check before the load (proposed, not built)
+### A check before the load
 
-This is the route the brief proposes. None of it exists yet.
+```bash
+python tools/preload_check.py /path/to/your/instance --since origin/main
+```
 
 1. A contributor opens a pull request in your instance that adds or changes a file under
    `artefacts/<kind>/`.
-2. The instance's CI runs, for each changed file, the tool its kind names, then
-   `tools/check_instance.py`. A kind with no tool passes with a note saying its form is
-   unchecked, so the gap stays visible.
+2. The instance's CI (copy `instance/ci/preload-check.yml`) runs `tools/preload_check.py` on the
+   changed files, then `tools/check_instance.py`. Each file is linted by the tool its kind's
+   `lint` field in `instance/kinds.toml` names, when that tool runs here: pumllint for
+   `plantuml-models`, today the only one. A file of any other kind is listed as unchecked, with
+   the tool the programme's table names, so the gap stays visible; it does not fail the check.
 3. Your branch protection requires that job to pass, and a reviewer who is not the author.
 4. The load reads only what was merged. Nothing loads from a branch.
 
-The check would keep the exit codes of the programme's gate contract: 0 clean, 1 a finding at or
-above the threshold you set, 2 could not run. With a baseline per kind it fails only on a
-regression, so you can adopt it on documents that already exist.
+The check keeps the exit codes of the programme's gate contract: 0 clean, 1 a finding at or above
+the threshold you set (`--fail-on`, `major` by default), 2 could not run (a linter missing, a
+folder that is not a kind, a file that does not exist). `-f json` writes the report under
+`harness/schemas/preload-report.schema.json`.
+
+Not built yet: a baseline per kind, so the check fails only on a regression over documents that
+already exist (pumllint's own `score --baseline` does this for PlantUML meanwhile); running the
+other kinds' tools, which your instance adds as steps of its own; and recording each document's
+verdict on its `Version` node in the store.
 
 ### Why this is not the knowgov gate
 
 The two checks answer different questions, and neither replaces the other.
 
-| | check before the load (proposed) | knowgov gate (`harness/gate_cli.py`) |
+| | check before the load (`tools/preload_check.py`) | knowgov gate (`harness/gate_cli.py`) |
 |---|---|---|
 | question | Is this document well formed for its kind? | Is the knowledge this task needs good enough to build on? |
 | looks at | one file | one task's keys, across every document |

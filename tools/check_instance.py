@@ -37,9 +37,9 @@ SKIP = {"__pycache__", ".git", ".DS_Store"}
 
 
 def kinds(path: Path = KINDS_TABLE) -> dict[str, dict]:
-    """folder -> {row, mappers}, in the table's order."""
+    """folder -> {row, mappers, lint}, in the table's order."""
     rows = tomllib.loads(path.read_text(encoding="utf-8")).get("kind", [])
-    return {k["folder"]: {"row": k["row"], "mappers": list(k.get("mappers", []))} for k in rows}
+    return {k["folder"]: {"row": k["row"], "mappers": list(k.get("mappers", [])), "lint": dict(k.get("lint", {}))} for k in rows}
 
 
 def mapper_kind(table: dict[str, dict]) -> dict[str, str]:
