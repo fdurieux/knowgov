@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-03T23:04:00Z'
-updated_date: '2026-11-03T23:50:00Z'
+updated_date: '2026-11-03T23:56:00Z'
 labels:
   - instance
   - gate
@@ -48,6 +48,8 @@ tools/preload_check.py (task-0045) runs one linter, pumllint for plantuml-models
 
 <!-- SECTION:NOTES:BEGIN -->
 Kinds added: api-contracts (Spectral 6.17.0). Not added: specification-prose (Vale needs a styles package per organisation; markdownlint checks Markdown form only), acceptance-scenarios (gplint), bpmn-process-models (bpmnlint), decision-tables (dmnlint, .dmn only): each a further runner with its own pin. Spectral over vacuum: vacuum installs a Go binary fetched from GitHub releases at npm install time; Spectral is plain npm, and its exit is 0/1/2. Change to task-0045's contract, as AC #2 asks: a linter not installed is now 'unchecked' (exit 0), not 'cannot run' (2), for pumllint too; doc-0008 §5 had listed 'a linter missing' under 2. Measured: the example's openapi.yaml has 4 Spectral warnings and no error (clean at major); a dangling $ref is an invalid-ref error (major, exit 1). Verified: tests 160/160 (also a bare venv); harness.yml's new step run locally with Spectral 6.17.0 from npm (KG_SPECTRAL in place of npm -g).
+
+CI fix: harness.yml's task-0045 step grepped the old unchecked wording for api-contracts ('the table names Spectral'); without Spectral installed the line now reads 'Spectral is not installed here'. Grep updated; the three pre-load steps re-run locally in CI order (Spectral absent, then installed): all pass.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

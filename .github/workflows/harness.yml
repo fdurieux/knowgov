@@ -78,7 +78,7 @@ jobs:
         run: |
           rm -rf runs/preload && python tools/example_instance.py runs/preload > /dev/null
           rc=0; sh instance/ci/preload-check.sh . runs/preload || rc=$?; test "$rc" = 0
-          python tools/preload_check.py runs/preload | grep '^UNCHECKED  artefacts/api-contracts/openapi.yaml \[api-contracts\]: form unchecked: the table names Spectral'
+          python tools/preload_check.py runs/preload | grep '^UNCHECKED  artefacts/api-contracts/openapi.yaml \[api-contracts\]: form unchecked: Spectral is not installed here'
           git -C runs/preload init -q -b main && git -C runs/preload add -A && git -C runs/preload -c user.name=ci -c user.email=ci@example.invalid commit -qm clean
           printf '@startuml\nparticipant A\nA -> B : hi\n@enduml\n' > runs/preload/artefacts/plantuml-models/broken.puml
           git -C runs/preload add -A && git -C runs/preload -c user.name=ci -c user.email=ci@example.invalid commit -qm broken
