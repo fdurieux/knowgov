@@ -88,6 +88,11 @@ opened a PR merges it itself once the whole matrix is green (a skipped `publish`
 counts as green), without asking; a PR the brief says the parent session merges
 is left to it.
 
+Releases (decision-0003): SemVer, `VERSION` and `CHANGELOG.md` move together in a release PR
+(a test holds them equal); a contract change raises the minor version while 0.x. A hosted
+session cannot push a tag: the owner publishes the GitHub Release on the release PR's merge
+commit, typing the tag as new, and the tag's `release.yml` publishes `ghcr.io/fdurieux/knowgov:<tag>`.
+
 ## Boundaries
 
 - `pumllint/` imports nothing from here and reads no register; this repository

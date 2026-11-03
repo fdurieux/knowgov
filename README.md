@@ -26,6 +26,10 @@ The harness needs Python 3.13 with the pinned packages the Dockerfile installs,
 pumllint among them: the sequence-diagram mapper uses pumllint's parser as a
 library. The page itself is standard library only.
 
+Releases are listed in [`CHANGELOG.md`](CHANGELOG.md); each publishes the image
+`ghcr.io/fdurieux/knowgov:<version>`, so an instance can run a named release rather than
+whatever `:latest` holds. An adopter's guide is [`docs/guide.md`](docs/guide.md).
+
 The record of the proof of concept stays in pumllint:
 [`docs/neo4j-governed-knowledge-evaluation.md`](https://github.com/fdurieux/pumllint/blob/main/docs/neo4j-governed-knowledge-evaluation.md).
 
