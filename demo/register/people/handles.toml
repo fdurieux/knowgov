@@ -1,0 +1,23 @@
+# Issued handles (decision 0009). A handle names a person who gave knowledge, without naming them:
+# the key from a handle to a person is the organisation's directory, never this file, never git.
+# Handles are issued from a counter, never chosen, never reused, never a name, a unit or a staff
+# number. Fields: handle, unit (an organisation node), roles, issued, and withdrawn once the
+# person leaves or the handle is retired. This test case's handles are synthetic roles.
+
+[[handle]]
+handle = "employee-1"
+unit = "ORG-0002"
+roles = ["gives"]
+issued = 2026-11-02
+
+[[handle]]
+handle = "employee-2"
+unit = "ORG-0002"
+roles = ["gives", "approves"]
+issued = 2026-11-02
+
+[[handle]]
+handle = "employee-3"
+unit = "ORG-0001"
+roles = ["gives", "approves", "closes"]
+issued = 2026-11-02

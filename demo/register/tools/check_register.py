@@ -1,6 +1,6 @@
 """The register's checks: types, directions, required metadata, hierarchy cycles, duplicate
 identities, cardinalities, dangling links, lifecycle consistency, approvals, knowledge a person
-gave (decision 0008), glossary, and the coverage rules C1 to C3 with expiring exceptions. Exit 1 on any error; warnings exit 0.
+gave and the handles it is given under (decisions 0008, 0009), glossary, and the coverage rules C1 to C3 with expiring exceptions. Exit 1 on any error; warnings exit 0.
 
     python tools/check_register.py                 # check the working tree
     python tools/check_register.py --previous HEAD # also diff lifecycle states against a commit
@@ -239,6 +239,50 @@ def _add_months(d: dt.date, months: int) -> dt.date:
     raise ValueError(d)
 
 
+# decision 0009: gives (may answer for the unit), approves (may approve what another handle of the
+# unit gave), closes (may close a declared gap or settle a dispute on what the unit owns)
+ROLES = {"gives", "approves", "closes"}
+
+
+def _issued_handles(reg: dict) -> dict | None:
+    """Decision 0009: handle -> {unit, roles, issued, withdrawn} from the issued list, or None
+    when the register has none (the pattern alone then applies, as before)."""
+    rel = reg["types"].get("elicited", {}).get("issued")
+    if not rel or not (reg["root"] / rel).exists():
+        return None
+    data = tomllib.loads((reg["root"] / rel).read_text(encoding="utf-8"))
+    return {h["handle"]: h for h in data.get("handle", []) if "handle" in h}
+
+
+def check_handles(reg: dict, f: Findings):
+    """Decision 0009: the issued list holds handles, units and roles, never a name; each handle
+    matches the pattern, is listed once, and names a unit the organisation taxonomy holds."""
+    rel = reg["types"].get("elicited", {}).get("issued")
+    if not rel or not (reg["root"] / rel).exists():
+        return
+    pattern = reg["types"].get("elicited", {}).get("handle", r"^[a-z][a-z0-9-]{1,39}$")
+    allowed = {"handle", "unit", "roles", "issued", "withdrawn"}
+    seen = set()
+    for h in tomllib.loads((reg["root"] / rel).read_text(encoding="utf-8")).get("handle", []):
+        w = f"{rel} [{h.get('handle', '?')}]"
+        extra = sorted(set(h) - allowed)
+        if extra:
+            f.error("handles", w, f"fields {extra} are not allowed: the list holds handles, units and roles, never a name")
+        if not re.match(pattern, str(h.get("handle", ""))):
+            f.error("handles", w, "not an opaque handle")
+        if h.get("handle") in seen:
+            f.error("handles", w, "listed twice: a handle is issued once and never reused")
+        seen.add(h.get("handle"))
+        unit = reg["nodes"].get(h.get("unit", ""))
+        if unit is None or unit.get("_taxonomy") != "organisation":
+            f.error("handles", w, f"unit {h.get('unit')!r} is not an organisation node")
+        if _date(h.get("issued")) is None:
+            f.error("handles", w, "issued must be a date")
+        bad = sorted(set(h.get("roles", [])) - ROLES)
+        if bad:
+            f.error("handles", w, f"roles {bad} unknown; a role is one of {sorted(ROLES)}")
+
+
 def check_elicited(reg: dict, f: Findings, where: str, ln: dict, today: dt.date):
     """Decision 0008: knowledge a person gave carries who (an opaque handle), when, and the record
     of the answer, and is due for review sooner than the type's default."""
@@ -258,8 +302,21 @@ def check_elicited(reg: dict, f: Findings, where: str, ln: dict, today: dt.date)
         f.error("elicited", where, "elicited.on must be a date")
     elif on and on > today:
         f.error("elicited", where, f"elicited.on {on} is in the future")
+    issued = _issued_handles(reg)
+    if issued is not None and handle is not None:
+        h = issued.get(str(handle))
+        if h is None:
+            f.error("elicited", where, f"elicited.from {handle!r} is not an issued handle ({spec.get('issued')}): handles are issued, never chosen")
+        elif on and (_date(h.get("issued")) is None or _date(h["issued"]) > on):
+            f.error("elicited", where, f"elicited.from {handle!r} was not yet issued on {on}")
+        elif on and _date(h.get("withdrawn")) and _date(h["withdrawn"]) <= on:
+            f.error("elicited", where, f"elicited.from {handle!r} was withdrawn on {h['withdrawn']}, before the knowledge was given")
     rec = el.get("record")
-    if rec and not (reg["root"] / rec).exists():
+    if rec and re.match(spec.get("external_record", r"^capture:[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"), str(rec)):
+        pass   # decision 0009: a capture in the knowledge store, cited by its id, not resolved here
+    elif rec and (":" in str(rec).split("/")[0]):
+        f.error("elicited", where, f"elicited record {rec!r}: outside the register a record is cited as capture:<id>")
+    elif rec and not (reg["root"] / rec).exists():
         f.error("elicited", where, f"elicited record {rec} does not exist")
     months = reg["lifecycle"].get("review", {}).get("evidence", {}).get("elicited", {}).get("months")
     due = _date(ln.get("review_due"))
@@ -389,6 +446,7 @@ def run(root: Path = ROOT, previous: str | None = None, today: dt.date | None = 
     f = Findings()
     check_nodes(reg, f, today)
     check_relationships(reg, f, today)
+    check_handles(reg, f)
     check_glossary(reg, f)
     summary = check_coverage(reg, f, today)
     if previous:
