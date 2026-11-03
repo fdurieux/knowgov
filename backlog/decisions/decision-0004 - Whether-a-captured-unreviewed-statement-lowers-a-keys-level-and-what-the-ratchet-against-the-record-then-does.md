@@ -4,7 +4,7 @@ title: >-
   Whether a captured, unreviewed statement lowers a key's level, and what the
   ratchet against the record then does
 date: '2026-11-03T23:34:00Z'
-status: proposed
+status: accepted
 ---
 ## Context
 
