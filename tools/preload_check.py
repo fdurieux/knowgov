@@ -2,6 +2,7 @@
 
     python tools/preload_check.py <instance> [--changed FILE ...] [--since REF]
                                   [--fail-on blocker|critical|major|minor|info] [-f text|json] [-o FILE]
+                                  [--baseline FILE]
 
 For each file under the instance's artefacts/<kind>/ (every file, or only those named by
 --changed, or only those changed since the git ref REF in the instance's checkout), run the
@@ -13,7 +14,8 @@ unchecked file does not fail the check, and it is never passed silently.
 The programme's gate contract:
 
     0  every checked file is clean at the threshold (unchecked files are listed, not failed)
-    1  a finding at or above --fail-on (default major, pumllint's own) in a checked file
+    1  a finding at or above --fail-on (default major, pumllint's own) in a checked file; with
+       --baseline, only one the baseline does not hold
     2  cannot run: no such instance, a kind folder instance/kinds.toml does not know, a file at
        the top of artefacts/, a named file that does not exist or lies outside the instance, a
        linter this kind needs that is not installed or could not run, a --since git cannot diff
@@ -21,6 +23,14 @@ The programme's gate contract:
 A --changed file outside artefacts/ (a subject manifest, a register row) is listed as skipped:
 it is not a document of a kind. The JSON report (-f json) is pinned by
 harness/schemas/preload-report.schema.json through harness/schema_check.py.
+
+--baseline FILE is an earlier report of this command (-o), which the instance's owner chose to
+commit: a finding it holds (same file, rule and message, at the same severity or worse; lines are
+not compared) is listed as held and does not fail, so an organisation can adopt the check over
+documents that already have findings and fail only on a regression (task-0065). The command never
+writes the baseline: -o naming it is refused, and moving it on is a commit, not a flag. pumllint's
+own ratchet (`pumllint score --baseline`) is not used: it ratchets maturity levels from `score`,
+not lint findings, and records the file itself when it is missing.
 
 What it is not: it checks form, one file at a time, for its kind. It does not check knowledge;
 two well-formed documents that disagree, or a fact nobody wrote down, pass it. That is the
@@ -45,8 +55,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 import check_instance  # noqa: E402
 
+sys.path.insert(0, str(ROOT / "harness"))
+import schema_check  # noqa: E402
+
 SEVERITIES = ["blocker", "critical", "major", "minor", "info"]   # the contract's ladder, worst first
-STATES = ["clean", "findings", "unchecked", "cannot_run", "skipped"]
+STATES = ["clean", "findings", "held", "unchecked", "cannot_run", "skipped"]
 NAMES_NONE = {"none", "none maintained"}
 
 
@@ -93,8 +106,21 @@ def _since(instance: Path, ref: str) -> list[str]:
     return [f for f in p.stdout.split("\0") if f]
 
 
-def check(instance: Path, changed: list[str] | None = None, threshold: str = "major", table: dict | None = None) -> dict:
-    """The report. changed: paths relative to the instance (or absolute); None: every file under artefacts/."""
+def _baseline_index(baseline: dict) -> dict[tuple, list[int]]:
+    """(file, rule, message) -> the severities (ladder index) the baseline holds for it, one per finding."""
+    held: dict[tuple, list[int]] = {}
+    for r in baseline.get("files", []):
+        for f in r.get("findings", []):
+            held.setdefault((r["file"], f["rule"], f["message"]), []).append(SEVERITIES.index(f["severity"]))
+    return held
+
+
+def check(instance: Path, changed: list[str] | None = None, threshold: str = "major", table: dict | None = None,
+          baseline: dict | None = None, baseline_name: str = "") -> dict:
+    """The report. changed: paths relative to the instance (or absolute); None: every file under artefacts/.
+    baseline: an earlier report of this command (-o), committed by the instance's owner; a finding it
+    holds (same file, rule and message, at the same severity or worse) is listed as held and does not
+    fail. Lines are not compared: an edit above a finding moves it without making it new."""
     table = table or check_instance.kinds()
     inst = instance.resolve()
     arte = inst / "artefacts"
@@ -143,6 +169,7 @@ def check(instance: Path, changed: list[str] | None = None, threshold: str = "ma
 
     linters = []
     by_file = {r["file"]: r for r in rows}
+    held = _baseline_index(baseline) if baseline is not None else None
     for kind, files in targets.items():
         tool, runner = RUNNERS[kind]
         res = runner(files, inst, threshold)
@@ -161,21 +188,38 @@ def check(instance: Path, changed: list[str] | None = None, threshold: str = "ma
         for rel in rels:
             row = by_file[rel]
             row["findings"].sort(key=lambda f: (SEVERITIES.index(f["severity"]), f["line"]))
+            if held is not None:
+                for f in row["findings"]:   # worst first, so the worst finding claims the worst entry the baseline holds
+                    entries = held.get((rel, f["rule"], f["message"]), [])
+                    match = next((s for s in sorted(entries) if s <= SEVERITIES.index(f["severity"])), None)
+                    f["held"] = match is not None
+                    if match is not None:
+                        entries.remove(match)
             hits = [f for f in row["findings"] if SEVERITIES.index(f["severity"]) <= SEVERITIES.index(threshold)]
-            if hits:
-                row.update(state="findings", why=f"{len(hits)} finding(s) at or above {threshold}")
+            new = [f for f in hits if not f.get("held")]
+            if new:
+                row.update(state="findings", why=f"{len(new)} finding(s) at or above {threshold}"
+                           + (f" not in the baseline ({len(hits) - len(new)} held)" if held is not None else ""))
+            elif hits:
+                row.update(state="held", why=f"{len(hits)} finding(s) at or above {threshold}, every one held by the baseline")
             else:
                 row["why"] = f"no finding at or above {threshold}" + (f" ({len(row['findings'])} below)" if row["findings"] else "")
-        if res["rc"] == 1 and not any(by_file[r]["state"] == "findings" for r in rels):
+        parsed = any(SEVERITIES.index(f["severity"]) <= SEVERITIES.index(threshold) for r in rels for f in by_file[r]["findings"])
+        if res["rc"] == 1 and not parsed:
             for rel in rels:   # the linter's own exit is the authority: never pass what it failed
                 by_file[rel].update(state="findings", why=f"{tool} exited 1 at --fail-on {threshold}")
 
     counts = {s: sum(1 for r in rows if r["state"] == s) for s in STATES}
     code = 2 if counts["cannot_run"] else 1 if counts["findings"] else 0
-    return {"schema_version": 1, "tool": "knowgov preload check", "instance": str(inst),
-            "scope": "changed" if changed is not None else "all", "threshold": threshold,
-            "files": rows, "linters": linters, "counts": counts, "exit_code": code,
-            "note": "form, not knowledge: this does not replace harness/gate_cli.py"}
+    out = {"schema_version": 1, "tool": "knowgov preload check", "instance": str(inst),
+           "scope": "changed" if changed is not None else "all", "threshold": threshold,
+           "files": rows, "linters": linters, "counts": counts, "exit_code": code,
+           "note": "form, not knowledge: this does not replace harness/gate_cli.py"}
+    if baseline is not None:
+        fs = [f for r in rows for f in r["findings"] if SEVERITIES.index(f["severity"]) <= SEVERITIES.index(threshold)]
+        out["baseline"] = {"file": baseline_name, "held": sum(1 for f in fs if f.get("held")),
+                           "new": sum(1 for f in fs if not f.get("held"))}
+    return out
 
 
 def render(rep: dict) -> str:
@@ -185,11 +229,14 @@ def render(rep: dict) -> str:
                    + (f": {lt['error']}" if lt["error"] else ""))
     for r in rep["files"]:
         tag = r["state"].upper().replace("_", " ")
-        out.append(f"{tag:10s} {r['file']} [{r['kind'] or '-'}]" + (f" {r['tool']}" if r["state"] in ("clean", "findings") else "")
+        out.append(f"{tag:10s} {r['file']} [{r['kind'] or '-'}]" + (f" {r['tool']}" if r["state"] in ("clean", "findings", "held") else "")
                    + (f": {r['why']}" if r["why"] else ""))
         for f in r["findings"]:
-            out.append(f"    {f['line']}: [{f['rule']}/{f['severity']}] {f['message']}")
+            out.append(f"    {f['line']}: [{f['rule']}/{f['severity']}] {f['message']}" + (" (held by the baseline)" if f.get("held") else ""))
     c = rep["counts"]
+    if rep.get("baseline"):
+        b = rep["baseline"]
+        out.append(f"baseline {b['file']}: {b['held']} finding(s) at or above {rep['threshold']} held, {b['new']} new")
     out.append(", ".join(f"{c[s]} {s.replace('_', ' ')}" for s in STATES) + f"; exit {rep['exit_code']}")
     out.append("form only: this checks each document against its kind's linter, not the knowledge in it (harness/gate_cli.py)")
     return "\n".join(out)
@@ -202,7 +249,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--since", metavar="REF", help="only the files under artefacts/ changed since REF in the instance's git checkout")
     ap.add_argument("--fail-on", choices=SEVERITIES, default="major", help="the severity at or above which a finding exits 1 (default: major)")
     ap.add_argument("-f", "--format", choices=["text", "json"], default="text")
-    ap.add_argument("-o", "--output", help="also write the JSON report to this file")
+    ap.add_argument("-o", "--output", help="also write the JSON report to this file (commit one as a baseline: the owner's decision)")
+    ap.add_argument("--baseline", metavar="FILE", help="an earlier report (-o): exit 1 only on a finding it does not hold; never written by this command")
     args = ap.parse_args(argv)
     if not args.instance.is_dir():
         print(f"cannot run: {args.instance} is not a directory", file=sys.stderr)
@@ -219,7 +267,20 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, ValueError) as e:
             print(f"cannot run: {e}", file=sys.stderr)
             return 2
-    rep = check(args.instance, changed, args.fail_on, table)
+    baseline = None
+    if args.baseline:
+        if args.output and Path(args.output).resolve() == Path(args.baseline).resolve():
+            print("cannot run: -o names the baseline; the check never writes its own baseline", file=sys.stderr)
+            return 2
+        try:
+            baseline = json.loads(Path(args.baseline).read_text(encoding="utf-8"))
+            errors = schema_check.validate(baseline, schema_check.load("preload-report"))
+        except (OSError, ValueError) as e:
+            errors = [str(e)]
+        if errors:
+            print(f"cannot run: --baseline {args.baseline} is not a preload report: {errors[0]}", file=sys.stderr)
+            return 2
+    rep = check(args.instance, changed, args.fail_on, table, baseline, args.baseline or "")
     if args.output:
         Path(args.output).write_text(json.dumps(rep, indent=1) + "\n", encoding="utf-8")
     print(json.dumps(rep, indent=1) if args.format == "json" else render(rep))

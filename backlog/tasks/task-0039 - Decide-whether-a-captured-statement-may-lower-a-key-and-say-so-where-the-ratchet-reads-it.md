@@ -3,10 +3,11 @@ id: TASK-0039
 title: >-
   Decide whether a captured statement may lower a key, and say so where the
   ratchet reads it
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-02T23:22:00Z'
-updated_date: '2026-11-03T22:40:00Z'
+updated_date: '2026-11-03T23:35:00Z'
 labels:
   - capture
 milestone: m-5
@@ -33,3 +34,9 @@ doc-0007 F4: a key's level is the lowest of its live statements, so John's corre
 - [ ] #2 gate.resolve and its tests follow the decision; the comparator stays green
 - [ ] #3 instance/README.md and the gate_cli docstring say what a capture does to a ratchet against the record
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+decision-0004 drafted (proposed): options A (min rule, documented) and B (an unreviewed elicited statement does not lower a key holding a validated-or-better statement); recommends B. S2 case run by command: a capture agreeing on response|statuses gives REGRESSION validated -> proposed, exit 1. Implementation waits for the maintainer's merge.
+<!-- SECTION:NOTES:END -->

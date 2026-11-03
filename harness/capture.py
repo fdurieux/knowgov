@@ -7,7 +7,8 @@ the answers back in as statements attributed to the person who gave them.
 
 ``questionnaire`` loads the scenario as the gate command does, resolves the task, and writes one
 TOML file per owner into DIR. An owner is the organisation unit the register names as owner of
-the nodes a key concerns (the subject's ``register_map.toml``); a key no row maps goes to
+the nodes a key concerns (the subject's ``register_map.toml``), or the one unit the row names as its
+``owner`` when it names one of those (task-0043); a key no row maps goes to
 ``unassigned``. Each file lists every key of that owner that is absent, a declared gap, or below
 verified, with what the store holds on it, and the denominator: how many keys the owner has.
 
@@ -84,6 +85,17 @@ def owners_of(subject, nodes: dict[str, dict]) -> dict[str, list[str]]:
     return out
 
 
+def answering_owners(subject, nodes: dict[str, dict]) -> dict[str, list[str]]:
+    """key -> the unit its questionnaire goes to: the row's ``owner`` when it names one of the owners
+    of the row's nodes (task-0043), else every owner of them, as ``owners_of``."""
+    out = owners_of(subject, nodes)
+    for row in subject.register_map().get("row", []):
+        o = row.get("owner")
+        if o and o in out.get(row["key"], []):
+            out[row["key"]] = [o]
+    return out
+
+
 def question_for(key: str) -> str:
     ent, pred = key.split("|", 1)
     return f"For {ent}, what is the value of {pred}? Give it as the documents would state it."
@@ -95,8 +107,8 @@ def _q(s: str) -> str:
 
 
 def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, today: dt.date) -> dict[str, str]:
-    """owner -> the questionnaire's TOML text."""
-    own = owners_of(subject, nodes)
+    """owner -> the questionnaire's TOML text; a key goes to its answering owner only."""
+    own = answering_owners(subject, nodes)
     by_owner: dict[str, list[str]] = {}
     for key in res["keys"]:
         for o in own.get(key) or [UNASSIGNED]:
