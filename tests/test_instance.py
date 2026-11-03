@@ -46,6 +46,23 @@ def test_every_mapper_reads_exactly_one_kind_and_the_guide_lists_every_kind():
         assert set(re.findall(r"`(\w+)`", row.group(1))) == set(k["mappers"]), folder
 
 
+
+def test_every_kind_names_its_linter_as_doc_0008_section_5_does():
+    """task-0045: the lint field per kind is the brief's table, tool and gate column word for word,
+    and capable says whether the tool exits non-zero on a finding today."""
+    doc = next((ROOT / "backlog" / "docs").glob("doc-0008*")).read_text(encoding="utf-8")
+    sec = doc.split("### Kinds and the tool Legible names")[1].split("### The route")[0]
+    brief = {m.group(1): (m.group(2).strip(), m.group(3).strip())
+             for m in re.finditer(r"^\| ([a-z0-9-]+) \| [^|]+ \| ([^|]+) \| ([^|]+) \|", sec, re.M)}
+    table = check_instance.kinds()
+    assert list(brief) == list(table), "the brief's kinds and kinds.toml differ, or their order does"
+    for folder, k in table.items():
+        lint = k["lint"]
+        assert set(lint) == {"tool", "gate", "capable"}, folder
+        assert (lint["tool"], lint["gate"]) == brief[folder], folder
+        assert lint["capable"] is lint["gate"].startswith(("yes", "via")), folder
+    assert sum(k["lint"]["capable"] for k in table.values()) == 10
+
 def test_the_example_instance_holds_and_its_sources_are_untouched():
     before = _digest(ROOT / "subjects" / "cargo_quote"), _digest(ROOT / "demo" / "register")
     with tempfile.TemporaryDirectory() as td:

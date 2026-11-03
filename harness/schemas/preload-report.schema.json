@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/preload-report.schema.json",
+  "title": "knowgov pre-load check report",
+  "description": "What `python tools/preload_check.py -f json` prints (task-0045): per document under an instance's artefacts/<kind>/, the state its kind's linter left it in at the threshold, the linters that ran, and the exit code of the programme's gate contract. Form, not knowledge: the knowgov gate's report is gate-report.schema.json. Version 1; a change is additive or a new version.",
+  "type": "object",
+  "required": ["schema_version", "tool", "instance", "scope", "threshold", "files", "linters", "counts", "exit_code", "note"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "tool": {"const": "knowgov preload check"},
+    "instance": {"type": "string", "description": "the instance's resolved path"},
+    "scope": {"enum": ["all", "changed"], "description": "all: every file under artefacts/; changed: the files --changed or --since named"},
+    "threshold": {"$ref": "#/$defs/severity"},
+    "files": {"type": "array", "items": {"$ref": "#/$defs/file"}},
+    "linters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "tool", "version", "files", "exit", "error"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {"type": "string"},
+          "tool": {"type": "string"},
+          "version": {"type": ["string", "null"]},
+          "files": {"type": "integer", "minimum": 0},
+          "exit": {"type": "integer", "minimum": 0},
+          "error": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "required": ["clean", "findings", "unchecked", "cannot_run", "skipped"],
+      "additionalProperties": false,
+      "properties": {
+        "clean": {"type": "integer", "minimum": 0},
+        "findings": {"type": "integer", "minimum": 0},
+        "unchecked": {"type": "integer", "minimum": 0},
+        "cannot_run": {"type": "integer", "minimum": 0},
+        "skipped": {"type": "integer", "minimum": 0}
+      }
+    },
+    "exit_code": {"enum": [0, 1, 2]},
+    "note": {"type": "string"}
+  },
+  "$defs": {
+    "severity": {"enum": ["blocker", "critical", "major", "minor", "info"]},
+    "file": {
+      "type": "object",
+      "required": ["file", "kind", "tool", "state", "why", "findings"],
+      "additionalProperties": false,
+      "properties": {
+        "file": {"type": "string", "description": "relative to the instance"},
+        "kind": {"type": ["string", "null"], "description": "the folder under artefacts/; null outside it"},
+        "tool": {"type": ["string", "null"], "description": "the linter that ran, or for an unchecked file the tool the programme's table names"},
+        "state": {"enum": ["clean", "findings", "unchecked", "cannot_run", "skipped"]},
+        "why": {"type": "string"},
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["rule", "severity", "line", "message"],
+            "additionalProperties": false,
+            "properties": {
+              "rule": {"type": "string"},
+              "severity": {"$ref": "#/$defs/severity"},
+              "line": {"type": "integer", "minimum": 0},
+              "message": {"type": "string"}
+            }
+          }
+        }
+      }
+    }
+  }
+}
