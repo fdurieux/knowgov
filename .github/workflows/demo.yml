@@ -70,7 +70,7 @@ jobs:
           print("menu:", len(j["scenarios"]), "scenarios; store", j["store"]["uri"], "reachable")
           PY
           curl -fsS "localhost:8080/api/results/S6" | python3 -c 'import json,sys; v=json.load(sys.stdin); assert v["gate"]["verdict"]=="PROCEED" and len(v["stage2"]["invalidated"])==4 and v["cascade"]["G"].startswith("<svg"); print("replay S6 ok:", v["source"])'
-          curl -fsS "localhost:8080/api/register" | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["summary"]["nodes"]==56 and r["summary"]["links"]==65 and r["coverage"]["C1"]["excepted"]==1 and r["source"]["digest_ok"] and r["pinned"], r["summary"]; print("register:", r["summary"], "at", r["run_date"])'
+          curl -fsS "localhost:8080/api/register" | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["summary"]["nodes"]==57 and r["summary"]["links"]==65 and r["coverage"]["C1"]["excepted"]==1 and r["source"]["digest_ok"] and r["pinned"], r["summary"]; print("register:", r["summary"], "at", r["run_date"])'
           curl -fsS "localhost:8080/api/register/impact/APP-0002" | python3 -c 'import json,sys; w=json.load(sys.stdin); assert "PRD-0002" in w["reached"]["products"] and "JRN-0002" in w["reached"]["journeys"], w["reached"]; assert "{reg_id:'"'"'APP-0002'"'"'}" in w["cypher"]["rows"] and "RETURN a, p" in w["cypher"]["paths"] and w["panel"]["sections"][-1]["code"], w["cypher"]; print("impact APP-0002:", len(w["edges"]), "edges, with its Cypher")'
           test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/register/impact/APP-9999)" = "404"
           curl -fsS "localhost:8080/api/register/footprint/S2" | python3 -c 'import json,sys; f=json.load(sys.stdin); assert f["uncited"]==0 and "QuoteAPI|on_screening_outage" in f["keys_below"] and f["box"]["colour"]=="warn", f["box"]; print("footprint S2:", f["box"]["lines"])'
@@ -91,8 +91,8 @@ jobs:
 
       - name: Project the register into the store beside the run, and read the census
         run: |
-          curl -fsS -X POST localhost:8080/api/register/project -H 'Content-Type: application/json' -d '{}' | python3 -c 'import json,sys; c=json.load(sys.stdin); assert c["nodes"]==56 and c["links"]==65 and c["tag"]=="v0.2.4" and c["relationships"]==c["counts"]["relationships"] and c["relationships"]>=150, c; print("projection:", c["by_label"], c["relationships"], "relationships at", c["tag"])'
-          curl -fsS localhost:8080/api/scenarios | python3 -c 'import json,sys; j=json.load(sys.stdin); s=j["store"]; assert s["register"] and s["register"]["tag"]=="v0.2.4" and s["loaded"]=="S1", s; print("store:", s["loaded"], "and the register at", s["register"]["tag"])'
+          curl -fsS -X POST localhost:8080/api/register/project -H 'Content-Type: application/json' -d '{}' | python3 -c 'import json,sys; c=json.load(sys.stdin); assert c["nodes"]==57 and c["links"]==65 and c["tag"]=="v0.2.6" and c["relationships"]==c["counts"]["relationships"] and c["relationships"]>=150, c; print("projection:", c["by_label"], c["relationships"], "relationships at", c["tag"])'
+          curl -fsS localhost:8080/api/scenarios | python3 -c 'import json,sys; j=json.load(sys.stdin); s=j["store"]; assert s["register"] and s["register"]["tag"]=="v0.2.6" and s["loaded"]=="S1", s; print("store:", s["loaded"], "and the register at", s["register"]["tag"])'
 
       - name: Its numbers match the record
         run: |
@@ -161,7 +161,7 @@ jobs:
           v = json.load(urllib.request.urlopen("http://localhost:8080/api/results/S6"))
           assert v["gate"]["verdict"] == "PROCEED" and len(v["stage2"]["invalidated"]) == 4, v["gate"]
           r = json.load(urllib.request.urlopen("http://localhost:8080/api/register"))
-          assert r["summary"]["nodes"] == 56 and r["summary"]["links"] == 65, r["summary"]
+          assert r["summary"]["nodes"] == 57 and r["summary"]["links"] == 65, r["summary"]
           print("instance: one subject; replay S6", v["gate"]["verdict"], "; register", r["summary"])
           PY
           curl -fsS -X POST localhost:8080/api/run -H 'Content-Type: application/json' -d '{"scenario":"S1","mode":"deterministic"}' > /dev/null
