@@ -137,13 +137,15 @@ no register row covers goes to a questionnaire named `unassigned`, so nothing is
 
 The owner fills it in: a value in `answer`, or `nobody_knows = true` when no one can say. They
 add their *handle* and the date under `[answered]`. A handle is a short lower-case label such
-as `steward-1`, never a name or an e-mail address. Then:
+as `employee-1`, never a name or an e-mail address, and one your register has issued (its
+`people/handles.toml`, ieam-register decision 0009). Then:
 
 ```bash
 python harness/capture.py ingest questionnaires/questionnaire-cargo_quote-S2-ORG-0002.toml
 ```
 
-In plain English: this checks the answers and refuses a name in place of a handle, a date in the
+In plain English: this checks the answers and refuses a name in place of a handle, a handle the
+register has not issued (or issued only after the answer's date, or withdrawn by then), a date in the
 future, or an item that has both an answer and "nobody knows". It then saves them in the
 subject's `captures/` folder, which you commit like any other change. From then on, every
 load reads that folder. An answer becomes a statement *proposed* by that person on that date,
