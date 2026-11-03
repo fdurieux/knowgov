@@ -21,7 +21,7 @@ from pathlib import Path
 import arms
 import measures
 import shacl
-from gate import resolve, render_bundle, render_index, knowledge_reader
+from gate import resolve, render_bundle, render_index, knowledge_reader, three_valued
 from kitio import kit_for, kit_text, sha256, verbatim_documents
 import agent
 from load import PROV, HUMAN, load_captures, load_inferred, load_reviews, load_scenario, load_verifications, pristine_values
@@ -43,16 +43,7 @@ def dump(path: Path, obj) -> None:
 
 def d5(s) -> dict:
     """The three-valued answer for the keys the subject names."""
-    out = {}
-    for key in SUBJECT.three_valued:
-        rows = s.assertions_on_key(key, ["verified", "approved", "validated", "proposed"])
-        if not rows:
-            out[key] = {"answer": "unknown", "why": "no assertion for this key (not a documented absence)"}
-        elif all(r["value"] == "NONE" for r in rows):
-            out[key] = {"answer": "documented_absent", "assertions": rows}
-        else:
-            out[key] = {"answer": "asserted", "assertions": rows}
-    return out
+    return {key: three_valued(s, key) for key in SUBJECT.three_valued}
 
 
 def deterministic(sc: str, pv: dict, s) -> dict:

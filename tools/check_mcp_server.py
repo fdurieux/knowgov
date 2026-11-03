@@ -1,0 +1,134 @@
+"""The MCP server against the gate command on a live store (task-0056).
+
+    python tools/check_mcp_server.py [--scenarios S1,S2]
+
+For each scenario: load it into the store with ``gate_cli.py`` (the command's own load), then ask
+the same question twice of the store as it stands, once as ``gate_cli.py --no-load -f json`` and
+once as an MCP client over stdio calling ``gate_verdict``, and require the two reports to be equal
+key for key. Then ask ``three_valued_answer`` for every key the subject names and require the
+answer the record's deterministic run gives (D5), with provenance on every asserted statement.
+Finally, prove the server wrote nothing: the store reads the same census before and after.
+
+``KG_STORE`` picks the store as everywhere: ``rdflib`` needs ``KG_RDFLIB_FILE`` (the script sets
+one in a temporary directory when it is unset), ``neo4j`` the stack's database. Exit 0 when every
+check holds, 1 when one does not.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+HARNESS = ROOT / "harness"
+
+
+def gate_cli(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run([sys.executable, str(HARNESS / "gate_cli.py"), *args], capture_output=True, text=True, env=os.environ.copy())
+
+
+class StdioClient:
+    """A minimal MCP client: start the server, initialise, call tools."""
+
+    def __init__(self):
+        self.p = subprocess.Popen([sys.executable, str(HARNESS / "mcp_server.py")], stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, text=True, env=os.environ.copy())
+        self.n = 0
+        init = self.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
+                                           "clientInfo": {"name": "check_mcp_server", "version": "1"}})
+        assert init["result"]["serverInfo"]["name"] == "knowgov", init
+        self.notify("notifications/initialized")
+
+    def notify(self, method: str) -> None:
+        self.p.stdin.write(json.dumps({"jsonrpc": "2.0", "method": method}) + "\n")
+        self.p.stdin.flush()
+
+    def request(self, method: str, params: dict) -> dict:
+        self.n += 1
+        self.p.stdin.write(json.dumps({"jsonrpc": "2.0", "id": self.n, "method": method, "params": params}) + "\n")
+        self.p.stdin.flush()
+        resp = json.loads(self.p.stdout.readline())
+        assert resp.get("id") == self.n, resp
+        return resp
+
+    def call(self, name: str, args: dict) -> dict:
+        r = self.request("tools/call", {"name": name, "arguments": args})["result"]
+        if r.get("isError"):
+            raise AssertionError(f"{name}{args}: {r['content'][0]['text']}")
+        return r["structuredContent"]
+
+    def close(self) -> None:
+        self.p.stdin.close()
+        self.p.wait(timeout=30)
+
+
+def census() -> dict:
+    sys.path.insert(0, str(HARNESS))
+    from store import open_store
+    st = open_store()
+    try:
+        return st.census()
+    finally:
+        if st.name == "rdflib":
+            st.path = None   # read, never written back
+        st.close()
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--scenarios", help="comma-separated scenario ids (default: every scenario of the subject)")
+    args = ap.parse_args(argv)
+    if (os.environ.get("KG_STORE") or "neo4j").lower() == "rdflib" and not os.environ.get("KG_RDFLIB_FILE"):
+        os.environ["KG_RDFLIB_FILE"] = str(Path(tempfile.mkdtemp(prefix="kg-mcp-")) / "store.ttl")
+    sys.path.insert(0, str(HARNESS))
+    from subject import SUBJECT
+    scenarios = args.scenarios.split(",") if args.scenarios else list(SUBJECT.order)
+    failures = []
+    for sc in scenarios:
+        load = gate_cli("--scenario", sc, "-f", "json")
+        if load.returncode == 2:
+            failures.append(f"{sc}: gate_cli could not load: {load.stderr.strip()}")
+            continue
+        cli = gate_cli("--scenario", sc, "--no-load", "-f", "json")
+        if cli.returncode == 2:
+            failures.append(f"{sc}: gate_cli --no-load could not run: {cli.stderr.strip()}")
+            continue
+        expected = json.loads(cli.stdout)
+        before = census()
+        client = StdioClient()
+        try:
+            got = client.call("gate_verdict", {"scenario": sc})
+            if got != expected:
+                diff = sorted(k for k in set(got) | set(expected) if got.get(k) != expected.get(k))
+                failures.append(f"{sc}: gate_verdict differs from gate_cli --no-load on {diff}")
+            status = client.call("store_status", {})
+            if status["scenario"] != sc:
+                failures.append(f"{sc}: store_status says the store holds {status['scenario']}")
+            rel = SUBJECT.scenario(sc).get("deterministic_record") or sc
+            rec_path = SUBJECT.record_dir / rel / "deterministic.json"
+            d5 = json.loads(rec_path.read_text(encoding="utf-8")).get("D5_three_valued") if rec_path.exists() else None
+            for key in SUBJECT.three_valued:
+                ans = client.call("three_valued_answer", {"key": key, "scenario": sc})
+                if d5 and key in d5 and ans["answer"] != d5[key]["answer"]:
+                    failures.append(f"{sc} {key}: {ans['answer']}, the record says {d5[key]['answer']}")
+                for s in ans["statements"]:
+                    if not s.get("artefact") or "fragments" not in s:
+                        failures.append(f"{sc} {key}: statement {s.get('id')} has no provenance")
+            print(f"{sc}: gate_verdict {got['verdict']} (exit_code {got['exit_code']}) equals gate_cli --no-load; "
+                  f"{len(SUBJECT.three_valued)} three-valued key(s) checked")
+        finally:
+            client.close()
+        if census() != before:
+            failures.append(f"{sc}: the store changed while the server read it")
+    for f in failures:
+        print("FAIL " + f, file=sys.stderr)
+    print("MCP server: " + ("every check holds" if not failures else f"{len(failures)} failure(s)"))
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

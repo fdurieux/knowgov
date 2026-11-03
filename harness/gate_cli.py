@@ -162,7 +162,6 @@ def run(args) -> dict:
     if args.task not in TASKS:
         raise CannotRun(f"{SUBJECT.id}: no task {args.task!r}; the subject declares {sorted(TASKS) or 'none'}")
     base = _baseline(args.baseline, SUBJECT, scenario, args.task)
-    from gate import resolve
     from store import open_store
     try:
         st = open_store(instance=SUBJECT.id)
@@ -176,7 +175,8 @@ def run(args) -> dict:
                 raise CannotRun(f"the store holds {loaded or 'no scenario'}, not {scenario!r}; load it, or drop --no-load")
         else:
             _load(st, scenario)
-        res = resolve(st, args.task)
+        return evaluate(st, subject=SUBJECT.id, scenario=scenario, task=args.task, spec=TASKS[args.task],
+                        threshold=args.fail_on, baseline=base, loaded=not args.no_load)
     except CannotRun:
         raise
     except Exception as e:  # noqa: BLE001 — an unreachable store fails here, on the first statement
@@ -186,10 +186,18 @@ def run(args) -> dict:
             st.close()
         except Exception:  # noqa: BLE001
             pass
-    spec = TASKS[args.task]
-    return report(res, subject=SUBJECT.id, scenario=scenario, task=args.task, store=st.name, loaded=not args.no_load,
-                  block_levels=set(spec["block_levels"]), threshold=args.fail_on,
-                  baseline=compare(res, *base) if base else None)
+
+
+def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshold: str,
+             baseline: tuple[dict, str] | None, loaded: bool) -> dict:
+    """Resolve ``spec`` on the store as it stands and build the report. The command calls this
+    after its load; the MCP server (harness/mcp_server.py) calls it on a store it only reads, so
+    one input gives one report whichever way it was asked."""
+    from gate import resolve_spec
+    res = resolve_spec(st, task, spec)
+    return report(res, subject=subject, scenario=scenario, task=task, store=st.name, loaded=loaded,
+                  block_levels=set(spec["block_levels"]), threshold=threshold,
+                  baseline=compare(res, *baseline) if baseline else None)
 
 
 def _load(st, scenario: str) -> None:
