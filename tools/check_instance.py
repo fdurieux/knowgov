@@ -8,11 +8,16 @@ An instance is an organisation's own folder, mounted read-only by docker-compose
     artefacts/<kind>/   the authored artefacts, one folder per kind of instance/kinds.toml
     subjects/<id>/      subject roots; a manifest names its artefacts by path, ../../artefacts/...
     record/<subject>/   the instance's own results, a subject's [record] dir
+    code_map.toml       optional: code path globs -> the register application or module (APP id)
+                        each implements (task-0050)
 
 The check reads and never writes. It reports, per kind, the files present and the mapper that
 reads each; a file of a kind no mapper reads, or a store artefact a manifest gives no mapper, is
 reported *absent*: the store will not hold its statements, and the report says so rather than
-skipping it. A file under artefacts/ that no subject names is listed as unread.
+skipping it. A file under artefacts/ that no subject names is listed as unread. With a
+code_map.toml, a row naming an APP id the instance's register does not hold, or two rows that
+overlap (one file matched by both, or one glob covering the other), is an error; a code file no
+row matches is listed as unmapped, a row matching no file as unmatched.
 
 Exit 0 when the layout holds (absent and unread files are findings to read, not errors), 1 when
 it does not (no register, an unknown kind folder, a subject that does not load, an artefact path
@@ -23,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import tomllib
 from pathlib import Path
@@ -34,6 +40,7 @@ from subject import Subject  # noqa: E402
 KINDS_TABLE = ROOT / "instance" / "kinds.toml"
 REGISTER_TREES = ("metamodel", "relationships", "decisions", "glossary", "exports")
 SKIP = {"__pycache__", ".git", ".DS_Store"}
+CODE_MAP = "code_map.toml"
 
 
 def kinds(path: Path = KINDS_TABLE) -> dict[str, dict]:
@@ -52,6 +59,87 @@ def _files(p: Path) -> list[Path]:
     return sorted(f for f in p.rglob("*") if f.is_file() and not (set(f.parts) & SKIP))
 
 
+def glob_re(glob: str) -> re.Pattern:
+    """A path glob, '/'-separated: ** any number of whole segments, * and ? within one segment."""
+    out, i = [], 0
+    while i < len(glob):
+        if glob.startswith("**/", i):
+            out.append("(?:[^/]+/)*"); i += 3
+        elif glob.startswith("**", i):
+            out.append(".*"); i += 2
+        elif glob[i] == "*":
+            out.append("[^/]*"); i += 1
+        elif glob[i] == "?":
+            out.append("[^/]"); i += 1
+        else:
+            out.append(re.escape(glob[i])); i += 1
+    return re.compile("".join(out) + r"\Z")
+
+
+def register_apps(reg: Path) -> dict[str, dict]:
+    """APP id -> {kind, name}: the register's applications and modules, one file per id."""
+    apps = {}
+    for f in sorted((reg / "applications").glob("*.toml")) if (reg / "applications").is_dir() else []:
+        row = tomllib.loads(f.read_text(encoding="utf-8"))
+        if row.get("id"):
+            apps[row["id"]] = {"kind": row.get("kind", ""), "name": row.get("name", "")}
+    return apps
+
+
+def code_map(inst: Path, apps: dict[str, dict], errors: list[str]) -> dict | None:
+    """The instance's code_map.toml read against its register (task-0050); None when there is none.
+    [code] root (relative to the instance, default ".") and include (the globs that say what is
+    code, relative to root); [[map]] rows glob -> app. Errors go to errors; unmapped and unmatched
+    are findings."""
+    f = inst / CODE_MAP
+    if not f.is_file():
+        return None
+    try:
+        doc = tomllib.loads(f.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        errors.append(f"{CODE_MAP}: does not parse: {e}")
+        return {"root": None, "rows": [], "unmapped": [], "unmatched": []}
+    code = doc.get("code", {})
+    root = (inst / code.get("root", ".")).resolve()
+    include = list(code.get("include", ["**"]))
+    rows = []
+    for n, r in enumerate(doc.get("map", []), 1):
+        if not isinstance(r.get("glob"), str) or not isinstance(r.get("app"), str):
+            errors.append(f"{CODE_MAP}: map row {n}: needs a glob and an app")
+            continue
+        rows.append({"glob": r["glob"], "app": r["app"], "note": r.get("note", ""), "files": []})
+        if r["app"] not in apps:
+            errors.append(f"{CODE_MAP}: {r['glob']}: {r['app']} is no application or module of register/applications")
+    rep = {"root": root.relative_to(inst).as_posix() if root.is_relative_to(inst) else str(root),
+           "include": include, "rows": rows, "unmapped": [], "unmatched": []}
+    if not root.is_dir():
+        errors.append(f"{CODE_MAP}: root {code.get('root', '.')}: not a directory")
+        return rep
+    res = [glob_re(r["glob"]) for r in rows]
+    overlap: dict[tuple[int, int], str] = {}   # one glob covering another's text overlaps whatever files exist
+    for i in range(len(rows)):
+        for j in range(i + 1, len(rows)):
+            if res[i].match(rows[j]["glob"]) or res[j].match(rows[i]["glob"]):
+                overlap[i, j] = "one covers the other"
+    inc = [glob_re(g) for g in include]
+    for p in _files(root):
+        rel = p.relative_to(root).as_posix()
+        if not any(r.match(rel) for r in inc):
+            continue
+        hit = [k for k, r in enumerate(res) if r.match(rel)]
+        for k in hit:
+            rows[k]["files"].append(rel)
+        if not hit:
+            rep["unmapped"].append(rel)
+        for i, j in ((i, j) for i in hit for j in hit if i < j):
+            overlap.setdefault((i, j), f"both match {rel}")
+    for (i, j), why in sorted(overlap.items()):
+        a, b = rows[i], rows[j]
+        errors.append(f"{CODE_MAP}: {a['glob']} ({a['app']}) and {b['glob']} ({b['app']}) overlap: {why}")
+    rep["unmatched"] = [r["glob"] for r in rows if not r["files"]]
+    return rep
+
+
 def check(instance: Path, table: dict[str, dict] | None = None) -> dict:
     """The report: errors (the layout does not hold), absent (read by nothing), unread (named by no
     subject), and per kind the files and what reads them. Never writes."""
@@ -59,7 +147,8 @@ def check(instance: Path, table: dict[str, dict] | None = None) -> dict:
     by_mapper = mapper_kind(table)
     inst = instance.resolve()
     errors: list[str] = []
-    rep: dict = {"instance": str(inst), "register": None, "subjects": [], "kinds": {}, "absent": [], "unread": [], "errors": errors}
+    rep: dict = {"instance": str(inst), "register": None, "subjects": [], "kinds": {}, "absent": [], "unread": [],
+                 "code_map": None, "errors": errors}
 
     reg = inst / "register"
     if not reg.is_dir():
@@ -135,6 +224,7 @@ def check(instance: Path, table: dict[str, dict] | None = None) -> dict:
                     rep["absent"].append({"subject": None, "key": f, "kind": folder,
                                           "why": f"no mapper reads {folder}: the store holds no statement from it"})
         rep["kinds"][folder] = {"row": k["row"], "mappers": k["mappers"], "files": rows}
+    rep["code_map"] = code_map(inst, register_apps(reg) if reg.is_dir() else {}, errors)
     return rep
 
 
@@ -151,6 +241,15 @@ def render(rep: dict) -> str:
         out.append(f"ABSENT {a['key']} [{a['kind']}]: {a['why']}" + (f" (subject {a['subject']})" if a["subject"] else ""))
     for u in rep["unread"]:
         out.append(f"UNREAD {u['file']}: no subject names it")
+    cm = rep.get("code_map")
+    if cm:
+        out.append(f"code map: root {cm['root']}, {len(cm['rows'])} row(s), {sum(len(r['files']) for r in cm['rows'])} file(s) mapped")
+        for r in cm["rows"]:
+            out.append(f"  {r['app']}  {r['glob']}  {len(r['files'])} file(s)")
+        for g in cm["unmatched"]:
+            out.append(f"UNMATCHED {g}: no code file matches it")
+        for f in cm["unmapped"]:
+            out.append(f"UNMAPPED {f}: no row of {CODE_MAP} names its application")
     for e in rep["errors"]:
         out.append(f"ERROR {e}")
     out.append("layout holds" if not rep["errors"] else f"layout does not hold: {len(rep['errors'])} error(s)")

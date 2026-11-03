@@ -10,6 +10,8 @@ CargoQuote artefacts, in the instance layout (instance/README.md).
                                 analysis notes, is added by a plant and has no bytes)
     subjects/cargo_quote/       the subject root, its manifest pointing at ../../artefacts/...
     record/cargo_quote/         its record, the subject's [record] dir
+    code_map.toml               CargoQuote's reference code (the subject's [reference] code, left in
+                                place) mapped to the register application it implements (task-0050)
 
 Everything is copied from this repository; nothing here is new content, and nothing is written
 back to the sources. The result is what an organisation's own instance looks like with public,
@@ -33,6 +35,21 @@ import check_instance  # noqa: E402
 REGISTER = ROOT / "demo" / "register"
 SUBJECT = ROOT / "subjects" / "cargo_quote"
 IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc")
+# The reference code is one file: QuoteAPI, TariffEngine and ScreeningService (APP-0002 to 0004)
+# are classes inside it, so the file maps to the application they are modules of.
+CODE_APP = "APP-0001"
+
+
+def code_map(out: Path, code: Path) -> str:
+    """code_map.toml for the reference code: its folder is the root, its Python files are code."""
+    root = code.parent.relative_to(out).as_posix()
+    return (
+        "# Code paths to the register application or module each implements (instance/README.md,\n"
+        "# \"Mapping code to the register\"). Globs are relative to [code] root.\n\n"
+        f'[code]\nroot = "{root}"\ninclude = ["**/*.py"]\n\n'
+        f'[[map]]\nglob = "{code.name}"\napp = "{CODE_APP}"\n'
+        'note = "CargoQuote reference implementation: QuoteAPI, TariffEngine and ScreeningService are its modules"\n'
+    )
 
 
 def build(out: Path) -> Path:
@@ -63,6 +80,7 @@ def build(out: Path) -> Path:
     manifest, n = re.subn(rf'^dir = "{re.escape(rec)}"', f'dir = "../../record/{s.id}"', manifest, flags=re.M)
     assert n == 1, rec
     (sroot / "subject.toml").write_text(manifest, encoding="utf-8")
+    (out / check_instance.CODE_MAP).write_text(code_map(out, sroot / s.reference["code"]), encoding="utf-8")
     return out
 
 
