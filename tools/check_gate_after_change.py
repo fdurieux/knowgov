@@ -1,30 +1,21 @@
-"""The gate command after S6's change (task-0048, doc-0011 point 3), by exit code, on the store
-KG_STORE names (CI: rdflib in harness.yml).
+"""The gate command after S6's change (task-0048, doc-0011 point 3; task-0049), by exit code, on
+the store KG_STORE names (CI: rdflib in harness.yml, Neo4j in the stack job).
 
     python tools/check_gate_after_change.py OUT_DIR
 
-doc-0011 measured that after S6's re-verification the gate reads PROCEED while derived:S1:G:run1,
-generated from statements the change invalidated, is still suspect, and that the command exited 0
-because it reported stale statements and suspect derived outputs as counts. This script puts the
-store in that state and runs the command on it:
+Three runs of ``harness/gate_cli.py --scenario S6``, each loading the store itself, each JSON report
+written under OUT_DIR, valid against the schema and held to the subject's scored record of S6:
 
-1. Through the store port, what ``run.py`` does for S6: stage 1 as ``gate_cli._load`` loads it,
-   S1's governed code from the subject's scored record (``S1/run1_G.py``) registered as derived
-   with the statements the stage-1 gate served, then ``run.stage2``: the changed decision table
-   re-ingested, the stale rule, the owner's re-verification. With rdflib the graph is written to
-   ``OUT_DIR/s6-stage2.ttl`` (KG_RDFLIB_FILE) so the command, a separate process, reads it.
-2. ``gate_cli.py --scenario S6 --no-load``: PROCEED, exit 1, a blocker on derived:S1:G:run1 and
-   the invalidated statements as findings; the JSON report valid against version 2.
-3. The same command on S6's stage 1 (it loads, so it runs last): PROCEED, exit 0. The change and
-   the derived output, nothing else, move the exit code.
-
-The gate command has no option to load a later version: that is task-0049. Until then this is the
-one place a gate run after a change is shown.
+1. ``--stage 2``: the changed decision table brought in as v2. The report names v2 and the four
+   statements the change invalidated, the record's; BLOCKED, on the record's keys, exit 1.
+2. ``--stage 2 --reverify``: after the owner's re-verification, PROCEED, the record's verdict, yet
+   exit 1: derived:S1:G:run1, generated from statements the change invalidated, is a blocker, and
+   the invalidated statements are findings (doc-0011 measured exit 0 here before task-0048).
+3. Stage 1: PROCEED, v1, exit 0. The change and the derived output, nothing else, move the exit code.
 """
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -32,42 +23,29 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HARNESS = ROOT / "harness"
 SCENARIO = "S6"
+sys.path.insert(0, str(HARNESS))
+import schema_check  # noqa: E402
+from subject import SUBJECT  # noqa: E402
 
 
-def gate(env: dict, *args: str) -> tuple[int, str]:
-    p = subprocess.run([sys.executable, "gate_cli.py", "--scenario", SCENARIO, *args], cwd=HARNESS, env=env,
-                       capture_output=True, text=True)
-    return p.returncode, p.stdout + p.stderr
+def gate(out: Path, name: str, *args: str) -> tuple[int, dict, str]:
+    """The command's exit code, its JSON report (checked against the schema) and its text."""
+    report = out / f"gate-s6-{name}.json"
+    base = [sys.executable, "gate_cli.py", "--scenario", SCENARIO, *args]
+    p = subprocess.run([*base, "-f", "json", "-o", str(report)], cwd=HARNESS, capture_output=True, text=True)
+    if p.returncode not in (0, 1) or not report.exists():
+        sys.exit(f"FAIL: gate_cli.py {' '.join(args)} could not run (exit {p.returncode}):\n{p.stdout}{p.stderr}")
+    rep = json.loads(report.read_text(encoding="utf-8"))
+    errs = schema_check.validate(rep, schema_check.load("gate-report"))
+    if errs:
+        sys.exit(f"FAIL: the report of {' '.join(args) or 'stage 1'} does not match its schema: {errs[:5]}")
+    text = subprocess.run(base, cwd=HARNESS, capture_output=True, text=True).stdout
+    return p.returncode, rep, text
 
 
-def stage2_into_store(out: Path) -> str:
-    """S6, stages 1 and 2, into the store; returns the derived output's id."""
-    sys.path.insert(0, str(HARNESS))
-    import gate_cli
-    import run
-    from gate import resolve
-    from load import pristine_values
-    from store import open_store
-    from subject import SUBJECT
-    cfg2 = SUBJECT.scenario(SCENARIO)["stage2"]
-    derived = cfg2.get("derived", {})
-    code = SUBJECT.record_dir / derived.get("from_scenario", SCENARIO) / derived.get("file", "run1_G.py")
-    if not code.exists():
-        sys.exit(f"FAIL: no derived input at {code}")
-    st = open_store(instance=SUBJECT.id)
-    try:
-        gate_cli._load(st, SCENARIO)
-        g1 = resolve(st, "codegen")
-        ids = [a["id"] for v in g1["keys"].values() for a in v["assertions"]]
-        s2, g2, _ = run.stage2(SCENARIO, cfg2, pristine_values(), st, code.read_text(encoding="utf-8"), ids)
-    finally:
-        st.close()
-    print(f"{SCENARIO} stage 2 in the store ({st.name}): stage 1 {g1['verdict']}; invalidated "
-          f"{sorted(x['key'] for x in s2['D3_stale']['invalidated'])}; before re-verification "
-          f"{s2['gate_before_reverification']['verdict']}, after {g2['verdict']}; derived {s2['suspect_derived']}")
-    if g2["verdict"] != "PROCEED" or not g2["suspect_derived"]:
-        sys.exit("FAIL: the store is not in doc-0011's state (PROCEED with a suspect derived output)")
-    return derived.get("id", f"derived:{SCENARIO}")
+def show(code: int, args: str, rep: dict, text: str) -> None:
+    print(f"exit {code}: gate_cli.py --scenario {SCENARIO} {args}: {rep['verdict']}, version {rep['version']}")
+    print("    " + "\n    ".join(text.strip().splitlines()))
 
 
 def main() -> None:
@@ -75,37 +53,36 @@ def main() -> None:
         sys.exit(__doc__)
     out = Path(sys.argv[1]).resolve()
     out.mkdir(parents=True, exist_ok=True)
-    if os.environ.get("KG_STORE", "neo4j") == "rdflib":
-        ttl = out / "s6-stage2.ttl"
-        ttl.unlink(missing_ok=True)
-        os.environ["KG_RDFLIB_FILE"] = str(ttl)
-    env = dict(os.environ)
-    did = stage2_into_store(out)
+    s2 = json.loads((SUBJECT.record_dir / SCENARIO / "deterministic.json").read_text(encoding="utf-8"))["stage2"]
+    cfg2 = SUBJECT.scenario(SCENARIO)["stage2"]
+    did = cfg2["derived"]["id"]
+    invalidated = sorted(x["id"] for x in s2["D3_stale"]["invalidated"])
+    before, after = s2["gate_before_reverification"], s2["gate_after_reverification"]
 
-    report = out / "gate-s6-after-change.json"
-    code, text = gate(env, "--no-load", "-f", "json", "-o", str(report))
-    if code != 1:
-        sys.exit(f"FAIL: the gate after S6's change exited {code}, want 1:\n{text}")
-    rep = json.loads(report.read_text(encoding="utf-8"))
-    sys.path.insert(0, str(HARNESS))
-    import schema_check
-    errs = schema_check.validate(rep, schema_check.load("gate-report"))
-    if errs:
-        sys.exit(f"FAIL: the report does not match its schema: {errs[:5]}")
-    blockers = [f for f in rep["findings"] if f["kind"] == "suspect_derived" and f["severity"] == "blocker"]
+    code, rep, text = gate(out, "stage2", "--stage", "2")
+    ch = rep["change"]
+    if (code, rep["verdict"], rep["version"]) != (1, before["verdict"], cfg2["version"]) or len(invalidated) != 4 \
+            or ch["invalidated"] != invalidated or ch["artefact"] != cfg2["artefact"] or ch["reverified"] \
+            or sorted(f["key"] for f in rep["findings"] if f["kind"] == "key" and f["level"] == "invalidated") != sorted(before["blocked_keys"]):
+        sys.exit(f"FAIL: want the record's {before['verdict']} on {before['blocked_keys']}, exit 1, version {cfg2['version']}, "
+                 f"invalidated {invalidated}:\n{json.dumps(rep, indent=1)}")
+    show(code, "--stage 2", rep, text)
+
+    code, rep, text = gate(out, "after-change", "--stage", "2", "--reverify")
+    blockers = [f for f in rep["findings"] if f["severity"] == "blocker"]
     stale = [f for f in rep["findings"] if f["kind"] == "stale"]
-    if rep["schema_version"] != 2 or rep["verdict"] != "PROCEED" or [f["ref"] for f in blockers] != [did] or not stale:
-        sys.exit(f"FAIL: want PROCEED, a blocker on {did} and the stale statements as findings:\n{json.dumps(rep, indent=1)}")
-    print(f"exit {code}: gate_cli.py --scenario {SCENARIO} --no-load, after the change: {rep['verdict']}, "
-          f"blocker {did} (used {', '.join(blockers[0]['related'])}); stale {[(f['ref'], f['severity']) for f in stale]}")
-    _, txt = gate(env, "--no-load")
-    print("    " + "\n    ".join(txt.strip().splitlines()))
+    if (code, rep["verdict"]) != (1, after["verdict"]) or rep["verdict"] != "PROCEED" or not rep["change"]["reverified"] \
+            or [(f["kind"], f["ref"]) for f in blockers] != [("suspect_derived", did)] or rep["change"]["derived"] != did \
+            or {f["ref"] for f in stale} != {x["id"] for x in after["stale"]}:
+        sys.exit(f"FAIL: want the record's PROCEED, exit 1, a blocker on {did} alone and the stale statements as findings:\n{json.dumps(rep, indent=1)}")
+    show(code, "--stage 2 --reverify", rep, text)
 
-    code, text = gate(env)
-    if code != 0:
-        sys.exit(f"FAIL: S6's stage 1 exited {code}, want 0:\n{text}")
-    print(f"exit {code}: gate_cli.py --scenario {SCENARIO}, stage 1: {text.strip().splitlines()[0]}")
-    print("the gate after S6's change no longer exits 0 while a derived output it names is suspect")
+    code, rep, text = gate(out, "stage1")
+    if (code, rep["verdict"], rep["version"], rep["change"]) != (0, "PROCEED", "v1", None):
+        sys.exit(f"FAIL: S6's stage 1 exited {code}, want 0, PROCEED, v1:\n{text}")
+    show(code, "", rep, text)
+    print("the gate command brings in S6's later version: BLOCKED before re-verification, and after it "
+          "exit 1 while a derived output is suspect")
 
 
 if __name__ == "__main__":
