@@ -5,7 +5,7 @@ title: >-
   walkthrough
 type: specification
 created_date: '2026-11-02T23:18:00Z'
-updated_date: '2026-11-02T23:18:00Z'
+updated_date: '2026-11-03T23:14:00Z'
 ---
 *2026-11-02. Maintainer register for the verdict, the findings and the analysis; the walkthrough sections in the adopter register. A study: nothing is built. Every command below was run on the public example instance (`tools/example_instance.py`) with `KG_STORE=rdflib`, in a venv with the pins harness.yml installs (CPython 3.13 locally; the harness does not depend on 3.12, the J-F oracle does). Run outputs stay in the session's scratchpad; only this brief is committed. John Doe is a placeholder persona; every record carries the handle `employee-1`.*
 
@@ -198,7 +198,7 @@ and `--fail-on major` exit 1. That is ending (a): no longer blocked; the assista
 | … and the two documented status lists rejected | **PROCEED** — all 36 required keys verified or approved, none flagged |
 | (instead) John's two approved and the documented lists approved as they stand | PROCEED, with a status list that omits the `held_unscreened` John's outage rule returns |
 
-The last row is the danger the review step must guard against: the gate checks each key alone, and since captures are never compared with documents (§5, F3) nothing flags that two approved keys contradict each other.
+The last row is the danger the review step must guard against: the gate checks each key alone, and as walked, captures were never compared with documents (§5, F3), so nothing flagged that two approved keys contradict each other. Since task-0038 a capture that contradicts a document disputes both and raises a conflict gap, so the reviewer sees it before approving.
 
 ### 3.2 S4: two documents disagree, John says which is right
 
@@ -289,7 +289,7 @@ approval = { by = "fdurieux", on = 2026-10-31, record = "decisions/0003-cite-req
 
 - **F1. A declared gap outranks any assertion** (`gate.resolve`: `elif declared: level = "declared_gap"`). A capture cannot close it; nor should a proposed statement. The missing piece is a way to *close* a declared gap by a decision record from its named owner (compliance, for OD-1), recorded and loaded like a capture. Today only a document edit closes it.
 - **F2. A dispute cannot be settled by capture.** A fifth statement at proposed leaves the key disputed. The settlement is a review that rejects the losing side with the capture as evidence, or a document fix.
-- **F3. Captures are never compared with documents.** `candidate_pairs` requires equal `version`; a capture's is `capture`. John contradicting the contract (S2's statuses) raises no conflict; John agreeing with the table (S4) corroborates nothing. Arguably the conflict rule should pair across versions when one side is elicited: a person contradicting a document is exactly what a reviewer must see.
+- **F3. Captures are never compared with documents.** *Built (task-0038, PR #92).* As walked: `candidate_pairs` required equal `version`; a capture's is `capture`. John contradicting the contract (S2's statuses) raised no conflict; John agreeing with the table (S4) corroborated nothing. Now `candidate_pairs(across="elicited")` also pairs across versions when exactly one side is elicited, and the rules weigh a person's statement against the documents' extracted ones on both adapters: a contradiction disputes both sides and raises a conflict gap naming both (`gap:conflict:<key>:<a>~<b>`), which a review settles whole like any other dispute (decision-0002 point 4); an agreement is recorded as CORROBORATES and raises neither side (the person's statement stays proposed). "Nobody knows" pairs with nothing; a person is not weighed against a model's statement. The record (S1 to S7, no captures) is unchanged; `tools/check_capture_pairing.py` shows both cases on the example instance.
 - **F4. A capture can lower a key, and the ratchet then fails.** S2's statuses: validated → proposed, `--baseline record` exit 1. Correct by the min rule, surprising to an adopter; worth a line in the instance README and a decision on whether an elicited statement on a key that has validated document statements should count.
 - **F5. The handle pattern does not stop a name.** `john-doe` passes both ingest and the register checker. A pattern cannot know a name; minting can (§8: issue `employee-<n>` from a counter, refuse anything not issued).
 - **F6. Free-text notes can identify a person.** "compliance agreed this in 2025" is harmless; "as the author of the 2025 memo" is not. The note is copied into the assertion's text and the bundle. A warning in the questionnaire header, and the reviewer's check, are the only guard.
@@ -373,7 +373,7 @@ status = "active"
 | an absence ends without anyone writing a document | questionnaire per owner | route (a) | built; shown on S2′ |
 | a declaration ends when its owner decides | close a declared gap by a decision record | `[[closes]]` in the review file (§7) | not built |
 | a dispute ends with a ruling | reviewer rejects the losing side, citing the capture | `[[ruling]] outcome = "rejected"` | not built |
-| a person contradicting a document is seen | pair elicited with extracted in the conflict rule | `candidate_pairs` across versions when one basis is elicited | not built (F3) |
+| a person contradicting a document is seen | pair elicited with extracted in the conflict rule | `candidate_pairs` across versions when one basis is elicited | built (F3, task-0038) |
 | knowledge does not rot | six-month review, re-ask or declare | route (b), directory lookup | not built |
 | large tacit knowledge is captured cheaply | transcript → inferred → confirmed | route (c), reusing (a)'s `known` | half built |
 | no name ever reaches git | issued handles only | directory counter, published handle list | not built (F5) |
@@ -392,7 +392,7 @@ status = "active"
 | record who, when, where | `from`, `on`, `record` in both homes, checked | `record`'s base differs between homes (§4) |
 | refuse a name | pattern at ingest and in the checker | `john-doe` passes (F5) |
 | the gate moves when knowledge arrives | absent → proposed → QUALIFIED | declared gaps, disputes, vagueness do not move (F1, F2) |
-| a contradiction with a document is visible | — | not compared (F3) |
+| a contradiction with a document is visible | conflict gap naming the person's statement and the document's, both disputed (task-0038) | — |
 | PROCEED on reviewed knowledge | approval status exists for documents | no review record for captures (§7) |
 | knowledge ages | six-month `review_due` checked on register links | captures carry no due date; no route (b) |
 | find the person later | decision 0008 names the private record | not decided: §8 drafts it |
@@ -408,7 +408,7 @@ status = "active"
 ## 13. Follow-ups proposed (not created as tasks)
 
 1. A review record for captured statements (§7): rulings, closing a declared gap by its owner, lapse after six months; the PROCEED ending then verifiable by command.
-2. Pair elicited statements with extracted ones in the conflict and corroboration rules (F3), both adapters.
+2. Pair elicited statements with extracted ones in the conflict and corroboration rules (F3), both adapters. *Built: task-0038.*
 3. Decide F4: whether an elicited statement on a key with validated document statements lowers it, and say so in the instance README and the gate's ratchet.
 4. ieam-register: draft decision 0009 from §8 (directory attribute; issued handles; lookup role; review finding a leaver; retention), and the `record` base question from §4.
 5. Route (b): a questionnaire generated from due reviews, pre-filled with the earlier answer.
