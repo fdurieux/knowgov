@@ -6,14 +6,21 @@ from __future__ import annotations
 from tasks import TASKS
 
 ORDER = ["absent", "declared_gap", "disputed", "invalidated", "proposed", "validated", "verified", "approved"]
+BETTER = ("validated", "verified", "approved")
 LIVE = ["proposed", "validated", "verified", "approved", "disputed", "invalidated"]
 
 
 def resolve(s, task: str) -> dict:
-    spec = TASKS[task]
+    return resolve_spec(s, task, TASKS[task])
+
+
+def resolve_spec(s, task: str, spec: dict) -> dict:
+    """The gate over any key set: ``spec`` is a task's shape (keys, block_levels,
+    max_unverified_share); ``task`` only names it in the result. The MCP server resolves an
+    agent's own key set through here, so it is never a second gate."""
     keys = {}
     for key in spec["keys"]:
-        rows = s.key_evidence(key, LIVE)
+        rows, pending = s.key_evidence(key, LIVE), []
         ent = key.split("|")[0]
         declared = s.declared_gaps_for_key(key)
         if not rows:
@@ -25,7 +32,13 @@ def resolve(s, task: str) -> dict:
             # approved replacement on the same key; until then it blocks
             replaced = any(r["status"] in ("verified", "approved") for r in rows)
             live_rows = [r for r in rows if not (r["status"] == "invalidated" and replaced)]
-            level = min((r["status"] for r in live_rows), key=ORDER.index)
+            # decision-0004: a person's answer nobody has reviewed yet (elicited, proposed) does not
+            # lower a key that holds a validated-or-better statement; it stays in the bundle, marked
+            # pending review. One that contradicts is disputed by R-CONFLICT, and that counts.
+            if any(r["status"] in BETTER for r in live_rows):
+                pending = [r["id"] for r in live_rows if r["basis"] == "elicited" and r["status"] == "proposed"]
+            counted = [r for r in live_rows if r["id"] not in pending]
+            level = min((r["status"] for r in counted), key=ORDER.index)
             if replaced:
                 rows = live_rows
         flags = set()
@@ -33,7 +46,8 @@ def resolve(s, task: str) -> dict:
             flags.add("ambiguous")
         if rows and all(r["basis"] in ("inferred", "assumed", "hypothesised") for r in rows):
             flags.add(next(iter({r["basis"] for r in rows})))
-        keys[key] = {"level": level, "flags": sorted(flags), "assertions": rows, "declared_gaps": declared}
+        keys[key] = {"level": level, "flags": sorted(flags), "assertions": rows, "declared_gaps": declared,
+                     "pending_review": pending}
     n = len(keys)
     blocked_keys = [k for k, v in keys.items() if v["level"] in spec["block_levels"]]
     below = [k for k, v in keys.items() if ORDER.index(v["level"]) < ORDER.index("verified")]
@@ -57,6 +71,20 @@ def resolve(s, task: str) -> dict:
             "stale": stale, "suspect_derived": suspect}
 
 
+THREE_VALUED_STATUSES = ["verified", "approved", "validated", "proposed"]
+
+
+def three_valued(s, key: str) -> dict:
+    """The three-valued answer for one key (D5): ``unknown`` when no assertion exists,
+    ``documented_absent`` when every live assertion says NONE, else ``asserted``."""
+    rows = s.assertions_on_key(key, THREE_VALUED_STATUSES)
+    if not rows:
+        return {"answer": "unknown", "why": "no assertion for this key (not a documented absence)"}
+    if all(r["value"] == "NONE" for r in rows):
+        return {"answer": "documented_absent", "assertions": rows}
+    return {"answer": "asserted", "assertions": rows}
+
+
 def render_key(key: str, v: dict) -> list[str]:
     """One key's section of the bundle: its level and flags, its declared gaps, every live assertion
     with evidence, verification, approval and gaps. The pull context serves it on read_knowledge."""
@@ -66,7 +94,8 @@ def render_key(key: str, v: dict) -> list[str]:
     if not v["assertions"]:
         out.append("  (no assertion in the repository: UNKNOWN — not a documented absence)")
     for a in v["assertions"]:
-        out.append(f"  [{a['id']}] value={a['value']!r} basis={a['basis']} status={a['status']} source={a['artefact']} by={a['agent']}")
+        out.append(f"  [{a['id']}] value={a['value']!r} basis={a['basis']} status={a['status']} source={a['artefact']} by={a['agent']}"
+                   + ("  PENDING REVIEW: not counted in the level (decision-0004)" if a["id"] in v.get("pending_review", ()) else ""))
         out.append(f"      text: {a['text'][:300]}")
         for f in a["fragments"][:2]:
             out.append(f"      evidence: {f['artefact']} @ {f['locator']}: {f['text'][:200]!r}")

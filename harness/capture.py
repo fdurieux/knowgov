@@ -7,7 +7,8 @@ the answers back in as statements attributed to the person who gave them.
 
 ``questionnaire`` loads the scenario as the gate command does, resolves the task, and writes one
 TOML file per owner into DIR. An owner is the organisation unit the register names as owner of
-the nodes a key concerns (the subject's ``register_map.toml``); a key no row maps goes to
+the nodes a key concerns (the subject's ``register_map.toml``), or the one unit the row names as its
+``owner`` when it names one of those (task-0043); a key no row maps goes to
 ``unassigned``. Each file lists every key of that owner that is absent, a declared gap, or below
 verified, with what the store holds on it, and the denominator: how many keys the owner has.
 
@@ -16,7 +17,8 @@ folder (``[capture] dir`` in subject.toml, ``captures/`` by default). Every load
 (harness/load.py ``load_captures``): an answer becomes an assertion of basis ``elicited``, status
 ``proposed``, attributed to the person and dated; "nobody knows" becomes a declared gap with the
 person and the date. The person is an opaque handle, as ieam-register decision 0008 defines it
-(``from``, ``on``, ``record``); never a name.
+(``from``, ``on``, ``record``); never a name. When the register lists issued handles (decision 0009,
+``people/handles.toml``), the handle must be one, issued by the answer's date and not withdrawn by then.
 
 ``review`` checks a person's review of what the loaded scenario holds (harness/review.py, under
 decision-0002) and writes it into ``<capture dir>/reviews/``, where every load of its scenario
@@ -82,6 +84,17 @@ def owners_of(subject, nodes: dict[str, dict]) -> dict[str, list[str]]:
     return out
 
 
+def answering_owners(subject, nodes: dict[str, dict]) -> dict[str, list[str]]:
+    """key -> the unit its questionnaire goes to: the row's ``owner`` when it names one of the owners
+    of the row's nodes (task-0043), else every owner of them, as ``owners_of``."""
+    out = owners_of(subject, nodes)
+    for row in subject.register_map().get("row", []):
+        o = row.get("owner")
+        if o and o in out.get(row["key"], []):
+            out[row["key"]] = [o]
+    return out
+
+
 def question_for(key: str) -> str:
     ent, pred = key.split("|", 1)
     return f"For {ent}, what is the value of {pred}? Give it as the documents would state it."
@@ -93,8 +106,8 @@ def _q(s: str) -> str:
 
 
 def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, today: dt.date) -> dict[str, str]:
-    """owner -> the questionnaire's TOML text."""
-    own = owners_of(subject, nodes)
+    """owner -> the questionnaire's TOML text; a key goes to its answering owner only."""
+    own = answering_owners(subject, nodes)
     by_owner: dict[str, list[str]] = {}
     for key in res["keys"]:
         for o in own.get(key) or [UNASSIGNED]:
@@ -147,18 +160,32 @@ def _date(v) -> dt.date | None:
     return None
 
 
-def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date) -> tuple[list[str], dict]:
-    """(errors, the normalised capture) for an answered questionnaire."""
+def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
+                  handles: dict[str, dict] | None = None) -> tuple[list[str], dict]:
+    """(errors, the normalised capture) for an answered questionnaire. ``handles`` is the register's
+    issued list (harness/review.py ``issued_handles``, decision 0009): when it lists any, the handle
+    must be on it, issued by the answer's date and not withdrawn by then; when it lists none, the
+    pattern alone applies."""
     errs = []
     q, a = doc.get("questionnaire", {}), doc.get("answered", {})
     handle = a.get("from", "")
-    if not re.match(pattern, str(handle)):
+    shaped = bool(re.match(pattern, str(handle)))
+    if not shaped:
         errs.append(f"answered.from {handle!r} is not an opaque handle ({pattern}): a person's handle, never a name, an address or a model")
     on = _date(a.get("on"))
     if on is None:
         errs.append(f"answered.on {a.get('on')!r} is not a date (YYYY-MM-DD)")
     elif on > today:
         errs.append(f"answered.on {on} is in the future")
+    if handles and shaped:
+        h = handles.get(str(handle))
+        if h is None:
+            errs.append(f"answered.from {handle!r} is not an issued handle (decision 0009): the register's issued list does not name it")
+        elif on is not None:
+            if h.get("issued") and h["issued"] > on:
+                errs.append(f"answered.from {handle} was issued on {h['issued']}, after the answer's date {on} (decision 0009)")
+            if h.get("withdrawn") and h["withdrawn"] <= on:
+                errs.append(f"answered.from {handle} was withdrawn on {h['withdrawn']}, by the answer's date {on} (decision 0009)")
     answers, unknown = [], []
     for i, it in enumerate(doc.get("item", [])):
         key = it.get("key", "")
@@ -253,7 +280,9 @@ def _ingest(args) -> int:
         raise CannotRun(f"the questionnaire is for {doc.get('questionnaire', {}).get('subject')!r}, the subject loaded is {SUBJECT.id!r}")
     if task not in TASKS:
         raise CannotRun(f"{SUBJECT.id}: no task {task!r}")
-    errs, cap = check_answers(doc, handle_pattern(register_root()), set(TASKS[task]["keys"]), dt.date.today())
+    import review
+    reg = register_root()
+    errs, cap = check_answers(doc, handle_pattern(reg), set(TASKS[task]["keys"]), dt.date.today(), review.issued_handles(reg))
     if errs:
         for e in errs:
             print(f"refused: {e}", file=sys.stderr)

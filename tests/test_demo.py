@@ -215,6 +215,20 @@ def test_image_pins_the_versions_the_record_names():
     assert 'CMD ["python", "demo/app/server.py"]' in dockerfile and "KG_DEMO_RUNS=/repo/runs" in dockerfile
 
 
+def test_the_mcp_server_adds_no_dependency_to_the_image():
+    """task-0056: the MCP server is standard library and the harness's own modules, so the image
+    gains no package for it; were it ever to need one, the pin would belong in the list above."""
+    import ast
+    harness = {p.stem for p in (ROOT / "harness").glob("*.py")}
+    tree = ast.parse((ROOT / "harness" / "mcp_server.py").read_text(encoding="utf-8"))
+    mods = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+    mods |= {n.module.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module and n.level == 0}
+    foreign = {m for m in mods - harness - {"__future__"} if m not in sys.stdlib_module_names}
+    assert not foreign, foreign
+    dockerfile = (DEMO / "Dockerfile").read_text(encoding="utf-8")
+    assert '"mcp' not in dockerfile and "fastmcp" not in dockerfile
+
+
 def test_compose_files_agree():
     compose = (DEMO / "docker-compose.yml").read_text(encoding="utf-8")
     override = (DEMO / "docker-compose.override.yml").read_text(encoding="utf-8")
