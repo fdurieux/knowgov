@@ -80,11 +80,15 @@ jobs:
           KG_STORE=rdflib python gate_cli.py --scenario S1 -f json -o ../runs/gate-s1.json > /dev/null
           test "$(gate --scenario S2 --baseline ../runs/gate-s1.json)" = 1
           test "$(gate --scenario nope)" = 2
+          test "$(gate --scenario S6 --stage 2)" = 1
+          test "$(gate --scenario S1 --stage 2)" = 2
+          test "$(gate --scenario S6 --reverify)" = 2
+          test "$(gate --scenario S6 --stage 2 --no-load)" = 2
           test "$(gate --subject ../subjects/jef_data_load --baseline record)" = 0
           test "$(gate --subject ../subjects/minimal)" = 1
           KG_STORE=rdflib python gate_cli.py --scenario S2 --baseline record
           python3 -c 'import sys,json; sys.path.insert(0,"."); import schema_check as s; r=json.load(open("../runs/gate-s1.json")); e=s.validate(r, s.load("gate-report")); assert not e, e; assert r["schema_version"]==2, r["schema_version"]; print("report valid:", r["schema_version"], r["verdict"], r["exit_code"])'
-      - name: The gate after S6's change (task-0048) exits 1 on the suspect derived output, though the verdict reads PROCEED
+      - name: The gate brings in S6's later version (task-0049), BLOCKED on four invalidated statements, then after re-verification exits 1 on the suspect derived output (task-0048)
         run: KG_STORE=rdflib python tools/check_gate_after_change.py runs/gate-change
       - name: The capture path (task-0009), questionnaire, answers, the gate after, and nothing above proposed
         run: |

@@ -2,7 +2,8 @@
 
     python harness/gate_cli.py [--subject DIR] [--scenario ID] [--task NAME]
                                [--fail-on blocker|critical|major|minor|info]
-                               [--baseline none|record|FILE] [--no-load] [-f text|json] [-o FILE]
+                               [--baseline none|record|FILE] [--stage 1|2 [--reverify]] [--no-load]
+                               [-f text|json] [-o FILE]
 
 It loads the scenario of a subject into the store (KG_STORE: neo4j by default, rdflib in memory),
 runs the rules, resolves the task's required keys through the same gate the arms read
@@ -34,11 +35,20 @@ subject's record for the same scenario (its deterministic run; the record's gate
 task); ``--baseline FILE`` is an earlier report of this command or a deterministic.json. The gate
 never writes a baseline: recording one is a separate, deliberate act (``-o``, then commit it).
 
+``--stage 2`` brings in the scenario's later version after stage 1, as ``harness/run.py``'s stage 2
+does (``harness/change.py``, task-0049): the subject's ``[scenario.stage2]`` artefact re-ingested as
+its new version, the statements that rested on its changed fragments invalidated, and the earlier
+governed output registered as derived when the subject's record holds it. The gate is then the
+record's before re-verification; ``--reverify`` adds the owner's recorded re-verification of the
+named keys first, the record's after. The report names the version loaded (``version``) and the
+change (``change``: the artefact, the statements invalidated, the re-verified, the derived output).
+
 ``--no-load`` reads the store as it is, for a stack whose page has already loaded a scenario; the
 scenario named must be the one the store holds. A load wipes the store first, as a run does.
 
 The JSON report (-f json) is pinned by harness/schemas/gate-report.schema.json, version 2 (the
-schema's description says what changed from 1), and validated before it is printed.
+schema's description says what changed from 1 and what was added since), and validated before it
+is printed.
 """
 from __future__ import annotations
 
@@ -136,11 +146,12 @@ def compare(res: dict, base: dict, source: str) -> dict:
 
 
 def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loaded: bool,
-           block_levels: set[str], threshold: str, baseline: dict | None) -> dict:
+           block_levels: set[str], threshold: str, baseline: dict | None,
+           version: str | None = None, change: dict | None = None) -> dict:
     fs = findings(res, block_levels)
     fail = baseline["regression"] if baseline is not None else bool(at_or_above(fs, threshold))
     return {"schema_version": SCHEMA_VERSION, "tool": "knowgov gate", "subject": subject, "scenario": scenario, "task": task,
-            "store": store, "loaded": loaded, "verdict": res["verdict"], "why": res["why"], "threshold": threshold,
+            "store": store, "loaded": loaded, "version": version, "change": change, "verdict": res["verdict"], "why": res["why"], "threshold": threshold,
             "findings": fs, "counts": counts(fs),
             "keys": {"total": len(res["keys"]), "below_verified": len(res["below_verified"]), "flagged": len(res["flagged"])},
             "conflicts": len(res.get("conflicts") or []),
@@ -152,6 +163,11 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
 
 def render(rep: dict) -> str:
     out = [f"{rep['subject']} {rep['scenario']} {rep['task']}: {rep['verdict']} — {rep['why']}"]
+    ch = rep.get("change")
+    if ch:
+        out.append(f"  version  {ch['version']} of {ch['artefact']}: {len(ch['invalidated'])} statement(s) invalidated ({', '.join(ch['invalidated']) or 'none'}); "
+                   + (f"re-verified {', '.join(ch['reverified_statements']) or 'none'}" if ch["reverified"] else "before re-verification")
+                   + (f"; derived {ch['derived']} registered" if ch["derived"] else ""))
     for f in rep["findings"]:
         out.append(f"  {f['severity']:8s} {f['message']}")
     c = rep["counts"]
@@ -200,6 +216,13 @@ def run(args) -> dict:
         raise CannotRun(f"{SUBJECT.id}: no scenario {scenario!r}; the subject declares {SUBJECT.order or 'none'}")
     if args.task not in TASKS:
         raise CannotRun(f"{SUBJECT.id}: no task {args.task!r}; the subject declares {sorted(TASKS) or 'none'}")
+    if args.reverify and args.stage != 2:
+        raise CannotRun("--reverify is a step of stage 2: add --stage 2")
+    if args.no_load and args.stage != 1:
+        raise CannotRun("--stage 2 loads the change; --no-load reads the store as it is: drop one")
+    cfg2 = SUBJECT.scenario(scenario).get("stage2") if args.stage == 2 else None
+    if args.stage == 2 and not cfg2:
+        raise CannotRun(f"{SUBJECT.id}: {scenario} has no later version (no [scenario.stage2])")
     base = _baseline(args.baseline, SUBJECT, scenario, args.task)
     from gate import resolve
     from store import open_store
@@ -207,14 +230,20 @@ def run(args) -> dict:
         st = open_store(instance=SUBJECT.id)
     except Exception as e:  # noqa: BLE001
         raise CannotRun(f"the store cannot be opened: {e}") from e
+    change = None
     try:
         if args.no_load:
             acts = st.extraction_activities()   # act:extract:<scenario>:<version>, as the page reads it
             loaded = acts[0].split(":")[2] if acts else None
             if loaded != scenario:
                 raise CannotRun(f"the store holds {loaded or 'no scenario'}, not {scenario!r}; load it, or drop --no-load")
+            version = acts[-1].split(":")[3]
         else:
             _load(st, scenario)
+            version = "v1"
+            if cfg2:
+                change = _change(st, SUBJECT, scenario, cfg2, args.reverify)
+                version = change["version"]
         res = resolve(st, args.task)
     except CannotRun:
         raise
@@ -228,7 +257,25 @@ def run(args) -> dict:
     spec = TASKS[args.task]
     return report(res, subject=SUBJECT.id, scenario=scenario, task=args.task, store=st.name, loaded=not args.no_load,
                   block_levels=set(spec["block_levels"]), threshold=args.fail_on,
-                  baseline=compare(res, *base) if base else None)
+                  baseline=compare(res, *base) if base else None, version=version, change=change)
+
+
+def _change(st, subject, scenario: str, cfg2: dict, reverified: bool) -> dict:
+    """Stage 2 on a store holding stage 1, as harness/run.py's ``stage2`` does it (harness/change.py):
+    the derived output is the subject's record's (``[scenario.stage2.derived]``), registered with the
+    statements the stage-1 codegen gate served, as run.py registers it from its runs folder."""
+    from change import apply_change, reverify, version_of
+    from gate import resolve
+    from load import pristine_values
+    derived = cfg2.get("derived", {})
+    code_path = subject.record_dir / derived.get("from_scenario", scenario) / derived.get("file", "run1_G.py")
+    code = code_path.read_text(encoding="utf-8") if derived and code_path.exists() else None
+    ids = [a["id"] for v in resolve(st, "codegen")["keys"].values() for a in v["assertions"]] if code else []
+    ch = apply_change(scenario, cfg2, st, code, ids)
+    rever = reverify(scenario, cfg2, pristine_values(), st, ch["kit2"]) if reverified else []
+    return {"artefact": cfg2["artefact"], "version": version_of(cfg2),
+            "invalidated": sorted(x["id"] for x in ch["D3_stale"]["invalidated"]),
+            "reverified": reverified, "reverified_statements": sorted(rever), "derived": ch["derived"]}
 
 
 def _load(st, scenario: str) -> None:
@@ -259,6 +306,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--task", default="codegen", help="the task class (default: codegen)")
     ap.add_argument("--fail-on", choices=SEVERITIES, default="blocker", help="the severity at or above which the gate exits 1 (default: blocker)")
     ap.add_argument("--baseline", default="none", help="none (default), record, or the path of an earlier report or deterministic.json: exit 1 only on a regression")
+    ap.add_argument("--stage", type=int, choices=[1, 2], default=1,
+                    help="1 (default): the scenario as first loaded; 2: then its later version, the subject's [scenario.stage2] change, before re-verification")
+    ap.add_argument("--reverify", action="store_true", help="with --stage 2: the owner's recorded re-verification of the named keys before the gate")
     ap.add_argument("--no-load", action="store_true", help="read the store as it is instead of loading the scenario first")
     ap.add_argument("-f", "--format", choices=["text", "json"], default="text")
     ap.add_argument("-o", "--output", help="also write the JSON report to this file")
