@@ -4,6 +4,13 @@ Each rule reads and writes through the store port (store.py); the adapter holds 
 statements. R-CORROBORATE and R-CONFLICT fetch candidate pairs and decide value
 compatibility in Python (``compatible``), because a behaviour value is a ``k=v;k=v``
 string. Status is set only by the loaders, the rules and recorded human acts.
+
+A person's statement (basis ``elicited``, version ``capture``; load.py ``load_captures``) is paired
+with the documents' extracted statements of any version (task-0038, doc-0007 F3): one that
+contradicts a document raises a conflict gap naming both, so a reviewer sees every side
+(decision-0002); one that agrees is recorded as corroborating, and neither side rises (a person's
+statement stays proposed until a review approves it). "Nobody knows" (an empty value) is no value
+and pairs with nothing.
 """
 
 from __future__ import annotations
@@ -69,21 +76,45 @@ def r_struct(st) -> list[dict]:
     return st.structural_violations()
 
 
+PERSON = "elicited"      # a capture's basis (load.py load_captures)
+DOCUMENT = "extracted"
+
+
+def pairs(st):
+    """(pair, whether one side is a person's): document pairs as before, and a person's statement
+    against a document's; a person's empty answer ("nobody knows") pairs with nothing."""
+    for p in st.candidate_pairs(across=PERSON):
+        if any(b == PERSON and v == "" for b, v in ((p["ba"], p["va"]), (p["bb"], p["vb"]))):
+            continue
+        bases = (p["ba"], p["bb"])
+        person = bases.count(PERSON) == 1
+        if person and DOCUMENT not in bases:
+            continue
+        yield p, person
+
+
 def r_corroborate(st) -> int:
     n = 0
-    for p in st.candidate_pairs():
-        if p["ba"] == "extracted" and p["bb"] == "extracted" and compatible(p["va"], p["vb"], p["pred"]) == "equal":
-            st.corroborate(p["a"], p["b"])
-            n += 1
+    for p, person in pairs(st):
+        if person or (p["ba"] == DOCUMENT and p["bb"] == DOCUMENT):
+            if compatible(p["va"], p["vb"], p["pred"]) == "equal":
+                st.corroborate(p["a"], p["b"], promote=not person)   # a person agreeing raises nothing
+                n += 1
     return n
 
 
 def r_conflict(st, scenario: str) -> list[dict]:
-    out = []
-    for p in st.candidate_pairs():
+    out, n = [], 0
+    for p, person in pairs(st):
         if compatible(p["va"], p["vb"], p["pred"]) == "conflict":
-            gid = f"gap:conflict:{p['key']}:{len(out)}"
-            st.mark_conflict(p["a"], p["b"], gid, p["key"], scenario)
+            if person:
+                gid = f"gap:conflict:{p['key']}:{p['a']}~{p['b']}"
+                text = (f"a person and a document state different values for {p['key']}: "
+                        f"{p['aa']} says {p['va']}; {p['ab']} says {p['vb']}")
+            else:
+                gid, text = f"gap:conflict:{p['key']}:{n}", None
+                n += 1
+            st.mark_conflict(p["a"], p["b"], gid, p["key"], scenario, text)
             out.append({"key": p["key"], "a": p["a"], "va": p["va"], "b": p["b"], "vb": p["vb"]})
     return out
 
