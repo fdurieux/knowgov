@@ -3,11 +3,11 @@ id: TASK-0037
 title: >-
   A review record for captured statements: rulings, a declared gap closed by its
   owner, and the six-month lapse
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-02T23:22:00Z'
-updated_date: '2026-11-03T22:33:00Z'
+updated_date: '2026-11-03T22:38:00Z'
 labels:
   - capture
 milestone: m-2
@@ -34,7 +34,7 @@ doc-0007 (the John Doe walkthrough) found that capture as built moves a key and 
 - [x] #2 An approved elicited statement loads as approved with an approval {by, on, record}; a rejected statement, elicited or extracted, leaves the live set the gate reads
 - [x] #3 A declared gap is closed only by a ruling whose record names the gap's owner; any other reviewer's close is refused
 - [x] #4 After `until` an approval lapses and the statement reads proposed again
-- [ ] #5 CI shows S2' (REQ-06 not declared open) going BLOCKED, then QUALIFIED after capture, then PROCEED after a review, by gate_cli exit codes, on both store adapters
+- [x] #5 CI shows S2' (REQ-06 not declared open) going BLOCKED, then QUALIFIED after capture, then PROCEED after a review, by gate_cli exit codes, on both store adapters
 - [x] #6 instance/README.md "Capturing what people know" describes the review step in the adopter register
 <!-- AC:END -->
 
@@ -60,4 +60,12 @@ Verified: tests/run_tests.py 136/136; tools/check_review_walkthrough.py passes o
 Finding: S2 itself cannot reach PROCEED on the example register. OD-1 names compliance as its owner, and the register has no compliance unit, so decision-0002 point 3 refuses every close (the walkthrough asserts the refusal). doc-0009's S2 measure needs a compliance unit and a closes handle in ieam-register, or a declaration naming an existing unit.
 Order: decision-0002 put task-0038 first; this task was started on the maintainer's request before it. Until 0038, a person contradicting a document is visible to the reviewer only in the bundle, not as a conflict gap.
 Not in scope, left for its own change: capture ingest still checks from against the pattern only, not the issued list (decision-0002 consequence 3); the existing capture CI step answers as steward-1, which is not issued.
+
+CI on #82 (head 2454db1): tests, rdflib and stack all green; tools/check_review_walkthrough.py passed on rdflib (harness.yml) and on Neo4j (the stack job).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+A person's review of what the store holds, under decision-0002 and ieam-register decision 0009. harness/review.py checks a review file (rulings approved/rejected/referred, declared gaps closed) and refuses it whole, naming the rule: unissued or withdrawn handle, missing role (approves for a person's statement, closes for a document's, a dispute or a gap), the giver ruling on its own statement, a unit not owning the key or the gap, a half-settled dispute or one settled on two values. capture.py review writes it to captures/reviews/; load_reviews applies it after the rules on every load of its scenario, re-checking it; an approval of what a person gave lapses six months after the capture (KG_TODAY). Five basis-agnostic port operations on both adapters. tools/check_review_walkthrough.py, run in CI on rdflib and Neo4j: S2' BLOCKED 1 -> QUALIFIED 0 -> PROCEED 0 (--fail-on major), QUALIFIED after the lapse; S4 settled whole. Record unchanged on both stores; tests 136/136. Risks and follow-ups: real S2 cannot close OD-1 on the example register (compliance is no unit; needs ieam-register); task-0038 (person vs document in the conflict rule) still to do; ingest does not yet check from against the issued list.
+<!-- SECTION:FINAL_SUMMARY:END -->
