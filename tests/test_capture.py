@@ -70,7 +70,7 @@ def test_a_key_no_map_row_names_goes_to_unassigned():
 def _answered(**over) -> dict:
     nodes = capture.register_nodes(ROOT / "demo" / "register")
     doc = tomllib.loads(capture.questionnaires(_s2(), CARGO_QUOTE, "S2", "codegen", nodes, TODAY)["ORG-0002"])
-    doc["answered"] = {"from": over.get("handle", "steward-1"), "on": over.get("on", "2026-11-02")}
+    doc["answered"] = {"from": over.get("handle", "employee-1"), "on": over.get("on", "2026-11-02")}
     for it in doc["item"]:
         if it["key"] == "response|hold_presence":
             it["answer"] = over.get("answer", "present when status is review_hold")
@@ -85,10 +85,10 @@ def test_an_answered_questionnaire_is_normalised_with_the_registers_three_fields
     pattern = capture.handle_pattern(ROOT / "demo" / "register")
     errs, cap = capture.check_answers(_answered(), pattern, keys, TODAY)
     assert errs == [], errs
-    text = capture.capture_toml(cap, "captures/2026-11-02-ORG-0002-steward-1.toml")
+    text = capture.capture_toml(cap, "captures/2026-11-02-ORG-0002-employee-1.toml")
     c = tomllib.loads(text)
-    assert {k: c["capture"][k] for k in ("from", "on", "record")} == {"from": "steward-1", "on": dt.date(2026, 11, 2),
-                                                                     "record": "captures/2026-11-02-ORG-0002-steward-1.toml"}
+    assert {k: c["capture"][k] for k in ("from", "on", "record")} == {"from": "employee-1", "on": dt.date(2026, 11, 2),
+                                                                     "record": "captures/2026-11-02-ORG-0002-employee-1.toml"}
     assert c["answer"] == [{"key": "response|hold_presence", "value": "present when status is review_hold", "note": ""}]
     assert c["unknown"] == [{"key": "QuoteAPI|on_screening_outage", "note": "compliance has not decided"}]
 
@@ -109,6 +109,39 @@ def test_a_name_a_future_date_a_contradiction_or_nothing_answered_is_refused():
         assert any(expect in e for e in errs), (over, errs)
     doc = _answered(answer="", nobody_knows=False)
     assert "no item is answered" in capture.check_answers(doc, pattern, keys, TODAY)[0]
+
+
+def test_ingest_refuses_a_handle_the_register_has_not_issued_by_the_answers_date():
+    """task-0055: decision 0009's issued list, as review.check reads it; each refusal names the rule."""
+    import review
+    keys = set(CARGO_QUOTE.tasks["codegen"]["keys"])
+    reg = ROOT / "demo" / "register"
+    pattern, handles = capture.handle_pattern(reg), review.issued_handles(reg)
+    assert handles and "employee-1" in handles, "the vendored register lists issued handles"
+    assert capture.check_answers(_answered(), pattern, keys, TODAY, handles)[0] == []
+    later = dict(handles, **{"employee-9": {"unit": "ORG-0002", "roles": {"gives"}, "issued": dt.date(2026, 11, 3), "withdrawn": None},
+                             "employee-8": {"unit": "ORG-0002", "roles": {"gives"}, "issued": dt.date(2026, 1, 1),
+                                            "withdrawn": dt.date(2026, 11, 2)}})
+    for handle, expect in (("steward-1", "not an issued handle (decision 0009)"),
+                           ("employee-9", "was issued on 2026-11-03, after the answer's date 2026-11-02"),
+                           ("employee-8", "was withdrawn on 2026-11-02, by the answer's date 2026-11-02")):
+        errs, _ = capture.check_answers(_answered(handle=handle), pattern, keys, TODAY, later)
+        assert len(errs) == 1 and expect in errs[0], (handle, errs)
+    # withdrawn after the answer: the answer stands
+    late = dict(handles, **{"employee-8": dict(later["employee-8"], withdrawn=dt.date(2026, 11, 3))})
+    assert capture.check_answers(_answered(handle="employee-8"), pattern, keys, TODAY, late)[0] == []
+    # a name is refused by the pattern, once, not again by the list
+    errs, _ = capture.check_answers(_answered(handle="Jane Doe"), pattern, keys, TODAY, handles)
+    assert len(errs) == 1 and "not an opaque handle" in errs[0], errs
+    # a register that lists none: the pattern alone
+    for none in (None, {}):
+        assert capture.check_answers(_answered(handle="steward-1"), pattern, keys, TODAY, none)[0] == []
+
+
+def test_ingest_reads_the_registers_issued_list():
+    src = (ROOT / "harness" / "capture.py").read_text(encoding="utf-8")
+    block = src[src.index("def _ingest"):src.index("def _review")]
+    assert "review.issued_handles(reg)" in block
 
 
 def test_the_handle_pattern_is_the_registers_when_it_defines_one():
