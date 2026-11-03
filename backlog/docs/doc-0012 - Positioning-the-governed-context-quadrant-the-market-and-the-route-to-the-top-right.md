@@ -5,7 +5,7 @@ title: >-
   top-right
 type: specification
 created_date: '2026-11-03T22:44:00Z'
-updated_date: '2026-11-03T22:51:00Z'
+updated_date: '2026-11-03T23:08:00Z'
 tags:
   - brief
   - positioning
@@ -96,4 +96,4 @@ Targets are the first-scored rubric's; under the neutral rubric each stage sits 
 - The outcome study is null: V2 and V3 stay mechanism claims, and the position is a niche player with a strong method.
 - A paying pilot, a verified export route, or an MCP surface: re-score E and V4, re-issue the figure with the neutral rubric.
 
-Nothing else changes. S1's items became tasks on the maintainer's go of 2026-11-03, in milestone m-8 "The lighthouse": task-0054 (choose the incumbent and the pilot; the connector choice is the maintainer's), task-0055 (the connector, verified), task-0056 (the gate behind a read-only MCP server), task-0057 (the outcome study pre-registered), task-0058 (licence for adapters), task-0059 (security pack), task-0060 (legal entity and support terms), task-0061 (one buyer-facing name). doc-0009's two milestones are m-5 (capture) and m-6 (adopter), doc-0011's code traceability m-7; m-8 runs beside them and does not wait for them.
+Nothing else changes. S1's items became tasks on the maintainer's go of 2026-11-03, in milestone m-8 "The lighthouse": task-0062 (choose the incumbent and the pilot; the connector choice is the maintainer's), task-0063 (the connector, verified), task-0056 (the gate behind a read-only MCP server), task-0057 (the outcome study pre-registered), task-0058 (licence for adapters), task-0059 (security pack), task-0060 (legal entity and support terms), task-0061 (one buyer-facing name). doc-0009's two milestones are m-5 (capture) and m-6 (adopter), doc-0011's code traceability m-7; m-8 runs beside them and does not wait for them.
