@@ -32,7 +32,10 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   gate contract, JSON under `harness/schemas/preload-report.schema.json`; `instance/ci/` is the
   template an instance copies, its script proven in `harness.yml` (task-0045). Form, not knowledge. `harness/gate_cli.py`
   the gate as a command (exit 0/1/2, `--fail-on`, `--baseline record|FILE`, JSON pinned by
-  `harness/schemas/gate-report.schema.json` through `harness/schema_check.py`; task-0007; version 2: stale statements and suspect derived outputs are findings, task-0048, shown after S6's change by `tools/check_gate_after_change.py`). `KG_SUBJECT` selects the root; nothing in `harness/` or
+  `harness/schemas/gate-report.schema.json` through `harness/schema_check.py`; task-0007; version 2: stale statements and suspect derived outputs are findings, task-0048, shown after S6's change by `tools/check_gate_after_change.py`). `harness/mcp_server.py` the gate and the three-valued answer as a read-only MCP server (stdio, or
+  Streamable HTTP on 127.0.0.1 with `KG_MCP_TOKEN` for any wider bind; standard library; the store behind a
+  view that lets the port's reads through and nothing else; `tools/check_mcp_server.py` holds its report equal
+  to `gate_cli.py --no-load`'s on a live store; task-0056). `KG_SUBJECT` selects the root; nothing in `harness/` or
   `demo/` names a subject, a document or a scenario (task-0002). Two public
   subjects: `cargo_quote` (the proof of concept, seven scenarios, the scored
   record) and `jef_data_load` (the recreation experiment's kit, the degradation

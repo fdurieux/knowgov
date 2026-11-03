@@ -11,7 +11,13 @@ LIVE = ["proposed", "validated", "verified", "approved", "disputed", "invalidate
 
 
 def resolve(s, task: str) -> dict:
-    spec = TASKS[task]
+    return resolve_spec(s, task, TASKS[task])
+
+
+def resolve_spec(s, task: str, spec: dict) -> dict:
+    """The gate over any key set: ``spec`` is a task's shape (keys, block_levels,
+    max_unverified_share); ``task`` only names it in the result. The MCP server resolves an
+    agent's own key set through here, so it is never a second gate."""
     keys = {}
     for key in spec["keys"]:
         rows, pending = s.key_evidence(key, LIVE), []
@@ -63,6 +69,20 @@ def resolve(s, task: str) -> dict:
     return {"task": task, "verdict": verdict, "why": why, "keys": keys, "conflicts": conflicts,
             "blocked_keys": blocked_keys, "below_verified": below, "flagged": flagged,
             "stale": stale, "suspect_derived": suspect}
+
+
+THREE_VALUED_STATUSES = ["verified", "approved", "validated", "proposed"]
+
+
+def three_valued(s, key: str) -> dict:
+    """The three-valued answer for one key (D5): ``unknown`` when no assertion exists,
+    ``documented_absent`` when every live assertion says NONE, else ``asserted``."""
+    rows = s.assertions_on_key(key, THREE_VALUED_STATUSES)
+    if not rows:
+        return {"answer": "unknown", "why": "no assertion for this key (not a documented absence)"}
+    if all(r["value"] == "NONE" for r in rows):
+        return {"answer": "documented_absent", "assertions": rows}
+    return {"answer": "asserted", "assertions": rows}
 
 
 def render_key(key: str, v: dict) -> list[str]:

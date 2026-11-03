@@ -266,3 +266,50 @@ In plain English: the same stack as the demo, with your folder mounted read-only
 The page reads your register (`/instance/register`) and lists your subjects
 (`/instance/subjects`), and none of the public ones. Leave `-f docker-compose.override.yml` out
 to pull the published image instead of building it. One stack serves one instance.
+
+## Letting an AI assistant ask the gate
+
+An AI coding assistant can ask knowgov the gate's question itself, before it writes anything:
+*may I build on this?* It does so through MCP, the Model Context Protocol, a standard way for an
+assistant to call tools a local program offers. `harness/mcp_server.py` is that program. It offers
+three tools, and all of them only read:
+
+| Tool | What the assistant asks | What it gets back |
+|---|---|---|
+| `store_status` | What does the store hold? | the subject, the scenario loaded, the task classes and their required keys |
+| `gate_verdict` | May I build on the knowledge this task needs, or on these keys? | PROCEED, QUALIFIED or BLOCKED with the findings: the same report `gate_cli.py --no-load -f json` prints |
+| `three_valued_answer` | What is known about this one key? | asserted, documented absent, or unknown, with where each statement came from and who verified it |
+
+The server reads the store as the page or a run left it. It never loads a scenario and never
+writes to the store, the register or your instance; a change to the record is still a pull
+request. Load what the assistant should see first, on the page or with a run.
+
+**With the stack running** (above), the simplest connection needs no extra port: the assistant
+starts the server inside the container and talks to it over the connection it opened. For Claude
+Code:
+
+```bash
+claude mcp add knowgov -- docker compose -f /path/to/knowgov/demo/docker-compose.yml exec -T app python harness/mcp_server.py
+```
+
+In plain English: `claude mcp add knowgov` registers a tool server named knowgov, and everything
+after `--` is the command that starts it. Here that command runs `harness/mcp_server.py` in the
+`app` container. Other assistants take the same command in their MCP settings, usually as
+`"command": "docker"` with the rest as `"args"`.
+
+**Over HTTP**, for an assistant that connects to a URL:
+
+```bash
+python harness/mcp_server.py --http            # http://127.0.0.1:8765/mcp
+```
+
+It listens on this computer only (`127.0.0.1`), so nothing else on the network can reach it.
+`--host` and `--port` change that, or `KG_MCP_HOST` and `KG_MCP_PORT`. An address other than this
+computer's is refused unless `KG_MCP_TOKEN` holds a secret; every request must then carry it as
+`Authorization: Bearer <secret>`. A request sent from a web page on another site is refused
+whatever the address. The tools return your documents' text, so keep the server private: the
+token is a lock, not a reason to put it on the internet.
+
+Outside the container, the server needs the same Python packages as the harness and the same
+store settings (`KG_STORE`, and for rdflib `KG_RDFLIB_FILE`, the file a run left). For a store
+with nothing loaded, every tool says so instead of answering.
