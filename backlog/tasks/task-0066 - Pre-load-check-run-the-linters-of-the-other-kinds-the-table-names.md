@@ -1,9 +1,11 @@
 ---
 id: TASK-0066
 title: 'Pre-load check: run the linters of the other kinds the table names'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-03T23:04:00Z'
+updated_date: '2026-11-03T23:46:00Z'
 labels:
   - instance
   - gate
@@ -31,3 +33,19 @@ tools/preload_check.py (task-0045) runs one linter, pumllint for plantuml-models
 - [ ] #4 kinds.toml and the RUNNERS table name the same tool for every kind that runs (tests/test_instance.py or tests/test_preload.py holds it)
 - [ ] #5 instance/README.md and docs/guide.md §5 list which kinds are now checked
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. RUNNERS gains api-contracts -> Spectral (run_spectral): @stoplight/spectral-cli 6.17.0, KG_SPECTRAL or spectral on PATH, the instance's .spectral.yaml at its root else instance/ci/spectral.yaml (spectral:oas + spectral:asyncapi); severities error->major, warn->minor, info/hint->info; rc from the mapped findings at the threshold.
+2. A runner whose tool is not installed leaves its files unchecked naming it (both runners, pumllint included), exit unaffected; an installed linter that fails stays cannot-run (2).
+3. kinds.toml lint.runs = the tool RUNNERS runs (pumllint, Spectral), one of the tools lint.tool names; tests/test_preload.py holds them equal and the template's pins equal to harness.yml's.
+4. instance/ci/preload-check.yml installs Spectral pinned; harness.yml installs it after the task-0045 step (which still shows api-contracts unchecked without it) and proves clean 0, a planted broken $ref 1, through the template's script and --since.
+5. instance/README.md, docs/guide.md §5 and Limits, CLAUDE.md.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Kinds added: api-contracts (Spectral 6.17.0). Not added: specification-prose (Vale needs a styles package per organisation; markdownlint checks Markdown form only), acceptance-scenarios (gplint), bpmn-process-models (bpmnlint), decision-tables (dmnlint, .dmn only): each a further runner with its own pin. Spectral over vacuum: vacuum installs a Go binary fetched from GitHub releases at npm install time; Spectral is plain npm, and its exit is 0/1/2. Change to task-0045's contract, as AC #2 asks: a linter not installed is now 'unchecked' (exit 0), not 'cannot run' (2), for pumllint too; doc-0008 §5 had listed 'a linter missing' under 2. Measured: the example's openapi.yaml has 4 Spectral warnings and no error (clean at major); a dangling $ref is an invalid-ref error (major, exit 1). Verified: tests 160/160 (also a bare venv); harness.yml's new step run locally with Spectral 6.17.0 from npm (KG_SPECTRAL in place of npm -g).
+<!-- SECTION:NOTES:END -->

@@ -115,13 +115,16 @@ python tools/preload_check.py /path/to/your/instance --since origin/main
 
 In plain English: this runs, for each document under `artefacts/<kind>/`, the linter the
 programme's table names for its kind (the `lint` field of `instance/kinds.toml`), when that
-linter can run here. Today one can: pumllint, for `plantuml-models`. Every other kind's files are
-listed as *UNCHECKED*, with the tool the table names (or "names no linter"), so the gap stays in
-sight; an unchecked file does not fail the check, and it is never passed quietly. Without
+linter can run here. Two kinds are checked today: `plantuml-models` with pumllint, and
+`api-contracts` with Spectral (its built-in OpenAPI and AsyncAPI rules, or your own
+`.spectral.yaml` at the instance root). Every other kind's files, and a kind whose linter is not
+installed where the check runs, are listed as *UNCHECKED*, with the tool the table names (or
+"names no linter"), so the gap stays in sight; an unchecked file does not fail the check, and it
+is never passed quietly. Spectral's errors count as `major`, its warnings as `minor`. Without
 `--changed` or `--since` it checks every file; with them, only the files named, or changed since
 that git reference. It exits 0 when every checked file is clean, 1 when one has a finding at or
-above `--fail-on` (default `major`, pumllint's own), and 2 when it cannot run: a linter not
-installed, a folder that is not a kind, a named file that does not exist. `-f json` prints the
+above `--fail-on` (default `major`, pumllint's own), and 2 when it cannot run: a linter that is
+installed but fails, a folder that is not a kind, a named file that does not exist. `-f json` prints the
 report under `harness/schemas/preload-report.schema.json`. The linter runs with your instance as
 its working directory, so your own pumllint configuration applies.
 
@@ -129,8 +132,9 @@ To run it on every pull request, copy `instance/ci/preload-check.yml` into your 
 `.github/workflows/`, pin `KNOWGOV_REF` to a knowgov tag, and make the job a required check with
 a reviewer who is not the author. It lints the documents the pull request changes, then runs
 `tools/check_instance.py`; the script it calls, `instance/ci/preload-check.sh`, is the one this
-repository's CI runs on the example instance. Your other linters (Spectral, Vale, bpmnlint...) go
-in as steps of their own before it. The load reads only what was merged.
+repository's CI runs on the example instance. It installs the linters the check runs, pinned
+(`PUMLLINT`, `SPECTRAL`). Your other linters (Vale, gplint, bpmnlint...) go in as steps of their
+own before it. The load reads only what was merged.
 
 **What it does not do.** It checks *form*, one file at a time: is this a well-formed document
 of its kind? It does not check *knowledge*. Two well-formed documents that disagree, or a fact
