@@ -179,7 +179,12 @@ subject's `captures/` folder, which you commit like any other change. From then 
 load reads that folder. An answer becomes a statement *proposed* by that person on that date,
 and a "nobody knows" becomes a declared gap with their handle and the date. Neither goes further
 on its own. A proposed statement is still below verified, so the gate lists it as an assumption
-an assistant must state. Nothing the harness does verifies a person's answer, nor a model's
+an assistant must state. If the key already holds a validated (or better) statement from your
+documents, an answer nobody has reviewed yet does not lower it: the gate leaves it out of the key's
+level and marks it *pending review* in what the assistant reads (knowgov decision-0004). So a
+pipeline that runs `gate_cli.py --baseline record` stays green after a capture that agrees with the
+documents or fills an absent key, and fails after one that contradicts them, since the key is then
+disputed until a reviewer settles it. Nothing the harness does verifies a person's answer, nor a model's
 guess. Review is a person's act.
 
 **Reviewing what people said.** A captured answer stays *proposed* until a second person rules
