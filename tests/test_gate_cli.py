@@ -195,14 +195,19 @@ def test_every_jef_record_scenario_gives_a_valid_report():
 
 def test_a_later_version_is_asked_for_coherently_or_the_gate_cannot_run():
     """task-0049: --stage 2 needs a [scenario.stage2]; --reverify is a step of it; --no-load reads,
-    so it cannot also load a change. Each refusal is exit 2, before any store is opened."""
+    so it cannot also load a change. Each refusal is exit 2, before any store is opened. On the
+    process's subject (KG_SUBJECT): the J-F subject has no scenario with a later version, so only
+    the refusals that need none run there."""
     from subject import SUBJECT
     first = SUBJECT.order[0]
-    plain = next(sc for sc in SUBJECT.order if not SUBJECT.scenario(sc).get("stage2"))
-    changed = next(sc for sc in SUBJECT.order if SUBJECT.scenario(sc).get("stage2"))
-    for argv, why in ((["--scenario", plain, "--stage", "2"], "no later version"),
-                      (["--scenario", first, "--reverify"], "add --stage 2"),
-                      (["--scenario", changed, "--stage", "2", "--no-load"], "drop one")):
+    plain = next((sc for sc in SUBJECT.order if not SUBJECT.scenario(sc).get("stage2")), None)
+    changed = next((sc for sc in SUBJECT.order if SUBJECT.scenario(sc).get("stage2")), None)
+    cases = [(["--scenario", first, "--reverify"], "add --stage 2")]
+    if plain:
+        cases.append((["--scenario", plain, "--stage", "2"], "no later version"))
+    if changed:
+        cases.append((["--scenario", changed, "--stage", "2", "--no-load"], "drop one"))
+    for argv, why in cases:
         err = io.StringIO()
         with redirect_stderr(err):
             assert gate_cli.main(argv) == 2, argv
