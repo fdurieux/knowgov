@@ -5,11 +5,19 @@ the spec's status lists, and employee-1's with held_unscreened. The store half, 
 instance, is tools/check_capture_pairing.py: harness.yml runs it on rdflib, the stack job on Neo4j."""
 from __future__ import annotations
 
+import re
 import sys
+import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "harness"), str(Path(__file__).resolve().parent)]
+try:
+    import extract  # noqa: F401  (needs PyYAML, which the stdlib test job lacks)
+except ImportError:
+    # rules.py takes only NONE from extract.py; stand in with the value the file defines
+    _none = re.search(r'^NONE = "([^"]*)"$', (ROOT / "harness" / "extract.py").read_text(encoding="utf-8"), re.M).group(1)
+    sys.modules["extract"] = types.SimpleNamespace(NONE=_none)
 import rules  # noqa: E402
 
 KEY = "response|statuses"
