@@ -106,7 +106,15 @@ in as steps of their own before it. The load reads only what was merged.
 of its kind? It does not check *knowledge*. Two well-formed documents that disagree, or a fact
 nobody wrote down, pass it. That is the knowgov gate's question, `harness/gate_cli.py`, after the
 load; neither replaces the other. And both pass documents that are consistently wrong. The check
-does not record its verdict in the store, and keeps no baseline of its own yet.
+does not record its verdict in the store.
+
+**Starting from documents that already have findings.** Run the check once with
+`-o preload-baseline.json`. Committing that report is your decision. From then on,
+`--baseline preload-baseline.json` (set `KG_PRELOAD_BASELINE` in the CI template) lists every
+finding the baseline holds as *HELD* and fails only on a new one, or on the same one at a worse
+severity. A finding is the same when its file, rule and message are, wherever its line moves. The
+check never writes the baseline and refuses `-o` naming it: you move it on with a reviewed commit
+after a clean-up, never from inside the check.
 
 ## Trying it with public content first
 
