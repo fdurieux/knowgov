@@ -18,7 +18,9 @@ folder (``[capture] dir`` in subject.toml, ``captures/`` by default). Every load
 person and the date. The person is an opaque handle, as ieam-register decision 0008 defines it
 (``from``, ``on``, ``record``); never a name.
 
-``review`` checks a person's review of what the loaded scenario holds (harness/review.py, under
+``review --show`` prints each ruled answer with its note and writes nothing: the reviewer reads it
+before ruling, since a note can identify the person behind the handle and no pattern can tell
+(doc-0007 F6). ``review`` checks a person's review of what the loaded scenario holds (harness/review.py, under
 decision-0002) and writes it into ``<capture dir>/reviews/``, where every load of its scenario
 reads it after the rules: an approved statement goes to approved, a rejected one leaves the live
 set, a declared gap its owner closes stops blocking. Refused, it is not written (exit 1).
@@ -108,6 +110,8 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
             f"# Subject {subject.id}, scenario {scenario}, task {task}, generated {today.isoformat()} from the gate's result.",
             "# For each item: write the value in `answer`, or set `nobody_knows = true` if no one can say.",
             "# Leave an item untouched to skip it. Fill [answered] with your handle (lower case, never your name) and the date.",
+            "# A note must not identify you: no name, no role only you hold, no \"as the author of ...\". It is copied",
+            "# beside your answer wherever the answer goes; nothing checks it but the person who reviews it.",
             "# Then: python harness/capture.py ingest <this file>",
             "",
             "[questionnaire]",
@@ -192,6 +196,24 @@ def capture_toml(cap: dict, record: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def show_rulings(doc: dict, captures: dict[str, dict]) -> str:
+    """What the reviewer reads before ruling (doc-0007 F6): each ruled answer's value and note, as the
+    capture holds them. A note can identify the person behind the handle, and no pattern can tell; the
+    reviewer checks it, and rejects a statement whose note does, so that a new capture without it replaces it."""
+    out = []
+    for i, ru in enumerate(doc.get("ruling", []), 1):
+        aid = str(ru.get("assertion", ""))
+        c = captures.get(aid)
+        if c is None:
+            out.append(f"ruling {i} ({aid}): not a captured answer")
+            continue
+        out.append(f"ruling {i} ({aid}): {c['from']} on {c['on']}: {c['value']!r}")
+        out.append(f"  note: {c['note']!r}" if c["note"] else "  note: none")
+    if any(captures.get(str(ru.get("assertion", "")), {}).get("note") for ru in doc.get("ruling", [])):
+        out.append("Check each note names no one and points at no one (\"as the author of ...\"); reject the statement if it does.")
+    return "\n".join(out) + "\n" if out else "the review has no ruling\n"
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="capture.py", description="Questionnaires per owner from the gate's gaps, and their answers back in.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -205,6 +227,7 @@ def main(argv: list[str] | None = None) -> int:
     ra = sub.add_parser("review", help="check a review of the loaded scenario and add it to the subject's reviews")
     ra.add_argument("review", type=Path)
     ra.add_argument("--scenario", help="the scenario to rule on (default: the review's [review] scenario, else the subject's first)")
+    ra.add_argument("--show", action="store_true", help="print each ruled answer with its note, before ruling; write nothing")
     args = ap.parse_args(argv)
     sys.path.insert(0, str(HERE))
     try:
@@ -281,6 +304,9 @@ def _review(args) -> int:
         doc = tomllib.loads(args.review.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as e:
         raise CannotRun(f"{args.review}: {e}") from e
+    if args.show:
+        print(show_rulings(doc, review.capture_index(SUBJECT.capture_dir)), end="")
+        return 0
     scenario = args.scenario or str(doc.get("review", {}).get("scenario", "")) or (SUBJECT.order[0] if SUBJECT.order else "")
     if scenario not in SUBJECT.scenarios:
         raise CannotRun(f"{SUBJECT.id}: no scenario {scenario!r}")
