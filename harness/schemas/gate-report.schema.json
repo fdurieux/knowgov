@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/fdurieux/knowgov/harness/schemas/gate-report.schema.json",
   "title": "knowgov gate report",
-  "description": "What `python harness/gate_cli.py -f json` prints (task-0007): the gate's verdict for one task of one subject's scenario, its findings on the severity ladder, the threshold, the baseline comparison when one was asked for, and the exit code. Version 2 (task-0048); a change is additive or a new version. From version 1: a finding carries `kind` (key, task, stale, suspect_derived), `ref` (the statement or derived output it is about, null for a key or the task) and `related` (a stale statement's verified or approved successors; the invalidated statements a suspect derived output used); a stale statement on a required key is a finding (info when a verified or approved successor replaces it, major when none does) and a suspect derived output is a blocker, so both count toward --fail-on; `stale` and `suspect_derived` are lists of ids instead of counts; the baseline carries `new_suspect`, and a derived output suspect that the baseline did not hold suspect is a regression. A version-1 report still reads as a baseline, holding no derived output suspect.",
+  "description": "What `python harness/gate_cli.py -f json` prints (task-0007): the gate's verdict for one task of one subject's scenario, its findings on the severity ladder, the threshold, the baseline comparison when one was asked for, and the exit code. Version 2 (task-0048); a change is additive or a new version. From version 1: a finding carries `kind` (key, task, stale, suspect_derived), `ref` (the statement or derived output it is about, null for a key or the task) and `related` (a stale statement's verified or approved successors; the invalidated statements a suspect derived output used); a stale statement on a required key is a finding (info when a verified or approved successor replaces it, major when none does) and a suspect derived output is a blocker, so both count toward --fail-on; `stale` and `suspect_derived` are lists of ids instead of counts; the baseline carries `new_suspect`, and a derived output suspect that the baseline did not hold suspect is a regression. A version-1 report still reads as a baseline, holding no derived output suspect. Added in version 2 (task-0049, additive, so not required: a report from before still validates): `version`, the version loaded, and `change`, --stage 2's change.",
   "type": "object",
   "required": ["schema_version", "tool", "subject", "scenario", "task", "store", "loaded", "verdict", "why", "threshold", "findings", "counts", "keys", "conflicts", "stale", "suspect_derived", "levels", "baseline", "exit_code"],
   "additionalProperties": false,
@@ -14,6 +14,21 @@
     "task": {"type": "string", "description": "the task class of the subject's [tasks] table"},
     "store": {"type": "string", "description": "the store adapter: neo4j or rdflib"},
     "loaded": {"type": "boolean", "description": "true: the gate loaded the scenario into the store first; false (--no-load): it read the store as it was"},
+    "version": {"type": ["string", "null"], "description": "the version loaded last (task-0049): v1 for stage 1, the subject's [scenario.stage2] version for --stage 2; with --no-load, the store's latest extraction"},
+    "change": {
+      "type": ["object", "null"],
+      "description": "--stage 2's change (task-0049); null for stage 1 or --no-load",
+      "required": ["artefact", "version", "invalidated", "reverified", "reverified_statements", "derived"],
+      "additionalProperties": false,
+      "properties": {
+        "artefact": {"type": "string", "description": "the changed artefact, re-ingested as its new version"},
+        "version": {"type": "string"},
+        "invalidated": {"type": "array", "items": {"type": "string"}, "description": "every statement R-STALE invalidated, by id, on a required key or not"},
+        "reverified": {"type": "boolean", "description": "true (--reverify): the owner's recorded re-verification ran before the gate"},
+        "reverified_statements": {"type": "array", "items": {"type": "string"}},
+        "derived": {"type": ["string", "null"], "description": "the earlier governed output registered as derived, from the subject's record; null when the record holds none"}
+      }
+    },
     "verdict": {"$ref": "#/$defs/verdict"},
     "why": {"type": "string"},
     "threshold": {"$ref": "#/$defs/severity"},
