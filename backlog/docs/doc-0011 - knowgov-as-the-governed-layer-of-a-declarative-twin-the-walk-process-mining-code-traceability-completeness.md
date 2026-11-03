@@ -5,7 +5,7 @@ title: >-
   code traceability, completeness
 type: specification
 created_date: '2026-11-03T22:03:00Z'
-updated_date: '2026-11-03T22:04:00Z'
+updated_date: '2026-11-03T22:14:00Z'
 tags:
   - brief
   - digital-twin
@@ -337,7 +337,7 @@ knowgov is a functionally complete governed layer for a declarative twin when, o
 
 ## The side-chat evaluation, corrected
 
-**Not received.** The parent session said it would send the maintainer's earlier side-chat evaluation of these four points. No message carrying it had arrived when every other section was written and checked (notifications read twice, none queued). Nothing here quotes or corrects it. When it arrives, the correction is a new section of this doc, written against the same measurements above.
+**Not received.** The parent session said it would send the maintainer's earlier side-chat evaluation of these four points. No message carrying it had arrived when every other section was written and checked (notifications read twice, none queued). Nothing here quotes or corrects it. The maintainer dropped it on 2026-11-03: the four points above stand on the code and the measured runs.
 
 ## Follow-ups proposed (not created as tasks)
 
@@ -353,4 +353,4 @@ knowgov is a functionally complete governed layer for a declarative twin when, o
 10. **The conformance contract and a PM4Py reference converter.** Delivers `conformance-result.schema.json`, the instance configuration keys (`converter`, `map`, `min_cell`) and one open converter run on 9's synthetic log. The client's SAP or ARIS converter is theirs, once the tool is chosen. Depends on 8.
 11. **Pipeline wrappers for the three gates.** Delivers a GitHub Actions composite action, a GitLab CI include template and a generic shell snippet, each mapping platform variables to the core's flags, run on the example instance. Depends on 7 for the hook; usable by `gate_cli.py` at once.
 12. **doc-0010 §5 wording, one clause.** "Observed verdicts are received as flagged evidence; no log is held." Depends on 8 being decided. Until then doc-0010 stands as written.
-13. **Correct this doc against the side-chat evaluation.** Delivers the missing section. Depends on its text arriving.
+13. ~~**Correct this doc against the side-chat evaluation.**~~ Closed, moot: the maintainer dropped the side-chat text on 2026-11-03; this doc stands on the code and the measured runs.
