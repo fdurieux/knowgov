@@ -162,6 +162,28 @@ class Store:
     def conflict_gaps(self) -> list[dict]:
         raise NotImplementedError
 
+    # ---- a person's review (task-0037, decision-0002): the rulings harness/review.py has checked
+    def assertion_brief(self, assertion_id: str) -> dict | None:
+        """{id, key, value, basis, status, agent} for one assertion, whatever its status; None if absent."""
+        raise NotImplementedError
+
+    def declared_gap(self, gid: str) -> dict | None:
+        """{id, text, keys} for an open declared gap; None if there is none by that id."""
+        raise NotImplementedError
+
+    def apply_ruling(self, assertion_id: str, outcome: str, review_id: str, agent_id: str, at: str, record: str, until: str) -> None:
+        """approved: an Approval {at, record, until} by the agent, status approved. rejected: status
+        rejected, the node and its history kept, out of the live set. Anything else: no change."""
+        raise NotImplementedError
+
+    def close_declared_gap(self, gid: str, review_id: str, at: str, record: str) -> None:
+        """The gap's open decision was taken: it is kept, marked closed, and no longer declared open."""
+        raise NotImplementedError
+
+    def settle_conflicts(self, key: str, review_id: str) -> int:
+        """Every conflict gap on an assertion of the key is marked settled; returns how many."""
+        raise NotImplementedError
+
     def stale_on_keys(self, keys: list[str]) -> list[dict]:
         raise NotImplementedError
 

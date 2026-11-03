@@ -119,6 +119,54 @@ on its own. A proposed statement is still below verified, so the gate lists it a
 an assistant must state. Nothing the harness does verifies a person's answer, nor a model's
 guess. Review is a person's act.
 
+**Reviewing what people said.** A captured answer stays *proposed* until a second person rules
+on it. That ruling is a *review*: a short file, written once and never edited, that says who
+reviewed, on what date, and where the reasons are kept (minutes, a decision record). It lists one
+*ruling* per statement, `approved`, `rejected` or `referred`, and may close a declared gap:
+
+```toml
+[review]
+by = "employee-2"        # an issued handle, never a name
+on = 2026-11-09
+record = "minutes/2026-11-09-outage-rule.md"
+scenario = "S2"
+
+[[ruling]]
+assertion = "A:cap:2026-11-02-ORG-0002-employee-1:1@capture"   # the id the gate's bundle shows
+outcome = "approved"
+```
+
+```bash
+python harness/capture.py review review.toml
+```
+
+In plain English: this loads the scenario, checks the review against what the store holds, and
+saves it in `captures/reviews/`. Every later load of that scenario applies it. An approved
+statement counts as *approved*; a rejected one, whether a person's answer or a document's
+sentence, stops counting but stays on record; a closed declared gap stops blocking. With every
+key approved or verified, the gate says PROCEED.
+
+Who may do what comes from your register's list of issued handles (`people/handles.toml`), never
+from the review itself, and the command refuses a review that breaks a rule, naming it:
+
+- **Approving an answer** needs the role `approves`, in a unit that owns the key, and never the
+  handle that gave the answer.
+- **Overruling a document**, rejecting or approving one of its statements, needs the role
+  `closes`. So does **settling a dispute**: the review must rule on *every* side, approving what
+  is kept and rejecting the rest, and what it keeps must agree. Approving one side alone is refused,
+  and the key stays disputed.
+- **Closing a declared gap** needs `closes`, in the unit the declaration names as its owner (or,
+  when it names none, a unit that owns the key). If the declaration names an owner your register
+  has no unit for, nobody can close it until the register has that unit and a handle of it.
+- **An approved answer lapses** six months after it was given: the statement reads *proposed*
+  again until someone re-asks and a reviewer approves again. Set `KG_TODAY=YYYY-MM-DD` for a
+  reproducible date.
+
+A review copied into `captures/reviews/` by hand is checked again on every load: one that breaks
+a rule is skipped, and the load prints why. The rules are knowgov's decision-0002; the handles
+and roles are ieam-register's decision 0009. `tools/check_review_walkthrough.py` runs the
+whole path on the example instance.
+
 **The register's capture fields.** The three fields a capture carries are `from` (the handle),
 `on` (the date) and `record` (where the answer is kept). They are the fields ieam-register's
 [decision 0008](https://github.com/fdurieux/ieam-register/blob/main/decisions/0008-knowledge-a-person-gave.md)

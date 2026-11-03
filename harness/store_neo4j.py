@@ -453,6 +453,38 @@ class Neo4jStore(Store):
     def conflict_gaps(self) -> list[dict]:
         return _rows(self.run("MATCH (g:Gap {kind:'conflict'}) RETURN g.id AS id, g.text AS text"))
 
+    def assertion_brief(self, assertion_id) -> dict | None:
+        rows = _rows(self.run("""
+            MATCH (x:Assertion {id:$id}) OPTIONAL MATCH (x)-[:ATTRIBUTED_TO]->(ag:Agent)
+            RETURN x.id AS id, x.key AS key, x.value AS value, x.basis AS basis, x.status AS status, ag.name AS agent""", id=assertion_id))
+        return rows[0] if rows else None
+
+    def declared_gap(self, gid) -> dict | None:
+        rows = _rows(self.run("""
+            MATCH (g:Gap {id:$gid, kind:'missing', declared:true}) OPTIONAL MATCH (g)-[c:CONCERNS_KEY]->()
+            RETURN g.id AS id, g.text AS text, [k IN collect(c.key) WHERE k IS NOT NULL] AS keys""", gid=gid))
+        return rows[0] if rows else None
+
+    def apply_ruling(self, assertion_id, outcome, review_id, agent_id, at, record, until) -> None:
+        if outcome == "approved":
+            self.run("""
+                MATCH (x:Assertion {id:$id}), (h:Agent {id:$hid})
+                MERGE (ap:Approval {id:'appr:' + $rid + ':' + x.id}) SET ap.at=$at, ap.record=$record, ap.until=$until
+                MERGE (ap)-[:APPROVES]->(x) MERGE (ap)-[:BY]->(h)
+                SET x.status='approved', x.ruled_in=$rid""", id=assertion_id, hid=agent_id, rid=review_id, at=at, record=record, until=until).consume()
+        elif outcome == "rejected":
+            self.run("MATCH (x:Assertion {id:$id}) SET x.status='rejected', x.ruled_in=$rid", id=assertion_id, rid=review_id).consume()
+
+    def close_declared_gap(self, gid, review_id, at, record) -> None:
+        self.run("""MATCH (g:Gap {id:$gid, kind:'missing', declared:true})
+                    SET g.kind='closed', g.declared=false, g.closed_in=$rid, g.closed_on=$at, g.closed_record=$record""",
+                 gid=gid, rid=review_id, at=at, record=record).consume()
+
+    def settle_conflicts(self, key, review_id) -> int:
+        return self.run("""
+            MATCH (g:Gap {kind:'conflict'})-[:CONCERNS]->(x:Assertion {key:$key})
+            WITH DISTINCT g SET g.kind='settled', g.settled_in=$rid RETURN count(g) AS n""", key=key, rid=review_id).single()["n"]
+
     def stale_on_keys(self, keys) -> list[dict]:
         return _rows(self.run("""
             MATCH (x:Assertion {status:'invalidated'}) WHERE x.key IN $keys

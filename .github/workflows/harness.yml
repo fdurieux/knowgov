@@ -111,3 +111,5 @@ jobs:
           assert {x["basis"] for x in rows} == {"elicited", "inferred"} and all(x["status"] == "proposed" for x in rows), rows
           print("captured and inferred after two verification passes:", sorted((x["basis"], x["status"]) for x in rows))
           PY
+      - name: The review step (task-0037, decision-0002), S2' from BLOCKED to PROCEED by command, S4 settled whole, the six-month lapse
+        run: KG_STORE=rdflib python tools/check_review_walkthrough.py runs/review

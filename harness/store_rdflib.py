@@ -616,6 +616,47 @@ class RdflibStore(Store):
     def conflict_gaps(self) -> list[dict]:
         return [{"id": self.nid(g), "text": self.prop(g, "text")} for g in self.nodes("Gap", kind="conflict")]
 
+    def assertion_brief(self, assertion_id) -> dict | None:
+        x = self.node(assertion_id, "Assertion")
+        if x is None:
+            return None
+        agent = next((self.prop(a, "name") for a in self.out(x, "ATTRIBUTED_TO") if self.has_label(a, "Agent")), None)
+        return {"id": assertion_id, "key": self.prop(x, "key"), "value": self.prop(x, "value"), "basis": self.prop(x, "basis"),
+                "status": self.prop(x, "status"), "agent": agent}
+
+    def declared_gap(self, gid) -> dict | None:
+        g = self.node(gid, "Gap")
+        if g is None or self.prop(g, "kind") != "missing" or self.prop(g, "declared") is not True:
+            return None
+        keys = [self.prop(e, "key") for e, _t in self.edges_out(g, "CONCERNS_KEY") if self.prop(e, "key") is not None]
+        return {"id": gid, "text": self.prop(g, "text"), "keys": keys}
+
+    def apply_ruling(self, assertion_id, outcome, review_id, agent_id, at, record, until) -> None:
+        x, h = self.node(assertion_id, "Assertion"), self.node(agent_id, "Agent")
+        if x is None:
+            return
+        if outcome == "approved":
+            if h is None:
+                return   # as in the Neo4j adapter: a pattern that matches nothing ends the statement
+            ap = self.merge_node(f"appr:{review_id}:{assertion_id}", "Approval", props={"at": at, "record": record, "until": until})
+            self.merge_edge(ap, "APPROVES", x)
+            self.merge_edge(ap, "BY", h)
+            self.set_props(x, {"status": "approved", "ruled_in": review_id})
+        elif outcome == "rejected":
+            self.set_props(x, {"status": "rejected", "ruled_in": review_id})
+
+    def close_declared_gap(self, gid, review_id, at, record) -> None:
+        if self.declared_gap(gid) is not None:
+            self.set_props(self.node(gid, "Gap"), {"kind": "closed", "declared": False, "closed_in": review_id, "closed_on": at, "closed_record": record})
+
+    def settle_conflicts(self, key, review_id) -> int:
+        n = 0
+        for g in self.nodes("Gap", kind="conflict"):
+            if any(self.prop(x, "key") == key for x in self.out(g, "CONCERNS") if self.has_label(x, "Assertion")):
+                self.set_props(g, {"kind": "settled", "settled_in": review_id})
+                n += 1
+        return n
+
     def stale_on_keys(self, keys) -> list[dict]:
         out = []
         for x in self.nodes("Assertion", status="invalidated"):
