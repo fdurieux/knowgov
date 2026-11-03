@@ -152,18 +152,22 @@ def cypher_list() -> list[dict]:
     with what it needs. Only an adapter with a console has any. The impact walk is listed from the
     register's default start, not the adapter's literal: no module here names a subject's id."""
     try:
-        from store_neo4j import SAVED_QUERIES, IMPACT_START   # the Neo4j adapter's; another adapter would list its own
+        from store_neo4j import SAVED_QUERIES, START_LITERALS   # the Neo4j adapter's; another adapter would list its own
     except ImportError:
-        SAVED_QUERIES, IMPACT_START = [], ""
+        SAVED_QUERIES, START_LITERALS = [], {}
     out = []
     generic = list(SAVED_QUERIES)
-    start = register_view.impact_default() if IMPACT_START else ""
+    starts = {}   # taxonomy -> the register's default, read once
     for q in generic[:1] + _ps().subject.queries + generic[1:]:   # the subject's after the first, as the page always listed them
         needs_text = q.get("needs_text") or NEEDS_TEXT.get(q["needs"]) or f"{q['needs']} loaded"
         q = dict(q, needs_text=needs_text)
-        if start and q["id"].startswith("register-impact"):
-            q["text"] = q["text"].replace(f"'{IMPACT_START}'", f"'{start}'")
-            q["title"] = q["title"].replace(IMPACT_START, start)
+        tax = q.get("start")
+        if tax in START_LITERALS:   # a query from one register node: listed from the register's default for its taxonomy
+            literal = START_LITERALS[tax]
+            start = starts.setdefault(tax, register_view.start_default(tax))
+            if start:
+                q["text"] = q["text"].replace(f"'{literal}'", f"'{start}'")
+                q["title"] = q["title"].replace(literal, start)
         out.append(q)
     return out
 

@@ -110,6 +110,11 @@ jobs:
           rows = int(re.search(r"^ok\s+register-impact\s+(\d+) rows", open("queries.txt").read(), re.M).group(1))
           assert rows == edges > 0, (rows, edges)
           print(f"register-impact from {start}: {rows} rows, the walk's {edges} edges")
+          # the walk's other direction and the join to the store (doc-0008 §4): each reaches something from its default start
+          for qid in ("register-dependants-capability", "register-dependants-information", "register-node-store"):
+              n = int(re.search(rf"^ok\s+{qid}\s+(\d+) rows", open("queries.txt").read(), re.M).group(1))
+              assert n > 0, (qid, n)
+              print(f"{qid}: {n} rows")
           PY
 
       - name: The impact panel's Browser links carry the walk, for every node of the register

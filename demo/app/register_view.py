@@ -221,6 +221,25 @@ def impact_default() -> str:
     return apps[0][0] if apps else (next(iter(reg["nodes"]), ""))
 
 
+@takes_subject
+def start_default(taxonomy: str) -> str:
+    """The start a saved query from ``taxonomy`` is listed with: for applications the walk's default;
+    otherwise this subject's node of that taxonomy that the most links point at, ties by id, else the
+    register's first node of it. The register's own, not any subject's id (task-0002)."""
+    if taxonomy == "applications":
+        return impact_default()
+    T = _load_tools()
+    reg = T["register"].load_register(REGISTER)
+    into = {}
+    for rel in reg["relationships"].values():
+        for ln in rel["links"]:
+            into[ln.get("target")] = into.get(ln.get("target"), 0) + 1
+    of = [(nid, n) for nid, n in reg["nodes"].items() if n["_taxonomy"] == taxonomy]
+    mine = [kv for kv in of if (kv[1].get("source") or {}).get("system", "") == _ps().system] or of
+    mine.sort(key=lambda kv: (-into.get(kv[0], 0), kv[0]))
+    return mine[0][0] if mine else ""
+
+
 sys.path.insert(0, str(HERE.parent.parent / "harness"))
 
 
