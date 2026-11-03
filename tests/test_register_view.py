@@ -645,13 +645,14 @@ def test_impact_browser_links_open_a_served_guide_and_the_stack_job_runs_them():
     rows = [{"from": "A", "relationship": "supports", "to": "P", "link state": "approved", "owner": "O", "evidence": None}]
     assert cic.row_keys(rows) == [("A", "supports", "P", "approved", "O", ())] and cic.edge_keys(edges) == [("A", "supports", "P", "approved", "O", ("e1",))]
 
-    class Rel:
-        def __init__(self, i):
+    class Rel(dict):   # the driver's relationship: an element id, its properties by get
+        def __init__(self, i, link):
+            super().__init__(reg_id=link)
             self.element_id = i
 
     class P:
-        relationships = (Rel("r1"), Rel("r2"), Rel("r1"))
-    assert cic.path_shape([{"a": {"reg_id": "A"}, "p": P()}, {"a": {"reg_id": "A"}, "p": None}]) == (2, {"A"})
+        relationships = (Rel("r1", "REL-1"), Rel("r2", "REL-2"), Rel("r1", "REL-1"))
+    assert cic.path_shape([{"a": {"reg_id": "A"}, "p": P()}, {"a": {"reg_id": "A"}, "p": None}]) == (2, {"REL-1", "REL-2"}, {"A"})
     for bad in ("http://x/browser/?connectURL=b&cmd=edit&arg=a", "http://x/browser/?cmd=play&arg=http://d/g"):
         try:
             cic.guide_url_of(bad)

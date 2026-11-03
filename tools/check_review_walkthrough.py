@@ -6,15 +6,18 @@ KG_STORE names: CI runs it on rdflib (harness.yml) and on Neo4j (the stack job).
 It builds the public example instance into OUT_DIR, then:
 
 S2' (S2 with REQ-06 no longer declared open: the rule decided, written nowhere). BLOCKED, exit 1;
-employee-1 answers the three keys, QUALIFIED, exit 0 (1 with --fail-on major); a review by
+employee-1 answers the three keys; the status list includes held_unscreened, the contract's and
+the spec's do not, so the three statements are disputed (task-0038): BLOCKED, exit 1. A review by
 employee-1 of its own answers is refused; employee-2 (approves) cannot overrule the documents'
-status lists, employee-3 (closes) rejects them and employee-2 approves the answers: PROCEED, exit 0
-with --fail-on major. A review written into the folder by hand is checked again on load and refused.
-With KG_TODAY past the six months the approvals lapse: QUALIFIED again.
+status lists; employee-3 (closes) rejecting them without ruling on employee-1's side is refused
+(half-settled); employee-3 rejecting them and approving employee-1's list settles the dispute, and
+employee-2 approves the other two answers: PROCEED, exit 0 with --fail-on major. A review written
+into the folder by hand is checked again on load and refused. With KG_TODAY past the six months the
+approvals lapse, the dispute stays settled and the person's statements read proposed: QUALIFIED.
 
 S2 itself (task-0054): OD-1 names compliance as its owner, the register's ORG-0004 (its decision
 0011). BLOCKED, exit 1; a close by employee-3 (closes, but ORG-0001) is refused; employee-1 answers
-and the answers are ruled on as in S2', and the gate is still BLOCKED on the declared gap; employee-4
+and the answers are ruled on as in S2' (the dispute settled whole), and the gate is still BLOCKED on the declared gap; employee-4
 (closes, ORG-0004) closes OD-1: PROCEED, exit 0 with --fail-on major. Closing supplies no value
 (decision-0002): on a fresh instance, employee-4's close before any answer leaves the key absent,
 still BLOCKED.
@@ -105,14 +108,16 @@ def main(out: Path) -> int:
     w = out / "s2-decided"
     expect(env, 1, "BLOCKED", "gate_cli.py", "--scenario", "S2")
     cap = answer(env, w)
-    expect(env, 0, "QUALIFIED", "gate_cli.py", "--scenario", "S2")
-    expect(env, 1, "QUALIFIED", "gate_cli.py", "--scenario", "S2", "--fail-on", "major")
+    expect(env, 1, "response|statuses (disputed)", "gate_cli.py", "--scenario", "S2")
     mine = [(f"{cap}:{i}@capture", "approved") for i in (1, 2, 3)]
     expect(env, 1, "gave this statement and may not rule on it", "capture.py", "review", str(write_review(w / "r-self.toml", "employee-1", "S2", mine)))
     docs = [("A:oas:response|statuses@v1", "rejected"), ("A:spec:response|statuses@v1", "rejected")]
     expect(env, 1, "needs the role closes", "capture.py", "review", str(write_review(w / "r-2-docs.toml", "employee-2", "S2", docs)))
-    expect(env, 0, "2 ruling(s)", "capture.py", "review", str(write_review(w / "r-3.toml", "employee-3", "S2", docs)))
-    expect(env, 0, "3 ruling(s)", "capture.py", "review", str(write_review(w / "r-2.toml", "employee-2", "S2", mine)))
+    expect(env, 1, "half-settled", "capture.py", "review", str(write_review(w / "r-3-docs.toml", "employee-3", "S2", docs)))
+    statuses = (f"{cap}:2@capture", "approved")   # the person's side of the dispute
+    expect(env, 0, "3 ruling(s)", "capture.py", "review", str(write_review(w / "r-3.toml", "employee-3", "S2", [*docs, statuses])))
+    rest = [(f"{cap}:{i}@capture", "approved") for i in (1, 3)]
+    expect(env, 0, "2 ruling(s)", "capture.py", "review", str(write_review(w / "r-2.toml", "employee-2", "S2", rest)))
     expect(env, 0, "PROCEED", "gate_cli.py", "--scenario", "S2", "--fail-on", "major")
     # a review written straight into the folder, past the command, is checked again on every load
     write_review(w / "subjects" / "cargo_quote" / "captures" / "reviews" / "2026-11-03-employee-1.toml", "employee-1", "S2",
@@ -127,9 +132,8 @@ def main(out: Path) -> int:
     expect(env, 1, "the declaration names 'compliance' (ORG-0004) as its owner; employee-3's unit is ORG-0001", "capture.py", "review",
            str(write_review(w / "r-close-3.toml", "employee-3", "S2", closes=["gap:declared:OD-1"])))
     cap = answer(env, w)
-    mine = [(f"{cap}:{i}@capture", "approved") for i in (1, 2, 3)]
-    expect(env, 0, "2 ruling(s)", "capture.py", "review", str(write_review(w / "r-3.toml", "employee-3", "S2", docs)))
-    expect(env, 0, "3 ruling(s)", "capture.py", "review", str(write_review(w / "r-2.toml", "employee-2", "S2", mine)))
+    expect(env, 0, "3 ruling(s)", "capture.py", "review", str(write_review(w / "r-3.toml", "employee-3", "S2", [*docs, (f"{cap}:2@capture", "approved")])))
+    expect(env, 0, "2 ruling(s)", "capture.py", "review", str(write_review(w / "r-2.toml", "employee-2", "S2", [(f"{cap}:{i}@capture", "approved") for i in (1, 3)])))
     expect(env, 1, "BLOCKED — 1 required key(s) at a blocking level: QuoteAPI|on_screening_outage (declared_gap)",
            "gate_cli.py", "--scenario", "S2", "--fail-on", "major")
     expect(env, 0, "1 gap(s) closed", "capture.py", "review", str(write_review(w / "r-close-4.toml", "employee-4", "S2", closes=["gap:declared:OD-1"])))
@@ -151,8 +155,8 @@ def main(out: Path) -> int:
     expect(env, 0, "4 ruling(s)", "capture.py", "review", str(write_review(w / "r-settle.toml", "employee-3", "S4", settle)))
     rep = expect(env, 0, "PROCEED", "gate_cli.py", "--scenario", "S4", "-f", "json")
     assert '"conflicts": 0' in rep, "the settled conflicts are no longer listed"
-    print("OK: S2' BLOCKED -> QUALIFIED -> PROCEED, lapses after six months; S2 BLOCKED -> PROCEED by its owner's close, "
-          "another unit's refused, a close alone supplies nothing; S4 settled whole")
+    print("OK: S2' BLOCKED -> disputed by a person -> PROCEED, lapses after six months; S2 BLOCKED -> PROCEED by its owner's "
+          "close, another unit's refused, a close alone supplies nothing; S4 settled whole")
     return 0
 
 
