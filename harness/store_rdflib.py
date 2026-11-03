@@ -408,7 +408,7 @@ class RdflibStore(Store):
                 v.append({"id": self.nid(ver), "why": "orphan version"})
         return v
 
-    def candidate_pairs(self) -> list[dict]:
+    def candidate_pairs(self, across=None) -> list[dict]:
         dead = ("rejected", "deprecated", "invalidated")
         out = []
         for e in self.nodes("Entity"):
@@ -422,31 +422,36 @@ class RdflibStore(Store):
                         continue
                     if self.prop(a, "predicate") != self.prop(b, "predicate") or self.prop(a, "artefact") == self.prop(b, "artefact"):
                         continue
-                    if self.prop(a, "status") in dead or self.prop(b, "status") in dead or self.prop(a, "version") != self.prop(b, "version"):
+                    if self.prop(a, "status") in dead or self.prop(b, "status") in dead:
                         continue
-                    out.append({"a": ida, "va": self.prop(a, "value"), "ba": self.prop(a, "basis"), "b": idb, "vb": self.prop(b, "value"),
-                                "bb": self.prop(b, "basis"), "key": self.prop(a, "key"), "pred": self.prop(a, "predicate")})
+                    if self.prop(a, "version") != self.prop(b, "version") and (
+                            across is None or (self.prop(a, "basis") == across) == (self.prop(b, "basis") == across)):
+                        continue
+                    out.append({"a": ida, "va": self.prop(a, "value"), "ba": self.prop(a, "basis"), "aa": self.prop(a, "artefact"),
+                                "b": idb, "vb": self.prop(b, "value"), "bb": self.prop(b, "basis"), "ab": self.prop(b, "artefact"),
+                                "key": self.prop(a, "key"), "pred": self.prop(a, "predicate")})
         return out
 
     def _bump(self, x, frm, to) -> None:
         if self.prop(x, "status") == frm:
             self.set_props(x, {"status": to})
 
-    def corroborate(self, a, b) -> None:
+    def corroborate(self, a, b, promote=True) -> None:
         na, nb = self.node(a, "Assertion"), self.node(b, "Assertion")
         if na is None or nb is None:
             return
         self.merge_edge(na, "CORROBORATES", nb)
         self.merge_edge(nb, "CORROBORATES", na)
-        self._bump(na, "proposed", "validated")
-        self._bump(nb, "proposed", "validated")
+        if promote:
+            self._bump(na, "proposed", "validated")
+            self._bump(nb, "proposed", "validated")
 
     def _raised_by(self, g, scenario) -> None:
         for act in self.nodes("Activity"):
             if self.nid(act).startswith("act:extract:" + scenario):
                 self.merge_edge(g, "RAISED_BY", act)
 
-    def mark_conflict(self, a, b, gid, key, scenario) -> None:
+    def mark_conflict(self, a, b, gid, key, scenario, text=None) -> None:
         na, nb = self.node(a, "Assertion"), self.node(b, "Assertion")
         if na is None or nb is None:
             return
@@ -454,7 +459,7 @@ class RdflibStore(Store):
         self.merge_edge(nb, "CONTRADICTS", na)
         self.set_props(na, {"status": "disputed"})
         self.set_props(nb, {"status": "disputed"})
-        text = f"two artefacts state different values for {key}: {self.prop(na, 'artefact')} says {self.prop(na, 'value')}; {self.prop(nb, 'artefact')} says {self.prop(nb, 'value')}"
+        text = text or f"two artefacts state different values for {key}: {self.prop(na, 'artefact')} says {self.prop(na, 'value')}; {self.prop(nb, 'artefact')} says {self.prop(nb, 'value')}"
         g = self.merge_node(gid, "Gap", props={"kind": "conflict", "declared": False, "text": text})
         self.merge_edge(g, "CONCERNS", na)
         self.merge_edge(g, "CONCERNS", nb)
@@ -644,6 +649,8 @@ class RdflibStore(Store):
             self.set_props(x, {"status": "approved", "ruled_in": review_id})
         elif outcome == "rejected":
             self.set_props(x, {"status": "rejected", "ruled_in": review_id})
+        elif outcome == "lapsed":
+            self.set_props(x, {"status": "proposed", "lapsed_in": review_id})
 
     def close_declared_gap(self, gid, review_id, at, record) -> None:
         if self.declared_gap(gid) is not None:

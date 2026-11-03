@@ -113,3 +113,5 @@ jobs:
           PY
       - name: The review step (task-0037, decision-0002), S2' from BLOCKED to PROCEED by command, S4 settled whole, the six-month lapse
         run: KG_STORE=rdflib python tools/check_review_walkthrough.py runs/review
+      - name: A person's statement against the documents' (task-0038), on S2 a contradiction raises a conflict, an agreement corroborates and raises nothing
+        run: KG_STORE=rdflib python tools/check_capture_pairing.py runs/pairing

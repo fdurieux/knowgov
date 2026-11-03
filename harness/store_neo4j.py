@@ -386,30 +386,31 @@ class Neo4jStore(Store):
         v += _rows(self.run("MATCH (v:Version) WHERE NOT (:Artefact)-[:HAS_VERSION]->(v) RETURN v.id AS id, 'orphan version' AS why"))
         return v
 
-    def candidate_pairs(self) -> list[dict]:
+    def candidate_pairs(self, across=None) -> list[dict]:
         return _rows(self.run("""
             MATCH (a:Assertion)-[:ABOUT]->(e:Entity)<-[:ABOUT]-(b:Assertion)
             WHERE a.predicate = b.predicate AND a.id < b.id AND a.artefact <> b.artefact
               AND NOT a.status IN ['rejected','deprecated','invalidated'] AND NOT b.status IN ['rejected','deprecated','invalidated']
-              AND a.version = b.version
-            RETURN a.id AS a, a.value AS va, a.basis AS ba, b.id AS b, b.value AS vb, b.basis AS bb, a.key AS key,
-                   a.predicate AS pred"""))
+              AND (a.version = b.version OR ($across IS NOT NULL AND (a.basis = $across) <> (b.basis = $across)))
+            RETURN a.id AS a, a.value AS va, a.basis AS ba, a.artefact AS aa, b.id AS b, b.value AS vb, b.basis AS bb,
+                   b.artefact AS ab, a.key AS key, a.predicate AS pred""", across=across))
 
-    def corroborate(self, a, b) -> None:
+    def corroborate(self, a, b, promote=True) -> None:
         self.run("""MATCH (a:Assertion {id:$a}), (b:Assertion {id:$b})
                     MERGE (a)-[:CORROBORATES]->(b) MERGE (b)-[:CORROBORATES]->(a)
-                    SET a.status = CASE WHEN a.status='proposed' THEN 'validated' ELSE a.status END,
-                        b.status = CASE WHEN b.status='proposed' THEN 'validated' ELSE b.status END""", a=a, b=b).consume()
+                    SET a.status = CASE WHEN $promote AND a.status='proposed' THEN 'validated' ELSE a.status END,
+                        b.status = CASE WHEN $promote AND b.status='proposed' THEN 'validated' ELSE b.status END""",
+                 a=a, b=b, promote=promote).consume()
 
-    def mark_conflict(self, a, b, gid, key, scenario) -> None:
+    def mark_conflict(self, a, b, gid, key, scenario, text=None) -> None:
         self.run("""MATCH (a:Assertion {id:$a}), (b:Assertion {id:$b})
                     MERGE (a)-[:CONTRADICTS]->(b) MERGE (b)-[:CONTRADICTS]->(a)
                     SET a.status='disputed', b.status='disputed'
                     MERGE (g:Gap {id:$gid}) SET g.kind='conflict', g.declared=false,
-                       g.text='two artefacts state different values for ' + $key + ': ' + a.artefact + ' says ' + a.value + '; ' + b.artefact + ' says ' + b.value
+                       g.text=coalesce($text, 'two artefacts state different values for ' + $key + ': ' + a.artefact + ' says ' + a.value + '; ' + b.artefact + ' says ' + b.value)
                     MERGE (g)-[:CONCERNS]->(a) MERGE (g)-[:CONCERNS]->(b)
                     WITH g MATCH (act:Activity) WHERE act.id STARTS WITH 'act:extract:' + $sc
-                    MERGE (g)-[:RAISED_BY]->(act)""", a=a, b=b, gid=gid, key=key, sc=scenario).consume()
+                    MERGE (g)-[:RAISED_BY]->(act)""", a=a, b=b, gid=gid, key=key, sc=scenario, text=text).consume()
 
     def vague_fragments(self, words) -> list[dict]:
         return _rows(self.run("""
@@ -536,6 +537,8 @@ class Neo4jStore(Store):
                 SET x.status='approved', x.ruled_in=$rid""", id=assertion_id, hid=agent_id, rid=review_id, at=at, record=record, until=until).consume()
         elif outcome == "rejected":
             self.run("MATCH (x:Assertion {id:$id}) SET x.status='rejected', x.ruled_in=$rid", id=assertion_id, rid=review_id).consume()
+        elif outcome == "lapsed":
+            self.run("MATCH (x:Assertion {id:$id}) SET x.status='proposed', x.lapsed_in=$rid", id=assertion_id, rid=review_id).consume()
 
     def close_declared_gap(self, gid, review_id, at, record) -> None:
         self.run("""MATCH (g:Gap {id:$gid, kind:'missing', declared:true})
