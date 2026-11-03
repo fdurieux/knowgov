@@ -24,6 +24,8 @@ needs. The [subjects guide](../subjects/README.md) describes it field by field.
                        named by path, ../../artefacts/<kind>/<file>; its captures/ holds the
                        answered questionnaires (see "Capturing what people know")
   record/<subject>/    your own results, kept as evidence: a subject's [record] dir points here
+  code_map.toml        optional: which register application or module each code path implements
+                       (see "Mapping code to the register")
 ```
 
 The platform reads this folder and never writes to it: the compose file mounts it read-only,
@@ -74,6 +76,34 @@ from it. *UNREAD* is a file under `artefacts/` that no subject names. It exits 0
 layout holds and 1 when it does not, for example with no register, a folder that is not a kind,
 or a subject that does not load. It exits 2 when it cannot run at all. Add `--json` for the
 report as data.
+
+## Mapping code to the register
+
+Your register lists applications and their modules (`APP-` ids under `register/applications/`);
+your code lives in files. Nothing else in the layout says which file implements which
+application, so a change to the code cannot be traced to the knowledge it rests on.
+`code_map.toml`, at the top of the instance, says it:
+
+```toml
+[code]
+root = "../src"              # where the code is, relative to the instance; default "."
+include = ["**/*.py"]        # what counts as code under root; default every file
+
+[[map]]
+glob = "quote/**"            # relative to root: ** any number of folders, * and ? within one name
+app = "APP-0001"             # an application or module of your register
+note = "the quoting service" # optional
+```
+
+In plain English: each `[[map]]` row says "the files this glob matches implement that application
+or module". `tools/check_instance.py` reads the file when it is there and refuses (exit 1) a row
+whose `APP-` id your register does not hold, and two rows that overlap: one file matched by both,
+or one glob that covers the other (`quote/**` and `quote/api.py`), so every file maps to one id.
+It lists as *UNMAPPED* each code file no row matches, and as *UNMATCHED* each row that matches no
+file; neither fails the check. Without the file the check says nothing about code. The example
+instance carries one: CargoQuote's reference code, mapped to `APP-0001`. A later register link
+(`implemented_by`) may carry the same fact in the register itself; that is the register's
+decision, and the file would then yield to it.
 
 ## Checking a document before the load
 
