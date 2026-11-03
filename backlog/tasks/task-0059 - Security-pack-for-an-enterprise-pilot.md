@@ -4,7 +4,7 @@ title: Security pack for an enterprise pilot
 status: To Do
 assignee: []
 created_date: '2026-11-03T22:49:00Z'
-updated_date: '2026-11-03T22:51:00Z'
+updated_date: '2026-11-03T23:54:00Z'
 labels:
   - lighthouse
   - security
@@ -31,4 +31,5 @@ A regulated organisation's procurement asks for a security description before a 
 - [ ] #2 It states what leaves the client's network under each model-endpoint setting, including none
 - [ ] #3 It lists the dependencies and image pins with how they are kept current, and how to report a vulnerability
 - [ ] #4 Every claim in it is checked by an existing or new test, or marked as a practice the operator must follow
+- [ ] #5 A permission matrix: who may read, propose, approve, close, edit the model, or execute a business action (nobody), per actor (model, agent over MCP, pipeline, person by role, register approver), each enforceable row citing its test (doc-0013 P7)
 <!-- AC:END -->
