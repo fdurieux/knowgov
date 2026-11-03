@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-03T22:41:00Z'
-updated_date: '2026-11-03T23:50:00Z'
+updated_date: '2026-11-03T23:54:00Z'
 labels:
   - traceability
   - gate
@@ -49,6 +49,8 @@ doc-0011 point 3 sketch: a platform-neutral command with two subcommands. regist
 
 <!-- SECTION:NOTES:BEGIN -->
 Built as planned. Deviations from doc-0011's sketch, deliberate: a changed code path no row maps is a major finding (unmapped), not exit 2, so a PR adding a file is reported rather than refused to run; the registration also lives in a JSON ledger, because every load wipes the store (gate_cli, run.py, the page), and check re-registers from it what the store lost; suspect is computed from the used statements' current status, not the store's Derived.suspect flag, which a re-registration after the invalidation would not set; --base REF (the core running git diff) is left to the wrappers (TASK-0052), --changed is repeatable; the task is a flag, not a code_map column. The gate's suspect_derived findings are dropped in check: the ledger's are reported. register's assertions default to every statement the task's gate serves at registration (88 on S6 stage 1; 3 of them invalidated by the change, the record's derived:S1:G:run1 count). Verified: tests 166/166 (tests/test_trace.py, five, fake store); tools/check_trace_walkthrough.py on rdflib locally with the pins: register 0, check 0 at stage 1, gate --stage 2 1, check 1 with one suspect blocker naming APP-0001, check --changed drift minor + unmapped major, nothing on a non-code file.
+
+Maintainer's decision (2026-11-03, relayed by the coordinating session): the registrations stay in the JSON ledger beside the client's code; the load is unchanged and does not keep Derived nodes across its wipe.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
