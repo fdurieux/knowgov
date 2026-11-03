@@ -4,13 +4,13 @@ title: Pre-register the outcome study on the lighthouse pilot's backlog
 status: To Do
 assignee: []
 created_date: '2026-11-03T22:49:00Z'
-updated_date: '2026-11-03T22:51:00Z'
+updated_date: '2026-11-03T23:08:00Z'
 labels:
   - lighthouse
   - evidence
 milestone: m-8
 dependencies:
-  - TASK-0054
+  - TASK-0062
 references:
   - >-
     https://github.com/fdurieux/pumllint/blob/main/docs/neo4j-governed-knowledge-evaluation.md
