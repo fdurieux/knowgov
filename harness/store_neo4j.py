@@ -36,7 +36,8 @@ CONSTRAINTS = [
 # journeys follow concerns. An edge is live when its link is approved and its far node is neither
 # deprecated nor retired; every edge met is reported, a withdrawn edge is reported and not followed, so
 # only live edges lead on and only their far ends count as reached. No parent climb. Every chain the
-# rules allow is one branch of the CALL { } UNION: the start and each intermediate node filtered on
+# rules allow is one branch of the CALL (a) { } UNION (the scoped form, which imports the start; the
+# importing WITH is deprecated in Neo4j 5.26): the start and each intermediate node filtered on
 # taxonomy and state, each intermediate link on state approved, the last edge and its end node
 # unfiltered. The register's own kinds end every chain in three steps (supports lands on a process,
 # delivers and concerns on a product, realizes on a capability). IMPACT_ROWS is the saved query, one
@@ -53,15 +54,15 @@ _JRN_J = "j.taxonomy = 'journeys' AND " + _LIVE.format("j")
 _R1, _R2 = _OK.format("r1"), _OK.format("r2")
 IMPACT_WALK = (
     f"MATCH (a:RegNode {{reg_id:'{IMPACT_START}'}})\n"
-    "CALL {\n"
-    f"  WITH a MATCH p = (a)-[:REG_SUPPORTS]->(:RegNode) WHERE {_APP} RETURN p\n"
-    f"  UNION WITH a MATCH p = (a)-[r1:REG_SUPPORTS]->(x:RegNode)-[:REG_DELIVERS|REG_REALIZES]->(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_R1} RETURN p\n"
-    f"  UNION WITH a MATCH p = (a)-[r1:REG_SUPPORTS]->(x:RegNode)<-[:REG_IS_SUPPORTED_BY]-(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_R1} RETURN p\n"
-    f"  UNION WITH a MATCH p = (a)-[r1:REG_SUPPORTS]->(x:RegNode)<-[r2:REG_IS_SUPPORTED_BY]-(j:RegNode)-[:REG_CONCERNS]->(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_JRN_J} AND {_R1} AND {_R2} RETURN p\n"
-    f"  UNION WITH a MATCH p = (a)-[:REG_DELIVERS|REG_REALIZES]->(:RegNode) WHERE {_PROC_A} RETURN p\n"
-    f"  UNION WITH a MATCH p = (a)<-[:REG_IS_SUPPORTED_BY]-(:RegNode) WHERE {_PROC_A} RETURN p\n"
-    f"  UNION WITH a MATCH p = (a)<-[r1:REG_IS_SUPPORTED_BY]-(j:RegNode)-[:REG_CONCERNS]->(:RegNode) WHERE {_PROC_A} AND {_JRN_J} AND {_R1} RETURN p\n"
-    f"  UNION WITH a MATCH p = (a)-[:REG_CONCERNS]->(:RegNode) WHERE {_JRN_A} RETURN p\n"
+    "CALL (a) {\n"
+    f"  MATCH p = (a)-[:REG_SUPPORTS]->(:RegNode) WHERE {_APP} RETURN p\n"
+    f"  UNION MATCH p = (a)-[r1:REG_SUPPORTS]->(x:RegNode)-[:REG_DELIVERS|REG_REALIZES]->(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_R1} RETURN p\n"
+    f"  UNION MATCH p = (a)-[r1:REG_SUPPORTS]->(x:RegNode)<-[:REG_IS_SUPPORTED_BY]-(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_R1} RETURN p\n"
+    f"  UNION MATCH p = (a)-[r1:REG_SUPPORTS]->(x:RegNode)<-[r2:REG_IS_SUPPORTED_BY]-(j:RegNode)-[:REG_CONCERNS]->(:RegNode) WHERE {_APP} AND {_PROC_X} AND {_JRN_J} AND {_R1} AND {_R2} RETURN p\n"
+    f"  UNION MATCH p = (a)-[:REG_DELIVERS|REG_REALIZES]->(:RegNode) WHERE {_PROC_A} RETURN p\n"
+    f"  UNION MATCH p = (a)<-[:REG_IS_SUPPORTED_BY]-(:RegNode) WHERE {_PROC_A} RETURN p\n"
+    f"  UNION MATCH p = (a)<-[r1:REG_IS_SUPPORTED_BY]-(j:RegNode)-[:REG_CONCERNS]->(:RegNode) WHERE {_PROC_A} AND {_JRN_J} AND {_R1} RETURN p\n"
+    f"  UNION MATCH p = (a)-[:REG_CONCERNS]->(:RegNode) WHERE {_JRN_A} RETURN p\n"
     "}\n")
 IMPACT_ROWS = (
     "// the walk tools/impact.py makes, one row per edge, as the impact panel lists them, a withdrawn edge listed and not followed\n"
@@ -78,7 +79,7 @@ IMPACT_ROWS = (
     "ORDER BY link")
 IMPACT_PATHS = (
     "// the same walk as paths, for the Browser's graph view: a start with no edge still draws itself\n"
-    + IMPACT_WALK.replace("CALL {\n", "OPTIONAL CALL {\n") +
+    + IMPACT_WALK.replace("CALL (a) {\n", "OPTIONAL CALL (a) {\n") +
     "RETURN a, p")
 
 

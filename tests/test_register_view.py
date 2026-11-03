@@ -369,11 +369,11 @@ def test_register_root_comes_from_the_environment_and_a_checkout_has_no_note():
 
 
 # ---- task-0023: the saved query register-impact is the walk impact.py makes
-# The Cypher's CALL { } UNION block is parsed (one chain per branch: typed relationship sets with
+# The Cypher's CALL (a) { } UNION block is parsed (one chain per branch: typed relationship sets with
 # their direction, the taxonomy and state filters on the start and the intermediate nodes) and
 # simulated over the projection's rows, so the test reads the adapter's text, not a copy of it.
 _STEP = re.compile(r"(<-|-)\[(\w*):([A-Z_|]+)\](->|-)\((\w*):RegNode\)")
-_BRANCH = re.compile(r"WITH a MATCH p = \(a\)(.*?) WHERE (.*?) RETURN p", re.S)
+_BRANCH = re.compile(r"MATCH p = \(a\)(.*?) WHERE (.*?) RETURN p", re.S)
 sys.path.insert(0, str(ROOT / "harness"))
 
 
@@ -382,7 +382,7 @@ def _parse_chains(text):
     var), the filters {var: (taxonomy, live_only?, approved_only?)}, a node var carrying the first two
     and a link var the third (v0.2.2: an intermediate link must be approved). Every branch must be
     understood: an unparsed piece fails."""
-    block = text[text.index("CALL {") + len("CALL {"):text.index("\n}\n")]
+    block = text[text.index("CALL (a) {") + len("CALL (a) {"):text.index("\n}\n")]
     chains = []
     for branch in block.split("UNION"):
         m = _BRANCH.fullmatch(branch.strip())
@@ -473,7 +473,7 @@ def test_register_impact_cypher_equals_the_walk_on_every_node():
     assert len(chains) == 8 and _parse_chains(sn.IMPACT_PATHS) == chains, "the paths form is the same walk"
     assert sum(1 for steps, _ in chains for *_, rv in steps if rv) == 5, "every intermediate link is filtered on approved: 4 two-step chains and the three-step chain's two"
     assert "AS followed" in sn.IMPACT_ROWS and "'no, withdrawn'" in sn.IMPACT_ROWS
-    assert sn.IMPACT_PATHS.count("OPTIONAL CALL {") == 1 and sn.IMPACT_PATHS.rstrip().endswith("RETURN a, p")
+    assert sn.IMPACT_PATHS.count("OPTIONAL CALL (a) {") == 1 and "WITH a MATCH" not in sn.IMPACT_WALK and sn.IMPACT_PATHS.rstrip().endswith("RETURN a, p")
     walked = 0
     for nid in reg["nodes"]:
         expect = _walk_rows(reg, nid)
