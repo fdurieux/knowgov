@@ -278,14 +278,14 @@ def test_saved_queries_say_what_they_need():
     import server  # the page's generic queries plus the subject's queries.toml
     listed = server.cypher_list()
     needs = {q["id"]: q["needs"] for q in listed}
-    assert len(needs) == 16 and set(needs.values()) <= {"scenario", "S6", "S4", "register", "register+scenario"}
+    assert len(needs) == 17 and set(needs.values()) <= {"scenario", "S6", "S4", "register", "register+scenario"}
     assert all(q["needs_text"] for q in listed)
     assert {q["id"]: q["needs_text"] for q in listed}["invalidation"] == "S6 loaded deterministically"
     assert {q["id"] for q in views.SUBJECT.queries} == {"three-valued", "gate", "invalidation", "contradiction"}, "the subject's own queries"
     assert needs["invalidation"] == "S6" and needs["contradiction"] == "S4" and needs["register-cites"] == "register+scenario"
     assert all(needs[k] == "register" for k in ("register-tag", "register-impact", "register-impact-paths", "register-c1",
                                                "register-dependants-capability", "register-dependants-information"))
-    assert needs["register-node-store"] == "register+scenario"
+    assert needs["register-node-store"] == needs["register-node-statements"] == "register+scenario"
     assert all(needs[k] == "scenario" for k in ("loaded", "three-valued", "gate", "gaps", "gaps-concerns", "census"))
     # every need has its text: the page's generic ones in NEEDS_TEXT, a scenario's in the subject's queries.toml
     for q in listed:
@@ -712,7 +712,8 @@ def test_dependants_and_node_store_queries_are_listed_from_the_registers_default
     for qid, raw, literal, tax, needs in (
             ("register-dependants-capability", sn.DEPENDANTS_CAPABILITY, sn.CAPABILITY_START, "capabilities", "register"),
             ("register-dependants-information", sn.DEPENDANTS_INFORMATION, sn.INFORMATION_START, "information", "register"),
-            ("register-node-store", sn.MODULE_STORE, sn.IMPACT_START, "applications", "register+scenario")):
+            ("register-node-store", sn.MODULE_STORE, sn.IMPACT_START, "applications", "register+scenario"),
+            ("register-node-statements", sn.NODE_STATEMENTS, sn.INFORMATION_START, "information", "register+scenario")):
         q = listed[qid]
         start = register_view.start_default(tax)
         assert q["needs"] == needs and q["start"] == tax and sn.START_LITERALS[tax] == literal
@@ -726,3 +727,20 @@ def test_dependants_and_node_store_queries_are_listed_from_the_registers_default
     # the server names no start of its own: the adapter's literals are the anchors it replaces
     srv = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
     assert not any(x in srv for x in ("CAP-0002", "ENT-0002", "APP-0002"))
+
+
+# ---- the store join at the grain of the cited anchor (task-0046; doc-0011 point 1)
+def test_node_statements_query_is_the_ports_cypher_at_anchor_grain():
+    import store_neo4j as sn
+    raw = sn._NODE_STATEMENTS
+    assert raw.count("$start") == 1 and sn.NODE_STATEMENTS == raw.replace("$start", f"'{sn.INFORMATION_START}'")
+    assert ";" not in raw, "the console checker splits on ';'"
+    # approved links only; an anchor narrows to the fragments whose locator holds it as a path segment,
+    # a citation with none reaches the whole document; every version, so an invalidated statement still shows its code
+    assert "RegLink {state:'approved'}" in raw and "anchor IS NULL OR anchor IN split(f.locator, '/')" in raw
+    assert "[:HAS_VERSION]->(v:Version)" in raw and ":CURRENT" not in raw and "USED_ASSERTION" in raw
+    for k in ("statement", "status", "document", "anchors", "links", "versions", "fragments", "derived"):
+        assert f" AS {k}" in raw, k
+    src = (ROOT / "harness" / "store_rdflib.py").read_text(encoding="utf-8")
+    body = src[src.index("def register_node_statements("):src.index("# ---- what the page shows")]
+    assert 'anchor not in loc.split("/")' in body and '"HAS_VERSION"' in body and 'self.prop(l, "state") != "approved"' in body

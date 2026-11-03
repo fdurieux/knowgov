@@ -56,6 +56,24 @@ jobs:
           python tools/check_instance.py runs/instance | grep '^ABSENT stories/quote.md \[user-stories\]'
           cd harness && KG_STORE=rdflib KG_SUBJECT=../runs/instance/subjects/cargo_quote python run.py --deterministic --scenarios S1 --out ../runs/instance-unmapped && cd ..
           python3 -c 'import json; d=json.load(open("runs/instance-unmapped/S1/deterministic.json")); assert d["load"]["unmapped"]==["stories/quote.md"], d["load"]; print("load: unmapped", d["load"]["unmapped"])'
+      - name: A register node to the statements its cited anchor names (task-0046), through the rdflib port, S6 with the S1 code as derived
+        run: |
+          rm -rf runs/anchor && mkdir -p runs/anchor/S1 && cp subjects/cargo_quote/vendor/kg_experiment/results/S1/run1_G.py runs/anchor/S1/
+          cd harness && KG_STORE=rdflib KG_RDFLIB_FILE=../runs/anchor/store.ttl python run.py --deterministic --scenarios S6 --out ../runs/anchor > /dev/null && cd ..
+          KG_STORE=rdflib KG_RDFLIB_FILE=runs/anchor/store.ttl python3 - <<'PY'
+          import sys
+          sys.path[:0] = ["harness", "demo/app"]
+          from store import open_store
+          import register_project
+          register_project.project(open_store())
+          with open_store() as st:
+              rows = st.register_node_statements("ENT-0004")
+              derived = sorted({d for r in rows for d in r["derived"]})
+              assert len(rows) == 13 and derived == ["derived:S1:G:run1 (suspect)"], (len(rows), derived)
+              assert all(r["anchors"] == ["DT-P"] and r["document"] == "contract/decision_table.md" for r in rows), rows
+              assert sorted(r["status"] for r in rows).count("invalidated") == 4, [r["status"] for r in rows]
+              print(f"{st.name}: ENT-0004 -> {len(rows)} statements at DT-P (39 at document grain) -> {derived}")
+          PY
       - name: The pre-load check (task-0045) through the CI template's script, real pumllint, the example instance clean exits 0, a planted broken PlantUML file exits 1
         run: |
           rm -rf runs/preload && python tools/example_instance.py runs/preload > /dev/null
