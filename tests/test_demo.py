@@ -559,7 +559,7 @@ def test_vendored_register_matches_its_source_note_and_checks_clean():
     spec.loader.exec_module(mod)
     findings, summary = mod.run(reg, today=dt.date.fromisoformat(pinned))
     assert [f for f in findings.items if f["level"] == "error"] == [], findings.items
-    assert summary["nodes"] == 56 and summary["links"] == 65
+    assert summary["nodes"] == 57 and summary["links"] == 65
     assert summary["C1"]["uncovered"] == [] and summary["C1"]["excepted"] == 1
     assert summary["C2"]["uncovered"] == [] and summary["C3"]["uncovered"] == []
 

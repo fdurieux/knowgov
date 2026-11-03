@@ -144,7 +144,8 @@ def impact(start: str) -> dict | None:
     """The register's own impact walk from one node (tools/impact.py, vendored), each edge
     with its state, owner, evidence and whether the walk followed it, and what it reached. None
     for an unknown id. The walk follows approved links only, stops at a deprecated or retired
-    node and does not climb a node's parent (the register's decision 0007, v0.2.2): a withdrawn
+    node and does not climb a node's parent (the register's decision 0007, v0.2.2); from each node
+    it takes the steps its kind has, toward what rests on it (decision 0010, v0.2.6): a withdrawn
     edge is listed and not followed, and only the far ends of live edges count as reached. That
     is the register tool's behaviour, shown as it is."""
     T = _load_tools()
@@ -164,7 +165,11 @@ def impact(start: str) -> dict | None:
     products, journeys, processes = by_prefix("PRD"), by_prefix("JRN"), by_prefix("PROC")
     start_node = reg["nodes"][start]
     intro = C(f"The walk starts at {start}, a {start_node.get('kind', '').replace('_', ' ')} in state {start_node.get('state')}.",
-              "It follows approved links from applications to processes, from processes to products and journey steps.",
+              "It follows approved links toward what rests on each node, by the node's kind.",
+              "An application leads to its processes; a process to its products, capabilities and journey steps.",
+              "A capability leads to the products that require it.",
+              "An information entity leads to the processes and applications that use it.",
+              "A product leads to its journeys and processes; a journey step to its process and product.",
               "It stops at a deprecated or retired node.", "A withdrawn edge is listed and not followed.",
               "Its link is not approved, or its far node is deprecated or retired.",
               "It does not climb a node's parent, so a module's application is not reached.")
@@ -172,7 +177,7 @@ def impact(start: str) -> dict | None:
     summary = C(f"{views._plural(len(edges), 'edge')} walked, {withdrawn} withdrawn; {views._plural(len(processes), 'process', 'processes')}, "
                 f"{views._plural(len(products), 'product')} and {views._plural(len(journeys), 'journey element')} reached.")
     if not products and (processes or journeys):
-        summary += " " + C("No product is reached: no delivers link starts at a reached process.")
+        summary += " " + C("No product is reached: no approved link leads from a reached node to a product.")
     if not edges:
         summary += " " + C("No link starts at this node in a direction the walk follows.")
     return {"from": start, "edges": edges, "rows": rows, "reached": {"products": products, "journeys": journeys, "processes": processes, "all": reached},

@@ -150,7 +150,12 @@ the IEAM's own question: type a node id (the QuoteAPI module is the
 default) and the register's walk shows every link it follows to the
 processes, products and journey steps retiring that node would touch,
 with each link's state, owner and evidence, and whether the walk
-followed it. The walk follows approved links only (the register's
+followed it. It starts from any kind something rests on (the register's
+decision 0010): from an application to its processes, from a process to
+its products, capabilities and journey steps, from a capability to the
+products that require it, from an information entity to the processes and
+applications that use it, from a product to its journeys and processes.
+The walk follows approved links only (the register's
 decision 0007): an edge whose link is not approved, or whose far node is
 deprecated or retired, is listed as withdrawn and not followed, so only
 what lies behind approved links counts as reached. It does not climb a

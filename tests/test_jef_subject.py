@@ -242,7 +242,7 @@ def test_register_card_marks_the_subjects_slice_and_offers_its_application():
 import sys; sys.path.insert(0, "demo/app")
 import register_view as rv
 v = rv.build()
-assert v["subject_system"] == "jef_kit" and v["slice"] == {"nodes": 29, "links": 37, "other_nodes": 27, "other_systems": ["kit"]}, v["slice"]
+assert v["subject_system"] == "jef_kit" and v["slice"] == {"nodes": 29, "links": 37, "other_nodes": 28, "other_systems": ["kit"]}, v["slice"]
 assert v["impact_default"] == "APP-0005" and "This subject's slice is the source system jef_kit: 29 nodes and 37 links." in v["intro"]
 caps = v["nodes_by_taxonomy"]["capabilities"]
 assert [c["id"] for c in caps if c["subject"]] == ["CAP-0006", "CAP-0007", "CAP-0008"] and all(c["system"] == "kit" for c in caps if not c["subject"])

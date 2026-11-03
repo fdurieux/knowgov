@@ -191,6 +191,8 @@ from the review itself, and the command refuses a review that breaks a rule, nam
 - **Closing a declared gap** needs `closes`, in the unit the declaration names as its owner (or,
   when it names none, a unit that owns the key). If the declaration names an owner your register
   has no unit for, nobody can close it until the register has that unit and a handle of it.
+  The example register has one since its v0.2.6: CargoQuote's OD-1 names compliance, which is
+  ORG-0004 there (a stand-in, its decision 0011), and only `employee-4` of that unit closes it.
 - **An approved answer lapses** six months after it was given: the statement reads *proposed*
   again until someone re-asks and a reviewer approves again. Set `KG_TODAY=YYYY-MM-DD` for a
   reproducible date.
