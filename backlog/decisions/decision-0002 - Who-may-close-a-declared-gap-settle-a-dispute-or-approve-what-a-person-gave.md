@@ -2,7 +2,7 @@
 id: decision-0002
 title: Who may close a declared gap, settle a dispute, or approve what a person gave
 date: '2026-11-03T21:42:00Z'
-status: proposed
+status: accepted
 ---
 ## Context
 
