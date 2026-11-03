@@ -135,6 +135,11 @@ application your register does not hold, or mapped twice, and lists *UNMAPPED* t
 row maps ([`instance/README.md`](../instance/README.md), "Mapping code to the register"). It exits
 0 when the layout holds, 1 when it does not and 2 when it cannot run.
 
+Once code is mapped, `harness/trace.py` follows a change between code and knowledge in both
+directions. `register` records a build's files with the statements they were built from, and
+`check` fails a pull request whose code rests on statements a document change has invalidated
+([`instance/README.md`](../instance/README.md), "Tracing a code change to the knowledge").
+
 Then start the stack on it, as [`instance/README.md`](../instance/README.md) shows ("Starting the
 demo on your instance"). The page then lists your subjects and reads your register.
 
