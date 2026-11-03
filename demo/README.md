@@ -13,6 +13,11 @@ planted situations: one that receives the gate's verdict and evidence
 *baseline arm*, B). Every result shown is already committed to this
 repository; the demo works offline from the first start.
 
+Trying knowgov on your own documents? Start with the adopter's guide,
+[`docs/guide.md`](../docs/guide.md): what knowgov is for, the order of
+work, the dashboard field by field, and impact in Neo4j. This file is
+the reference it links to.
+
 ## What you see
 
 **A menu** of the seven scenarios S1 to S7 (complete, missing, ambiguous,
