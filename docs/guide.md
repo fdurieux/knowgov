@@ -482,6 +482,21 @@ listed as `derived:S1:G:run1 (suspect)`); REL-08002 cites `kit/requirements.md` 
 works at the grain of a whole document: a link that cites one requirement still reaches every
 assertion of the file. It needs the register projected and a scenario loaded.
 
+The saved query *From ENT-0002 to the statements its cited anchors name* narrows that to the part
+of the document the link cites. A citation such as `kit:contract/decision_table.md#DT-P` names an
+anchor, `DT-P`; the query keeps only the fragments whose locator has that anchor as one of its
+parts (`DT-P/row/P1`, `row/REQ-05`). A citation with no anchor still reaches the whole document.
+It reads every version of the document, so a statement a change has invalidated still shows the
+generated code that used it. One row per statement: its status, the links and anchors that reach
+it, its versions and fragments, and the derived code.
+
+In plain English, for ENT-0004 Tariff with S6 loaded and the S1 code registered as derived: two
+links cite the decision table at `#DT-P`. The query returns 13 statements, rows P1 to P4 in
+versions 1 and 2, four of them invalidated by the change, where the document grain gives 39. All
+of them lead to `derived:S1:G:run1 (suspect)`. The rdflib store answers the same question through
+the store port (`register_node_statements`), with the same 13 rows. An anchor narrows only as far
+as the register cites one: 11 of CargoQuote's 21 citations carry an anchor.
+
 What a module change cannot reach today is a change to the code itself. The store records code
 only as a *derived output* that used certain assertions. It does not read code, so editing the
 implementation invalidates nothing. The direction is always document, then assertion, then code.

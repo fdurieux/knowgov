@@ -801,6 +801,39 @@ class RdflibStore(Store):
                 "loaded_at": self.prop(first, "loaded_at") if first else "",
                 "nodes": by_label.get("RegNode", 0), "links": by_label.get("RegLink", 0), "by_label": by_label, "relationships": rels, "total": len(regs)}
 
+    def register_node_statements(self, start: str) -> list[dict]:
+        n = self.node(f"reg:RegNode:{start}", "RegNode")
+        if n is None:
+            return []
+        rows: dict[str, dict] = {}
+        for l in self.inn(n, "REG_LINK_OF"):
+            if not self.has_label(l, "RegLink") or self.prop(l, "state") != "approved":
+                continue
+            for e, d in self.edges_out(l, "REG_CITES"):
+                cited = self.prop(e, "anchor") or ""
+                anchor = cited.split("#", 1)[1] if "#" in cited else None
+                path = self.prop(d, "path")
+                for a in self.nodes("Artefact", id=path):
+                    for v in self.out(a, "HAS_VERSION"):
+                        for f in self.out(v, "HAS_FRAGMENT"):
+                            loc = self.prop(f, "locator") or ""
+                            if anchor is not None and anchor not in loc.split("/"):
+                                continue
+                            for x in self.inn(f, "SUPPORTED_BY"):
+                                if not self.has_label(x, "Assertion"):
+                                    continue
+                                r = rows.setdefault(self.nid(x), {"statement": self.nid(x), "status": self.prop(x, "status"), "document": path,
+                                                                  "anchors": set(), "links": set(), "versions": set(), "fragments": set(), "derived": set()})
+                                r["anchors"].add(anchor or "(whole document)")
+                                r["links"].add(self.prop(l, "reg_id"))
+                                r["versions"].add(self.prop(v, "tag"))
+                                r["fragments"].add(loc)
+                                for dv in self.inn(x, "USED_ASSERTION"):
+                                    if self.has_label(dv, "Derived"):
+                                        r["derived"].add(self.nid(dv) + (" (suspect)" if self.prop(dv, "suspect") else ""))
+        return [{**r, **{k: sorted(r[k]) for k in ("anchors", "links", "versions", "fragments", "derived")}}
+                for r in sorted(rows.values(), key=lambda r: (r["document"], r["statement"]))]
+
     # ---- what the page shows -----------------------------------------------------------------
     def describe(self) -> dict:
         return {"store": self.name, "uri": self.path or "memory", "browser": None}

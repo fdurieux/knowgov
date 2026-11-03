@@ -1,5 +1,5 @@
 ---
-id: TASK-0063
+id: TASK-0066
 title: 'Pre-load check: run the linters of the other kinds the table names'
 status: To Do
 assignee: []

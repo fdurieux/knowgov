@@ -131,6 +131,26 @@ MODULE_STORE = (
     "RETURN l.reg_id AS link, d.path AS document, count(DISTINCT x) AS assertions,\n"
     "       collect(DISTINCT x.status) AS statuses, collect(DISTINCT dv.id + CASE WHEN dv.suspect THEN ' (suspect)' ELSE '' END) AS derived\n"
     "ORDER BY link, document")
+# The same join at the grain of the cited anchor (task-0046; doc-0011 point 1): a citation with an
+# anchor (kit:contract/decision_table.md#DT-P) reaches only the fragments whose locator holds the
+# anchor as a path segment (DT-P/row/P1, row/REQ-05); one without an anchor cites the whole
+# document. Every version is read, so a statement a change invalidated still shows the derived code
+# that used it. One row per statement. Parameterised ($start) for the port's register_node_statements;
+# the saved query is the same text with the literal start the page replaces.
+_NODE_STATEMENTS = (
+    "// from a node to the statements its approved links cite, at the grain of the cited anchor where the citation\n"
+    "// names one (#DT-P reaches DT-P/row/P1, not the whole table), and on to the derived code that used them\n"
+    "MATCH (n:RegNode {reg_id:$start})<-[:REG_LINK_OF]-(l:RegLink {state:'approved'})-[c:REG_CITES]->(d:RegDocument)\n"
+    "WITH l, d, CASE WHEN c.anchor CONTAINS '#' THEN split(c.anchor, '#')[1] ELSE null END AS anchor\n"
+    "MATCH (:Artefact {id:d.path})-[:HAS_VERSION]->(v:Version)-[:HAS_FRAGMENT]->(f:Fragment)<-[:SUPPORTED_BY]-(x:Assertion)\n"
+    "WHERE anchor IS NULL OR anchor IN split(f.locator, '/')\n"
+    "OPTIONAL MATCH (dv:Derived)-[:USED_ASSERTION]->(x)\n"
+    "RETURN x.id AS statement, x.status AS status, d.path AS document,\n"
+    "       collect(DISTINCT coalesce(anchor, '(whole document)')) AS anchors, collect(DISTINCT l.reg_id) AS links,\n"
+    "       collect(DISTINCT v.tag) AS versions, collect(DISTINCT f.locator) AS fragments,\n"
+    "       collect(DISTINCT dv.id + CASE WHEN dv.suspect THEN ' (suspect)' ELSE '' END) AS derived\n"
+    "ORDER BY document, statement")
+NODE_STATEMENTS = _NODE_STATEMENTS.replace("$start", f"'{INFORMATION_START}'")
 # The literal start each saved query carries, by the taxonomy the page picks its default from.
 START_LITERALS = {"applications": IMPACT_START, "capabilities": CAPABILITY_START, "information": INFORMATION_START}
 
@@ -176,6 +196,9 @@ SAVED_QUERIES = [
     {"id": "register-node-store", "needs": "register+scenario", "start": "applications",
      "title": f"From {IMPACT_START} to the store: the documents its approved links cite, their assertions and the derived code",
      "text": MODULE_STORE},
+    {"id": "register-node-statements", "needs": "register+scenario", "start": "information",
+     "title": f"From {INFORMATION_START} to the statements its cited anchors name, every version, and the derived code that used them",
+     "text": NODE_STATEMENTS},
     {"id": "register-c1", "needs": "register", "title": "C1 in Cypher: approved steps and touchpoints with no is_supported_by link, the exception joined",
      "text": ("MATCH (s:RegNode {taxonomy:'journeys', state:'approved'}) WHERE s.kind IN ['step', 'touchpoint']\n"
               "  AND NOT (s)-[:REG_IS_SUPPORTED_BY]->(:RegNode)\n"
@@ -566,6 +589,10 @@ class Neo4jStore(Store):
 
     def all_derived(self) -> list[dict]:
         return _rows(self.run("MATCH (dv:Derived) RETURN dv.id AS id, dv.suspect AS suspect"))
+
+    def register_node_statements(self, start: str) -> list[dict]:
+        rows = _rows(self.run(_NODE_STATEMENTS, start=start))
+        return [{**r, **{k: sorted(r[k]) for k in ("anchors", "links", "versions", "fragments", "derived")}} for r in rows]
 
     # ---- the census and the page
     def census(self) -> dict:
