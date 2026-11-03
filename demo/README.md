@@ -638,10 +638,19 @@ whatever the verdict, since it may not be reused as it is. An invalidated
 statement on a required key is major while no verified or approved
 statement replaces it, and info once one does: the record of the change.
 After S6's change and the owner's re-verification the verdict is PROCEED,
-and the command still exits 1 on `derived:S1:G:run1`. CI shows it with
-`tools/check_gate_after_change.py`, which puts S6's second stage in the
-store and runs the command with `--no-load` (the command itself loads
-the first stage only; an option for a later version is task-0049).
+and the command still exits 1 on `derived:S1:G:run1`.
+
+**A later version.** `--stage 2` brings in a scenario's changed artefact
+after the first stage, as the record's stage 2 does: S6's decision table
+as v2. Four statements are invalidated, and the gate is BLOCKED until the
+owner re-verifies. `--stage 2 --reverify` adds that re-verification, and
+the command exits 1 on the suspect derived output. The report names the
+version loaded (`version`) and the change (`change`). CI runs all three
+with `tools/check_gate_after_change.py` (task-0049):
+
+```bash
+docker compose exec -T app python harness/gate_cli.py --scenario S6 --stage 2
+```
 
 **A baseline instead of a threshold.** `--baseline record` compares the
 answer with the subject's record for the same scenario and exits 1 only
