@@ -5,6 +5,13 @@
 # path#section the register's own source pointers and link evidence use), and a short note.
 # Nothing here is written back to the register; the box the page draws from it says "the
 # demo's reading" and its approval below is the maintainer's, not the register's.
+#
+# owner (task-0043, added 2026-11-03, after the approval below): the one unit that answers for the
+# key, so a scenario yields one questionnaire per unit and no key is asked twice. It is always one of
+# the owners the vendored register gives the row's nodes (a test holds it so): the product owner
+# (ORG-0001) for the decision tables' rules and the flow, architecture stewardship (ORG-0002) for
+# the API's behaviour and its response. Who may rule on a key stays every unit owning its nodes
+# (decision-0002); who closes OD-1 stays the unit its declaration names (compliance, ORG-0004).
 
 [map]
 basis = "authored"
@@ -20,48 +27,56 @@ keys_expected = 36
 
 [[row]]
 key = "shipper_id|present"
+owner = "ORG-0001"
 nodes = ["CAP-0004", "PROC-0002", "APP-0002", "ENT-0002"]
 anchor = "contract/decision_table.md#DT-V"
 note = "V1: the request's shipper id must be present"
 
 [[row]]
 key = "weight_kg|min"
+owner = "ORG-0001"
 nodes = ["CAP-0004", "PROC-0002", "APP-0002", "ENT-0002"]
 anchor = "contract/decision_table.md#DT-V"
 note = "V2, lower bound"
 
 [[row]]
 key = "weight_kg|max"
+owner = "ORG-0001"
 nodes = ["CAP-0004", "PROC-0002", "APP-0002", "ENT-0002"]
 anchor = "contract/decision_table.md#DT-V"
 note = "V2, upper bound"
 
 [[row]]
 key = "distance_km|min"
+owner = "ORG-0001"
 nodes = ["CAP-0004", "PROC-0002", "APP-0002", "ENT-0002"]
 anchor = "contract/decision_table.md#DT-V"
 note = "V3, lower bound"
 
 [[row]]
 key = "distance_km|max"
+owner = "ORG-0001"
 nodes = ["CAP-0004", "PROC-0002", "APP-0002", "ENT-0002"]
 anchor = "contract/decision_table.md#DT-V"
 note = "V3, upper bound"
 
 [[row]]
 key = "declared_value|min"
+owner = "ORG-0001"
 nodes = ["CAP-0004", "PROC-0002", "APP-0002", "ENT-0002"]
 anchor = "contract/decision_table.md#DT-V"
 note = "V4, lower bound"
 
 [[row]]
 key = "declared_value|max"
+owner = "ORG-0001"
 nodes = ["CAP-0004", "PROC-0002", "APP-0002", "ENT-0002"]
 anchor = "contract/decision_table.md#DT-V"
 note = "V4, upper bound"
 
 [[row]]
 key = "invalid_request|behaviour"
+owner = "ORG-0001"
 nodes = ["CAP-0004", "PROC-0002", "APP-0002", "JRN-0002"]
 anchor = "kit/requirements.md#REQ-04"
 note = "a DT-V violation rejects the request and nothing else runs; the shipper's submit step sees the rejection"
@@ -72,78 +87,91 @@ note = "a DT-V violation rejects the request and nothing else runs; the shipper'
 
 [[row]]
 key = "S-accept|max"
+owner = "ORG-0001"
 nodes = ["CAP-0003", "PROC-0003", "APP-0004", "ENT-0005"]
 anchor = "contract/decision_table.md#DT-S"
 note = "the accept band's upper bound (41)"
 
 [[row]]
 key = "S-review|min"
+owner = "ORG-0001"
 nodes = ["CAP-0003", "PROC-0003", "APP-0004", "ENT-0005"]
 anchor = "contract/decision_table.md#DT-S"
 note = "the review band's lower bound (42)"
 
 [[row]]
 key = "S-review|max"
+owner = "ORG-0001"
 nodes = ["CAP-0003", "PROC-0003", "APP-0004", "ENT-0005"]
 anchor = "contract/decision_table.md#DT-S"
 note = "the review band's upper bound (66)"
 
 [[row]]
 key = "S-refuse|min"
+owner = "ORG-0001"
 nodes = ["CAP-0003", "PROC-0003", "APP-0004", "ENT-0005"]
 anchor = "contract/decision_table.md#DT-S"
 note = "the refuse band's lower bound (67)"
 
 [[row]]
 key = "S-accept|priced"
+owner = "ORG-0001"
 nodes = ["CAP-0003", "CAP-0002", "PROC-0003", "PROC-0004", "ENT-0003"]
 anchor = "contract/decision_table.md#DT-S"
 note = "an accepted quote is priced"
 
 [[row]]
 key = "S-review|priced"
+owner = "ORG-0001"
 nodes = ["CAP-0003", "CAP-0002", "PROC-0003", "PROC-0004", "ENT-0003"]
 anchor = "contract/decision_table.md#DT-S"
 note = "a held quote is not priced"
 
 [[row]]
 key = "S-refuse|priced"
+owner = "ORG-0001"
 nodes = ["CAP-0003", "CAP-0002", "PROC-0003", "PROC-0004", "ENT-0003"]
 anchor = "contract/decision_table.md#DT-S"
 note = "a refused quote is not priced"
 
 [[row]]
 key = "S-accept|notified"
+owner = "ORG-0001"
 nodes = ["CAP-0003", "CAP-0005", "PROC-0003", "PROC-0005", "JRN-0003"]
 anchor = "contract/decision_table.md#DT-S"
 note = "the quote document is sent"
 
 [[row]]
 key = "S-review|notified"
+owner = "ORG-0001"
 nodes = ["CAP-0003", "CAP-0005", "PROC-0003", "PROC-0005", "JRN-0003"]
 anchor = "contract/decision_table.md#DT-S"
 note = "no notification on a hold"
 
 [[row]]
 key = "S-refuse|notified"
+owner = "ORG-0001"
 nodes = ["CAP-0003", "CAP-0005", "PROC-0003", "PROC-0005", "JRN-0003"]
 anchor = "contract/decision_table.md#DT-S"
 note = "the refusal notice is sent"
 
 [[row]]
 key = "S-accept|status"
+owner = "ORG-0001"
 nodes = ["CAP-0003", "PROC-0003", "APP-0002", "ENT-0003", "JRN-0003"]
 anchor = "contract/decision_table.md#DT-S"
 note = "status quoted"
 
 [[row]]
 key = "S-review|status"
+owner = "ORG-0001"
 nodes = ["CAP-0003", "PROC-0003", "APP-0002", "ENT-0003", "JRN-0003"]
 anchor = "contract/decision_table.md#DT-S"
 note = "status review_hold"
 
 [[row]]
 key = "S-refuse|status"
+owner = "ORG-0001"
 nodes = ["CAP-0003", "PROC-0003", "APP-0002", "ENT-0003", "JRN-0003"]
 anchor = "contract/decision_table.md#DT-S"
 note = "status refused_screening"
@@ -153,18 +181,21 @@ note = "status refused_screening"
 
 [[row]]
 key = "QuoteAPI|on_store_failure"
+owner = "ORG-0002"
 nodes = ["APP-0002", "PROC-0001", "ENT-0003"]
 anchor = "kit/requirements.md#REQ-05"
 note = "storage failure: error store_unavailable, nothing else runs"
 
 [[row]]
 key = "QuoteAPI|on_notification_failure"
+owner = "ORG-0002"
 nodes = ["APP-0002", "PROC-0005", "CAP-0005"]
 anchor = "kit/requirements.md#REQ-07"
 note = "a failed notification leaves outcome and response unchanged"
 
 [[row]]
 key = "QuoteAPI|on_screening_outage"
+owner = "ORG-0002"
 nodes = ["APP-0002", "APP-0004", "PROC-0003", "PROC-0001", "JRN-0003"]
 anchor = "kit/requirements.md#REQ-06"
 note = "the open decision S2 and S5 plant: held_unscreened with price and hold; cited by REL-06002 since the register's v0.1.1 (decision 0003); cited by no link at v0.1.0"
@@ -174,42 +205,49 @@ note = "the open decision S2 and S5 plant: held_unscreened with price and hold; 
 
 [[row]]
 key = "P1|formula"
+owner = "ORG-0001"
 nodes = ["CAP-0002", "PROC-0004", "APP-0003", "ENT-0004"]
 anchor = "contract/decision_table.md#DT-P"
 note = "base price"
 
 [[row]]
 key = "P2|threshold"
+owner = "ORG-0001"
 nodes = ["CAP-0002", "PROC-0004", "APP-0003", "ENT-0004"]
 anchor = "contract/decision_table.md#DT-P"
 note = "heavy surcharge threshold (1244 kg)"
 
 [[row]]
 key = "P2|surcharge"
+owner = "ORG-0001"
 nodes = ["CAP-0002", "PROC-0004", "APP-0003", "ENT-0004"]
 anchor = "contract/decision_table.md#DT-P"
 note = "the surcharge S6 changes from 316.00 to 341.00"
 
 [[row]]
 key = "P3|threshold"
+owner = "ORG-0001"
 nodes = ["CAP-0002", "PROC-0004", "APP-0003", "ENT-0004"]
 anchor = "contract/decision_table.md#DT-P"
 note = "long-haul threshold (4912 km)"
 
 [[row]]
 key = "P3|factor"
+owner = "ORG-0001"
 nodes = ["CAP-0002", "PROC-0004", "APP-0003", "ENT-0004"]
 anchor = "contract/decision_table.md#DT-P"
 note = "long-haul multiplier (1.19)"
 
 [[row]]
 key = "P3|order"
+owner = "ORG-0001"
 nodes = ["CAP-0002", "PROC-0004", "APP-0003", "ENT-0004"]
 anchor = "kit/requirements.md#REQ-08"
 note = "P3 applied after P2; the order is normative"
 
 [[row]]
 key = "P4|rounding"
+owner = "ORG-0001"
 nodes = ["CAP-0002", "PROC-0004", "APP-0003", "ENT-0004"]
 anchor = "contract/decision_table.md#DT-P"
 note = "round to two decimals"
@@ -219,30 +257,35 @@ note = "round to two decimals"
 
 [[row]]
 key = "flow|order"
+owner = "ORG-0001"
 nodes = ["PROC-0001", "JRN-0001", "APP-0002"]
 anchor = "behavior/quote_flow.puml"
 note = "validate, store, screen, price, notify, in that order (also kit/quote_process.bpmn)"
 
 [[row]]
 key = "response|statuses"
+owner = "ORG-0002"
 nodes = ["APP-0002", "JRN-0004", "JRN-0003", "ENT-0003"]
 anchor = "contract/openapi.yaml"
 note = "the status values the API may return"
 
 [[row]]
 key = "response|price_presence"
+owner = "ORG-0002"
 nodes = ["APP-0002", "JRN-0004", "JRN-0003", "ENT-0003"]
 anchor = "contract/openapi.yaml"
 note = "when the response carries a price"
 
 [[row]]
 key = "response|hold_presence"
+owner = "ORG-0002"
 nodes = ["APP-0002", "JRN-0004", "JRN-0003", "ENT-0003"]
 anchor = "contract/openapi.yaml"
 note = "when the response carries a hold flag; absent in S2's kit"
 
 [[row]]
 key = "response|quote_id_presence"
+owner = "ORG-0002"
 nodes = ["APP-0002", "JRN-0004", "JRN-0003", "ENT-0003"]
 anchor = "contract/openapi.yaml"
 note = "every stored quote returns its id"

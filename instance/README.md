@@ -169,7 +169,9 @@ python harness/capture.py questionnaire --scenario S2 --out questionnaires/
 
 In plain English: this loads the scenario, asks the gate which keys are missing or weak, and
 writes one questionnaire per *owner*: the organisation unit your register names as owner of the
-building blocks each key concerns. Each questionnaire says how many keys the owner has and how
+building blocks each key concerns. When several units own those building blocks, give the key's
+row in `register_map.toml` an `owner`, one of them, and only that unit is asked; otherwise each
+of them is, and two people may answer the same key. Each questionnaire says how many keys the owner has and how
 many need an answer. For each one it shows what the store holds now and asks one question. A key
 no register row covers goes to a questionnaire named `unassigned`, so nothing is dropped.
 
