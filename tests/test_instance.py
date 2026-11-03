@@ -138,3 +138,70 @@ def test_the_page_lists_the_instance_subjects_only_and_reads_its_record():
                 os.environ.pop(k, None)
                 if v is not None:
                     os.environ[k] = v
+
+
+def test_the_example_instance_maps_cargoquote_reference_code_to_its_application():
+    """task-0050: code_map.toml maps code path globs to register APP ids; the example maps the
+    reference code clean, nothing unmapped, nothing unmatched."""
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "inst"
+        example_instance.build(out)
+        cm = check_instance.check(out)["code_map"]
+        assert cm["root"] == "subjects/cargo_quote/vendor/stack_experiment/cargo_quote", cm
+        assert [(r["glob"], r["app"], r["files"]) for r in cm["rows"]] == [("reference_impl.py", "APP-0001", ["reference_impl.py"])]
+        assert cm["unmapped"] == [] and cm["unmatched"] == []
+        assert "APP-0001" in check_instance.register_apps(out / "register")
+        (out / "code_map.toml").unlink()
+        rep = check_instance.check(out)
+        assert rep["code_map"] is None and rep["errors"] == [], "the file is optional"
+
+
+def _with_code_map(out: Path, rows: str, root: str = "code") -> None:
+    (out / "code" / "quote" / "pricing").mkdir(parents=True)
+    for f in ("quote/api.py", "quote/pricing/tariff.py", "quote/screening.py", "quote/README.md"):
+        (out / "code" / f).write_text("#\n", encoding="utf-8")
+    (out / "code_map.toml").write_text(f'[code]\nroot = "{root}"\ninclude = ["**/*.py"]\n\n' + rows, encoding="utf-8")
+
+
+def test_the_code_map_refuses_an_unknown_app_and_an_overlap_and_lists_unmapped_code():
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "inst"
+        example_instance.build(out)
+        _with_code_map(out, '[[map]]\nglob = "quote/api.py"\napp = "APP-0002"\n\n'
+                            '[[map]]\nglob = "quote/pricing/**"\napp = "APP-0003"\n\n'
+                            '[[map]]\nglob = "lost/*.py"\napp = "APP-0004"\n')
+        rep = check_instance.check(out)
+        assert rep["errors"] == [], rep["errors"]
+        cm = rep["code_map"]
+        assert cm["unmapped"] == ["quote/screening.py"], "README.md is not code: include says *.py"
+        assert cm["unmatched"] == ["lost/*.py"]
+        text = check_instance.render(rep)
+        assert "UNMAPPED quote/screening.py" in text and "UNMATCHED lost/*.py" in text
+        assert check_instance.main([str(out)]) == 0, "unmapped and unmatched are findings, not errors"
+
+        (out / "code_map.toml").write_text('[code]\nroot = "code"\ninclude = ["**/*.py"]\n\n'
+                                           '[[map]]\nglob = "quote/**/*.py"\napp = "APP-0002"\n\n'
+                                           '[[map]]\nglob = "quote/pricing/*.py"\napp = "APP-0003"\n\n'
+                                           '[[map]]\nglob = "quote/s*.py"\napp = "APP-0099"\n', encoding="utf-8")
+        errs = " | ".join(check_instance.check(out)["errors"])
+        assert "APP-0099 is no application or module of register/applications" in errs, errs
+        assert "quote/**/*.py (APP-0002) and quote/pricing/*.py (APP-0003) overlap: one covers the other" in errs, errs
+        assert "quote/**/*.py (APP-0002) and quote/s*.py (APP-0099) overlap" in errs, errs
+        assert check_instance.main([str(out)]) == 1
+
+        (out / "code_map.toml").write_text('[code]\nroot = "code"\n\n[[map]]\nglob = "quote/*i.py"\napp = "APP-0002"\n\n'
+                                           '[[map]]\nglob = "quote/a*"\napp = "APP-0003"\n', encoding="utf-8")
+        errs = check_instance.check(out)["errors"]
+        assert errs == ["code_map.toml: quote/*i.py (APP-0002) and quote/a* (APP-0003) overlap: both match quote/api.py"], errs
+
+        (out / "code_map.toml").write_text('[code\n', encoding="utf-8")
+        assert check_instance.check(out)["errors"][0].startswith("code_map.toml: does not parse")
+        (out / "code_map.toml").write_text('[code]\nroot = "nowhere"\n', encoding="utf-8")
+        assert check_instance.check(out)["errors"] == ["code_map.toml: root nowhere: not a directory"]
+
+
+def test_glob_semantics():
+    r = check_instance.glob_re
+    assert r("src/**/*.py").match("src/a.py") and r("src/**/*.py").match("src/a/b/c.py")
+    assert not r("src/*.py").match("src/a/b.py") and not r("*.py").match("a/b.py")
+    assert r("src/**").match("src/a/b") and not r("src/a?.py").match("src/a/.py")

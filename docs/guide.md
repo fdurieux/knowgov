@@ -115,6 +115,7 @@ read-only and never writes to it.
   artefacts/<kind>/    your documents, one folder per kind
   subjects/<id>/       one folder per subject; its documents are named by path
   record/<subject>/    your own results, kept as evidence
+  code_map.toml        optional: which register application each code path implements
 ```
 
 There is one register per organisation, shared by every subject in it.
@@ -129,8 +130,10 @@ python tools/check_instance.py /path/to/your/instance
 In plain English: the check confirms the register is there, that every subject loads, and that
 every document a subject names exists. It lists your documents kind by kind with the mapper that
 reads each one. *ABSENT* marks a document no mapper reads. *UNREAD* marks a file under
-`artefacts/` that no subject names. It exits 0 when the layout holds, 1 when it does not and 2
-when it cannot run.
+`artefacts/` that no subject names. With a `code_map.toml` it also refuses a code path mapped to an
+application your register does not hold, or mapped twice, and lists *UNMAPPED* the code files no
+row maps ([`instance/README.md`](../instance/README.md), "Mapping code to the register"). It exits
+0 when the layout holds, 1 when it does not and 2 when it cannot run.
 
 Then start the stack on it, as [`instance/README.md`](../instance/README.md) shows ("Starting the
 demo on your instance"). The page then lists your subjects and reads your register.
