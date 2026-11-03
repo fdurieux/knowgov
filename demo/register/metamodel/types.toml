@@ -54,3 +54,11 @@ required_when_approved = ["review_due", "approval"]
 [elicited]
 fields = ["from", "on", "record"]
 handle = "^[a-z][a-z0-9-]{1,39}$"   # an opaque handle: never a name, an e-mail address or a staff number
+# Decision 0009: handles are issued, never chosen. When this file exists, `from` must be a handle it
+# lists, issued on or before `on` and not withdrawn by then. It holds handles, units and roles,
+# never a name: the key from a handle to a person lives in the organisation's directory.
+issued = "people/handles.toml"
+# Decision 0009: a record kept outside the register (an answered questionnaire in the knowledge
+# store) is cited as `capture:<capture id>`, which the checker does not resolve; any other record
+# is a path inside the register and must exist.
+external_record = "^capture:[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
