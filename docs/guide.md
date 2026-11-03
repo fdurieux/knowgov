@@ -425,82 +425,49 @@ The walk does not start from a capability, an information node, a product or a j
 `CAP-0002` or `ENT-0003` it meets no link, and the panel says "No link starts at this node in a
 direction the walk follows". That is the walk's design: it answers "what would retiring this
 application or process touch", going upwards. To ask "what rests on this capability" or "what
-touches this entity", go the other way. These two queries are not saved on the page yet. Paste
-them into the Browser.
+touches this entity", go the other way. Two saved queries in the store card do that.
 
-**A capability.** What realises or requires it, then one step on from each process that realises
-it over an approved link:
-
-```cypher
-MATCH (c:RegNode {reg_id:'CAP-0002'})
-CALL (c) {
-  MATCH (x:RegNode)-[r:REG_REALIZES|REG_REQUIRES]->(c) RETURN x, r, null AS via
-  UNION
-  MATCH (p:RegNode)-[r0:REG_REALIZES {state:'approved'}]->(c), (x:RegNode)-[r:REG_SUPPORTS|REG_IS_SUPPORTED_BY]->(p) RETURN x, r, p.reg_id AS via
-  UNION
-  MATCH (p:RegNode)-[r0:REG_REALIZES {state:'approved'}]->(c), (p)-[r:REG_DELIVERS]->(x:RegNode) RETURN x, r, p.reg_id AS via
-}
-RETURN x.reg_id AS node, x.name AS name, toLower(replace(type(r), 'REG_', '')) AS relationship, via,
-       r.state AS `link state`,
-       CASE WHEN r.state = 'approved' AND NOT x.state IN ['deprecated', 'retired'] THEN 'yes' ELSE 'no, withdrawn' END AS followed
-ORDER BY via, node
-```
+**A capability.** The saved query *What rests on CAP-0002* lists what realises or requires the
+capability, then steps on from each process that realises it over an approved link.
 
 In plain English: the first part finds what points at the capability: the process that realises
-it and the product that requires it. The other two parts step from each such process, over
-approved links only, to the applications that support it, the journey steps it supports and the
-products it delivers. For CAP-0002 Price a shipment: PROC-0004 Price the quote (realizes) and
-PRD-0002 CargoQuote instant quote (requires), and through PROC-0004 the TariffEngine module
-APP-0003 and the journey step JRN-0003.
+it and the product that requires it. The second part steps from each such process, over approved
+links only, to the applications that support it, the journey steps it supports and the products
+it delivers. Each row names the link it came by and says whether it was followed. For CAP-0002
+Price a shipment: PROC-0004 Price the quote (realizes) and PRD-0002 CargoQuote instant quote
+(requires), and through PROC-0004 the TariffEngine module APP-0003 and the journey step JRN-0003.
 
 **An information node, from your data model.** The register's information taxonomy holds the
-business entities of your data model under `ENT-` ids. What creates, reads, updates or deletes
-the entity, which application manages it, then one step on:
+business entities of your data model under `ENT-` ids. The saved query *What touches ENT-0002*
+lists what creates, reads, updates or deletes the entity and which application manages it, then
+steps on from each such process.
 
-```cypher
-MATCH (e:RegNode {reg_id:'ENT-0003'})
-CALL (e) {
-  MATCH (x:RegNode)-[r:REG_CRUD|REG_MANAGES]->(e) RETURN x, r, null AS via
-  UNION
-  MATCH (p:RegNode)-[r0:REG_CRUD {state:'approved'}]->(e), (x:RegNode)-[r:REG_SUPPORTS|REG_IS_SUPPORTED_BY]->(p) RETURN x, r, p.reg_id AS via
-  UNION
-  MATCH (p:RegNode)-[r0:REG_CRUD {state:'approved'}]->(e), (p)-[r:REG_REALIZES|REG_DELIVERS]->(x:RegNode) RETURN x, r, p.reg_id AS via
-}
-RETURN x.reg_id AS node, x.name AS name, toLower(replace(type(r), 'REG_', '')) AS relationship, via,
-       r.state AS `link state`,
-       CASE WHEN r.state = 'approved' AND NOT x.state IN ['deprecated', 'retired'] THEN 'yes' ELSE 'no, withdrawn' END AS followed
-ORDER BY via, node
-```
+In plain English: for ENT-0002 Quote request, the process PROC-0002 Validate the request works on
+it and the QuoteAPI module APP-0002 manages it. From PROC-0002 the query reaches QuoteAPI again
+(it supports the process), the capability CAP-0004 and the journey step JRN-0002. Copy the query
+and change the id to ask about another node. For ENT-0003 Quote it reaches PROC-0004 and APP-0002,
+then APP-0003 TariffEngine, CAP-0002 and JRN-0003. For J-F's ENT-0010 Seam frame, the link from
+the Daily chain is deprecated and shows as withdrawn; the approved one from PROC-0010 Seam frame
+export leads on to the product PRD-0004. For ENT-0005 Screening result the only link is a draft,
+so nothing is followed: a draft link is not yet knowledge you can act on.
 
-In plain English: for ENT-0003 Quote, the process PROC-0004 Price the quote works on it and the
-QuoteAPI module APP-0002 manages it. From PROC-0004 the query reaches TariffEngine (APP-0003), the
-capability CAP-0002 and the journey step JRN-0003. For J-F's ENT-0010 Seam frame, the link from the
-Daily chain is deprecated and shows as withdrawn; the approved one from PROC-0010 Seam frame export
-leads on to the product PRD-0004. For ENT-0005 Screening result the only link is a draft, so
-nothing is followed: a draft link is not yet knowledge you can act on.
+Each query is listed from a start the page picks from your register: the node of that taxonomy,
+in the subject's part of the register, that the most links point at. On J-F's page they start
+from CAP-0007 and ENT-0008.
 
 ### From a module to its documents and its code
 
 A module in your register, such as QuoteAPI (APP-0002), is a node. The code that implements it is
 not in the register. The store reaches from one to the other only through the documents the
-register's links cite as evidence:
-
-```cypher
-MATCH (n:RegNode {reg_id:'APP-0002'})<-[:REG_LINK_OF]-(l:RegLink {state:'approved'})-[c:REG_CITES]->(d:RegDocument)
-MATCH (a:Artefact {id:d.path})-[:CURRENT]->(:Version)-[:HAS_FRAGMENT]->(:Fragment)<-[:SUPPORTED_BY]-(x:Assertion)
-OPTIONAL MATCH (dv:Derived)-[:USED_ASSERTION]->(x)
-RETURN l.reg_id AS link, d.path AS document, count(DISTINCT x) AS assertions,
-       collect(DISTINCT x.status) AS statuses, collect(DISTINCT dv.id) AS derived
-ORDER BY link
-```
+register's links cite as evidence. The saved query *From APP-0002 to the store* follows that path.
 
 In plain English: start at the module, take each approved link it is part of, follow the link to
 the documents it cites, then to every assertion the current version of each document supports,
 and to any generated code that used them. With S6 loaded: two links cite `kit/links.toml`
-(15 assertions each); REL-08001 cites `contract/openapi.yaml` (10 assertions, used by the S1 code
-`derived:S1:G:run1`); REL-08002 cites `kit/requirements.md` (8). The query works at the grain of a
-whole document: a link that cites one requirement still reaches every assertion of the file. It
-needs the register projected and a scenario loaded.
+(15 assertions each); REL-08001 cites `contract/openapi.yaml` (10 assertions, used by the S1 code,
+listed as `derived:S1:G:run1 (suspect)`); REL-08002 cites `kit/requirements.md` (8). The query
+works at the grain of a whole document: a link that cites one requirement still reaches every
+assertion of the file. It needs the register projected and a scenario loaded.
 
 What a module change cannot reach today is a change to the code itself. The store records code
 only as a *derived output* that used certain assertions. It does not read code, so editing the
@@ -535,7 +502,8 @@ shows the same story.
 - The walk and these queries read the register as approved. A proposed or draft link is listed
   but never followed.
 - Nothing here writes to the register or to the store. Projecting is a copy, and a run deletes it.
-- The capability, information-node and module queries are not yet saved queries on the page.
+- The capability, information-node and module queries step one link past the start's first
+  neighbours. They are not a full walk.
 
 ## 9. The gate in a pipeline
 
@@ -588,8 +556,8 @@ your own instance the register is your checkout, mounted read-only, and none of 
 - The store holds one scenario at a time, and every run first empties it, the projection included.
 - The page has no login. Run it on your own network, and do not expose port 7474: it is a live
   console behind one password.
-- The walk starts only from applications, processes and journeys. Section 8 gives the queries for
-  the other starts.
+- The walk starts only from applications, processes and journeys. For a capability or an
+  information node, use the saved queries of section 8.
 - A module reaches its code only through whole documents, and a change to code reaches nothing.
 - Nothing checks a document's form before the load (section 5).
 - QUALIFIED is not safe. A defect present in every document passes the gate (J-F D3 and D5).
