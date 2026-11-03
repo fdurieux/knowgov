@@ -572,6 +572,7 @@ your own instance the register is your checkout, mounted read-only, and none of 
 - The walk starts only from applications, processes and journeys. For a capability or an
   information node, use the saved queries of section 8.
 - A module reaches its code only through whole documents, and a change to code reaches nothing.
-- Nothing checks a document's form before the load (section 5).
+- Before the load, only PlantUML models have their form checked (pumllint). Every other kind is
+  listed as unchecked, naming the tool your instance would add (section 5).
 - QUALIFIED is not safe. A defect present in every document passes the gate (J-F D3 and D5).
 - A person's answer reaches *proposed* at most until the review record is built (section 6).
