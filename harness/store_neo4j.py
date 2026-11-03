@@ -82,6 +82,58 @@ IMPACT_PATHS = (
     "RETURN a, p")
 
 
+# The walk above starts only from applications, processes and journeys: from a capability or an
+# information node it meets no edge (doc-0008 §4). These two go the other way, to what rests on the
+# start: the nodes whose links point at it, then one step on from each process among them over an
+# approved link. The same rule as the walk: every edge met is a row, a withdrawn one (link not
+# approved, or far node deprecated or retired) is marked and not stepped from. One literal start each,
+# which the page replaces with the register's own default for the taxonomy (demo/app/server.py).
+CAPABILITY_START = "CAP-0002"
+INFORMATION_START = "ENT-0002"
+_DEP_RETURN = (
+    "RETURN x.reg_id AS node, x.name AS name, toLower(replace(type(r), 'REG_', '')) AS relationship, via,\n"
+    "       x.state AS `node state`, r.state AS `link state`,\n"
+    "       CASE WHEN r.state = 'approved' AND NOT x.state IN ['deprecated','retired'] THEN 'yes' ELSE 'no, withdrawn' END AS followed,\n"
+    "       r.owner AS owner, r.reg_id AS link\n"
+    "ORDER BY via, node, link")
+DEPENDANTS_CAPABILITY = (
+    "// what rests on a capability: the processes that realise it and the products that require it,\n"
+    "// then one step on from each process that realises it over an approved link\n"
+    f"MATCH (c:RegNode {{reg_id:'{CAPABILITY_START}'}})\n"
+    "CALL (c) {\n"
+    "  MATCH (x:RegNode)-[r:REG_REALIZES|REG_REQUIRES]->(c) RETURN x, r, null AS via\n"
+    "  UNION\n"
+    f"  MATCH (p:RegNode)-[r0:REG_REALIZES]->(c), (x:RegNode)-[r:REG_SUPPORTS|REG_IS_SUPPORTED_BY]->(p) WHERE {_OK.format('r0')} AND {_LIVE.format('p')} RETURN x, r, p.reg_id AS via\n"
+    "  UNION\n"
+    f"  MATCH (p:RegNode)-[r0:REG_REALIZES]->(c), (p)-[r:REG_DELIVERS]->(x:RegNode) WHERE {_OK.format('r0')} AND {_LIVE.format('p')} RETURN x, r, p.reg_id AS via\n"
+    "}\n" + _DEP_RETURN)
+DEPENDANTS_INFORMATION = (
+    "// what touches an information node: the processes that create, read, update or delete it and the\n"
+    "// applications that manage it, then one step on from each such process over an approved link\n"
+    f"MATCH (e:RegNode {{reg_id:'{INFORMATION_START}'}})\n"
+    "CALL (e) {\n"
+    "  MATCH (x:RegNode)-[r:REG_CRUD|REG_MANAGES]->(e) RETURN x, r, null AS via\n"
+    "  UNION\n"
+    f"  MATCH (p:RegNode)-[r0:REG_CRUD]->(e), (x:RegNode)-[r:REG_SUPPORTS|REG_IS_SUPPORTED_BY]->(p) WHERE {_OK.format('r0')} AND {_LIVE.format('p')} RETURN x, r, p.reg_id AS via\n"
+    "  UNION\n"
+    f"  MATCH (p:RegNode)-[r0:REG_CRUD]->(e), (p)-[r:REG_REALIZES|REG_DELIVERS]->(x:RegNode) WHERE {_OK.format('r0')} AND {_LIVE.format('p')} RETURN x, r, p.reg_id AS via\n"
+    "}\n" + _DEP_RETURN)
+# From a register node to the knowledge store: the documents its approved links cite, the assertions
+# the current version of each supports, and the derived code that used them. The one join the two
+# namespaces share is the document's path, so it reaches a whole document, not the cited anchor.
+MODULE_STORE = (
+    "// from a node to the store: the documents its approved links cite, the assertions they support now,\n"
+    "// and the derived code built on them, at the grain of a whole document\n"
+    f"MATCH (n:RegNode {{reg_id:'{IMPACT_START}'}})<-[:REG_LINK_OF]-(l:RegLink {{state:'approved'}})-[:REG_CITES]->(d:RegDocument)\n"
+    "MATCH (:Artefact {id:d.path})-[:CURRENT]->(:Version)-[:HAS_FRAGMENT]->(:Fragment)<-[:SUPPORTED_BY]-(x:Assertion)\n"
+    "OPTIONAL MATCH (dv:Derived)-[:USED_ASSERTION]->(x)\n"
+    "RETURN l.reg_id AS link, d.path AS document, count(DISTINCT x) AS assertions,\n"
+    "       collect(DISTINCT x.status) AS statuses, collect(DISTINCT dv.id + CASE WHEN dv.suspect THEN ' (suspect)' ELSE '' END) AS derived\n"
+    "ORDER BY link, document")
+# The literal start each saved query carries, by the taxonomy the page picks its default from.
+START_LITERALS = {"applications": IMPACT_START, "capabilities": CAPABILITY_START, "information": INFORMATION_START}
+
+
 def impact_cypher(start: str) -> dict:
     """Both forms of the walk from ``start`` in place of the adapter's literal: the page lists them
     with the register's default start and the impact panel with the id the viewer typed (task-0024)."""
@@ -111,9 +163,18 @@ SAVED_QUERIES = [
               "MATCH (m:Register) UNWIND labels(m) AS l WITH tag, commit, loaded_at, l WHERE l <> 'Register'\n"
               "RETURN tag, commit, loaded_at, l AS label, count(*) AS n ORDER BY label")},
     {"id": "register-impact", "needs": "register", "title": f"The impact walk from {IMPACT_START}: the walk the register's tools/impact.py makes, one row per edge",
-     "text": IMPACT_ROWS},
+     "text": IMPACT_ROWS, "start": "applications"},
     {"id": "register-impact-paths", "needs": "register", "title": f"The same impact walk from {IMPACT_START} as paths: the graph view draws it",
-     "text": IMPACT_PATHS},
+     "text": IMPACT_PATHS, "start": "applications"},
+    {"id": "register-dependants-capability", "needs": "register", "start": "capabilities",
+     "title": f"What rests on {CAPABILITY_START}: what realises or requires it, then one step on, approved links only",
+     "text": DEPENDANTS_CAPABILITY},
+    {"id": "register-dependants-information", "needs": "register", "start": "information",
+     "title": f"What touches {INFORMATION_START}: what creates, reads, updates, deletes or manages it, then one step on, approved links only",
+     "text": DEPENDANTS_INFORMATION},
+    {"id": "register-node-store", "needs": "register+scenario", "start": "applications",
+     "title": f"From {IMPACT_START} to the store: the documents its approved links cite, their assertions and the derived code",
+     "text": MODULE_STORE},
     {"id": "register-c1", "needs": "register", "title": "C1 in Cypher: approved steps and touchpoints with no is_supported_by link, the exception joined",
      "text": ("MATCH (s:RegNode {taxonomy:'journeys', state:'approved'}) WHERE s.kind IN ['step', 'touchpoint']\n"
               "  AND NOT (s)-[:REG_IS_SUPPORTED_BY]->(:RegNode)\n"

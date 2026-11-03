@@ -7,10 +7,10 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-02T23:22:00Z'
-updated_date: '2026-11-03T22:38:00Z'
+updated_date: '2026-11-03T22:40:00Z'
 labels:
   - capture
-milestone: m-2
+milestone: m-5
 dependencies:
   - TASK-0009
 documentation:
