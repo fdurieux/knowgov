@@ -5,10 +5,11 @@ status: To Do
 assignee:
   - '@fdurieux'
 created_date: '2026-11-03T22:49:00Z'
+updated_date: '2026-11-03T22:51:00Z'
 labels:
   - lighthouse
   - positioning
-milestone: m-5
+milestone: m-8
 dependencies: []
 documentation:
   - >-
