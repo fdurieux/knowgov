@@ -15,15 +15,18 @@ sys.path[:0] = [str(ROOT / "harness"), str(Path(__file__).resolve().parent)]
 import gate  # noqa: E402
 import gate_cli  # noqa: E402
 import schema_check  # noqa: E402
+import subject  # noqa: E402
 from _subject_pin import CARGO_QUOTE  # noqa: E402
+
+JEF = subject.Subject(ROOT / "subjects" / "jef_data_load")
 
 SCHEMA = schema_check.load("gate-report")
 BLOCK = {"absent", "declared_gap", "disputed", "invalidated"}
 
 
-def _record(sc: str) -> dict:
-    rel = CARGO_QUOTE.scenario(sc).get("deterministic_record") or sc
-    return json.loads((CARGO_QUOTE.record_dir / rel / "deterministic.json").read_text(encoding="utf-8"))
+def _record(sc: str, subj=CARGO_QUOTE) -> dict:
+    rel = subj.scenario(sc).get("deterministic_record") or sc
+    return json.loads((subj.record_dir / rel / "deterministic.json").read_text(encoding="utf-8"))
 
 
 def _res(det: dict) -> dict:
@@ -59,7 +62,8 @@ def test_every_record_scenario_gives_a_valid_report_and_the_contracts_exit_codes
             assert _report(res, "minor")["exit_code"] == 1
         # the record is the baseline: the same result is never a regression, whatever the verdict
         base = gate_cli.compare(res, gate_cli.baseline_of(det), "record")
-        assert base == {"source": "record", "verdict": res["verdict"], "regression": False, "worse_verdict": False, "regressed_keys": []}
+        assert base == {"source": "record", "verdict": res["verdict"], "regression": False, "worse_verdict": False,
+                        "regressed_keys": [], "new_suspect": []}
         assert _report(res, baseline=base)["exit_code"] == 0
         seen.add(res["verdict"])
     assert seen == {"PROCEED", "QUALIFIED", "BLOCKED"}
@@ -80,7 +84,10 @@ def test_a_worse_verdict_or_a_lower_key_level_is_a_regression():
     assert gate_cli.compare(lower, base, "f")["regressed_keys"] == [{"key": k, "level": "verified", "baseline_level": "approved"}]
     # a report of this command is a baseline too
     rep = _report(s1)
-    assert gate_cli.baseline_of(rep) == {"verdict": "PROCEED", "levels": rep["levels"]}
+    assert gate_cli.baseline_of(rep) == {"verdict": "PROCEED", "levels": rep["levels"], "suspect": []}
+    # a version-1 report still reads as a baseline: it named no derived output, so none was suspect
+    v1 = {**rep, "schema_version": 1, "stale": 0, "suspect_derived": 0}
+    assert gate_cli.baseline_of(v1) == {"verdict": "PROCEED", "levels": rep["levels"], "suspect": []}
 
 
 def test_a_task_blocked_by_its_share_of_unverified_keys_says_so_as_a_blocker():
@@ -120,3 +127,67 @@ def test_what_the_gate_cannot_do_exits_2():
         with redirect_stderr(err):
             assert gate_cli.main(["--scenario", first, "--baseline", str(p)]) == 2
         assert "neither a gate report nor a deterministic.json" in err.getvalue()
+
+
+def _scored_s6() -> dict:
+    return json.loads((CARGO_QUOTE.record_dir / "S6" / "deterministic.json").read_text(encoding="utf-8"))
+
+
+def _stage2(gate_res: dict, stage1: dict) -> dict:
+    """S6's stage-2 gate as the record holds it. The record keeps no per-key levels after stage 1, so
+    the keys take stage 1's, with the blocked ones at invalidated: a key at verified or better and
+    unflagged gives no finding at either level, so the findings are the record's own."""
+    keys = {k: {"level": v["level"], "flags": v["flags"]} for k, v in stage1["gate_keys"].items()}
+    for k in gate_res["blocked_keys"]:
+        keys[k] = {"level": "invalidated", "flags": []}
+    return {**gate_res, "keys": keys}
+
+
+def test_after_s6s_change_a_suspect_derived_output_fails_the_gate_whatever_the_verdict():
+    """task-0048: doc-0011 point 3 measured PROCEED after S6's re-verification with derived:S1:G:run1
+    still suspect, and exit 0, since stale and suspect were counts. They are findings now. The scored
+    record's S6 registered S1's governed code as derived; the deterministic record (d3check) did not."""
+    det = _scored_s6()
+    s2 = det["stage2"]
+    after = _stage2(s2["gate_after_reverification"], det)
+    assert after["verdict"] == "PROCEED" and after["suspect_derived"], "the record's measurement this task answers"
+    rep = _report(after)
+    assert schema_check.validate(rep, SCHEMA) == [], schema_check.validate(rep, SCHEMA)[:3]
+    assert rep["schema_version"] == 2 and rep["verdict"] == "PROCEED" and rep["exit_code"] == 1
+    sus = [f for f in rep["findings"] if f["kind"] == "suspect_derived"]
+    assert [(f["severity"], f["ref"]) for f in sus] == [("blocker", "derived:S1:G:run1")]
+    assert set(sus[0]["related"]) == {"A:dt:P2|threshold@v1", "A:dt:P2|surcharge@v1", "A:dt:P3|order@v1"}
+    assert rep["suspect_derived"] == ["derived:S1:G:run1"]
+    # the three invalidated statements are each replaced by an approved successor: info, the record of the change
+    stale = [f for f in rep["findings"] if f["kind"] == "stale"]
+    assert {f["ref"] for f in stale} == set(rep["stale"]) == {x["id"] for x in s2["gate_after_reverification"]["stale"]}
+    assert all(f["severity"] == "info" and f["level"] == "invalidated" and f["related"] for f in stale)
+    assert rep["counts"]["info"] == 3 and rep["counts"]["blocker"] == 1
+    # the ratchet: stage 1 (the record's D6_gate) held nothing suspect, so the derived output is a regression
+    base = gate_cli.compare(after, gate_cli.baseline_of(det), "record")
+    assert base["regression"] and base["new_suspect"] == ["derived:S1:G:run1"] and not base["worse_verdict"]
+    assert _report(after, baseline=base)["exit_code"] == 1
+    # with the derived output's review recorded (no longer suspect), the gate passes and the stale stay info
+    clean = _report({**after, "suspect_derived": []})
+    assert clean["exit_code"] == 0 and _report({**after, "suspect_derived": []}, "info")["exit_code"] == 1
+
+
+def test_before_re_verification_the_stale_statements_on_the_blocked_keys_are_major():
+    det = _scored_s6()
+    before = _stage2(det["stage2"]["gate_before_reverification"], det)
+    rep = _report(before)
+    assert schema_check.validate(rep, SCHEMA) == [], schema_check.validate(rep, SCHEMA)[:3]
+    assert rep["verdict"] == "BLOCKED" and rep["exit_code"] == 1
+    sev = {f["ref"]: f["severity"] for f in rep["findings"] if f["kind"] == "stale"}
+    assert sev, "S6 stage 2 invalidates statements on required keys"
+    for x in det["stage2"]["gate_before_reverification"]["stale"]:
+        settled = [t for t in x["successors"] if t["id"] and t["status"] in gate_cli.SETTLED]
+        assert sev[x["id"]] == ("info" if settled else "major"), x
+
+
+def test_every_jef_record_scenario_gives_a_valid_report():
+    assert JEF.order
+    for sc in JEF.order:
+        rep = _report(_res(_record(sc, JEF)))
+        assert schema_check.validate(rep, SCHEMA) == [], (sc, schema_check.validate(rep, SCHEMA)[:3])
+        assert all(f["kind"] in ("key", "task") for f in rep["findings"]), sc

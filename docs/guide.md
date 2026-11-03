@@ -541,9 +541,17 @@ too, so it exits 0 and still lists the blockers. `-f json` prints the report in 
 `harness/schemas/gate-report.schema.json` pins. Outside the stack, add `KG_STORE=rdflib`.
 [`demo/README.md`](../demo/README.md) ("The gate as a command") has the full options.
 
-Two limits today. The command runs the first stage only, so it does not see a change like S6's
-second stage. And invalidated assertions and suspect code appear in its JSON as counts, not as
-findings, so they do not change the exit code (`backlog/docs/doc-0011`).
+Code generated from the knowledge counts too. When a document changes, the statements resting on
+the changed part are invalidated, and code registered as derived from them becomes *suspect*: a
+blocker, whatever the verdict on the keys, until it is regenerated. An invalidated statement on a
+required key is a finding of its own: major while nothing verified or approved replaces it, info
+once something does. So after S6's change and re-verification the verdict reads PROCEED and the
+command still exits 1 on `derived:S1:G:run1` (report version 2; task-0048).
+
+One limit today: the command loads the first stage only, so it sees a change like S6's second stage
+only in a store that already holds it (`--no-load`). `tools/check_gate_after_change.py` puts S6's
+second stage in the store and runs the command on it; an option to load a later version is
+task-0049.
 
 ## 10. Choosing the model, or none
 
@@ -572,6 +580,7 @@ your own instance the register is your checkout, mounted read-only, and none of 
 - The walk starts only from applications, processes and journeys. For a capability or an
   information node, use the saved queries of section 8.
 - A module reaches its code only through whole documents, and a change to code reaches nothing.
-- Nothing checks a document's form before the load (section 5).
+- Before the load, only PlantUML models have their form checked (pumllint). Every other kind is
+  listed as unchecked, naming the tool your instance would add (section 5).
 - QUALIFIED is not safe. A defect present in every document passes the gate (J-F D3 and D5).
 - A person's answer reaches *proposed* at most until the review record is built (section 6).

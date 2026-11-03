@@ -83,7 +83,9 @@ jobs:
           test "$(gate --subject ../subjects/jef_data_load --baseline record)" = 0
           test "$(gate --subject ../subjects/minimal)" = 1
           KG_STORE=rdflib python gate_cli.py --scenario S2 --baseline record
-          python3 -c 'import sys,json; sys.path.insert(0,"."); import schema_check as s; r=json.load(open("../runs/gate-s1.json")); e=s.validate(r, s.load("gate-report")); assert not e, e; print("report valid:", r["verdict"], r["exit_code"])'
+          python3 -c 'import sys,json; sys.path.insert(0,"."); import schema_check as s; r=json.load(open("../runs/gate-s1.json")); e=s.validate(r, s.load("gate-report")); assert not e, e; assert r["schema_version"]==2, r["schema_version"]; print("report valid:", r["schema_version"], r["verdict"], r["exit_code"])'
+      - name: The gate after S6's change (task-0048) exits 1 on the suspect derived output, though the verdict reads PROCEED
+        run: KG_STORE=rdflib python tools/check_gate_after_change.py runs/gate-change
       - name: The capture path (task-0009), questionnaire, answers, the gate after, and nothing above proposed
         run: |
           rm -rf runs/capture && python tools/example_instance.py runs/capture > /dev/null

@@ -2,12 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/fdurieux/knowgov/harness/schemas/gate-report.schema.json",
   "title": "knowgov gate report",
-  "description": "What `python harness/gate_cli.py -f json` prints (task-0007): the gate's verdict for one task of one subject's scenario, its findings on the severity ladder, the threshold, the baseline comparison when one was asked for, and the exit code. Version 1; a change is additive or a new version.",
+  "description": "What `python harness/gate_cli.py -f json` prints (task-0007): the gate's verdict for one task of one subject's scenario, its findings on the severity ladder, the threshold, the baseline comparison when one was asked for, and the exit code. Version 2 (task-0048); a change is additive or a new version. From version 1: a finding carries `kind` (key, task, stale, suspect_derived), `ref` (the statement or derived output it is about, null for a key or the task) and `related` (a stale statement's verified or approved successors; the invalidated statements a suspect derived output used); a stale statement on a required key is a finding (info when a verified or approved successor replaces it, major when none does) and a suspect derived output is a blocker, so both count toward --fail-on; `stale` and `suspect_derived` are lists of ids instead of counts; the baseline carries `new_suspect`, and a derived output suspect that the baseline did not hold suspect is a regression. A version-1 report still reads as a baseline, holding no derived output suspect.",
   "type": "object",
   "required": ["schema_version", "tool", "subject", "scenario", "task", "store", "loaded", "verdict", "why", "threshold", "findings", "counts", "keys", "conflicts", "stale", "suspect_derived", "levels", "baseline", "exit_code"],
   "additionalProperties": false,
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "tool": {"const": "knowgov gate"},
     "subject": {"type": "string", "description": "the subject's id"},
     "scenario": {"type": "string"},
@@ -41,12 +41,12 @@
       }
     },
     "conflicts": {"type": "integer", "minimum": 0},
-    "stale": {"type": "integer", "minimum": 0},
-    "suspect_derived": {"type": "integer", "minimum": 0},
+    "stale": {"type": "array", "items": {"type": "string"}, "description": "the invalidated statements on required keys, by id, superseded or not"},
+    "suspect_derived": {"type": "array", "items": {"type": "string"}, "description": "the registered derived outputs that used a statement now invalidated, by id"},
     "levels": {"type": "object", "additionalProperties": {"type": "string"}, "description": "every required key's level; what a later run's --baseline FILE compares with"},
     "baseline": {
       "type": ["object", "null"],
-      "required": ["source", "verdict", "regression", "worse_verdict", "regressed_keys"],
+      "required": ["source", "verdict", "regression", "worse_verdict", "regressed_keys", "new_suspect"],
       "additionalProperties": false,
       "properties": {
         "source": {"type": "string", "description": "record, or the path of the baseline file"},
@@ -65,7 +65,8 @@
               "baseline_level": {"type": ["string", "null"]}
             }
           }
-        }
+        },
+        "new_suspect": {"type": "array", "items": {"type": "string"}, "description": "derived outputs suspect now that the baseline did not hold suspect"}
       }
     },
     "exit_code": {"enum": [0, 1]}
@@ -75,13 +76,16 @@
     "severity": {"enum": ["blocker", "critical", "major", "minor", "info"]},
     "finding": {
       "type": "object",
-      "required": ["severity", "key", "level", "flags", "message"],
+      "required": ["severity", "kind", "key", "level", "flags", "ref", "related", "message"],
       "additionalProperties": false,
       "properties": {
         "severity": {"$ref": "#/$defs/severity"},
-        "key": {"type": ["string", "null"], "description": "the required key; null for a finding on the task as a whole"},
-        "level": {"type": ["string", "null"]},
+        "kind": {"enum": ["key", "task", "stale", "suspect_derived"], "description": "key: a required key's level or flags; task: the task as a whole; stale: an invalidated statement on a required key; suspect_derived: a derived output that used an invalidated statement"},
+        "key": {"type": ["string", "null"], "description": "the required key; null for a finding on the task as a whole or on a derived output"},
+        "level": {"type": ["string", "null"], "description": "the key's level; a stale statement's own status (invalidated)"},
         "flags": {"type": "array", "items": {"type": "string"}},
+        "ref": {"type": ["string", "null"], "description": "the statement (stale) or derived output (suspect_derived) by id; null for a key or the task"},
+        "related": {"type": "array", "items": {"type": "string"}, "description": "stale: the verified or approved successors; suspect_derived: the invalidated statements it used"},
         "message": {"type": "string"}
       }
     }
