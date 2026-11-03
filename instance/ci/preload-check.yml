@@ -25,6 +25,7 @@ env:
   KNOWGOV_REF: main        # pin a tag
   PUMLLINT: "0.33.0"
   KG_FAIL_ON: major
+  KG_PRELOAD_BASELINE: ""   # e.g. preload-baseline.json: a report you chose to commit; findings it holds do not fail
 
 jobs:
   preload:

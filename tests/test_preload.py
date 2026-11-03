@@ -21,7 +21,7 @@ import preload_check  # noqa: E402
 import schema_check  # noqa: E402
 
 # pumllint's command line, as preload_check calls it: --version; -f json -o OUT --fail-on SEV FILE...
-# A line holding "BROKEN" is a critical finding; every file gets an info one.
+# A line holding "BROKEN <name>" is a critical finding naming it ("BROKEN WORSE": a blocker); every file gets an info one.
 FAKE = r'''
 import json, sys
 a = sys.argv[1:]
@@ -35,7 +35,8 @@ for f in files:
     found.append({"ruleId": "GEN002", "severity": "info", "message": "no name", "file": f, "line": 1})
     for n, line in enumerate(open(f, encoding="utf-8"), 1):
         if "BROKEN" in line:
-            found.append({"ruleId": "SEQ001", "severity": "critical", "message": "undeclared", "file": f, "line": n})
+            found.append({"ruleId": "SEQ001", "severity": "blocker" if "WORSE" in line else "critical",
+                          "message": ("undeclared " + line.split("BROKEN")[1].strip()).strip(), "file": f, "line": n})
 json.dump(found, open(out, "w"))
 sys.exit(1 if any(ladder.index(x["severity"]) >= ladder.index(fail) for x in found) else 0)
 '''
@@ -81,7 +82,7 @@ def test_the_clean_example_instance_exits_0_and_lists_every_unchecked_kind_by_it
         states = {r["file"]: (r["state"], r["tool"]) for r in rep["files"]}
         assert states["artefacts/plantuml-models/quote_flow.puml"] == ("clean", "pumllint")
         assert states["artefacts/api-contracts/openapi.yaml"] == ("unchecked", "Spectral, vacuum, Redocly")
-        assert rep["counts"] == {"clean": 2, "findings": 0, "unchecked": 8, "cannot_run": 0, "skipped": 0}, rep["counts"]
+        assert rep["counts"] == {"clean": 2, "findings": 0, "held": 0, "unchecked": 8, "cannot_run": 0, "skipped": 0}, rep["counts"]
         [lt] = rep["linters"]
         assert (lt["tool"], lt["version"], lt["files"], lt["exit"]) == ("pumllint", "0.0-standin", 2, 0)
         assert all(r["state"] in ("clean", "unchecked") for r in rep["files"])
@@ -174,3 +175,50 @@ def test_the_json_report_round_trips_through_the_command():
         rep = json.loads(report.read_text(encoding="utf-8"))
         _valid(rep)
         assert rep["tool"] == "knowgov preload check" and rep["schema_version"] == 1
+
+
+def test_a_baseline_holds_what_it_recorded_and_fails_only_on_a_regression():
+    """task-0065: an earlier report (-o) as --baseline. Held findings are listed and pass; a new finding,
+    or one at a worse severity, fails; the command never writes the baseline; a file that is not a
+    report cannot be compared."""
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "inst"
+        example_instance.build(out)
+        legacy = out / "artefacts" / "plantuml-models" / "legacy.puml"
+        legacy.write_text("@startuml\nA -> B : BROKEN B\n@enduml\n", encoding="utf-8")
+        base = Path(td) / "baseline.json"
+        with _Standin(Path(td)):
+            assert preload_check.main([str(out), "-o", str(base)]) == 1, "today's finding fails without a baseline"
+            recorded = base.read_bytes()
+            assert preload_check.main([str(out), "--baseline", str(base)]) == 0
+            rep = preload_check.check(out, None, "major", None, json.loads(recorded), "baseline.json")
+            _valid(rep)
+            row = next(r for r in rep["files"] if r["file"] == "artefacts/plantuml-models/legacy.puml")
+            assert row["state"] == "held" and all(f["held"] for f in row["findings"]), row
+            assert rep["baseline"] == {"file": "baseline.json", "held": 1, "new": 0} and rep["counts"]["held"] == 1
+            assert "(held by the baseline)" in preload_check.render(rep)
+            # the line moves: still held
+            legacy.write_text("@startuml\n' a comment\nA -> B : BROKEN B\n@enduml\n", encoding="utf-8")
+            assert preload_check.main([str(out), "--baseline", str(base)]) == 0
+            # a second finding: new, fails; the held one stays held
+            legacy.write_text("@startuml\nA -> B : BROKEN B\nA -> C : BROKEN C\n@enduml\n", encoding="utf-8")
+            assert preload_check.main([str(out), "--baseline", str(base)]) == 1
+            rep = preload_check.check(out, None, "major", None, json.loads(recorded), "baseline.json")
+            row = next(r for r in rep["files"] if r["file"] == "artefacts/plantuml-models/legacy.puml")
+            assert row["state"] == "findings" and rep["baseline"]["new"] == 1 and rep["baseline"]["held"] == 1
+            assert [f["held"] for f in row["findings"] if f["rule"] == "SEQ001"] == [True, False]
+            # the same finding at a worse severity is a regression
+            legacy.write_text("@startuml\nA -> B : BROKEN WORSE B\n@enduml\n", encoding="utf-8")
+            rep = preload_check.check(out, None, "major", None, {"files": [{"file": "artefacts/plantuml-models/legacy.puml",
+                                      "findings": [{"rule": "SEQ001", "severity": "critical", "message": "undeclared WORSE B"}]}]})
+            assert rep["exit_code"] == 1, rep["files"]
+            # a new document with a finding is new; the baseline file itself never changes
+            legacy.write_text("@startuml\nA -> B : BROKEN B\n@enduml\n", encoding="utf-8")
+            (out / "artefacts" / "plantuml-models" / "fresh.puml").write_text("@startuml\nA -> B : BROKEN B\n@enduml\n", encoding="utf-8")
+            assert preload_check.main([str(out), "--baseline", str(base)]) == 1
+            assert preload_check.main([str(out), "--baseline", str(base), "-o", str(base)]) == 2, "-o naming the baseline is refused"
+            assert base.read_bytes() == recorded
+            bad = Path(td) / "bad.json"
+            bad.write_text("{}", encoding="utf-8")
+            assert preload_check.main([str(out), "--baseline", str(bad)]) == 2
+            assert preload_check.main([str(out), "--baseline", str(Path(td) / "missing.json")]) == 2
