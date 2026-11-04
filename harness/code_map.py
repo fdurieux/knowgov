@@ -56,7 +56,7 @@ def code_map(inst: Path, apps: dict[str, dict], errors: list[str]) -> dict | Non
         doc = tomllib.loads(f.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as e:
         errors.append(f"{CODE_MAP}: does not parse: {e}")
-        return {"root": None, "rows": [], "unmapped": [], "unmatched": []}
+        return {"root": None, "rows": [], "unmapped": [], "unmatched": [], "citations": {"require": False, "apps": []}}
     code = doc.get("code", {})
     root = (inst / code.get("root", ".")).resolve()
     include = list(code.get("include", ["**"]))
@@ -69,7 +69,7 @@ def code_map(inst: Path, apps: dict[str, dict], errors: list[str]) -> dict | Non
         if r["app"] not in apps:
             errors.append(f"{CODE_MAP}: {r['glob']}: {r['app']} is no application or module of register/applications")
     rep = {"root": root.relative_to(inst).as_posix() if root.is_relative_to(inst) else str(root),
-           "include": include, "rows": rows, "unmapped": [], "unmatched": []}
+           "include": include, "rows": rows, "unmapped": [], "unmatched": [], "citations": citations(doc, rows, errors)}
     if not root.is_dir():
         errors.append(f"{CODE_MAP}: root {code.get('root', '.')}: not a directory")
         return rep
@@ -98,6 +98,27 @@ def code_map(inst: Path, apps: dict[str, dict], errors: list[str]) -> dict | Non
     return rep
 
 
+
+
+def citations(doc: dict, rows: list[dict], errors: list[str]) -> dict:
+    """[citations] (task-0124): whether the governed APPs' code files must cite the keys they rest on."""
+    cit = doc.get("citations", {})
+    named = sorted({r["app"] for r in rows})
+    if not isinstance(cit, dict):
+        errors.append(f"{CODE_MAP}: [citations] must be a table")
+        return {"require": False, "apps": named}
+    req = cit.get("require", False)
+    if not isinstance(req, bool):
+        errors.append(f"{CODE_MAP}: [citations] require must be true or false")
+        req = False
+    apps = cit.get("apps", named)
+    if not isinstance(apps, list) or not all(isinstance(a, str) for a in apps):
+        errors.append(f"{CODE_MAP}: [citations] apps must be a list of APP ids")
+        apps = named
+    for a in apps:
+        if a not in named:
+            errors.append(f"{CODE_MAP}: [citations] apps: {a} is named by no [[map]] row")
+    return {"require": req, "apps": sorted(set(apps))}
 
 
 def app_of(rep: dict, path: str) -> str | None:

@@ -50,7 +50,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   knowgov-trace (task-0051): `register` records built files as derived outputs (store and a JSON
   ledger, since a load wipes the store; `--as-of` as `check`'s, each entry recording the date read, task-0093), `check` reports suspect, drift, missing, unmapped and the
   task's gate under the same exit contract, JSON pinned by `harness/schemas/trace-report.schema.json`;
-  the APP comes from the instance's `code_map.toml` (`harness/code_map.py`, task-0050); S6 shown by
+  the APP comes from the instance's `code_map.toml` (`harness/code_map.py`, task-0050); hand-written code by the keys its header cites (`harness/citation.py`, Python and Java; `register --keys`/`--cited`; `uncited` only where `code_map.toml`'s `[citations]` requires it; task-0124); S6 shown by
   `tools/check_trace_walkthrough.py`. `KG_SUBJECT` selects the root; nothing in `harness/` or
   `demo/` names a subject, a document or a scenario (task-0002). Two public
   subjects: `cargo_quote` (the proof of concept, seven scenarios, the scored

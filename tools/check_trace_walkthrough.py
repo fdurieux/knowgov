@@ -12,10 +12,14 @@ last one left).
    ``trace.py register --as-of`` a day after 2027-08-07, the date CargoQuote's reviews lapse by, into
    a second ledger: the entry and the report name that day, and ``check --as-of`` the same day reads
    the gate on it with its lapses (task-0093).
+   Two hand-written files under a new code-map row (task-0124): one registered with ``--keys`` on
+   P2|surcharge, a key the change will invalidate, one ``--cited`` on the key its Java header names,
+   shipper_id|present, which the change leaves alone; an unknown key is refused (exit 2).
 4. The decision table's change (``gate_cli.py --scenario S6 --stage 2``): a reload, so the store loses
    the registration; the ledger keeps it.
 5. ``trace.py check``: the registered build is suspect, built from statements the change invalidated,
-   a blocker naming APP-0001; exit 1.
+   a blocker naming APP-0001; exit 1. The hand-written file on P2|surcharge is suspect as the built one
+   is, on that key's invalidated statement; the one on shipper_id|present is not.
 6. ``trace.py check --changed``: an edit to the registered file is drift; a new code file no row maps
    is unmapped; a change to a file that is not code reaches nothing.
 Every JSON report is valid against harness/schemas/trace-report.schema.json.
@@ -37,6 +41,10 @@ import schema_check  # noqa: E402
 
 APP = "APP-0001"
 CODE = "reference_impl.py"
+HAND = "hand/tariff_rules.py"            # hand-written, registered with --keys (task-0124)
+HAND_JAVA = "hand/Screening.java"        # hand-written, its Java header cited, registered with --cited
+CHANGED_KEY = "P2|surcharge"             # S6's change invalidates its statement
+KEPT_KEY = "shipper_id|present"          # S6's change leaves it alone
 LAPSE_DAY = "2027-09-01"   # after 2027-08-07, the day S6's reviews lapse by (decision-0005)
 
 
@@ -95,15 +103,43 @@ def main() -> None:
         sys.exit(f"FAIL: check --as-of {LAPSE_DAY}: want exit 1, BLOCKED as of it with gate:lapsed findings:\n{json.dumps(rep, indent=1)}")
     print(f"    registered and checked as of {LAPSE_DAY}: gate {rep['gate']['verdict']}, {len(lapsed)} gate:lapsed finding(s)")
 
+    # hand-written code rests on the keys it cites (task-0124)
+    cm = out / "inst" / "code_map.toml"
+    cm.write_text(cm.read_text(encoding="utf-8").replace('include = ["**/*.py"]', 'include = ["**/*.py", "**/*.java"]')
+                  + '\n[[map]]\nglob = "hand/**"\napp = "APP-0001"\nnote = "hand-written: it cites the keys it rests on"\n', encoding="utf-8")
+    code_root = out / "inst" / json.loads((out / "trace-register.json").read_text(encoding="utf-8"))["code_root"]
+    (code_root / "hand").mkdir()
+    (code_root / HAND).write_text(f"# knowgov-keys: {CHANGED_KEY}\nP2_SURCHARGE = 316.00\n", encoding="utf-8")
+    (code_root / HAND_JAVA).write_text(f"package quote;\n\n// knowgov-keys: {KEPT_KEY}\nclass Screening {{}}\n", encoding="utf-8")
+    code, text = run(env, "trace.py", "register", "--commit", "c0ffee2", "--file", HAND, "--keys", "P2|nonesuch",
+                     "--instance", str(out / "inst"), "--ledger", str(out / "ledger.json"))
+    if code != 2 or "unknown key(s) P2|nonesuch" not in text:
+        sys.exit(f"FAIL: register --keys with an unknown key: want exit 2 naming it, got {code}:\n{text}")
+    code, rep = trace(env, out, "register-keys", "register", "--commit", "c0ffee2", "--file", HAND, "--keys", CHANGED_KEY)
+    if code != 0 or [(r["path"], r.get("keys")) for r in rep["registered"]] != [(HAND, [CHANGED_KEY])] or not rep["registered"][0]["used"]:
+        sys.exit(f"FAIL: register --keys {CHANGED_KEY}: want exit 0 and {HAND} on the key:\n{json.dumps(rep, indent=1)}")
+    code, rep = trace(env, out, "register-cited", "register", "--commit", "c0ffee2", "--file", HAND_JAVA, "--cited")
+    if code != 0 or [(r["path"], r.get("keys")) for r in rep["registered"]] != [(HAND_JAVA, [KEPT_KEY])]:
+        sys.exit(f"FAIL: register --cited: want exit 0 and {HAND_JAVA} on {KEPT_KEY}:\n{json.dumps(rep, indent=1)}")
+    code, rep = trace(env, out, "stage1-hand", "check")
+    if code != 0 or [r["state"] for r in rep["registered"]] != ["unchanged"] * 3 or rep["findings"]:
+        sys.exit(f"FAIL: check at stage 1 with the hand-written files: want exit 0, three unchanged, no finding:\n{json.dumps(rep, indent=1)}")
+
     code, text = run(env, "gate_cli.py", "--scenario", "S6", "--stage", "2")
     if code != 1:
         sys.exit(f"FAIL: S6 stage 2 exited {code}, want 1:\n{text}")
 
     code, rep = trace(env, out, "stage2", "check")
-    sus = [f for f in rep["findings"] if f["kind"] == "suspect"]
-    if code != 1 or len(sus) != 1 or sus[0]["severity"] != "blocker" or sus[0]["app"] != APP or APP not in sus[0]["message"] \
-            or not sus[0]["related"] or rep["registered"][0]["used_invalidated"] != sus[0]["related"]:
-        sys.exit(f"FAIL: check after the change: want exit 1 and one suspect blocker naming {APP}:\n{json.dumps(rep, indent=1)}")
+    sus = {f["path"]: f for f in rep["findings"] if f["kind"] == "suspect"}
+    rows = {r["path"]: r for r in rep["registered"]}
+    if code != 1 or sorted(sus) != sorted([CODE, HAND]) or any(f["severity"] != "blocker" or f["app"] != APP or APP not in f["message"]
+                                                              or not f["related"] or rows[p]["used_invalidated"] != f["related"]
+                                                              for p, f in sus.items()):
+        sys.exit(f"FAIL: check after the change: want exit 1 and suspect blockers naming {APP} on {CODE} and {HAND}, "
+                 f"none on {HAND_JAVA}:\n{json.dumps(rep, indent=1)}")
+    if CHANGED_KEY not in sus[HAND]["message"] or rows[HAND_JAVA]["used_invalidated"]:
+        sys.exit(f"FAIL: check after the change: want {HAND} suspect on {CHANGED_KEY}, {HAND_JAVA} clean:\n{json.dumps(rep, indent=1)}")
+    print(f"    {HAND} (--keys {CHANGED_KEY}) suspect on {', '.join(sus[HAND]['related'])}; {HAND_JAVA} (--cited {KEPT_KEY}) not")
 
     root = inst / rep["code_root"]
     (root / CODE).write_text((root / CODE).read_text(encoding="utf-8") + "\n# an edit after the registration\n", encoding="utf-8")
@@ -111,9 +147,10 @@ def main() -> None:
     (root / "NOTES.txt").write_text("not code\n", encoding="utf-8")
     code, rep = trace(env, out, "changed", "check", "--changed", CODE, "--changed", "notify.py", "--changed", "NOTES.txt", "--fail-on", "major")
     kinds = sorted((f["kind"], f["severity"], f["path"]) for f in rep["findings"] if not f["kind"].startswith("gate:"))
-    if code != 1 or kinds != [("drift", "minor", CODE), ("suspect", "blocker", CODE), ("unmapped", "major", "notify.py")]:
+    if code != 1 or kinds != [("drift", "minor", CODE), ("suspect", "blocker", HAND), ("suspect", "blocker", CODE), ("unmapped", "major", "notify.py")]:
         sys.exit(f"FAIL: check --changed: want drift, suspect and unmapped, nothing on NOTES.txt:\n{json.dumps(rep, indent=1)}")
-    print(f"knowgov-trace: a registered build of {APP} turns suspect after S6's change, and check exits 1 naming it")
+    print(f"knowgov-trace: a registered build of {APP} and a hand-written file citing {CHANGED_KEY} turn suspect after S6's change, "
+          "and check exits 1 naming them")
 
 
 if __name__ == "__main__":

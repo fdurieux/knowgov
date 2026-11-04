@@ -108,6 +108,37 @@ instance carries one: CargoQuote's reference code, mapped to `APP-0001`. A later
 (`implemented_by`) may carry the same fact in the register itself; that is the register's
 decision, and the file would then yield to it.
 
+### Hand-written code: citing the keys it rests on
+
+Generated code is registered with the statements it was built from. Code written by hand has
+no such record unless it says what it rests on. A comment line near the top of the file (within
+its first 30 lines) names the keys, comma-separated:
+
+```python
+# knowgov-keys: P2|surcharge, P2|threshold
+```
+
+```java
+// knowgov-keys: P2|surcharge, P2|threshold
+```
+
+Python files use `#`, Java files `//`; other languages are not read yet. On merge,
+`python harness/trace.py register --cited --file PATH ...` (or `--keys K1,K2` to name them on the
+command line) records the file on the keys' current statements. When a later change to your
+documents invalidates one of them, `trace.py check` reports the file as *suspect*, as it does for
+generated code. A key your subject does not know is refused.
+
+The missing-citation check is off unless you turn it on:
+
+```toml
+[citations]
+require = true               # a code file of a governed application must cite its keys
+apps = ["APP-0001"]          # optional: the governed applications; default every one a row names
+```
+
+With it on, `trace.py check` reports each such file without a citation (*uncited*, major), and a
+file in a language the convention does not cover (*uncitable*, information).
+
 ## Mirroring an export from a system of record
 
 Your processes may be authored in a modelling tool (the register's `metamodel/sources.toml` names
