@@ -27,8 +27,10 @@ In a Python 3.12 environment with the pins of `demo/Dockerfile` installed (the
 KG_STORE=rdflib python tools/lighthouse_evidence.py runs/lighthouse
 ```
 
-To use the Neo4j store, leave `KG_STORE` unset and have the database running. The script works
-in four steps:
+To use the Neo4j store, leave `KG_STORE` unset and have the database running. The script's MCP
+client reaches the server over stdio by default, as an assistant that starts the server itself
+does; `--transport http` starts it on a free loopback port and speaks Streamable HTTP instead.
+The script works in four steps:
 
 1. It builds the example instance (`tools/example_instance.py`) under `runs/lighthouse/instance`.
 2. It collects CargoQuote's evidence from that instance, and J-F's from its subject root
@@ -46,7 +48,7 @@ What it collects for each subject:
 |---|---|---|
 | walk | what a change to a register node reaches, and the statements behind it | the register's own impact walk from every node the subject's register map names; then, on the first scenario, the statements each node's cited anchor reaches in the store |
 | gate | whether a task may build on its knowledge | `harness/gate_cli.py` on every scenario, with each verdict next to the record's |
-| three-valued answer over MCP | what an assistant sees when it asks | the read-only MCP server over stdio, on the store each gate left. Its `gate_verdict` must equal `gate_cli.py --no-load`. Its `three_valued_answer` must carry provenance. The store's census must be unchanged |
+| three-valued answer and evidence bundle over MCP | what an assistant sees when it asks | the read-only MCP server over stdio (or HTTP, `--transport http`), on the store each gate left. Its `gate_verdict` must equal `gate_cli.py --no-load`. Its `three_valued_answer` must carry provenance. Its `evidence_bundle`, as of the record, must carry the same verdict and date as its `gate_verdict`; the item records the bundle's size, digest, assertions and verbatim documents. The store's census must be unchanged |
 | invalidation | what a document change does | for a scenario with a later version (CargoQuote S6): `--stage 2`, then `--stage 2 --reverify`. It records what was invalidated, what supersedes it (`superseded_by`) and the code marked suspect |
 | export manifest | that the register's copy of the documents is the subject's | every file digest in the register's export manifest, checked against the subject's bytes, and the reconciliation record next to it |
 | cost | what the evidence costs to produce | wall-clock time per step and the store's size |
@@ -132,8 +134,14 @@ enough?*
     `docs/neo4j-governed-knowledge-evaluation.md`), the governed assistant wrote no code under a
     BLOCKED verdict in 20 of 20 runs. That is one model on synthetic content; the outcome study is
     task-0057.
-- **Rehearsal evidence:** the three-valued answer item. The server's report equals the command's,
-  every answer carries provenance, and CargoQuote shows all three answers.
+- **Rehearsal evidence:** the MCP item, collected by the path an assistant uses: an MCP client
+  over stdio, or over HTTP with `--transport http`.
+  - The server's report equals the command's, every answer carries provenance, and CargoQuote
+    shows all three answers.
+  - The evidence bundle comes from the server's `evidence_bundle` tool, the knowledge an assistant
+    reads before it builds, with the verdict it was given; the script does not rebuild it.
+    `tools/check_mcp_server.py` holds that bundle equal, character for character, to the one the
+    governed arm reads (`gate.render_bundle`), in the same CI job on the same scenarios.
 - **Pilot:**
   - The pilot's assistant is connected to the MCP server and runs at least one real task.
   - The record shows the verdict it was given, the keys it read, and whether it built or stopped.

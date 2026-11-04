@@ -1,6 +1,6 @@
 """The lighthouse evaluation protocol's public evidence (task-0069, doc-0013 §5 candidate 8).
 
-    python tools/lighthouse_evidence.py OUT_DIR [--scenarios-cap N] [--only SUBJECT=ID,ID ...]
+    python tools/lighthouse_evidence.py OUT_DIR [--scenarios-cap N] [--only SUBJECT=ID,ID ...] [--transport stdio|http]
 
 The rehearsal half of docs/lighthouse-evaluation.md, on public, synthetic content only. It builds the
 example instance (tools/example_instance.py) under OUT_DIR/instance and collects, for CargoQuote
@@ -11,8 +11,10 @@ cite:
                    subject's register map names, and the statements a node's anchor reaches in the
                    store (task-0046), on the subject's first scenario
     gate           harness/gate_cli.py on every scenario, verdict and exit code beside the record's
-    mcp            the read-only MCP server over stdio on the store each gate left: gate_verdict equal
-                   to gate_cli --no-load, the three-valued answer with provenance, the census unchanged
+    mcp            the read-only MCP server, over stdio or Streamable HTTP (--transport), on the store
+                   each gate left: gate_verdict equal to gate_cli --no-load, the three-valued answer
+                   with provenance, the evidence bundle an agent reads (evidence_bundle, as of the
+                   record; task-0095) with the gate's verdict and date, the census unchanged
     invalidation   a scenario's later version (--stage 2, then --reverify): what was invalidated,
                    what supersedes it, the derived output marked suspect; "none" for a subject
                    without one
@@ -124,14 +126,14 @@ def node_statements(starts: list[str]) -> dict:
         st.close()
 
 
-def collect_mcp(sc: str, keys: list[str], expected: dict, failures: list[str]) -> dict:
+def collect_mcp(sc: str, keys: list[str], expected: dict, failures: list[str], transport: str = "stdio") -> dict:
     sys.path.insert(0, str(TOOLS))
-    from check_mcp_server import StdioClient, census
+    from check_mcp_server import HttpClient, StdioClient, census
     before = census()
-    client = StdioClient()
+    client = HttpClient() if transport == "http" else StdioClient()
     try:
-        got = client.call("gate_verdict", {"scenario": sc})
-        equal = got == expected
+        verdict = client.call("gate_verdict", {"scenario": sc})
+        equal = verdict == expected
         if not equal:
             failures.append(f"mcp {sc}: gate_verdict differs from gate_cli --no-load")
         answers = {}
@@ -142,15 +144,27 @@ def collect_mcp(sc: str, keys: list[str], expected: dict, failures: list[str]) -
                 failures.append(f"mcp {sc} {key}: a statement without provenance")
             answers[key] = {"answer": ans["answer"], "statements": len(ans["statements"]), "provenance": prov,
                             "invalidated": ans.get("invalidated", [])}
+        # criterion 4 by the agent's path (task-0095): the bundle as the server hands it. Its text equals the
+        # governed arm's bundle by tools/check_mcp_server.py (task-0080), in the same job on the same
+        # scenarios; rebuilding it here would read the store twice more per scenario for the same proof
+        got = client.call("evidence_bundle", {"scenario": sc, "as_of": "record"})
+        agrees = got["verdict"] == verdict["verdict"] and got["as_of"] == verdict["as_of"] and bool(got["bundle"])
+        if not agrees:
+            failures.append(f"mcp {sc}: evidence_bundle says {got['verdict']} as of {got['as_of']}, "
+                            f"gate_verdict {verdict['verdict']} as of {verdict['as_of']}")
+        bundle = {"verdict": got["verdict"], "as_of": got["as_of"], "version": got["version"],
+                  "characters": len(got["bundle"]), "sha256": hashlib.sha256(got["bundle"].encode("utf-8")).hexdigest(),
+                  "assertions": len(got["assertion_ids"]), "verbatim": got["verbatim"], "agrees_with_gate": agrees}
     finally:
         client.close()
     unchanged = census() == before
     if not unchanged:
         failures.append(f"mcp {sc}: the store changed while the server read it")
-    return {"gate_verdict_equals_gate_cli": equal, "three_valued": answers, "store_unchanged": unchanged}
+    return {"transport": transport, "gate_verdict_equals_gate_cli": equal, "three_valued": answers,
+            "evidence_bundle": bundle, "store_unchanged": unchanged}
 
 
-def child(out: Path, cap: int | None, only: list[str] | None = None) -> int:
+def child(out: Path, cap: int | None, only: list[str] | None = None, transport: str = "stdio") -> int:
     sys.path.insert(0, str(HARNESS))
     import cadence
     from subject import SUBJECT
@@ -195,7 +209,7 @@ def child(out: Path, cap: int | None, only: list[str] | None = None) -> int:
             continue
         # the subject's three-valued keys; a subject that names none is asked of its codegen task's first keys
         keys = list(SUBJECT.three_valued) or (list(TASKS["codegen"]["keys"])[:3] if "codegen" in TASKS else [])
-        mcp[sc], ev["timings_s"][f"mcp {sc}"] = timed(collect_mcp, sc, keys, expected, failures)
+        mcp[sc], ev["timings_s"][f"mcp {sc}"] = timed(collect_mcp, sc, keys, expected, failures, transport)
     ev["gate"], ev["mcp"] = gates, mcp
 
     inval = {}
@@ -296,8 +310,16 @@ def summary(ev: dict) -> str:
         eq = all(m["gate_verdict_equals_gate_cli"] for m in s["mcp"].values())
         un = all(m["store_unchanged"] for m in s["mcp"].values())
         answers = sorted({a["answer"] for m in s["mcp"].values() for a in m["three_valued"].values()})
-        out.append(f"- **MCP**: gate_verdict equal to gate_cli on {len(s['mcp'])} scenario(s): {'yes' if eq else 'NO'}; "
+        bundles = [m["evidence_bundle"] for m in s["mcp"].values() if m.get("evidence_bundle")]
+        transport = next((m.get("transport") for m in s["mcp"].values()), None) or "stdio"
+        out.append(f"- **MCP** (over {transport}): gate_verdict equal to gate_cli on {len(s['mcp'])} scenario(s): {'yes' if eq else 'NO'}; "
                    f"three-valued answers seen: {', '.join(answers) or 'none'}; store unchanged by the server: {'yes' if un else 'NO'}")
+        if bundles:
+            same = all(b["agrees_with_gate"] for b in bundles)
+            out.append(f"- **Evidence bundle over MCP**: evidence_bundle's verdict and date those of gate_verdict on {len(bundles)} scenario(s): "
+                       f"{'yes' if same else 'NO'}; " + ", ".join(f"{sc} {m['evidence_bundle']['verdict']} "
+                       f"({m['evidence_bundle']['assertions']} assertion(s), {m['evidence_bundle']['characters']:,} characters)"
+                       for sc, m in s["mcp"].items() if m.get("evidence_bundle")))
         inv = s["invalidation"]
         if isinstance(inv, dict):
             for sc, v in inv.items():
@@ -328,6 +350,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--scenarios-cap", type=int, help="only the first N scenarios of each subject (a quicker rehearsal)")
     ap.add_argument("--only", action="append", default=[], metavar="SUBJECT=ID,ID",
                     help="only these scenarios of that subject (repeatable; a pull request's J-F subset, task-0084)")
+    ap.add_argument("--transport", choices=("stdio", "http"), default="stdio",
+                    help="how the MCP client reaches the server: stdio (default) or Streamable HTTP on loopback")
     ap.add_argument("--child", help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
     only: dict[str, list[str]] = {}
@@ -337,7 +361,7 @@ def main(argv: list[str] | None = None) -> int:
             ap.error(f"--only {o!r}: want SUBJECT=ID,ID")
         only[name] = [x for x in ids.split(",") if x]
     if args.child:
-        return child(Path(args.child), args.scenarios_cap, next(iter(only.values()), None))
+        return child(Path(args.child), args.scenarios_cap, next(iter(only.values()), None), args.transport)
     unknown = sorted(set(only) - {"cargo_quote", "jef_data_load"})
     if unknown:
         ap.error(f"--only: no subject {unknown[0]!r} here; cargo_quote or jef_data_load")
@@ -362,7 +386,7 @@ def main(argv: list[str] | None = None) -> int:
         if store == "rdflib":
             env["KG_RDFLIB_FILE"] = str(out / f"store-{name}.ttl")
         part = out / f"evidence-{name}.json"
-        cmd = [sys.executable, str(Path(__file__).resolve()), str(out), "--child", str(part)]
+        cmd = [sys.executable, str(Path(__file__).resolve()), str(out), "--child", str(part), "--transport", args.transport]
         if args.scenarios_cap:
             cmd += ["--scenarios-cap", str(args.scenarios_cap)]
         if name in only:
