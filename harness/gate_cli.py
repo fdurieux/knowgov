@@ -434,7 +434,7 @@ def _register_change(st, subject, scenario: str, change: dict, previous: Path) -
     gate served, as stage 2 registers it; then the keys resting on what the change withdrew are
     invalidated, each by its reason. A change that withdrew nothing writes nothing."""
     import register_change as rc
-    landed = rc.resting(change, subject.register_map(), previous)
+    landed = rc.resting(change, subject.register_map(), previous, rc.ri.register_root())
     did = None
     if landed:
         from gate import resolve
@@ -451,7 +451,7 @@ def _register_change(st, subject, scenario: str, change: dict, previous: Path) -
     done = rc.apply(st, landed)
     return {"from": change["from"], "to": change["to"], "nodes": change["nodes"], "links": change["links"],
             "keys": [{"key": k["key"], "owner": k["owner"], "reasons": k["reasons"],
-                      "causes": [c.get("node") or c.get("link") for c in k["causes"]]} for k in landed],
+                      "causes": sorted({c.get("node") or c.get("link") for c in k["causes"]})} for k in landed],
             "invalidated": [x["id"] for x in done["invalidated"]], "derived": did}
 
 

@@ -8,7 +8,8 @@ REL-06001 withdrawn), then runs ``harness/gate_cli.py --scenario S1 --as-of reco
 ``KG_REGISTER`` on the fixture and ``--register-previous`` on the vendored register, once per store:
 
 1. the change: exit 1; the report's ``register_change`` names CAP-0001 and REL-06001, each with the
-   fixture's decision record as reason; every statement on a key resting on them is a stale finding
+   fixture's decision record as reason. CAP-0001's children were moved, not withdrawn, so it lands
+   nothing; REL-06001 lands the eight DT-V keys and their 15 statements. Every one is a stale finding
    naming that reason, and ``derived:S1:G:run1``, the record's S1 output, is a suspect blocker;
 2. a register update with no state change: nothing withdrawn, nothing invalidated, and the report
    equal to the gate's without the flag, ``register_change`` aside: exit 0, the record's PROCEED.
@@ -35,6 +36,12 @@ import schema_check  # noqa: E402
 
 SCENARIO = "S1"
 DERIVED = "derived:S1:G:run1"
+# The fixture moves every child of CAP-0001 under CAP-0006, so they were moved, not withdrawn, and the
+# deprecation lands nothing (the maintainer, 2026-11-04); REL-06001 lands the eight DT-V rows, and on
+# S1 their 15 statements, measured equal on Neo4j and rdflib.
+KEYS = {"shipper_id|present", "weight_kg|min", "weight_kg|max", "distance_km|min", "distance_km|max",
+        "declared_value|min", "declared_value|max", "invalid_request|behaviour"}
+STATEMENTS = 15
 
 
 def gate(out: Path, name: str, store: str, register: Path | None, *args: str) -> dict:
@@ -82,6 +89,10 @@ def main(argv: list[str] | None = None) -> int:
             failures.append(f"{store} changed: withdrew nodes {sorted(nodes)} and links {sorted(links)}; want CAP-0001 and REL-06001")
         if any(x["reason"] != reason for x in [*nodes.values(), *links.values()]):
             failures.append(f"{store} changed: a reason is not the fixture's decision record ({reason})")
+        if {k["key"] for k in rc.get("keys", [])} != KEYS or any(k["causes"] != ["REL-06001"] for k in rc.get("keys", [])):
+            failures.append(f"{store} changed: keys {sorted(k['key'] for k in rc.get('keys', []))}; want the DT-V rows, each through REL-06001 alone")
+        if len(rc.get("invalidated") or []) != STATEMENTS:
+            failures.append(f"{store} changed: {len(rc.get('invalidated') or [])} statements invalidated; want {STATEMENTS}")
         if not rc.get("invalidated") or sorted(rc["invalidated"]) != sorted(ch["stale"]):
             failures.append(f"{store} changed: {len(rc.get('invalidated') or [])} invalidated, {len(ch['stale'])} stale on the task's keys")
         if not stale or any(reason not in f["message"] or not f.get("owner") for f in stale):

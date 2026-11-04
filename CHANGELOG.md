@@ -49,16 +49,20 @@ names that section with the version.
   - "Resting on" is the subject's map rows plus the register's own `dependants` walk, on the
     previous register. For a node, the walk descends by `parent` (decision 0014) and never counts
     the start (decision 0016); a row naming only a withdrawn descendant lands too, as in
-    `register_impact`. For a link, the rows naming both its ends, and the rows the walk from either
-    end lands only through the link.
+    `register_impact`. A descendant that the new register re-parented away from the withdrawn node,
+    in any state, is skipped along with its subtree: it was moved, not withdrawn, so its keys stay
+    as they were (the maintainer's choice, 2026-11-04). A descendant still under the node is
+    descended as before. For a link, the rows naming both its ends, and the rows the walk from
+    either end lands only through the link.
   - The report gains an optional `register_change` section: what was withdrawn, each item's reason,
     the keys, the statements invalidated and the derived output. The schema stays at version 2.
   - The store port gains one write, `invalidate_keys`. Both adapters implement it and agree, and
     `check_round_trip.py --register-previous` holds the staleness across Turtle hops.
   - Proven on a fixture built from the vendored register, which is never edited
-    (`tools/register_fixture.py`): CAP-0001 deprecated, its children moved and REL-06001 withdrawn.
-    On CargoQuote's S1 this stales 32 keys and 81 statements and marks `derived:S1:G:run1` suspect,
-    and the gate exits 1. An update with no state change leaves the report as it was.
+    (`tools/register_fixture.py`): CAP-0001 deprecated, all four of its children moved to
+    CAP-0006, and REL-06001 withdrawn. The moved children land nothing, so CAP-0001's deprecation
+    stales no key. REL-06001 stales the eight DT-V keys and their 15 statements on CargoQuote's S1,
+    the same on Neo4j and rdflib. `derived:S1:G:run1` turns suspect and the gate exits 1. An update with no state change leaves the report as it was.
     `tools/check_register_change.py` runs it on rdflib in `harness.yml` and on Neo4j and rdflib in
     the stack job. The record and the comparator are unchanged.
 
