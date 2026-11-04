@@ -42,10 +42,10 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   outcome (KG_TODAY, else the wall clock); under `KG_CLOCK=pinned` (the test runner, the rdflib job,
   every check tool's commands via `review.pinned`/`cadence.pin_record`) it refuses the wall clock.
   `tests/test_clock.py` names every other read, holds each check tool pinned and each workflow gate
-  command to an `--as-of`. `harness/mcp_server.py` the gate and the three-valued answer as a read-only MCP server (stdio, or
+  command to an `--as-of`. `harness/mcp_server.py` the gate, the three-valued answer and the arms' evidence bundle (`evidence_bundle`, task-0080) as a read-only MCP server (stdio, or
   Streamable HTTP on 127.0.0.1 with `KG_MCP_TOKEN` for any wider bind; standard library; the store behind a
   view that lets the port's reads through and nothing else; `tools/check_mcp_server.py` holds its report equal
-  to `gate_cli.py --no-load`'s on a live store; task-0056). `harness/trace.py`
+  to `gate_cli.py --no-load`'s and its bundle to the arms' `render_bundle` on a live store; task-0056). `harness/trace.py`
   knowgov-trace (task-0051): `register` records built files as derived outputs (store and a JSON
   ledger, since a load wipes the store), `check` reports suspect, drift, missing, unmapped and the
   task's gate under the same exit contract, JSON pinned by `harness/schemas/trace-report.schema.json`;

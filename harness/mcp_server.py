@@ -3,7 +3,7 @@
     python harness/mcp_server.py                      # stdio, for an agent that starts the server itself
     python harness/mcp_server.py --http [--host H] [--port P]   # Streamable HTTP at http://H:P/mcp
 
-The question an agent asks is "may I build on this?". Three tools answer it, all read-only:
+The question an agent asks is "may I build on this?". Four tools answer it, all read-only:
 
     store_status          what the store holds: the subject, the scenario loaded, the tasks and the
                           keys the subject asks the three-valued question of
@@ -13,6 +13,12 @@ The question an agent asks is "may I build on this?". Three tools answer it, all
                           provenance: its source document and fragments, who made it, its
                           verifications, approvals and gaps; and the key's invalidated statements,
                           each naming what supersedes it (``superseded_by``, task-0071)
+    evidence_bundle       the evidence bundle the governed arm reads (``gate.render_bundle``) for a task or
+                          a key set: the verdict, the policy, every key's statements with evidence,
+                          verifications, approvals and gaps, the invalidated statements and what
+                          supersedes them, the lapsed reviews, the pre-load verdicts behind the keys,
+                          the suspect derived outputs, and the documents the task names verbatim
+                          (task-0080)
 
 The server never loads, wipes or writes: it reads the store the page or a run left (``KG_STORE``;
 for rdflib the Turtle file ``KG_RDFLIB_FILE``, read and never written back), through a view that
@@ -55,7 +61,8 @@ READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": T
 INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge a task needs. Call gate_verdict "
                 "before generating code or a document from the organisation's knowledge: BLOCKED means do not build, "
                 "QUALIFIED means build only with every key below verified stated as an assumption, PROCEED means the "
-                "required keys are verified or approved. Call three_valued_answer for one key: 'unknown' is not "
+                "required keys are verified or approved. Call evidence_bundle for the knowledge itself, with its "
+                "evidence, as the governed arm reads it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. A status is the repository's; you may not upgrade it. This server only reads.")
 
 TOOLS = [
@@ -87,6 +94,24 @@ TOOLS = [
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold (default: whatever it holds)"}}},
      "annotations": READ_ONLY},
 ]
+
+
+TOOLS.append(
+    {"name": "evidence_bundle", "title": "What may I build on, and on what evidence?",
+     "description": "The evidence bundle the governed arm reads, as text: the gate's verdict and why, the policy, each "
+                    "required key's level, flags, declared gaps and live statements (value, basis, status, source, "
+                    "evidence fragments, verifications, approvals, gaps, a lapsed review), the conflicts, the statements "
+                    "a source change invalidated with what supersedes them, the documents behind the keys whose "
+                    "pre-load check is unchecked or flawed, the derived outputs marked suspect, and the documents the "
+                    "task names as needed verbatim. Put it in your context before building; the statuses are the "
+                    "repository's, not yours to upgrade.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
+         "scenario": {"type": "string", "description": "the scenario you expect the store to hold (default: whatever it holds)"},
+         "task": {"type": "string", "description": "the task class whose required keys are resolved and whose verbatim documents are served (default: codegen)"},
+         "keys": {"type": "array", "items": {"type": "string"}, "minItems": 1, "description": "resolve these entity|attribute keys instead of the task's; the task's block levels, bar and verbatim documents apply"},
+         "verbatim": {"type": "boolean", "description": "include the documents the task names as needed verbatim (default: true)"},
+         "as_of": {"type": "string", "description": "the date review currency is read on: record (default, as the arms read it), today or YYYY-MM-DD"}}},
+     "annotations": READ_ONLY})
 
 
 class ToolError(Exception):
@@ -131,6 +156,13 @@ def _check_scenario(st, scenario: str | None) -> str:
     if scenario and scenario != held:
         raise ToolError(f"the store holds {held}, not {scenario!r}")
     return held
+
+
+def _stage(scenario: str, version: str | None) -> int:
+    """2 when the store holds the scenario's stage-2 version (the change applied), else 1."""
+    from subject import SUBJECT
+    cfg2 = SUBJECT.scenario(scenario).get("stage2")
+    return 2 if cfg2 and version == cfg2.get("version", "v2") else 1   # change.version_of, without its load imports
 
 
 class Tools:
@@ -206,6 +238,50 @@ class Tools:
             return gate_cli.evaluate(st, subject=SUBJECT.id, scenario=scenario, task=name, spec=spec,
                                      threshold=threshold, baseline=base, loaded=False,
                                      version=gate_cli.held_version(st), as_of=on)
+        return self._with_store(go)
+
+    def evidence_bundle(self, args: dict) -> dict:
+        """The bundle as harness/run.py hands it to the governed arm: ``render_bundle`` over the gate's
+        result, with the policy and the task's verbatim documents from the kit of the version the
+        store holds. ``as_of`` defaults to ``record``, the date the arms resolve on."""
+        import arms
+        import cadence
+        import gate_cli
+        from gate import render_bundle, resolve_spec
+        from kitio import kit_for, verbatim_documents
+        from subject import SUBJECT
+        from tasks import TASKS
+        task = args.get("task") or "codegen"
+        if task not in TASKS:
+            raise ToolError(f"{SUBJECT.id}: no task {task!r}; the subject declares {sorted(TASKS) or 'none'}")
+        keys = args.get("keys")
+        if keys is not None and (not isinstance(keys, list) or not keys or not all(isinstance(k, str) and k for k in keys)):
+            raise ToolError("keys must be a non-empty list of entity|attribute strings")
+        with_verbatim = args.get("verbatim", True)
+        if not isinstance(with_verbatim, bool):
+            raise ToolError("verbatim must be true or false")
+        try:
+            on = cadence.as_of(args.get("as_of") or "record").isoformat()
+        except ValueError as e:
+            raise ToolError(f"as_of: {e}") from e
+        spec = dict(TASKS[task])
+        name = task
+        if keys is not None:
+            spec["keys"] = list(dict.fromkeys(keys))
+            name = "keys"
+
+        def go(st):
+            scenario = _check_scenario(st, args.get("scenario"))
+            res = resolve_spec(st, name, spec, on)
+            version = gate_cli.held_version(st)
+            verbatim = None
+            if with_verbatim:
+                verbatim = verbatim_documents(kit_for(scenario, _stage(scenario, version)), task)
+            return {"subject": SUBJECT.id, "store": st.name, "scenario": scenario, "version": version, "task": name,
+                    "as_of": res["as_of"], "verdict": res["verdict"], "why": res["why"],
+                    "assertion_ids": sorted({a["id"] for v in res["keys"].values() for a in v["assertions"]}),
+                    "verbatim": sorted(verbatim or {}),
+                    "bundle": render_bundle(res, arms.policy(), verbatim)}
         return self._with_store(go)
 
     def three_valued_answer(self, args: dict) -> dict:
