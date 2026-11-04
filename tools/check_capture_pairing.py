@@ -80,8 +80,10 @@ def load(env: dict) -> dict:
 def main(out: Path) -> int:
     root = out / "instance"
     subprocess.run([sys.executable, str(ROOT / "tools" / "example_instance.py"), str(root)], check=True, capture_output=True)
-    env = dict(os.environ, KG_SUBJECT=str(root / "subjects" / "cargo_quote"), KG_REGISTER=str(root / "register"),
-               PYTHONDONTWRITEBYTECODE="1")
+    sys.path.insert(0, str(ROOT / "harness"))
+    import cadence
+    env = cadence.pin_record(dict(os.environ, KG_SUBJECT=str(root / "subjects" / "cargo_quote"), KG_REGISTER=str(root / "register"),
+                                  PYTHONDONTWRITEBYTECODE="1"))   # the record's day, the wall clock refused (task-0075)
     before = load(env)
     capdir = root / "subjects" / "cargo_quote" / "captures"
     capdir.mkdir(parents=True, exist_ok=True)

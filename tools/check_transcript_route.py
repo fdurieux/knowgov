@@ -80,8 +80,11 @@ def inside(transcript: Path, qdir: Path) -> dict:
 def main(out: Path) -> int:
     root = out / "instance"
     subprocess.run([sys.executable, str(ROOT / "tools" / "example_instance.py"), str(root)], check=True, capture_output=True)
-    env = dict(os.environ, KG_SUBJECT=str(root / "subjects" / "cargo_quote"), KG_REGISTER=str(root / "register"),
-               PYTHONDONTWRITEBYTECODE="1", KG_TODAY="2026-11-03", KG_MODEL_API_KEY_VAR="KG_TRANSCRIPT_CHECK_NO_KEY")
+    sys.path.insert(0, str(ROOT / "harness"))
+    import review
+    env = review.pinned(dict(os.environ, KG_SUBJECT=str(root / "subjects" / "cargo_quote"), KG_REGISTER=str(root / "register"),
+                             PYTHONDONTWRITEBYTECODE="1", KG_MODEL_API_KEY_VAR="KG_TRANSCRIPT_CHECK_NO_KEY"),
+                        "2026-11-03")   # the walkthrough's day, the wall clock refused (task-0075)
     env.pop("KG_TRANSCRIPT_CHECK_NO_KEY", None)
     t = out / "transcript.txt"
     t.write_text(TRANSCRIPT, encoding="utf-8")

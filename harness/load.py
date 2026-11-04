@@ -7,6 +7,7 @@ port (store.py); the first adapter (store_neo4j.py) holds the Cypher.
 from __future__ import annotations
 
 import datetime as dt
+import os
 import re
 import tomllib
 
@@ -25,6 +26,12 @@ SYMBOL_RE = re.compile(r"^[A-Z][A-Z_]+$")
 
 
 def now() -> str:
+    """The load's provenance stamp: KG_TODAY at midnight UTC when a run pins the day (task-0075), so a
+    review the subject leaves undated is dated by the pinned day; else the wall clock, which no outcome
+    of a pinned run reads."""
+    v = os.environ.get("KG_TODAY")
+    if v:
+        return dt.datetime.combine(dt.date.fromisoformat(v), dt.time(), dt.timezone.utc).isoformat(timespec="seconds")
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
 
