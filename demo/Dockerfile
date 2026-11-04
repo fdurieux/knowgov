@@ -10,7 +10,8 @@ FROM python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da52
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     KG_NEO4J_URI=bolt://neo4j:7687 KG_BROWSER_URL=http://localhost:7474 \
-    KG_DEMO_RUNS=/repo/runs KG_DEMO_PORT=8080
+    KG_DEMO_RUNS=/repo/runs KG_DEMO_PORT=8080 \
+    KG_PAGE_LISTEN=0.0.0.0
 
 WORKDIR /repo
 COPY . /repo
@@ -27,4 +28,6 @@ RUN pip install "pandas==3.0.5" "numpy==2.4.6" "requests==2.34.2" "pyarrow==25.0
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=6 \
   CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health', timeout=2).status == 200 else 1)"
+# the server listens on every interface inside the container; compose publishes it on KG_BIND only, and
+# passes KG_BIND in, so the server knows when it reaches beyond the host (task-0096)
 CMD ["python", "demo/app/server.py"]

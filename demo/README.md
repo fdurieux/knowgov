@@ -762,8 +762,30 @@ its data volume is first created, so if the stack ran before with the default, r
 export KG_NEO4J_PASSWORD=choose-a-password KG_BIND=0.0.0.0
 ```
 
-The page has no login, and anyone who reaches it can start a run, so widen the bind only behind a
-firewall that admits the people who should see it.
+**What changed for runs (task-0096).** On your own machine nothing changes: the run buttons and
+"Project the register" work as before, with no token. Once `KG_BIND` publishes the page beyond
+this machine, the page refuses to start a run or project the register until you give it a token
+of your own, because a run reloads the store and, with a key set, calls the model at your cost.
+Choose one and export it with the bind:
+
+```bash
+export KG_PAGE_TOKEN=choose-a-long-random-token KG_NEO4J_PASSWORD=choose-a-password KG_BIND=0.0.0.0
+```
+
+The page then shows a **Page token** box above the scenarios. Each viewer who may start runs types
+the token there once; the browser keeps it for that tab only and sends it with every run and
+projection. Viewers without it still read every report, but the Deterministic, Arms and Project
+buttons stay greyed with the reason. A script sends it as a header:
+`curl -X POST -H "Authorization: Bearer $KG_PAGE_TOKEN" -H 'Content-Type: application/json' -d '{"scenario":"S1","mode":"deterministic"}' http://<host>:8080/api/run`.
+Without a token on a wider bind, those requests answer `403` and say to set `KG_PAGE_TOKEN`. The
+token takes effect with an image built from this checkout (`docker compose up --build`) or a
+release after 0.2.0. A run or a projection is also refused when it comes from a page on another
+web address, so a site open in the same browser cannot start one.
+
+The page's reports have no login: anyone who reaches it reads everything it shows, excerpts
+included. So widen the bind only behind a firewall that admits the people who should see it, and,
+beyond a network you trust, behind a proxy that serves HTTPS, since the page sends the token in
+clear over plain HTTP.
 
 **3. Clone and start the stack.** Paste the whole block at once. It
 checks the tools and says what to install if one is missing, clones the
@@ -853,7 +875,8 @@ alias knowgov='git -C "$HOME/knowgov" pull --ff-only && docker compose --project
 Two cautions. Never commit the key or put it in a `.env` file you might
 push. And if you ever run this on a server (see the EC2 route below),
 `KG_BIND` must widen the bind for you to reach it at all; restrict the firewall to your own
-address on ports 8080, 7474 and 7687: the demo page has no login, and 7474 is a live database console.
+address on ports 8080, 7474 and 7687: the demo page's reports have no login, and 7474 is a live
+database console. Set `KG_PAGE_TOKEN` too, or the page refuses runs on a wider bind.
 
 ### What the start block does, in plain English
 
@@ -898,13 +921,14 @@ package public. Demo runs then live in a Docker volume named
 configured for 1 GB of heap and 512 MB of page cache, the app needs little.
 Use an Ubuntu image with Docker installed, clone the repository, and start
 the stack as above with `KG_BIND=0.0.0.0`, a `KG_NEO4J_PASSWORD` of your own (the stack refuses
-the default on a wider bind), and `KG_BROWSER_URL=http://<the instance's public address>:7474`
+the default on a wider bind), a `KG_PAGE_TOKEN` of your own (without it the page refuses runs on a
+wider bind), and `KG_BROWSER_URL=http://<the instance's public address>:7474`
 exported so the demo's "Open Neo4j Browser" link and the impact panel's
 Browser links point at the instance rather than at your own machine, and
 `KG_DEMO_HOST=<the instance's public address>` so the Browser is allowed
 to fetch the impact panel's guides from the page. **Restrict the security group to your own
-IP address** for ports 8080, 7474 and 7687: the demo page has no
-authentication at all, and port 7474 is a live database console protected
+IP address** for ports 8080, 7474 and 7687: the demo page's reports have no
+login (only its runs ask for the token), and port 7474 is a live database console protected
 only by the password you set. Do not leave the instance reachable from the
 internet; stop or terminate it after the session.
 

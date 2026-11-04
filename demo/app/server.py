@@ -16,12 +16,21 @@ Environment:
                       the model endpoint (harness/arms.py): the arms are enabled only when the
                       variable KG_MODEL_API_KEY_VAR names (OPENAI_API_KEY by default) holds a
                       value; passed through to the harness, never stored
+    KG_PAGE_LISTEN    the address the server listens on (127.0.0.1; the image sets 0.0.0.0, and
+                      compose publishes the port on KG_BIND only)
+    KG_BIND           the host address compose publishes the page on (127.0.0.1 unless widened);
+                      with KG_PAGE_LISTEN it decides whether the page reaches beyond this machine
+    KG_PAGE_TOKEN     the bearer token every state-changing request (POST: a run, the register's
+                      projection) must carry; without it a page published beyond this machine
+                      refuses them (task-0096). Read-only GETs stay open
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import hmac
 import html
+import ipaddress
 import json
 import os
 import re
@@ -433,6 +442,66 @@ def list_runs() -> list[dict]:
     return out
 
 
+# ------------------------------------------------------------------ who may change state (task-0096)
+
+def _is_loopback(host: str) -> bool:
+    host = host.strip().strip("[]")
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def listen_host() -> str:
+    """Where this process listens: this machine only unless told (the image says 0.0.0.0)."""
+    return os.environ.get("KG_PAGE_LISTEN") or "127.0.0.1"
+
+
+def exposure() -> str:
+    """The widest address the page answers on: compose's KG_BIND when it passes one, else the
+    process's own listen address."""
+    return os.environ.get("KG_BIND") or listen_host()
+
+
+def page_token() -> str | None:
+    return os.environ.get("KG_PAGE_TOKEN") or None
+
+
+def writes_view() -> dict:
+    """What the page's JavaScript needs to know before it offers a run: whether a token is asked
+    for, and, when writes are refused outright, why. Never the token."""
+    return {"token_required": page_token() is not None, "refused": None if page_token() else write_refusal()}
+
+
+def write_refusal() -> str | None:
+    """None when a state-changing request may go ahead without a token, else why it may not."""
+    if page_token() or _is_loopback(exposure()):
+        return None
+    return (f"the page is published on {exposure()}, beyond this machine, and has no login: runs and the "
+            "register's projection are refused until KG_PAGE_TOKEN is set in the app's environment "
+            "(every such request then carries it as Authorization: Bearer <token>)")
+
+
+def write_guard(headers) -> tuple[int, str, dict] | None:
+    """None when a POST may proceed, else (status, message, extra headers). A request from another
+    web origin is refused whatever the bind, so a page elsewhere in the viewer's browser cannot
+    start a run; with KG_PAGE_TOKEN set the request must carry it; without it, a page published
+    beyond this machine refuses every write."""
+    origin = headers.get("Origin")
+    if origin and urllib.parse.urlsplit(origin).netloc.lower() != (headers.get("Host") or "").lower():
+        return 403, f"a request from another web origin ({origin}) may not change state", {}
+    token = page_token()
+    if token:
+        got = headers.get("Authorization") or ""
+        if not (got.startswith("Bearer ") and hmac.compare_digest(got[7:].encode(), token.encode())):
+            return 401, "this page asks for its token (KG_PAGE_TOKEN): enter it in the Page token box, or send Authorization: Bearer <token>", {"WWW-Authenticate": "Bearer"}
+        return None
+    why = write_refusal()
+    return (403, why, {}) if why else None
+
+
 # ------------------------------------------------------------------ HTTP
 
 class Handler(BaseHTTPRequestHandler):
@@ -441,8 +510,11 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # quieter than the default
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
 
-    def _send(self, code: int, body: bytes, ctype: str = "application/json; charset=utf-8", cors: bool = False) -> None:
+    def _send(self, code: int, body: bytes, ctype: str = "application/json; charset=utf-8", cors: bool = False,
+              extra: dict | None = None) -> None:
         self.send_response(code)
+        for k, v in (extra or {}).items():
+            self.send_header(k, v)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
@@ -476,8 +548,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
-    def _json(self, obj, code: int = 200) -> None:
-        self._send(code, json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8"))
+    def _json(self, obj, code: int = 200, extra: dict | None = None) -> None:
+        self._send(code, json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8"), extra=extra)
 
     def do_GET(self) -> None:  # noqa: N802
         u = urllib.parse.urlparse(self.path)
@@ -503,7 +575,7 @@ class Handler(BaseHTTPRequestHandler):
                                    "page": {"title": _ps().subject.page.get("title", ""), "subtitle": _ps().subject.page.get("subtitle", "")},
                                    "arms_enabled": arms_enabled(), "model_rows": model_rows(),
                                    "record_model": _ps().record_model, "record_effort": _ps().record_effort,
-                                   "deterministic_enabled": st["reachable"],
+                                   "deterministic_enabled": st["reachable"], "writes": writes_view(),
                                    "runs_dir": str(RUNS_DIR), "run": RUNNER.describe()})
             if parts[:2] == ["api", "results"] and len(parts) == 3:
                 sc = parts[2]
@@ -567,6 +639,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": str(e)}, 500)
 
     def do_POST(self) -> None:  # noqa: N802
+        # every POST changes state (a run reloads the store and may call the model; the projection
+        # writes the store): the guard comes before the body is read (task-0096)
+        refused = write_guard(self.headers)
+        if refused:
+            code, why, extra = refused
+            return self._json({"error": why}, code, extra)
         u = urllib.parse.urlparse(self.path)
         parts = [p for p in u.path.split("/") if p]
         length = int(self.headers.get("Content-Length") or 0)
@@ -606,8 +684,10 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
-    httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"kg demo on http://0.0.0.0:{PORT}  store {NEO4J_URI}  runs {RUNS_DIR}", flush=True)
+    host = listen_host()
+    httpd = ThreadingHTTPServer((host, PORT), Handler)
+    writes = "token required" if page_token() else (write_refusal() or "open on this machine")
+    print(f"kg demo on http://{host}:{PORT}  published on {exposure()}  store {NEO4J_URI}  runs {RUNS_DIR}  writes: {writes}", flush=True)
     httpd.serve_forever()
 
 

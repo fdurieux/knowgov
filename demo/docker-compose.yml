@@ -12,7 +12,11 @@
 #   KG_BIND            the host address the three ports are published on (default 127.0.0.1, this machine
 #                      only; 0.0.0.0 for every interface, or one of the host's addresses; [::] for IPv6).
 #                      A wider bind refuses to start while KG_NEO4J_PASSWORD is the default (task-0090,
-#                      neo4j/bind-guard.sh); the page has no login, so widen it only behind a firewall
+#                      neo4j/bind-guard.sh), and the page refuses runs and the register's projection unless
+#                      KG_PAGE_TOKEN is set (task-0096); its reads have no login, so widen it only behind a firewall
+#   KG_PAGE_TOKEN      the page's token: with it set, every run and projection request must carry it as
+#                      Authorization: Bearer <token> (the page asks the viewer for it once); without it, a
+#                      wider KG_BIND refuses them. Never committed, never baked in
 #   KG_NEO4J_PASSWORD  the store's password (default kgpoc2026, the harness default, refused on a wider KG_BIND)
 #   OPENAI_API_KEY     enables the arms mode; passed through to the app only, never baked in
 #   KG_MODEL_BASE_URL  the model endpoint (default api.openai.com): Google's compatible endpoint, or a
@@ -83,6 +87,8 @@ services:
         condition: service_healthy
     environment:
       KG_NEO4J_URI: bolt://neo4j:7687
+      KG_BIND: ${KG_BIND:-127.0.0.1}   # where the page is published: the server refuses writes beyond this machine without a token
+      KG_PAGE_TOKEN: ${KG_PAGE_TOKEN:-}   # task-0096: the bearer token runs and projections must carry; passed through, never baked in
       KG_NEO4J_PASSWORD: ${KG_NEO4J_PASSWORD:-kgpoc2026}
       KG_BROWSER_URL: ${KG_BROWSER_URL:-http://localhost:7474}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

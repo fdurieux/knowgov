@@ -120,6 +120,10 @@ a{color:var(--teal)}
       <div class="toggle" id="asof"><b>Reviews as of</b> — the date a run's gate reads review currency on; empty is the subject's record date
         <label for="as-of">date <input type="date" id="as-of"></label>
       </div>
+      <div class="toggle" id="pagetoken" style="display:none"><b>Page token</b> — this page asks for its token (<code>KG_PAGE_TOKEN</code>) before a run or a projection; it is kept in this tab only
+        <form id="pt-form"><label for="pt-input">token <input type="password" id="pt-input" autocomplete="off" spellcheck="false"></label> <button type="submit" class="small">use</button> <button type="button" id="pt-forget" class="small">forget</button></form>
+        <div class="why" id="pt-why"></div>
+      </div>
       <div id="menu-list" class="small">loading…</div>
       <div class="note">Replay shows the committed results (instant, no store). Deterministic re-executes D1–D6 against the container's Neo4j (offline, ~5 s). Arms re-executes the two model arms with <code>--n 1</code> against the configured endpoint and needs its key variable set (<code>OPENAI_API_KEY</code> by default); it writes into a dated folder under <code>runs/</code>, never over the record. A run's progress appears in a banner above the report; the clicked button shows running, done or failed, and the report switches to the run's results when it ends.</div>
     </div>
@@ -147,9 +151,30 @@ function armsEffort() { return $('#am-effort').value; }
 function armsOffWhy() { const vars = [...new Set(STATE.modelRows.filter(r => !r.key_set).map(r => r.key_var))]; return vars.length ? 'set ' + vars.join(' or ') + " in the app's environment" : 'no model row serves this subject'; }
 // shown: {scenario, mode} of the report on screen; lastRun[scenario+mode]: the most recent run's record for that button
 
+// the page token (task-0096): asked for only when the server says so, kept in this tab's sessionStorage, sent
+// as a bearer token with every POST (a run, the register's projection); reads never carry it
+function pageToken() { try { return sessionStorage.getItem('kg-page-token') || ''; } catch (e) { return STATE.pageToken || ''; } }
+function setPageToken(t) { STATE.pageToken = t; try { t ? sessionStorage.setItem('kg-page-token', t) : sessionStorage.removeItem('kg-page-token'); } catch (e) {} }
+// why this page may not start a run or a projection now, or null
+function writesWhy() {
+  const w = STATE.writes || {};
+  if (w.refused) return w.refused;
+  if (w.token_required && !pageToken()) return 'enter the page token under "Page token" first';
+  return null;
+}
+function renderToken() {
+  const w = STATE.writes || {}, box = $('#pagetoken');
+  box.style.display = w.token_required || w.refused ? '' : 'none';
+  $('#pt-form').style.display = w.token_required ? '' : 'none';
+  $('#pt-why').textContent = w.refused ? w.refused : (pageToken() ? 'a token is entered for this tab' : 'no token entered: runs and the projection are refused');
+  $('#pt-form').onsubmit = ev => { ev.preventDefault(); setPageToken($('#pt-input').value.trim()); $('#pt-input').value = ''; renderToken(); renderMenu(); renderStore(); };
+  $('#pt-forget').onclick = () => { setPageToken(''); renderToken(); renderMenu(); renderStore(); };
+}
+
 // every API call names the subject on screen; the server answers within that subject (task-0032.02)
 function withSubject(path) { return STATE.subject ? path + (path.includes('?') ? '&' : '?') + 'subject=' + encodeURIComponent(STATE.subject) : path; }
 async function api(path, opts) {
+  if (opts && opts.method === 'POST' && pageToken()) opts = {...opts, headers: {...(opts.headers || {}), Authorization: 'Bearer ' + pageToken()}};
   const r = await fetch(withSubject(path), opts);
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || r.statusText);
@@ -160,6 +185,7 @@ async function loadScenarios() {
   const j = await api('/api/scenarios');
   STATE.scenarios = j.scenarios; STATE.store = j.store; STATE.armsEnabled = j.arms_enabled; STATE.detEnabled = j.deterministic_enabled; STATE.run = j.run;
   STATE.recordModel = j.record_model; STATE.recordEffort = j.record_effort || ''; STATE.modelRows = j.model_rows || [];
+  STATE.writes = j.writes || {}; renderToken();
   if (j.page && j.page.title) { document.querySelector('header h1').textContent = j.page.title; document.title = j.page.title; }
   if (j.page && j.page.subtitle) document.querySelector('header .sub').innerHTML = j.page.subtitle;
   renderToggle();
@@ -227,8 +253,8 @@ function renderMenu() {
       <div class="line">${esc(s.represented)} ${esc(s.defect)}</div>
       <div class="modes">
         ${modeButton(s, 'replay', 'Replay', true, '')}
-        ${modeButton(s, 'deterministic', 'Deterministic', STATE.detEnabled, 'the store is unreachable')}
-        ${modeButton(s, 'arms', 'Arms', STATE.armsEnabled && STATE.detEnabled, armsOffWhy() + " (and the store must be reachable)", (r => r ? `calls ${r.model} at effort ${armsEffort() || 'API default'}${!STATE.recordModel || r.id === 'record' ? '' : ' (a deviation from the record)'}` : 'pick an available model row')(armsRow()))}
+        ${modeButton(s, 'deterministic', 'Deterministic', STATE.detEnabled && !writesWhy(), writesWhy() || 'the store is unreachable')}
+        ${modeButton(s, 'arms', 'Arms', STATE.armsEnabled && STATE.detEnabled && !writesWhy(), writesWhy() || armsOffWhy() + " (and the store must be reachable)", (r => r ? `calls ${r.model} at effort ${armsEffort() || 'API default'}${!STATE.recordModel || r.id === 'record' ? '' : ' (a deviation from the record)'}` : 'pick an available model row')(armsRow()))}
       </div></div>`).join('') + registerEntry();
   $('#menu-list').querySelectorAll('button').forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); if (b.dataset.id === 'register') return showRegister(); onMode(b.dataset.id, b.dataset.mode); }));
   $('#menu-list').querySelectorAll('.sc').forEach(d => d.addEventListener('click', () => d.dataset.id === 'register' ? showRegister() : show(d.dataset.id)));
@@ -284,7 +310,7 @@ async function renderStore() {
   const rg = s.register;
   $('#store').innerHTML += `<div style="margin-top:6px">Register: ${rg
     ? `<b>projected at ${esc(rg.tag || rg.commit.slice(0, 7))}</b> — ${rg.nodes} nodes, ${rg.links} links, ${rg.relationships} relationships, loaded ${esc(rg.loaded_at)}`
-    : '<b>not projected</b>'} <button id="project-btn" class="small" ${running() || !s.reachable ? 'disabled' : ''}>${rg ? 'Project again' : 'Project the register'}</button>
+    : '<b>not projected</b>'} <button id="project-btn" class="small" ${running() || !s.reachable || writesWhy() ? 'disabled' : ''} title="${esc(writesWhy() || '')}">${rg ? 'Project again' : 'Project the register'}</button>
     <span class="small">derived, in its own namespace (Register, Reg*, REG_*), never the record; a run wipes it</span></div>`;
   $('#project-btn').addEventListener('click', async () => {
     const b = $('#project-btn'); b.disabled = true; b.textContent = 'projecting…';
