@@ -12,6 +12,13 @@ names that section with the version.
 
 ### Contract changes since 0.4.0
 
+- **A run folder describes itself** (task-0127, additive): the page's Runner writes
+  `runs/<subject>/<stamp>/run.json` when a run starts (status `running`) and again when it ends
+  (`finished`, `done` or `failed`, `exit_code`); a run whose process cannot start leaves it
+  `failed` with an `error`. It names the mode, the model row, the as-of date and who asked
+  (`by`: `page`, or `mcp`, which `POST /api/run` now takes as `by`), never a key, a token or the
+  environment. `harness/schemas/run.schema.json` pins it (version 1). `/api/runs` carries it as
+  `run` where present and is unchanged for a folder without one.
 - **`register_impact` takes a `task` input** (task-0120, additive): an optional declared task
   class (default `codegen`, as `gate_verdict`'s) under whose block levels, bar and route each
   landed key's level and findings are read, as `gate_verdict --task` reads that key set. For
