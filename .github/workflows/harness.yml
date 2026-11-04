@@ -128,8 +128,8 @@ jobs:
           rm -rf runs/verdict runs/verdict-runs && python tools/example_instance.py runs/verdict > /dev/null
           python tools/preload_check.py runs/verdict -o runs/verdict/preload-report.json > /dev/null
           cd harness && KG_STORE=rdflib KG_SUBJECT=../runs/verdict/subjects/cargo_quote python run.py --deterministic --scenarios S1 S6 --out ../runs/verdict-runs > /dev/null
-          KG_STORE=rdflib KG_SUBJECT=../runs/verdict/subjects/cargo_quote python gate_cli.py --scenario S1 -f json -o ../runs/verdict-gate.json > /dev/null
-          rc=0; KG_STORE=rdflib KG_SUBJECT=../runs/verdict/subjects/cargo_quote python gate_cli.py --scenario S1 --fail-on info > /dev/null || rc=$?; test "$rc" = 1
+          KG_STORE=rdflib KG_SUBJECT=../runs/verdict/subjects/cargo_quote python gate_cli.py --as-of record --scenario S1 -f json -o ../runs/verdict-gate.json > /dev/null
+          rc=0; KG_STORE=rdflib KG_SUBJECT=../runs/verdict/subjects/cargo_quote python gate_cli.py --as-of record --scenario S1 --fail-on info > /dev/null || rc=$?; test "$rc" = 1
           cd ..
           python3 - runs/verdict <<'PY'
           import json, sys
