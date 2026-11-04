@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T16:54:00Z'
-updated_date: '2026-11-04T17:12:00Z'
+updated_date: '2026-11-04T17:13:00Z'
 labels:
   - aris
   - connector
@@ -55,6 +55,8 @@ Revision after the coordinator's evidence (2026-11-04): the maintainer imported 
 - Changes: the BPMN process @id is now PROC-0001. Each activity's register id is its <documentation> text. No register id is an element id, and nothing relies on calledElement, timeCycle or process-level documentation. Both dialects carry a collaboration (collab_cargo_quote) whose participant is named CargoQuote.
 - New per variant: quote_process.aris.bpmn, the same model in ARIS's dialect. Its ID-... values are derived (uuid5 bytes stamped version 1). The aris, arisebpmn, color, deco and i18n namespace URIs are synthetic stand-ins (urn:knowgov:synthetic:aris-dialect:*), because the real ones were not in the evidence; the aris:port value is invented. A test holds the dialect's model (types, names, register ids, flow topology with ids dropped) equal to the knowgov dialect's.
 - bpmnlint 12.0.0 (recommended): 0 problems on all four BPMN files.
+
+Control result (coordinator, 2026-11-04): the same generated BPMN was round-tripped through bpmn.io (bpmn-js 18.31.1) and lost nothing. All ids and the definitions id were kept, as were calledElement, timeCycle, process documentation, isExecutable and the multi-instance id; flows and names were identical. The only changes: every shape was offset by (+140, +50), 14 BPMNLabel bounds were added, the DI elements were reordered, and ' was written as &#39;. So the losses above come from ARIS's export, not from malformed input. bpmn-js import or bpmnlint is a sound validity check for the generated BPMN; here bpmnlint 12.0.0 runs in CI. For task-0063: a reader must not treat DI coordinates as identity.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
