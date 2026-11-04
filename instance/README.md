@@ -273,6 +273,42 @@ the example instance, and runs the GitLab job's own script lines in a shell
 (`tools/check_ci_wrappers.py`). Both use S6: the change turns the registered code suspect, and the
 check fails naming `APP-0001`.
 
+## A register pull request read before approval
+
+A proposed product, capability or journey reaches your register as a pull request: new node files
+and links, in state `draft` or `proposed`. Read as they are, the register's walks and coverage rules
+do not see them until someone approves them, and by then it is late to change the design.
+`instance/ci/proposal-impact.sh` is an optional step for that pull request. It reads the branch's
+additions *as if approved*, with your register's own checker and walks, and prints what they would
+mean (task-0132):
+
+```sh
+sh instance/ci/proposal-impact.sh <knowgov checkout> <register checkout> origin/main
+```
+
+It runs `harness/proposal_impact.py --register-branch <register checkout> --base origin/main`. The
+proposal is what the branch adds since its merge base with `origin/main`: every node file added,
+every link whose id is new, every exception file added. The ids are the branch's own. A node file the
+branch changes counts as a reused node `changed`, so its owner sees what the change reaches. Anything
+else, such as a deleted file or a link changed in place, is listed under `branch.not_read` and not
+read. The report is the one the MCP tool `proposal_impact` gives, described in "Letting an AI
+assistant ask the gate" below:
+
+- coverage C1 to C3 before and after, with the new gaps;
+- the link candidates;
+- what each reused node reaches, before and after;
+- what each new node rests on;
+- which unit must approve what.
+
+Every proposed element is marked `hypothetical`.
+
+The step is advisory. It exits 0 with a report and 2 when it cannot run. A gap is reported, never a
+failure, because your register's own checker decides at approval. It posts nothing. With
+`KG_PROPOSAL_REPORT=<file>` it also writes the JSON report, in the shape
+`harness/schemas/proposal-impact.schema.json` pins, for your platform to attach. The checkout is
+read, never written; the base register is taken from git into a temporary directory and removed. It
+does not open the store, so the reused nodes' keys carry no level here. Ask the MCP tool for those.
+
 ## Checking a document before the load
 
 ```bash

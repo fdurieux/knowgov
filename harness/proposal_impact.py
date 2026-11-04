@@ -3,6 +3,7 @@ doc-0017 candidate 1), with its deterministic link candidates D1 to D5 (task-013
 
     python harness/proposal_impact.py PROPOSAL.json [--children] [--task NAME] [--as-of DATE]
                                       [--scenario ID] [--no-store] [-f text|json] [-o FILE]
+    python harness/proposal_impact.py --register-branch DIR --base REF [the same options]
 
 A proposal is an overlay on the register ``KG_REGISTER`` names (``cadence.register_root``, at its tag):
 register-shaped ``nodes`` (a provisional id, kind, name, parent, owner, an optional ``source``),
@@ -41,6 +42,15 @@ and the overlay's digest, and is never stored: nothing is written to the registe
 file, save ``-o``'s report. Provisional ids that are well formed for their kind and free are used as
 they are; any other is given the next free id of its prefix in memory, and the report names the
 provisional one throughout. knowgov never mints an id: a register pull request does.
+
+Branch mode (task-0132, doc-0017 candidate 2): with ``--register-branch DIR --base REF`` the overlay is
+the register checkout's own diff: every node file added under a taxonomy, every link whose id is new
+in a relationship file, every exception file added, between the merge base of REF and HEAD and HEAD;
+ids are the branch's own. A node file changed on the branch is a reused node ``changed``; any other
+change (a deleted or renamed file, a link changed in place) is listed under ``branch.not_read``. The
+register read is the merge base's, taken with ``git archive`` into a temporary directory; the
+checkout is read and never written, and the report names the base and head commits. A register pull
+request's what-if: ``instance/ci/proposal-impact.sh`` runs it and prints nothing but its report.
 
 Exit 0 a report, 2 the proposal cannot be read (malformed, a kind the metamodel lacks, an id that
 names an existing node, a link end that names nothing). Standard library only.
@@ -576,6 +586,7 @@ def evaluate(proposal: dict, root: Path | None = None, today: dt.date | None = N
                      for n in ov.nodes if n["id"] not in mapped],
         "approvals": approvals(base, ov),
         "limits": list(LIMITS),
+        "branch": None,
     }
 
 
@@ -607,6 +618,106 @@ def with_levels(report: dict, st, *, task: str, as_of: str, scenario: str | None
     return report
 
 
+# ---- branch mode (task-0132) ----
+
+def _git(repo: Path, *args: str, binary: bool = False):
+    import subprocess
+    try:
+        r = subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+    except (OSError, subprocess.CalledProcessError) as e:
+        err = getattr(e, "stderr", b"") or b""
+        raise ProposalError(f"git {' '.join(args)} in {repo}: {err.decode('utf-8', 'replace').strip() or e}") from e
+    return r.stdout if binary else r.stdout.decode("utf-8").strip()
+
+
+def _toml_at(repo: Path, rev: str, path: str) -> dict:
+    try:
+        return tomllib.loads(_git(repo, "show", f"{rev}:{path}"))
+    except tomllib.TOMLDecodeError as e:
+        raise ProposalError(f"{rev}:{path}: {e}") from e
+
+
+def branch_overlay(checkout: Path, base: str, taxonomies: tuple[str, ...]) -> tuple[dict, dict]:
+    """The proposal a register branch makes against ``base``, and what the report says of the branch.
+    Reads git only: the diff between the merge base and HEAD (committed work, never the working tree)."""
+    checkout = checkout.resolve()
+    head = _git(checkout, "rev-parse", "HEAD")
+    mb = _git(checkout, "merge-base", base, "HEAD")
+    rows = [ln.split("\t") for ln in _git(checkout, "diff", "--name-status", "--no-renames", mb, head).splitlines() if ln]
+    nodes, links, reused, excs, not_read = [], [], [], [], []
+    for row in sorted(rows, key=lambda r: r[-1]):
+        st, path = row[0], row[-1]
+        top = path.split("/", 1)[0]
+        if not path.endswith(".toml") or "/" not in path:
+            continue
+        if top in taxonomies and path.count("/") == 1:
+            if st == "A":
+                n = _toml_at(checkout, head, path)
+                nodes.append({k: n[k] for k in ("id", "kind", "name", "parent", "owner", "source") if k in n})
+            elif st == "M":
+                n = _toml_at(checkout, head, path)
+                reused.append({"id": n.get("id", Path(path).stem), "mode": "changed"})
+            else:
+                not_read.append({"path": path, "status": st, "why": "a node file deleted: retiring is register_impact's question"})
+        elif top == "relationships" and path.count("/") == 1:
+            old = {} if st == "A" else _toml_at(checkout, mb, path)
+            new = {} if st == "D" else _toml_at(checkout, head, path)
+            typ = (new.get("type") or old.get("type") or {}).get("name", Path(path).stem)
+            before = {ln.get("id"): ln for ln in old.get("link", [])}
+            for ln in new.get("link", []):
+                if ln.get("id") not in before:
+                    links.append({"id": ln.get("id"), "type": typ,
+                                  **{k: ln[k] for k in ("source", "target", "rationale", "owner") if k in ln}})
+                elif ln != before[ln.get("id")]:
+                    not_read.append({"path": f"{path} [{ln.get('id')}]", "status": "M", "why": "a link changed in place is not an addition"})
+            after = {ln.get("id") for ln in new.get("link", [])}
+            for lid in sorted(set(before) - after):
+                not_read.append({"path": f"{path} [{lid}]", "status": "D", "why": "a link removed is not an addition"})
+        elif top == "exceptions" and path.count("/") == 1 and st == "A":
+            e = _toml_at(checkout, head, path)
+            excs.append({k: e[k] for k in ("id", "rule", "scope", "expires", "rationale") if k in e})
+        elif top in (*taxonomies, "relationships", "exceptions"):
+            not_read.append({"path": path, "status": st, "why": "not a node, link or exception addition"})
+    proposal = {"title": f"register branch at {head[:12]} against {base}", "nodes": nodes, "links": links,
+                "reused": reused, "exceptions": excs}
+    info = {"checkout": str(checkout), "base": base, "merge_base": mb, "head": head, "not_read": not_read}
+    return proposal, info
+
+
+def evaluate_branch(checkout: Path, base: str, today: dt.date | None = None, children: bool = False,
+                    register_map: dict | None = None) -> dict:
+    """The report for a register branch: the merge base's register, from ``git archive`` into a
+    temporary directory, read with the branch's additions as the overlay. Nothing in the checkout is
+    written; the temporary copy is removed."""
+    import io
+    import shutil
+    import tarfile
+    import tempfile
+    checkout = Path(checkout).resolve()
+    if not (checkout / "metamodel" / "types.toml").is_file():
+        raise ProposalError(f"{checkout}: not a register checkout (no metamodel/types.toml)")
+    T = ri.load_tools(checkout)
+    taxonomies = tuple(T["register"].TAXONOMIES)
+    proposal, info = branch_overlay(checkout, base, taxonomies)
+    tmp = Path(tempfile.mkdtemp(prefix="kg-proposal-base-"))
+    try:
+        data = _git(checkout, "archive", "--format=tar", info["merge_base"], binary=True)
+        with tarfile.open(fileobj=io.BytesIO(data)) as tar:
+            tar.extractall(tmp, filter="data")
+        report = evaluate(proposal, root=tmp, today=today, children=children, register_map=register_map)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+        _checks.pop(str(tmp.resolve()), None)
+        ri._tools.pop(str(tmp.resolve()), None)
+    try:
+        tag = _git(checkout, "describe", "--tags", "--exact-match", info["merge_base"])
+    except ProposalError:
+        tag = report["register"]["tag"]   # a vendored copy's SOURCE.md, as register_impact.source reads it
+    report["register"] = {"tag": tag, "commit": info["merge_base"]}
+    report["branch"] = info
+    return report
+
+
 # ---- the command ----
 
 def read_proposal(path: Path) -> dict:
@@ -624,6 +735,10 @@ def render_text(r: dict) -> str:
     lines = [f"proposal {r['overlay']['title'] or r['overlay']['digest'][:12]} on the register {r['register']['tag'] or '?'} "
              f"({r['register']['commit'][:12]}), as of {r['as_of']}: read as if approved, every element hypothetical, nothing stored",
              f"  {r['overlay']['nodes']} node(s), {r['overlay']['links']} link(s), {r['overlay']['reused']} reused node(s)"]
+    if r.get("branch"):
+        b = r["branch"]
+        lines.append(f"  branch {b['head'][:12]} against {b['base']} (merge base {b['merge_base'][:12]}); not read: "
+                     f"{[x['path'] for x in b['not_read']] or 'nothing'}")
     for c in ("C1", "C2", "C3"):
         b, a = r["coverage"]["before"][c], r["coverage"]["after"][c]
         lines.append(f"  {c}: {b['covered']}/{b['denominator']} -> {a['covered']}/{a['denominator']} covered; "
@@ -652,7 +767,9 @@ def render_text(r: dict) -> str:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="proposal_impact.py", description="A proposed addition read against the register as if "
                                  "approved, without approving it (task-0130). Nothing is written.")
-    ap.add_argument("proposal", type=Path, help="the overlay, JSON or TOML")
+    ap.add_argument("proposal", type=Path, nargs="?", help="the overlay, JSON or TOML (or --register-branch)")
+    ap.add_argument("--register-branch", type=Path, default=None, help="a register checkout whose branch is the proposal (task-0132)")
+    ap.add_argument("--base", default=None, help="with --register-branch: the ref the branch is read against, such as origin/main")
     ap.add_argument("--children", action="store_true", help="walk every approved descendant by parent too (the register's decision 0014)")
     ap.add_argument("--task", default=None, help="the task class each reused node's keys are read under (default: codegen)")
     ap.add_argument("--scenario", default=None, help="the scenario the store must hold (default: whatever it holds)")
@@ -674,8 +791,14 @@ def main(argv: list[str] | None = None) -> int:
     if task is not None and task not in TASKS:
         print(f"proposal_impact: no task {task!r}; the subject declares {sorted(TASKS)}", file=sys.stderr)
         return 2
+    if (a.proposal is None) == (a.register_branch is None) or (a.register_branch is not None) != (a.base is not None):
+        print("proposal_impact: give a proposal file, or --register-branch DIR with --base REF", file=sys.stderr)
+        return 2
     try:
-        report = evaluate(read_proposal(a.proposal), today=on, children=a.children)
+        if a.register_branch is not None:
+            report = evaluate_branch(a.register_branch, a.base, today=on, children=a.children)
+        else:
+            report = evaluate(read_proposal(a.proposal), today=on, children=a.children)
     except (ProposalError, ri.ImpactError) as e:
         print(f"proposal_impact: {e}", file=sys.stderr)
         return 2
