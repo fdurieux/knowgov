@@ -850,9 +850,10 @@ two addresses, and open the demo.
 
 ## Start it elsewhere
 
-**Another laptop, without building.** The compose file names the image
-the repository publishes on every merge, `ghcr.io/fdurieux/knowgov:latest`
-(also tagged with the commit's short SHA). From the `demo`
+**Another laptop, without building.** The compose file names a released
+image, `ghcr.io/fdurieux/knowgov:<version>`, pinned by its digest
+(task-0092); the repository also publishes every merge as `:latest` and
+as the commit's short SHA, which you can name in its place. From the `demo`
 directory of a checkout:
 
 ```bash
