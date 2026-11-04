@@ -14,7 +14,11 @@ it (task-0080); and for a key set, the same over ``resolve_spec`` on those keys.
 Then ask ``register_impact`` from the first node of the subject's first register-map row and require
 every key it lands on at the level ``gate_verdict`` gives that key set (task-0111); and, when that node
 has a parent, from the parent with ``children`` (the register's decision 0014, task-0118): every key the
-child lands lands again, each at ``gate_verdict``'s level.
+child lands lands again, each at ``gate_verdict``'s level; the keys resting only on a withdrawn
+descendant come last, flagged ``withdrawn``, and no withdrawn one is walked from; and under each declared
+task class every landed key, its findings and the gate line are ``gate_verdict --task``'s for that key
+set, no task being codegen's and ``keys`` refused (task-0120); at stage 2, the same from the first stale
+key's node, where the stale findings carry each class's route and the classes must not all agree.
 The same process also answers ``server/discover`` and a stateless (2026-07-28) ``gate_verdict``,
 which must equal the handshake's (task-0079).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
@@ -258,6 +262,8 @@ def check_impact(client: "StdioClient", sc: str, failures: list[str], label: str
                                 f"{first['nodes'][0]}'s or not at gate_verdict's levels")
             print(f"{label}: register_impact from {parent} with children walks {sum(c['walked'] for c in up['children'])} of "
                   f"{len(up['children'])} descendant(s) and lands {len(ukeys)} key(s), each at gate_verdict's level")
+            check_withdrawn(up, parent, failures, label)
+            check_task_classes(client, sc, failures, label, parent)
         return
     for x in sorted(rec.get("stale") or [], key=lambda x: x["key"]):
         if x["key"] not in rows:
@@ -271,6 +277,59 @@ def check_impact(client: "StdioClient", sc: str, failures: list[str], label: str
                             f"the record {x['id']} stale and {want_suspect} suspect")
             continue
         print(f"{label}: register_impact from {start} names {x['key']} stale ({x['id']}) and {', '.join(want_suspect) or 'nothing'} suspect")
+    stale = [x for x in sorted(rec.get("stale") or [], key=lambda x: x["key"]) if x["key"] in rows]
+    if stale:   # task-0120: under each class, with stale findings to route
+        check_task_classes(client, sc, failures, label, rows[stale[0]["key"]]["nodes"][0], must_differ=True)
+
+
+def check_withdrawn(got: dict, start: str, failures: list[str], label: str) -> None:
+    """task-0120: with children, the keys whose rows name only a withdrawn descendant come last, each
+    flagged withdrawn and coming through withdrawn descendants only, and no withdrawn one is walked from."""
+    withdrawn = {c["id"] for c in got["children"] if c.get("withdrawn")}
+    flagged = [k for k in got["keys"] if k.get("withdrawn")]
+    ok = (got["keys"][len(got["keys"]) - len(flagged):] == flagged
+          and all(k["withdrawn"] is True and k["via"] and set(k["via"]) <= withdrawn for k in flagged)
+          and not withdrawn & {e["from"] for e in got["edges"]})
+    if not ok:
+        failures.append(f"{label}: register_impact from {start} with children flags {[k['key'] for k in flagged]} "
+                        f"not as resting only on the withdrawn {sorted(withdrawn)}, or walks on from one")
+    print(f"{label}: register_impact from {start} with children lists {len(flagged)} key(s) flagged withdrawn"
+          + (f" ({', '.join(k['key'] + ' via ' + '+'.join(k['via']) for k in flagged)})" if flagged else ""))
+
+
+def check_task_classes(client: "StdioClient", sc: str, failures: list[str], label: str, start: str,
+                       must_differ: bool = False) -> None:
+    """task-0120: register_impact under each declared task class reads every landed key, its findings
+    (owner and route) and the gate line as gate_verdict --task gives that key set; no task is codegen's
+    answer; keys is refused. Classes may agree where no finding carries a route (S6 at stage 1); with
+``must_differ`` (stage 2, stale findings routed by class) they must not all agree."""
+    sys.path.insert(0, str(HARNESS))
+    from tasks import TASKS
+    base = {"node": start, "children": True, "scenario": sc, "as_of": "record"}
+    answers = {}
+    for task in TASKS:
+        got = client.call("register_impact", {**base, "task": task})
+        keys = [k["key"] for k in got["keys"]]
+        want = client.call("gate_verdict", {"scenario": sc, "task": task, "keys": keys, "as_of": "record"}) if keys else None
+        mine = {k["key"]: (k["level"], k["findings"]) for k in got["keys"]}
+        theirs = {k: (want["levels"][k], [f for f in want["findings"] if f["kind"] in ("key", "stale", "lapsed") and f["key"] == k]) for k in keys} if want else {}
+        if not keys or mine != theirs or got["gate"]["task"] != task or got["gate"]["verdict"] != want["verdict"]:
+            failures.append(f"{label}: register_impact from {start} under {task} differs from gate_verdict --task {task} on its {len(keys)} key(s)")
+        answers[task] = (mine, got["gate"]["verdict"])
+        print(f"{label}: register_impact from {start} under {task}: {got['gate']['verdict']} on {len(keys)} key(s), "
+              f"each as gate_verdict --task {task} reads it")
+    if "codegen" in answers and client.call("register_impact", base)["keys"] != \
+            client.call("register_impact", {**base, "task": "codegen"})["keys"]:
+        failures.append(f"{label}: register_impact from {start} without a task is not codegen's answer")
+    if len(answers) > 1:   # each class's own answer; where no finding carries a route, they may agree
+        n = len({json.dumps(a, sort_keys=True) for a in answers.values()})
+        print(f"{label}: register_impact from {start}: {n} distinct answer(s) across {sorted(answers)}")
+        if must_differ and n == 1:
+            failures.append(f"{label}: register_impact from {start} gives one answer under every class {sorted(answers)}, "
+                            "though its stale findings route by class")
+    refused = client.request("tools/call", {"name": "register_impact", "arguments": {**base, "task": "keys"}})["result"]
+    if not refused.get("isError"):
+        failures.append(f"{label}: register_impact took task keys, a key set, not a class")
 
 
 def census() -> dict:

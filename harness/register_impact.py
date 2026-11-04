@@ -10,10 +10,13 @@ v0.2.8 on): the walk also starts from every descendant by ``parent``, recursivel
 taxonomy's row; an approved one is walked, any other is listed withdrawn and not walked from, and what
 is reached is the union less the start and its descendants. ``parent`` is never climbed. The rows are
 the subject's ``register_map.toml``: a row whose nodes name the start, a walked descendant or a reached
-node lands, with the nodes it came through. Its owner is the row's, as the gate's findings name it.
+node lands, with the nodes it came through; with ``children``, a row that names only a withdrawn
+descendant lands after them, flagged ``withdrawn`` (task-0120). Its owner is the row's, as the gate's
+findings name it.
 
-The levels come from the gate itself, ``gate_cli.evaluate`` over the landed keys on one ``as_of``,
-the report ``gate_verdict`` makes for that key set, so a key reads here as ``gate_verdict`` reports it.
+The levels come from the gate itself, ``gate_cli.evaluate`` over the landed keys on one ``as_of``
+under one declared task class (its block levels, bar and route; codegen by default, task-0120), the
+report ``gate_verdict --task`` makes for that key set, so a key reads here as ``gate_verdict`` reports it.
 Only the store port's reads are used; nothing is written. Standard library only.
 """
 from __future__ import annotations
@@ -135,18 +138,25 @@ def walk(node: str, which: str = "dependants", root: Path | None = None, childre
             "edges": edges, "reached": by_prefix, "reached_ids": reached}
 
 
-def landed_rows(register_map: dict, node: str, reached: list[str], walked: list[str] = ()) -> list[dict]:
+def landed_rows(register_map: dict, node: str, reached: list[str], walked: list[str] = (),
+                withdrawn: list[str] = ()) -> list[dict]:
     """The map's rows that name the start, a walked descendant or a reached node, each with the nodes it
     came through (``via``: the start first when the row names it, then the walked descendants, then the
-    reached nodes it names, as ``walk`` lists them). A withdrawn descendant, like a withdrawn edge's far
-    node, is not touched."""
+    reached nodes it names, as ``walk`` lists them). Then (task-0120) every other row that names a
+    withdrawn descendant, flagged ``withdrawn: true`` with the withdrawn descendants it names as ``via``:
+    a key that rests on what the descent reached but did not walk, listed and walked no further. A
+    withdrawn edge's far node is not touched."""
     touched = [node, *walked, *reached]
-    out = []
+    out, flagged = [], []
     for row in register_map.get("row", []):
-        via = [x for x in touched if x in (row.get("nodes") or [])]
+        names = row.get("nodes") or []
+        via = [x for x in touched if x in names]
         if via:
             out.append({"key": row["key"], "owner": row.get("owner"), "anchor": row.get("anchor"), "via": via})
-    return out
+        elif any(x in names for x in withdrawn):
+            flagged.append({"key": row["key"], "owner": row.get("owner"), "anchor": row.get("anchor"),
+                            "via": [x for x in withdrawn if x in names], "withdrawn": True})
+    return out + flagged
 
 
 def with_levels(keys: list[dict], report: dict) -> list[dict]:

@@ -532,10 +532,11 @@ def test_register_impact_reads_levels_as_gate_verdict_and_writes_nothing():
 
 # ---- register_impact with children (task-0118): the register's decision 0014 descent, off by default
 
-# per subject: (start, walk) -> how many register-map keys land with children; none land without
-CHILDREN_LANDS = {"cargo_quote": {("CAP-0001", "dependants"): 31, ("CAP-0001", "realisers"): 36},
-                  "jef_data_load": {("CAP-0006", "dependants"): 30, ("CAP-0006", "realisers"): 80,
-                                    ("ENT-0006", "dependants"): 154}}
+# per subject: (start, walk) -> how many register-map keys land with children, of them how many flagged
+# withdrawn (task-0120: a row naming only a withdrawn descendant); none land without
+CHILDREN_LANDS = {"cargo_quote": {("CAP-0001", "dependants"): (32, 1), ("CAP-0001", "realisers"): (36, 0)},
+                  "jef_data_load": {("CAP-0006", "dependants"): (30, 0), ("CAP-0006", "realisers"): (80, 0),
+                                    ("ENT-0006", "dependants"): (154, 0)}}
 
 
 def test_register_impact_children_off_by_default_and_equal_to_the_registers_walk_on_every_node():
@@ -569,6 +570,11 @@ def test_register_impact_children_off_by_default_and_equal_to_the_registers_walk
     assert with_desc == 2 * 14   # decision 0014: fourteen nodes have children
 
 
+def mcp_server_subject() -> str:
+    from subject import SUBJECT
+    return SUBJECT.id
+
+
 def test_register_impact_children_reaches_what_cap_0001s_children_reach_and_skips_the_proposed_one():
     s, _ = _server()
     off = _call(s, "register_impact", {"node": "CAP-0001"})["result"]["structuredContent"]
@@ -580,7 +586,13 @@ def test_register_impact_children_reaches_what_cap_0001s_children_reach_and_skip
                                                                          "parent": "CAP-0001", "walked": False, "withdrawn": True}
     assert "CAP-0005" not in {e["from"] for e in on["edges"]}   # a withdrawn descendant is not walked from
     assert not {"CAP-0001", "CAP-0002", "CAP-0003", "CAP-0004", "CAP-0005"} & {x["id"] for xs in on["reached"].values() for x in xs}
-    assert all(k["via"][0] != "CAP-0005" and "CAP-0005" not in k["via"] for k in on["keys"])
+    live = [k for k in on["keys"] if not k.get("withdrawn")]
+    assert all("CAP-0005" not in k["via"] for k in live)   # a walked key never comes through the proposed one
+    if mcp_server_subject() == "cargo_quote":   # task-0120: the key resting only on CAP-0005, listed last, flagged
+        assert len(on["keys"]) == 32 and on["keys"][:31] == live
+        last = on["keys"][31]
+        assert (last["key"], last["via"], last["withdrawn"], last["owner"]) == ("QuoteAPI|on_notification_failure", ["CAP-0005"], True, "ORG-0002")
+        assert last["level"]   # listed with its level, as the others are
     for bad in ("yes", 1, None):
         assert _call(s, "register_impact", {"node": "CAP-0001", "children": bad})["result"]["isError"] is True, bad
 
@@ -593,13 +605,18 @@ def test_register_impact_children_lands_the_subjects_keys_at_gate_verdicts_level
     want_counts = CHILDREN_LANDS[SUBJECT.id]
     writes = []
     s, _ = _server(Stub(writes=writes))
-    for (start, which), n in want_counts.items():
+    for (start, which), (n, nflag) in want_counts.items():
         off = _call(s, "register_impact", {"node": start, "walk": which, "as_of": DAY})["result"]["structuredContent"]
         on = _call(s, "register_impact", {"node": start, "walk": which, "children": True, "as_of": DAY})["result"]["structuredContent"]
-        assert off["keys"] == [] and len(on["keys"]) == n, (start, which, len(on["keys"]))
+        flagged = [k for k in on["keys"] if k.get("withdrawn")]
+        assert off["keys"] == [] and len(on["keys"]) == n and len(flagged) == nflag, (start, which, len(on["keys"]), len(flagged))
+        assert on["keys"][n - nflag:] == flagged and all(k["withdrawn"] is True for k in flagged)
         walked = {c["id"] for c in on["children"] if c["walked"]}
+        withdrawn = {c["id"] for c in on["children"] if c["withdrawn"]}
         reached = {x["id"] for xs in on["reached"].values() for x in xs}
-        assert all(set(k["via"]) <= {start} | walked | reached for k in on["keys"])
+        assert all(set(k["via"]) <= {start} | walked | reached for k in on["keys"] if k not in flagged)
+        assert all(k["via"] and set(k["via"]) <= withdrawn for k in flagged)
+        assert not withdrawn & {e["from"] for e in on["edges"]}   # listed, walked no further
         keys = [k["key"] for k in on["keys"]]
         want = _call(s, "gate_verdict", {"keys": keys, "as_of": DAY})["result"]["structuredContent"]
         assert {k["key"]: k["level"] for k in on["keys"]} == want["levels"] and on["gate"]["verdict"] == want["verdict"]
@@ -607,6 +624,40 @@ def test_register_impact_children_lands_the_subjects_keys_at_gate_verdicts_level
         on = _call(s, "register_impact", {"node": "CAP-0001", "walk": "realisers", "children": True})["result"]["structuredContent"]
         assert sorted(k["key"] for k in on["keys"]) == sorted(TASKS["codegen"]["keys"])
     assert writes == []
+
+
+# ---- register_impact under a task class (task-0120): gate_verdict --task's block levels, bar and route
+
+def test_register_impact_reads_the_keys_under_the_task_class_named_and_refuses_keys():
+    """Each declared class: the landed keys' levels and findings (owner and route included) and the gate
+    line equal gate_verdict's for that key set under that class; the default is codegen's; on CargoQuote
+    design and codegen answer differently; keys, an undeclared name or a non-string is refused."""
+    from subject import SUBJECT
+    rows = SUBJECT.register_map().get("row") or []
+    if not rows:
+        return
+    s, _ = _server()
+    start, which = next(iter(CHILDREN_LANDS[SUBJECT.id]))
+    args = {"node": start, "walk": which, "children": True, "as_of": DAY}
+    got = {}
+    for task in TASKS:
+        on = _call(s, "register_impact", {**args, "task": task})["result"]["structuredContent"]
+        keys = [k["key"] for k in on["keys"]]
+        want = _call(s, "gate_verdict", {"task": task, "keys": keys, "as_of": DAY})["result"]["structuredContent"]
+        assert on["gate"]["task"] == task and on["gate"]["verdict"] == want["verdict"] and on["gate"]["why"] == want["why"], task
+        assert {k["key"]: k["level"] for k in on["keys"]} == want["levels"], task
+        for k in on["keys"]:
+            assert k["findings"] == [f for f in want["findings"] if f["kind"] in ("key", "stale", "lapsed") and f["key"] == k["key"]], (task, k["key"])
+        got[task] = on
+    if "codegen" in TASKS:
+        assert _call(s, "register_impact", args)["result"]["structuredContent"] == got["codegen"]
+    if SUBJECT.id == "cargo_quote":
+        strip = lambda r: [(k["key"], k["level"], k["findings"]) for k in r["keys"]]   # noqa: E731
+        assert strip(got["design"]) != strip(got["codegen"])
+    for bad in ("keys", "nope", 7, ""):
+        r = _call(s, "register_impact", {**args, "task": bad})["result"]
+        assert r["isError"] is True, bad
+
 
 # Task-0117: the adopter section of instance/README.md, held to the server and the commands it names.
 
