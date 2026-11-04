@@ -27,6 +27,10 @@ names that section with the version.
   and a report from before still validates. The page's gate box names the owner.
 - **`knowgov-gate.sh` refuses `KG_TASK=keys`** (task-0102, doc-0014 C4): a mandatory check runs a
   task class, never an agent-chosen key set.
+- **Gate report, the closing unit on a declared gap** (task-0110, decision-0002): a `key` finding
+  on a declared gap carries `closer`, the unit its declaration names (compliance, ORG-0004, for
+  CargoQuote's OD-1), and its `route` ends with the close. Additive: `schema_version` stays 2. The
+  hook's summary and the page's gate box name the closing unit.
 
 ### Also since 0.3.0
 
