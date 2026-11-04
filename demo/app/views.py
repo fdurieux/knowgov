@@ -183,6 +183,24 @@ def _owner_lines(gate: dict) -> list[str]:
             + "; ".join(f"{u} ({_plural(len(ks), 'key')})" for u, ks in sorted(units.items()))]
 
 
+def _closer_lines(gate: dict, det: dict) -> list[str]:
+    """The gate box's closing line (task-0110, decision-0002 point 3): for each blocking key a declared
+    gap holds, the unit that closes it, from the declaration's text (the subject's ``declared_gap_text``
+    for the R-REQ hit, capture.gap_closers, the gate report's ``closer``); none when no blocking key holds one."""
+    blocked = set(gate.get("blocked_keys") or [])
+    rules = _ps().subject.rules
+    gid, text = rules.get("declared_gap_id", "gap:declared:open"), rules.get("declared_gap_text", "{req} is declared open")
+    gaps: dict[str, list[dict]] = {}
+    for h in det.get("rules", {}).get("R-REQ", []):
+        if h.get("declared") and h.get("key") in blocked:
+            gaps.setdefault(h["key"], []).append({"id": gid, "text": text.format(req=h.get("req", ""))})
+    if not gaps:
+        return []
+    from capture import gap_closers
+    return [f"closed by: {c['unit'] + ' ' + c['name'] if c['unit'] else 'no unit of the register'} ({c['gap']}, on {k})"
+            for k, c in sorted(gap_closers(_ps().subject, gaps).items())]
+
+
 def _stage_colour(kind: str, det: dict, gate: dict) -> str:
     rules = det["rules"]
     if kind == "extract":
@@ -278,7 +296,7 @@ def build(scenario: str, source: str, runs_dir: Path) -> dict:
          "lines": L(*_gaps_lines(det))},
         {"id": "gate", "label": L("gate")[0], "colour": _stage_colour("gate", det, gate),
          "lines": _gate_lines(gate, as_of, L, DL) + (DL(f"blocking: {', '.join(gate['blocked_keys'])}") if gate.get("blocked_keys") else [])
-                  + DL(*_owner_lines(gate))},
+                  + DL(*_owner_lines(gate)) + DL(*_closer_lines(gate, det))},
     ]
     arms = {}
     for arm in ("G", "B"):

@@ -231,3 +231,17 @@ def test_unavailable_takes_its_own_route_and_the_summary_names_the_owner():
     assert "  route: python harness/capture.py questionnaire ..." in text and "  route: r2" in text
     p = _hook(PLAN, "run", "--unavailable-route", "Route: mine.", "--", "sh", "-c", "exit 2")
     assert p.returncode == 2 and "Route: mine." in p.stderr and hook.UNAVAILABLE_ROUTE not in p.stderr
+
+
+def test_the_summary_names_a_declared_gaps_closing_unit():
+    """Task-0110: a finding carrying ``closer`` names it beside the owner; one without names the owner alone."""
+    rep = {"verdict": "BLOCKED", "subject": "s", "scenario": "S2", "task": "codegen", "as_of": "2026-10-30", "threshold": "blocker",
+           "findings": [{"severity": "blocker", "kind": "key", "key": "k|p", "message": "k|p is declared gap", "owner": "ORG-0002",
+                         "closer": "ORG-0004", "route": "r; ORG-0004 closes the declared gap g"},
+                        {"severity": "blocker", "kind": "key", "key": "k|r", "message": "k|r is declared gap", "owner": "ORG-0002",
+                         "closer": None, "route": "r"},
+                        {"severity": "blocker", "kind": "key", "key": "k|q", "message": "k|q is absent", "owner": "ORG-0002", "route": "r"}]}
+    text = hook._summary(rep)
+    assert "k|p is declared gap (owner ORG-0002; closed by ORG-0004)" in text
+    assert "k|r is declared gap (owner ORG-0002; closed by no unit of the register)" in text
+    assert "k|q is absent (owner ORG-0002)" in text and "  route: r; ORG-0004 closes the declared gap g" in text
