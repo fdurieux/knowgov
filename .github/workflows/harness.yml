@@ -4,11 +4,22 @@ name: harness
 # vendored record through the comparator, then the J-F subject against its record and its
 # oracle over the reference rebuild, then the minimal subject. Needs the Python pins the
 # image installs, no Neo4j. The stack job (demo.yml) is the Neo4j adapter's proof.
+#
+# Budget (task-0084): a pull request's rdflib job within 12 minutes.
+# J-F on a pull request (task-0084): the J-F round trip and MCP checks run the named subset
+# KG_JF_SCENARIOS = C,D3 (the kit as committed, PROCEED; every layer consistently wrong,
+# QUALIFIED). Its six scenarios cost about the same each, so the subset is a third of the time.
+# The full set runs on every push to main, nightly (03:17 UTC) and on a manual dispatch, so no
+# scenario goes unproven; a release is cut from main, which the full set has proven. The J-F
+# record comparison and its oracle run in full on every event.
 
 on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 3 * * *"   # the full J-F set, nightly
+  workflow_dispatch:       # the full J-F set, on demand
 
 permissions:
   contents: read
@@ -20,6 +31,8 @@ jobs:
       # task-0075: no step reads the wall clock; a command that asks today's date with no KG_TODAY
       # fails here (harness/review.py today()), so no outcome moves by the calendar
       KG_CLOCK: pinned
+      # task-0084: the J-F subset on a pull request, empty (every scenario) on any other event
+      KG_JF_SCENARIOS: ${{ github.event_name == 'pull_request' && 'C,D3' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@v6
@@ -85,6 +98,12 @@ jobs:
           assert w["cypher"] is None and all(w["owners"][x]["unit"] for x in w["reached"]["all"]), w["owners"]
           print(f"impact panel ENT-0004: {len(sec['table']['rows'])} assertions beside the walk")
           PY
+      - name: Every subject's citations reach the statements of the documents it loads (task-0077), through the rdflib port, CargoQuote's ENT-0004 on S6 and J-F's ENT-0009 on C through its directory artefacts
+        run: |
+          KG_STORE=rdflib KG_RDFLIB_FILE=runs/anchor/store.ttl python tools/check_node_statements.py --node ENT-0004 --expect 13 --total 392
+          rm -rf runs/anchor-jef && mkdir -p runs/anchor-jef
+          cd harness && KG_STORE=rdflib KG_SUBJECT=../subjects/jef_data_load KG_RDFLIB_FILE=../runs/anchor-jef/store.ttl python run.py --deterministic --scenarios C --out ../runs/anchor-jef > /dev/null && cd ..
+          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load KG_RDFLIB_FILE=runs/anchor-jef/store.ttl python tools/check_node_statements.py --node ENT-0009 --expect 28 --total 707
       - name: The pre-load check (task-0045) through the CI template's script, real pumllint, the example instance clean exits 0, a planted broken PlantUML file exits 1
         run: |
           rm -rf runs/preload && python tools/example_instance.py runs/preload > /dev/null
@@ -276,7 +295,7 @@ jobs:
       - name: The MCP server (task-0056) gives gate_cli's report for the same store, the record's three-valued answers, and writes nothing
         run: |
           KG_STORE=rdflib python tools/check_mcp_server.py
-          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_mcp_server.py
+          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_mcp_server.py ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
       - name: A person's statement against the documents' (task-0038), on S2 a contradiction raises a conflict, an agreement corroborates and raises nothing
         run: KG_STORE=rdflib python tools/check_capture_pairing.py runs/pairing
       - name: The lighthouse protocol's public evidence (task-0069), CargoQuote from the example instance and the J-F kit, every item agreeing with the record
@@ -285,7 +304,7 @@ jobs:
           KG_STORE=rdflib python tools/lighthouse_evidence.py runs/lighthouse
       - name: Route (c), a transcript read by a stub model (task-0041), gives inferred candidates on S2's empty keys only, listed in the questionnaire; no key, exit 2
         run: KG_STORE=rdflib python tools/check_transcript_route.py runs/transcript
-      - name: The store survives a round trip (task-0070), every scenario of both subjects through Turtle into a fresh store, the same gate reports and three-valued answers
+      - name: The store survives a round trip (task-0070), every CargoQuote scenario and J-F's (the subset on a pull request) through Turtle into a fresh store, the same gate reports and three-valued answers
         run: |
           KG_STORE=rdflib python tools/check_round_trip.py --chain rdflib,rdflib
-          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_round_trip.py --chain rdflib,rdflib
+          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_round_trip.py --chain rdflib,rdflib ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
