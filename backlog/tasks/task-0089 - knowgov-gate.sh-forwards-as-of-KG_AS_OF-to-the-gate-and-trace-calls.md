@@ -1,11 +1,11 @@
 ---
 id: TASK-0089
 title: knowgov-gate.sh forwards --as-of (KG_AS_OF) to the gate and trace calls
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T03:06:00Z'
-updated_date: '2026-11-04T03:59:00Z'
+updated_date: '2026-11-04T04:00:00Z'
 labels:
   - ci
 milestone: m-7
@@ -24,8 +24,8 @@ Proposed by the task-0075 session: an instance pipeline can only read the gate a
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 KG_AS_OF, when set, reaches gate_cli and knowgov-trace check as --as-of in the shell script, the GitHub action input and the GitLab include
-- [ ] #2 tools/check_ci_wrappers.py proves it on S1 as of a date after 2027-08-07
+- [x] #1 KG_AS_OF, when set, reaches gate_cli and knowgov-trace check as --as-of in the shell script, the GitHub action input and the GitLab include
+- [x] #2 tools/check_ci_wrappers.py proves it on S1 as of a date after 2027-08-07
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -43,3 +43,9 @@ Proposed by the task-0075 session: an instance pipeline can only read the gate a
 <!-- SECTION:NOTES:BEGIN -->
 Local proof (rdflib, pinned venv): check_ci_wrappers passes: S1 as of 2026-10-30 PROCEED exit 0; KG_AS_OF=2027-08-08 BLOCKED, 19 lapsed findings, exit 1; trace-check KG_AS_OF=2027-08-08 gate BLOCKED as of 2027-08-08, 19 gate:lapsed; unset it reads the pinned KG_TODAY. check_trace_walkthrough passes. run_tests 282/282 plain, with KG_SUBJECT=subjects/jef_data_load, and in the pinned venv. trace-register keeps today: its statement selection is the gate's served set, outside the brief.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+KG_AS_OF reaches gate_cli and trace check as --as-of through knowgov-gate.sh, the action's input as-of and the GitLab include's variable KG_AS_OF; trace.py check gained --as-of and names the date in its report's gate. check_ci_wrappers proves it on S1 as of 2027-08-08 (BLOCKED, 19 lapsed findings) and on trace-check (gate:lapsed); harness.yml runs the action with as-of for real. instance/README.md and docs/guide.md list KG_AS_OF. PR #157. trace-register still reads today (outside the brief).
+<!-- SECTION:FINAL_SUMMARY:END -->
