@@ -185,6 +185,12 @@ def impact_cypher(start: str) -> dict:
     sub = lambda text: text.replace(f"'{IMPACT_START}'", f"'{start}'")  # noqa: E731
     return {"rows": sub(IMPACT_ROWS), "paths": sub(IMPACT_PATHS)}
 
+
+def node_statements_cypher(start: str) -> str:
+    """The saved query register-node-statements from ``start`` in place of the adapter's literal: the
+    impact panel's statements view lists it, and its guide serves it, for the id typed (task-0078)."""
+    return NODE_STATEMENTS.replace(f"{{reg_id:'{INFORMATION_START}'}}", f"{{reg_id:'{start}'}}")
+
 # The page's generic saved queries for Neo4j Browser; a subject adds its own (queries.toml).
 SAVED_QUERIES = [
     {"id": "loaded", "needs": "scenario", "title": "Which scenario is loaded",

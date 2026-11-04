@@ -172,7 +172,10 @@ def cypher_list() -> list[dict]:
     return out
 
 
-GUIDE_FORMS = ("rows", "paths")
+WALK_FORMS = ("rows", "paths")                   # the walk's two forms (task-0024)
+GUIDE_FORMS = WALK_FORMS + ("statements",)       # and the statements view's query (task-0078)
+GUIDE_WHAT = {"rows": "one row per edge", "paths": "the paths, for the graph view",
+              "statements": "the assertions its cited anchors name"}
 
 
 def guide_path(start: str, form: str) -> str:
@@ -185,7 +188,7 @@ def guide_html(start: str, form: str, text: str) -> str:
     own click-to-insert, and runs nothing; the viewer presses play. The edit command of the manual
     (?cmd=edit&arg=) is not used: Browser 5.26.0 sends it before the editor listens."""
     h = html.escape
-    what = "one row per edge" if form == "rows" else "the paths, for the graph view"
+    what = GUIDE_WHAT[form]
     return (f'<article class="guide"><h3>Impact of retiring {h(start)}: {what}</h3>\n'
             "<p>A click on the query puts it in the editor. Nothing runs until you press play. "
             "A run wipes the projection: project the register again first.</p>\n"
@@ -235,12 +238,15 @@ def impact_view(start: str, origin: str = "http://localhost:8080", statements: b
     out["cypher"] = None
     if _console_store():
         try:
-            from store_neo4j import impact_cypher
+            from store_neo4j import impact_cypher, node_statements_cypher
         except ImportError:
             return out
         cy = impact_cypher(start)
-        guides = {form: guide_path(start, form) for form in GUIDE_FORMS}
-        register_view.with_cypher(out, cy, NEEDS_TEXT["register"], browser={form: browser_play_url(origin, guides[form]) for form in GUIDE_FORMS}, guide=guides)
+        guides = {form: guide_path(start, form) for form in WALK_FORMS}
+        register_view.with_cypher(out, cy, NEEDS_TEXT["register"], browser={form: browser_play_url(origin, guides[form]) for form in WALK_FORMS}, guide=guides)
+        if statements:
+            guide = guide_path(start, "statements")
+            register_view.with_statements_cypher(out, node_statements_cypher(start), browser=browser_play_url(origin, guide), guide=guide)
     return out
 
 
@@ -249,10 +255,10 @@ def impact_guide(start: str, form: str) -> str | None:
     if form not in GUIDE_FORMS or not _console_store() or register_view.impact(start) is None:
         return None
     try:
-        from store_neo4j import impact_cypher
+        from store_neo4j import impact_cypher, node_statements_cypher
     except ImportError:
         return None
-    return guide_html(start, form, impact_cypher(start)[form])
+    return guide_html(start, form, node_statements_cypher(start) if form == "statements" else impact_cypher(start)[form])
 
 
 # ------------------------------------------------------------------ the store

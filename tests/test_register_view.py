@@ -750,6 +750,51 @@ def test_node_statements_query_is_the_ports_cypher_at_anchor_grain():
     assert 'aid.endswith("/") and path.startswith(aid)' in body and 'file = path[len(aid):] + ":"' in body and "not loc.startswith(file)" in body
 
 
+# ---- task-0078: the statements view carries a Browser link that pre-fills register-node-statements, as the walk's does
+def test_statements_view_has_a_browser_link_to_a_served_guide_of_register_node_statements():
+    import os
+    import urllib.parse
+    import server
+    import store_neo4j as sn
+    sys.path.insert(0, str(ROOT / "demo" / "tools"))
+    import check_impact_cypher as cic
+    text = sn.node_statements_cypher("ENT-0009")
+    assert text == sn._NODE_STATEMENTS.replace("$start", "'ENT-0009'") and text.count("reg_id:'") == 1
+    listed = {q["id"]: q for q in sn.SAVED_QUERIES}["register-node-statements"]
+    assert sn.node_statements_cypher(sn.INFORMATION_START) == listed["text"], "the saved query, from the node typed"
+    assert server.GUIDE_FORMS == ("rows", "paths", "statements") and server.WALK_FORMS == ("rows", "paths")
+    w = server.impact_view("ENT-0009", "http://demo.test:8080", statements=False)
+    assert "statements" not in w and set(w["cypher"]["browser"]) == {"rows", "paths"}
+    w = server.impact_view("ENT-0009", "http://demo.test:8080")
+    sv = w["statements"]["cypher"]
+    sec = [x for x in w["panel"]["sections"] if x["heading"] == "Assertions its cited anchors name"][0]
+    assert set(w["cypher"]["browser"]) == {"rows", "paths"}, "the walk's links are unchanged"
+    assert sv["text"] == text and sv["guide"] == "/api/register/impact/ENT-0009/guide/statements"
+    assert sec["code"] == [{"label": "Rows, one per assertion and cited document", "text": text, "browser": sv["browser"]}]
+    q = urllib.parse.parse_qs(urllib.parse.urlsplit(sv["browser"]).query)
+    assert q["cmd"] == ["play"] and cic.guide_url_of(sv["browser"]) == "http://demo.test:8080" + sv["guide"]
+    guide = server.impact_guide("ENT-0009", "statements")
+    assert cic.block_of(guide) == text and "the assertions its cited anchors name" in guide and "<script" not in guide
+    assert "A click on the guide's query puts it in the editor; nothing runs until you press play." in sec["text"]
+    _check_sentences(w["text_registry"])
+    assert server.impact_guide("APP-9999", "statements") is None
+    # the page draws a section's code with its Browser link, whichever section holds it
+    page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
+    assert "${code(x)}" in page and "c.browser ?" in page
+    os.environ["KG_STORE"] = "rdflib"
+    try:
+        w = server.impact_view("ENT-0009")
+        assert "cypher" not in w["statements"] and server.impact_guide("ENT-0009", "statements") is None
+        assert "code" not in [x for x in w["panel"]["sections"] if x["heading"] == "Assertions its cited anchors name"][0]
+    finally:
+        del os.environ["KG_STORE"]
+    # the stack job follows every node's statements link as it follows the walk's
+    src = (ROOT / "demo" / "tools" / "check_impact_cypher.py").read_text(encoding="utf-8")
+    assert 'sv["browser"]' in src and "statement_keys(st_rows) != statement_keys(shown)" in src
+    demo = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
+    assert "every node agrees: 57 nodes, both forms and the statements view \\(17 nodes reach statements\\)" in demo
+
+
 # ---- task-0077: the projection cites by the subject's own source-system prefix, never a literal kit:
 def test_projection_cites_every_evidence_anchor_of_the_subjects_system():
     import register_project as rp
