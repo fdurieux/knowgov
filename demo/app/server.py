@@ -317,12 +317,21 @@ class Runner:
         self.current: dict | None = None
         self.history: list[dict] = []
 
-    def start(self, scenario: str, mode: str, n: int, row: str | None = None, effort: str | None = None) -> dict:
+    def start(self, scenario: str, mode: str, n: int, row: str | None = None, effort: str | None = None,
+              as_of: str | None = None) -> dict:
         ps = _ps()   # the subject this run is for: its scenarios, its record, its run folder, the harness's KG_SUBJECT
         if scenario not in ps.scenarios:
             raise ValueError(f"unknown scenario {scenario}")
         if mode not in ("deterministic", "arms"):
             raise ValueError(f"unknown mode {mode}")
+        if as_of is not None:
+            # the date the run's gate reads review currency on (decision-0005); none is the record date
+            try:
+                if len(as_of) != 10:
+                    raise ValueError
+                dt.date.fromisoformat(as_of)
+            except ValueError:
+                raise ValueError(f"as_of {as_of!r} is not a date (YYYY-MM-DD)") from None
         chosen, model_env, deviation = None, {}, False
         if mode == "arms":
             if ps.subject.oracle_script() is None:
@@ -353,6 +362,7 @@ class Runner:
                     shutil.copy(src, out_dir / derived["from_scenario"] / derived["file"])
             cmd = [sys.executable, "run.py", "--scenarios", scenario, "--out", str(out_dir)]
             cmd += ["--deterministic"] if mode == "deterministic" else ["--n", str(n)]
+            cmd += ["--as-of", as_of] if as_of else []
             env = {**os.environ, "KG_SUBJECT": str(ps.root), "KG_NEO4J_URI": NEO4J_URI, "KG_NEO4J_PASSWORD": NEO4J_PASSWORD,
                    "PYTHONUNBUFFERED": "1", "KG_WORKERS": os.environ.get("KG_WORKERS", "2")}
             if (os.environ.get("KG_STORE") or "neo4j").lower() == "rdflib":
@@ -367,7 +377,7 @@ class Runner:
             rec = {"id": out_dir.name, "subject": ps.id, "scenario": scenario, "mode": mode, "n": n, "status": "running",
                    "model": chosen["model"] if chosen else None, "effort": model_env.get("KG_ARMS_EFFORT") if chosen else None,
                    "row": chosen["id"] if chosen else None, "host": chosen["host"] if chosen else None,
-                   "model_deviation": deviation,
+                   "model_deviation": deviation, "as_of": as_of,
                    "started": _now(), "finished": None, "exit_code": None,
                    "out_dir": str(out_dir), "log": str(log), "source": f"demo-runs/{ps.id}/{out_dir.name}", "cmd": " ".join(cmd)}
             self.current = rec
@@ -580,7 +590,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 rec = RUNNER.start(str(body.get("scenario", "")), str(body.get("mode", "")), int(body.get("n", 1)),
                                    row=(str(body["row"]) if body.get("row") else None),
-                                   effort=(str(body["effort"]) if body.get("effort") is not None else None))
+                                   effort=(str(body["effort"]) if body.get("effort") is not None else None),
+                                   as_of=(str(body["as_of"]) if body.get("as_of") else None))
                 return self._json(rec, 202)
             except (ValueError, RuntimeError) as e:
                 return self._json({"error": str(e)}, 409 if isinstance(e, RuntimeError) else 400)

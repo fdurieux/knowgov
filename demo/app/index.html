@@ -117,6 +117,9 @@ a{color:var(--teal)}
         <label for="am-effort">effort <select id="am-effort"></select></label>
         <div class="why" id="am-why"></div>
       </div>
+      <div class="toggle" id="asof"><b>Reviews as of</b> — the date a run's gate reads review currency on; empty is the subject's record date
+        <label for="as-of">date <input type="date" id="as-of"></label>
+      </div>
       <div id="menu-list" class="small">loading…</div>
       <div class="note">Replay shows the committed results (instant, no store). Deterministic re-executes D1–D6 against the container's Neo4j (offline, ~5 s). Arms re-executes the two model arms with <code>--n 1</code> against the configured endpoint and needs its key variable set (<code>OPENAI_API_KEY</code> by default); it writes into a dated folder under <code>runs/</code>, never over the record. A run's progress appears in a banner above the report; the clicked button shows running, done or failed, and the report switches to the run's results when it ends.</div>
     </div>
@@ -240,7 +243,7 @@ async function onMode(id, mode) {
   }
   try {
     STATE.current = id;
-    const rec = await api('/api/run', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({scenario: id, mode, n: 1, row: mode === 'arms' ? (armsRow() || {}).id : undefined, effort: mode === 'arms' ? armsEffort() : undefined})});
+    const rec = await api('/api/run', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({scenario: id, mode, n: 1, row: mode === 'arms' ? (armsRow() || {}).id : undefined, effort: mode === 'arms' ? armsEffort() : undefined, as_of: $('#as-of').value || undefined})});
     STATE.run = rec; STATE.lastRun[id + mode] = rec; renderMenu(); renderBanner(rec); watchRun();
   } catch (e) { renderBanner({scenario: id, mode, status: 'failed', log_text: e.message, source: '', cmd: ''}); }
 }
@@ -249,7 +252,7 @@ function renderBanner(r) {
   const box = $('#runbox'); box.style.display = ''; box.className = 'banner ' + r.status;
   const secs = (r.elapsed_s !== undefined && r.elapsed_s !== null) ? r.elapsed_s : null;  // the server's clock, not the browser's
   const label = {running: '<span class="spin"></span>running', done: '✓ finished', failed: '✗ failed'}[r.status] || r.status;
-  $('#run-title').innerHTML = `${esc(r.scenario)} · ${esc(r.mode)}${r.model ? ` · ${esc(r.model)}${r.effort ? ' at effort ' + esc(r.effort) : ''}${r.model_deviation ? ' <span style="color:var(--red)">(not the record\'s model or effort)</span>' : ''}` : ''} · ${label}${secs !== null ? ` · ${secs} s` : ''}`;
+  $('#run-title').innerHTML = `${esc(r.scenario)} · ${esc(r.mode)}${r.model ? ` · ${esc(r.model)}${r.effort ? ' at effort ' + esc(r.effort) : ''}${r.model_deviation ? ' <span style="color:var(--red)">(not the record\'s model or effort)</span>' : ''}` : ''}${r.as_of ? ` · reviews as of ${esc(r.as_of)}` : ''} · ${label}${secs !== null ? ` · ${secs} s` : ''}`;
   $('#run-meta').innerHTML = (r.status === 'done' ? `showing its results below (source <code>${esc(r.source)}</code>); pick <em>the record</em> in the report's source dropdown to compare` :
                               r.status === 'running' ? `writing <code>${esc(r.source)}</code>; the report switches to it when the run ends` :
                               `exit ${r.exit_code ?? '—'}; the log is below`) + (r.cmd ? ` · <code>${esc(r.cmd)}</code>` : '');
