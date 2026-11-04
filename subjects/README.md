@@ -102,6 +102,7 @@ verbatim = ["contracts/cli.md"]      # optional: kit files the governed bundle c
                                      # for what the task needs byte for byte and an assertion cannot stand in for
 block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
 max_unverified_share = 0.25
+rationale = "..."                    # optional: why these keys; store_status reports it (task-0101)
 
 [three_valued]
 keys = ["S-review|notified", "..."]   # D5, measured on the scenario that asks for it

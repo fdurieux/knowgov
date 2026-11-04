@@ -49,8 +49,9 @@ def test_the_summary_reads_a_collection_and_names_its_failures():
     import lighthouse_evidence as lh
     sub = {"subject": "demo", "walk": {"register_nodes": 3, "starts": {"APP-1": {"edges": 2, "withdrawn": 0, "reached": ["PROC-1"]}},
                                        "statements_at_anchor": {"APP-1": {"statements": 4}}, "statements_scenario": "S1"},
-           "gate": {"S1": {"verdict": "PROCEED", "exit_code": 0, "record_verdict": "PROCEED"}},
-           "mcp": {"S1": {"gate_verdict_equals_gate_cli": True, "store_unchanged": True,
+           "gate": {"S1": {"verdict": "PROCEED", "exit_code": 0, "record_verdict": "PROCEED",
+                           "classes": {"codegen": {"verdict": "PROCEED", "exit_code": 0}, "design": {"verdict": "QUALIFIED", "exit_code": 0}}}},
+           "mcp": {"S1": {"task_classes": ["codegen", "design"], "gate_verdict_equals_gate_cli": True, "store_unchanged": True,
                           "three_valued": {"a|b": {"answer": "unknown"}}}},
            "invalidation": {"S6": {"artefact": "doc.md", "version": "v2", "invalidated": ["x@v1"],
                                    "before_reverification": {"verdict": "BLOCKED"},
@@ -60,6 +61,7 @@ def test_the_summary_reads_a_collection_and_names_its_failures():
            "timings_s": {"gate S1": 1.0}, "store_census": {"nodes": 5, "relationships": 6}}
     text = lh.summary({"store": "rdflib", "instance_unchanged": True, "subjects": [sub], "failures": ["demo: one"]})
     assert "S1 PROCEED (exit 0; record PROCEED)" in text and "x@v1 → x@v2" in text
+    assert "**Gate, design class** (no record): S1 QUALIFIED (exit 0)" in text and "store_status lists: codegen, design" in text
     assert "2 digest(s) match" in text and "out of scope" in text and "- demo: one" in text
 
 
@@ -94,3 +96,16 @@ def test_the_evidence_reads_the_bundle_through_the_mcp_server():
     text = DOC.read_text(encoding="utf-8")
     grounding = text.split("### Agent grounding", 1)[1].split("\n### ", 1)[0]
     assert "evidence_bundle" in grounding and "--transport" in text
+
+
+def test_the_protocol_names_the_class_each_pilot_transition_uses():
+    """task-0101: each hook stage (instance/ci/claude/knowgov_hook.py STAGES) names one task class."""
+    sys.path.insert(0, str(ROOT / "instance" / "ci" / "claude"))
+    import knowgov_hook
+    text = DOC.read_text(encoding="utf-8")
+    sec = text.split("## Which task class each pilot transition uses", 1)[1].split("\n## ", 1)[0]
+    rows = {m.group(1): m.group(2) for m in re.finditer(r"^\| [^|]+ \| `(\w+)` \| `(\w+)` \|", sec, re.M)}
+    assert rows == {"spec": "design", "plan": "codegen", "push": "codegen"} and set(rows) == set(knowgov_hook.STAGES)
+    assert "--task codegen --task-for spec=design" in sec
+    lines = [line for line in text.split("## The seven criteria", 1)[0].splitlines() if line.startswith("| gate |")]
+    assert lines and "`design`" in lines[0] and "`codegen`" in lines[0]
