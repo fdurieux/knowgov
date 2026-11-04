@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 DOC = ROOT / "docs" / "security.md"
 sys.path.insert(0, str(ROOT / "harness"))
 
+from tests import test_pins  # noqa: E402  (task-0092: the pins the closed gap named)
+
 CITE = re.compile(r"`(tests/test_\w+\.py)::(test_\w+)`")
 ACTORS = ["The model", "An agent over MCP", "The pipeline", "A person by role", "The register approver",
           "Anyone who reaches the page's port"]
@@ -170,21 +172,13 @@ def test_the_gaps_named_here_are_still_the_codes():
     # 2. no harness module checks the gives role
     checks_gives = any(re.search(r"[\"']gives[\"']", p.read_text(encoding="utf-8")) for p in (ROOT / "harness").glob("*.py"))
     assert (not checks_gives) == ("**The `gives` role is not checked.**" in gaps)
-    # 3. no automated dependency updates
-    bot = (ROOT / ".github" / "dependabot.yml").exists() or (ROOT / ".github" / "dependabot.yaml").exists() or (ROOT / "renovate.json").exists()
-    assert (not bot) == ("**No automated dependency updates.**" in gaps)
-    # 4. what is pinned by tag only is exactly what the gap names
-    by_tag = set()
-    for path in list((ROOT / ".github" / "workflows").glob("*.yml")) + [ROOT / "instance" / "ci" / "preload-check.yml"]:
-        for ref in re.findall(r"uses:\s*([\w.-]+/[\w./-]+@[\w.-]+)", path.read_text(encoding="utf-8")):
-            if not re.fullmatch(r".*@[0-9a-f]{40}", ref):
-                by_tag.add(ref)
-    images = set(re.findall(r"^FROM (\S+)", (ROOT / "demo" / "Dockerfile").read_text(encoding="utf-8"), re.M))
-    images |= {i for i in re.findall(r"image:\s*(\S+)", compose) if "@sha256:" not in i}
-    for ref in by_tag | images:
-        assert f"`{ref}`" in gaps, ref
-    assert "Three images and two actions" in gaps and len(images) == 3 and len(by_tag) == 2, (images, by_tag)
-    # 5. excerpts are stored (held above): the gap stays named while create_fragment takes text
+    # closed by task-0092: Dependabot runs, and nothing is pinned by tag only (tests/test_pins.py holds the pins)
+    bot = (ROOT / ".github" / "dependabot.yml").exists()
+    assert bot and "No automated dependency updates" not in gaps
+    by_tag = [u for _, u in test_pins._uses() if not test_pins.SHA.fullmatch(u)]
+    by_tag += [r for _, r in test_pins._images() if not test_pins.DIGEST.fullmatch(r)]
+    assert not by_tag and "pinned by tag only" not in gaps, by_tag
+    # 3. excerpts are stored (held above): the gap stays named while create_fragment takes text
     assert "**The store holds excerpts.**" in gaps
 
 

@@ -232,7 +232,7 @@ def test_the_mcp_server_adds_no_dependency_to_the_image():
 def test_compose_files_agree():
     compose = (DEMO / "docker-compose.yml").read_text(encoding="utf-8")
     override = (DEMO / "docker-compose.override.yml").read_text(encoding="utf-8")
-    assert "image: ghcr.io/fdurieux/knowgov:latest" in compose
+    assert re.search(r"image: ghcr\.io/fdurieux/knowgov:v\d+\.\d+\.\d+@sha256:[0-9a-f]{64}", compose), "the app image is a release, pinned by digest (task-0092)"
     assert "neo4j:5.26-community" in compose and "condition: service_healthy" in compose
     assert "OPENAI_API_KEY: ${OPENAI_API_KEY:-}" in compose, "the key is passed through, never baked in"
     assert "KG_REGISTER: ${KG_REGISTER:-/repo/demo/register}" in compose, "one register per organisation: the root is configuration"

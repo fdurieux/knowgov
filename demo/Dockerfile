@@ -5,7 +5,8 @@
 # argparse 3.12's (3.13 wraps seven usage lines differently). Build context is the repository root (see
 # docker-compose.override.yml); Dockerfile.dockerignore beside this file keeps
 # the backlog, the tests and caches out of it.
-FROM python:3.12-slim
+# python:3.12-slim, pinned by its index digest (task-0092); Dependabot's docker entry moves it
+FROM python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     KG_NEO4J_URI=bolt://neo4j:7687 KG_BROWSER_URL=http://localhost:7474 \
