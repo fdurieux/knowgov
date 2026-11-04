@@ -3,7 +3,7 @@
     python harness/mcp_server.py                      # stdio, for an agent that starts the server itself
     python harness/mcp_server.py --http [--host H] [--port P]   # Streamable HTTP at http://H:P/mcp
 
-The question an agent asks is "may I build on this?". Five tools answer it, all read-only:
+The question an agent asks is "may I build on this?". Six tools answer it, all read-only:
 
     store_status          what the store holds: the subject, the scenario loaded, the tasks and the
                           keys the subject asks the three-valued question of
@@ -26,6 +26,13 @@ The question an agent asks is "may I build on this?". Five tools answer it, all 
                           suspect derived outputs as gate_verdict reports them for a task class
                           (task-0111; ``task``, and with children the keys resting only on a
                           withdrawn descendant, flagged ``withdrawn``, task-0120)
+    proposal_impact       a proposed addition (new nodes, links, reused nodes, proposed exceptions) read
+                          against the register as if approved, without approving it: placement findings,
+                          the deterministic link candidates D1-D5, coverage C1-C3 before and after, the
+                          reach from every reused node before and after, what each new node rests on, the
+                          reused nodes' keys as register_impact reads them, the new nodes left unmapped and
+                          the approvals per owning unit; every overlay element hypothetical, nothing stored
+                          (task-0130, task-0131, doc-0017)
 
 The server never loads, wipes or writes: it reads the store the page or a run left (``KG_STORE``;
 for rdflib the Turtle file ``KG_RDFLIB_FILE``, read and never written back), through a view that
@@ -100,7 +107,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
-                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. A status is the repository's; you may not upgrade it. This server only reads.")
+                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. A status is the repository's; you may not upgrade it. This server only reads.")
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -170,6 +177,32 @@ TOOLS.append(
          "task": {"type": "string", "description": "the task class whose block levels, bar and route each landed key is read under, as gate_verdict's task (default: codegen); a declared class, never keys"},
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another (default: whatever it holds; with none held, the keys carry no level)"},
          "as_of": {"type": "string", "description": "the date review currency is read on: the server's date (default, the one gate_verdict reads), today, record or YYYY-MM-DD"}}},
+     "annotations": READ_ONLY})
+
+
+TOOLS.append(
+    {"name": "proposal_impact", "title": "What would this proposed addition touch, and what does it lack?",
+     "description": "A proposed addition to the organisation's register read as if approved, without approving it "
+                    "(doc-0017): the proposal is an overlay of new nodes (a provisional id, kind, name, parent, owner, an "
+                    "optional source), links (type, source, target, rationale), the reused register nodes (as_is or "
+                    "changed) and proposed exceptions, read by the register's own checker and walks. The report: placement "
+                    "findings (a forbidden synonym is D5; a node with no source is in no tool yet); deterministic candidates "
+                    "D1 (a register id the proposal names, authored), D2 (an external id matched through a node's source or "
+                    "the newest landed export, authored), D3 (the same name as an approved node of the same kind, its links "
+                    "offered, inferred; 'same step as JRN-...'), D4 (a pool of processes for an unsupported step, none "
+                    "chosen), each with status proposed only; coverage C1-C3 before and after with denominators and the "
+                    "new gaps; the reach from every reused node before and after; what each new node rests on; each "
+                    "reused node's keys as register_impact reads them (with a scenario held, their levels under the task "
+                    "class on the same as_of); the new nodes left unmapped (never unknown); the approvals per owning unit. "
+                    "Every overlay element is hypothetical; nothing is written to the register or the store.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "required": ["proposal"], "properties": {
+         "proposal": {"type": "object", "description": "the overlay: nodes [{id, kind, name, parent, owner, source}], links "
+                      "[{type, source, target, rationale, owner}], reused [{id, mode: as_is|changed}], exceptions "
+                      "[{rule, scope, expires, rationale}], title; ids are provisional, a link end is a register id or a proposed node's"},
+         "children": {"type": "boolean", "description": "walk every approved descendant by parent too, as register_impact's children (default: false)"},
+         "task": {"type": "string", "description": "the task class the reused nodes' keys are read under, as register_impact's (default: codegen)"},
+         "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another (default: whatever it holds; with none held, the keys carry no level)"},
+         "as_of": {"type": "string", "description": "the date exceptions, reviews and key levels are read on: the server's date (default), today, record or YYYY-MM-DD"}}},
      "annotations": READ_ONLY})
 
 
@@ -418,6 +451,44 @@ class Tools:
                 if not str(e).startswith("the store cannot be opened"):
                     raise
                 return {**head, **out, "keys": keys, "gate": None, "store_unavailable": str(e)}
+        return self._with_store(go)
+
+    def proposal_impact(self, args: dict) -> dict:
+        """A proposal read as if approved (``proposal_impact.evaluate``, task-0130), and with a scenario
+        held each reused node's keys at their levels, as ``register_impact`` reads them for that node,
+        ``task`` and as_of. The register is read from ``KG_REGISTER``; the store only through the port's
+        reads; nothing is written to either."""
+        import proposal_impact as pi
+        from tasks import TASKS
+        from subject import SUBJECT
+        task = args.get("task")
+        if task is None:
+            task = "codegen" if "codegen" in TASKS else next(iter(TASKS), None)
+        elif task not in TASKS:
+            raise ToolError(f"{SUBJECT.id}: no task {task!r}; the subject declares {sorted(TASKS) or 'none'}")
+        on = self._as_of(args)
+        try:
+            out = pi.evaluate(args.get("proposal"), today=pi._date(on, "as_of"), children=args.get("children", False))
+        except (pi.ProposalError, pi.ri.ImpactError) as e:
+            raise ToolError(f"the proposal cannot be read: {e}") from e
+
+        def go(st):
+            if args.get("scenario") is not None:
+                _check_scenario(st, args.get("scenario"))
+            if task is None:
+                return out
+            try:
+                return pi.with_levels(out, st, task=task, as_of=on, scenario=args.get("scenario"))
+            except pi.ProposalError as e:
+                raise ToolError(str(e)) from e
+        if args.get("scenario") is None:
+            try:   # the register answers without a store; only a named scenario needs one
+                return self._with_store(go)
+            except ToolError as e:
+                if not str(e).startswith("the store cannot be opened"):
+                    raise
+                out["keys"]["store_unavailable"] = str(e)
+                return out
         return self._with_store(go)
 
     def three_valued_answer(self, args: dict) -> dict:

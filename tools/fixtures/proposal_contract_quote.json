@@ -1,0 +1,25 @@
+{
+ "title": "Contract freight quote (doc-0017 worked example, synthetic)",
+ "nodes": [
+  {"id": "PRD-0006", "kind": "product", "name": "Contract freight quote", "parent": "PRD-0001", "owner": "ORG-0001"},
+  {"id": "CAP-0009", "kind": "capability", "name": "Check a shipper's credit", "parent": "CAP-0001", "owner": "ORG-0002"},
+  {"id": "JRN-0012", "kind": "journey", "name": "Get a contract quote", "owner": "ORG-0001"},
+  {"id": "JRN-0013", "kind": "step", "name": "Submit a quote request", "parent": "JRN-0012", "owner": "ORG-0001"},
+  {"id": "JRN-0014", "kind": "step", "name": "Negotiate the terms", "parent": "JRN-0012", "owner": "ORG-0001"},
+  {"id": "JRN-0015", "kind": "step", "name": "Accept the contract", "parent": "JRN-0012", "owner": "ORG-0001"}
+ ],
+ "links": [
+  {"type": "requires", "source": "PRD-0006", "target": "CAP-0002", "rationale": "A contract quote is a priced quote"},
+  {"type": "requires", "source": "PRD-0006", "target": "CAP-0003", "rationale": "The shipper is screened before terms are offered"},
+  {"type": "requires", "source": "PRD-0006", "target": "CAP-0004", "rationale": "The request is validated as an instant quote's is"},
+  {"type": "requires", "source": "PRD-0006", "target": "CAP-0009", "rationale": "Contract terms need the shipper's credit checked"},
+  {"type": "concerns", "source": "JRN-0012", "target": "PRD-0006", "rationale": "The journey a shipper takes to a contract quote"},
+  {"type": "is_supported_by", "source": "JRN-0013", "target": "PROC-0002", "rationale": "The same submission as the instant quote's step JRN-0002"}
+ ],
+ "reused": [
+  {"id": "CAP-0002", "mode": "as_is"},
+  {"id": "CAP-0003", "mode": "as_is"},
+  {"id": "CAP-0004", "mode": "as_is"},
+  {"id": "PROC-0002", "mode": "as_is"}
+ ]
+}
