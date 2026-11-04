@@ -83,8 +83,10 @@ derive_execution = { from_predicate = "verified_by", key_predicate = "statement"
                               # scenario the plant removed verifies nothing
 execution_scope = "suite scenario {scenario} on reference_impl.py (smoke 2026-10-30)"
 review = { at = "2026-08-06", scope = "..." }       # the dated human review; it lapses after its keys' review months (decision-0005)
-authored = { at = "2026-10-30", scope = "..." }     # authored statements: reviewed by construction
-approval = { at = "2026-08-06", record = "..." }    # the owner's approval of every verified assertion
+authored = { at = "2026-10-30", scope = "..." }     # authored statements: reviewed by construction, only when declared
+approval = { at = "2026-08-06", record = "..." }    # the owner's approval of every verified assertion, only when declared
+                              # decision-0009 (a): no default stands in for a person; without authored, authored
+                              # statements stay proposed, and without approval nothing is approved
 
 [arms]                        # optional; absent means kind = "reply": one JSON reply per run (harness/arms.py)
 kind = "agent"                # a loop of turns with tools over a sandbox (harness/agent.py, task-0022)

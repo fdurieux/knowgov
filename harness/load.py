@@ -180,13 +180,18 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
     """Execution and review verifications of the live assertions whose
     (key, value) the pristine kit states; then the owner's approval of
     every verified assertion. Skipped by the caller for a scenario declared
-    ``verifications = false``. A subject with no verification map verifies nothing."""
+    ``verifications = false``. A subject with no verification map verifies nothing.
+
+    decision-0009 (a): the authored-by-construction review runs only when the manifest declares
+    ``[verification] authored``, and the approval only when it declares ``approval``. The declaration
+    is a person's attestation; without it, authored statements stay proposed and verified ones are
+    not approved. No default stands in for a person."""
     vmap = SUBJECT.verification_map()
     execution = execution_map(kit)
     ts = now()
     counts = {"execution": 0, "review": 0, "approved": 0}
     smoke_digest = sha256(SUBJECT.reference_code())
-    review, authored, approval = VER.get("review", {}), VER.get("authored", {}), VER.get("approval", {})
+    review, authored, approval = VER.get("review", {}), VER.get("authored"), VER.get("approval")
     for suite_scenario, keys in execution.items():
         for key in keys:
             counts["execution"] += st.verify_by_execution(
@@ -194,9 +199,11 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
                 VER.get("execution_scope", "suite scenario {scenario}").format(scenario=suite_scenario), ts, smoke_digest)
     for key in vmap.get("review", {}).get("keys", []):
         counts["review"] += st.verify_by_review(key, sorted(pristine.get(key, set())), review.get("at", ts), review.get("scope", "review"), HUMAN["id"])
-    # requirements and links: authored by the maintainer -> reviewed by construction
-    counts["review"] += st.verify_authored(authored.get("at", ts), authored.get("scope", "authored"), HUMAN["id"])
-    counts["approved"] = st.approve_verified(approval.get("at", ts), approval.get("record", "approval"), HUMAN["id"])
+    # requirements and links: reviewed by construction, only where the subject attests it (decision-0009)
+    if authored:
+        counts["review"] += st.verify_authored(authored.get("at", ts), authored.get("scope", "authored"), HUMAN["id"])
+    if approval:
+        counts["approved"] = st.approve_verified(approval.get("at", ts), approval.get("record", "approval"), HUMAN["id"])
     # decision-0005: every review falls due after its key's review months; the date is the verification's
     # valid_until, which the gate reads as of a date (harness/cadence.py). Not counted: the record's counts stand.
     import cadence

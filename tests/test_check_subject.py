@@ -63,6 +63,9 @@ def test_the_probe_is_refused_with_each_defect_named_and_its_fix():
         assert rep["yield"]["keys"] == 2, rep["yield"]
         [w] = _rules(rep, "warning")["yield"]
         assert w["message"].startswith("REQ-02|txt:") and "did you mean REQ-02|text?" in w["fix"], w
+        # decision-0009 (a), task-0136: authored statements and no [verification] authored declared
+        [a] = [n for n in rep["notes"] if n["rule"] == "attestation"]
+        assert "kit/requirements.md" in a["message"] and "decision-0009" in a["message"], a
     else:
         assert rep["yield"]["state"] == "unchecked" and rep["yield"]["why"], rep["yield"]
         assert any(n["rule"] == "yield" and "unchecked" in n["message"] for n in rep["notes"]), rep["notes"]
@@ -76,7 +79,7 @@ def test_the_public_subjects_pass_with_no_finding():
         assert rep["findings"] == [] and rep["exit_code"] == 0, (sid, rep["findings"])
         if MAPPERS_RUN and sid != "minimal":
             assert rep["yield"]["state"] == "checked" and rep["yield"]["keys"] > 0, (sid, rep["yield"])
-            assert not [n for n in rep["notes"] if n["rule"] == "unyielded"], (sid, rep["notes"])
+            assert not [n for n in rep["notes"] if n["rule"] in ("unyielded", "attestation")], (sid, rep["notes"])
 
 
 def test_the_report_validates_against_its_schema():
