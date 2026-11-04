@@ -8,6 +8,7 @@ from __future__ import annotations
 import ast
 import io
 import json
+import os
 import sys
 import threading
 import urllib.error
@@ -21,6 +22,7 @@ import mcp_server  # noqa: E402
 from tasks import TASKS  # noqa: E402
 
 PORT = ROOT / "harness" / "store.py"
+DAY = "2026-11-04"   # the day the stub's gate reads as of (task-0075): the tests pin it, never the wall clock
 SERVER = ROOT / "harness" / "mcp_server.py"
 
 
@@ -77,8 +79,22 @@ def _server(stub=None):
     return mcp_server.Server(mcp_server.Tools(opener=lambda: mcp_server.ReadOnlyStore(stub))), stub
 
 
+class _Day:
+    """KG_TODAY at DAY for the block, as it was after (task-0075; the runner sets KG_CLOCK=pinned)."""
+    def __enter__(self):
+        self.old = os.environ.get("KG_TODAY")
+        os.environ["KG_TODAY"] = DAY
+
+    def __exit__(self, *exc):
+        if self.old is None:
+            os.environ.pop("KG_TODAY", None)
+        else:
+            os.environ["KG_TODAY"] = self.old
+
+
 def _call(server, name, args=None, id_=1):
-    return server.handle({"jsonrpc": "2.0", "id": id_, "method": "tools/call", "params": {"name": name, "arguments": args or {}}})
+    with _Day():
+        return server.handle({"jsonrpc": "2.0", "id": id_, "method": "tools/call", "params": {"name": name, "arguments": args or {}}})
 
 
 def _port_methods() -> set[str]:
@@ -142,8 +158,10 @@ def test_gate_verdict_is_the_commands_report_for_the_same_store():
     got = _call(s, "gate_verdict", {"scenario": "S1"})["result"]
     assert got["isError"] is False
     spec = TASKS["codegen"]
-    want = gate_cli.evaluate(stub, subject=got["structuredContent"]["subject"], scenario="S1", task="codegen", spec=spec,
-                             threshold="blocker", baseline=None, loaded=False, version="v1")
+    with _Day():
+        want = gate_cli.evaluate(stub, subject=got["structuredContent"]["subject"], scenario="S1", task="codegen", spec=spec,
+                                 threshold="blocker", baseline=None, loaded=False, version="v1")
+    assert want["as_of"] == DAY
     assert got["structuredContent"] == want
     assert json.loads(got["content"][0]["text"]) == want
     assert want["verdict"] == "BLOCKED" and want["exit_code"] == 1   # the first codegen key is absent
@@ -231,6 +249,8 @@ def _serve(token=None):
 
 def test_http_answers_on_mcp_refuses_a_foreign_origin_and_pushes_nothing():
     httpd, base = _serve()
+    day = _Day()
+    day.__enter__()
     try:
         init = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25"}}
         code, body = _post(base + "/mcp", init)
@@ -248,6 +268,7 @@ def test_http_answers_on_mcp_refuses_a_foreign_origin_and_pushes_nothing():
     finally:
         httpd.shutdown()
         httpd.server_close()
+        day.__exit__()
 
 
 def test_http_with_a_token_refuses_a_request_without_it():

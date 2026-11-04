@@ -662,6 +662,12 @@ a new baseline, deliberately. `--as-of record` reads as of the subject's pinned 
 (`subject.toml` `[record] as_of`). The deterministic run and the comparator always read on that date,
 so the record never moves because the calendar did.
 
+A check in a pipeline should never read the calendar at all. `KG_TODAY=YYYY-MM-DD` fixes "today" for
+every command; `KG_CLOCK=pinned` makes a command that asks for today with no `KG_TODAY` fail at once
+instead of reading the wall clock. knowgov's own CI runs that way (task-0075): the rdflib job sets
+`KG_CLOCK=pinned`, the gate commands name `--as-of`, and each check tool pins its commands to the
+record's date, or, for the review walkthrough, to the day its reviews are written.
+
 To see a change, add `--stage 2`: the command loads the scenario, then brings in its changed
 document as the next version. For S6 that invalidates four statements and the gate is BLOCKED.
 `--stage 2 --reverify` adds the owner's re-verification: PROCEED, and exit 1 on the suspect code.

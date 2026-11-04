@@ -355,6 +355,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def _questionnaire(args) -> int:
     import gate_cli
+    import review
     from subject import SUBJECT
     from tasks import TASKS
     scenario = args.scenario or (SUBJECT.order[0] if SUBJECT.order else "")
@@ -371,7 +372,7 @@ def _questionnaire(args) -> int:
     finally:
         st.close()
     nodes = register_nodes(register_root())
-    qs = questionnaires(res, SUBJECT, scenario, args.task, nodes, dt.date.today())
+    qs = questionnaires(res, SUBJECT, scenario, args.task, nodes, review.today())
     args.out.mkdir(parents=True, exist_ok=True)
     for owner, text in qs.items():
         (args.out / f"questionnaire-{SUBJECT.id}-{scenario}-{owner}.toml").write_text(text, encoding="utf-8")
