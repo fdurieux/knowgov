@@ -181,6 +181,8 @@ jobs:
           assert pre and all(f["severity"] == "info" for f in pre) and r["exit_code"] == 0, (pre, r["exit_code"])
           print(f"{r['store']}: {len(pre)} document(s) behind the keys unchecked or with findings; exit {r['exit_code']}")
           PY
+          # task-0085: every Version's pre-load verdict, the gate's preload bundle and its info findings survive the Turtle round trip
+          KG_STORE=rdflib KG_SUBJECT=runs/verdict/subjects/cargo_quote python tools/check_round_trip.py --chain rdflib,rdflib --scenarios S6 --expect-preload
       - name: The gate as a command (task-0007) exits 0, 1 or 2 under the contract, and ratchets on the record
         run: |
           cd harness

@@ -44,6 +44,23 @@ def test_the_check_ignores_list_order_and_the_store_name_and_nothing_else():
     assert c.differences(base, {**base, "census": {"nodes": 2}}, "S")
 
 
+def test_the_check_compares_the_preload_verdicts_bundle_and_findings():
+    """task-0085: a Version's preload_* verdict, the gate's preload bundle and its info findings each
+    count; a list's order still does not."""
+    import check_round_trip as c
+    v = {"artefact": "contract/spec.md", "version": "v1", "state": "unchecked", "tool": "Vale, markdownlint", "why": "form unchecked"}
+    f = {"severity": "info", "kind": "preload", "ref": "contract/spec.md@v1", "related": ["a|x", "b|y"]}
+    pre = {"verdicts": [v, {**v, "artefact": "behavior/quote_flow.puml", "state": "clean"}],
+           "bundle": {"codegen": [{**v, "keys": ["a|x", "b|y"]}]}, "findings": {"codegen": [f]}}
+    base = {"gate": {}, "three_valued": {}, "census": {"nodes": 3}, "preload": pre}
+    shuffled = {**base, "preload": {**pre, "verdicts": pre["verdicts"][::-1], "findings": {"codegen": [{**f, "related": ["b|y", "a|x"]}]}}}
+    assert c.differences(base, shuffled, "S") == []
+    lost = {**base, "preload": {"verdicts": [], "bundle": {"codegen": None}, "findings": {"codegen": []}}}
+    assert c.differences(base, lost, "S") == ["S: preload verdicts differs", "S: preload bundle differs", "S: preload findings differs"]
+    moved = {**base, "preload": {**pre, "verdicts": [{**v, "state": "clean"}, pre["verdicts"][1]]}}
+    assert c.differences(base, moved, "S") == ["S: preload verdicts differs"]
+
+
 def test_ci_runs_the_round_trip_on_both_subjects_and_on_neo4j():
     harness = (ROOT / ".github" / "workflows" / "harness.yml").read_text(encoding="utf-8")
     assert "KG_STORE=rdflib python tools/check_round_trip.py --chain rdflib,rdflib\n" in harness
@@ -51,3 +68,15 @@ def test_ci_runs_the_round_trip_on_both_subjects_and_on_neo4j():
     demo = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert "python tools/check_round_trip.py --chain neo4j,rdflib,neo4j" in demo
     assert "-e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j" in demo
+
+
+def test_ci_round_trips_the_preload_verdicts_on_both_chains():
+    """task-0085: on the example instance with its pre-load report, through rdflib and both ways
+    through Neo4j, and failing if the load recorded none."""
+    harness = (ROOT / ".github" / "workflows" / "harness.yml").read_text(encoding="utf-8")
+    assert ("KG_STORE=rdflib KG_SUBJECT=runs/verdict/subjects/cargo_quote python tools/check_round_trip.py "
+            "--chain rdflib,rdflib --scenarios S6 --expect-preload") in harness
+    demo = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
+    for chain, store in (("neo4j,rdflib,neo4j", "neo4j"), ("rdflib,neo4j,rdflib", "rdflib")):
+        assert (f"-e KG_STORE={store} -e KG_SUBJECT=/tmp/verdict/subjects/cargo_quote app python tools/check_round_trip.py "
+                f"--chain {chain} --scenarios S6 --expect-preload") in demo

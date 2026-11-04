@@ -262,6 +262,9 @@ jobs:
           print(f"{r['store']}: {len(pre)} document(s) behind the keys unchecked or with findings; exit {r['exit_code']}")
           PY
           docker compose exec -T -e KG_SUBJECT=/tmp/verdict/subjects/cargo_quote app python3 -c 'import sys; sys.path.insert(0, "harness"); from store import open_store; v = open_store().preload_verdicts(); assert v and {x["state"] for x in v} >= {"clean", "unchecked"}, v; print("neo4j: preload_verdicts", len(v), "version(s)")'
+          # task-0085: the pre-load verdicts, the gate's preload bundle and its info findings survive Neo4j→rdflib→Neo4j and rdflib→Neo4j→rdflib
+          docker compose exec -T -e KG_STORE=neo4j -e KG_SUBJECT=/tmp/verdict/subjects/cargo_quote app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j --scenarios S6 --expect-preload
+          docker compose exec -T -e KG_STORE=rdflib -e KG_SUBJECT=/tmp/verdict/subjects/cargo_quote app python tools/check_round_trip.py --chain rdflib,neo4j,rdflib --scenarios S6 --expect-preload
 
       - name: The example instance mounted read-only (task-0006) replays and runs deterministically, and not one byte of it changes
         run: |
