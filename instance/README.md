@@ -222,7 +222,10 @@ no register row covers goes to a questionnaire named `unassigned`, so nothing is
 The owner fills it in: a value in `answer`, or `nobody_knows = true` when no one can say. They
 add their *handle* and the date under `[answered]`. A handle is a short lower-case label such
 as `employee-1`, never a name or an e-mail address, and one your register has issued (its
-`people/handles.toml`, ieam-register decision 0009). Then:
+`people/handles.toml`, ieam-register decision 0009). A `note` must not identify them either: no
+name, no role only they hold, nothing like "as the author of the 2025 memo". The note travels with
+the answer into everything that reads it, and no check can tell an identifying note from a harmless
+one; only the reviewer reads it (below). Then:
 
 ```bash
 python harness/capture.py ingest questionnaires/questionnaire-cargo_quote-S2-ORG-0002.toml
@@ -259,6 +262,23 @@ scenario = "S2"
 assertion = "A:cap:2026-11-02-ORG-0002-employee-1:1@capture"   # the id the gate's bundle shows
 outcome = "approved"
 ```
+
+```bash
+python harness/capture.py review review.toml
+```
+
+Before ruling, read what you rule on:
+
+```bash
+python harness/capture.py review review.toml --show
+```
+
+In plain English: this prints each answer the review rules on, with the note that came with it,
+and writes nothing. Check that no note names or points at the person who gave it. If one does,
+reject that statement and ask for the answer again without the note: a capture is never edited,
+so the corrected answer is a new capture. Nothing else looks at a note.
+
+Then rule:
 
 ```bash
 python harness/capture.py review review.toml

@@ -112,13 +112,14 @@ def gap_owner(text: str, units: dict[str, str]) -> tuple[list[str] | None, str]:
 
 
 def capture_index(capture_dir: Path) -> dict[str, dict]:
-    """assertion id -> {from, on} for every captured answer (the ids load_captures gives them)."""
+    """assertion id -> {from, on, value, note} for every captured answer (the ids load_captures gives them)."""
     out = {}
     for p in sorted(capture_dir.glob("*.toml")) if capture_dir.is_dir() else []:
         c = tomllib.loads(p.read_text(encoding="utf-8"))
         cap = c.get("capture", {})
-        for i, _a in enumerate(c.get("answer", []), 1):
-            out[f"A:cap:{p.stem}:{i}@capture"] = {"from": cap.get("from"), "on": _date(cap.get("on"))}
+        for i, a in enumerate(c.get("answer", []), 1):
+            out[f"A:cap:{p.stem}:{i}@capture"] = {"from": cap.get("from"), "on": _date(cap.get("on")),
+                                                  "value": str(a.get("value", "")), "note": str(a.get("note", ""))}
     return out
 
 
