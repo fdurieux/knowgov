@@ -3,11 +3,11 @@ id: TASK-0110
 title: >-
   A declared gap's route names the unit that closes it as well as the one that
   answers
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T12:29:00Z'
-updated_date: '2026-11-04T12:47:00Z'
+updated_date: '2026-11-04T13:01:00Z'
 labels:
   - gate
   - schema
@@ -27,9 +27,9 @@ Proposed by task-0102, chosen by the maintainer 2026-11-04. A declared gap's fin
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 S2's OD-1 finding names ORG-0002 as answering and ORG-0004 as closing, from the declaration, not hard-coded
-- [ ] #2 The schema validates reports with and without the new field; the record and the comparator are unchanged
-- [ ] #3 The hook's summary and the page's gate box show the closing unit
+- [x] #1 S2's OD-1 finding names ORG-0002 as answering and ORG-0004 as closing, from the declaration, not hard-coded
+- [x] #2 The schema validates reports with and without the new field; the record and the comparator are unchanged
+- [x] #3 The hook's summary and the page's gate box show the closing unit
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -47,3 +47,9 @@ Proposed by task-0102, chosen by the maintainer 2026-11-04. A declared gap's fin
 <!-- SECTION:NOTES:BEGIN -->
 S2 via gate_cli (rdflib): OD-1's finding owner ORG-0002, closer ORG-0004, route ends with the close. Closer comes from the declaration's text through review.gap_owner, the rule review.check applies to a close; a text naming another unit names that one (tested). Comparator: 0 differing leaves over 7 scenarios (rdflib). check_mcp_server S1,S2,S6 holds. Both suites 326/326.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Merged in #184. A key finding on a declared gap carries closer, the unit that closes it under decision-0002 point 3. It is taken from the declaration's text through review.gap_owner, else from the key's owners, and is null when no single unit of the register matches. Its route ends with the close. For S2's OD-1 the finding names owner ORG-0002 and closer ORG-0004. The field is additive and optional; schema_version stays 2. gate_cli's text form, the hook's _summary and the page's gate box (S2, S5) all name the closing unit. Comparator: 0 differing leaves over 7 scenarios. MCP parity holds. Both suites 326/326. CI all green.
+<!-- SECTION:FINAL_SUMMARY:END -->
