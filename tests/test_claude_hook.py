@@ -197,9 +197,24 @@ def test_the_settings_snippets_fail_closed_and_only_the_managed_one_locks():
                 assert h["timeout"] == 600
                 assert ("--advisory" in h["args"]) == (name == "advisory"), name
                 assert h.get("onFailure") == (None if name == "advisory" else "block"), name
-    assert managed["allowManagedHooksOnly"] is True and managed["allowManagedMcpServersOnly"] is True
-    assert {"serverName": "knowgov"} in managed["allowedMcpServers"]
+    assert managed["allowManagedHooksOnly"] is True
     assert "allowManagedHooksOnly" not in repo and "allowManagedHooksOnly" not in adv
+
+
+def test_the_managed_fragment_carries_the_hook_and_the_mcp_lock_is_its_own_opt_in():
+    # task-0107: the hook is the enforcement; the MCP allowlist is the organisation's tool policy
+    load = lambda n: json.loads((DIR / n).read_text(encoding="utf-8"))  # noqa: E731
+    repo, managed, mcp = load("settings.json"), load("managed-settings.json"), load("managed-mcp-allowlist.json")
+    assert set(managed) == {"allowManagedHooksOnly", "hooks"}, sorted(managed)
+    assert mcp == {"allowManagedMcpServersOnly": True, "allowedMcpServers": [{"serverName": "knowgov"}]}, mcp
+    for s in (repo, managed):
+        assert not {"allowManagedMcpServersOnly", "allowedMcpServers"} & set(s)
+    hooks = lambda s: [h for e in s["hooks"]["PreToolUse"] for h in e["hooks"]]  # noqa: E731
+    (r,), (m,) = hooks(repo), hooks(managed)
+    # the same command; managed settings carry no repository env, so they name the checkout with --knowgov
+    assert m["command"] == r["command"] and m["args"][:len(r["args"])] == r["args"], (m, r)
+    assert m["args"][len(r["args"]):] == ["--knowgov", repo["env"]["KG_HOME"]], m["args"]
+    assert {k: v for k, v in m.items() if k != "args"} == {k: v for k, v in r.items() if k != "args"}
 
 
 def test_the_header_cites_doc_0004_as_superseded_and_the_readme_places_each_file():
@@ -209,7 +224,9 @@ def test_the_header_cites_doc_0004_as_superseded_and_the_readme_places_each_file
     readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
     sec = readme[readme.index("## A fail-closed hook for Claude Code"):]
     for s in ["/etc/claude-code/managed-settings.d/", "/Library/Application Support/ClaudeCode/", ".claude/settings.json",
-              "settings.advisory-fail-open.json", "only the managed", "one store per worktree"]:
+              "settings.advisory-fail-open.json", "only the managed", "one store per worktree",
+              "managed-mcp-allowlist.json", "opt-in", "replace the lists of every lower settings source",
+              "Merge its entries", "hook stays mandatory"]:
         assert s in sec, s
 
 
@@ -231,3 +248,17 @@ def test_unavailable_takes_its_own_route_and_the_summary_names_the_owner():
     assert "  route: python harness/capture.py questionnaire ..." in text and "  route: r2" in text
     p = _hook(PLAN, "run", "--unavailable-route", "Route: mine.", "--", "sh", "-c", "exit 2")
     assert p.returncode == 2 and "Route: mine." in p.stderr and hook.UNAVAILABLE_ROUTE not in p.stderr
+
+
+def test_the_summary_names_a_declared_gaps_closing_unit():
+    """Task-0110: a finding carrying ``closer`` names it beside the owner; one without names the owner alone."""
+    rep = {"verdict": "BLOCKED", "subject": "s", "scenario": "S2", "task": "codegen", "as_of": "2026-10-30", "threshold": "blocker",
+           "findings": [{"severity": "blocker", "kind": "key", "key": "k|p", "message": "k|p is declared gap", "owner": "ORG-0002",
+                         "closer": "ORG-0004", "route": "r; ORG-0004 closes the declared gap g"},
+                        {"severity": "blocker", "kind": "key", "key": "k|r", "message": "k|r is declared gap", "owner": "ORG-0002",
+                         "closer": None, "route": "r"},
+                        {"severity": "blocker", "kind": "key", "key": "k|q", "message": "k|q is absent", "owner": "ORG-0002", "route": "r"}]}
+    text = hook._summary(rep)
+    assert "k|p is declared gap (owner ORG-0002; closed by ORG-0004)" in text
+    assert "k|r is declared gap (owner ORG-0002; closed by no unit of the register)" in text
+    assert "k|q is absent (owner ORG-0002)" in text and "  route: r; ORG-0004 closes the declared gap g" in text

@@ -79,7 +79,8 @@ def _spec(keys, share=0.25):
 def test_the_cadence_is_the_registers_and_a_product_key_reviews_at_six_months():
     by_key, default = cadence.cadence(CARGO_QUOTE)
     assert default == 12 and set(by_key) == {r["key"] for r in CARGO_QUOTE.register_map()["row"]}
-    assert set(by_key.values()) == {12}, "every CargoQuote row names capabilities, processes, applications, entities"
+    six = {k for k, m in by_key.items() if m == 6}   # register decision 0013 (v0.2.7): a step or a touchpoint, six months
+    assert set(by_key.values()) == {6, 12} and len(six) == 12 and all(cadence.kind_for(k, CARGO_QUOTE) == "step" for k in six), six
     jef, _ = cadence.cadence(JEF)
     product = [r["key"] for r in JEF.register_map()["row"] if any(n.startswith("PRD-") for n in r["nodes"])]
     assert len(product) == 21 and all(jef[k] == 6 for k in product), "decision-0005: 21 of J-F's keys concern a product"
@@ -200,12 +201,15 @@ def test_the_record_is_read_as_of_its_pinned_date_and_the_command_as_of_today():
     assert "--as-of" in err.getvalue(), err.getvalue()
 
 
-def test_cargo_quotes_review_only_keys_fall_due_on_2027_08_06():
-    """The S1 case: the ten review-only keys of the kit's verification map, reviewed 2026-08-06, are
-    current to 2027-08-06 and lapsed on 2027-08-07 (harness.yml shows the gate BLOCKED that day)."""
+def test_cargo_quotes_review_only_keys_fall_due_on_2027_02_06_and_2027_08_06():
+    """The S1 case: the ten review-only keys of the kit's verification map, reviewed 2026-08-06. The three
+    ``response|*`` keys rest on a step, six months (register decision 0013), current to 2027-02-06; the
+    other seven to 2027-08-06 (harness.yml shows the gate QUALIFIED on 2027-02-07, BLOCKED on 2027-08-07)."""
     review = CARGO_QUOTE.verification["review"]["at"]
     keys = CARGO_QUOTE.verification_map()["review"]["keys"]
-    assert len(keys) == 10 and {cadence.due(review, k, CARGO_QUOTE) for k in keys} == {"2027-08-06"}
+    due = {k: cadence.due(review, k, CARGO_QUOTE) for k in keys}
+    assert len(keys) == 10 and due == {k: "2027-02-06" if k.startswith("response|") else "2027-08-06" for k in keys}, due
+    assert sum(k.startswith("response|") for k in keys) == 3
     assert 10 / len(CARGO_QUOTE.tasks["codegen"]["keys"]) > CARGO_QUOTE.tasks["codegen"]["max_unverified_share"]
 
 

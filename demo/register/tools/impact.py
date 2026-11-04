@@ -5,7 +5,11 @@ not followed and not counted among what was reached (decision 0007). It starts f
 kind that something rests on (decision 0010). The IEAM's own question: which journeys and products
 would be affected by retiring this module, changing this capability or this information entity?
 
+A second, named walk (decision 0012) answers what implements a capability: the processes
+that realise it and the applications that support those processes. Same rule, other rows.
+
     python tools/impact.py --from APP-0002
+    python tools/impact.py --from CAP-0002 --walk realisers
 """
 from __future__ import annotations
 
@@ -32,10 +36,20 @@ FORWARD = {
 }
 
 
+# what implements a capability (decision 0012): the processes that realise it (realizes
+# inverse), then the applications that support those processes (supports inverse). It stops there:
+# an application has no row, so the walk never turns back towards what rests on the capability.
+REALISERS = {
+    "capabilities": [("realizes", False)],
+    "processes": [("supports", False)],
+}
+
+WALKS = {"dependants": FORWARD, "realisers": REALISERS}
+
 WITHDRAWN = ("deprecated", "retired")
 
 
-def walk(reg: dict, start: str) -> list[dict]:
+def walk(reg: dict, start: str, rows: dict | None = None) -> list[dict]:
     """Every edge the walk met, in order, each with ``live``: True when the link is approved and the
     far node is neither deprecated nor retired; a withdrawn edge is reported and not followed."""
     seen, out, frontier = {start}, [], [start]
@@ -45,7 +59,7 @@ def walk(reg: dict, start: str) -> list[dict]:
             n = reg["nodes"].get(nid)
             if n is None or n.get("state") in WITHDRAWN:
                 continue
-            for rel, forward in FORWARD.get(n["_taxonomy"], []):
+            for rel, forward in (FORWARD if rows is None else rows).get(n["_taxonomy"], []):
                 for ln in reg["relationships"].get(rel, {}).get("links", []):
                     a, b = (ln["source"], ln.get("target")) if forward else (ln.get("target"), ln["source"])
                     if a != nid or b is None:
@@ -69,21 +83,28 @@ def reached(edges: list[dict]) -> set[str]:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--from", dest="start", required=True)
+    ap.add_argument("--walk", choices=sorted(WALKS), default="dependants",
+                    help="dependants: what rests on the node (decision 0010, the default); realisers: what implements a capability (decision 0012)")
     ap.add_argument("--root", type=Path, default=ROOT)
     a = ap.parse_args(argv)
     reg = load_register(a.root)
     if a.start not in reg["nodes"]:
         print(f"{a.start}: no such node")
         return 2
-    edges = walk(reg, a.start)
+    edges = walk(reg, a.start, WALKS[a.walk])
     for e in edges:
         n = reg["nodes"][e["to"]]
         mark = "" if e["live"] else " WITHDRAWN, not followed"
         print(f"{e['from']} -[{e['rel']}, {e['state']}, owner {e['owner']}]-> {e['to']} {n['name']!r} ({n['state']}){mark}; evidence: {', '.join(e['evidence']) or 'none'}")
     live = reached(edges)
+    withdrawn = sum(1 for e in edges if not e["live"])
+    if a.walk == "realisers":
+        procs = sorted(x for x in live if x.startswith("PROC-"))
+        apps = sorted(x for x in live if x.startswith("APP-"))
+        print(f"\n{a.start}: {len(edges)} edges walked, {withdrawn} withdrawn; processes reached {procs or 'none'}; applications reached {apps or 'none'}")
+        return 0
     prods = sorted(x for x in live if x.startswith("PRD-"))
     jrns = sorted(x for x in live if x.startswith("JRN-"))
-    withdrawn = sum(1 for e in edges if not e["live"])
     print(f"\n{a.start}: {len(edges)} edges walked, {withdrawn} withdrawn; products reached {prods or 'none'}; journey elements reached {jrns or 'none'}")
     return 0
 

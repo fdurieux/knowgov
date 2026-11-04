@@ -60,6 +60,18 @@ def test_the_gate_box_names_the_owner_of_the_blocking_keys():
 
 
 @on_cargo_quote
+def test_the_gate_box_names_the_unit_that_closes_a_blocking_declared_gap():
+    """Task-0110 (decision-0002 point 3): S2's gate box names compliance, ORG-0004, as closing OD-1, after
+    the owner line; a scenario whose blocking keys hold no declared gap names no closing unit."""
+    lines = lambda sc: next(s for s in views.build(sc, views.default_source(sc), NO_RUNS)["stages"] if s["id"] == "gate")["lines"]  # noqa: E731
+    s2 = lines("S2")
+    want = "closed by: ORG-0004 Compliance (stand-in) (gap:declared:OD-1, on QuoteAPI|on_screening_outage)"
+    assert want in s2 and s2.index(want) > s2.index(next(x for x in s2 if x.startswith("owner: "))), s2
+    # OD-1 blocks where REQ-06 reads NOT YET SPECIFIED (S2, and S5's plant on it); nowhere else
+    assert {sc for sc in views.ORDER if any(x.startswith("closed by: ") for x in lines(sc))} == {"S2", "S5"}
+
+
+@on_cargo_quote
 def test_s6_sources_and_stage_two():
     rerun = views.build("S6", "rerun", NO_RUNS)
     assert views.default_source("S6") == "rerun"

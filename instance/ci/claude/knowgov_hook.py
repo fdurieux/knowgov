@@ -159,7 +159,9 @@ def _summary(rep: dict) -> str:
             f"as of {rep.get('as_of')}, threshold {rep.get('threshold')}")
     worst = [f for f in rep.get("findings") or [] if f.get("severity") in ("blocker", "critical")] or (rep.get("findings") or [])
     lines = [f"  {f.get('severity')} {f.get('kind')}" + (f" {f['key']}" if f.get("key") else "") + f": {f.get('message')}"
-             + (f" (owner {f.get('owner') or 'none in the register map'})" if "owner" in f else "")
+             + (f" (owner {f.get('owner') or 'none in the register map'}"
+                + (f"; closed by {f.get('closer') or 'no unit of the register'}" if "closer" in f else "") + ")"
+                if "owner" in f else "")
              for f in worst[:6]]
     routes = sorted({f["route"] for f in worst[:6] if f.get("route")})   # task-0102: each owner's questionnaire
     lines += [f"  route: {r}" for r in routes]
