@@ -3,11 +3,11 @@ id: TASK-0120
 title: >-
   register_impact takes a task class, and flags the keys that rest on a
   withdrawn descendant
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T18:19:00Z'
-updated_date: '2026-11-04T18:35:00Z'
+updated_date: '2026-11-04T18:56:00Z'
 labels:
   - mcp
   - register
@@ -25,10 +25,10 @@ The maintainer chose both on 2026-11-04. task-0111 proposed that `register_impac
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 register_impact takes an optional `task` (a declared task class; default the server's default class, codegen). Each landed key's level, block levels and route are read under that class, as `gate_verdict --task` would. On CargoQuote, `design` and `codegen` give their own answers. A `keys` value is refused.
-- [ ] #2 With `children=true`, a map row that names a withdrawn descendant lands its keys flagged `withdrawn: true`. They are listed but not walked onward. With children, CAP-0001's dependants walk then lands 32 keys, the 32nd (QuoteAPI|on_notification_failure) flagged.
-- [ ] #3 `check_mcp_server.py` checks both on S6, the record is unchanged, and the README tool table and INSTRUCTIONS name the new input.
-- [ ] #4 task-0118's per-walk numbers are restated in this task's notes: dependants 31 (32 with the flag), realisers 36, and 36 only across both walks.
+- [x] #1 register_impact takes an optional `task` (a declared task class; default the server's default class, codegen). Each landed key's level, block levels and route are read under that class, as `gate_verdict --task` would. On CargoQuote, `design` and `codegen` give their own answers. A `keys` value is refused.
+- [x] #2 With `children=true`, a map row that names a withdrawn descendant lands its keys flagged `withdrawn: true`. They are listed but not walked onward. With children, CAP-0001's dependants walk then lands 32 keys, the 32nd (QuoteAPI|on_notification_failure) flagged.
+- [x] #3 `check_mcp_server.py` checks both on S6, the record is unchanged, and the README tool table and INSTRUCTIONS name the new input.
+- [x] #4 task-0118's per-walk numbers are restated in this task's notes: dependants 31 (32 with the flag), realisers 36, and 36 only across both walks.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -50,3 +50,9 @@ A flagged key is listed with its level and findings (it is in the gate key set),
 
 Verified: tests/run_tests.py 349/349 on both subjects; KG_STORE=rdflib check_mcp_server.py --scenarios S6 and J-F C,D3 hold. No record file touched.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+register_impact takes an optional `task` (a declared class, codegen by default; `keys` or an undeclared name refused) and reads each landed key's level, findings (owner, route) and the gate line under it, as gate_verdict --task over that key set. With children, a map row naming only a withdrawn descendant lands last, flagged withdrawn: true, with its level; the descent stops there (CAP-0001 dependants: 32, the 32nd QuoteAPI|on_notification_failure via CAP-0005; realisers 36, none flagged). check_mcp_server.py checks both on S6 and requires design and codegen to differ at stage 2, where stale findings route by class. At stage 1 they agree, since no finding carries a route. Docs, INSTRUCTIONS, the instance README table and the CHANGELOG (new contract-changes heading under Unreleased) are updated. The record is unchanged. Merged in #198, with tests, rdflib and stack green.
+<!-- SECTION:FINAL_SUMMARY:END -->
