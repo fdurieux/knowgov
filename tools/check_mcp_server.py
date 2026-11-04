@@ -184,7 +184,9 @@ def main(argv: list[str] | None = None) -> int:
     if (os.environ.get("KG_STORE") or "neo4j").lower() == "rdflib" and not os.environ.get("KG_RDFLIB_FILE"):
         os.environ["KG_RDFLIB_FILE"] = str(Path(tempfile.mkdtemp(prefix="kg-mcp-")) / "store.ttl")
     sys.path.insert(0, str(HARNESS))
+    import cadence
     from subject import SUBJECT
+    os.environ.update(cadence.pin_record({}))   # the record's day, the wall clock refused (task-0075)
     scenarios = args.scenarios.split(",") if args.scenarios else list(SUBJECT.order)
     failures = []
     for sc in scenarios:

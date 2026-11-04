@@ -17,6 +17,7 @@ written under OUT_DIR, valid against the schema and held to the subject's scored
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -25,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 HARNESS = ROOT / "harness"
 SCENARIO = "S6"
 sys.path.insert(0, str(HARNESS))
+import cadence  # noqa: E402
 import schema_check  # noqa: E402
 from subject import SUBJECT  # noqa: E402
 
@@ -60,6 +62,7 @@ def main() -> None:
         sys.exit(__doc__)
     out = Path(sys.argv[1]).resolve()
     out.mkdir(parents=True, exist_ok=True)
+    os.environ.update(cadence.pin_record({}))   # the record's day, the wall clock refused (task-0075)
     s2 = json.loads((SUBJECT.record_dir / SCENARIO / "deterministic.json").read_text(encoding="utf-8"))["stage2"]
     cfg2 = SUBJECT.scenario(SCENARIO)["stage2"]
     did = cfg2["derived"]["id"]

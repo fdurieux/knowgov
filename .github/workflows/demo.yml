@@ -7,6 +7,15 @@ name: demo
 # ghcr.io/fdurieux/knowgov:<short-sha> and :latest, which the
 # compose file references so another machine can pull instead of building.
 
+#
+# Budget (task-0084): a pull request's stack job within 12 minutes.
+# J-F on a pull request (task-0084): the J-F round trip and MCP checks run the named subset
+# KG_JF_SCENARIOS = C,D3 (the kit as committed, PROCEED; every layer consistently wrong,
+# QUALIFIED). Its six scenarios cost about the same each, so the subset is a third of the time.
+# The full set runs on every push to main, nightly (03:17 UTC) and on a manual dispatch, so no
+# scenario goes unproven; a release is cut from main, which the full set has proven. The J-F
+# record comparison and its oracle run in full on every event.
+
 on:
   pull_request:
     paths:
@@ -15,6 +24,9 @@ on:
       - "subjects/**"
       - "tools/**"
       - ".github/workflows/demo.yml"
+  schedule:
+    - cron: "17 3 * * *"   # the full J-F set, nightly
+  workflow_dispatch:       # the full J-F set, on demand
   push:
     branches: [main]
     paths:
@@ -30,6 +42,9 @@ permissions:
 jobs:
   stack:
     runs-on: ubuntu-latest
+    env:
+      # task-0084: the J-F subset on a pull request, empty (every scenario) on any other event
+      KG_JF_SCENARIOS: ${{ github.event_name == 'pull_request' && 'C,D3' || '' }}
     defaults:
       run:
         working-directory: demo
@@ -157,10 +172,10 @@ jobs:
 
       - name: Route (c) on the Neo4j store (task-0041), a transcript read by a stub model gives inferred candidates on the empty keys only
         run: docker compose exec -T app python tools/check_transcript_route.py runs/transcript
-      - name: The store survives a round trip (task-0070), Neo4j to Turtle to rdflib and back to Neo4j, every scenario of both subjects, the same gate reports and three-valued answers
+      - name: The store survives a round trip (task-0070), Neo4j to Turtle to rdflib and back to Neo4j, every CargoQuote scenario and J-F's (the subset on a pull request), the same gate reports and three-valued answers
         run: |
           docker compose exec -T app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j
-          docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j
+          docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
 
       - name: A register node to the statements its cited anchor names (task-0046), on Neo4j, S6 with the S1 code as derived, equal to the rdflib port
         run: |
@@ -187,7 +202,7 @@ jobs:
 
       - name: The pre-load verdict read at the load (task-0064) on the Neo4j store, the example instance with its report
         run: |
-          docker compose exec -T app sh -c 'rm -rf /tmp/verdict /tmp/verdict-runs && python tools/example_instance.py /tmp/verdict > /dev/null && python tools/preload_check.py /tmp/verdict -o /tmp/verdict/preload-report.json > /dev/null; cd harness && KG_SUBJECT=/tmp/verdict/subjects/cargo_quote python run.py --deterministic --scenarios S1 S6 --out /tmp/verdict-runs > /dev/null && KG_SUBJECT=/tmp/verdict/subjects/cargo_quote python gate_cli.py --scenario S1 -f json -o /tmp/verdict-gate.json > /dev/null'
+          docker compose exec -T app sh -c 'rm -rf /tmp/verdict /tmp/verdict-runs && python tools/example_instance.py /tmp/verdict > /dev/null && python tools/preload_check.py /tmp/verdict -o /tmp/verdict/preload-report.json > /dev/null; cd harness && KG_SUBJECT=/tmp/verdict/subjects/cargo_quote python run.py --deterministic --scenarios S1 S6 --out /tmp/verdict-runs > /dev/null && KG_SUBJECT=/tmp/verdict/subjects/cargo_quote python gate_cli.py --as-of record --scenario S1 -f json -o /tmp/verdict-gate.json > /dev/null'
           docker compose exec -T app python3 - /tmp/verdict <<'PY'
           import json, sys
           sys.path[:0] = ["harness"]

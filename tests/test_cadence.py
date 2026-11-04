@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -17,6 +18,7 @@ sys.path[:0] = [str(ROOT / "harness"), str(Path(__file__).resolve().parent), str
 import cadence  # noqa: E402
 import gate  # noqa: E402
 import gate_cli  # noqa: E402
+import review  # noqa: E402
 import schema_check  # noqa: E402
 import subject  # noqa: E402
 from _subject_pin import CARGO_QUOTE  # noqa: E402
@@ -161,7 +163,26 @@ def test_a_replacement_whose_review_lapsed_still_replaced_the_invalidated_statem
 def test_the_record_is_read_as_of_its_pinned_date_and_the_command_as_of_today():
     assert str(cadence.record_date(CARGO_QUOTE)) == "2026-10-30" and str(cadence.record_date(JEF)) == "2026-10-24"
     assert cadence.as_of("record", CARGO_QUOTE) == D("2026-10-30") and cadence.as_of("2027-08-07") == D("2027-08-07")
-    assert cadence.as_of(None) == cadence.as_of("today") == cadence.today()
+    old = {k: os.environ.pop(k, None) for k in ("KG_TODAY", "KG_CLOCK")}
+    try:
+        os.environ["KG_TODAY"] = "2027-01-15"   # today is KG_TODAY when a run pins it (task-0075)
+        assert cadence.as_of(None) == cadence.as_of("today") == cadence.today() == D("2027-01-15")
+        os.environ["KG_CLOCK"] = "pinned"
+        assert cadence.as_of("record", CARGO_QUOTE) == D("2026-10-30"), "record never reads the clock"
+        del os.environ["KG_TODAY"]
+        try:
+            cadence.as_of("today")
+            raise AssertionError("KG_CLOCK=pinned with no KG_TODAY reads the wall clock")
+        except review.WallClock:
+            pass
+        assert cadence.as_of("record", CARGO_QUOTE) == D("2026-10-30")
+        del os.environ["KG_CLOCK"]
+        assert cadence.today() == dt.date.today(), "unpinned, today is the wall clock"
+    finally:
+        for k, v in old.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
     for bad in ("2027-13-01", "tomorrow", "2027-08-07T00:00"):
         try:
             cadence.as_of(bad)

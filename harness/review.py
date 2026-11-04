@@ -58,10 +58,31 @@ def add_months(d: dt.date, months: int) -> dt.date:
     raise ValueError(d)
 
 
+CLOCK = "KG_CLOCK"         # "pinned": a check's run, where the wall clock is refused (task-0075)
+
+
+class WallClock(RuntimeError):
+    """Today's date was asked for under ``KG_CLOCK=pinned`` with no ``KG_TODAY``."""
+
+
 def today() -> dt.date:
-    """KG_TODAY (YYYY-MM-DD) for a reproducible run, else the wall clock."""
+    """KG_TODAY (YYYY-MM-DD) for a reproducible run, else the wall clock: the one place under
+    harness/ that reads it (tests/test_clock.py holds that). Under ``KG_CLOCK=pinned`` (every check
+    CI runs, and the test runner) a missing KG_TODAY raises WallClock instead, so a check whose
+    outcome would move with the calendar fails at once rather than on the day it moves."""
     v = os.environ.get("KG_TODAY")
-    return dt.date.fromisoformat(v) if v else dt.date.today()
+    if v:
+        return dt.date.fromisoformat(v)
+    if os.environ.get(CLOCK) == "pinned":
+        raise WallClock("KG_CLOCK=pinned and no KG_TODAY: this check reads today's date and must pin it "
+                        "(KG_TODAY, or --as-of record; task-0075)")
+    return dt.date.today()
+
+
+def pinned(env, on) -> dict:
+    """``env`` for a check's commands: today is ``on`` (a date or YYYY-MM-DD) and the wall clock is
+    refused (task-0075)."""
+    return {**env, "KG_TODAY": str(on), CLOCK: "pinned"}
 
 
 def _date(v) -> dt.date | None:

@@ -37,7 +37,12 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   `instance/ci/github/action.yml` (run for real in `harness.yml`) and `instance/ci/gitlab/knowgov.gitlab-ci.yml`
   (its script lines run by a shell, `tools/check_ci_wrappers.py`; task-0052). The load records the report's verdict per document version (`harness/preload.py`, `KG_PRELOAD_REPORT` or `<instance>/preload-report.json`; unchecked unless the digest matches) and the gate lists the unchecked or flawed documents behind its keys at info (task-0064). Form, not knowledge. `harness/gate_cli.py`
   the gate as a command (exit 0/1/2, `--fail-on`, `--baseline record|FILE`, JSON pinned by
-  `harness/schemas/gate-report.schema.json` through `harness/schema_check.py`; task-0007; version 2: stale statements and suspect derived outputs are findings, task-0048, shown after S6's change by `tools/check_gate_after_change.py`). `--as-of` (decision-0005, task-0068; `harness/cadence.py`): a review verification's `valid_until` is its date plus its key's review months from the register's `lifecycle.toml`, a lapse reads validated and is a `lapsed` finding; today by default, the deterministic run and the comparator as of the subject's `[record] as_of`. `harness/mcp_server.py` the gate, the three-valued answer and the arms' evidence bundle (`evidence_bundle`, task-0080) as a read-only MCP server (stdio, or
+  `harness/schemas/gate-report.schema.json` through `harness/schema_check.py`; task-0007; version 2: stale statements and suspect derived outputs are findings, task-0048, shown after S6's change by `tools/check_gate_after_change.py`). `--as-of` (decision-0005, task-0068; `harness/cadence.py`): a review verification's `valid_until` is its date plus its key's review months from the register's `lifecycle.toml`, a lapse reads validated and is a `lapsed` finding; today by default, the deterministic run and the comparator as of the subject's `[record] as_of`.
+  The clock (task-0075): `harness/review.py` `today()` is the only wall-clock read that decides an
+  outcome (KG_TODAY, else the wall clock); under `KG_CLOCK=pinned` (the test runner, the rdflib job,
+  every check tool's commands via `review.pinned`/`cadence.pin_record`) it refuses the wall clock.
+  `tests/test_clock.py` names every other read, holds each check tool pinned and each workflow gate
+  command to an `--as-of`. `harness/mcp_server.py` the gate, the three-valued answer and the arms' evidence bundle (`evidence_bundle`, task-0080) as a read-only MCP server (stdio, or
   Streamable HTTP on 127.0.0.1 with `KG_MCP_TOKEN` for any wider bind; standard library; the store behind a
   view that lets the port's reads through and nothing else; `tools/check_mcp_server.py` holds its report equal
   to `gate_cli.py --no-load`'s and its bundle to the arms' `render_bundle` on a live store; task-0056). `harness/trace.py`
@@ -50,6 +55,8 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   subjects: `cargo_quote` (the proof of concept, seven scenarios, the scored
   record) and `jef_data_load` (the recreation experiment's kit, the degradation
   test's arms as scenarios, a deterministic record, the kit's own suite as oracle; task-0021).
+  `docs/lighthouse-evaluation.md` the evaluation protocol (doc-0013's seven criteria; actions out of
+  scope); `tools/lighthouse_evidence.py` collects its public evidence on both subjects (task-0069).
 - The register the page reads is `KG_REGISTER` (default `demo/register`, the public register
   vendored at a tag): one register per organisation, shared by every subject of it; an
   instance mounts its own checkout read-only (`demo/docker-compose.instance.yml`). A subject
@@ -107,6 +114,13 @@ up-to-date branch. So: a PR whose diff touches `stack`'s paths (`demo/`, `harnes
 `tools/`, `demo.yml`) gets auto-merge only once `stack` is green on its head, or is merged by hand
 then; any other PR gets auto-merge when it opens. A PR that must wait (a proposed decision, an
 ordering) gets none. A `stack` red on `main` after a merge is fixed at once.
+
+CI budget (task-0084): a pull request's `rdflib` and `stack` each within 12 minutes. On a pull
+request the J-F round trip and MCP checks run the named subset `KG_JF_SCENARIOS=C,D3` (the kit as
+committed and every layer consistently wrong); the full J-F set runs on every push to `main`,
+nightly at 03:17 UTC and on a `workflow_dispatch` of `harness.yml` or `demo.yml`, so a red full run
+on `main` is fixed like any other. The J-F record comparison and its oracle always run in full.
+`tests/test_ci_subset.py` holds the subset the same in both workflows and here.
 
 Releases (decision-0003): SemVer, `VERSION` and `CHANGELOG.md` move together in a release PR
 (a test holds them equal); a contract change raises the minor version while 0.x. A hosted
