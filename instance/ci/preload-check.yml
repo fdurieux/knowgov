@@ -27,7 +27,7 @@ env:
   PUMLLINT: "0.33.0"
   SPECTRAL: "6.17.0"       # @stoplight/spectral-cli, for artefacts/api-contracts/
   MARKDOWNLINT: "0.24.0"   # markdownlint-cli2, for artefacts/specification-prose/
-  GPLINT: "2.6.0"          # for artefacts/acceptance-scenarios/
+  GPLINT: "2.6.1"          # for artefacts/acceptance-scenarios/
   BPMNLINT: "12.0.0"       # for artefacts/bpmn-process-models/
   DMNLINT: "2.0.0"         # for the .dmn files of artefacts/decision-tables/
   KG_FAIL_ON: major

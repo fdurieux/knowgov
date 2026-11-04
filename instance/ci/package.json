@@ -6,7 +6,7 @@
     "@stoplight/spectral-cli": "6.17.0",
     "bpmnlint": "12.0.0",
     "dmnlint": "2.0.0",
-    "gplint": "2.6.0",
+    "gplint": "2.6.1",
     "markdownlint-cli2": "0.24.0"
   }
 }
