@@ -8,9 +8,15 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
-## Unreleased
+## 0.4.0 — 2026-11-04
 
-### Contract changes (raise the minor version at the next release, decision-0003)
+The gate becomes something an AI-native delivery pipeline can rely on. A fail-closed Claude Code
+hook runs it at stage transitions and stops the step when it says no or cannot run. Each finding
+names the unit that answers for the key and the route to approval, and a declared gap also names
+the unit that closes it. The MCP server reads one date per process. A second task class, `design`,
+checks a requirements-and-design step. The register moves to ieam-register `v0.2.7`.
+
+### Contract changes (why this is 0.4.0, decision-0003)
 
 - **MCP server, one `as_of` per process** (task-0100, doc-0014 C2): `harness/mcp_server.py` reads
   `KG_AS_OF` (or `--as-of`: `YYYY-MM-DD`, `record` or `today`; default `today`) once at start and
@@ -32,7 +38,7 @@ names that section with the version.
   CargoQuote's OD-1), and its `route` ends with the close. Additive: `schema_version` stays 2. The
   hook's summary and the page's gate box name the closing unit.
 
-### Also since 0.3.0
+### Also in this release
 
 - **A fail-closed Claude Code hook for the gate** (task-0099, doc-0014 C1): `instance/ci/claude/`
   runs the gate at stage transitions (plan accepted, spec committed, before push), never on every
@@ -63,6 +69,18 @@ names that section with the version.
   QUALIFIED, S2 BLOCKED, S3 QUALIFIED, S4 BLOCKED, S5 BLOCKED, S6 QUALIFIED, S7 BLOCKED: the
   structure is extracted and never verified. `docs/lighthouse-evaluation.md` names the class at each
   pilot transition: `design` at the specification's commit, `codegen` at plan acceptance and push.
+
+### What this release carries
+
+| what | version |
+|---|---|
+| pumllint (the sequence-diagram mapper's parser) | 0.33.0, from PyPI |
+| the IEAM register, vendored under `demo/register/` | ieam-register `v0.2.7` |
+| the record's pins | unchanged from 0.3.0 |
+| Python | 3.12 in the image |
+
+The image is `ghcr.io/fdurieux/knowgov:v0.4.0`. The compose file moves to it in a follow-up, once
+the Release has published its digest.
 
 ### Known limits
 
