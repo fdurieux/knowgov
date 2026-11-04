@@ -3,6 +3,7 @@ verdict, evidence bundle. Reads through the store port."""
 
 from __future__ import annotations
 
+import cadence
 from tasks import TASKS
 
 ORDER = ["absent", "declared_gap", "disputed", "invalidated", "proposed", "validated", "verified", "approved"]
@@ -10,17 +11,28 @@ BETTER = ("validated", "verified", "approved")
 LIVE = ["proposed", "validated", "verified", "approved", "disputed", "invalidated"]
 
 
-def resolve(s, task: str) -> dict:
-    return resolve_spec(s, task, TASKS[task])
+def resolve(s, task: str, as_of=None) -> dict:
+    return resolve_spec(s, task, TASKS[task], as_of)
 
 
-def resolve_spec(s, task: str, spec: dict) -> dict:
+def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
     """The gate over any key set: ``spec`` is a task's shape (keys, block_levels,
     max_unverified_share); ``task`` only names it in the result. The MCP server resolves an
-    agent's own key set through here, so it is never a second gate."""
-    keys = {}
+    agent's own key set through here, so it is never a second gate.
+
+    ``as_of`` is the date review currency is read on (decision-0005, harness/cadence.py): a date, or
+    ``today``, or ``record`` (the subject's pinned record date); None is ``record``, so the record's
+    producers read as the record was made, and the gate command passes today. A statement whose review
+    has lapsed by then reads ``validated``, with its approval, and is listed in ``lapsed``."""
+    on = cadence.as_of("record" if as_of is None else as_of)
+    keys, lapsed = {}, []
     for key in spec["keys"]:
         rows, pending = s.key_evidence(key, LIVE), []
+        for r in rows:
+            gone = cadence.lapse(r, key, on)
+            if gone:
+                r["status"], r["lapsed"] = "validated", gone
+                lapsed.append(gone)
         ent = key.split("|")[0]
         declared = s.declared_gaps_for_key(key)
         if not rows:
@@ -30,7 +42,8 @@ def resolve_spec(s, task: str, spec: dict) -> dict:
         else:
             # an invalidated assertion is superseded only by a verified or
             # approved replacement on the same key; until then it blocks
-            replaced = any(r["status"] in ("verified", "approved") for r in rows)
+            # (a replacement whose own review has since lapsed still replaced it: the change is history)
+            replaced = any(r["status"] in ("verified", "approved") or r.get("lapsed") for r in rows)
             live_rows = [r for r in rows if not (r["status"] == "invalidated" and replaced)]
             # decision-0004: a person's answer nobody has reviewed yet (elicited, proposed) does not
             # lower a key that holds a validated-or-better statement; it stays in the bundle, marked
@@ -68,7 +81,7 @@ def resolve_spec(s, task: str, spec: dict) -> dict:
     suspect = s.suspect_derived()
     return {"task": task, "verdict": verdict, "why": why, "keys": keys, "conflicts": conflicts,
             "blocked_keys": blocked_keys, "below_verified": below, "flagged": flagged,
-            "stale": stale, "suspect_derived": suspect}
+            "stale": stale, "suspect_derived": suspect, "lapsed": lapsed, "as_of": on.isoformat()}
 
 
 THREE_VALUED_STATUSES = ["verified", "approved", "validated", "proposed"]
@@ -95,7 +108,8 @@ def render_key(key: str, v: dict) -> list[str]:
         out.append("  (no assertion in the repository: UNKNOWN — not a documented absence)")
     for a in v["assertions"]:
         out.append(f"  [{a['id']}] value={a['value']!r} basis={a['basis']} status={a['status']} source={a['artefact']} by={a['agent']}"
-                   + ("  PENDING REVIEW: not counted in the level (decision-0004)" if a["id"] in v.get("pending_review", ()) else ""))
+                   + ("  PENDING REVIEW: not counted in the level (decision-0004)" if a["id"] in v.get("pending_review", ()) else "")
+                   + (f"  REVIEW LAPSED: {a['lapsed']['from']} until {a['lapsed']['valid_until']}, now validated (decision-0005)" if a.get("lapsed") else ""))
         out.append(f"      text: {a['text'][:300]}")
         for f in a["fragments"][:2]:
             out.append(f"      evidence: {f['artefact']} @ {f['locator']}: {f['text'][:200]!r}")
@@ -125,6 +139,8 @@ def render_index(res: dict, policy: str, documents: list[str] | None = None) -> 
             out.append(f"  {c['id']}: {c['text']}")
     if res.get("stale"):
         out.append("\nINVALIDATED BY A SOURCE CHANGE: " + ", ".join(x.get("key", "") for x in res["stale"]))
+    if res.get("lapsed"):
+        out.append(f"\nREVIEW LAPSED as of {res['as_of']}: " + ", ".join(x["key"] for x in res["lapsed"]))
     if documents:
         out.append("\nDOCUMENTS the task names verbatim; call read_document(path) for each you need:")
         for d in documents:
@@ -161,6 +177,10 @@ def render_bundle(res: dict, policy: str, verbatim: dict[str, str] | None = None
             succ = ", ".join(f"{t['id']} value={t['value']!r} status={t['status']}" for t in x["successors"] if t["id"]) or "none"
             vers = ", ".join(f"{v['id']} valid_until={v['valid_until']}" for v in x["verifications"] if v["id"]) or "none"
             out.append(f"  [{x['id']}] key={x['key']} old value={x['value']!r} invalidated_by={x['invalidated_by']}; verifications: {vers}; successor: {succ}")
+    if res.get("lapsed"):
+        out.append(f"\nREVIEW LAPSED as of {res['as_of']} (decision-0005: a review falls due after its key's review months; each reads validated until a new review):")
+        for x in res["lapsed"]:
+            out.append(f"  [{x['id']}] key={x['key']} was {x['from']}, review current until {x['valid_until']}; verifications: {', '.join(x['verifications'])}")
     if res.get("suspect_derived"):
         out.append("\nDERIVED OUTPUTS MARKED SUSPECT (they used assertions that are now invalidated; they may not be reused as they are):")
         for d in res["suspect_derived"]:

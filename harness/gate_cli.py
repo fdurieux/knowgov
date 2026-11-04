@@ -3,6 +3,7 @@
     python harness/gate_cli.py [--subject DIR] [--scenario ID] [--task NAME]
                                [--fail-on blocker|critical|major|minor|info]
                                [--baseline none|record|FILE] [--stage 1|2 [--reverify]] [--no-load]
+                               [--as-of today|record|YYYY-MM-DD]
                                [-f text|json] [-o FILE]
 
 It loads the scenario of a subject into the store (KG_STORE: neo4j by default, rdflib in memory),
@@ -14,10 +15,21 @@ runs the rules, resolves the task's required keys through the same gate the arms
               a registered derived output (generated code) that used a statement now invalidated:
               it may not be reused as it is, whatever the verdict on the keys (task-0048)
     major     a required key below verified (proposed or validated); a stale statement on a
-              required key that no verified or approved successor replaces (task-0048)
+              required key that no verified or approved successor replaces (task-0048); a statement
+              whose review has lapsed (``lapsed``, decision-0005): it reads validated until a new review
     minor     a verified or approved key carrying a flag (ambiguous, inferred, assumed)
     info      a stale statement on a required key that a verified or approved successor
               replaces: the record of the change, and the verifications it ended (task-0048)
+
+A review falls due (decision-0005, harness/cadence.py): a verification of method review is current
+until its date plus the review months of the kind its key concerns, from the register's
+``metamodel/lifecycle.toml`` (``[review.kinds]``, the shortest among the nodes the key's row in the
+subject's ``register_map.toml`` names, else ``default_months``); the load writes that date as its
+``valid_until``. ``--as-of`` is the date currency is read on: today by default (KG_TODAY, else the
+clock), so a pipeline's ratchet catches a lapse as ``verified -> validated``; ``record`` is the
+subject's pinned record date (``[record] as_of``), which the deterministic run and the comparator
+read, so the record never moves by the clock. Execution verifications do not lapse by date; a
+person's approval in a review file renews a lapsed review from its own date.
 
 The verdict is the gate's on the required keys (harness/gate.py, pinned by the record); the
 findings add what the verdict does not weigh, so PROCEED with a suspect derived output exits 1.
@@ -111,7 +123,11 @@ def findings(res: dict, block_levels: set[str]) -> list[dict]:
         used = list(d.get("used_invalidated") or [])
         out.append(_finding("blocker", "suspect_derived", f"{d['id']} ({d.get('kind') or 'derived output'}) used {len(used)} statement(s) now invalidated "
                             f"({', '.join(used)}): it may not be reused as it is: regenerate it from the current statements", ref=d["id"], related=used))
-    kinds = ["task", "key", "suspect_derived", "stale"]
+    for x in res.get("lapsed") or []:
+        out.append(_finding("major", "lapsed", f"{x['id']} on {x['key']} was {x['from']}; its review was current until {x['valid_until']} "
+                            f"and has lapsed as of {res.get('as_of')}: it reads validated until a new review (decision-0005)",
+                            key=x["key"], level="validated", ref=x["id"], related=x["verifications"]))
+    kinds = ["task", "key", "suspect_derived", "stale", "lapsed"]
     return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), kinds.index(f["kind"]), f["key"] or "", f["ref"] or ""))
 
 
@@ -163,12 +179,13 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
             "conflicts": len(res.get("conflicts") or []),
             "stale": [x["id"] for x in res.get("stale") or []],                    # the statements, by id (a count in version 1)
             "suspect_derived": [d["id"] for d in res.get("suspect_derived") or []],  # the derived outputs, by id (a count in version 1)
+            "as_of": res.get("as_of"), "lapsed": [x["id"] for x in res.get("lapsed") or []],   # decision-0005, added in version 2
             "levels": {k: v["level"] for k, v in res["keys"].items()},   # what a later run's --baseline FILE compares with
             "baseline": baseline, "exit_code": 1 if fail else 0}
 
 
 def render(rep: dict) -> str:
-    out = [f"{rep['subject']} {rep['scenario']} {rep['task']}: {rep['verdict']} — {rep['why']}"]
+    out = [f"{rep['subject']} {rep['scenario']} {rep['task']}: {rep['verdict']} — {rep['why']}" + (f" (as of {rep['as_of']})" if rep.get("as_of") else "")]
     ch = rep.get("change")
     if ch:
         out.append(f"  version  {ch['version']} of {ch['artefact']}: {len(ch['invalidated'])} statement(s) invalidated ({', '.join(ch['invalidated']) or 'none'}); "
@@ -230,6 +247,11 @@ def run(args) -> dict:
     if args.stage == 2 and not cfg2:
         raise CannotRun(f"{SUBJECT.id}: {scenario} has no later version (no [scenario.stage2])")
     base = _baseline(args.baseline, SUBJECT, scenario, args.task)
+    import cadence
+    try:
+        on = cadence.as_of(args.as_of).isoformat()
+    except ValueError as e:
+        raise CannotRun(f"--as-of: {e}") from e
     from store import open_store
     try:
         st = open_store(instance=SUBJECT.id)
@@ -250,7 +272,8 @@ def run(args) -> dict:
                 change = _change(st, SUBJECT, scenario, cfg2, args.reverify)
                 version = change["version"]
         return evaluate(st, subject=SUBJECT.id, scenario=scenario, task=args.task, spec=TASKS[args.task],
-                        threshold=args.fail_on, baseline=base, loaded=not args.no_load, version=version, change=change)
+                        threshold=args.fail_on, baseline=base, loaded=not args.no_load, version=version, change=change,
+                        as_of=on)
     except CannotRun:
         raise
     except Exception as e:  # noqa: BLE001 — an unreachable store fails here, on the first statement
@@ -264,12 +287,12 @@ def run(args) -> dict:
 
 def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshold: str,
              baseline: tuple[dict, str] | None, loaded: bool, version: str | None = None,
-             change: dict | None = None) -> dict:
-    """Resolve ``spec`` on the store as it stands and build the report. The command calls this
+             change: dict | None = None, as_of="today") -> dict:
+    """Resolve ``spec`` on the store as it stands, as of ``as_of`` (today by default; harness/cadence.py), and build the report. The command calls this
     after its load (and stage 2's change, if any); the MCP server (harness/mcp_server.py) calls it
     on a store it only reads, so one input gives one report whichever way it was asked."""
     from gate import resolve_spec
-    res = resolve_spec(st, task, spec)
+    res = resolve_spec(st, task, spec, as_of)
     return report(res, subject=subject, scenario=scenario, task=task, store=st.name, loaded=loaded,
                   block_levels=set(spec["block_levels"]), threshold=threshold,
                   baseline=compare(res, *baseline) if baseline else None, version=version, change=change)
@@ -332,6 +355,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="1 (default): the scenario as first loaded; 2: then its later version, the subject's [scenario.stage2] change, before re-verification")
     ap.add_argument("--reverify", action="store_true", help="with --stage 2: the owner's recorded re-verification of the named keys before the gate")
     ap.add_argument("--no-load", action="store_true", help="read the store as it is instead of loading the scenario first")
+    ap.add_argument("--as-of", default="today", metavar="DATE",
+                    help="the date review currency is read on (decision-0005): today (default), record (the subject's pinned record date) or YYYY-MM-DD")
     ap.add_argument("-f", "--format", choices=["text", "json"], default="text")
     ap.add_argument("-o", "--output", help="also write the JSON report to this file")
     args = ap.parse_args(argv)

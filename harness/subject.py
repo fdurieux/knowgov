@@ -114,6 +114,9 @@ class Subject:
         # the record: <dir>/<scenario>/deterministic.json and the arms' run files; a subject that
         # has not been run has an empty or absent record/ and the page lists nothing to replay
         self.record_dir: Path = self.root / rec.get("dir", "record")
+        # the date the record is read as of (decision-0005): a deterministic run and the comparator read
+        # review currency on this date, so the record never moves by the clock; absent: today
+        self.record_as_of: str | None = str(rec["as_of"]) if rec.get("as_of") else None
         # answered questionnaires, normalised by harness/capture.py ingest and read by every load (task-0009)
         self.capture_dir: Path = self.root / m.get("capture", {}).get("dir", "captures")
 

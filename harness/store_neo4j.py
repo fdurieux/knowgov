@@ -401,6 +401,16 @@ class Neo4jStore(Store):
             MERGE (ap)-[:APPROVES]->(x) MERGE (ap)-[:BY]->(h) SET x.status='approved'
             RETURN collect(x.id) AS ids""", version=version, keys=keys, hid=agent_id, ts=ts, scope=scope, record=record).single()["ids"]
 
+    def review_verifications(self) -> list[dict]:
+        return _rows(self.run("""
+            MATCH (v:Verification {method:'review'})-[:VERIFIES]->(x:Assertion) WHERE v.valid_until IS NULL
+            RETURN v.id AS id, x.key AS key, v.at AS at ORDER BY id"""))
+
+    def set_valid_until(self, dates) -> None:
+        self.run("""
+            UNWIND $rows AS r MATCH (v:Verification {id:r.id}) SET v.valid_until = r.until""",
+                 rows=[{"id": k, "until": d} for k, d in sorted(dates.items())]).consume()
+
     def register_derived(self, did, kind, sha, assertion_ids) -> None:
         self.run("""CREATE (dv:Derived {id:$did, kind:$dkind, sha256:$sha, suspect:false})
                     WITH dv UNWIND $ids AS aid MATCH (x:Assertion {id:aid}) MERGE (dv)-[:USED_ASSERTION]->(x)""",

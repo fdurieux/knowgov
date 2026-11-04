@@ -89,11 +89,11 @@ def main(argv: list[str] | None = None) -> int:
     scenarios = args.scenarios.split(",") if args.scenarios else list(SUBJECT.order)
     failures = []
     for sc in scenarios:
-        load = gate_cli("--scenario", sc, "-f", "json")
+        load = gate_cli("--scenario", sc, "--as-of", "record", "-f", "json")
         if load.returncode == 2:
             failures.append(f"{sc}: gate_cli could not load: {load.stderr.strip()}")
             continue
-        cli = gate_cli("--scenario", sc, "--no-load", "-f", "json")
+        cli = gate_cli("--scenario", sc, "--no-load", "--as-of", "record", "-f", "json")
         if cli.returncode == 2:
             failures.append(f"{sc}: gate_cli --no-load could not run: {cli.stderr.strip()}")
             continue
@@ -101,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
         before = census()
         client = StdioClient()
         try:
-            got = client.call("gate_verdict", {"scenario": sc})
+            got = client.call("gate_verdict", {"scenario": sc, "as_of": "record"})
             if got != expected:
                 diff = sorted(k for k in set(got) | set(expected) if got.get(k) != expected.get(k))
                 failures.append(f"{sc}: gate_verdict differs from gate_cli --no-load on {diff}")
