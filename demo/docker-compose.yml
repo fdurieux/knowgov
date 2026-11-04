@@ -9,7 +9,11 @@
 #   docker compose -f docker-compose.yml up -d          # the registry image, no build
 #
 # Variables, read from the shell or a .env file beside this compose file:
-#   KG_NEO4J_PASSWORD  the store's password (default kgpoc2026, the harness default)
+#   KG_BIND            the host address the three ports are published on (default 127.0.0.1, this machine
+#                      only; 0.0.0.0 for every interface, or one of the host's addresses; [::] for IPv6).
+#                      A wider bind refuses to start while KG_NEO4J_PASSWORD is the default (task-0090,
+#                      neo4j/bind-guard.sh); the page has no login, so widen it only behind a firewall
+#   KG_NEO4J_PASSWORD  the store's password (default kgpoc2026, the harness default, refused on a wider KG_BIND)
 #   OPENAI_API_KEY     enables the arms mode; passed through to the app only, never baked in
 #   KG_MODEL_BASE_URL  the model endpoint (default api.openai.com): Google's compatible endpoint, or a
 #                      private model behind vLLM, Ollama, LiteLLM or a gateway
@@ -47,7 +51,11 @@ name: knowgov
 services:
   neo4j:
     image: neo4j:5.26-community@sha256:249a1ec6e3c52d82101a5ed33d6ed2b5ed5b0017b21a28c0bfebc335e87fb177   # tag and index digest (task-0092)
+    # the guard refuses a wider KG_BIND with the default password, then runs the image's own entrypoint
+    entrypoint: ["/bin/sh", "/knowgov/bind-guard.sh", "tini", "-g", "--", "/startup/docker-entrypoint.sh"]
+    command: ["neo4j"]
     environment:
+      KG_BIND: ${KG_BIND:-127.0.0.1}
       NEO4J_AUTH: neo4j/${KG_NEO4J_PASSWORD:-kgpoc2026}
       NEO4J_server_memory_heap_initial__size: 512m
       NEO4J_server_memory_heap_max__size: 1g
@@ -55,10 +63,11 @@ services:
       # the Browser's remote content allowlist: the page's host, so the impact panel's guides load (task-0025)
       NEO4J_browser_remote__content__hostname__whitelist: guides.neo4j.com,localhost,${KG_DEMO_HOST:-localhost}
     ports:
-      - "${KG_PORT_BROWSER:-7474}:7474"   # Neo4j Browser, a live console with no authentication beyond the store's
-      - "${KG_PORT_BOLT:-7687}:7687"      # bolt, for Browser and the harness
+      - "${KG_BIND:-127.0.0.1}:${KG_PORT_BROWSER:-7474}:7474"   # Neo4j Browser, a live console with no authentication beyond the store's
+      - "${KG_BIND:-127.0.0.1}:${KG_PORT_BOLT:-7687}:7687"      # bolt, for Browser and the harness
     volumes:
       - neo4j-data:/data
+      - ./neo4j/bind-guard.sh:/knowgov/bind-guard.sh:ro
     healthcheck:
       # $$ keeps the shell expansion away from compose's own interpolation
       test: ["CMD-SHELL", "cypher-shell -a bolt://localhost:7687 -u neo4j -p \"$${NEO4J_AUTH#neo4j/}\" 'RETURN 1' > /dev/null || exit 1"]
@@ -90,7 +99,7 @@ services:
       KG_ARMS_MODEL: ${KG_ARMS_MODEL:-}   # optional: with the two KG_MODEL_* variables, the drop-down's "this instance's settings" row
       KG_ARMS_EFFORT: ${KG_ARMS_EFFORT:-}  # optional: the effort a harness run outside the page sends; the page sets its own per run
     ports:
-      - "${KG_PORT_APP:-8080}:8080"
+      - "${KG_BIND:-127.0.0.1}:${KG_PORT_APP:-8080}:8080"
     volumes:
       - demo-runs:/repo/runs
 

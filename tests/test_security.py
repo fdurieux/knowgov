@@ -163,10 +163,15 @@ def test_the_gaps_named_here_are_still_the_codes():
     text = _text()
     gaps = text[text.index("<!-- gaps: begin -->"):text.index("<!-- gaps: end -->")]
     compose = (ROOT / "demo" / "docker-compose.yml").read_text(encoding="utf-8")
-    # 1. the published ports carry no host address, and the page binds every interface with no login
-    unbound = all(f'"${{{v}:-{p}}}:{p}"' in compose for v, p in (("KG_PORT_APP", 8080), ("KG_PORT_BROWSER", 7474), ("KG_PORT_BOLT", 7687)))
+    # 1. every published port carries the host address KG_BIND, 127.0.0.1 unless widened (task-0090);
+    # the guard refuses the default password on a wider bind; the page still has no login
+    ports = [l.strip() for f in sorted((ROOT / "demo").glob("docker-compose*.yml"))
+             for b in re.findall(r"\n    ports:\n((?:      - .*\n)+)", f.read_text(encoding="utf-8")) for l in b.splitlines()]
+    unbound = not ports or not all(l.startswith('- "${KG_BIND:-127.0.0.1}:') for l in ports)
+    guarded = "/knowgov/bind-guard.sh" in compose and "neo4j/kgpoc2026" in (ROOT / "demo" / "neo4j" / "bind-guard.sh").read_text(encoding="utf-8")
     server = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
     assert unbound == ("listen on every interface" in gaps)
+    assert guarded == ("the stack refuses to start until `KG_NEO4J_PASSWORD` is set" in gaps)
     assert ('ThreadingHTTPServer(("0.0.0.0"' in server) == ("The page has no login" in gaps)
     assert ("kgpoc2026" in compose) == ("kgpoc2026" in gaps)
     # 2. no harness module checks the gives role

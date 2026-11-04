@@ -74,6 +74,7 @@ machines, under the same access controls as the documents, and delete them when 
 | With a key, the transcript route sends the transcript's text and the keys asked about; without one it exits 2 | `KG_MODEL_BASE_URL` | `harness/transcript.py` | `tests/test_transcript.py::test_with_no_model_key_it_refuses_with_exit_2` |
 | The key is passed through the environment, never written into the image or the models table; the page names the variable, never the key | — | `demo/docker-compose.yml`, `demo/models.toml` | `tests/test_demo.py::test_compose_files_agree`, `tests/test_demo.py::test_models_table_rows_resolve_to_the_harness_variables_and_never_carry_a_key`, `tests/test_arms.py::test_the_page_names_the_endpoint_and_the_key_variable_never_the_key` |
 | No module of the harness, the page or the tools opens any other outbound connection: the model client and the Neo4j driver are the only clients (apart from one stack-job check, `demo/tools/check_impact_cypher.py`, which asks the local page), and the page loads no script or style from elsewhere | — | the imports of `harness/`, `demo/app/`, `tools/` | `tests/test_security.py::test_nothing_reaches_the_network_but_the_model_client_and_the_store_driver` |
+| The page, Neo4j Browser and bolt are published on `127.0.0.1` unless `KG_BIND` widens the bind; on a wider bind the stack refuses to start while the Neo4j password is the default | this machine only, by default | `demo/docker-compose.yml` (`${KG_BIND:-127.0.0.1}` on every published port), `demo/neo4j/bind-guard.sh` | `tests/test_demo.py::test_the_ports_bind_loopback_and_a_wider_bind_refuses_the_default_password`; CI: `demo.yml` reaches the stack on `localhost` from the runner |
 | The MCP server listens on 127.0.0.1 by default, refuses a wider bind without `KG_MCP_TOKEN`, then asks every request for that token, and refuses a request from a non-local web origin | the assistant's process on the same machine (stdio), or a client on the network holding the token | `harness/mcp_server.py` `bind_check`, `Handler._guard` | `tests/test_mcp_server.py::test_it_binds_localhost_unless_told_and_a_wider_bind_needs_a_token`, `tests/test_mcp_server.py::test_http_with_a_token_refuses_a_request_without_it`, `tests/test_mcp_server.py::test_http_answers_on_mcp_refuses_a_foreign_origin_and_pushes_nothing` |
 | The MCP server answers with the gate's verdict, the three-valued answer and the evidence bundle. The bundle carries excerpts, so whoever holds the token reads them | the MCP client | `harness/mcp_server.py` `TOOLS` | `tests/test_mcp_server.py::test_four_tools_every_one_marked_read_only` |
 | People appear as opaque handles issued by the register, never as names or e-mail addresses | the store, the capture and review files | `harness/capture.py` (handle pattern, issued list), `harness/review.py` `check` (ieam-register decision 0009) | `tests/test_capture.py::test_a_name_a_future_date_a_contradiction_or_nothing_answered_is_refused`, `tests/test_capture.py::test_ingest_refuses_a_handle_the_register_has_not_issued_by_the_answers_date`, `tests/test_review.py::test_refused_the_giver_a_handle_without_approves_a_name_and_a_future_date` |
@@ -151,7 +152,7 @@ can reach the page.
 | The pipeline (load, `gate_cli`, knowgov-trace) | yes | yes: extracted and authored statements at `proposed`; trace records derived outputs | no | no | no | no |
 | A person by role (decision-0002) | yes | yes, with `gives` (an issued handle; see Gaps) | with `approves`, in the owning unit, never their own answer | with `closes`, as the gap's owner | no | no |
 | The register approver | yes | in ieam-register, not here | the register's own changes, upstream | no | yes, upstream in ieam-register; here only by re-vendoring a tag | no |
-| Anyone who reaches the page's port | yes | no | no | no | no | no; but may start a run (see Gaps) |
+| Anyone who reaches the page's port (this machine only, unless `KG_BIND` widens it) | yes | no | no | no | no | no; but may start a run (see Gaps) |
 <!-- permission matrix: end -->
 
 "Execute a business action: none." knowgov reads documents and answers. It has no connector to
@@ -185,14 +186,14 @@ Each gap is stated so that nobody reads the tables above as claiming more than t
 so this list is updated with the fix.
 
 <!-- gaps: begin -->
-1. **The page and Neo4j listen on every interface.** `demo/docker-compose.yml` publishes the page
-   (8080), Neo4j Browser (7474) and bolt (7687) without a host address, so they listen on every
-   interface of the host. The page has no login. Anyone who reaches it reads everything it shows,
-   and can start a run (`POST /api/run`): the run reloads the store and, with a key set, calls the
-   model at the organisation's cost. Neo4j's password defaults to `kgpoc2026`. **Practice until
-   fixed:** run the stack on a machine only its users reach, or behind a firewall, and set
-   `KG_NEO4J_PASSWORD`. Proposed fix: publish the three ports on `127.0.0.1` by default, with a
-   variable to widen them, and refuse to start with the default password once the bind is wider.
+1. **The page has no login.** The compose stack publishes the page (8080), Neo4j Browser (7474)
+   and bolt (7687) on `127.0.0.1` only, unless `KG_BIND` names a wider address (task-0090). Anyone
+   who reaches the page reads everything it shows, and can start a run (`POST /api/run`): the run
+   reloads the store and, with a key set, calls the model at the organisation's cost. On the
+   default bind Neo4j's password may stay `kgpoc2026`, so every local user of the host reaches the
+   store; on a wider bind the stack refuses to start until `KG_NEO4J_PASSWORD` is set. **Practice:**
+   widen the bind only behind a firewall, or a reverse proxy that authenticates, that admits the
+   people who should read the page, and set `KG_NEO4J_PASSWORD` on any host with other users.
 2. **The `gives` role is not checked.** An answer is refused when its handle is not issued or has
    been withdrawn, but not when the handle lacks `gives`. Proposed fix: `capture.check_answers`
    refuses a handle without `gives`, as `review.check` does for `approves` and `closes`.
@@ -211,8 +212,8 @@ enforce it:
   `runs/` or its keys to this repository.
 - Keep the store, its volume, `KG_RDFLIB_FILE` and `runs/` under the same access controls as the
   documents.
-- Expose the page, Neo4j Browser and bolt only to the people who should read them, and set
-  `KG_NEO4J_PASSWORD` (Gap 1).
+- Leave `KG_BIND` unset unless other machines must reach the page; when it is widened, admit only
+  the people who should read the page, and set `KG_NEO4J_PASSWORD` on any shared host (Gap 1).
 - Issue opaque handles, and keep names and identifying details out of answers' notes.
 - Leave the model key unset unless the arms or the transcript route are wanted. When they are,
   choose the endpoint with the table above in mind, and confirm where a private endpoint forwards.
