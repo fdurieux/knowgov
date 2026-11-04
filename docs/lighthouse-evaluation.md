@@ -153,8 +153,9 @@ enough?*
   - The three-valued answer item: the store's census is the same before and after the server
     reads it.
   - The example instance's digest is the same before and after the whole collection.
-- **Gap:** the permissions are not yet written as one matrix. Task-0059 gains that table, with a
-  test for each row a test can enforce.
+- **The permission matrix** is in [`docs/security.md`](security.md) (task-0059), with the data
+  flows, what leaves the network per model-endpoint setting, and the gaps the code does not yet
+  enforce. Each enforceable row cites its test.
 - **Pilot:**
   - The pilot's security reviewer reads the data flows and the permission matrix.
   - The instance stays in the pilot's own repositories.
