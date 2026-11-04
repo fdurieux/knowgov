@@ -8,8 +8,13 @@ would be affected by retiring this module, changing this capability or this info
 A second, named walk (decision 0012) answers what implements a capability: the processes
 that realise it and the applications that support those processes. Same rule, other rows.
 
+With --children (decision 0014), the walk also starts from every descendant reached by `parent`,
+recursively: approved ones are walked, each by its own taxonomy's row; any other is reported,
+marked withdrawn, and not walked from. `parent` adds starts, never steps; off by default.
+
     python tools/impact.py --from APP-0002
     python tools/impact.py --from CAP-0002 --walk realisers
+    python tools/impact.py --from CAP-0001 --children
 """
 from __future__ import annotations
 
@@ -80,23 +85,66 @@ def reached(edges: list[dict]) -> set[str]:
     return {e["to"] for e in edges if e.get("live")}
 
 
+def descendants(reg: dict, start: str) -> list[str]:
+    """Every node below ``start`` by ``parent``, recursively, depth first in id order."""
+    kids: dict[str, list[str]] = {}
+    for nid, n in reg["nodes"].items():
+        if n.get("parent") is not None:
+            kids.setdefault(n["parent"], []).append(nid)
+    out, stack = [], sorted(kids.get(start, []), reverse=True)
+    while stack:
+        nid = stack.pop()
+        if nid in out or nid == start:
+            continue
+        out.append(nid)
+        stack.extend(sorted(kids.get(nid, []), reverse=True))
+    return out
+
+
+def walk_children(reg: dict, start: str, rows: dict | None = None) -> dict:
+    """Decision 0014: the walk from ``start`` and from each approved descendant, each by its own
+    taxonomy's row of ``rows``. Returns ``descendants`` (id, state, ``live``: approved, so walked),
+    ``edges`` (every edge met, from every start walked) and ``reached``: the union of the live far
+    ends, less the start and its descendants. ``walk`` itself is unchanged."""
+    desc = descendants(reg, start)
+    listed = [{"id": d, "state": reg["nodes"][d].get("state"), "live": reg["nodes"][d].get("state") == "approved"} for d in desc]
+    edges = list(walk(reg, start, rows))
+    for d in listed:
+        if d["live"]:
+            edges.extend(walk(reg, d["id"], rows))
+    return {"descendants": listed, "edges": edges, "reached": reached(edges) - {start, *desc}}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--from", dest="start", required=True)
     ap.add_argument("--walk", choices=sorted(WALKS), default="dependants",
                     help="dependants: what rests on the node (decision 0010, the default); realisers: what implements a capability (decision 0012)")
+    ap.add_argument("--children", action="store_true",
+                    help="also walk from every approved descendant by parent, recursively (decision 0014); off by default")
     ap.add_argument("--root", type=Path, default=ROOT)
     a = ap.parse_args(argv)
     reg = load_register(a.root)
     if a.start not in reg["nodes"]:
         print(f"{a.start}: no such node")
         return 2
-    edges = walk(reg, a.start, WALKS[a.walk])
+    if a.children:
+        got = walk_children(reg, a.start, WALKS[a.walk])
+        edges, live = got["edges"], got["reached"]
+        print(f"{a.start}: descendants by parent")
+        for d in got["descendants"]:
+            n = reg["nodes"][d["id"]]
+            print(f"  {d['id']} {n['name']!r} ({d['state']}){'' if d['live'] else ' WITHDRAWN, not walked'}")
+        if not got["descendants"]:
+            print("  none")
+        print()
+    else:
+        edges = walk(reg, a.start, WALKS[a.walk])
+        live = reached(edges)
     for e in edges:
         n = reg["nodes"][e["to"]]
         mark = "" if e["live"] else " WITHDRAWN, not followed"
         print(f"{e['from']} -[{e['rel']}, {e['state']}, owner {e['owner']}]-> {e['to']} {n['name']!r} ({n['state']}){mark}; evidence: {', '.join(e['evidence']) or 'none'}")
-    live = reached(edges)
     withdrawn = sum(1 for e in edges if not e["live"])
     if a.walk == "realisers":
         procs = sorted(x for x in live if x.startswith("PROC-"))

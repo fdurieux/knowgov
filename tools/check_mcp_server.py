@@ -12,7 +12,9 @@ arm reads: ``gate.render_bundle`` over ``gate.resolve(store, "codegen")`` with t
 task's verbatim documents from the scenario's kit, exactly as ``harness/run.py``'s ``arm_runs`` builds
 it (task-0080); and for a key set, the same over ``resolve_spec`` on those keys.
 Then ask ``register_impact`` from the first node of the subject's first register-map row and require
-every key it lands on at the level ``gate_verdict`` gives that key set (task-0111).
+every key it lands on at the level ``gate_verdict`` gives that key set (task-0111); and, when that node
+has a parent, from the parent with ``children`` (the register's decision 0014, task-0118): every key the
+child lands lands again, each at ``gate_verdict``'s level.
 The same process also answers ``server/discover`` and a stateless (2026-07-28) ``gate_verdict``,
 which must equal the handshake's (task-0079).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
@@ -246,6 +248,16 @@ def check_impact(client: "StdioClient", sc: str, failures: list[str], label: str
             failures.append(f"{label}: register_impact from {first['nodes'][0]} lands {len(keys)} key(s) whose levels differ from gate_verdict's")
         print(f"{label}: register_impact from {first['nodes'][0]} reaches {sum(len(v) for v in got['reached'].values())} node(s) "
               f"and lands {len(keys)} key(s), each at gate_verdict's level")
+        parent = got["node"].get("parent")
+        if parent:   # task-0118: the same from its parent with the register's descent (decision 0014)
+            up = client.call("register_impact", {"node": parent, "children": True, "scenario": sc, "as_of": "record"})
+            ukeys = [k["key"] for k in up["keys"]]
+            uwant = client.call("gate_verdict", {"scenario": sc, "keys": ukeys, "as_of": "record"}) if ukeys else {"levels": {}}
+            if not set(keys) <= set(ukeys) or {k["key"]: k["level"] for k in up["keys"]} != uwant["levels"]:
+                failures.append(f"{label}: register_impact from {parent} with children lands {len(ukeys)} key(s), not every one of "
+                                f"{first['nodes'][0]}'s or not at gate_verdict's levels")
+            print(f"{label}: register_impact from {parent} with children walks {sum(c['walked'] for c in up['children'])} of "
+                  f"{len(up['children'])} descendant(s) and lands {len(ukeys)} key(s), each at gate_verdict's level")
         return
     for x in sorted(rec.get("stale") or [], key=lambda x: x["key"]):
         if x["key"] not in rows:

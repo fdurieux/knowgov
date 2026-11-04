@@ -529,6 +529,85 @@ def test_register_impact_reads_levels_as_gate_verdict_and_writes_nothing():
     assert held_none["scenario"] is None and all("level" not in k for k in held_none["keys"])
 
 
+
+# ---- register_impact with children (task-0118): the register's decision 0014 descent, off by default
+
+# per subject: (start, walk) -> how many register-map keys land with children; none land without
+CHILDREN_LANDS = {"cargo_quote": {("CAP-0001", "dependants"): 31, ("CAP-0001", "realisers"): 36},
+                  "jef_data_load": {("CAP-0006", "dependants"): 30, ("CAP-0006", "realisers"): 80,
+                                    ("ENT-0006", "dependants"): 154}}
+
+
+def test_register_impact_children_off_by_default_and_equal_to_the_registers_walk_on_every_node():
+    """children false (or absent) is task-0111's answer; children true is impact.walk_children's edges and
+    reached set, every descendant listed with its state, walked when approved, withdrawn otherwise."""
+    import register_impact as ri
+    s = mcp_server.Server(mcp_server.Tools(opener=lambda: (_ for _ in ()).throw(OSError("no store here"))))
+    T = ri.load_tools()
+    reg = T["register"].load_register(ri.register_root())
+    with_desc = 0
+    for nid in sorted(reg["nodes"]):
+        for which in ("dependants", "realisers"):
+            plain = _call(s, "register_impact", {"node": nid, "walk": which})["result"]["structuredContent"]
+            off = _call(s, "register_impact", {"node": nid, "walk": which, "children": False})["result"]["structuredContent"]
+            on = _call(s, "register_impact", {"node": nid, "walk": which, "children": True})["result"]["structuredContent"]
+            assert plain == off and plain["children_walked"] is False and on["children_walked"] is True, (nid, which)
+            assert all(c["walked"] is False and "withdrawn" not in c for c in plain["children"])
+            want = T["impact"].walk_children(reg, nid, T["impact"].WALKS[which])
+            assert on["edges"] == want["edges"], (nid, which)
+            assert sorted(x["id"] for xs in on["reached"].values() for x in xs) == sorted(want["reached"]), (nid, which)
+            assert [(c["id"], c["state"], c["walked"], c["withdrawn"]) for c in on["children"]] == \
+                [(d["id"], d["state"], d["live"], not d["live"]) for d in want["descendants"]], (nid, which)
+            assert all(c["walked"] == (c["state"] == "approved") and reg["nodes"][c["parent"]] for c in on["children"])
+            assert [c["id"] for c in on["children"] if c["parent"] == nid] == [c["id"] for c in plain["children"]]
+            if not on["children"]:   # the same walk; the register's walk_children leaves the start out of what is reached
+                # where a cycle leads back to it (thirteen nodes on the dependants walk), as the plain walk does not
+                assert on["edges"] == plain["edges"], (nid, which)
+                assert sorted(x["id"] for xs in on["reached"].values() for x in xs) == \
+                    sorted(x["id"] for xs in plain["reached"].values() for x in xs if x["id"] != nid), (nid, which)
+            with_desc += bool(on["children"])
+    assert with_desc == 2 * 14   # decision 0014: fourteen nodes have children
+
+
+def test_register_impact_children_reaches_what_cap_0001s_children_reach_and_skips_the_proposed_one():
+    s, _ = _server()
+    off = _call(s, "register_impact", {"node": "CAP-0001"})["result"]["structuredContent"]
+    on = _call(s, "register_impact", {"node": "CAP-0001", "children": True})["result"]["structuredContent"]
+    assert off["edges"] == [] and off["reached"] == {}   # task-0111's answer, unchanged
+    assert sorted(x["id"] for xs in on["reached"].values() for x in xs) == ["JRN-0001", "PRD-0002", "PROC-0001"]
+    assert [(c["id"], c["walked"]) for c in on["children"]] == [("CAP-0002", True), ("CAP-0003", True), ("CAP-0004", True), ("CAP-0005", False)]
+    assert next(c for c in on["children"] if c["id"] == "CAP-0005") == {"id": "CAP-0005", "name": on["children"][3]["name"], "state": "proposed",
+                                                                         "parent": "CAP-0001", "walked": False, "withdrawn": True}
+    assert "CAP-0005" not in {e["from"] for e in on["edges"]}   # a withdrawn descendant is not walked from
+    assert not {"CAP-0001", "CAP-0002", "CAP-0003", "CAP-0004", "CAP-0005"} & {x["id"] for xs in on["reached"].values() for x in xs}
+    assert all(k["via"][0] != "CAP-0005" and "CAP-0005" not in k["via"] for k in on["keys"])
+    for bad in ("yes", 1, None):
+        assert _call(s, "register_impact", {"node": "CAP-0001", "children": bad})["result"]["isError"] is True, bad
+
+
+def test_register_impact_children_lands_the_subjects_keys_at_gate_verdicts_levels():
+    """On the subject the runner holds: with children, the parents above its slice land the counts
+    CHILDREN_LANDS names (CargoQuote's realisers walk from CAP-0001 lands all 36 codegen keys), none
+    without, each key at the level gate_verdict gives that key set; the store sees reads only."""
+    from subject import SUBJECT
+    want_counts = CHILDREN_LANDS[SUBJECT.id]
+    writes = []
+    s, _ = _server(Stub(writes=writes))
+    for (start, which), n in want_counts.items():
+        off = _call(s, "register_impact", {"node": start, "walk": which, "as_of": DAY})["result"]["structuredContent"]
+        on = _call(s, "register_impact", {"node": start, "walk": which, "children": True, "as_of": DAY})["result"]["structuredContent"]
+        assert off["keys"] == [] and len(on["keys"]) == n, (start, which, len(on["keys"]))
+        walked = {c["id"] for c in on["children"] if c["walked"]}
+        reached = {x["id"] for xs in on["reached"].values() for x in xs}
+        assert all(set(k["via"]) <= {start} | walked | reached for k in on["keys"])
+        keys = [k["key"] for k in on["keys"]]
+        want = _call(s, "gate_verdict", {"keys": keys, "as_of": DAY})["result"]["structuredContent"]
+        assert {k["key"]: k["level"] for k in on["keys"]} == want["levels"] and on["gate"]["verdict"] == want["verdict"]
+    if SUBJECT.id == "cargo_quote":
+        on = _call(s, "register_impact", {"node": "CAP-0001", "walk": "realisers", "children": True})["result"]["structuredContent"]
+        assert sorted(k["key"] for k in on["keys"]) == sorted(TASKS["codegen"]["keys"])
+    assert writes == []
+
 # Task-0117: the adopter section of instance/README.md, held to the server and the commands it names.
 
 README = ROOT / "instance" / "README.md"
