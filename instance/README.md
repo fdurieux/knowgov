@@ -249,6 +249,22 @@ a rule is skipped, and the load prints why. The rules are knowgov's decision-000
 and roles are ieam-register's decision 0009. `tools/check_review_walkthrough.py` runs the
 whole path on the example instance.
 
+**Starting from a conversation.** If someone has talked through what they know (a recorded
+interview, meeting minutes), a model can read the transcript and suggest answers:
+
+```bash
+python harness/transcript.py interview.txt --scenario S2
+```
+
+In plain English: this asks the model your instance names (the same endpoint and key variable as
+the arms) what the transcript says about each required key the store holds nothing on. Its
+suggestions are saved in `captures/inferred/` and load as the model's *proposed* statements:
+never more, since nothing verifies or approves a model's statement. The next questionnaire shows
+them under `known`, and only the person's own answer, ingested as above, becomes what they said.
+The transcript itself is never kept: the file records its fingerprint (SHA-256), the model and the
+date, not its text. A key your documents already state is not offered to the model, so a guess
+never lowers it. Without a model key the command refuses to run (exit 2).
+
 **The register's capture fields.** The three fields a capture carries are `from` (the handle),
 `on` (the date) and `record` (where the answer is kept). They are the fields ieam-register's
 [decision 0008](https://github.com/fdurieux/ieam-register/blob/main/decisions/0008-knowledge-a-person-gave.md)

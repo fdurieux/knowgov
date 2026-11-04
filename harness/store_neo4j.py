@@ -342,7 +342,7 @@ class Neo4jStore(Store):
             MERGE (x)-[:ABOUT]->(e)
             MERGE (x)-[:DERIVED_BY]->(act)
             MERGE (x)-[:ATTRIBUTED_TO]->(llm)
-            WITH x
+            WITH x WHERE $gid IS NOT NULL
             MERGE (g:Gap {id:$gid})
             MERGE (x)-[:CANDIDATE_FOR]->(g)""",
                  lid=agent_id, eid=entity, aid=activity["id"], at=activity["at"], itool=activity["tool"], note=activity["note"],

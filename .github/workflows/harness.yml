@@ -168,3 +168,5 @@ jobs:
           KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_mcp_server.py
       - name: A person's statement against the documents' (task-0038), on S2 a contradiction raises a conflict, an agreement corroborates and raises nothing
         run: KG_STORE=rdflib python tools/check_capture_pairing.py runs/pairing
+      - name: Route (c), a transcript read by a stub model (task-0041), gives inferred candidates on S2's empty keys only, listed in the questionnaire; no key, exit 2
+        run: KG_STORE=rdflib python tools/check_transcript_route.py runs/transcript

@@ -152,6 +152,9 @@ jobs:
       - name: A person's statement against the documents' (task-0038) on the Neo4j store, on S2 a contradiction raises a conflict, an agreement corroborates
         run: docker compose exec -T app python tools/check_capture_pairing.py runs/pairing
 
+      - name: Route (c) on the Neo4j store (task-0041), a transcript read by a stub model gives inferred candidates on the empty keys only
+        run: docker compose exec -T app python tools/check_transcript_route.py runs/transcript
+
       - name: A register node to the statements its cited anchor names (task-0046), on Neo4j, S6 with the S1 code as derived, equal to the rdflib port
         run: |
           docker compose exec -T app sh -c 'rm -rf runs/anchor && mkdir -p runs/anchor/S1 && cp subjects/cargo_quote/vendor/kg_experiment/results/S1/run1_G.py runs/anchor/S1/ && python harness/run.py --deterministic --scenarios S6 --out runs/anchor > /dev/null'
