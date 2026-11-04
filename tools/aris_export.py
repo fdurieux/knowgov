@@ -391,7 +391,10 @@ ARIS_XMLNS = {
     "deco": "http://www.omg.org/spec/BPMN/non-normative/extensions/envelope-decorator-bounds/1.0",
     "i18n": "http://www.omg.org/spec/BPMN/non-normative/extensions/i18n/1.0",
 }
-ARIS_EXPORTER_VERSION = "10.0.0.320027101"   # the real export's; the file's SYNTHETIC comment still says what it is
+ARIS_EXPORTER_VERSION = "10.0.0.320027101"   # the real export's, kept: the dialect's fidelity is the fixture's point
+# the exporter it names is marked, so the source_version a connector reads from exporter and
+# exporterVersion says synthetic in every MANIFEST it lands (task-0121)
+ARIS_EXPORTER = "synthetic, mimicking ARIS"
 
 
 def aris_id(v: dict, key: str) -> str:
@@ -431,7 +434,7 @@ def render_bpmn(reg: dict, e: Epc, flow: tuple[dict, list], v: dict, dialect: st
     if aris:
         ns += "".join(f' xmlns:{k}="{u}"' for k, u in ARIS_XMLNS.items())
         root = (f'<{q}:definitions {ns} id="Definitions_{aris_id(v, "definitions")}" name="quote_process" '
-                f'targetNamespace="http://www.softwareag.com/aris/bpmn2" exporter="ARIS" '
+                f'targetNamespace="http://www.softwareag.com/aris/bpmn2" exporter="{ARIS_EXPORTER}" '
                 f'exporterVersion="{ARIS_EXPORTER_VERSION}" xml:lang="en">\n')
         collab_extra, proc_extra = ' arisebpmn:type="MT_ENTERPRISE_BPMN_COLLABORATION"', ""
     else:

@@ -27,6 +27,16 @@ names that section with the version.
     guards it). It has not yet run on a real installation.
   - The synthetic export now carries the real ARIS 10.0 namespace URIs, `exporterVersion` and
     `aris:port` values in place of task-0119's stand-ins.
+- **Connector follow-ups** (task-0121):
+  - The register's own `tools/reconcile.py` is now vendored with its other tools, still at
+    v0.2.8. The connector imports its comparison instead of restating it, and adds only its own
+    extensions on top.
+  - `tools/check_instance.py` checks `connectors.toml`. Each `[system.<name>]` must be a system of
+    the register's `metamodel/sources.toml`, and `id_attribute` must be a non-empty string.
+    Anything else is a layout error.
+  - The synthetic ARIS BPMN keeps `exporterVersion="10.0.0.320027101"`, but its `exporter` now
+    reads `synthetic, mimicking ARIS`. A landed MANIFEST's `source_version` therefore never reads
+    as a real ARIS export.
 - **A synthetic CargoQuote ARIS export** (task-0119): `tools/aris_export.py` writes, per variant,
   one AML file and the same process in two BPMN 2.0 dialects, from public CargoQuote material only
   (the vendored kit's `quote_process.bpmn` and the vendored register). The fixtures are committed

@@ -10,6 +10,7 @@ An instance is an organisation's own folder, mounted read-only by docker-compose
     record/<subject>/   the instance's own results, a subject's [record] dir
     code_map.toml       optional: code path globs -> the register application or module (APP id)
                         each implements (task-0050)
+    connectors.toml     optional: the systems of record tools/connector.py mirrors (task-0063)
 
 The check reads and never writes. It reports, per kind, the files present and the mapper that
 reads each; a file of a kind no mapper reads, or a store artefact a manifest gives no mapper, is
@@ -17,7 +18,9 @@ reported *absent*: the store will not hold its statements, and the report says s
 skipping it. A file under artefacts/ that no subject names is listed as unread. With a
 code_map.toml, a row naming an APP id the instance's register does not hold, or two rows that
 overlap (one file matched by both, or one glob covering the other), is an error; a code file no
-row matches is listed as unmapped, a row matching no file as unmatched.
+row matches is listed as unmapped, a row matching no file as unmatched. With a connectors.toml,
+a [system.<name>] the register's metamodel/sources.toml does not name, or an id_attribute that is
+not a non-empty string, is an error (task-0121).
 
 Exit 0 when the layout holds (absent and unread files are findings to read, not errors), 1 when
 it does not (no register, an unknown kind folder, a subject that does not load, an artefact path
@@ -40,6 +43,7 @@ from code_map import CODE_MAP, code_map, glob_re, register_apps  # noqa: E402,F4
 KINDS_TABLE = ROOT / "instance" / "kinds.toml"
 REGISTER_TREES = ("metamodel", "relationships", "decisions", "glossary", "exports")
 SKIP = {"__pycache__", ".git", ".DS_Store"}
+CONNECTORS = "connectors.toml"
 
 
 def kinds(path: Path = KINDS_TABLE) -> dict[str, dict]:
@@ -58,6 +62,43 @@ def _files(p: Path) -> list[Path]:
     return sorted(f for f in p.rglob("*") if f.is_file() and not (set(f.parts) & SKIP))
 
 
+def connectors(inst: Path, reg: Path, errors: list[str]) -> dict | None:
+    """The instance's connectors.toml against its register (task-0121): each [system.<name>] a
+    system of the register's metamodel/sources.toml, its id_attribute a non-empty string when
+    given (tools/connector.py defaults it). None when the instance has no such file."""
+    p = inst / CONNECTORS
+    if not p.is_file():
+        return None
+    try:
+        cfg = tomllib.loads(p.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as e:
+        errors.append(f"{CONNECTORS}: not TOML: {e}")
+        return {"systems": []}
+    systems = cfg.get("system", {})
+    if not isinstance(systems, dict) or not systems:
+        errors.append(f"{CONNECTORS}: no [system.<name>] table")
+        return {"systems": []}
+    src = reg / "metamodel" / "sources.toml"
+    try:
+        known = tomllib.loads(src.read_text(encoding="utf-8")).get("system", {}) if src.is_file() else {}
+    except tomllib.TOMLDecodeError as e:
+        errors.append(f"register/metamodel/sources.toml: not TOML: {e}")
+        known = {}
+    rows = []
+    for name, sysc in sorted(systems.items()):
+        if not isinstance(sysc, dict):
+            errors.append(f"{CONNECTORS}: system.{name} is not a table")
+            continue
+        if name not in known:
+            errors.append(f"{CONNECTORS}: [system.{name}] is not a system of register/metamodel/sources.toml"
+                          f" (it names {', '.join(sorted(known)) or 'none'})")
+        ida = sysc.get("id_attribute", "AT_ID")
+        if not isinstance(ida, str) or not ida.strip():
+            errors.append(f"{CONNECTORS}: [system.{name}] id_attribute must be a non-empty string, not {ida!r}")
+        rows.append({"system": name, "id_attribute": ida, "in_register": name in known})
+    return {"systems": rows}
+
+
 def check(instance: Path, table: dict[str, dict] | None = None) -> dict:
     """The report: errors (the layout does not hold), absent (read by nothing), unread (named by no
     subject), and per kind the files and what reads them. Never writes."""
@@ -66,7 +107,7 @@ def check(instance: Path, table: dict[str, dict] | None = None) -> dict:
     inst = instance.resolve()
     errors: list[str] = []
     rep: dict = {"instance": str(inst), "register": None, "subjects": [], "kinds": {}, "absent": [], "unread": [],
-                 "code_map": None, "errors": errors}
+                 "code_map": None, "connectors": None, "errors": errors}
 
     reg = inst / "register"
     if not reg.is_dir():
@@ -143,6 +184,7 @@ def check(instance: Path, table: dict[str, dict] | None = None) -> dict:
                                           "why": f"no mapper reads {folder}: the store holds no statement from it"})
         rep["kinds"][folder] = {"row": k["row"], "mappers": k["mappers"], "files": rows}
     rep["code_map"] = code_map(inst, register_apps(reg) if reg.is_dir() else {}, errors)
+    rep["connectors"] = connectors(inst, reg, errors)
     return rep
 
 
@@ -168,6 +210,9 @@ def render(rep: dict) -> str:
             out.append(f"UNMATCHED {g}: no code file matches it")
         for f in cm["unmapped"]:
             out.append(f"UNMAPPED {f}: no row of {CODE_MAP} names its application")
+    for c in (rep.get("connectors") or {}).get("systems", []):
+        out.append(f"connector {c['system']}: id attribute {c['id_attribute']!r}"
+                   + ("" if c["in_register"] else ", not in the register's sources"))
     for e in rep["errors"]:
         out.append(f"ERROR {e}")
     out.append("layout holds" if not rep["errors"] else f"layout does not hold: {len(rep['errors'])} error(s)")

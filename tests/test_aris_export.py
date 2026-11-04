@@ -180,7 +180,7 @@ def test_the_aris_dialect_bpmn_is_the_same_model_with_aris_ids_and_dropped_field
     for v in ax.VARIANTS:
         assert "<semantic:definitions " in text[v] and "<bpmn:" not in text[v] and "SYNTHETIC" in text[v]
         root = _bpmn(v, "quote_process.aris.bpmn")
-        assert root.get("exporter") == "ARIS" and root.get("targetNamespace") == "http://www.softwareag.com/aris/bpmn2"
+        assert root.get("exporter") == "synthetic, mimicking ARIS" and root.get("targetNamespace") == "http://www.softwareag.com/aris/bpmn2"
         assert root.get("id").startswith("Definitions_ID-") and root.get("{http://www.w3.org/XML/1998/namespace}lang") == "en"
         assert root.get("exporterVersion") == "10.0.0.320027101"
         # the namespace URIs a real ARIS 10.0 export declared, no stand-in left (task-0063)
@@ -237,3 +237,26 @@ def test_the_generator_reads_only_public_cargo_quote_material_and_writes_no_vend
     assert not ax.FIXTURES.is_relative_to(ROOT / "subjects")
     for word in ("jef", "akantai", "J-F"):
         assert word not in text, word
+
+
+def test_a_landed_manifest_says_synthetic_in_every_part_of_its_source_version():
+    """task-0121: the ARIS-dialect BPMN keeps the real export's exporterVersion, and its exporter is
+    marked, so no part of the source_version a connector lands could be read as a real ARIS export."""
+    import tempfile
+    import connector
+    for v in ax.VARIANTS:
+        root = _bpmn(v, "quote_process.aris.bpmn")
+        assert (root.get("exporter"), root.get("exporterVersion")) == ("synthetic, mimicking ARIS", "10.0.0.320027101")
+        got = connector.read_export([ax.FIXTURES / v], "AT_ID")
+        assert "synthetic, mimicking ARIS 10.0.0.320027101" in got["versions"], got["versions"]
+        assert got["versions"] and all("synthetic" in part.lower() for part in got["versions"]), got["versions"]
+    with tempfile.TemporaryDirectory() as td:
+        inst = Path(td)
+        import shutil
+        shutil.copytree(ROOT / "demo" / "register", inst / "register", ignore=shutil.ignore_patterns("__pycache__"))
+        (inst / "connectors.toml").write_text('[system.aris]\n', encoding="utf-8")
+        man = connector.land(inst, "aris", [ax.FIXTURES / "first"])["manifest"]
+        parts = connector.read_export([ax.FIXTURES / "first"], "AT_ID")["versions"]
+        assert man["source_version"] == "; ".join(parts) and all("synthetic" in p.lower() for p in parts), man["source_version"]
+        landed = tomllib.loads((inst / "register" / "exports" / "aris" / "2026-11-04" / "MANIFEST.toml").read_text(encoding="utf-8"))
+        assert landed["source_version"] == man["source_version"]
