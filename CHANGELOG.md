@@ -8,9 +8,15 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
-## Unreleased
+## 0.4.0 — 2026-11-04
 
-### Contract changes (raise the minor version at the next release, decision-0003)
+The gate becomes something an AI-native delivery pipeline can rely on. A fail-closed Claude Code
+hook runs it at stage transitions and stops the step when it says no or cannot run. Each finding
+names the unit that answers for the key and the route to approval, and a declared gap also names
+the unit that closes it. The MCP server reads one date per process. A second task class, `design`,
+checks a requirements-and-design step. The register moves to ieam-register `v0.2.7`.
+
+### Contract changes (why this is 0.4.0, decision-0003)
 
 - **MCP server, one `as_of` per process** (task-0100, doc-0014 C2): `harness/mcp_server.py` reads
   `KG_AS_OF` (or `--as-of`: `YYYY-MM-DD`, `record` or `today`; default `today`) once at start and
@@ -32,7 +38,7 @@ names that section with the version.
   CargoQuote's OD-1), and its `route` ends with the close. Additive: `schema_version` stays 2. The
   hook's summary and the page's gate box name the closing unit.
 
-### Also since 0.3.0
+### Also in this release
 
 - **A fail-closed Claude Code hook for the gate** (task-0099, doc-0014 C1): `instance/ci/claude/`
   runs the gate at stage transitions (plan accepted, spec committed, before push), never on every
@@ -45,6 +51,14 @@ names that section with the version.
   code quality; a finding the baseline holds is at most a warning.
 - **knowgov dogfoods the hook** (task-0105): this repository's `.claude/` blocks hand edits to
   vendored files and to the backlog.
+- **The register is vendored at ieam-register `v0.2.7`** (task-0109): decision 0012's realiser walk
+  and decision 0013's review months. CargoQuote's three `response|*` keys now lapse after six
+  months; as of 2027-02-07, S1, S3 and S6 read QUALIFIED. The record (as of 2026-10-30) is
+  unchanged.
+- **The MCP allowlist leaves the managed hook fragment** (task-0107): `instance/ci/claude/managed-settings.json`
+  carries `allowManagedHooksOnly` and the hook only; `allowManagedMcpServersOnly` and `allowedMcpServers` move to
+  `managed-mcp-allowlist.json`, an opt-in whose lists replace lower sources' and must be merged; the hook stays
+  mandatory without it.
 - **A `design` task class on CargoQuote** (task-0101, doc-0014 C3): `[tasks.design]` names the 36
   keys a requirements-and-design pass rests on (each requirement's text and the component that
   carries it, the screening bands and their outcomes, the failure behaviours, the flow's order, the
@@ -56,21 +70,22 @@ names that section with the version.
   structure is extracted and never verified. `docs/lighthouse-evaluation.md` names the class at each
   pilot transition: `design` at the specification's commit, `codegen` at plan acceptance and push.
 
+### What this release carries
+
+| what | version |
+|---|---|
+| pumllint (the sequence-diagram mapper's parser) | 0.33.0, from PyPI |
+| the IEAM register, vendored under `demo/register/` | ieam-register `v0.2.7` |
+| the record's pins | unchanged from 0.3.0 |
+| Python | 3.12 in the image |
+
+The image is `ghcr.io/fdurieux/knowgov:v0.4.0`. The compose file moves to it in a follow-up, once
+the Release has published its digest.
+
 ### Known limits
 
 - The GitLab include is proven by shell, not yet on a GitLab runner (task-0108).
 - The hooks see Edit and Write, not a shell command writing the same file.
-
-### Also since 0.3.0
-
-- **The register is vendored at ieam-register `v0.2.7`** (task-0109): decision 0012's realiser walk
-  and decision 0013's review months. CargoQuote's three `response|*` keys now lapse after six
-  months; as of 2027-02-07, S1, S3 and S6 read QUALIFIED. The record (as of 2026-10-30) is
-  unchanged.
-
-### Also since 0.3.0
-
-- **The MCP allowlist leaves the managed hook fragment** (task-0107): `instance/ci/claude/managed-settings.json` carries `allowManagedHooksOnly` and the hook only; `allowManagedMcpServersOnly` and `allowedMcpServers` move to `managed-mcp-allowlist.json`, an opt-in whose lists replace lower sources' and must be merged; the hook stays mandatory without it.
 
 ## 0.3.0 — 2026-11-04
 
