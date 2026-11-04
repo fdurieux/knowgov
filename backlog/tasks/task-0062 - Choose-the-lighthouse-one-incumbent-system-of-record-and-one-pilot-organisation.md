@@ -3,11 +3,11 @@ id: TASK-0062
 title: >-
   Choose the lighthouse: one incumbent system of record and one pilot
   organisation
-status: To Do
+status: In Progress
 assignee:
   - '@fdurieux'
 created_date: '2026-11-03T22:48:00Z'
-updated_date: '2026-11-03T22:51:00Z'
+updated_date: '2026-11-04T15:28:00Z'
 labels:
   - lighthouse
 milestone: m-8
@@ -29,7 +29,13 @@ doc-0012 §6: both external reviewers (gpt-5.5, gemini-pro-latest) put one light
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A knowgov decision record names the incumbent system of record and why, against the alternatives doc-0012 lists
+- [x] #1 A knowgov decision record names the incumbent system of record and why, against the alternatives doc-0012 lists
 - [ ] #2 The pilot organisation is named in the private record only; this repository records that one exists, its sector, and the date of its go
 - [ ] #3 The pilot slice is stated as one product and one journey, as doc-0001 §1 frames it
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-04: AC #1 met by decision-0006, the incumbent is ARIS (maintainer). The pilot organisation is not committed yet; AC #2 and #3 wait for its go. Its sector is recorded here only at the go, per AC #2.
+<!-- SECTION:NOTES:END -->
