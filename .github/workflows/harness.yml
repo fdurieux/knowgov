@@ -122,13 +122,14 @@ jobs:
       - name: The gate as a command (task-0007) exits 0, 1 or 2 under the contract, and ratchets on the record
         run: |
           cd harness
-          gate() { KG_STORE=rdflib python gate_cli.py "$@" > /dev/null 2>&1; echo $?; }
+          # read as of the record's pinned date (decision-0005), so the expectations never move by the clock
+          gate() { KG_STORE=rdflib python gate_cli.py --as-of record "$@" > /dev/null 2>&1; echo $?; }
           test "$(gate --scenario S1)" = 0
           test "$(gate --scenario S2)" = 1
           test "$(gate --scenario S3)" = 0
           test "$(gate --scenario S3 --fail-on major)" = 1
           test "$(gate --scenario S2 --baseline record)" = 0
-          KG_STORE=rdflib python gate_cli.py --scenario S1 -f json -o ../runs/gate-s1.json > /dev/null
+          KG_STORE=rdflib python gate_cli.py --as-of record --scenario S1 -f json -o ../runs/gate-s1.json > /dev/null
           test "$(gate --scenario S2 --baseline ../runs/gate-s1.json)" = 1
           test "$(gate --scenario nope)" = 2
           test "$(gate --scenario S6 --stage 2)" = 1
@@ -137,12 +138,55 @@ jobs:
           test "$(gate --scenario S6 --stage 2 --no-load)" = 2
           test "$(gate --subject ../subjects/jef_data_load --baseline record)" = 0
           test "$(gate --subject ../subjects/minimal)" = 1
-          KG_STORE=rdflib python gate_cli.py --scenario S2 --baseline record
+          # decision-0005: CargoQuote's ten review-only keys, reviewed 2026-08-06, lapse on 2027-08-07; J-F rests on execution
+          test "$(gate --scenario S1 --as-of 2027-08-06 --baseline record)" = 0
+          test "$(gate --scenario S1 --as-of 2027-08-07)" = 1
+          test "$(gate --scenario S1 --as-of 2027-08-07 --baseline record)" = 1
+          test "$(gate --subject ../subjects/jef_data_load --as-of 2030-01-01 --baseline record)" = 0
+          test "$(gate --scenario S1 --as-of 2027-13-01)" = 2
+          KG_STORE=rdflib python gate_cli.py --as-of record --scenario S2 --baseline record
           python3 -c 'import sys,json; sys.path.insert(0,"."); import schema_check as s; r=json.load(open("../runs/gate-s1.json")); e=s.validate(r, s.load("gate-report")); assert not e, e; assert r["schema_version"]==2, r["schema_version"]; print("report valid:", r["schema_version"], r["verdict"], r["exit_code"])'
       - name: The gate brings in S6's later version (task-0049), BLOCKED on four invalidated statements, then after re-verification exits 1 on the suspect derived output (task-0048)
         run: KG_STORE=rdflib python tools/check_gate_after_change.py runs/gate-change
       - name: knowgov-trace (task-0051) on the example instance, a registered build of APP-0001 turns suspect after S6's change and check exits 1 naming it
         run: rm -rf runs/trace && KG_STORE=rdflib python tools/check_trace_walkthrough.py runs/trace
+      - name: "The pipeline wrappers (task-0052): the GitHub composite action, on the example instance, S6: setup"
+        run: |
+          rm -rf runs/wrap && python tools/example_instance.py runs/wrap/instance > /dev/null
+          g() { git -C runs/wrap/instance -c user.name=ci -c user.email=ci@example.invalid "$@"; }
+          g init -q -b main && g commit -q --allow-empty -m root && g add -A && g commit -qm instance
+          echo "KG_STORE=rdflib" >> "$GITHUB_ENV"; echo "KG_RDFLIB_FILE=$PWD/runs/wrap/store.ttl" >> "$GITHUB_ENV"
+      - name: "The action: preload, clean, exit 0"
+        uses: ./instance/ci/github
+        with: { gate: preload, instance: runs/wrap/instance, base: HEAD~1 }
+      - name: "The action: gate on S6, exit 0"
+        uses: ./instance/ci/github
+        with: { gate: gate, instance: runs/wrap/instance, scenario: S6 }
+      - name: "The action: trace-register the reference code, exit 0"
+        uses: ./instance/ci/github
+        with: { gate: trace-register, instance: runs/wrap/instance, files: reference_impl.py, ledger: runs/wrap/ledger.json }
+      - name: "The action: gate on S6's change, exit 1"
+        id: wrap_stage2
+        continue-on-error: true
+        uses: ./instance/ci/github
+        with: { gate: gate, instance: runs/wrap/instance, scenario: S6, stage: "2", report: runs/wrap/gate-stage2.json }
+      - name: "A code change in the instance's repository: an edit to the registered file"
+        run: |
+          f=runs/wrap/instance/subjects/cargo_quote/vendor/stack_experiment/cargo_quote/reference_impl.py && echo "# an edit in the pull request" >> "$f"
+          git -C runs/wrap/instance -c user.name=ci -c user.email=ci@example.invalid commit -qam edit
+      - name: "The action: trace-check after the change, exit 1 naming APP-0001"
+        id: wrap_check
+        continue-on-error: true
+        uses: ./instance/ci/github
+        with: { gate: trace-check, instance: runs/wrap/instance, ledger: runs/wrap/ledger.json, base: HEAD~1, report: runs/wrap/trace-check.json }
+      - name: "The action's two failing steps failed with exit 1, by their reports; then the GitLab include's script lines, run by a shell, the same command line"
+        env:
+          STAGE2: ${{ steps.wrap_stage2.outcome }}
+          CHECK: ${{ steps.wrap_check.outcome }}
+        run: |
+          test "$STAGE2" = failure && test "$CHECK" = failure
+          python3 -c 'import json; g=json.load(open("runs/wrap/gate-stage2.json")); t=json.load(open("runs/wrap/trace-check.json")); assert g["exit_code"]==1 and g["verdict"]=="BLOCKED", g["verdict"]; s=[f for f in t["findings"] if f["kind"]=="suspect"]; assert t["exit_code"]==1 and t["changed"]==["reference_impl.py"] and len(s)==1 and s[0]["app"]=="APP-0001", t; print("action:", g["verdict"], "then suspect on", s[0]["app"])'
+          unset KG_RDFLIB_FILE; rm -rf runs/wrap-gitlab && KG_STORE=rdflib python tools/check_ci_wrappers.py runs/wrap-gitlab
       - name: The capture path (task-0009), questionnaire, answers, the gate after, and nothing above proposed
         run: |
           rm -rf runs/capture && python tools/example_instance.py runs/capture > /dev/null
@@ -194,6 +238,8 @@ jobs:
         run: |
           rm -rf runs/lighthouse
           KG_STORE=rdflib python tools/lighthouse_evidence.py runs/lighthouse
+      - name: Route (c), a transcript read by a stub model (task-0041), gives inferred candidates on S2's empty keys only, listed in the questionnaire; no key, exit 2
+        run: KG_STORE=rdflib python tools/check_transcript_route.py runs/transcript
       - name: The store survives a round trip (task-0070), every scenario of both subjects through Turtle into a fresh store, the same gate reports and three-valued answers
         run: |
           KG_STORE=rdflib python tools/check_round_trip.py --chain rdflib,rdflib

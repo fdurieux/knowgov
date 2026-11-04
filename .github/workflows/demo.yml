@@ -130,11 +130,11 @@ jobs:
       - name: The gate as a command (task-0007) on the Neo4j store, with the record as baseline
         run: |
           set +e
-          docker compose exec -T app python harness/gate_cli.py --scenario S2; s2=$?
-          docker compose exec -T app python harness/gate_cli.py --scenario S2 --baseline record; s2b=$?
-          docker compose exec -T app python harness/gate_cli.py --scenario S1 -f json > gate.json; s1=$?
-          docker compose exec -T app python harness/gate_cli.py --scenario S1 --no-load; s1n=$?
-          docker compose exec -T app python harness/gate_cli.py --scenario S2 --no-load; s2n=$?
+          docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S2; s2=$?
+          docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S2 --baseline record; s2b=$?
+          docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S1 -f json > gate.json; s1=$?
+          docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S1 --no-load; s1n=$?
+          docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S2 --no-load; s2n=$?
           set -e
           echo "S2 $s2, S2 against the record $s2b, S1 $s1, S1 as loaded $s1n, S2 while S1 is loaded $s2n"
           test "$s2 $s2b $s1 $s1n $s2n" = "1 0 0 0 2"
@@ -149,9 +149,14 @@ jobs:
       - name: The gate brings in S6's later version (task-0049) on the Neo4j store, BLOCKED, then exits 1 on the suspect derived output after re-verification
         run: docker compose exec -T app python tools/check_gate_after_change.py runs/gate-change
 
+      - name: knowgov-trace (task-0051) on the Neo4j store, the example instance, a registered build of APP-0001 turns suspect after S6's change and check exits 1 naming it
+        run: docker compose exec -T app sh -c 'rm -rf runs/trace && python tools/check_trace_walkthrough.py runs/trace'
+
       - name: A person's statement against the documents' (task-0038) on the Neo4j store, on S2 a contradiction raises a conflict, an agreement corroborates
         run: docker compose exec -T app python tools/check_capture_pairing.py runs/pairing
 
+      - name: Route (c) on the Neo4j store (task-0041), a transcript read by a stub model gives inferred candidates on the empty keys only
+        run: docker compose exec -T app python tools/check_transcript_route.py runs/transcript
       - name: The store survives a round trip (task-0070), Neo4j to Turtle to rdflib and back to Neo4j, every scenario of both subjects, the same gate reports and three-valued answers
         run: |
           docker compose exec -T app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j

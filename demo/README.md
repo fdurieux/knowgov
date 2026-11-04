@@ -675,6 +675,15 @@ blockers. `--baseline <file>` compares with an earlier report of the
 command, written with `-o <file>`. The command never writes a baseline
 itself: keeping one is your decision, made by committing the file.
 
+**As of a date.** A review falls due after the review months of the kind
+its key concerns, from the register's `metamodel/lifecycle.toml`
+(decision-0005); past that, the statement reads validated and the report
+lists a `lapsed` finding (major). `--as-of` is the date this is read on:
+today by default, `record` for the subject's pinned record date, or
+`YYYY-MM-DD`. `--scenario S1 --as-of 2027-08-07` is BLOCKED: CargoQuote's
+ten review-only keys, reviewed on 2026-08-06, have lapsed. The
+deterministic run and the comparator always read as of the record date.
+
 `-f json` prints the report as data, in the shape
 `harness/schemas/gate-report.schema.json` pins; the command checks it
 against that schema before printing. The report is at version 2: from

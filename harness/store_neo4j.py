@@ -397,7 +397,7 @@ class Neo4jStore(Store):
             MERGE (x)-[:ABOUT]->(e)
             MERGE (x)-[:DERIVED_BY]->(act)
             MERGE (x)-[:ATTRIBUTED_TO]->(llm)
-            WITH x
+            WITH x WHERE $gid IS NOT NULL
             MERGE (g:Gap {id:$gid})
             MERGE (x)-[:CANDIDATE_FOR]->(g)""",
                  lid=agent_id, eid=entity, aid=activity["id"], at=activity["at"], itool=activity["tool"], note=activity["note"],
@@ -455,6 +455,16 @@ class Neo4jStore(Store):
             WITH x, h MERGE (ap:Approval {id:'appr:' + $version + ':' + x.id}) SET ap.at=$ts, ap.record=$record
             MERGE (ap)-[:APPROVES]->(x) MERGE (ap)-[:BY]->(h) SET x.status='approved'
             RETURN collect(x.id) AS ids""", version=version, keys=keys, hid=agent_id, ts=ts, scope=scope, record=record).single()["ids"]
+
+    def review_verifications(self) -> list[dict]:
+        return _rows(self.run("""
+            MATCH (v:Verification {method:'review'})-[:VERIFIES]->(x:Assertion) WHERE v.valid_until IS NULL
+            RETURN v.id AS id, x.key AS key, v.at AS at ORDER BY id"""))
+
+    def set_valid_until(self, dates) -> None:
+        self.run("""
+            UNWIND $rows AS r MATCH (v:Verification {id:r.id}) SET v.valid_until = r.until""",
+                 rows=[{"id": k, "until": d} for k, d in sorted(dates.items())]).consume()
 
     def register_derived(self, did, kind, sha, assertion_ids) -> None:
         self.run("""CREATE (dv:Derived {id:$did, kind:$dkind, sha256:$sha, suspect:false})

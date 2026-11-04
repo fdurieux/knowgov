@@ -82,7 +82,7 @@ derive_execution = { from_predicate = "verified_by", key_predicate = "statement"
                               # suite scenarios that verify <req>|statement, read from the scenario's own kit, so a
                               # scenario the plant removed verifies nothing
 execution_scope = "suite scenario {scenario} on reference_impl.py (smoke 2026-10-30)"
-review = { at = "2026-08-06", scope = "..." }       # the dated human review
+review = { at = "2026-08-06", scope = "..." }       # the dated human review; it lapses after its keys' review months (decision-0005)
 authored = { at = "2026-10-30", scope = "..." }     # authored statements: reviewed by construction
 approval = { at = "2026-08-06", record = "..." }    # the owner's approval of every verified assertion
 
@@ -121,6 +121,7 @@ export_manifest = "exports/kit/2026-10-30/MANIFEST.toml"   # in the vendored reg
 
 [record]
 dir = "vendor/kg_experiment/results"   # <scenario>/deterministic.json and the arms' run files; never written
+as_of = 2026-10-30            # optional: the date the record is read as of (decision-0005); absent, today
 
 [page.reference]              # the no-governance reference the page cites
 title = "..."

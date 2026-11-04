@@ -17,6 +17,12 @@ Everything else — counts, rule hits, census, verdicts, the invalidation
 set, the gate's keys — must match. Exit 0 iff nothing differs; the diff
 is printed either way, one line per leaf.
 
+A run records the date it read review currency on (``as_of``, decision-0005); the record, made
+before the date was recorded, has none. The comparator holds the run's date to the subject's
+pinned record date (``subject.toml`` ``[record] as_of``): a run read as of another date is one
+differing leaf, since a lapsed review would move the gate; it is not a leaf otherwise, and a run
+that names no date (one made before the date was recorded) is not held to it.
+
 A scenario whose subject names a ``deterministic_record`` (the record's own
 deterministic-mode run) is compared against that by default: the scored
 record's stage 2 may register an earlier governed output as a ``Derived``
@@ -47,6 +53,7 @@ sys.path.insert(0, str(HERE.parent.parent / "harness"))
 from subject import SUBJECT  # noqa: E402  (the subject root: KG_SUBJECT, default subjects/cargo_quote)
 
 RECORD = SUBJECT.record_dir     # the subject's vendored record
+PINNED = SUBJECT.record_as_of   # the date the record is read as of (decision-0005); None: not pinned
 SCENARIOS = SUBJECT.order
 # a scenario whose record also holds a deterministic-mode run is compared against that by default
 DETERMINISTIC_RECORDS = {sc: s["deterministic_record"] for sc, s in SUBJECT.scenarios.items() if s.get("deterministic_record")}
@@ -122,9 +129,13 @@ def compare(run_dir: Path, record_dir: Path, scenarios: list[str], record_for: d
             for k in STORE_SPECIFIC:
                 ja.pop(k, None); jb.pop(k, None)
             note = f" ({', '.join(sorted(STORE_SPECIFIC))} skipped: the run's store is {store_a}, the record's {store_b})"
+        run_on, rec_on = ja.pop("as_of", None), jb.pop("as_of", None)
+        diffs = []
+        want = rec_on or PINNED
+        if want and run_on is not None and run_on != want:   # a run that names no date predates decision-0005
+            diffs.append(f"  as_of: run={run_on!r} record={want!r} (the record is read as of its pinned date; decision-0005)")
         la = _leaves(ja, ignore=ignore)
         lb = _leaves(jb, ignore=ignore)
-        diffs = []
         for k in sorted(set(la) | set(lb)):
             if la.get(k, "<missing>") != lb.get(k, "<missing>"):
                 diffs.append(f"  {k}: run={la.get(k, '<missing>')!r} record={lb.get(k, '<missing>')!r}")

@@ -311,8 +311,9 @@ class RdflibStore(Store):
         self.merge_edge(x, "ABOUT", e)
         self.merge_edge(x, "DERIVED_BY", act)
         self.merge_edge(x, "ATTRIBUTED_TO", llm)
-        g = self.merge_node(candidate_for, "Gap")
-        self.merge_edge(x, "CANDIDATE_FOR", g)
+        if candidate_for:   # the open decision it claims to resolve; a transcript's candidate names none
+            g = self.merge_node(candidate_for, "Gap")
+            self.merge_edge(x, "CANDIDATE_FOR", g)
 
     # ---- verifications and approvals ---------------------------------------------------------
     def _live_on_key(self, key, values):
@@ -388,6 +389,22 @@ class RdflibStore(Store):
             self.set_props(x, {"status": "approved"})
             ids.append(self.nid(x))
         return ids
+
+    def review_verifications(self) -> list[dict]:
+        out = []
+        for v in self.nodes("Verification", method="review"):
+            if self.prop(v, "valid_until") is not None:
+                continue
+            for x in self.out(v, "VERIFIES"):
+                if self.has_label(x, "Assertion"):
+                    out.append({"id": self.nid(v), "key": self.prop(x, "key"), "at": self.prop(v, "at")})
+        return sorted(out, key=lambda r: r["id"])
+
+    def set_valid_until(self, dates) -> None:
+        for vid, d in dates.items():
+            v = self.node(vid, "Verification")
+            if v is not None:
+                self.set_props(v, {"valid_until": d})
 
     def register_derived(self, did, kind, sha, assertion_ids) -> None:
         dv = self.create_node(did, "Derived", {"kind": kind, "sha256": sha, "suspect": False})

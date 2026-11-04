@@ -299,6 +299,10 @@ keys = []
 
 [record]
 dir = "record"
+# the date the record is read as of (decision-0005): the kit's review and suite run, 2026-10-24. A
+# deterministic run and the comparator read review currency on it, so the record never moves by the
+# clock; the gate command reads today.
+as_of = 2026-10-24
 
 # The register view: the derived key-to-node map, the evidence anchor the register's links use for a
 # requirement (the jef_kit source system, decision 0005 there), and its export folder's manifest.

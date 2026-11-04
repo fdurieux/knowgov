@@ -80,8 +80,9 @@ class Store:
         """Every fragment MENTIONS the entities its assertions are about."""
         raise NotImplementedError
 
-    def create_inferred(self, props: dict, entity: str, activity: dict, agent_id: str, candidate_for: str) -> None:
-        """A model-proposed assertion with its inference activity, a candidate for a declared gap."""
+    def create_inferred(self, props: dict, entity: str, activity: dict, agent_id: str, candidate_for: str | None) -> None:
+        """A model-proposed assertion with its inference activity, a candidate for a declared gap
+        (``candidate_for``), or for none when it is None (a transcript's candidate, task-0041)."""
         raise NotImplementedError
 
     # ---- verifications and approvals
@@ -99,6 +100,15 @@ class Store:
 
     def reverify(self, version: str, keys: list[str], agent_id: str, ts: str, scope: str, record: str) -> list[str]:
         """Re-verify and re-approve the new version's assertions on the named keys; their ids."""
+        raise NotImplementedError
+
+    def review_verifications(self) -> list[dict]:
+        """Every verification of method review that carries no ``valid_until``: {id, key, at}, ``key``
+        the key of the statement it verifies (decision-0005; harness/cadence.py dates them)."""
+        raise NotImplementedError
+
+    def set_valid_until(self, dates: dict[str, str]) -> None:
+        """Write ``valid_until`` on the verifications named, verification id -> YYYY-MM-DD."""
         raise NotImplementedError
 
     def register_derived(self, did: str, kind: str, sha: str, assertion_ids: list[str]) -> None:

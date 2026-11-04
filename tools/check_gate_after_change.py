@@ -32,7 +32,7 @@ from subject import SUBJECT  # noqa: E402
 def gate(out: Path, name: str, *args: str) -> tuple[int, dict, str]:
     """The command's exit code, its JSON report (checked against the schema) and its text."""
     report = out / f"gate-s6-{name}.json"
-    base = [sys.executable, "gate_cli.py", "--scenario", SCENARIO, *args]
+    base = [sys.executable, "gate_cli.py", "--scenario", SCENARIO, "--as-of", "record", *args]   # the record's date (decision-0005)
     p = subprocess.run([*base, "-f", "json", "-o", str(report)], cwd=HARNESS, capture_output=True, text=True)
     if p.returncode not in (0, 1) or not report.exists():
         sys.exit(f"FAIL: gate_cli.py {' '.join(args)} could not run (exit {p.returncode}):\n{p.stdout}{p.stderr}")

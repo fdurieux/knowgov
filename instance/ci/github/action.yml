@@ -1,0 +1,74 @@
+# knowgov's gates as a GitHub Actions composite action (task-0052; instance/README.md "Running the
+# gates in your pipeline"). It maps GitHub's commit and a pull request's base to the KG_* variables
+# of instance/ci/knowgov-gate.sh and calls it from the action's own checkout, so the knowgov tag you
+# pin in `uses:` is the knowgov that runs:
+#
+#   - uses: fdurieux/knowgov/instance/ci/github@<tag>
+#     with:
+#       gate: trace-check            # preload, gate, trace-check or trace-register
+#       instance: instance           # the instance checkout (and, for trace-*, the code under its code_map root)
+#
+# Python and the pins of the tag's harness.yml (pumllint, rdflib or the Neo4j driver) are the
+# caller's steps, as is the store (KG_STORE and its variables, from the repository's secrets and
+# variables). Exit: the core command's, 0 pass, 1 a finding at or above fail-on, 2 cannot run.
+name: knowgov gate
+description: Run one of knowgov's gates (pre-load, knowledge, code trace) under the 0/1/2 contract.
+inputs:
+  gate:
+    description: preload, gate, trace-check or trace-register
+    required: true
+  instance:
+    description: the instance checkout, relative to the workspace
+    required: true
+  base:
+    description: the ref to diff against; default the pull request's base branch, none on a push
+    default: ""
+  fail-on:
+    description: the severity at or above which the gate fails (each command's default when empty)
+    default: ""
+  subject:
+    description: the subject root (default the instance's only subject)
+    default: ""
+  scenario:
+    description: "gate: the scenario to load"
+    default: ""
+  task:
+    description: the task class
+    default: codegen
+  stage:
+    description: "gate: 2 to bring in the scenario's later version"
+    default: ""
+  ledger:
+    description: "trace-*: the registrations' ledger, relative to the workspace"
+    default: trace-ledger.json
+  files:
+    description: "trace-register: the files to register (space-separated); default the code changed since base"
+    default: ""
+  report:
+    description: "gate, trace-*: also write the JSON report to this path, relative to the workspace"
+    default: ""
+  code-repo:
+    description: "trace-register: the code repository's name in the derived id"
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: knowgov ${{ inputs.gate }}
+      shell: sh
+      env:
+        KG_GATE: ${{ inputs.gate }}
+        KG_INSTANCE: ${{ inputs.instance }}
+        KG_COMMIT: ${{ github.sha }}
+        KG_BASE: ${{ inputs.base || (github.event_name == 'pull_request' && format('origin/{0}', github.base_ref)) || '' }}
+        KG_FAIL_ON: ${{ inputs.fail-on }}
+        KG_SUBJECT_IN: ${{ inputs.subject }}
+        KG_SCENARIO: ${{ inputs.scenario }}
+        KG_TASK: ${{ inputs.task }}
+        KG_STAGE: ${{ inputs.stage }}
+        KG_LEDGER: ${{ inputs.ledger }}
+        KG_FILES: ${{ inputs.files }}
+        KG_REPORT: ${{ inputs.report }}
+        KG_CODE_REPO: ${{ inputs.code-repo || github.event.repository.name }}
+      run: |
+        if [ -n "$KG_SUBJECT_IN" ]; then export KG_SUBJECT="$KG_SUBJECT_IN"; fi
+        sh "$GITHUB_ACTION_PATH/../knowgov-gate.sh" "$GITHUB_ACTION_PATH/../../.." "$KG_INSTANCE" "$KG_GATE"

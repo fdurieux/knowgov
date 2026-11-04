@@ -163,6 +163,7 @@ vocabulary: whether a fact holds, whether it is contested, and why a key is empt
 | status `invalidated` | a source change ended it and its verifications | `prov:wasInvalidatedBy` the re-ingestion `prov:Activity`, at `prov:invalidatedAtTime` | superseded, once a verified or approved successor exists (`prov:wasRevisionOf` from the successor); else no counterpart |
 | status `rejected` | a ruling took it out of the live set; it keeps its history | no counterpart | rejected |
 | approval lapsed | a person's approved answer six months after it was given; it reads proposed again | no counterpart | expiry date (closest) |
+| review lapsed | a document's verification by review past its key's review months (the register's `lifecycle.toml`, 12 for a capability, 6 for a product); the statement reads validated until a new review | the verification's `valid_until` date, read as of a date; no PROV-O counterpart for currency | expiry date (closest) |
 | key level `absent` | no live assertion holds the key | no counterpart | no counterpart |
 | key level `declared_gap` | a document declares the key open, with an owner | no counterpart | no counterpart |
 <!-- provenance crosswalk: end -->

@@ -145,6 +145,43 @@ What it does not do: it does not read code. It cannot tell whether a file does w
 say (that is your tests' job), and hand-written code that cites nothing maps to an application,
 not to statements.
 
+## Running the gates in your pipeline
+
+The three gates (the pre-load check, the knowledge gate `harness/gate_cli.py`, and the trace's
+`check` and `register`) take explicit flags and read no CI platform's variables. A thin wrapper
+per platform maps the platform's commit and base to those flags. All three wrappers call one script,
+`instance/ci/knowgov-gate.sh`, so every platform runs the same command line:
+
+```bash
+sh knowgov/instance/ci/knowgov-gate.sh knowgov instance trace-check   # or preload, gate, trace-register
+```
+
+In plain English: the script reads `KG_*` variables (the list is at its top: `KG_BASE`, `KG_COMMIT`,
+`KG_FAIL_ON`, `KG_SCENARIO`, `KG_LEDGER`, `KG_FILES`, `KG_REPORT`...). It works out the changed code
+from git against `KG_BASE`, in the folder `code_map.toml` names, and calls the core command. Its exit
+code is the command's: 0, 1 or 2.
+
+- **GitHub Actions**: a composite action. It runs the knowgov tag you name in `uses:`, and maps the
+  commit and the pull request's base for you:
+
+  ```yaml
+  - uses: fdurieux/knowgov/instance/ci/github@<tag>
+    with: { gate: trace-check, instance: instance, ledger: trace/ledger.json }
+  ```
+
+- **GitLab CI**: an include, `instance/ci/gitlab/knowgov.gitlab-ci.yml`, with a hidden job
+  `.knowgov-gate` your jobs extend. It maps `CI_COMMIT_SHA` and `CI_MERGE_REQUEST_DIFF_BASE_SHA`.
+- **Anything else** (Jenkins, Azure DevOps, Bitbucket): set the `KG_*` variables from your platform's
+  own and call the script.
+
+Installing Python, the pins and the store's connection details are your pipeline's own steps,
+taken from its secrets and variables. Make the job a required check: branch protection on GitHub,
+approval rules on GitLab. `KG_REPORT` writes the JSON report, for a step that turns it into your
+platform's annotations or keeps it as an artefact. This repository's CI runs the GitHub action on
+the example instance, and runs the GitLab job's own script lines in a shell
+(`tools/check_ci_wrappers.py`). Both use S6: the change turns the registered code suspect, and the
+check fails naming `APP-0001`.
+
 ## Checking a document before the load
 
 ```bash
@@ -308,6 +345,19 @@ from the review itself, and the command refuses a review that breaks a rule, nam
   again until someone re-asks and a reviewer approves again. Set `KG_TODAY=YYYY-MM-DD` for a
   reproducible date.
 
+**When a document's review falls due.** A statement a document's review verified is current for
+the review months of the kind its key concerns, from your register's `metamodel/lifecycle.toml`:
+`[review.kinds]` (the example register: capability 12, product 6), the shortest among the nodes
+the key's row in your subject's `register_map.toml` names, else `[review] default_months` (knowgov
+decision-0005). The load writes that date as the verification's `valid_until`. From the next day the
+statement reads *validated*, its approval with it, and `gate_cli.py` lists a *lapsed* finding (major).
+Read as of today, which is the default, your `--baseline` pipeline then reports the key as
+`verified -> validated`, a regression. Renew it by a review: a reviewer of an owning unit approves the
+statement in a review file, as above (a document's statement needs the role `closes`), and it is
+current again for the key's months from the review's `on`. A verification by execution does not lapse by date. `--as-of YYYY-MM-DD` reads as of another
+date, to see what falls due when; `--as-of record` reads as of your subject's `[record] as_of`, if you
+pinned one.
+
 A review copied into `captures/reviews/` by hand is checked again on every load: one that breaks
 a rule is skipped, and the load prints why. The rules are knowgov's decision-0002; the handles
 and roles are ieam-register's decision 0009. `tools/check_review_walkthrough.py` runs the
@@ -329,6 +379,22 @@ is a new statement beside the old one, for a reviewer. The earlier capture is ne
 handle has been withdrawn (the person left), its answers go to the owner unit instead. The command
 also lists any register link carrying an `elicited` block whose `review_due` has come: those are
 reviewed in the register, not here. `--on YYYY-MM-DD` (or `KG_TODAY`) sets the date it counts to.
+
+**Starting from a conversation.** If someone has talked through what they know (a recorded
+interview, meeting minutes), a model can read the transcript and suggest answers:
+
+```bash
+python harness/transcript.py interview.txt --scenario S2
+```
+
+In plain English: this asks the model your instance names (the same endpoint and key variable as
+the arms) what the transcript says about each required key the store holds nothing on. Its
+suggestions are saved in `captures/inferred/` and load as the model's *proposed* statements:
+never more, since nothing verifies or approves a model's statement. The next questionnaire shows
+them under `known`, and only the person's own answer, ingested as above, becomes what they said.
+The transcript itself is never kept: the file records its fingerprint (SHA-256), the model and the
+date, not its text. A key your documents already state is not offered to the model, so a guess
+never lowers it. Without a model key the command refuses to run (exit 2).
 
 **The register's capture fields.** The three fields a capture carries are `from` (the handle),
 `on` (the date) and `record` (where the answer is kept). They are the fields ieam-register's
