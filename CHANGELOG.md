@@ -8,9 +8,23 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
-## Unreleased
+## 0.5.0 — 2026-11-04
 
-### Contract changes since 0.4.0
+The impact walk is complete, and it now runs both ways. A fifth read-only MCP tool,
+`register_impact`, answers what retiring or changing a register node touches: the register's own
+walk from that node, every node it reaches with its owning unit, and the knowledge keys that rest
+on them, each read as `gate_verdict` reads it. It takes either walk (`dependants` or `realisers`), a
+node's children and a task class, and the page's impact panel and the Neo4j Browser offer the same
+four walks. In the other direction, a register change now invalidates what rests on it: given the
+register as it was before its update, the gate stales the keys a withdrawn node or link lands on,
+names the register's decision as the reason, and turns the derived outputs suspect. The register
+moves to ieam-register `v0.2.9`, where a walk never counts its start. Hand-written code can cite
+the keys it rests on, so a change reaches it as it reaches built code. The MCP server refuses a
+scenario that belongs to another subject instead of answering against the wrong graph. A connector
+lands a system of record's export (AML, and BPMN in its own dialect and ARIS's) in an instance's
+register, append-only: an id that vanished is reported stale, never deleted.
+
+### Contract changes (why this is 0.5.0, decision-0003)
 
 - **The MCP server refuses another subject's scenario** (task-0126, doc-0016 F1, a fix). One
   store serves every subject; before, a CargoQuote server over a store holding J-F's `C` reported
@@ -21,7 +35,6 @@ names that section with the version.
   naming the held scenario and the server's subject, with or without a `scenario` argument.
   `register_impact` with no scenario named and nothing held still answers from the register. The
   tool list, the record and the comparator are unchanged.
-
 - **`register_impact` takes a `task` input** (task-0120, additive): an optional declared task
   class (default `codegen`, as `gate_verdict`'s) under whose block levels, bar and route each
   landed key's level and findings are read, as `gate_verdict --task` reads that key set. For
@@ -36,7 +49,6 @@ names that section with the version.
   finding kinds, `unknown_key` and `malformed_citation` (blocker), `uncited` (major) and
   `uncitable` (info). A ledger written before still reads. The record and the comparator are
   unchanged.
-
 - **A register change invalidates** (task-0122, additive): `gate_cli.py --register-previous DIR`
   compares the register as it was before its update (the previous vendored tag, or an instance's
   checkout before its pull) with the register the gate reads (`KG_REGISTER`). Every node that
@@ -66,7 +78,7 @@ names that section with the version.
     `tools/check_register_change.py` runs it on rdflib in `harness.yml` and on Neo4j and rdflib in
     the stack job. The record and the comparator are unchanged.
 
-### Also since 0.4.0
+### Also in this release
 
 - **Hand-written code cites the keys it rests on** (task-0124, doc-0015 §3). A header comment line,
   `# knowgov-keys: K1, K2` in Python or `// knowgov-keys: K1, K2` in Java, names them.
@@ -77,7 +89,6 @@ names that section with the version.
   check with `[citations] require = true` in `code_map.toml`, optionally for some APPs only.
   Proven after S6's change by `tools/check_trace_walkthrough.py`. Citations rot; a file edited
   after its registration is drift, as before, and asks for a new one.
-
 - **The connector for a system of record** (task-0063, decision-0006): `tools/connector.py` lands
   an export in an instance's register as `exports/<system>/<date>/`. The folder holds the files,
   a `MANIFEST.toml` and a `RECONCILE.json` in ieam-register's format. The system and the AML
@@ -159,6 +170,29 @@ names that section with the version.
   counted", and `check_impact_cypher.py` compares that column too. The record (as of 2026-10-30)
   and the comparator are unchanged.
 - `instance/README.md` "Letting an AI assistant ask the gate": connecting Claude Code (`claude mcp add -s user`) and Claude Desktop (config file, absolute paths, the full `docker` path, the log) over the container's stdio, the phone through Remote Control, `KG_SUBJECT` as a path, `scenario` in every call, and a stateless HTTP example with `clientCapabilities` that a test runs against the server, with a guard on every flag the section names (task-0117).
+
+### What this release carries
+
+| what | version |
+|---|---|
+| pumllint (the sequence-diagram mapper's parser) | 0.33.0, from PyPI |
+| the IEAM register, vendored under `demo/register/` | ieam-register `v0.2.9` |
+| the record's pins | unchanged from 0.4.0 |
+| Python | 3.12 in the image |
+
+The image is `ghcr.io/fdurieux/knowgov:v0.5.0`. The compose file moves to it in a follow-up, once
+the Release has published its digest.
+
+### Known limits
+
+- The connector has run only on the synthetic CargoQuote export, not on a real installation
+  (task-0063); the AML's ARIS type names are unverified against any method filter.
+- A register change is read only when the gate is given the previous register
+  (`--register-previous`); the page's register panel does not show what a change withdrew yet.
+- Citations are read in Python and Java headers only, and a cited file counts only once it is
+  registered.
+- The GitLab include is proven by shell, not yet on a GitLab runner (task-0108).
+- The hooks see Edit and Write, not a shell command writing the same file.
 
 ## 0.4.0 — 2026-11-04
 
