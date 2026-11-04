@@ -4,6 +4,7 @@ the answers back in as statements attributed to the person who gave them.
     python harness/capture.py questionnaire [--scenario ID] [--task NAME] --out DIR
     python harness/capture.py ingest ANSWERED.toml [--into DIR]
     python harness/capture.py review REVIEW.toml [--scenario ID]
+    python harness/capture.py due [--on DATE] --out DIR
 
 ``questionnaire`` loads the scenario as the gate command does, resolves the task, and writes one
 TOML file per owner into DIR. An owner is the organisation unit the register names as owner of
@@ -19,6 +20,12 @@ folder (``[capture] dir`` in subject.toml, ``captures/`` by default). Every load
 person and the date. The person is an opaque handle, as ieam-register decision 0008 defines it
 (``from``, ``on``, ``record``); never a name. When the register lists issued handles (decision 0009,
 ``people/handles.toml``), the handle must be one, issued by the answer's date and not withdrawn by then.
+
+``due`` (route b, task-0040) lists every captured answer whose six-month review falls due by a date
+(``--on``, else KG_TODAY, else today) and every register link with an ``elicited`` block due by then,
+and writes one questionnaire per handle, each item pre-filled with the earlier answer and its date;
+``ingest`` takes it unchanged, so a confirmation is a new capture with a new ``on``. A withdrawn
+handle's answers go to the owner unit. No name is written anywhere.
 
 ``review`` checks a person's review of what the loaded scenario holds (harness/review.py, under
 decision-0002) and writes it into ``<capture dir>/reviews/``, where every load of its scenario
@@ -219,6 +226,84 @@ def capture_toml(cap: dict, record: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def due_captures(capture_dir: Path, on: dt.date) -> list[dict]:
+    """Every captured answer whose review falls due on or before ``on`` (route b, task-0040): for each
+    handle and key, the latest answer only, due six months after its ``on`` (ieam-register decision
+    0008); an answer a review rejected is never re-asked. A confirmation is a new capture with a new
+    ``on``, so it moves the clock without editing the old file."""
+    import review
+    files = sorted(capture_dir.glob("*.toml")) if capture_dir.is_dir() else []
+    rejected = set()
+    for p in sorted((capture_dir / "reviews").glob("*.toml")) if (capture_dir / "reviews").is_dir() else []:
+        rejected |= {str(r.get("assertion", "")) for r in tomllib.loads(p.read_text(encoding="utf-8")).get("ruling", [])
+                     if r.get("outcome") == "rejected"}
+    latest: dict[tuple[str, str], dict] = {}
+    for p in files:
+        c = tomllib.loads(p.read_text(encoding="utf-8"))
+        cap = c.get("capture", {})
+        when = _date(cap.get("on"))
+        for i, a in enumerate(c.get("answer", []), 1):
+            k = (str(cap.get("from", "")), a["key"])
+            if when is None or (k in latest and latest[k]["on"] >= when):
+                continue
+            latest[k] = {"id": f"A:cap:{p.stem}:{i}@capture", "from": k[0], "key": a["key"], "value": str(a.get("value", "")),
+                         "on": when, "record": cap.get("record", ""), "owner": cap.get("owner", ""),
+                         "subject": cap.get("subject", ""), "scenario": cap.get("scenario", ""),
+                         "task": cap.get("task", "codegen"), "due": review.add_months(when, review.LAPSE_MONTHS)}
+    return sorted((x for x in latest.values() if x["due"] <= on and x["id"] not in rejected), key=lambda x: (x["from"], x["key"]))
+
+
+def due_links(register: Path, on: dt.date) -> list[dict]:
+    """The register's links carrying an ``elicited`` block (decision 0008) whose ``review_due`` (else six
+    months after the block's ``on``) falls on or before ``on``. Their review is the register's: listed, not asked."""
+    import review
+    out = []
+    for p in sorted((register / "relationships").glob("*.toml")) if (register / "relationships").is_dir() else []:
+        for ln in tomllib.loads(p.read_text(encoding="utf-8")).get("link", []):
+            el = ln.get("elicited")
+            if not isinstance(el, dict):
+                continue
+            given = _date(el.get("on"))
+            due = _date(ln.get("review_due")) or (review.add_months(given, review.LAPSE_MONTHS) if given else None)
+            if due and due <= on:
+                out.append({"id": ln.get("id", ""), "from": str(el.get("from", "")), "on": given, "due": due,
+                            "record": str(el.get("record", "")), "file": f"relationships/{p.name}"})
+    return out
+
+
+def due_questionnaires(items: list[dict], handles: dict | None, on: dt.date) -> dict[str, str]:
+    """addressee -> a questionnaire capture.py ingests unchanged, each item pre-filled with the earlier answer.
+    The addressee is the handle that gave it, or the owner unit when the handle is withdrawn by ``on``."""
+    groups: dict[tuple[str, str, str], list[dict]] = {}
+    for x in items:
+        h = (handles or {}).get(x["from"])
+        gone = bool(h and h.get("withdrawn") and h["withdrawn"] <= on)
+        to = (x["owner"] or UNASSIGNED) if gone else x["from"]
+        groups.setdefault((to, x["subject"], x["task"]), []).append(x)
+    out = {}
+    for (to, subject, task), xs in sorted(groups.items()):
+        gone = to != xs[0]["from"]
+        lines = [
+            f"# Review due for {to}: {len(xs)} answer(s) given six months ago or more. Still true?",
+            f"# Subject {subject}, task {task}, generated {on.isoformat()} from the captures (route b, task-0040).",
+            ("# The handle that gave these answers is withdrawn; the owner unit answers in its place."
+             if gone else "# Addressed by handle only."),
+            "# Each answer is pre-filled with the earlier one. Keep it to confirm, change it to correct, or empty it to skip.",
+            "# A confirmation is a new capture on the date you give; the earlier capture is never edited.",
+            "# A note must not identify you: no name, no role only you hold. Fill [answered] with your handle and the date.",
+            "# Then: python harness/capture.py ingest <this file>",
+            "", "[questionnaire]", f"subject = {_q(subject)}", f"scenario = {_q(xs[0]['scenario'])}", f"task = {_q(task)}",
+            f"owner = {_q(xs[0]['owner'])}", f"to = {_q(to)}", 'route = "review-due"', f"generated_on = {on.isoformat()}",
+            "", "[answered]", 'from = ""', 'on = ""']
+        for x in xs:
+            lines += ["", "[[item]]", f"key = {_q(x['key'])}", f"earlier = {_q(x['value'])}",
+                      f"earlier_from = {_q(x['from'])}", f"earlier_on = {x['on'].isoformat()}", f"earlier_record = {_q(x['record'])}",
+                      f"due = {x['due'].isoformat()}", f"question = {_q('Is this still true? ' + question_for(x['key']))}",
+                      f"answer = {_q(x['value'])}", "nobody_knows = false", 'note = ""']
+        out[to] = "\n".join(lines) + "\n"
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="capture.py", description="Questionnaires per owner from the gate's gaps, and their answers back in.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -229,13 +314,16 @@ def main(argv: list[str] | None = None) -> int:
     ia = sub.add_parser("ingest", help="check an answered questionnaire and add it to the subject's captures")
     ia.add_argument("answered", type=Path)
     ia.add_argument("--into", type=Path, help="the capture folder (default: the subject's [capture] dir)")
+    da = sub.add_parser("due", help="questionnaires for the answers whose six-month review falls due (route b)")
+    da.add_argument("--on", help="the date the review is due by (YYYY-MM-DD; default KG_TODAY, else today)")
+    da.add_argument("--out", required=True, type=Path)
     ra = sub.add_parser("review", help="check a review of the loaded scenario and add it to the subject's reviews")
     ra.add_argument("review", type=Path)
     ra.add_argument("--scenario", help="the scenario to rule on (default: the review's [review] scenario, else the subject's first)")
     args = ap.parse_args(argv)
     sys.path.insert(0, str(HERE))
     try:
-        return {"questionnaire": _questionnaire, "ingest": _ingest, "review": _review}[args.cmd](args)
+        return {"questionnaire": _questionnaire, "ingest": _ingest, "review": _review, "due": _due}[args.cmd](args)
     except CannotRun as e:
         print(f"capture: cannot run: {e}", file=sys.stderr)
         return 2
@@ -282,7 +370,7 @@ def _ingest(args) -> int:
         raise CannotRun(f"{SUBJECT.id}: no task {task!r}")
     import review
     reg = register_root()
-    errs, cap = check_answers(doc, handle_pattern(reg), set(TASKS[task]["keys"]), dt.date.today(), review.issued_handles(reg))
+    errs, cap = check_answers(doc, handle_pattern(reg), set(TASKS[task]["keys"]), review.today(), review.issued_handles(reg))
     if errs:
         for e in errs:
             print(f"refused: {e}", file=sys.stderr)
@@ -297,6 +385,29 @@ def _ingest(args) -> int:
     record = os.path.relpath(dest, SUBJECT.root)
     dest.write_text(capture_toml(cap, record), encoding="utf-8")
     print(f"captured {len(cap['answers'])} answer(s) and {len(cap['unknown'])} 'nobody knows' from {cap['from']} on {cap['on']} into {dest}")
+    return 0
+
+
+def _due(args) -> int:
+    import review
+    from subject import SUBJECT
+    try:
+        on = dt.date.fromisoformat(args.on) if args.on else review.today()
+    except ValueError as e:
+        raise CannotRun(f"--on {args.on!r} is not a date (YYYY-MM-DD)") from e
+    reg = register_root()
+    items = [x for x in due_captures(SUBJECT.capture_dir, on) if x["subject"] == SUBJECT.id]
+    links = due_links(reg, on)
+    qs = due_questionnaires(items, review.issued_handles(reg), on)
+    args.out.mkdir(parents=True, exist_ok=True)
+    for to, text in qs.items():
+        (args.out / f"questionnaire-due-{SUBJECT.id}-{to}.toml").write_text(text, encoding="utf-8")
+        print(text.splitlines()[0].lstrip("# "))
+    for ln in links:
+        print(f"register link {ln['id']} ({ln['file']}): given by {ln['from']} on {ln['on']}, review due {ln['due']}: "
+              "reviewed in the register, not here")
+    if not items and not links:
+        print(f"nothing falls due on or before {on}")
     return 0
 
 
