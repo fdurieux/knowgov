@@ -427,7 +427,7 @@ to pull the published image instead of building it. One stack serves one instanc
 An AI coding assistant can ask knowgov the gate's question itself, before it writes anything:
 *may I build on this?* It does so through MCP, the Model Context Protocol, a standard way for an
 assistant to call tools a local program offers. `harness/mcp_server.py` is that program. It offers
-three tools, and all of them only read:
+four tools, and all of them only read:
 
 | Tool | What the assistant asks | What it gets back |
 |---|---|---|
@@ -439,6 +439,10 @@ three tools, and all of them only read:
 The server reads the store as the page or a run left it. It never loads a scenario and never
 writes to the store, the register or your instance; a change to the record is still a pull
 request. Load what the assistant should see first, on the page or with a run.
+
+It speaks both versions of the protocol in use: the current stateless one (2026-07-28), where a
+client asks `server/discover` and every request is self-contained, and the older handshake
+(`initialize`), so an assistant built on either connects without a fallback.
 
 **With the stack running** (above), the simplest connection needs no extra port: the assistant
 starts the server inside the container and talks to it over the connection it opened. For Claude
