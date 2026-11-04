@@ -7,6 +7,10 @@ the same question twice of the store as it stands, once as ``gate_cli.py --no-lo
 once as an MCP client over stdio calling ``gate_verdict``, and require the two reports to be equal
 key for key. Then ask ``three_valued_answer`` for every key the subject names and require the
 answer the record's deterministic run gives (D5), with provenance on every asserted statement.
+Then ask ``evidence_bundle`` for the codegen task as of the record and require the text the governed
+arm reads: ``gate.render_bundle`` over ``gate.resolve(store, "codegen")`` with the policy and the
+task's verbatim documents from the scenario's kit, exactly as ``harness/run.py``'s ``arm_runs`` builds
+it (task-0080); and for a key set, the same over ``resolve_spec`` on those keys.
 Finally, prove the server wrote nothing: the store reads the same census before and after.
 
 A scenario with a later version (``[scenario.stage2]``, S6) is asked a second time after
@@ -114,10 +118,51 @@ def check_stage2(sc: str, subject, failures: list[str]) -> None:
         print(f"{sc} stage 2 --reverify: gate_verdict {got['verdict']} (exit_code {got['exit_code']}, version {got.get('version')}) "
               f"equals gate_cli --no-load; superseded_by names {len(want)} statement(s) as the record does, "
               f"in the gate and in {len(by_key)} three-valued answer(s)")
+        check_bundle(client, sc, 2, failures, f"{sc} stage 2")
     finally:
         client.close()
     if census() != before:
         failures.append(f"{sc} stage 2: the store changed while the server read it")
+
+
+def arms_bundle(sc: str, stage: int, keys: list[str] | None = None) -> tuple[str, set[str]]:
+    """The bundle and its assertion ids as harness/run.py's ``arm_runs`` hands them to the governed arm,
+    read in-process on the store as it stands (released without being written back)."""
+    sys.path.insert(0, str(HARNESS))
+    import arms
+    from gate import render_bundle, resolve, resolve_spec
+    from kitio import kit_for, verbatim_documents
+    from store import open_store
+    from tasks import TASKS
+    task = "task_codegen"   # the runner passes the prompt prefix; verbatim_documents strips it to the class
+    st = open_store()
+    try:
+        gate = resolve(st, "codegen") if keys is None else resolve_spec(st, "keys", dict(TASKS["codegen"], keys=keys))
+        bundle = render_bundle(gate, arms.policy(), verbatim_documents(kit_for(sc, stage), task))
+        return bundle, {a["id"] for v in gate["keys"].values() for a in v["assertions"]}
+    finally:
+        if st.name == "rdflib":
+            st.path = None
+        st.close()
+
+
+def check_bundle(client: "StdioClient", sc: str, stage: int, failures: list[str], label: str) -> None:
+    """evidence_bundle equals what the arms read, for the task and for a key set of two of its keys."""
+    sys.path.insert(0, str(HARNESS))
+    from tasks import TASKS
+    got = client.call("evidence_bundle", {"scenario": sc, "as_of": "record"})
+    want, ids = arms_bundle(sc, stage)
+    if got["bundle"] != want:
+        failures.append(f"{label}: evidence_bundle differs from the bundle the arms read ({len(got['bundle'])} vs {len(want)} characters)")
+    if set(got["assertion_ids"]) != ids:
+        failures.append(f"{label}: evidence_bundle names {len(got['assertion_ids'])} assertion(s), the arms' bundle {len(ids)}")
+    keys = list(TASKS["codegen"]["keys"])[:2]
+    sub = client.call("evidence_bundle", {"scenario": sc, "keys": keys, "as_of": "record"})
+    want_sub, _ = arms_bundle(sc, stage, keys)
+    if sub["bundle"] != want_sub:
+        failures.append(f"{label}: evidence_bundle for {keys} differs from render_bundle over those keys")
+    print(f"{label}: evidence_bundle ({got['verdict']}, {len(got['bundle']):,} characters, {len(ids)} assertion(s), "
+          f"{len(got['verbatim'])} verbatim document(s)) equals the bundle the arms read; a key set of {len(keys)} likewise")
 
 
 def census() -> dict:
@@ -174,6 +219,7 @@ def main(argv: list[str] | None = None) -> int:
                         failures.append(f"{sc} {key}: statement {s.get('id')} has no provenance")
             print(f"{sc}: gate_verdict {got['verdict']} (exit_code {got['exit_code']}) equals gate_cli --no-load; "
                   f"{len(SUBJECT.three_valued)} three-valued key(s) checked")
+            check_bundle(client, sc, 1, failures, sc)
         finally:
             client.close()
         if census() != before:

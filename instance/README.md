@@ -434,6 +434,7 @@ three tools, and all of them only read:
 | `store_status` | What does the store hold? | the subject, the scenario loaded, the task classes and their required keys |
 | `gate_verdict` | May I build on the knowledge this task needs, or on these keys? | PROCEED, QUALIFIED or BLOCKED with the findings: the same report `gate_cli.py --no-load -f json` prints |
 | `three_valued_answer` | What is known about this one key? | asserted, documented absent, or unknown, with where each statement came from and who verified it; and any statement a document change invalidated, with `superseded_by` naming the verified or approved statement that replaced it (none: the old value no longer holds and nothing does yet) |
+| `evidence_bundle` | What exactly may I build on, and on what evidence? | the evidence bundle the governed arm reads, as text: the verdict and the policy, every required key's statements with their evidence, verifications, approvals and gaps, lapsed reviews, invalidated statements and what supersedes them, unchecked or flawed documents behind the keys, suspect derived outputs, and the documents the task names verbatim; for a task or for your own keys |
 
 The server reads the store as the page or a run left it. It never loads a scenario and never
 writes to the store, the register or your instance; a change to the record is still a pull
