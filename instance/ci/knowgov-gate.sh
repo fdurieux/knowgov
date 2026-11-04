@@ -21,8 +21,8 @@
 #   KG_CODE_REPO    trace-register: the code repository's name in the derived id (default code)
 #   KG_FILES        trace-register: the files to register, relative to code_map.toml's root;
 #                   unset: the code files changed since KG_BASE
-#   KG_REPORT       gate, trace-*: also write the JSON report here (-o), for the platform to annotate or keep
-#   KG_ANNOTATE     gate, trace-*: the report as annotations (harness/annotate.py; task-0083), a comma-separated
+#   KG_REPORT       every gate: also write the JSON report here (-o), for the platform to annotate or keep
+#   KG_ANNOTATE     every gate: the report as annotations (harness/annotate.py; task-0083), a comma-separated
 #                   list of FORMAT[:FILE], FORMAT github, summary, gitlab or sarif; no FILE: the job's log.
 #                   summary appends to its FILE, the others overwrite theirs. Paths in them are relative to
 #                   the working directory the script was called from; a run that exits 2 writes none
@@ -90,9 +90,13 @@ core() {   # the core command in the harness, then its annotations; the exit cod
     rc=0
     [ -n "${KG_ANNOTATE:-}" ] && rm -f "$REPORT"   # annotate this run's report, never an earlier one
     (cd "$KG/harness" && exec "$PY" "$@") || rc=$?
+    finish "$rc"
+}
+
+finish() {   # the annotations of the report just written, then the command's exit code
     annotate
     [ -n "${TMP_REPORT:-}" ] && rm -f "$TMP_REPORT"
-    exit "$rc"
+    exit "$1"
 }
 
 REPORT=
@@ -101,7 +105,10 @@ elif [ -n "${KG_ANNOTATE:-}" ]; then TMP_REPORT=$(mktemp); rm -f "$TMP_REPORT"; 
 
 case "$GATE" in
 preload)
-    exec sh "$KG/instance/ci/preload-check.sh" "$KG" "$INST" "${KG_BASE:-}"
+    rc=0
+    [ -n "${KG_ANNOTATE:-}" ] && rm -f "$REPORT"
+    KG_REPORT=$REPORT sh "$KG/instance/ci/preload-check.sh" "$KG" "$INST" "${KG_BASE:-}" || rc=$?
+    finish "$rc"
     ;;
 gate)
     set -- --subject "$(subject)" --task "${KG_TASK:-codegen}"

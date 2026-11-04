@@ -132,3 +132,19 @@ def test_the_command_exits_2_on_what_is_not_a_knowgov_report():
         assert p.returncode == 2
         p = subprocess.run([*cli, str(good), "-t", "sarif", "-o", str(Path(td) / "out.sarif")], capture_output=True, text=True)
         assert p.returncode == 0 and json.loads((Path(td) / "out.sarif").read_text())["version"] == "2.1.0"
+
+
+def test_a_pre_load_finding_the_baseline_holds_is_never_an_error():
+    rep = json.loads(json.dumps(PRELOAD))
+    f = rep["files"][0]
+    f["state"] = "held"
+    f["findings"][0]["held"] = True
+    f["findings"].append({"rule": "PUML002", "severity": "major", "line": 9, "message": "new", "held": False})
+    rep["counts"].update(findings=0, held=1)
+    rep["baseline"] = {"file": "preload-baseline.json", "held": 1, "new": 1}
+    assert not schema_check.validate(rep, schema_check.load("preload-report"))
+    out = annotate.convert(rep, "github").splitlines()
+    assert out[0].startswith("::warning ") and "held by the baseline" in out[0], out[0]
+    assert out[1].startswith("::error ") and "line=9" in out[1], out[1]
+    doc = json.loads(annotate.convert(rep, "sarif"))
+    assert [r["level"] for r in doc["runs"][0]["results"]][:2] == ["warning", "error"]

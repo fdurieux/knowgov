@@ -21,6 +21,9 @@ On the store KG_STORE names, persisted under OUT_DIR for rdflib:
    the same check reads the task's gate as of that day: the report's gate names it, and its lapses
    are gate:lapsed findings. ``trace-register`` with KG_AS_OF records that day in its ledger entry, the
    record's day without it (task-0093).
+4. ``preload`` with the merge request's diff base, on a broken sequence diagram committed after it:
+   exit 1, KG_REPORT the pre-load report, valid against its schema, on that file alone, and the
+   code-quality report puts SEQ001 on the diagram's file and line (task-0106).
 Needs pyyaml (harness.yml installs it) to read the template.
 """
 from __future__ import annotations
@@ -149,6 +152,24 @@ def main() -> None:
     if e.get("as_of") != LAPSE_DAY:
         sys.exit(f"FAIL: trace-register with KG_AS_OF={LAPSE_DAY}: the ledger entry records {e.get('as_of')}")
     print(f"    trace-register KG_AS_OF={LAPSE_DAY}: the ledger entry as of {e['as_of']}")
+
+    # task-0106: the pre-load gate writes its report too, so a broken document reaches the code-quality widget
+    puml = inst / "artefacts" / "plantuml-models" / "broken.puml"
+    puml.write_text("@startuml\nparticipant A\nA -> B : hi\n@enduml\n", encoding="utf-8")
+    head = git(inst, "rev-parse", "HEAD")
+    git(inst, "add", "-A")
+    git(inst, "-c", "user.name=ci", "-c", "user.email=ci@example.invalid", "commit", "-qm", "a broken diagram")
+    env.update(CI_COMMIT_SHA=git(inst, "rev-parse", "HEAD"), CI_MERGE_REQUEST_DIFF_BASE_SHA=head)
+    if job(env, "preload", KG_REPORT=str(out / "preload.json")) != 1:
+        sys.exit("FAIL: preload on the broken diagram, want exit 1")
+    rep = json.loads((out / "preload.json").read_text(encoding="utf-8"))
+    errs = schema_check.validate(rep, schema_check.load("preload-report"))
+    issues = code_quality(out)
+    where = puml.relative_to(out).as_posix()
+    on_it = [i for i in issues if i["location"]["path"] == where and i["check_name"] == "knowgov-preload:SEQ001"]
+    if errs or [f["file"] for f in rep["files"]] != ["artefacts/plantuml-models/broken.puml"] or not on_it or on_it[0]["location"]["lines"]["begin"] < 1:
+        sys.exit(f"FAIL: want the pre-load report on the changed diagram and SEQ001 on {where} in the code-quality report: {errs[:3]} {issues}")
+    print(f"    preload: SEQ001 ({on_it[0]['severity']}) on {where} line {on_it[0]['location']['lines']['begin']}")
     print("GitLab include: the same command line as the action and the shell snippet; S6's change fails the merge request naming APP-0001; "
           f"KG_AS_OF reads both gates and the registration as of {LAPSE_DAY}")
 

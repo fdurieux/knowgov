@@ -275,6 +275,23 @@ jobs:
           grep -c '^::warning file=runs/wrap/instance/subjects/cargo_quote/subject.toml,line=1,title=knowgov gate stale ' runs/wrap/gate-stage2.gh
           grep -c '^::error file=runs/wrap/instance/subjects/cargo_quote/vendor/stack_experiment/cargo_quote/reference_impl.py,line=1,title=knowgov trace suspect APP-0001 (blocker)::' runs/wrap/trace-check.gh
           python3 -c 'import json; cq=json.load(open("runs/wrap/trace-check.cq.json")); s=json.load(open("runs/wrap/gate-stage2.sarif")); r=s["runs"][0]["results"]; assert any(i["check_name"]=="knowgov-suspect" and i["severity"]=="blocker" and i["location"]["path"].endswith("cargo_quote/reference_impl.py") for i in cq), cq; assert s["version"]=="2.1.0" and {"suspect_derived","stale"} <= {x["ruleId"] for x in r}, r; print("code quality:", len(cq), "issues; SARIF:", len(r), "results")'
+      - name: "A broken sequence diagram in the instance's repository (task-0106)"
+        run: |
+          printf '@startuml\nparticipant A\nA -> B : hi\n@enduml\n' > runs/wrap/instance/artefacts/plantuml-models/broken.puml
+          git -C runs/wrap/instance add -A && git -C runs/wrap/instance -c user.name=ci -c user.email=ci@example.invalid commit -qm "a broken diagram"
+      - name: "The action: preload on it, exit 1, its report and its annotations on the diagram's line"
+        id: wrap_preload
+        continue-on-error: true
+        uses: ./instance/ci/github
+        with: { gate: preload, instance: runs/wrap/instance, base: HEAD~1, report: runs/wrap/preload.json }
+      - name: "The action's preload failed with exit 1, its report on the changed diagram alone, as a GitHub error on its line"
+        env:
+          PRELOAD: ${{ steps.wrap_preload.outcome }}
+        run: |
+          test "$PRELOAD" = failure
+          python3 -c 'import sys,json; sys.path.insert(0,"harness"); import schema_check as s; r=json.load(open("runs/wrap/preload.json")); e=s.validate(r, s.load("preload-report")); assert not e, e; [f]=r["files"]; assert r["exit_code"]==1 and f["file"]=="artefacts/plantuml-models/broken.puml" and any(x["rule"]=="SEQ001" for x in f["findings"]), f; print("action preload:", f["why"])'
+          python harness/annotate.py runs/wrap/preload.json -t github --instance runs/wrap/instance | tee runs/wrap/preload.gh
+          grep -Eq '^::error file=runs/wrap/instance/artefacts/plantuml-models/broken.puml,line=[1-9][0-9]*,title=pumllint SEQ001 ' runs/wrap/preload.gh
       - name: The capture path (task-0009), questionnaire, answers, the gate after, and nothing above proposed
         run: |
           rm -rf runs/capture && python tools/example_instance.py runs/capture > /dev/null
