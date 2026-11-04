@@ -41,18 +41,15 @@ names that section with the version.
   code quality; a finding the baseline holds is at most a warning.
 - **knowgov dogfoods the hook** (task-0105): this repository's `.claude/` blocks hand edits to
   vendored files and to the backlog.
+- **The register is vendored at ieam-register `v0.2.7`** (task-0109): decision 0012's realiser walk
+  and decision 0013's review months. CargoQuote's three `response|*` keys now lapse after six
+  months; as of 2027-02-07, S1, S3 and S6 read QUALIFIED. The record (as of 2026-10-30) is
+  unchanged.
 
 ### Known limits
 
 - The GitLab include is proven by shell, not yet on a GitLab runner (task-0108).
 - The hooks see Edit and Write, not a shell command writing the same file.
-
-### Also since 0.3.0
-
-- **The register is vendored at ieam-register `v0.2.7`** (task-0109): decision 0012's realiser walk
-  and decision 0013's review months. CargoQuote's three `response|*` keys now lapse after six
-  months; as of 2027-02-07, S1, S3 and S6 read QUALIFIED. The record (as of 2026-10-30) is
-  unchanged.
 
 ## 0.3.0 — 2026-11-04
 
