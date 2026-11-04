@@ -29,6 +29,15 @@ names that section with the version.
 
 ### Also since 0.4.0
 
+- **The MCP server refuses another subject's scenario** (task-0126, doc-0016 F1, a fix). One
+  store serves every subject; before, a CargoQuote server over a store holding J-F's `C` reported
+  `scenario: C` and `gate_verdict` answered a well-formed BLOCKED, CargoQuote's keys read against
+  J-F's graph. Now `store_status` reports `scenario` null and names the foreign one in a new
+  `held_by_other_subject` (null otherwise), and `gate_verdict`, `three_valued_answer`,
+  `evidence_bundle` and `register_impact` (where it reads a scenario) refuse with `isError`,
+  naming the held scenario and the server's subject, with or without a `scenario` argument.
+  `register_impact` with no scenario named and nothing held still answers from the register. The
+  tool list, the record and the comparator are unchanged.
 - **Hand-written code cites the keys it rests on** (task-0124, doc-0015 §3). A header comment line,
   `# knowgov-keys: K1, K2` in Python or `// knowgov-keys: K1, K2` in Java, names them.
   `knowgov-trace register --keys K1,K2`, or `--cited` to read each file's own header, registers
