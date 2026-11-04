@@ -3,11 +3,11 @@ id: TASK-0084
 title: >-
   Keep the CI jobs short: a J-F scenario subset where the round trip and the
   rehearsal run
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T00:44:00Z'
-updated_date: '2026-11-04T02:56:00Z'
+updated_date: '2026-11-04T03:18:00Z'
 labels:
   - ci
 milestone: m-6
@@ -24,7 +24,7 @@ The Turtle round trip (task-0070) added about 7 minutes to stack and the lightho
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 stack and rdflib each run under a stated budget with J-F on a named subset, the full set kept in a scheduled or release run
+- [x] #1 stack and rdflib each run under a stated budget with J-F on a named subset, the full set kept in a scheduled or release run
 - [x] #2 The subset and the full run are both named in harness.yml/demo.yml and in CLAUDE.md
 <!-- AC:END -->
 
@@ -46,4 +46,12 @@ Lighthouse (task-0069, #124) landed during #133's run: its step took 291 s and p
 Measured on pull-request heads. stack: 12.5 min before, 7.7 min (#133) and 8.0 min (#134) after. rdflib: 16.4 min before (982 s, without the rehearsal). After: 14.0 min on #133's head, with the rehearsal still full at 291 s. #134's head took 16.8 min with the rehearsal on the subset at 193 s, but every step ran about 1.5x slower there than on #133's runner (round trip 117 -> 182 s, J-F record comparison 80 -> 135 s, both unchanged). Scaled to #133's runner it is about 11 min. The 12-minute budget holds for stack. It holds for rdflib only at #133's runner speed, so AC #1 stays unchecked until a typical run shows it. The remaining time is CargoQuote's full round trip, MCP and rehearsal, plus the full J-F record comparison and oracle.
 
 Medians, as the coordinator asked. Three post-#134 PR rdflib runs: 1161 s (#136), 1095 s (task-0085), 646 s (task-0079); median 1095 s = 18.3 min, over budget. Their largest steps: lighthouse 221/197/109 s, round trip 197/209/99 s, MCP 185/165/141 s, J-F comparison 134/124/67 s, oracle 80/80/46 s, pip about 20 s (so no cache). The 646 s run is uncontended; the others shared the runners with four or five PRs. Per the coordinator: CargoQuote's MCP and lighthouse steps take a PR subset, KG_CQ_SCENARIOS=S1,S2,S6 (S6 keeps the later version); its comparator and round trip never do. Locally on rdflib: MCP 33 s, lighthouse 138 s (both subjects on their subsets).
+
+#140's own PR run: rdflib 1229 s with 13 workflow runs in flight. Steps: MCP 253 s (subset), round trip 205, lighthouse 201, J-F comparison 136, oracle 77. Its unchanged steps ran about 2x the uncontended run (task-0079, 646 s): J-F comparison 136/67 = 2.03, round trip 205/99 = 2.07, oracle 77/46 = 1.67. Scaled by 2, #140 is about 615 s (10.3 min). The coordinator set the measure: the budget is on an uncontended runner; parallel load is capacity, and the record is never subset to buy it back. stack: 7.7-8.0 min on PRs. Met.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+On a pull request, J-F's round trip, MCP and lighthouse steps run KG_JF_SCENARIOS=C,D3, and in harness.yml CargoQuote's MCP and lighthouse steps run KG_CQ_SCENARIOS=S1,S2,S6. CargoQuote's comparator and round trip, the scored record, and J-F's record comparison and oracle always run whole. The full set runs on every push to main, nightly at 03:17 UTC and on workflow_dispatch. The budget is 12 minutes per job on an uncontended runner, stated in both workflows and CLAUDE.md and held by tests/test_ci_subset.py. Measured: stack 12.5 -> 8 min. rdflib 16.4 min -> 10.8 min uncontended (646 s, before the CargoQuote subset), and #140 about 10.3 min scaled from 1229 s under 2x contention. The lighthouse rehearsal is pinned to its subject's record date. PRs #133, #134, #136, #140. Risk: under heavy parallel sessions a PR job runs about 20 min; that is runner capacity, not job size.
+<!-- SECTION:FINAL_SUMMARY:END -->

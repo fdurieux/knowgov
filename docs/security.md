@@ -111,16 +111,22 @@ pre-load check never call a model. A pilot can run with no key at all.
 | The pre-load linters (Spectral 6.17.0, markdownlint-cli2 0.24.0, gplint 2.6.0, bpmnlint 12.0.0, dmnlint 2.0.0, pumllint 0.33.0) | `instance/ci/preload-check.yml`, `.github/workflows/harness.yml` | exact versions, the same in both | `tests/test_preload.py::test_every_runner_names_the_tool_its_kind_names_and_the_ci_template_runs_the_script` |
 | The LiteLLM gateway image | `demo/docker-compose.yml` | tag and SHA-256 digest | `tests/test_demo.py::test_the_claude_row_goes_through_a_pinned_gateway_started_only_by_its_profile` |
 | The vendored register, the Legible model and the subjects' bytes | `demo/register/SOURCE.md`, `demo/model/SOURCE.md`, each subject's `vendor/SOURCE.md` | an upstream tag and a digest per file | `tests/test_demo.py::test_vendored_register_matches_its_source_note_and_checks_clean`, `tests/test_demo.py::test_vendored_model_matches_its_source_note`, `tests/test_vendor_subject.py::test_every_vendored_subject_matches_its_note` |
-| GitHub Actions | `.github/workflows/`, `instance/ci/preload-check.yml` | by commit SHA, except the two named under Gaps | `tests/test_security.py::test_the_gaps_named_here_are_still_the_codes` |
-| The base images `python:3.12-slim` and `neo4j:5.26-community`, and the app image `ghcr.io/fdurieux/knowgov:latest` in `demo/docker-compose.yml` | `demo/Dockerfile`, `demo/docker-compose.yml` | by tag only | `tests/test_security.py::test_the_gaps_named_here_are_still_the_codes`; **Practice:** an instance pins the app image to a release tag (`ghcr.io/fdurieux/knowgov:<tag>`) |
+| GitHub Actions | `.github/workflows/`, `instance/ci/preload-check.yml` | by full commit SHA, the version in a comment, one SHA per action across every file | `tests/test_pins.py::test_every_remote_action_is_pinned_by_commit_sha_with_its_version`, `tests/test_pins.py::test_each_action_and_image_has_one_pin_everywhere` |
+| The images: the base `python:3.12-slim`, `neo4j:5.26-community`, the app image (a release, `ghcr.io/fdurieux/knowgov:v0.1.0`), the LiteLLM gateway, and the GitLab template's `python:3.12` | `demo/Dockerfile`, `demo/docker-compose.yml`, `instance/ci/gitlab/knowgov.gitlab-ci.yml` | tag and SHA-256 index digest (`name:tag@sha256:…`) | `tests/test_pins.py::test_every_image_is_pinned_by_digest_with_its_tag`; **Practice:** an instance names the release it runs, as the compose file does |
+| What Dependabot reads: the image's Python pins in `demo/requirements.txt`, the linters' in `instance/ci/package.json` | the two watch-lists; nothing installs from them | equal to the pins that install | `tests/test_pins.py::test_the_pip_watch_list_is_the_images_pins`, `tests/test_pins.py::test_the_npm_watch_list_is_the_linters_pins` |
 
-**How the pins are kept current.** Pins move by hand, in a pull request, on the maintainer's
-decision. The image's Python pins are the versions the proof of concept's record names, so moving
-one is a change to the record's environment, and the comparator in the `stack` job must still pass.
-A pin that moves in one place and not in the other fails the tests above. The vendored copies move
-only through `tools/vendor_register.py`, `tools/vendor_legible_model.py` and
-`tools/vendor_subject.py`, at an upstream tag. Each release (decision-0003) lists what moved in
-`CHANGELOG.md`. No automated dependency update runs today: see Gaps.
+**How the pins are kept current.** Dependabot (`.github/dependabot.yml`) proposes updates weekly
+for pip, npm, Docker, Docker Compose and GitHub Actions (`tests/test_pins.py::test_dependabot_watches_the_four_ecosystems_weekly`).
+Each proposal is a pull request, merged as a pin change under the tests above, on the
+maintainer's decision. A proposal moves one file: the watch-list, the Dockerfile, the compose file
+or `.github/workflows/`. Where the same pin is in other files, the tests stay red until a commit
+moves it there too (the CI template's actions, the Dockerfile's and `harness.yml`'s Python pins,
+the template's and `harness.yml`'s linters). The image's Python pins are the versions the proof of
+concept's record names, so moving one is a change to the record's environment, and the comparator
+in the `stack` job must still pass. The compose file's app image is a release: each release moves
+it, and a merge to main does not. The vendored copies move only through `tools/vendor_register.py`,
+`tools/vendor_legible_model.py` and `tools/vendor_subject.py`, at an upstream tag. Each release
+(decision-0003) lists what moved in `CHANGELOG.md`.
 
 **Reporting a vulnerability:** privately, as [`SECURITY.md`](../SECURITY.md) says.
 
@@ -191,16 +197,7 @@ so this list is updated with the fix.
 2. **The `gives` role is not checked.** An answer is refused when its handle is not issued or has
    been withdrawn, but not when the handle lacks `gives`. Proposed fix: `capture.check_answers`
    refuses a handle without `gives`, as `review.check` does for `approves` and `closes`.
-3. **No automated dependency updates.** No Dependabot or Renovate configuration exists, so a
-   vulnerable pin is found only when someone looks. Proposed fix: `.github/dependabot.yml` for
-   pip, npm, Docker and GitHub Actions, with each update merged as a pin change under the tests
-   above.
-4. **Three images and two actions are pinned by tag only.** `python:3.12-slim`,
-   `neo4j:5.26-community` and the app image `ghcr.io/fdurieux/knowgov:latest` in
-   `demo/docker-compose.yml`; `actions/setup-python@v6` and `actions/setup-node@v6`. A tag can move.
-   Proposed fix: pin each by digest or commit SHA with the version in a comment, as the other
-   actions and the LiteLLM image already are.
-5. **The store holds excerpts.** "Status and provenance, never content" is true of whole documents
+3. **The store holds excerpts.** "Status and provenance, never content" is true of whole documents
    only: fragments, statement values and their one-line texts are stored (see What is stored). This
    is by design, since the gate's evidence is the excerpt. An adopter must protect the store as they
    protect the documents.
