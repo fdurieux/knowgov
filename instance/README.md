@@ -26,10 +26,13 @@ needs. The [subjects guide](../subjects/README.md) describes it field by field.
   record/<subject>/    your own results, kept as evidence: a subject's [record] dir points here
   code_map.toml        optional: which register application or module each code path implements
                        (see "Mapping code to the register")
+  connectors.toml      optional: the systems of record whose exports you mirror into register/exports/
+                       (see "Mirroring an export from a system of record")
 ```
 
 The platform reads this folder and never writes to it: the compose file mounts it read-only,
-and every run lands in the platform's own `runs/` folder.
+and every run lands in the platform's own `runs/` folder. The one tool that writes is the
+connector, which you run yourself, in your own checkout, to add an export to your register.
 
 ## Kinds of document, and which ones the platform reads
 
@@ -104,6 +107,40 @@ file; neither fails the check. Without the file the check says nothing about cod
 instance carries one: CargoQuote's reference code, mapped to `APP-0001`. A later register link
 (`implemented_by`) may carry the same fact in the register itself; that is the register's
 decision, and the file would then yield to it.
+
+## Mirroring an export from a system of record
+
+Your processes may be authored in a modelling tool (the register's `metamodel/sources.toml` names
+it as a system of record). The register never copies that tool's content; it keeps each export as
+a dated folder under `register/exports/<system>/<date>/` and checks itself against the newest one.
+The connector puts an export there:
+
+```toml
+# connectors.toml, at the top of the instance
+[system.aris]                # the name your register's sources.toml gives the system
+id_attribute = "AT_ID"       # the AML attribute your modellers fill with the register id; AT_ID by default
+```
+
+```bash
+python tools/connector.py /path/to/your/instance --system aris /path/to/the/export/
+```
+
+In plain English: the connector reads the export's AML and BPMN 2.0 files (BPMN as any tool
+writes it, ARIS's own dialect included) and finds the register ids in them in three places only:
+the attribute you configured, a BPMN process's `id`, and an element's `<documentation>` text.
+Element ids and diagram positions are never identity, because a tool may rewrite them on import.
+It copies the files, byte for byte, into a new dated folder. The folder name is the date in the
+AML header, or the one you give with `--exported-on`. Beside the files go two more:
+- `MANIFEST.toml`: the export time, the source and its version, the tool, the previous folder,
+  a sha256 per file, and the register ids carried, with their names.
+- `RECONCILE.json`: what changed since the previous folder. That means files and ids added,
+  updated or renamed, and deleted. It also lists the *stale* register nodes: those whose id the
+  previous export carried and this one does not.
+
+A stale node is a finding for its owner. The connector never deletes or edits a node. It never
+lands an export over an existing folder, or with a date before the newest one; it refuses (exit 1)
+instead. Exit 0 when the export landed, 2 when it cannot run (for example, no `connectors.toml`).
+Commit the new folder to your register like any other change.
 
 ## Tracing a code change to the knowledge
 

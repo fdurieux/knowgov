@@ -382,9 +382,16 @@ def render_aml(reg: dict, e: Epc, v: dict) -> str:
 # ---- BPMN ----
 
 COLLAB = "collab_cargo_quote"   # ARIS 10.0 kept the collaboration id and the process ids
-# the ARIS export dialect's extra namespaces: the prefixes are the ones ARIS 10.0 wrote; the URIs
-# were not part of the evidence and are synthetic stand-ins here, so a reader must not key on them
-ARIS_XMLNS = {p: f"urn:knowgov:synthetic:aris-dialect:{p}" for p in ("aris", "arisebpmn", "color", "deco", "i18n")}
+# the ARIS export dialect's extra namespaces, prefixes and URIs as a real ARIS 10.0 export wrote them
+# (task-0063's brief); a reader matches the URI, never the prefix
+ARIS_XMLNS = {
+    "aris": "http://www.softwareag.com/aris/attributes",
+    "arisebpmn": "http://www.softwareag.com/aris/ebpmn",
+    "color": "http://www.omg.org/spec/BPMN/non-normative/color/1.0",
+    "deco": "http://www.omg.org/spec/BPMN/non-normative/extensions/envelope-decorator-bounds/1.0",
+    "i18n": "http://www.omg.org/spec/BPMN/non-normative/extensions/i18n/1.0",
+}
+ARIS_EXPORTER_VERSION = "10.0.0.320027101"   # the real export's; the file's SYNTHETIC comment still says what it is
 
 
 def aris_id(v: dict, key: str) -> str:
@@ -425,7 +432,7 @@ def render_bpmn(reg: dict, e: Epc, flow: tuple[dict, list], v: dict, dialect: st
         ns += "".join(f' xmlns:{k}="{u}"' for k, u in ARIS_XMLNS.items())
         root = (f'<{q}:definitions {ns} id="Definitions_{aris_id(v, "definitions")}" name="quote_process" '
                 f'targetNamespace="http://www.softwareag.com/aris/bpmn2" exporter="ARIS" '
-                f'exporterVersion="SYNTHETIC (knowgov aris_export.py, ARIS 10.0 dialect; no ARIS)" xml:lang="en">\n')
+                f'exporterVersion="{ARIS_EXPORTER_VERSION}" xml:lang="en">\n')
         collab_extra, proc_extra = ' arisebpmn:type="MT_ENTERPRISE_BPMN_COLLABORATION"', ""
     else:
         root = (f'<{q}:definitions {ns} xmlns:kg="{KG_NS}" id="defs_cargo_quote" targetNamespace="http://example.org/cargoquote" '
@@ -496,7 +503,8 @@ def render_bpmn(reg: dict, e: Epc, flow: tuple[dict, list], v: dict, dialect: st
         dx, dy, dw, dh = box[d]
         p1, p2 = (sx + sw, sy + sh // 2), (dx, dy + dh // 2)
         pts = [p1, p2] if p1[1] == p2[1] else [p1, (p1[0] + 15, p1[1]), (p1[0] + 15, p2[1]), p2]
-        port = ' aris:port="0"' if aris else ""
+        # the values are the two a real export carried; which edge gets which is this generator's guess
+        port = (' aris:port="CENTER"' if p1[1] == p2[1] else ' aris:port="S"') if aris else ""
         out.append(f'      <bpmndi:BPMNEdge id="{eid(ident(fid))}" bpmnElement="{ident(fid)}"{port}>\n'
                    + "".join(f'        <di:waypoint x="{num(x)}" y="{num(y)}"/>\n' for x, y in pts)
                    + label + "      </bpmndi:BPMNEdge>\n")

@@ -12,6 +12,21 @@ names that section with the version.
 
 ### Also since 0.4.0
 
+- **The connector for a system of record** (task-0063, decision-0006): `tools/connector.py` lands
+  an export in an instance's register as `exports/<system>/<date>/`. The folder holds the files,
+  a `MANIFEST.toml` and a `RECONCILE.json` in ieam-register's format. The system and the AML
+  attribute that carries the register id (`AT_ID` by default) are instance configuration, in a
+  new optional `connectors.toml`.
+  - It reads AML, and BPMN 2.0 in its own dialect and ARIS's. Namespaces are matched by URI.
+    Register ids come only from the configured attribute, a process `@id` and `<documentation>`.
+  - A register node whose id the previous export carried and this one lacks is reported stale.
+    Nothing is deleted. A renamed object is an update (`ids.renamed`). An export is never landed
+    over another, or with a date before the newest.
+  - Proven on the synthetic CargoQuote export, in a temporary example instance: PROC-0005 is
+    stale and PROC-0004 renamed. Nothing under `harness/` or `demo/app` names the vendor (a test
+    guards it). It has not yet run on a real installation.
+  - The synthetic export now carries the real ARIS 10.0 namespace URIs, `exporterVersion` and
+    `aris:port` values in place of task-0119's stand-ins.
 - **A synthetic CargoQuote ARIS export** (task-0119): `tools/aris_export.py` writes, per variant,
   one AML file and the same process in two BPMN 2.0 dialects, from public CargoQuote material only
   (the vendored kit's `quote_process.bpmn` and the vendored register). The fixtures are committed
