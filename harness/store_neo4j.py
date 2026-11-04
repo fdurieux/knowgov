@@ -59,29 +59,49 @@ IMPACT_STEPS = [   # (taxonomy, relationship types, the node is the source?)
     ("information", ("REG_CRUD", "REG_MANAGES"), False),
     ("products", ("REG_CONCERNS", "REG_DELIVERS"), False),
 ]
+# The register's second walk (its decision 0012, v0.2.7; task-0112): what implements a capability, the
+# processes that realise it, then the applications that support those processes. An application has no
+# step, so the walk never turns back toward what rests on the capability.
+REALISER_STEPS = [
+    ("capabilities", ("REG_REALIZES",), False),
+    ("processes", ("REG_SUPPORTS",), False),
+]
+WALK_STEPS = {"dependants": IMPACT_STEPS, "realisers": REALISER_STEPS}
 
 
-def _step(n: str, r: str) -> str:
+def _step(n: str, r: str, steps: list = IMPACT_STEPS) -> str:
     """The predicate: ``r`` is a step the walk takes from ``n``, by ``n``'s taxonomy."""
     return "(" + "\n      OR ".join(
         f"{n}.taxonomy = '{tax}' AND type({r}) IN [{', '.join(repr(t) for t in types)}] AND {'startNode' if src else 'endNode'}({r}) = {n}"
-        for tax, types, src in IMPACT_STEPS) + ")"
+        for tax, types, src in steps) + ")"
 
 
-IMPACT_WALK = (
-    f"MATCH (a:RegNode {{reg_id:'{IMPACT_START}'}})\n"
-    "CALL (a) {\n"
-    "  // the nodes the walk expands: the start, if live, and every node a chain of live steps reaches\n"
-    f"  MATCH SHORTEST 1 (a) ((x:RegNode)-[s]-(y:RegNode) WHERE {_step('x', 's')}\n"
-    f"      AND {_OK.format('s')} AND {_LIVE.format('y')})* (n:RegNode)\n"
-    f"  WHERE {_LIVE.format('a')}\n"
-    "  // every edge the walk meets from each: one row, live or withdrawn\n"
-    f"  MATCH p = (n)-[r]-(t:RegNode) WHERE {_step('n', 'r')}\n"
-    "  RETURN p\n"
-    "}\n")
-IMPACT_ROWS = (
-    "// the walk tools/impact.py makes, one row per edge, as the impact panel lists them, a withdrawn edge listed and not followed\n"
-    + IMPACT_WALK +
+# With children (the register's decision 0014, v0.2.8; task-0112) the walk starts from the node and from
+# every approved descendant by parent, at any depth, each walked as the node is (walk_children): the
+# same CALL block, once per start, so an edge two starts meet is two rows, as the register lists it.
+# A descendant in any other state is not a start; parent is followed down to find the starts, never
+# walked as a step and never climbed.
+_CHILDREN_STARTS = (
+    "MATCH (o:RegNode {{reg_id:'{start}'}})\n"
+    "// the starts (decision 0014): the node and every approved descendant by parent, at any depth, and no other descendant\n"
+    "MATCH (a:RegNode) WHERE a = o OR (a.state = 'approved' AND EXISTS {{ (a)-[:REG_PARENT]->+(o) }})\n")
+
+
+def _impact_walk(steps: list = IMPACT_STEPS, children: bool = False) -> str:
+    head = (_CHILDREN_STARTS.format(start=IMPACT_START) if children else f"MATCH (a:RegNode {{reg_id:'{IMPACT_START}'}})\n")
+    return (head +
+            "CALL (a) {\n"
+            "  // the nodes the walk expands: the start, if live, and every node a chain of live steps reaches\n"
+            f"  MATCH SHORTEST 1 (a) ((x:RegNode)-[s]-(y:RegNode) WHERE {_step('x', 's', steps)}\n"
+            f"      AND {_OK.format('s')} AND {_LIVE.format('y')})* (n:RegNode)\n"
+            f"  WHERE {_LIVE.format('a')}\n"
+            "  // every edge the walk meets from each: one row, live or withdrawn\n"
+            f"  MATCH p = (n)-[r]-(t:RegNode) WHERE {_step('n', 'r', steps)}\n"
+            "  RETURN p\n"
+            "}\n")
+
+
+_ROWS_TAIL = (
     "WITH nodes(p)[0] AS f, relationships(p)[0] AS r, nodes(p)[1] AS t\n"
     "OPTIONAL MATCH (l:RegLink {reg_id: r.reg_id})   // the evidence sits on the link node\n"
     "OPTIONAL MATCH (u:RegNode {reg_id: t.owner})   // the owning unit: the far node's owner field, shown, not walked\n"
@@ -93,10 +113,25 @@ IMPACT_ROWS = (
     "       CASE WHEN r.state = 'approved' AND NOT t.state IN ['deprecated','retired'] THEN 'yes' ELSE 'no, withdrawn' END AS followed,\n"
     "       r.owner AS owner, l.evidence AS evidence, r.reg_id AS link\n"
     "ORDER BY link, `from`")
-IMPACT_PATHS = (
-    "// the same walk as paths, for the Browser's graph view: a start with no edge still draws itself\n"
-    + IMPACT_WALK.replace("CALL (a) {\n", "OPTIONAL CALL (a) {\n") +
-    "RETURN a, p")
+_WHAT = {("dependants", False): "the walk tools/impact.py makes",
+         ("dependants", True): "the walk tools/impact.py --children makes, from the node and each approved descendant",
+         ("realisers", False): "the walk tools/impact.py --walk realisers makes, toward what implements the node",
+         ("realisers", True): "the walk tools/impact.py --walk realisers --children makes, from the node and each approved descendant"}
+
+
+def impact_texts(walk: str = "dependants", children: bool = False) -> dict:
+    """Both forms of one walk from the adapter's literal start: the rows form, one row per edge as the
+    panel lists them, and the paths form for the Browser's graph view."""
+    w = _impact_walk(WALK_STEPS[walk], children)
+    return {"rows": f"// {_WHAT[(walk, children)]}, one row per edge, as the impact panel lists them, a withdrawn edge listed and not followed\n" + w + _ROWS_TAIL,
+            "paths": ("// the same walk as paths, for the Browser's graph view: a start with no edge still draws itself\n"
+                      + w.replace("CALL (a) {\n", "OPTIONAL CALL (a) {\n") + "RETURN a, p")}
+
+
+IMPACT_WALK = _impact_walk()
+IMPACT_ROWS = impact_texts()["rows"]
+IMPACT_PATHS = impact_texts()["paths"]
+IMPACT_VARIANTS = {f"{w}{'-children' if c else ''}": (w, c) for w in WALK_STEPS for c in (False, True)}   # the guide routes' names
 
 
 # Two fixed questions beside the walk, older than its per-kind steps (doc-0008 §4): from a capability,
@@ -194,14 +229,17 @@ REGISTER_CITES = (
     "ORDER BY document")
 PRELOAD_FIELDS = ("state", "tool", "tool_version", "digest", "report", "why")   # a Version's preload_* properties (task-0064)
 # The literal start each saved query carries, by the taxonomy the page picks its default from.
-START_LITERALS = {"applications": IMPACT_START, "capabilities": CAPABILITY_START, "information": INFORMATION_START}
+CHILDREN_START = "CAP-0001"   # a capability with descendants, for the children forms (task-0112)
+START_LITERALS = {"applications": IMPACT_START, "capabilities": CAPABILITY_START, "information": INFORMATION_START,
+                  "capabilities+children": CHILDREN_START}
 
 
-def impact_cypher(start: str) -> dict:
+def impact_cypher(start: str, walk: str = "dependants", children: bool = False) -> dict:
     """Both forms of the walk from ``start`` in place of the adapter's literal: the page lists them
-    with the register's default start and the impact panel with the id the viewer typed (task-0024)."""
+    with the register's default start and the impact panel with the id the viewer typed (task-0024),
+    for either walk, with or without children (task-0112)."""
     sub = lambda text: text.replace(f"'{IMPACT_START}'", f"'{start}'")  # noqa: E731
-    return {"rows": sub(IMPACT_ROWS), "paths": sub(IMPACT_PATHS)}
+    return {form: sub(text) for form, text in impact_texts(walk, children).items()}
 
 
 def node_statements_cypher(start: str) -> str:
@@ -235,6 +273,15 @@ SAVED_QUERIES = [
      "text": IMPACT_ROWS, "start": "applications"},
     {"id": "register-impact-paths", "needs": "register", "title": f"The same impact walk from {IMPACT_START} as paths: the graph view draws it",
      "text": IMPACT_PATHS, "start": "applications"},
+    # the other three variants of the walk (task-0112); a children form starts from a capability with descendants
+    {"id": "register-impact-children", "needs": "register", "start": "capabilities+children",
+     "text": impact_cypher(CHILDREN_START, "dependants", True)["rows"],
+     "title": f"The impact walk from {CHILDREN_START} and every approved descendant by parent: tools/impact.py --children, one row per edge"},
+    {"id": "register-realisers", "needs": "register", "start": "capabilities", "text": impact_cypher(CAPABILITY_START, "realisers")["rows"],
+     "title": f"What realises {CAPABILITY_START}: tools/impact.py --walk realisers, the processes that realise it and the applications that support them"},
+    {"id": "register-realisers-children", "needs": "register", "start": "capabilities+children",
+     "text": impact_cypher(CHILDREN_START, "realisers", True)["rows"],
+     "title": f"What realises {CHILDREN_START} and every approved descendant by parent: tools/impact.py --walk realisers --children"},
     {"id": "register-dependants-capability", "needs": "register", "start": "capabilities",
      "title": f"What rests on {CAPABILITY_START}: what realises or requires it, then one step on, approved links only",
      "text": DEPENDANTS_CAPABILITY},

@@ -284,12 +284,13 @@ def test_saved_queries_say_what_they_need():
     import server  # the page's generic queries plus the subject's queries.toml
     listed = server.cypher_list()
     needs = {q["id"]: q["needs"] for q in listed}
-    assert len(needs) == 17 and set(needs.values()) <= {"scenario", "S6", "S4", "register", "register+scenario"}
+    assert len(needs) == 20 and set(needs.values()) <= {"scenario", "S6", "S4", "register", "register+scenario"}
     assert all(q["needs_text"] for q in listed)
     assert {q["id"]: q["needs_text"] for q in listed}["invalidation"] == "S6 loaded deterministically"
     assert {q["id"] for q in views.SUBJECT.queries} == {"three-valued", "gate", "invalidation", "contradiction"}, "the subject's own queries"
     assert needs["invalidation"] == "S6" and needs["contradiction"] == "S4" and needs["register-cites"] == "register+scenario"
-    assert all(needs[k] == "register" for k in ("register-tag", "register-impact", "register-impact-paths", "register-c1",
+    assert all(needs[k] == "register" for k in ("register-tag", "register-impact", "register-impact-paths", "register-c1", "register-impact-children",
+                                               "register-realisers", "register-realisers-children",
                                                "register-dependants-capability", "register-dependants-information"))
     assert needs["register-node-store"] == needs["register-node-statements"] == "register+scenario"
     assert all(needs[k] == "scenario" for k in ("loaded", "three-valued", "gate", "gaps", "gaps-concerns", "census"))
@@ -792,7 +793,7 @@ def test_statements_view_has_a_browser_link_to_a_served_guide_of_register_node_s
     src = (ROOT / "demo" / "tools" / "check_impact_cypher.py").read_text(encoding="utf-8")
     assert 'sv["browser"]' in src and "statement_keys(st_rows) != statement_keys(shown)" in src
     demo = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
-    assert "every node agrees: 57 nodes, both forms and the statements view \\(17 nodes reach statements\\)" in demo
+    assert "every node agrees: 57 nodes, 4 walks in both forms and the statements view \\(17 nodes reach statements\\)" in demo
 # ---- task-0088: register-cites joins a citation to the store as register_node_statements does
 def test_register_cites_joins_directory_artefacts_by_path_and_checks_a_jef_directory_citation():
     import store_neo4j as sn
@@ -969,3 +970,221 @@ def test_impact_panel_shows_the_ports_node_statements_beside_the_walk():
         assert "Assertions its cited anchors name" not in [x["heading"] for x in server.impact_view("ENT-0004", statements=False)["panel"]["sections"]]
     finally:
         server._store = real
+
+
+# ---- task-0112: the realiser walk beside the dependants walk, and the children option (decision 0014), on the page
+
+def _starts(rows, start, children):
+    """The starts the Cypher walks from: the node, and with children every approved descendant by
+    parent, read off the projection's parent rows independently of the query text."""
+    if not children:
+        return [start]
+    nodes = {n["reg_id"]: n for n in rows["nodes"]}
+    kids = {}
+    for r in rows["parents"]:
+        kids.setdefault(r["parent"], []).append(r["child"])
+    seen, stack = set(), list(kids.get(start, []))
+    while stack:
+        c = stack.pop()
+        if c in seen or c == start:
+            continue
+        seen.add(c)
+        stack.extend(kids.get(c, []))
+    return [start] + sorted(c for c in seen if nodes[c]["state"] == "approved")
+
+
+def _variant_rows(reg, start, walk, children):
+    T = register_view._load_tools()
+    rows_of = T["impact"].WALKS[walk]
+    edges = T["impact"].walk_children(reg, start, rows_of)["edges"] if children else T["impact"].walk(reg, start, rows_of)
+    return sorted((e["from"], e["rel"], e["to"], e["state"], e["owner"], tuple(e["evidence"]), e["live"]) for e in edges)
+
+
+def _children_fixture():
+    """_fixture's register with descendants: MOD-1 approved under APP-1, MOD-2 deprecated under APP-1
+    (listed, not walked from), MOD-3 approved under MOD-2 (walked: the descent goes on at any depth)."""
+    reg, rows = _fixture()
+    for k, s, parent in (("MOD-2", "deprecated", "APP-1"), ("MOD-3", "approved", "MOD-2")):
+        reg["nodes"][k] = {"_taxonomy": "applications", "state": s, "parent": parent}
+        rows["nodes"].append({"reg_id": k, "taxonomy": "applications", "state": s, "name": k})
+    reg["nodes"]["MOD-1"]["parent"] = "APP-1"
+    for lid, src, tgt in (("REL-20", "MOD-1", "PROC-3"), ("REL-21", "MOD-2", "PROC-1"), ("REL-22", "MOD-3", "PROC-3")):
+        reg["relationships"]["supports"]["links"].append({"id": lid, "source": src, "target": tgt, "state": "approved", "owner": "ORG-1", "evidence": [f"kit:{lid}"]})
+        rows["links"].append({"reg_id": lid, "evidence": [f"kit:{lid}"]})
+        rows["typed"]["REG_SUPPORTS"].append({"source": src, "target": tgt, "props": {"reg_id": lid, "state": "approved", "owner": "ORG-1"}})
+    rows["parents"] = [{"child": "MOD-1", "parent": "APP-1"}, {"child": "MOD-2", "parent": "APP-1"}, {"child": "MOD-3", "parent": "MOD-2"}]
+    return reg, rows
+
+
+def test_every_walk_variant_in_cypher_equals_the_registers_on_every_node():
+    """Each of the four (dependants or realisers, with or without children): its steps are the vendored
+    walk's table, the children form's starts the node and its approved descendants, and over the
+    projection's rows it gives the edges impact.walk or impact.walk_children gives, every node."""
+    import register_project as rp
+    import store_neo4j as sn
+    T = register_view._load_tools()
+    rows = rp.rows(loaded_at="2026-10-31T00:00:00+00:00")
+    reg = T["register"].load_register(register_view.REGISTER)
+    fx_reg, fx_rows = _children_fixture()
+    totals = {}
+    for walk in register_view.WALKS:
+        table = T["impact"].WALKS[walk]
+        for children in (False, True):
+            texts = sn.impact_texts(walk, children)
+            steps = _parse_walk(texts["rows"])
+            assert _parse_walk(texts["paths"]) == steps and texts["paths"].rstrip().endswith("RETURN a, p")
+            assert steps == {(tax, "REG_" + rel.upper(), fwd) for tax, rels in table.items() for rel, fwd in rels}
+            head = sn._CHILDREN_STARTS.format(start=sn.IMPACT_START)
+            assert (head in texts["rows"] and head in texts["paths"]) == children
+            assert texts["rows"].count("reg_id:'") == 1 and ";" not in texts["rows"] + texts["paths"]
+            for r, g in ((reg, rows), (fx_reg, fx_rows)):
+                for nid in r["nodes"]:
+                    got = sorted(x for s in _starts(g, nid, children) for x in _simulate(steps, g, s))
+                    assert got == _variant_rows(r, nid, walk, children), (walk, children, nid)
+            totals[(walk, children)] = sum(len(_variant_rows(reg, nid, walk, children)) for nid in reg["nodes"])
+    assert totals[("dependants", False)] == 469 and totals[("realisers", False)] < totals[("realisers", True)]
+    assert sn.impact_texts() == {"rows": sn.IMPACT_ROWS, "paths": sn.IMPACT_PATHS}, "the default walk's text is the saved query's"
+    # the fixture: the deprecated module is listed, not walked from; the approved grandchild under it is walked
+    fx = _variant_rows(fx_reg, "APP-1", "dependants", True)
+    assert not any(r[0] == "MOD-2" for r in fx) and any(r[0] == "MOD-3" for r in fx) and any(r[0] == "MOD-1" for r in fx)
+    assert _starts(fx_rows, "APP-1", True) == ["APP-1", "MOD-1", "MOD-3"]
+
+
+def _subjects():
+    from _subject_pin import CARGO_QUOTE
+    import subject
+    return [CARGO_QUOTE, subject.Subject(ROOT / "subjects" / "jef_data_load")]
+
+
+def test_impact_panel_reaches_what_register_impact_reaches_on_both_walks_both_options_both_subjects():
+    import page_subject
+    import register_impact as ri
+    reg = register_view._load_tools()["register"].load_register(register_view.REGISTER)
+    lands = {"cargo_quote": {("CAP-0001", "dependants"): 31, ("CAP-0001", "realisers"): 36},
+             "jef_data_load": {("CAP-0006", "dependants"): 30, ("CAP-0006", "realisers"): 80}}
+    for s in _subjects():
+        with page_subject.using(s):
+            for nid in reg["nodes"]:
+                for walk in register_view.WALKS:
+                    for children in (False, True):
+                        p = register_view.impact(nid, walk, children)
+                        r = ri.walk(nid, walk, children=children)
+                        assert p["reached"]["all"] == r["reached_ids"] and p["edges"] == r["edges"], (s.id, nid, walk, children)
+                        assert p["walk"] == walk and p["children"] is children
+                        if children:
+                            assert [(d["id"], d["state"], d["walked"], d["withdrawn"]) for d in p["descendants"]] == \
+                                [(c["id"], c["state"], c["walked"], c["withdrawn"]) for c in r["children"]]
+                            withdrawn = {d["id"] for d in p["descendants"] if d["withdrawn"]}
+                            assert not withdrawn & {e["from"] for e in p["edges"]}, "a withdrawn descendant is not walked from"
+                            sec = p["panel"]["sections"][0]
+                            assert sec["heading"] == "Descendants by parent" and len(sec["table"]["rows"]) == len(p["descendants"])
+                            assert all(row[4] == ("no, withdrawn" if row[0] in withdrawn else "yes") for row in sec["table"]["rows"])
+                        else:
+                            assert "descendants" not in p
+            # the keys the panel's reach lands, as register_impact lands them (task-0118's counts)
+            for (start, walk), n in lands[s.id].items():
+                for children, want in ((False, 0), (True, n)):
+                    p = register_view.impact(start, walk, children)
+                    walked = [d["id"] for d in p.get("descendants", []) if d["walked"]]
+                    assert len(ri.landed_rows(s.register_map(), start, p["reached"]["all"], walked)) == want, (s.id, start, walk, children)
+
+
+@on_cargo_quote
+def test_cap_0001_with_children_and_three_distinct_realiser_answers():
+    off = register_view.impact("CAP-0001")
+    assert off["edges"] == [] and "No link starts at this node" in off["panel"]["sections"][0]["text"], "the default, unchanged"
+    on = register_view.impact("CAP-0001", children=True)
+    assert on["reached"]["all"] == ["JRN-0001", "PRD-0002", "PROC-0001"] and on["panel"]["title"] == "Impact of retiring CAP-0001, with its descendants"
+    assert [(d["id"], d["walked"]) for d in on["descendants"]] == [("CAP-0002", True), ("CAP-0003", True), ("CAP-0004", True), ("CAP-0005", False)]
+    assert "CAP-0005" not in {e["from"] for e in on["edges"]} and "It also starts from every descendant by parent" in on["panel"]["intro"]
+    assert [s["heading"] for s in on["panel"]["sections"]] == ["Descendants by parent", "Edges walked", "Reached", "Who to inform"]
+    real = register_view.impact("CAP-0001", "realisers", True)
+    assert real["reached"]["processes"] and real["reached"]["applications"] and real["panel"]["title"] == "What realises CAP-0001, with its descendants"
+    # AC #1: CAP-0002/3/4 give three distinct realiser answers, as impact.py --walk realisers does
+    T = register_view._load_tools()
+    reg = T["register"].load_register(register_view.REGISTER)
+    answers = []
+    for nid in ("CAP-0002", "CAP-0003", "CAP-0004"):
+        w = register_view.impact(nid, "realisers")
+        assert w["reached"]["all"] == sorted(T["impact"].reached(T["impact"].walk(reg, nid, T["impact"].REALISERS)))
+        assert w["reached"]["processes"] and w["panel"]["title"] == f"What realises {nid}" and "realiser walk" in w["panel"]["intro"]
+        assert "application" in w["panel"]["sections"][0]["text"]
+        answers.append(tuple(w["reached"]["all"]))
+    assert len(set(answers)) == 3, answers
+    assert register_view.impact("CAP-0001", "ancestors") is None and register_view.impact("CAP-9999", "realisers", True) is None
+    for v in (on, real, register_view.impact("CAP-0002", "realisers")):
+        _check_sentences(v["text_registry"])
+
+
+@on_cargo_quote
+def test_impact_view_serves_every_variants_cypher_guides_and_saved_queries():
+    import threading
+    import urllib.error
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+    import server
+    import store_neo4j as sn
+    sys.path.insert(0, str(ROOT / "demo" / "tools"))
+    import check_impact_cypher as cic
+    for variant, (walk, children) in sn.IMPACT_VARIANTS.items():
+        w = server.impact_view("CAP-0001", "http://demo.test:8080", walk=walk, children=children)
+        assert w["cypher"]["rows"] == sn.impact_cypher("CAP-0001", walk, children)["rows"] and "{reg_id:'CAP-0001'}" in w["cypher"]["paths"]
+        mid = "" if variant == "dependants" else f"/{variant}"
+        for form in server.WALK_FORMS:
+            assert w["cypher"]["guide"][form] == f"/api/register/impact/CAP-0001{mid}/guide/{form}"
+            assert cic.guide_url_of(w["cypher"]["browser"][form]) == "http://demo.test:8080" + w["cypher"]["guide"][form]
+            assert cic.block_of(server.impact_guide("CAP-0001", form, variant)) == w["cypher"][form]
+        assert w["statements"]["cypher"]["guide"] == "/api/register/impact/CAP-0001/guide/statements"
+        _check_sentences(w["text_registry"])
+    assert server.impact_guide("CAP-0001", "rows", "ancestors") is None and server.impact_guide("CAP-0001", "statements", "realisers") is None
+    assert server.impact_view("CAP-0001", walk="ancestors") is None
+    # both adapters: the rdflib store has no console, so no Cypher, and the same walk for every variant
+    import os
+    os.environ["KG_STORE"] = "rdflib"
+    try:
+        for walk, children in sn.IMPACT_VARIANTS.values():
+            r = server.impact_view("CAP-0001", statements=False, walk=walk, children=children)
+            assert r["cypher"] is None and r["edges"] == server.impact_view("CAP-0001", statements=False, walk=walk, children=children)["edges"]
+            assert server.impact_guide("CAP-0001", "rows", f"{walk}-children" if children else walk) is None
+    finally:
+        del os.environ["KG_STORE"]
+    for walk, children in sn.IMPACT_VARIANTS.values():
+        assert server.impact_view("CAP-0001", statements=False, walk=walk, children=children)["edges"] == register_view.impact("CAP-0001", walk, children)["edges"]
+    # the saved queries: each variant listed from the register's default for its start
+    listed = {q["id"]: q for q in server.cypher_list()}
+    for qid, start, walk, children in (("register-impact", "APP-0002", "dependants", False), ("register-impact-children", "CAP-0001", "dependants", True),
+                                       ("register-realisers", "CAP-0002", "realisers", False), ("register-realisers-children", "CAP-0001", "realisers", True)):
+        assert listed[qid]["text"] == sn.impact_cypher(start, walk, children)["rows"] and start in listed[qid]["title"], qid
+    assert register_view.start_default("capabilities+children") == "CAP-0001"
+    # over HTTP: the query string picks the walk, a bad one is refused, a variant's guide is served cross-origin
+    class Quiet(server.Handler):
+        def log_message(self, fmt, *args):
+            pass
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Quiet)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+        got = json.loads(urllib.request.urlopen(base + "/api/register/impact/CAP-0001?walk=realisers&children=1").read())
+        assert got["walk"] == "realisers" and got["children"] is True and got["reached"]["all"] == register_view.impact("CAP-0001", "realisers", True)["reached"]["all"]
+        assert json.loads(urllib.request.urlopen(base + "/api/register/impact/CAP-0001").read())["edges"] == []
+        assert cic.block_of(cic.fetch_guide(base + got["cypher"]["guide"]["rows"])) == got["cypher"]["rows"]
+        for bad in ("/api/register/impact/CAP-0001?walk=ancestors", "/api/register/impact/CAP-0001?children=maybe"):
+            try:
+                urllib.request.urlopen(base + bad)
+            except urllib.error.HTTPError as e:
+                assert e.code == 400, bad
+            else:
+                raise AssertionError(bad)
+        for bad in ("/api/register/impact/CAP-0001/ancestors/guide/rows", "/api/register/impact/CAP-0001/dependants/guide/rows",
+                    "/api/register/impact/CAP-0001/realisers/guide/statements"):
+            try:
+                urllib.request.urlopen(base + bad)
+            except urllib.error.HTTPError as e:
+                assert e.code == 404, bad
+            else:
+                raise AssertionError(bad)
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+    page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
+    assert 'id="impact-walk"' in page and 'id="impact-children"' in page and "?walk=${encodeURIComponent(walk)}&children=${children}" in page
