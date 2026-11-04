@@ -1,6 +1,6 @@
 """The store survives a round trip through Turtle (task-0070, doc-0013 P4).
 
-    python tools/check_round_trip.py [--chain rdflib,rdflib] [--scenarios S1,S2] [--no-stage2]
+    python tools/check_round_trip.py [--chain rdflib,rdflib] [--scenarios S1,S2] [--no-stage2] [--expect-preload]
 
 For each scenario of the subject (``KG_SUBJECT``): load it into the chain's first store with
 ``gate_cli.py``'s own load, then hand it on, hop by hop, as Turtle: ``export_turtle`` on one store,
@@ -12,6 +12,13 @@ the store's own name and the order of its lists aside (``canonical``); the censu
 nodes and edges, by id, label, type and property, as the first's. A scenario with a later version
 (``[scenario.stage2]``) is checked again after the change, before re-verification, as
 ``gate_cli.py --stage 2`` loads it.
+
+The pre-load verdicts (task-0064, task-0085) are compared too: every Version's preload_* verdict
+(``preload_verdicts``) and, per task, the gate's preload bundle (the documents behind the keys whose
+form was unchecked or had findings), as well as the info findings of kind preload the gate reports
+carry. A subject inside an instance with a pre-load report (``tools/preload_check.py -o
+<instance>/preload-report.json``) records them; ``--expect-preload`` fails a scenario whose first
+store recorded none, so a run meant to prove they survive cannot pass on a store that never held one.
 
 The chain names store kinds (``KG_STORE``'s values), first the one loaded: ``rdflib,rdflib`` needs
 no database (harness.yml); ``neo4j,rdflib,neo4j`` is Neo4j to Turtle to rdflib and back, the stack
@@ -39,6 +46,7 @@ def open_kind(kind: str, instance: str):
 
 def answers(st, scenario: str) -> dict:
     """What a client reads: the MCP server's gate report per task and three-valued answer per key."""
+    import gate
     import mcp_server
     from subject import SUBJECT
     from tasks import TASKS
@@ -50,9 +58,15 @@ def answers(st, scenario: str) -> dict:
     tools = mcp_server.Tools(opener=lambda: Held(st))
     keys = list(dict.fromkeys([*SUBJECT.three_valued, *(k for t in TASKS.values() for k in t["keys"])]))
     strip = lambda d: {k: v for k, v in d.items() if k != "store"}  # noqa: E731
-    return {"gate": {t: strip(tools.gate_verdict({"scenario": scenario, "task": t})) for t in sorted(TASKS)},
+    reports = {t: strip(tools.gate_verdict({"scenario": scenario, "task": t})) for t in sorted(TASKS)}
+    view = Held(st)
+    return {"gate": reports,
             "three_valued": {k: strip(tools.three_valued_answer({"key": k, "scenario": scenario})) for k in keys},
-            "census": st.census()}
+            "census": st.census(),
+            # task-0085: each Version's pre-load verdict, and per task the gate's preload bundle and its info findings
+            "preload": {"verdicts": view.preload_verdicts(),
+                        "bundle": {t: gate.resolve(view, t).get("preload") for t in sorted(TASKS)},
+                        "findings": {t: [f for f in r["findings"] if f["kind"] == "preload"] for t, r in reports.items()}}}
 
 
 def shape(turtle: str) -> tuple[list, list]:
@@ -87,12 +101,15 @@ def differences(a: dict, b: dict, where: str) -> list[str]:
             if x != y:
                 fields = sorted(f for f in set(x or {}) | set(y or {}) if (x or {}).get(f) != (y or {}).get(f))
                 out.append(f"{where}: {part} {k} differs on {fields}")
+    for part in ("verdicts", "bundle", "findings"):
+        if a.get("preload", {}).get(part) != b.get("preload", {}).get(part):
+            out.append(f"{where}: preload {part} differs")
     if a["census"] != b["census"]:
         out.append(f"{where}: census {a['census']} != {b['census']}")
     return out
 
 
-def check(scenario: str, chain: list[str], stage2: bool) -> list[str]:
+def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = False) -> list[str]:
     import gate_cli
     from subject import SUBJECT
     label = f"{scenario}{' stage 2' if stage2 else ''}"
@@ -106,6 +123,8 @@ def check(scenario: str, chain: list[str], stage2: bool) -> list[str]:
     finally:
         first.close()
     failures = []
+    if expect_preload and not base["preload"]["verdicts"]:
+        failures.append(f"{label} {chain[0]}: the load recorded no pre-load verdict: is there a report at the instance's root or in KG_PRELOAD_REPORT?")
     for i, kind in enumerate(chain[1:], 1):
         st = open_kind(kind, SUBJECT.id)
         try:
@@ -123,7 +142,8 @@ def check(scenario: str, chain: list[str], stage2: bool) -> list[str]:
     v = base["gate"].get("codegen", next(iter(base["gate"].values()), {}))
     print(f"{label}: {'→'.join(chain)}: {len(base['gate'])} gate report(s) (codegen {v.get('verdict')}), "
           f"{len(base['three_valued'])} three-valued answer(s), {base['census']['nodes']} nodes, "
-          f"{base['census']['relationships']} relationships: " + ("equal" if not failures else f"{len(failures)} difference(s)"))
+          f"{base['census']['relationships']} relationships, "
+          f"{len(base['preload']['verdicts'])} pre-load verdict(s), {sum(map(len, base['preload']['findings'].values()))} preload finding(s): " + ("equal" if not failures else f"{len(failures)} difference(s)"))
     return failures
 
 
@@ -132,6 +152,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--chain", default="rdflib,rdflib", help="store kinds, first the one loaded (default: rdflib,rdflib)")
     ap.add_argument("--scenarios", help="comma-separated scenario ids (default: every scenario of the subject)")
     ap.add_argument("--no-stage2", action="store_true", help="skip the later version of a scenario that has one")
+    ap.add_argument("--expect-preload", action="store_true",
+                    help="fail when the first store recorded no pre-load verdict (the subject's instance has no report)")
     args = ap.parse_args(argv)
     chain = [k.strip().lower() for k in args.chain.split(",") if k.strip()]
     if len(chain) < 2:
@@ -142,9 +164,9 @@ def main(argv: list[str] | None = None) -> int:
     scenarios = args.scenarios.split(",") if args.scenarios else list(SUBJECT.order)
     failures = []
     for sc in scenarios:
-        failures += check(sc, chain, False)
+        failures += check(sc, chain, False, args.expect_preload)
         if not args.no_stage2 and SUBJECT.scenario(sc).get("stage2"):
-            failures += check(sc, chain, True)
+            failures += check(sc, chain, True, args.expect_preload)
     for f in failures:
         print("FAIL " + f, file=sys.stderr)
     print(f"round trip {SUBJECT.id} {'→'.join(chain)}: " + ("every answer survives" if not failures else f"{len(failures)} failure(s)"))

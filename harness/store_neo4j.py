@@ -174,6 +174,24 @@ _NODE_STATEMENTS = (
     "       collect(DISTINCT dv.id + CASE WHEN dv.suspect THEN ' (suspect)' ELSE '' END) AS derived\n"
     "ORDER BY document, statement")
 NODE_STATEMENTS = _NODE_STATEMENTS.replace("$start", f"'{INFORMATION_START}'")
+# The citations beside the store's versions of what they cite (task-0088), joined as _NODE_STATEMENTS
+# joins: the file artefact of the path, whose version digest is the file's and is compared with the
+# register's digest at the tag; or the file's fragments in a directory artefact (J-F's
+# contracts/chain.md in contracts/, locators chain.md:row/15), whose version digest is the whole
+# directory's, so the row names the directory and counts the file's fragments instead of comparing.
+REGISTER_CITES = (
+    "// the register's digest at the tag beside the store's per version: 'same as tag' or 'differs' for a file artefact,\n"
+    "// a file of a directory artefact is matched by its fragments' '<file>:' locators, and the store keeps no digest of the file\n"
+    "MATCH (l:RegLink)-[c:REG_CITES]->(d:RegDocument)\n"
+    "OPTIONAL MATCH (a:Artefact) WHERE a.id = d.path OR (a.id ENDS WITH '/' AND d.path STARTS WITH a.id)\n"
+    "OPTIONAL MATCH (a)-[:HAS_VERSION]->(v:Version)\n"
+    "OPTIONAL MATCH (v)-[:HAS_FRAGMENT]->(f:Fragment) WHERE a.id <> d.path AND f.locator STARTS WITH substring(d.path, size(a.id)) + ':'\n"
+    "WITH l, c, d, a, v, count(DISTINCT f) AS parts\n"
+    "RETURN d.path AS document, left(d.digest, 12) AS digest_at_tag, collect(DISTINCT l.reg_id) AS links,\n"
+    "       collect(DISTINCT c.anchor) AS anchors,\n"
+    "       collect(DISTINCT CASE WHEN a.id = d.path THEN v.tag + ': ' + CASE WHEN v.sha256 = d.digest THEN 'same as tag' ELSE 'differs, ' + left(v.sha256, 12) END\n"
+    "                             WHEN parts > 0 THEN v.tag + ': in ' + a.id + ', ' + toString(parts) + CASE parts WHEN 1 THEN ' fragment' ELSE ' fragments' END + ', no file digest in the store' END) AS versions_in_store\n"
+    "ORDER BY document")
 PRELOAD_FIELDS = ("state", "tool", "tool_version", "digest", "report", "why")   # a Version's preload_* properties (task-0064)
 # The literal start each saved query carries, by the taxonomy the page picks its default from.
 START_LITERALS = {"applications": IMPACT_START, "capabilities": CAPABILITY_START, "information": INFORMATION_START}
@@ -228,14 +246,8 @@ SAVED_QUERIES = [
               "  AND NOT (s)-[:REG_IS_SUPPORTED_BY]->(:RegNode)\n"
               "OPTIONAL MATCH (e:RegException {rule:'C1'})-[x:REG_EXCEPTS]->(s)\n"
               "RETURN s.reg_id AS uncovered, s.name AS name, e.reg_id AS exception, x.expires AS expires")},
-    {"id": "register-cites", "needs": "register+scenario", "title": "The links that cite a kit document, joined to the harness's Artefact by path: the one query across both namespaces",
-     "text": ("// the register's digest at the tag beside the store's digest per version: 'same as tag' or 'differs'\n"
-              "MATCH (l:RegLink)-[c:REG_CITES]->(d:RegDocument)\n"
-              "OPTIONAL MATCH (a:Artefact {id:d.path})-[:HAS_VERSION]->(v:Version)\n"
-              "RETURN d.path AS document, left(d.digest, 12) AS digest_at_tag, collect(DISTINCT l.reg_id) AS links,\n"
-              "       collect(DISTINCT c.anchor) AS anchors,\n"
-              "       collect(DISTINCT v.tag + ': ' + CASE WHEN v.sha256 = d.digest THEN 'same as tag' ELSE 'differs, ' + left(v.sha256, 12) END) AS versions_in_store\n"
-              "ORDER BY document")},
+    {"id": "register-cites", "needs": "register+scenario", "title": "The links that cite a kit document, joined to the harness's Artefact by path, or by locator in a directory artefact: the one query across both namespaces",
+     "text": REGISTER_CITES},
 ]
 
 
