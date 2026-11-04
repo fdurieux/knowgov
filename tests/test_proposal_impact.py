@@ -191,11 +191,12 @@ def test_nothing_is_written_to_the_register_or_the_store():
 # ---- task-0130 AC3: the reused nodes' keys read as register_impact reads them
 
 def test_keys_on_reused_nodes_equal_register_impacts_for_the_same_node_task_and_as_of():
+    from subject import SUBJECT
     from tasks import TASKS
     s, _ = _server(Stub())
     for task in sorted(TASKS):
         got = _call(s, "proposal_impact", {"proposal": _proposal(), "task": task, "as_of": DAY})["result"]["structuredContent"]
-        assert got["keys"]["task"] == task and got["keys"]["scenario"] == "S1" and got["as_of"] == DAY
+        assert got["keys"]["task"] == task and got["keys"]["scenario"] == SUBJECT.order[0] and got["as_of"] == DAY
         for entry in got["keys"]["by_node"]:
             want = _call(s, "register_impact", {"node": entry["node"], "task": task, "as_of": DAY})["result"]["structuredContent"]
             assert entry["keys"] == want["keys"], (task, entry["node"])
