@@ -10,7 +10,7 @@
 #
 # The job clones knowgov at KNOWGOV_REF; the instance checkout at KG_INSTANCE is the caller's
 # (a submodule or a before_script clone). The store's variables (KG_STORE and its own) come from the
-# project's CI/CD variables. The gate's and the trace's findings reach the merge request's code-quality
+# project's CI/CD variables. Every gate's findings reach the merge request's code-quality
 # widget through gl-code-quality-report.json (KG_ANNOTATE; harness/annotate.py; task-0083). Exit: the core command's, 0 pass, 1 a finding at or above KG_FAIL_ON,
 # 2 cannot run; make the job required through the merge request's approval rules.
 .knowgov-gate:

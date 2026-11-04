@@ -20,6 +20,9 @@ PY=${PYTHON:-python3}
 set -- --fail-on "${KG_FAIL_ON:-major}"
 if [ -n "${KG_PRELOAD_BASELINE:-}" ]; then set -- "$@" --baseline "$INST/$KG_PRELOAD_BASELINE"; fi
 if [ -n "$BASE" ]; then set -- "$@" --since "$BASE"; fi
+# KG_REPORT: also write the JSON report here (preload_check.py -o), for the platform to annotate or keep
+# (harness/annotate.py; task-0106). The layout check's findings are in its text, not in the report.
+if [ -n "${KG_REPORT:-}" ]; then set -- "$@" -o "$KG_REPORT"; fi
 "$PY" "$KG/tools/preload_check.py" "$INST" "$@"
 lint=$?
 "$PY" "$KG/tools/check_instance.py" "$INST"

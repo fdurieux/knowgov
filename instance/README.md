@@ -191,9 +191,11 @@ GitHub the action does this by default (input `annotate`): each finding is an an
 and the pull request, and the job summary carries a table of them. On GitLab the include writes
 `gl-code-quality-report.json`, which the merge request's code-quality widget shows. Any other
 platform names the formats it reads, for example `KG_ANNOTATE=sarif:knowgov.sarif`. A finding at or
-above the threshold is an error. A finding on code points at the file; a finding on a key or a
-statement points at the subject's `subject.toml`, since the report names statements, not lines in a
-document. Annotations never change the exit code.
+above the threshold is an error. A finding on code points at the file, and a pre-load finding at its
+document's line. A finding on a key or a statement points at the subject's `subject.toml`, since the
+report names statements, not lines in a document. A pre-load finding your baseline holds is at most a
+warning, since it did not fail the check. The layout check's problems appear in the job's log only.
+Annotations never change the exit code.
 
 This repository's CI runs the GitHub action on
 the example instance, and runs the GitLab job's own script lines in a shell

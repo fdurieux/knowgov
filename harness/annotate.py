@@ -65,7 +65,8 @@ def findings(rep: dict, instance: Path | None = None, subject: Path | None = Non
             where = _rel(instance / f["file"], root) if instance else f["file"]
             for x in f["findings"]:
                 out.append({"severity": x["severity"], "kind": f"preload:{x['rule']}", "id": x["rule"], "path": where,
-                            "line": max(int(x["line"]), 1), "title": f"{f['tool'] or 'lint'} {x['rule']}", "message": x["message"]})
+                            "line": max(int(x["line"]), 1), "title": f"{f['tool'] or 'lint'} {x['rule']}" + (" (held by the baseline)" if x.get("held") else ""),
+                            "message": x["message"], "held": bool(x.get("held"))})
             if f["state"] in ("unchecked", "cannot_run") and not f["findings"]:
                 out.append({"severity": "info", "kind": f"preload:{f['state']}", "id": f["state"], "path": where, "line": 1,
                             "title": f"pre-load {f['state'].replace('_', ' ')}", "message": f["why"]})
@@ -83,10 +84,11 @@ def findings(rep: dict, instance: Path | None = None, subject: Path | None = Non
     return out
 
 
-def level(severity: str, threshold: str | None) -> str:
-    """error, warning or notice: at or above the threshold an error, info a notice."""
+def level(severity: str, threshold: str | None, held: bool = False) -> str:
+    """error, warning or notice: at or above the threshold an error, info a notice; a finding the
+    pre-load baseline holds did not fail the check, so it is at most a warning (task-0106)."""
     t = threshold if threshold in LADDER else "major"
-    if LADDER.index(severity) <= LADDER.index(t):
+    if LADDER.index(severity) <= LADDER.index(t) and not held:
         return "error"
     return "notice" if severity == "info" else "warning"
 
@@ -106,7 +108,7 @@ def github(rep: dict, fs: list[dict]) -> str:
         if f["path"]:
             props += [f"file={_esc_prop(f['path'])}", f"line={f['line']}"]
         props.append(f"title={_esc_prop(f['title'] + ' (' + f['severity'] + ')')}")
-        lines.append(f"::{level(f['severity'], rep.get('threshold'))} {','.join(props)}::{_esc_data(f['message'])}")
+        lines.append(f"::{level(f['severity'], rep.get('threshold'), f.get('held', False))} {','.join(props)}::{_esc_data(f['message'])}")
     return "\n".join(lines) + ("\n" if lines else "")
 
 
@@ -155,7 +157,7 @@ def sarif(rep: dict, fs: list[dict]) -> str:
     rules = sorted({f["kind"] for f in fs})
     results = []
     for f in fs:
-        r = {"ruleId": f["kind"], "ruleIndex": rules.index(f["kind"]), "level": sl[level(f["severity"], rep.get("threshold"))],
+        r = {"ruleId": f["kind"], "ruleIndex": rules.index(f["kind"]), "level": sl[level(f["severity"], rep.get("threshold"), f.get("held", False))],
              "message": {"text": f["message"]}, "properties": {"severity": f["severity"], "ref": f["id"]}}
         if f["path"]:
             r["locations"] = [{"physicalLocation": {"artifactLocation": {"uri": f["path"]}, "region": {"startLine": f["line"]}}}]

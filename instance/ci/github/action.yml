@@ -10,7 +10,7 @@
 #
 # Python and the pins of the tag's harness.yml (pumllint, rdflib or the Neo4j driver) are the
 # caller's steps, as is the store (KG_STORE and its variables, from the repository's secrets and
-# variables). The gate's and the trace's findings show as annotations and a job-summary table
+# variables). Every gate's findings show as annotations and a job-summary table
 # (input annotate; harness/annotate.py). Exit: the core command's, 0 pass, 1 a finding at or above fail-on, 2 cannot run.
 name: knowgov gate
 description: Run one of knowgov's gates (pre-load, knowledge, code trace) under the 0/1/2 contract.
@@ -49,13 +49,13 @@ inputs:
     description: "trace-register: the files to register (space-separated); default the code changed since base"
     default: ""
   report:
-    description: "gate, trace-*: also write the JSON report to this path, relative to the workspace"
+    description: "every gate: also write the JSON report to this path, relative to the workspace"
     default: ""
   code-repo:
     description: "trace-register: the code repository's name in the derived id"
     default: ""
   annotate:
-    description: "gate, trace-*: show the report's findings as annotations on the run and the pull request, and as a table in the job summary (task-0083); false: neither"
+    description: "every gate: show the report's findings as annotations on the run and the pull request, and as a table in the job summary (task-0083); false: neither"
     default: "true"
 runs:
   using: composite
