@@ -78,6 +78,7 @@ and the test checks this file names every term of it.
 | state | Where a register node or link stands: draft, proposed, approved, deprecated, retired or rejected. An assertion has a status, never a state. |
 | footprint | The register nodes and links a scenario touches: through its keys below approved, its requirement gaps and its changed documents, by the demo's approved map. |
 | reference | An underlined cell of a panel's table that opens its subject's own panel under the table: a node, a link, a requirement, a key or a document. |
+| owning unit | The organisation unit a register node's owner field names. The impact panel shows it beside each reached node, to say whom to inform. An approved owns link names a unit too; the walk never follows one. |
 | projection | The register's nodes and links loaded into the store in their own namespace at the vendored tag: derived, loaded on demand, wiped by a run, never the record. |
 
 The definitions may use a forbidden word once, to name what the term
@@ -136,6 +137,37 @@ the register's meanings, and their forbidden synonyms in the list, with six reco
 
 The register's names, rationales and finding messages are data on the page, shown as the
 register has them.
+
+## Provenance vocabularies: a crosswalk
+
+An evaluator may arrive with W3C PROV-O (https://www.w3.org/TR/prov-o/) or with a derivation method and
+validation status per claim (doc-0013 §3). The table maps every basis, every status and the two key levels
+below them onto both, and says where there is no counterpart. Nothing here changes a field; the
+harness keeps its own names. The rows without a counterpart are where knowgov says more than the
+vocabulary: whether a fact holds, whether it is contested, and why a key is empty.
+
+<!-- provenance crosswalk: begin (docs/guide.md and demo/GLOSSARY.md carry the same table; tests/test_crosswalk.py holds them equal) -->
+| knowgov | meaning here | W3C PROV-O | derivation method, validation status (doc-0013 §3) |
+|---|---|---|---|
+| basis `authored` | a person wrote the document the assertion is read from as the record | `prov:wasAttributedTo` a `prov:Person`; `prov:hadPrimarySource` the document | authored |
+| basis `extracted` | a parser read it from a fragment of a document | `prov:wasGeneratedBy` an extraction `prov:Activity`, `prov:wasAssociatedWith` a `prov:SoftwareAgent`; `prov:wasDerivedFrom` the fragment; `prov:hadPrimarySource` the document version | imported |
+| basis `elicited` | a person's answer to a questionnaire, under an issued handle | `prov:wasAttributedTo` a `prov:Person` (the handle); `prov:hadPrimarySource` the capture record | tacit knowledge, captured; no derivation term |
+| basis `inferred` | a model's proposal for a gap, never above proposed | `prov:wasGeneratedBy` an inference `prov:Activity`, `prov:wasAssociatedWith` a `prov:SoftwareAgent` (the model); the gap it proposes to fill has no PROV-O term | derived; the logic is not typed (deductive, inductive or abductive) |
+| basis `assumed` | an assumption an arm states in order to build | no counterpart | other |
+| basis `hypothesised` | a conjecture offered for a gap | no counterpart | abductive |
+| status `proposed` | loaded, not yet corroborated, verified or approved | no counterpart: PROV-O records how a thing came to be, not whether it holds | proposed |
+| status `validated` | corroborated: another assertion of the same key agrees | no counterpart | unverified (closest) |
+| status `verified` | a verification passed: execution by the oracle, or a review | the verification is a `prov:Activity` that `prov:used` the assertion; the status has no counterpart | verified |
+| status `approved` | a person approved a verified assertion, with who, when and which record | the approval is a `prov:Activity` `prov:wasAssociatedWith` the approver; the status has no counterpart | verified, with the approver |
+| status `disputed` | two assertions of one key conflict and nobody has ruled | no counterpart | no counterpart |
+| status `invalidated` | a source change ended it and its verifications | `prov:wasInvalidatedBy` the re-ingestion `prov:Activity`, at `prov:invalidatedAtTime` | superseded, once a verified or approved successor exists (`prov:wasRevisionOf` from the successor); else no counterpart |
+| status `rejected` | a ruling took it out of the live set; it keeps its history | no counterpart | rejected |
+| approval lapsed | a person's approved answer six months after it was given; it reads proposed again | no counterpart | expiry date (closest) |
+| key level `absent` | no live assertion holds the key | no counterpart | no counterpart |
+| key level `declared_gap` | a document declares the key open, with an owner | no counterpart | no counterpart |
+<!-- provenance crosswalk: end -->
+
+`docs/guide.md` §2 carries the same table.
 
 ## What is outside these rules
 

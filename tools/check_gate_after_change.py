@@ -10,7 +10,8 @@ written under OUT_DIR, valid against the schema and held to the subject's scored
    statements the change invalidated, the record's; BLOCKED, on the record's keys, exit 1.
 2. ``--stage 2 --reverify``: after the owner's re-verification, PROCEED, the record's verdict, yet
    exit 1: derived:S1:G:run1, generated from statements the change invalidated, is a blocker, and
-   the invalidated statements are findings (doc-0011 measured exit 0 here before task-0048).
+   the invalidated statements are findings (doc-0011 measured exit 0 here before task-0048), and
+   ``superseded_by`` names, for each, the verified or approved successors the record lists (task-0071).
 3. Stage 1: PROCEED, v1, exit 0. The change and the derived output, nothing else, move the exit code.
 """
 from __future__ import annotations
@@ -43,6 +44,12 @@ def gate(out: Path, name: str, *args: str) -> tuple[int, dict, str]:
     return p.returncode, rep, text
 
 
+def superseded(stale: list[dict]) -> dict[str, list[str]]:
+    """The record's stale statements and their verified or approved successors."""
+    out = {x["id"]: sorted({t["id"] for t in x["successors"] if t.get("id") and t.get("status") in ("verified", "approved")}) for x in stale}
+    return {k: v for k, v in out.items() if v}
+
+
 def show(code: int, args: str, rep: dict, text: str) -> None:
     print(f"exit {code}: gate_cli.py --scenario {SCENARIO} {args}: {rep['verdict']}, version {rep['version']}")
     print("    " + "\n    ".join(text.strip().splitlines()))
@@ -73,8 +80,9 @@ def main() -> None:
     stale = [f for f in rep["findings"] if f["kind"] == "stale"]
     if (code, rep["verdict"]) != (1, after["verdict"]) or rep["verdict"] != "PROCEED" or not rep["change"]["reverified"] \
             or [(f["kind"], f["ref"]) for f in blockers] != [("suspect_derived", did)] or rep["change"]["derived"] != did \
-            or {f["ref"] for f in stale} != {x["id"] for x in after["stale"]}:
-        sys.exit(f"FAIL: want the record's PROCEED, exit 1, a blocker on {did} alone and the stale statements as findings:\n{json.dumps(rep, indent=1)}")
+            or {f["ref"] for f in stale} != {x["id"] for x in after["stale"]} \
+            or rep.get("superseded_by") != superseded(after["stale"]) or not rep.get("superseded_by"):
+        sys.exit(f"FAIL: want the record's PROCEED, exit 1, a blocker on {did} alone, the stale statements as findings and superseded_by as the record's successors:\n{json.dumps(rep, indent=1)}")
     show(code, "--stage 2 --reverify", rep, text)
 
     code, rep, text = gate(out, "stage1")

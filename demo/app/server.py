@@ -201,14 +201,37 @@ def browser_play_url(origin: str, path: str) -> str:
         {"connectURL": f"bolt://neo4j@{host}:7687", "cmd": "play", "arg": origin + path}, quote_via=urllib.parse.quote)
 
 
-def impact_view(start: str, origin: str = "http://localhost:8080") -> dict | None:
+def node_statements(start: str) -> dict:
+    """The port's register_node_statements from one node (task-0046, task-0047): ``rows`` when the
+    store is reachable with the register projected and a scenario loaded, else None and ``missing``,
+    one of driver, store, register or scenario. Any adapter: the port's read, no console needed."""
+    out = {"rows": None, "missing": None}
+    try:
+        with _store() as s:
+            if s.register_census() is None:
+                out["missing"] = "register"
+            elif not s.extraction_activities():
+                out["missing"] = "scenario"
+            else:
+                out["rows"] = s.register_node_statements(start)
+    except ImportError:
+        out["missing"] = "driver"
+    except Exception:  # noqa: BLE001 — unreachable, whatever the driver's class
+        out["missing"] = "store"
+    return out
+
+
+def impact_view(start: str, origin: str = "http://localhost:8080", statements: bool = True) -> dict | None:
     """The impact walk from one node, with the walk's Cypher for the id typed when the store has a
     console (task-0024): both forms, and for each the guide the server serves and the Browser link
     that opens it, on the origin the viewer reached (the request's Host). None for an unknown id.
-    The id is a node of the register, so it is a plain literal in the query; nothing is run."""
+    The id is a node of the register, so it is a plain literal in the query; nothing is run but the
+    port's own read of the assertions the node's cited anchors name, shown beside the walk (task-0047)."""
     out = register_view.impact(start)
     if out is None:
         return None
+    if statements:
+        register_view.with_statements(out, node_statements(start), NEEDS_TEXT["register+scenario"])
     out["cypher"] = None
     if _console_store():
         try:

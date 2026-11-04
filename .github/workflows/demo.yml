@@ -140,8 +140,8 @@ jobs:
           test "$s2 $s2b $s1 $s1n $s2n" = "1 0 0 0 2"
           python3 -c 'import json; r=json.load(open("gate.json")); assert r["store"]=="neo4j" and r["verdict"]=="PROCEED" and r["exit_code"]==0, r; print("gate on neo4j:", r["verdict"])'
 
-      - name: The MCP server (task-0056) on the Neo4j store gives gate_cli's report and the record's three-valued answers, and writes nothing
-        run: docker compose exec -T app python tools/check_mcp_server.py --scenarios S1,S2
+      - name: The MCP server (task-0056) on the Neo4j store gives gate_cli's report and the record's three-valued answers, S6 after its change names superseded_by as the record does (task-0071), and writes nothing
+        run: docker compose exec -T app python tools/check_mcp_server.py --scenarios S1,S2,S6
 
       - name: The review step (task-0037, decision-0002) on the Neo4j store, S2' from BLOCKED to PROCEED by command, S4 settled whole
         run: docker compose exec -T app python tools/check_review_walkthrough.py runs/review
@@ -154,6 +154,10 @@ jobs:
 
       - name: Route (c) on the Neo4j store (task-0041), a transcript read by a stub model gives inferred candidates on the empty keys only
         run: docker compose exec -T app python tools/check_transcript_route.py runs/transcript
+      - name: The store survives a round trip (task-0070), Neo4j to Turtle to rdflib and back to Neo4j, every scenario of both subjects, the same gate reports and three-valued answers
+        run: |
+          docker compose exec -T app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j
+          docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j
 
       - name: A register node to the statements its cited anchor names (task-0046), on Neo4j, S6 with the S1 code as derived, equal to the rdflib port
         run: |
@@ -175,6 +179,8 @@ jobs:
           # the saved query the page lists runs on S6 and returns one row per statement
           docker compose exec -T app python demo/tools/check_saved_queries.py | tee queries-s6.txt
           grep -E '^ok +register-node-statements +[1-9][0-9]* rows' queries-s6.txt
+          # the impact panel for the typed node shows the same assertions beside the walk (task-0047), through the page
+          curl -fsS "localhost:8080/api/register/impact/ENT-0004" | python3 -c 'import json,sys; w=json.load(sys.stdin); s=w["statements"]; sec=[x for x in w["panel"]["sections"] if x["heading"]=="Assertions its cited anchors name"][0]; assert s["missing"] is None and len(s["rows"]) == 13 and len(sec["table"]["rows"]) == 13, s; assert w["owners"]["PROC-0001"]["unit"] == "ORG-0001", w["owners"]; print("impact ENT-0004:", len(sec["table"]["rows"]), "assertions beside the walk")'
 
       - name: The example instance mounted read-only (task-0006) replays and runs deterministically, and not one byte of it changes
         run: |

@@ -73,6 +73,13 @@ jobs:
               assert all(r["anchors"] == ["DT-P"] and r["document"] == "contract/decision_table.md" for r in rows), rows
               assert sorted(r["status"] for r in rows).count("invalidated") == 4, [r["status"] for r in rows]
               print(f"{st.name}: ENT-0004 -> {len(rows)} statements at DT-P (39 at document grain) -> {derived}")
+          # the impact panel for the typed node shows them beside the walk, with each reached node's owning unit (task-0047)
+          import server
+          w = server.impact_view("ENT-0004")
+          sec = [x for x in w["panel"]["sections"] if x["heading"] == "Assertions its cited anchors name"][0]
+          assert w["statements"]["rows"] == rows and len(sec["table"]["rows"]) == 13, w["statements"]
+          assert w["cypher"] is None and all(w["owners"][x]["unit"] for x in w["reached"]["all"]), w["owners"]
+          print(f"impact panel ENT-0004: {len(sec['table']['rows'])} assertions beside the walk")
           PY
       - name: The pre-load check (task-0045) through the CI template's script, real pumllint, the example instance clean exits 0, a planted broken PlantUML file exits 1
         run: |
@@ -185,3 +192,7 @@ jobs:
         run: KG_STORE=rdflib python tools/check_capture_pairing.py runs/pairing
       - name: Route (c), a transcript read by a stub model (task-0041), gives inferred candidates on S2's empty keys only, listed in the questionnaire; no key, exit 2
         run: KG_STORE=rdflib python tools/check_transcript_route.py runs/transcript
+      - name: The store survives a round trip (task-0070), every scenario of both subjects through Turtle into a fresh store, the same gate reports and three-valued answers
+        run: |
+          KG_STORE=rdflib python tools/check_round_trip.py --chain rdflib,rdflib
+          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_round_trip.py --chain rdflib,rdflib
