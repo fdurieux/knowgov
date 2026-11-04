@@ -8,7 +8,7 @@ neo4j==6.4.1
 pyyaml==6.0.3
 rdflib==7.6.0
 pyshacl==0.40.2
-openai==3.41.0
+openai==3.42.0
 pandas==3.0.5
 numpy==2.4.6
 requests==2.34.2
