@@ -132,7 +132,11 @@ and round trip, the scored record, never do.
 `tests/test_ci_subset.py` holds the subset the same in both workflows and here.
 
 Releases (decision-0003): SemVer, `VERSION` and `CHANGELOG.md` move together in a release PR
-(a test holds them equal); a contract change raises the minor version while 0.x. A hosted
+(a test holds them equal); a contract change raises the minor version while 0.x. Between releases,
+a PR whose change an adopter would notice (a contract, a feature, a known limit) adds its line under
+`CHANGELOG.md`'s `## Unreleased` as it merges, contract changes under their own heading; the release
+PR renames that section to the version (maintainer, 2026-11-04; `tests/test_release.py` admits one
+leading Unreleased, `release.yml` stays strict at tag time). A hosted
 session cannot push a tag: the owner publishes the GitHub Release on the release PR's merge
 commit, typing the tag as new, and the tag's `release.yml` publishes `ghcr.io/fdurieux/knowgov:<tag>`.
 The session that prepares a release PR also hands the owner, in its reply, the Release's title and
