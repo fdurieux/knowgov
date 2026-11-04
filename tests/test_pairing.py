@@ -158,20 +158,26 @@ def test_decision_0004_an_unreviewed_answer_lowers_no_key_a_document_holds_valid
     """S2's status list: an agreeing capture leaves the key validated, marked pending review; a
     contradicting one leaves it disputed; alone on a key, a capture sets its level."""
     import gate
+    from _subject_pin import CARGO_QUOTE   # S2's keys are CargoQuote's, whatever KG_SUBJECT names
+    c = CARGO_QUOTE.tasks["codegen"]
+    spec = {"keys": list(c.get("keys", [])),
+            "block_levels": set(c.get("block_levels", ["absent", "declared_gap", "disputed", "invalidated"])),
+            "max_unverified_share": float(c.get("max_unverified_share", 0.25))}
+    resolve = lambda st: gate.resolve_spec(st, "codegen", spec)  # noqa: E731
     st = _s2(_cap(DOC))
     rules.r_conflict(st, "S2")
-    v = gate.resolve(GateView(st), "codegen")["keys"][KEY]
+    v = resolve(GateView(st))["keys"][KEY]
     assert v["level"] == "validated" and v["pending_review"] == [CAP] and len(v["assertions"]) == 3, v
     assert "PENDING REVIEW" in "\n".join(gate.render_key(KEY, v))
     st = _s2(_cap(HELD))
     rules.r_conflict(st, "S2")
-    v = gate.resolve(GateView(st), "codegen")["keys"][KEY]
+    v = resolve(GateView(st))["keys"][KEY]
     assert v["level"] == "disputed" and v["pending_review"] == [], v
     st = PairStore([_cap("held_unscreened only", key="response|hold_presence")])
-    v = gate.resolve(GateView(st), "codegen")["keys"]["response|hold_presence"]
+    v = resolve(GateView(st))["keys"]["response|hold_presence"]
     assert v["level"] == "proposed" and v["pending_review"] == [], v
     st = _s2(_cap(DOC, status="approved"))
-    v = gate.resolve(GateView(st), "codegen")["keys"][KEY]
+    v = resolve(GateView(st))["keys"][KEY]
     assert v["level"] == "validated" and v["pending_review"] == [], "a reviewed answer counts as before"
 
 
