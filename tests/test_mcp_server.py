@@ -32,11 +32,16 @@ def _row(aid, key, value, status="verified", basis="extracted"):
             "verifications": [], "approvals": [], "gaps": []}
 
 
+FIRST = object()   # the Stub's default: the first scenario of whichever subject runs the suite
+
+
 class Stub:
-    """A store holding S1 with a verified value on every codegen key but one, which is absent."""
+    """A store holding the subject's first scenario with a verified value on every codegen key but one, which is absent."""
     name = "rdflib"
 
-    def __init__(self, scenario="S1", writes=None):
+    def __init__(self, scenario=FIRST, writes=None):
+        from subject import SUBJECT
+        scenario = SUBJECT.order[0] if scenario is FIRST else scenario   # the server's subject's first; None holds nothing
         self.scenario, self.path, self.closed_with = scenario, "store.ttl", None
         keys = TASKS["codegen"]["keys"]
         self.rows = {k: [_row(f"x{i}", k, "42")] for i, k in enumerate(keys[1:])}
@@ -156,11 +161,11 @@ def test_an_rdflib_file_is_read_and_never_written_back():
 
 def test_gate_verdict_is_the_commands_report_for_the_same_store():
     s, stub = _server()
-    got = _call(s, "gate_verdict", {"scenario": "S1"})["result"]
+    got = _call(s, "gate_verdict", {"scenario": stub.scenario})["result"]
     assert got["isError"] is False
     spec = TASKS["codegen"]
     with _Day():
-        want = gate_cli.evaluate(stub, subject=got["structuredContent"]["subject"], scenario="S1", task="codegen", spec=spec,
+        want = gate_cli.evaluate(stub, subject=got["structuredContent"]["subject"], scenario=stub.scenario, task="codegen", spec=spec,
                                  threshold="blocker", baseline=None, loaded=False, version="v1")
     assert want["as_of"] == DAY
     assert got["structuredContent"] == want
@@ -183,14 +188,48 @@ def test_a_key_set_of_the_agents_own_resolves_through_the_same_gate():
 
 
 def test_the_scenario_must_be_the_one_the_store_holds_and_nothing_is_ever_loaded():
-    s, stub = _server(Stub(scenario="S1"))
-    r = _call(s, "gate_verdict", {"scenario": "S2"})["result"]
-    assert r["isError"] and "holds S1" in r["content"][0]["text"]
+    from subject import SUBJECT
+    first, second = SUBJECT.order[:2]
+    s, stub = _server(Stub(scenario=first))
+    r = _call(s, "gate_verdict", {"scenario": second})["result"]
+    assert r["isError"] and f"holds {first}" in r["content"][0]["text"]
     s, stub = _server(Stub(scenario=None))
     r = _call(s, "gate_verdict", {})["result"]
     assert r["isError"] and "no scenario" in r["content"][0]["text"]
     assert _call(s, "store_status")["result"]["structuredContent"]["scenario"] is None
     assert stub.writes == []
+
+
+def _foreign_scenario() -> str:
+    """A scenario of the other public subject: J-F's C under CargoQuote, CargoQuote's S1 under J-F."""
+    from subject import SUBJECT
+    foreign = "C" if SUBJECT.id == "cargo_quote" else "S1"
+    assert foreign not in SUBJECT.scenarios
+    return foreign
+
+
+def test_a_scenario_of_another_subject_reads_as_none_held_and_every_scenario_tool_refuses_it():
+    """task-0126 (doc-0016 F1): one store serves every subject; the server reads its own subject's
+    scenarios only, with or without a scenario argument, and never answers on another's graph."""
+    from subject import SUBJECT
+    foreign = _foreign_scenario()
+    s, stub = _server(Stub(scenario=foreign))
+    st = _call(s, "store_status")["result"]
+    assert not st["isError"]
+    assert st["structuredContent"]["scenario"] is None
+    assert st["structuredContent"]["held_by_other_subject"] == foreign
+    key = TASKS["codegen"]["keys"][-1]
+    for name, args in (("gate_verdict", {}), ("three_valued_answer", {"key": key}), ("evidence_bundle", {}),
+                       ("register_impact", {"node": "CAP-0001"}),
+                       ("proposal_impact", {"proposal": json.loads((ROOT / "tools" / "fixtures" / "proposal_contract_quote.json").read_text(encoding="utf-8"))})):
+        for extra in ({}, {"scenario": foreign}, {"scenario": SUBJECT.order[0]}):
+            r = _call(s, name, {**args, **extra})["result"]
+            assert r["isError"] is True, (name, extra, r)
+            text = r["content"][0]["text"]
+            assert foreign in text and SUBJECT.id in text and "another subject" in text, (name, extra, text)
+    assert stub.writes == []
+    own = _call(_server()[0], "store_status")["result"]["structuredContent"]
+    assert own["scenario"] == SUBJECT.order[0] and own["held_by_other_subject"] is None
 
 
 def test_the_three_valued_answer_carries_each_statements_provenance():
@@ -284,7 +323,7 @@ def test_stdio_is_one_json_message_a_line():
         mcp_server.serve_stdio(s, inp, out)
     lines = out.getvalue().splitlines()
     assert [json.loads(x)["id"] for x in lines] == [1, 2]
-    assert json.loads(lines[1])["result"]["structuredContent"]["scenario"] == "S1"
+    assert json.loads(lines[1])["result"]["structuredContent"]["scenario"] == Stub().scenario
 
 
 def test_it_binds_localhost_unless_told_and_a_wider_bind_needs_a_token():
@@ -380,7 +419,7 @@ def test_server_discover_answers_per_the_revision_without_a_handshake():
     assert [t["name"] for t in tl["tools"]][0] == "store_status" and tl["resultType"] == "complete" and "ttlMs" in tl
     with _Day():
         call = s.handle(_modern("tools/call", 3, name="store_status", arguments={}))["result"]
-    assert call["structuredContent"]["scenario"] == "S1" and call["resultType"] == "complete" and "ttlMs" not in call
+    assert call["structuredContent"]["scenario"] == Stub().scenario and call["resultType"] == "complete" and "ttlMs" not in call
     assert call["_meta"][mcp_server.META_SERVER]["name"] == "knowgov"
 
 
@@ -516,7 +555,7 @@ def test_register_impact_reads_levels_as_gate_verdict_and_writes_nothing():
     s, _ = _server(Stub(writes=writes))
     start = rows[0]["nodes"][0]
     got = _call(s, "register_impact", {"node": start, "as_of": DAY})["result"]["structuredContent"]
-    assert got["scenario"] == "S1" and got["as_of"] == DAY and got["keys"]
+    assert got["scenario"] == Stub().scenario and got["as_of"] == DAY and got["keys"]
     assert rows[0]["key"] in [k["key"] for k in got["keys"]]
     keys = [k["key"] for k in got["keys"]]
     want = _call(s, "gate_verdict", {"keys": keys, "as_of": DAY})["result"]["structuredContent"]
@@ -782,6 +821,9 @@ def test_the_readmes_stateless_example_runs_against_the_server():
     assert argv[0] == "curl" and argv[2] == "http://127.0.0.1:8765/mcp", argv[:3]
     headers = dict(h.split(": ", 1) for flag, h in zip(argv, argv[1:]) if flag == "-H")
     body = json.loads(argv[argv.index("-d") + 1])
+    from subject import SUBJECT
+    if body["params"]["arguments"].get("scenario") not in SUBJECT.scenarios:   # the example is CargoQuote's (task-0126)
+        body["params"]["arguments"]["scenario"] = Stub().scenario
     httpd, base = _serve()
     day = _Day()
     day.__enter__()

@@ -21,6 +21,16 @@ names that section with the version.
   advisory step for a register pull request (exit 0 with a report, 2 cannot run), proven in
   `harness.yml` by `tools/check_proposal_branch.py`: on a scratch branch of the public register, the
   report equals the held overlay's, ids aside.
+- **The MCP server refuses another subject's scenario** (task-0126, doc-0016 F1, a fix). One
+  store serves every subject; before, a CargoQuote server over a store holding J-F's `C` reported
+  `scenario: C` and `gate_verdict` answered a well-formed BLOCKED, CargoQuote's keys read against
+  J-F's graph. Now `store_status` reports `scenario` null and names the foreign one in a new
+  `held_by_other_subject` (null otherwise), and `gate_verdict`, `three_valued_answer`,
+  `evidence_bundle` and `register_impact` (where it reads a scenario) refuse with `isError`,
+  naming the held scenario and the server's subject, with or without a `scenario` argument.
+  `register_impact` with no scenario named and nothing held still answers from the register. The
+  tool list, the record and the comparator are unchanged.
+
 - **A proposal read before approval: `proposal_impact`** (task-0130, task-0131, doc-0017; additive):
   a sixth read-only MCP tool and a command, `harness/proposal_impact.py`, with its report pinned by
   `harness/schemas/proposal-impact.schema.json` (version 1). A proposed addition (new nodes with

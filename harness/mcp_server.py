@@ -111,7 +111,8 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
-     "description": "The subject, the scenario the store holds (null when none is loaded), the store kind, the task "
+     "description": "The subject, the scenario the store holds (null when none is loaded, or when the one held is another "
+                    "subject's: held_by_other_subject names it then, and every scenario-reading tool refuses), the store kind, the task "
                     "classes with their required keys (and the rationale a class states), the keys the subject asks the three-valued question of, and "
                     "the date gate_verdict and evidence_bundle read on when a call names none (as_of, from as_of_from).",
      "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
@@ -236,12 +237,32 @@ def open_read_only(open_store=None) -> ReadOnlyStore:
     return ReadOnlyStore(open_store(instance=SUBJECT.id))
 
 
-def _held(st) -> str | None:
+def _held_any(st) -> str | None:
+    """The scenario the store holds, whichever subject's: one store serves every subject."""
     acts = st.extraction_activities()   # act:extract:<scenario>:<version>, as gate_cli --no-load reads it
     return acts[0].split(":")[2] if acts else None
 
 
+def _held(st) -> str | None:
+    """The held scenario when it is the server's subject's, else None (task-0126)."""
+    from subject import SUBJECT
+    held = _held_any(st)
+    return held if held in SUBJECT.scenarios else None
+
+
+def _foreign(st) -> str | None:
+    """The held scenario when it is not the server's subject's: no tool reads it (task-0126)."""
+    from subject import SUBJECT
+    held = _held_any(st)
+    return held if held is not None and held not in SUBJECT.scenarios else None
+
+
 def _check_scenario(st, scenario: str | None) -> str:
+    from subject import SUBJECT
+    foreign = _foreign(st)
+    if foreign is not None:
+        raise ToolError(f"the store holds {foreign}, a scenario of another subject, not of {SUBJECT.id} "
+                        f"(which declares {SUBJECT.order}); this server reads its own subject's scenarios only")
     held = _held(st)
     if held is None:
         raise ToolError("the store holds no scenario; load one through the page or a run first (this server never loads)")
@@ -319,6 +340,7 @@ class Tools:
 
         def go(st):
             return {"subject": SUBJECT.id, "store": st.name, "scenario": _held(st),
+                    "held_by_other_subject": _foreign(st),
                     "as_of": on, "as_of_from": self.as_of_from,
                     "scenarios": list(SUBJECT.order),
                     "tasks": {n: {"keys": t["keys"], "block_levels": sorted(t["block_levels"]),
@@ -432,7 +454,7 @@ class Tools:
 
         def go(st):
             head["store"] = st.name
-            if args.get("scenario") is None and _held(st) is None:
+            if args.get("scenario") is None and _held_any(st) is None:
                 return {**head, **out, "keys": keys, "gate": None}
             scenario = _check_scenario(st, args.get("scenario"))
             on = self._as_of(args)
@@ -473,8 +495,9 @@ class Tools:
             raise ToolError(f"the proposal cannot be read: {e}") from e
 
         def go(st):
-            if args.get("scenario") is not None:
-                _check_scenario(st, args.get("scenario"))
+            if args.get("scenario") is None and _held_any(st) is None:
+                return out   # nothing held: the register answers alone, as register_impact's
+            _check_scenario(st, args.get("scenario"))   # another subject's scenario is refused (task-0126)
             if task is None:
                 return out
             try:
