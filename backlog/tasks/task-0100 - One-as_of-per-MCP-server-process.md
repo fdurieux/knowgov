@@ -4,6 +4,7 @@ title: One as_of per MCP server process
 status: To Do
 assignee: []
 created_date: '2026-11-04T09:47:00Z'
+updated_date: '2026-11-04T10:47:00Z'
 labels:
   - mcp
   - clock
@@ -26,3 +27,9 @@ From doc-0014 (C2). harness/mcp_server.py reads KG_AS_OF (YYYY-MM-DD, record or 
 - [ ] #2 tests/test_clock.py names the new read and holds it pinned
 - [ ] #3 CHANGELOG names the changed default
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Decided 2026-11-04 by the maintainer (doc-0014 §11, #170): the default is today for both gate_verdict and evidence_bundle; evidence_bundle loses its record default, which stays an explicit choice. A contract change under decision-0003, so a minor version, named in the CHANGELOG. The split default is not kept as documentation.
+<!-- SECTION:NOTES:END -->
