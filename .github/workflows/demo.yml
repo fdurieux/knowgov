@@ -205,6 +205,9 @@ jobs:
           docker compose exec -T app python tools/check_node_statements.py --node ENT-0004 --expect 13 --total 392
           docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python harness/run.py --deterministic --scenarios C --out runs/anchor-jef > /dev/null
           docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_node_statements.py --node ENT-0009 --expect 28 --total 707
+          # register-cites joins as register_node_statements does (task-0088): J-F's cited files of contracts/, contracts/dmn/ and uml/ each reach a version
+          docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python demo/tools/check_saved_queries.py | tee queries-jef.txt
+          grep -E '^ +register-cites: 15 documents, 1 file artefacts, 13 files of a directory artefact, 1 the subject does not load$' queries-jef.txt
 
       - name: The pre-load verdict read at the load (task-0064) on the Neo4j store, the example instance with its report
         run: |
