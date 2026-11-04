@@ -68,7 +68,10 @@ Each key, stale and lapsed finding names its key's owner unit (``owner``, from t
 ``register_map.toml`` through capture.py's ``answering_owners``, task-0043; null when no row maps
 the key or several units answer for it) and the route to approval (``route``: the owner's
 questionnaire, task-0009), so a block explains itself (task-0102, doc-0014 C7); the text form adds
-``[owner UNIT]`` to each such line.
+``[owner UNIT]`` to each such line. A key finding on a declared gap also names the unit that closes
+it (``closer``: the owner its declaration names, decision-0002 point 3, else the key's owners; null
+when that is no unit of the register), and its route ends with the close (task-0110); the text form
+adds ``; closed by UNIT``.
 
 The JSON report (-f json) is pinned by harness/schemas/gate-report.schema.json, version 2 (the
 schema's description says what changed from 1 and what was added since), and validated before it
@@ -105,11 +108,13 @@ OWNED = ("key", "stale", "lapsed")   # the finding kinds that name the key's own
 
 
 def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None = None,
-             route=None) -> list[dict]:
+             route=None, closers: dict[str, dict] | None = None) -> list[dict]:
     """The gate's result as findings on the severity ladder, worst first, then by kind, key and ref.
     With ``owners`` (key -> {unit, name}, ``capture.finding_owners``) and ``route`` ((unit, key) -> text or None),
     each key, stale and lapsed finding also names its key's owner unit and the route to approval
-    (task-0102); without them the findings are version 2's as first published."""
+    (task-0102); without them the findings are version 2's as first published. With ``closers`` too
+    (key -> {unit, name, gap}, ``capture.gap_closers``), a key finding on a declared gap also names the
+    unit that closes it (``closer``) and its route says so (task-0110)."""
     out = []
     for key, v in res["keys"].items():
         lvl, flags = v["level"], v["flags"]
@@ -153,6 +158,12 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                 unit = (owners.get(f["key"]) or {}).get("unit")
                 f["owner"] = unit
                 f["route"] = route(unit, f["key"]) if route else None
+                c = (closers or {}).get(f["key"])
+                if f["kind"] == "key" and f["level"] == "declared_gap" and c is not None:
+                    from capture import closing_route
+                    f["closer"] = c["unit"]
+                    if f["route"]:
+                        f["route"] += closing_route(c["gap"], c["unit"])
     kinds = ["task", "key", "suspect_derived", "stale", "lapsed", "preload"]
     return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), kinds.index(f["kind"]), f["key"] or "", f["ref"] or ""))
 
@@ -201,7 +212,7 @@ def superseded_map(res: dict) -> dict[str, list[str]]:
 def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loaded: bool,
            block_levels: set[str], threshold: str, baseline: dict | None,
            version: str | None = None, change: dict | None = None, owners: dict[str, dict] | None = None,
-           route_task: str | None = None, route_keys=None) -> dict:
+           route_task: str | None = None, route_keys=None, closers: dict[str, dict] | None = None) -> dict:
     """``route_task`` is the task class whose questionnaire a finding's route names (``task`` by default;
     the MCP server's agent-chosen key set, task ``keys``, names the class it was resolved under), and
     ``route_keys`` the keys that questionnaire covers (None: every key): a key outside them has no route."""
@@ -210,7 +221,7 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
 
     def route(unit, key):
         return questionnaire_route(subject, scenario, rt, unit) if route_keys is None or key in route_keys else None
-    fs = findings(res, block_levels, owners, route)
+    fs = findings(res, block_levels, owners, route, closers)
     fail = baseline["regression"] if baseline is not None else bool(at_or_above(fs, threshold))
     return {"schema_version": SCHEMA_VERSION, "tool": "knowgov gate", "subject": subject, "scenario": scenario, "task": task,
             "store": store, "loaded": loaded, "version": version, "change": change, "verdict": res["verdict"], "why": res["why"], "threshold": threshold,
@@ -233,7 +244,9 @@ def render(rep: dict) -> str:
                    + (f"re-verified {', '.join(ch['reverified_statements']) or 'none'}" if ch["reverified"] else "before re-verification")
                    + (f"; derived {ch['derived']} registered" if ch["derived"] else ""))
     for f in rep["findings"]:
-        out.append(f"  {f['severity']:8s} {f['message']}" + (f" [owner {f['owner'] or 'none in the register map'}]" if "owner" in f else ""))
+        out.append(f"  {f['severity']:8s} {f['message']}" + (f" [owner {f['owner'] or 'none in the register map'}"
+                                                         + (f"; closed by {f['closer'] or 'no unit of the register'}" if "closer" in f else "") + "]"
+                                                         if "owner" in f else ""))
     c = rep["counts"]
     out.append("findings: " + ", ".join(f"{c[s]} {s}" for s in SEVERITIES if c[s]) if any(c.values()) else "findings: none")
     b = rep["baseline"]
@@ -329,7 +342,7 @@ def run(args) -> dict:
 def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshold: str,
              baseline: tuple[dict, str] | None, loaded: bool, version: str | None = None,
              change: dict | None = None, as_of="today", owners: dict[str, dict] | None = None,
-             route_task: str | None = None) -> dict:
+             route_task: str | None = None, closers: dict[str, dict] | None = None) -> dict:
     """Resolve ``spec`` on the store as it stands, as of ``as_of`` (today by default; harness/cadence.py), and build the report. The command calls this
     after its load (and stage 2's change, if any); the MCP server (harness/mcp_server.py) calls it
     on a store it only reads, so one input gives one report whichever way it was asked. ``owners``
@@ -337,15 +350,19 @@ def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshol
     ``route_task``, the class an agent-chosen key set was resolved under, names its questionnaire."""
     from gate import resolve_spec
     res = resolve_spec(st, task, spec, as_of)
-    if owners is None:
-        from subject import SUBJECT
-        if SUBJECT.id == subject:
+    from subject import SUBJECT
+    if SUBJECT.id == subject:
+        if owners is None:
             from capture import finding_owners
             owners = finding_owners(SUBJECT)
+        if closers is None:   # task-0110: the unit each declared gap's declaration names closes it
+            from capture import gap_closers
+            closers = gap_closers(SUBJECT, {k: v.get("declared_gaps") or [] for k, v in res["keys"].items()})
     return report(res, subject=subject, scenario=scenario, task=task, store=st.name, loaded=loaded,
                   block_levels=set(spec["block_levels"]), threshold=threshold,
                   baseline=compare(res, *baseline) if baseline else None, version=version, change=change, owners=owners,
-                  route_task=route_task, route_keys=_route_keys(route_task) if route_task and route_task != task else None)
+                  route_task=route_task, route_keys=_route_keys(route_task) if route_task and route_task != task else None,
+                  closers=closers)
 
 
 def _route_keys(task: str) -> set[str] | None:
