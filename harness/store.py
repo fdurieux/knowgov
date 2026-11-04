@@ -190,6 +190,14 @@ class Store:
     def invalidate_stale(self, new_tag: str) -> dict:
         raise NotImplementedError
 
+    def invalidate_keys(self, reasons: dict[str, str]) -> dict:
+        """A register change (task-0122, harness/register_change.py): every live statement (proposed,
+        validated, verified, approved, disputed) on each key of ``reasons`` is invalidated, its
+        ``invalidated_by`` the key's reason; its verifications end (``valid_until`` the reason) and the
+        derived outputs that used it turn suspect, as ``invalidate_stale`` does for a source change.
+        Returns {invalidated: [{id, key, derived}]}, sorted by id, ``derived`` sorted."""
+        raise NotImplementedError
+
     # ---- the gate
     def key_evidence(self, key: str, live: list[str]) -> list[dict]:
         raise NotImplementedError

@@ -628,6 +628,24 @@ class RdflibStore(Store):
                 kept.append({"id": self.nid(x), "key": self.prop(x, "key"), "status": self.prop(x, "status")})
         return {"invalidated": inv, "kept": kept}
 
+    def invalidate_keys(self, reasons) -> dict:
+        inv = []
+        for key, reason in sorted(reasons.items()):
+            for x in sorted(self.nodes("Assertion", key=key), key=self.nid):
+                if self.prop(x, "status") not in ("proposed", "validated", "verified", "approved", "disputed"):
+                    continue
+                self.set_props(x, {"status": "invalidated", "invalidated_at": self._seq, "invalidated_by": reason})
+                for v in self.inn(x, "VERIFIES"):
+                    if self.has_label(v, "Verification"):
+                        self.set_props(v, {"valid_until": reason})
+                derived = set()
+                for d in self.inn(x, "USED_ASSERTION"):
+                    if self.has_label(d, "Derived"):
+                        self.set_props(d, {"suspect": True})
+                        derived.add(self.nid(d))
+                inv.append({"id": self.nid(x), "key": key, "derived": sorted(derived)})
+        return {"invalidated": sorted(inv, key=lambda r: r["id"])}
+
     # ---- the gate ----------------------------------------------------------------------------
     def key_evidence(self, key, live) -> list[dict]:
         rows = []

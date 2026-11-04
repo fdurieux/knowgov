@@ -173,6 +173,11 @@ jobs:
       - name: The gate brings in S6's later version (task-0049) on the Neo4j store, BLOCKED, then exits 1 on the suspect derived output after re-verification
         run: docker compose exec -T app python tools/check_gate_after_change.py runs/gate-change
 
+      - name: A register change invalidates (task-0122) on the Neo4j store and on rdflib, the same reports; the staleness survives Neo4j to Turtle to rdflib and back
+        run: |
+          docker compose exec -T app sh -c 'rm -rf runs/regchange && python tools/check_register_change.py runs/regchange --stores neo4j,rdflib'
+          docker compose exec -T -e KG_REGISTER=/repo/runs/regchange/register-changed app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j --scenarios S1 --no-stage2 --register-previous demo/register
+
       - name: knowgov-trace (task-0051) on the Neo4j store, the example instance, a registered build of APP-0001 turns suspect after S6's change and check exits 1 naming it
         run: docker compose exec -T app sh -c 'rm -rf runs/trace && python tools/check_trace_walkthrough.py runs/trace'
 
