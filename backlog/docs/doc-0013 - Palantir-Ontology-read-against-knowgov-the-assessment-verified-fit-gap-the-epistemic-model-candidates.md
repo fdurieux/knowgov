@@ -5,7 +5,7 @@ title: >-
   epistemic model, candidates
 type: specification
 created_date: '2026-11-03T23:44:00Z'
-updated_date: '2026-11-03T23:44:00Z'
+updated_date: '2026-11-03T23:53:00Z'
 tags:
   - brief
   - palantir
@@ -268,3 +268,12 @@ Descriptions and acceptance criteria:
 - A pilot operates an operational ontology: start P8; candidate 9's model-change gate with it.
 - A reasoner creates statements here: candidate 1.
 - A subject's documents carry dated values: candidate 3 (b).
+
+## 8. The maintainer's decisions, 2026-11-03
+
+The maintainer took the four recommendations ("go with your recommendations on the four decisions"). Tasks follow from them; the coordinating session mints the ids.
+
+1. **P1, review lapse by date: option (b).** A document's verification by review lapses after the owning kind's review months in the register's `metamodel/lifecycle.toml` (`[review] default_months`, `[review.kinds]`); past it the statement reads `validated`. One cadence for the register and the store, consistent with decision-0004 B (a lapse lowers by time, an agreeing capture does not). The decision record P1 still writes it down with its measured effect on S1–S7 and on `--baseline record`; P2 then implements it, a minor version under decision-0003.
+2. **P8, the operational projection: parked** in m-4 until the lighthouse pilot, or a second organisation, runs an operational ontology and asks for it. Until then an operational platform's agent consults the gate through the read-only MCP server (task-0056).
+3. **P9, decision models: conditional.** Raised in ieam-register only if task-0062 picks an incumbent that authors DMN (Signavio and ARIS both do); otherwise decision logic stays documents and statements.
+4. **The rejections stand.** No confidence number on statements or keys (a number is admitted only on received evidence that carries its method, doc-0011 §2). knowgov never executes business actions; it may later gate changes to an operational model's action types in that model's own review (§5, candidate 9), on P8's trigger.
