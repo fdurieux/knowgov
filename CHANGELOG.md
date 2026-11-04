@@ -5,6 +5,119 @@ One section per release, newest first. The version in `VERSION` is the top secti
 gate command's exit codes or flags, the JSON shapes under `harness/schemas/`, the instance layout,
 the store port, the subject manifest format.
 
+## 0.2.0 — 2026-11-04
+
+The gate now sees change, time and code. A changed document invalidates what rested on it and
+marks the code built on it suspect. A review runs out on its kind's cadence. A code change finds the
+knowledge it rests on. Knowledge a person gives can move the gate, and only under a person's
+review. The gate reaches an AI assistant through a read-only MCP server and a pipeline through
+three wrappers. A private instance is checked before it is loaded, and the stack is closed by
+default.
+
+### Contract changes (why this is 0.2.0, decision-0003)
+
+- **Gate report schema v2** (`harness/schemas/gate-report.schema.json`): stale statements and
+  suspect derived outputs are findings (task-0048). Additive fields: the version and change
+  loaded (task-0049), `superseded_by` (task-0071), `lapsed` findings and `as_of`
+  (task-0068), and pre-load verdicts at info (task-0064).
+- **Gate command flags:** `--stage 2 [--reverify]` loads a scenario's later version (task-0049).
+  `--as-of DATE` reads the gate as of a date (task-0068).
+- **What a key's level means:**
+  - An unreviewed, elicited statement no longer lowers a key that a document holds at validated
+    or better. A contradicting one still disputes it (decision-0004, task-0039).
+  - A review verification lapses after the review months of its kind (decision-0005,
+    task-0068).
+- **Store port:** `export_turtle()` / `import_turtle()` (task-0070), and `record_preload` /
+  `preload_verdicts` (task-0064).
+- **New report schemas:** `trace-report.schema.json` for `knowgov-trace` (task-0051). The gate
+  and trace reports are also converted to GitHub annotations, GitLab code quality and SARIF
+  (task-0083).
+- **Instance layout:** `code_map.toml` maps code paths to register applications (task-0050).
+  `preload-report.json` is read at the load (task-0064). The CI wrappers take `KG_AS_OF`
+  (task-0089).
+- **MCP server:** the tools `store_status`, `gate_verdict`, `three_valued_answer` and
+  `evidence_bundle` (tasks 0056, 0080). The server speaks the 2026-07-28 stateless revision beside
+  the handshake (task-0079).
+- **The stack's defaults:** the page, Neo4j Browser and bolt publish on 127.0.0.1. A wider bind
+  (`KG_BIND`) refuses the default Neo4j password (task-0090).
+
+### Capture that moves the gate (m-5)
+
+- A person's answer is weighed against the documents' statements. A contradiction is a dispute
+  for review, and an agreement is corroboration (task-0038).
+- **Capture routes.** There are three:
+  - direct answers;
+  - a questionnaire from the reviews falling due, pre-filled with the earlier answer (task-0040);
+  - a transcript read by a model, whose candidates land at proposed and are never promoted. Only
+    the transcript's digest is kept (task-0041).
+- **Checks at ingest.** Capture accepts only handles issued in the register (task-0055), holding
+  the `gives` role (task-0091). The questionnaire warns against notes that identify a person, and
+  the reviewer reads each note (task-0042). Each key has one answering owner (task-0043).
+- The real CargoQuote S2 reaches PROCEED by command once its owner, the compliance unit, closes
+  OD-1 (task-0054, register decision 0011).
+- Every check that reads the date reads a pinned one (task-0075). The page shows the as-of date
+  and each lapsed review (tasks 0076, 0086).
+
+### An adopter can start alone (m-6)
+
+- **The check before the load** runs Spectral, markdownlint, gplint, bpmnlint and dmnlint, all
+  pinned (tasks 0066, 0082). It fails only on regression against a committed baseline
+  (task-0065). The verdict is recorded on each document's version (task-0064).
+- **The impact walk.** The register's walk starts from every kind (task-0044, register decision
+  0010). The impact panel names the owning unit of each node it reaches (task-0047). A register
+  node reaches its statements through the part of a document it cites, including J-F's directory
+  artefacts (tasks 0046, 0077, 0088), with a Browser link for each view (task-0078).
+- A provenance crosswalk maps knowgov's bases and statuses to W3C PROV-O (task-0072).
+
+### Code changes reach the knowledge (m-7)
+
+- **The gate's three gaps from doc-0011 are closed:**
+  - stale and suspect findings (task-0048);
+  - a scenario's later version (task-0049);
+  - `knowgov-trace` (task-0051), which takes a code change through `code_map.toml` to the gate.
+- **Pipeline wrappers** cover GitHub Actions, GitLab CI and plain shell (task-0052), with
+  annotations (task-0083).
+
+### The lighthouse (m-8)
+
+- The read-only MCP server (tasks 0056, 0079, 0080).
+- A round trip through Turtle into the other store gives the same gate (tasks 0070, 0085).
+- `docs/lighthouse-evaluation.md`, the evaluation protocol, rehearsed on the public subjects
+  (task-0069).
+- **The security pack:** `docs/security.md` and `SECURITY.md`, with a test for each claim
+  (task-0059). Its gaps are closed by localhost binds (task-0090), the `gives` check (task-0091),
+  and digest and SHA pins with Dependabot (task-0092). The record's pins are frozen.
+
+### Documentation
+
+The briefs: doc-0013, Palantir Ontology read against knowgov. The decisions: decision-0004 (option
+B) and decision-0005 (the review lapse).
+
+### What this release carries
+
+| what | version |
+|---|---|
+| pumllint (the sequence-diagram mapper's parser) | 0.33.0, from PyPI |
+| the IEAM register, vendored under `demo/register/` | ieam-register `v0.2.6` |
+| Neo4j driver, rdflib, pyshacl, openai | 6.4.1, 7.6.0, 0.40.2, 3.41.0 (the record's pins, unchanged) |
+| Neo4j server in the stack | 5.26 community, by digest |
+| the J-F oracle's pins | unchanged from 0.1.0 |
+| pre-load linters | pinned in `instance/ci/` (Spectral 6.17.0, gplint 2.6.1 and the rest) |
+| Python | 3.12 in the image |
+
+The image is `ghcr.io/fdurieux/knowgov:v0.2.0`. The compose file names the release by digest. It
+moves to `v0.2.0` in a follow-up once the Release has published the image and its digest exists.
+
+### Known limits
+
+- **Gaps `docs/security.md` still lists:** the page has no login, and the store keeps short
+  excerpts.
+- **Not yet proven on a real runner:** the GitLab include. It is proven by shell only (task-0083).
+- **The lighthouse** waits on the maintainer's choice of incumbent and pilot (task-0062). Its
+  connector and outcome study follow from that choice.
+- **The register's open decisions:** the realiser walk and the review months for CargoQuote's
+  `response|*` kinds (ieam-register #18 and #19).
+
 ## 0.1.0 — 2026-11-03
 
 The first release. knowgov keeps the knowledge an AI assistant builds on as governed statements,
