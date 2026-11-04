@@ -76,6 +76,7 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
             continue
         family, fmt = FAMILY[path]
         st.upsert_artefact_version(path, family, fmt, f"V:{path}:{version_tag}", sha256(text), len(text.encode()), ts, version_tag, aid)
+    preload = _record_preload(st, kit, version_tag)
     for bag in bags:
         art = next(p for p in kit if p in FAMILY and bag.artefact == short(p))
         vid = f"V:{art}:{version_tag}"
@@ -110,7 +111,24 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
     # (task-0006); the key appears only when there is one, so a run with none reads as before
     unmapped = [p for p in kit if p in FAMILY and p in STORE and p not in SUBJECT.mappers]
     return {"fragments": n_frag, "fragments_reused": n_reused, "assertions": n_ass,
-            "unresolved_symbols": unresolved, "activity": aid, **({"unmapped": unmapped} if unmapped else {})}
+            "unresolved_symbols": unresolved, "activity": aid, **({"unmapped": unmapped} if unmapped else {}),
+            **({"preload": preload} if preload else {})}
+
+
+def _record_preload(st, kit: dict[str, str], version_tag: str) -> dict | None:
+    """The pre-load check's verdict on each version just loaded (task-0064; harness/preload.py), when
+    the subject has a report; None, and nothing recorded, when it has none."""
+    import preload
+    path = preload.report_path(SUBJECT)
+    if path is None:
+        return None
+    report = preload.read_report(path)
+    keys = [p for p in kit if p in FAMILY and p in STORE]
+    found = preload.verdicts(SUBJECT, kit, keys, report, path.name)
+    for key, v in found.items():
+        st.record_preload(f"V:{key}:{version_tag}", v)
+    return {"report": path.name, "documents": [{"artefact": k, "version": version_tag, **{f: v[f] for f in ("state", "tool", "tool_version", "why")}}
+                                               for k, v in sorted(found.items())]}
 
 
 def load_inferred(st, scenario: str, inferred: dict):

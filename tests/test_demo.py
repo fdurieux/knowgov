@@ -403,6 +403,18 @@ def test_generated_prose_keeps_to_the_glossary_and_the_length_limits():
         j["load"]["unmapped"] = ["stories/quote.md"]
         (d / "deterministic.json").write_text(json.dumps(j), encoding="utf-8")
         builds.append(("S2", "demo-runs/2026-11-02-2300", Path(td) / "demo-runs"))
+        # a run whose load had a pre-load report (task-0064): the ingest panel lists the verdict per document
+        d = Path(td) / "demo-runs" / "2026-11-04-0100" / "S2"; d.mkdir(parents=True)
+        j = json.loads((RESULTS / "S2" / "deterministic.json").read_text(encoding="utf-8"))
+        j["load"]["preload"] = {"report": "preload-report.json", "documents": [
+            {"artefact": "behavior/quote_flow.puml", "version": "v1", "state": "clean", "tool": "pumllint", "tool_version": "0.33.0", "why": "no finding at or above major"},
+            {"artefact": "contract/spec.md", "version": "v1", "state": "unchecked", "tool": None, "tool_version": None, "why": "the report does not cover this document"}]}
+        (d / "deterministic.json").write_text(json.dumps(j), encoding="utf-8")
+        builds.append(("S2", "demo-runs/2026-11-04-0100", Path(td) / "demo-runs"))
+        pre = views.build("S2", "demo-runs/2026-11-04-0100", Path(td) / "demo-runs")["details"]["ingest"]["sections"][-1]
+        assert pre["heading"] == "Form checked before the load" and pre["table"]["cols"] == ["document", "version", "form", "tool", "why"], pre
+        assert pre["table"]["rows"][1][:4] == ["contract/spec.md", "v1", "unchecked", "none"], pre["table"]["rows"]
+        assert all(s["heading"] != "Form checked before the load" for s in views.build("S2", views.default_source("S2"), NO_RUNS)["details"]["ingest"]["sections"])
         for sc, src, runs in builds:
             v = views.build(sc, src, runs)
             for item in v["text_registry"]:
