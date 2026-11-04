@@ -217,7 +217,7 @@ jobs:
           docs = {x["artefact"]: x for x in d["load"]["preload"]["documents"]}
           assert d["load"]["preload"]["report"] == "preload-report.json" and len(docs) == 10, d["load"]["preload"]
           assert docs["behavior/quote_flow.puml"]["state"] == "clean" and docs["behavior/quote_flow.puml"]["tool"] == "pumllint", docs
-          assert docs["contract/spec.md"]["state"] == "unchecked" and docs["contract/spec.md"]["tool"] == "Vale, markdownlint", docs
+          assert docs["contract/spec.md"]["state"] == "unchecked" and docs["contract/spec.md"]["tool"] == "markdownlint", docs
           assert {x["artefact"] for x in d["D6_gate"]["preload"]} >= {"contract/spec.md"} and all(x["state"] != "clean" for x in d["D6_gate"]["preload"])
           s6 = json.load(open(f"{inst}-runs/S6/deterministic.json"))
           [v2] = s6["stage2"]["load_v2"]["preload"]["documents"]

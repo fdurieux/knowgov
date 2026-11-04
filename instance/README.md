@@ -202,26 +202,48 @@ python tools/preload_check.py /path/to/your/instance --since origin/main
 
 In plain English: this runs, for each document under `artefacts/<kind>/`, the linter the
 programme's table names for its kind (the `lint` field of `instance/kinds.toml`), when that
-linter can run here. Two kinds are checked today: `plantuml-models` with pumllint, and
-`api-contracts` with Spectral (its built-in OpenAPI and AsyncAPI rules, or your own
-`.spectral.yaml` at the instance root). Every other kind's files, and a kind whose linter is not
-installed where the check runs, are listed as *UNCHECKED*, with the tool the table names (or
-"names no linter"), so the gap stays in sight; an unchecked file does not fail the check, and it
-is never passed quietly. Spectral's errors count as `major`, its warnings as `minor`. Without
+linter can run here. Six kinds are checked today (each kind's `lint.runs`):
+
+| kind | linter | its configuration, unless your instance root has its own |
+|---|---|---|
+| `plantuml-models` | pumllint | pumllint's own |
+| `api-contracts` | Spectral | `instance/ci/spectral.yaml`: the built-in OpenAPI and AsyncAPI rules; yours: `.spectral.yaml` |
+| `specification-prose` | markdownlint (markdownlint-cli2) | `instance/ci/markdownlint.jsonc`: the defaults less line length and table column style; yours: `.markdownlint.jsonc` or `.markdownlint-cli2.jsonc` |
+| `acceptance-scenarios` | gplint | `instance/ci/gplintrc`: the structural rules only; yours: `.gplintrc` |
+| `bpmn-process-models` | bpmnlint | `instance/ci/bpmnlintrc`: `bpmnlint:recommended`; yours: `.bpmnlintrc` |
+| `decision-tables` | dmnlint, `.dmn` files only | `instance/ci/dmnlintrc`: `dmnlint:recommended`; yours: `.dmnlintrc` |
+
+Every other kind's files, a decision table that is not a `.dmn` file (CargoQuote's
+`decision_table.md`), and a kind whose linter is not installed where the check runs, are listed
+as *UNCHECKED*, with the tool (or "names no linter"), so the gap stays in sight; an unchecked file
+does not fail the check, and it is never passed quietly. Each linter's errors count as `major`,
+its warnings as `minor`; bpmnlint and dmnlint name the model element, not a line. The Node
+linters are found on `PATH`, or at `KG_SPECTRAL`, `KG_MARKDOWNLINT`, `KG_GPLINT`, `KG_BPMNLINT`,
+`KG_DMNLINT`. Not added: Vale, which the table names beside markdownlint, because it ships no
+rules of its own (a style is an organisation's choice, fetched by `vale sync`); add it as a step
+of your own with your styles. Without
 `--changed` or `--since` it checks every file; with them, only the files named, or changed since
 that git reference. It exits 0 when every checked file is clean, 1 when one has a finding at or
 above `--fail-on` (default `major`, pumllint's own), and 2 when it cannot run: a linter that is
 installed but fails, a folder that is not a kind, a named file that does not exist. `-f json` prints the
 report under `harness/schemas/preload-report.schema.json`. The linter runs with your instance as
-its working directory, so your own pumllint configuration applies.
+its working directory, so your own configuration applies.
+
+The example instance shows what a first run finds. Its prose, Gherkin and DMN are clean under the
+shipped configurations; its BPMN model (`quote_process.bpmn`) has no diagram interchange and no
+`incoming`/`outgoing` references on its nodes, so `bpmnlint:recommended` reports 97 errors on it.
+That is a real finding about the model's form, not a fault of the check: adopt over it with a
+baseline (below), or fix the model.
 
 To run it on every pull request, copy `instance/ci/preload-check.yml` into your instance's
 `.github/workflows/`, pin `KNOWGOV_REF` to a knowgov tag, and make the job a required check with
 a reviewer who is not the author. It lints the documents the pull request changes, then runs
 `tools/check_instance.py`; the script it calls, `instance/ci/preload-check.sh`, is the one this
-repository's CI runs on the example instance. It installs the linters the check runs, pinned
-(`PUMLLINT`, `SPECTRAL`). Your other linters (Vale, gplint, bpmnlint...) go in as steps of their
-own before it. The load reads only what was merged.
+repository's CI runs on the example instance (`tools/check_preload_linters.py` for the Node
+linters: a clean file of each kind exits 0, a broken one exits 1). It installs the linters the
+check runs, pinned (`PUMLLINT`, `SPECTRAL`, `MARKDOWNLINT`, `GPLINT`, `BPMNLINT`, `DMNLINT`); drop
+the install of a kind you do not hold. Your other linters (Vale, StrictDoc, buf...) go in as steps
+of their own before it. The load reads only what was merged.
 
 **What it does not do.** It checks *form*, one file at a time: is this a well-formed document
 of its kind? It does not check *knowledge*. Two well-formed documents that disagree, or a fact
