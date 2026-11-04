@@ -684,6 +684,15 @@ today by default, `record` for the subject's pinned record date, or
 ten review-only keys, reviewed on 2026-08-06, have lapsed. The
 deterministic run and the comparator always read as of the record date.
 
+The page shows the same (task-0076). The gate box and the gate panel
+name the as-of date the run read; the panel's *Review currency* section
+lists every lapsed review: the assertion, its key, the day its review
+was current until, the day it lapsed, and the review months of the
+register kind its key takes them from. A run reads as of the record
+date unless the menu's *Reviews as of* date names another
+(`POST /api/run` with `"as_of": "YYYY-MM-DD"`, which passes `--as-of`
+to `harness/run.py`); such a run is not measured against the record.
+
 `-f json` prints the report as data, in the shape
 `harness/schemas/gate-report.schema.json` pins; the command checks it
 against that schema before printing. The report is at version 2: from

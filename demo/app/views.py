@@ -142,7 +142,16 @@ def _run_view(r: dict) -> dict:
 def _gate_view(g: dict) -> dict:
     return {"verdict": g["verdict"], "why": g["why"], "blocked_keys": g.get("blocked_keys", []),
             "below_verified": g.get("below_verified", []), "flagged": g.get("flagged", []),
-            "conflicts": g.get("conflicts", []), "stale": g.get("stale", []), "suspect_derived": g.get("suspect_derived", [])}
+            "conflicts": g.get("conflicts", []), "stale": g.get("stale", []), "suspect_derived": g.get("suspect_derived", []),
+            "lapsed": g.get("lapsed", [])}
+
+
+def as_of_view(det: dict) -> dict:
+    """The date the run's gate read review currency on (decision-0005): the run's own ``as_of``, else
+    the subject's pinned record date (a record made before the run wrote the date read as of that)."""
+    rec = _ps().subject.record_as_of
+    on = det.get("as_of") or rec
+    return {"date": on, "record_date": rec, "from_run": bool(det.get("as_of")), "is_record": on == rec}
 
 
 def _stage_colour(kind: str, det: dict, gate: dict) -> str:
@@ -218,6 +227,7 @@ def build(scenario: str, source: str, runs_dir: Path) -> dict:
     summaries = {arm: _arm_summary(rs) for arm, rs in runs.items()}
     levels = Counter(v["level"] for v in det["gate_keys"].values())
     d1 = det["D1_constraints"]
+    as_of = as_of_view(det)
     reg: list[dict] = []  # every generated sentence and box label with its kind, for the controlled-English test
     L = lambda *t: [_reg(reg, "controlled", x) for x in t]  # noqa: E731  box labels, controlled
     DL = lambda *t: [_reg(reg, "data", x) for x in t]  # noqa: E731  box lines quoted from the files
@@ -238,7 +248,8 @@ def build(scenario: str, source: str, runs_dir: Path) -> dict:
         {"id": "gaps", "label": L("gaps (found by the rules)")[0], "colour": _gaps_colour(det),
          "lines": L(*_gaps_lines(det))},
         {"id": "gate", "label": L("gate")[0], "colour": _stage_colour("gate", det, gate),
-         "lines": L(gate["verdict"]) + DL(gate["why"]) + (DL(f"blocking: {', '.join(gate['blocked_keys'])}") if gate.get("blocked_keys") else [])},
+         "lines": L(gate["verdict"]) + (L(f"as of {as_of['date']}") if as_of["date"] else [])
+                  + (L(f"{_plural(len(gate['lapsed']), 'review')} lapsed, on {_plural(len({x['key'] for x in gate['lapsed']}), 'key')}") if gate.get("lapsed") else []) + DL(gate["why"]) + (DL(f"blocking: {', '.join(gate['blocked_keys'])}") if gate.get("blocked_keys") else [])},
     ]
     arms = {}
     for arm in ("G", "B"):
@@ -272,7 +283,7 @@ def build(scenario: str, source: str, runs_dir: Path) -> dict:
         "effort_deviation": [e for e in efforts_used if _ps().record_model and e != _ps().record_effort],
         "sources": sources_for(scenario, runs_dir),
         "stages": stages, "arms": arms,
-        "gate": _gate_view(gate),
+        "gate": _gate_view(gate), "as_of": as_of,
         "levels": dict(levels), "required_keys": len(det["gate_keys"]),
         "rules": {r: det["rules"][r] for r in RULE_ORDER},
         "census": det["D2_census"], "shacl": {k: det["D4_shacl"][k] for k in ("main", "info_only")},
@@ -385,6 +396,8 @@ def _glossary(ps) -> dict:
         "reference": "An underlined cell of a panel's table that opens its subject's own panel under the table: a node, a link, a requirement, a key or a document.",
         "owning unit": "The organisation unit a register node's owner field names. The impact panel shows it beside each reached node, to say whom to inform. An approved owns link names a unit too; the walk never follows one.",
         "projection": "The register's nodes and links loaded into the store in their own namespace at the vendored tag: derived, loaded on demand, wiped by a run, never the record.",
+        "as-of date": "The date the gate reads review currency on: the subject's record date, unless a run names another.",
+        "lapsed": "A review is lapsed when its key's review months have passed. The assertion then reads validated until a new review.",
     }
 # synonyms the controlled texts must not use, and the approved term each stands for
 FORBIDDEN = {
@@ -502,6 +515,13 @@ def narrative(view: dict, det: dict, reg: list) -> list[str]:
     g = [C(f"The gate's verdict is {gate['verdict']}.", *VERDICT_MEANING[gate["verdict"]])]
     if gate["verdict"] != "PROCEED":
         g.append(C("Here:") + " " + D(gate["why"] + "."))
+    on = view["as_of"]
+    if on["date"]:
+        g.append(C(f"The gate read review currency as of {on['date']}"
+                   + (", the subject's record date." if on["is_record"] else f", not the record date {on['record_date']}.")))
+    if gate.get("lapsed"):
+        g.append(C(f"By then {_plural(len(gate['lapsed']), 'review')} on {_plural(len({x['key'] for x in gate['lapsed']}), 'key')} had lapsed.",
+                   "Each assertion so reviewed reads validated until a new review."))
     if gate.get("conflicts"):
         g.append(C("The contradiction:") + " " + D(gate["conflicts"][0]["text"] + "."))
     out.append(" ".join(g))
@@ -556,6 +576,8 @@ def narrative(view: dict, det: dict, reg: list) -> list[str]:
     else:
         out.append(C("This source holds the store's half only.", "The loading, the rules and the gate were re-executed.",
                      "The two arms were not called.", "Replay shows the record's runs for this scenario.", "Arms calls them again."))
+    if view.get("record_check") and not view["as_of"]["is_record"]:
+        out.append(C(f"This run read review currency as of {view['as_of']['date']}, so the record is not its measure."))
     if view.get("record_check"):
         rc = view["record_check"]
         aside = " and ".join(["timestamps"] + rc.get("aside", [])) + " aside"
@@ -609,6 +631,21 @@ RULE_TEXT = {
 def _table(cols, rows):
     """Cells are strings, or {text, tip} / {text, ref, tip?} objects the page renders as a hover or a reference."""
     return {"cols": cols, "rows": [[(c if isinstance(c, (dict, list)) else "" if c is None else str(c)) for c in r] for r in rows]}
+
+
+def _currency_section(on: dict, lapsed: list, C) -> dict:
+    """The gate panel's review currency (decision-0005): the as-of date the gate read, and every
+    review that had lapsed by then, with the date it lapsed and the review months of its key's kind."""
+    text = ([C(f"The gate read review currency as of {on['date']}.")] if on["date"] else []) + [
+        C("A review is current for the review months of the kind its key concerns, from the register.",
+          "After that, the review is lapsed and the assertion reads validated until a new review.")]
+    if not lapsed:
+        return {"heading": C("Review currency: no review lapsed"), "text": " ".join(text + [C("No review had lapsed by that date.")])}
+    rows = [(x["id"], x["key"], x["from"], x["valid_until"], x.get("lapsed_on", ""), x.get("months", ""), x.get("kind") or "default")
+            for x in sorted(lapsed, key=lambda x: (x.get("lapsed_on", ""), x["key"]))]
+    keys = len({x["key"] for x in lapsed})
+    return {"heading": C(f"Review currency: {_plural(len(lapsed), 'review')} on {_plural(keys, 'key')} lapsed by {on['date']}"), "text": " ".join(text),
+            "table": _table(["assertion", "key", "was", "current until", "lapsed on", "review months", "kind"], rows)}
 
 
 def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
@@ -697,6 +734,7 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
              {"heading": C(f"The {len(keys_rows)} keys the task needs"), "table": _table(["key", "level", "flags", "assertions"], keys_rows)}]
     if gate.get("conflicts"):
         gsecs.append({"heading": C("Conflicts the bundle carries"), "list": [c["text"] for c in gate["conflicts"]]})
+    gsecs.append(_currency_section(view["as_of"], gate.get("lapsed") or [], C))
     for arm in ("G", "B"):   # the consulted set beside the gate: which keys below verified each agent run read and marked
         for r in runs[arm]:
             ag = r.get("agent") or {}

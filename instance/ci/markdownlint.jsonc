@@ -1,0 +1,10 @@
+// The configuration tools/preload_check.py gives markdownlint (markdownlint-cli2) for
+// artefacts/specification-prose/ when the instance has no .markdownlint* or .markdownlint-cli2*
+// file of its own at its root (task-0082): markdownlint's default rules, less the two that judge
+// layout rather than form, line length (MD013) and table column style (MD060). Copy it to your
+// instance root as .markdownlint.jsonc to tune it; that one then applies instead.
+{
+  "default": true,
+  "MD013": false,
+  "MD060": false
+}

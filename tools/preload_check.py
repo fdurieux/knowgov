@@ -8,9 +8,13 @@ For each file under the instance's artefacts/<kind>/ (every file, or only those 
 --changed, or only those changed since the git ref REF in the instance's checkout), run the
 linter instance/kinds.toml names for the kind, when this environment can run it (RUNNERS, the
 kind's lint.runs): pumllint for plantuml-models, the harness's own pin; Spectral for api-contracts
-(task-0066), KG_SPECTRAL or spectral on PATH. Every other kind's files, and a kind whose linter is
-not installed here, are reported *unchecked*, naming the tool (or saying the table names none):
-an unchecked file does not fail the check, and it is never passed silently.
+(task-0066); markdownlint (markdownlint-cli2) for specification-prose, gplint for acceptance-scenarios,
+bpmnlint for bpmn-process-models and dmnlint for the .dmn files of decision-tables (task-0082). Each
+Node linter is KG_<TOOL> (KG_SPECTRAL, KG_MARKDOWNLINT, KG_GPLINT, KG_BPMNLINT, KG_DMNLINT) or the
+command on PATH, with the instance's own configuration at its root when it has one, else the one
+under instance/ci/. Every other kind's files, a decision table that is not .dmn, and a kind whose
+linter is not installed here, are reported *unchecked*, naming the tool (or saying the table names
+none): an unchecked file does not fail the check, and it is never passed silently.
 
 The programme's gate contract:
 
@@ -48,6 +52,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -137,11 +142,157 @@ def run_spectral(files: list[Path], cwd: Path, threshold: str) -> dict:
     return {"rc": 1 if hit else 0, "version": version, "findings": findings, "error": None}
 
 
+def _exe(var: str, name: str) -> list[str] | None:
+    """The command for a Node linter: the variable's path (an install outside PATH), else name on PATH, else None."""
+    exe = os.environ.get(var) or shutil.which(name)
+    return [exe] if exe and Path(exe).exists() else None
+
+
+def _rel(path: str, cwd: Path) -> str:
+    """A path as the linter printed it, absolute, so findings land on the file this check named."""
+    return str((cwd / path).resolve())
+
+
+def _on_ladder(findings: list[dict], threshold: str) -> int:
+    return 1 if any(SEVERITIES.index(f["severity"]) <= SEVERITIES.index(threshold) for f in findings) else 0
+
+
+# markdownlint's error is major, its warning minor (a rule an instance sets to warning lists, never fails)
+LEVEL = {"error": "major", "warning": "minor"}
+MARKDOWNLINT_CONFIGS = tuple(f".markdownlint{s}" for s in ("-cli2.jsonc", "-cli2.yaml", "-cli2.cjs", "-cli2.mjs",
+                                                             ".jsonc", ".json", ".yaml", ".yml", ".cjs", ".mjs"))
+MARKDOWNLINT_LINE = re.compile(r"^(?P<file>.+?):(?P<line>\d+)(?::\d+)? (?P<sev>error|warning) (?P<rule>\S+) (?P<msg>.*)$")
+
+
+def markdownlint_cmd() -> list[str] | None:
+    """markdownlint-cli2 here (KG_MARKDOWNLINT, else markdownlint-cli2 on PATH), or None."""
+    return _exe("KG_MARKDOWNLINT", "markdownlint-cli2")
+
+
+def run_markdownlint(files: list[Path], cwd: Path, threshold: str) -> dict:
+    """markdownlint (markdownlint-cli2) over specification prose (task-0082): the instance's own configuration
+    at its root when it has one (markdownlint-cli2 reads it from the working directory), else
+    instance/ci/markdownlint.jsonc, markdownlint's defaults less line length and table column style. Its own
+    exit 0/1 says whether it ran; 2 or anything else is cannot-run."""
+    cmd = markdownlint_cmd()
+    if cmd is None:
+        return {"rc": 2, "missing": True, "version": None, "findings": [],
+                "error": "markdownlint is not installed here (npm install -g markdownlint-cli2)"}
+    env = {**os.environ, "NO_COLOR": "1", "FORCE_COLOR": "0"}
+    ver = subprocess.run(cmd + ["--help"], cwd=cwd, capture_output=True, text=True, env=env)
+    m = re.search(r"markdownlint-cli2 v(\S+)", ver.stdout + ver.stderr)
+    version = m.group(1) if m else None
+    config = [] if any((cwd / c).is_file() for c in MARKDOWNLINT_CONFIGS) else ["--config", str(ROOT / "instance" / "ci" / "markdownlint.jsonc")]
+    # ':' makes each path literal, never a glob
+    p = subprocess.run(cmd + config + [":" + f.relative_to(cwd).as_posix() for f in files], cwd=cwd, capture_output=True, text=True, env=env)
+    if p.returncode not in (0, 1):
+        return {"rc": 2, "version": version, "findings": [], "error": (p.stderr or p.stdout).strip()[-500:] or f"exit {p.returncode}"}
+    findings = []
+    for line in (p.stdout + "\n" + p.stderr).splitlines():
+        x = MARKDOWNLINT_LINE.match(line)
+        if x:
+            findings.append({"file": _rel(x["file"], cwd), "rule": x["rule"].split("/")[0], "severity": LEVEL[x["sev"]],
+                             "line": int(x["line"]), "message": f"{x['rule']} {x['msg']}"})
+    return {"rc": _on_ladder(findings, threshold), "version": version, "findings": findings, "error": None}
+
+
+# gplint's levels: 2 error (major), 1 warn (minor)
+GPLINT_LEVEL = {2: "major", 1: "minor"}
+
+
+def gplint_cmd() -> list[str] | None:
+    """gplint here (KG_GPLINT, else gplint on PATH), or None."""
+    return _exe("KG_GPLINT", "gplint")
+
+
+def run_gplint(files: list[Path], cwd: Path, threshold: str) -> dict:
+    """gplint over Gherkin (task-0082), with the instance's .gplintrc at its root when it has one, else
+    instance/ci/gplintrc (the structural rules: names, duplicates, empty files and backgrounds, outlines
+    without examples, unused variables, keyword order). A file gplint cannot parse is its own error."""
+    cmd = gplint_cmd()
+    if cmd is None:
+        return {"rc": 2, "missing": True, "version": None, "findings": [], "error": "gplint is not installed here (npm install -g gplint)"}
+    env = {**os.environ, "NO_COLOR": "1", "FORCE_COLOR": "0"}
+    ver = subprocess.run(cmd + ["--version"], cwd=cwd, capture_output=True, text=True, env=env)
+    version = ver.stdout.strip().split()[-1] if ver.returncode == 0 and ver.stdout.strip() else None
+    config = cwd / ".gplintrc" if (cwd / ".gplintrc").is_file() else ROOT / "instance" / "ci" / "gplintrc"
+    p = subprocess.run(cmd + ["-c", str(config), "-f", "json"] + [str(f) for f in files], cwd=cwd, capture_output=True, text=True, env=env)
+    try:
+        raw = json.loads(p.stdout)   # gplint exits 1 on a finding and on a bad configuration alike: the report decides
+    except ValueError:
+        return {"rc": 2, "version": version, "findings": [], "error": (p.stderr or p.stdout).strip()[-500:] or f"exit {p.returncode}"}
+    if p.returncode not in (0, 1):
+        return {"rc": 2, "version": version, "findings": [], "error": (p.stderr or p.stdout).strip()[-500:] or f"exit {p.returncode}"}
+    prefix = str(cwd.resolve()) + os.sep   # a message naming a file names it relative to the instance, so a baseline holds anywhere
+    findings = [{"file": str(Path(r["filePath"]).resolve()), "rule": e.get("rule", ""), "severity": GPLINT_LEVEL.get(e.get("level"), "info"),
+                 "line": e.get("line") or 0, "message": e.get("message", "").replace(prefix, "")}
+                for r in raw for e in r.get("errors", [])]
+    return {"rc": _on_ladder(findings, threshold), "version": version, "findings": findings, "error": None}
+
+
+# bpmnlint's and dmnlint's text report (neither writes JSON): a line naming the file, then one per
+# finding, `  <element id>  <error|warning>  <message>  <rule>`, columns two spaces or more apart; a
+# parse error has no element and no rule. The element id leads the message: models have no lines.
+BPMN_IO_LINE = re.compile(r"^\s+(?:(?P<id>\S+)\s+)?(?P<sev>error|warning)\s{2,}(?P<msg>.+?)(?:\s{2,}(?P<rule>[a-z0-9/:@.-]+))?\s*$")
+
+
+def _run_bpmn_io(tool: str, cmd: list[str] | None, rc_name: str, files: list[Path], cwd: Path, threshold: str) -> dict:
+    """bpmnlint or dmnlint, with the instance's .bpmnlintrc (.dmnlintrc) at its root when it has one, else
+    the one under instance/ci/ (the tool's recommended rules). Exit 1 with no report, or anything but 0
+    and 1, is cannot-run."""
+    if cmd is None:
+        return {"rc": 2, "missing": True, "version": None, "findings": [],
+                "error": f"{tool} is not installed here (npm install -g {tool})"}
+    env = {**os.environ, "NO_COLOR": "1", "FORCE_COLOR": "0"}
+    ver = subprocess.run(cmd + ["--version"], cwd=cwd, capture_output=True, text=True, env=env)
+    version = ver.stdout.strip().split()[-1] if ver.returncode == 0 and ver.stdout.strip() else None
+    config = cwd / f".{rc_name}" if (cwd / f".{rc_name}").is_file() else ROOT / "instance" / "ci" / rc_name
+    p = subprocess.run(cmd + ["-c", str(config)] + [str(f) for f in files], cwd=cwd, capture_output=True, text=True, env=env)
+    if p.returncode not in (0, 1) or (p.returncode == 1 and "problem" not in p.stdout):
+        return {"rc": 2, "version": version, "findings": [], "error": (p.stderr or p.stdout).strip()[-500:] or f"exit {p.returncode}"}
+    findings, current = [], None
+    for line in p.stdout.splitlines():
+        if line and not line[0].isspace() and not line.startswith("✖"):
+            current = _rel(line.strip(), cwd)
+            continue
+        x = BPMN_IO_LINE.match(line)
+        if x and current:
+            msg = x["msg"].strip()
+            findings.append({"file": current, "rule": x["rule"] or ("parse-error" if msg.startswith("Parse error") else ""),
+                             "severity": LEVEL[x["sev"]], "line": 0, "message": f"{x['id']}: {msg}" if x["id"] else msg})
+    return {"rc": _on_ladder(findings, threshold), "version": version, "findings": findings, "error": None}
+
+
+def bpmnlint_cmd() -> list[str] | None:
+    """bpmnlint here (KG_BPMNLINT, else bpmnlint on PATH), or None."""
+    return _exe("KG_BPMNLINT", "bpmnlint")
+
+
+def run_bpmnlint(files: list[Path], cwd: Path, threshold: str) -> dict:
+    """bpmnlint over BPMN process models (task-0082): its errors major, its warnings minor."""
+    return _run_bpmn_io("bpmnlint", bpmnlint_cmd(), "bpmnlintrc", files, cwd, threshold)
+
+
+def dmnlint_cmd() -> list[str] | None:
+    """dmnlint here (KG_DMNLINT, else dmnlint on PATH), or None."""
+    return _exe("KG_DMNLINT", "dmnlint")
+
+
+def run_dmnlint(files: list[Path], cwd: Path, threshold: str) -> dict:
+    """dmnlint over DMN decision tables (task-0082), .dmn files only (SUFFIXES): its errors major."""
+    return _run_bpmn_io("dmnlint", dmnlint_cmd(), "dmnlintrc", files, cwd, threshold)
+
+
 # kind folder -> (the tool's name, the runner): the linters this repository's environment can run.
 # The tool is the kind's lint.runs in instance/kinds.toml, one of the tools its lint.tool names;
 # tests/test_preload.py holds the two equal. A runner whose tool is not installed leaves the kind's
 # files unchecked, naming it (task-0066), never passed and never cannot-run.
-RUNNERS = {"plantuml-models": ("pumllint", run_pumllint), "api-contracts": ("Spectral", run_spectral)}
+RUNNERS = {"plantuml-models": ("pumllint", run_pumllint), "api-contracts": ("Spectral", run_spectral),
+           "specification-prose": ("markdownlint", run_markdownlint), "acceptance-scenarios": ("gplint", run_gplint),
+           "bpmn-process-models": ("bpmnlint", run_bpmnlint), "decision-tables": ("dmnlint", run_dmnlint)}
+# kind folder -> the suffixes its runner reads; a file of the kind with another suffix stays unchecked
+# (a decision table written as Markdown is not DMN XML: dmnlint cannot read it, task-0082)
+SUFFIXES = {"decision-tables": (".dmn",)}
 
 
 def _since(instance: Path, ref: str) -> list[str]:
@@ -204,7 +355,10 @@ def check(instance: Path, changed: list[str] | None = None, threshold: str = "ma
             continue
         lint = table[kind].get("lint", {})
         tool = lint.get("tool", "")
-        if kind in RUNNERS:
+        if kind in RUNNERS and kind in SUFFIXES and p.suffix.lower() not in SUFFIXES[kind]:
+            add(rel, kind, "unchecked", f"form unchecked: {RUNNERS[kind][0]} reads {', '.join(SUFFIXES[kind])} files only; "
+                                        f"the table names no linter for a {p.suffix or 'suffixless'} file of this kind", tool)
+        elif kind in RUNNERS:
             targets.setdefault(kind, []).append(p)
             add(rel, kind, "clean", "", RUNNERS[kind][0])
         elif not tool or tool in NAMES_NONE:

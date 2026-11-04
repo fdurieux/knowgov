@@ -117,10 +117,10 @@ def test_initialize_negotiates_a_version_and_offers_tools_only():
     assert s.handle({"id": 5, "method": "ping"})["error"]["code"] == -32600
 
 
-def test_three_tools_every_one_marked_read_only():
+def test_four_tools_every_one_marked_read_only():
     s, _ = _server()
     tools = s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]
-    assert [t["name"] for t in tools] == ["store_status", "gate_verdict", "three_valued_answer"]
+    assert [t["name"] for t in tools] == ["store_status", "gate_verdict", "three_valued_answer", "evidence_bundle"]
     for t in tools:
         a = t["annotations"]
         assert a["readOnlyHint"] is True and a["destructiveHint"] is False and a["openWorldHint"] is False, t["name"]
@@ -205,6 +205,33 @@ def test_the_three_valued_answer_carries_each_statements_provenance():
     assert _call(s, "three_valued_answer", {})["result"]["isError"]
 
 
+def test_the_evidence_bundle_is_the_text_the_governed_arm_reads():
+    """Task-0080: render_bundle over the gate's result, with the policy and the task's verbatim
+    documents from the scenario's kit, as harness/run.py's arm_runs builds it."""
+    import arms
+    from gate import render_bundle, resolve_spec
+    from kitio import kit_for, verbatim_documents
+    from subject import SUBJECT
+    first = SUBJECT.order[0]   # a scenario of whichever subject runs the suite: the kit is read
+    s, stub = _server(Stub(scenario=first))
+    got = _call(s, "evidence_bundle", {"scenario": first})["result"]
+    assert got["isError"] is False
+    b = got["structuredContent"]
+    res = resolve_spec(stub, "codegen", TASKS["codegen"], "record")
+    verbatim = verbatim_documents(kit_for(first, 1), "task_codegen")
+    assert b["bundle"] == render_bundle(res, arms.policy(), verbatim)
+    assert b["verdict"] == res["verdict"] == "BLOCKED" and b["as_of"] == res["as_of"] and b["version"] == "v1"
+    assert b["verbatim"] == sorted(verbatim)
+    assert b["assertion_ids"] == sorted({a["id"] for v in res["keys"].values() for a in v["assertions"]})
+    keys = TASKS["codegen"]["keys"][1:3]
+    sub = _call(s, "evidence_bundle", {"keys": keys, "verbatim": False})["result"]["structuredContent"]
+    assert sub["task"] == "keys" and sub["verbatim"] == [] and sub["verdict"] == "PROCEED"
+    assert sub["bundle"] == render_bundle(resolve_spec(stub, "keys", dict(TASKS["codegen"], keys=keys), "record"), arms.policy())
+    for bad in ({"keys": []}, {"task": "nope"}, {"verbatim": "yes"}, {"as_of": "soon"}, {"scenario": "not-held"}):
+        assert _call(s, "evidence_bundle", bad)["result"]["isError"] is True, bad
+    assert stub.writes == []
+
+
 def test_stdio_is_one_json_message_a_line():
     s, _ = _server()
     inp = io.StringIO("\n".join(json.dumps(m) for m in [
@@ -281,3 +308,105 @@ def test_http_with_a_token_refuses_a_request_without_it():
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+# Task-0079: the stateless revision (2026-07-28) beside the handshake.
+
+MODERN = "2026-07-28"
+
+
+def _meta(version=MODERN, caps=True):
+    m = {mcp_server.META_VERSION: version, "io.modelcontextprotocol/clientInfo": {"name": "t", "version": "1"}}
+    if caps:
+        m[mcp_server.META_CAPABILITIES] = {}
+    return m
+
+
+def _modern(method, id_=1, version=MODERN, caps=True, **params):
+    return {"jsonrpc": "2.0", "id": id_, "method": method, "params": {**params, "_meta": _meta(version, caps)}}
+
+
+def test_server_discover_answers_per_the_revision_without_a_handshake():
+    s, _ = _server()
+    r = s.handle(_modern("server/discover"))["result"]
+    assert r["resultType"] == "complete" and r["supportedVersions"][0] == MODERN
+    assert set(mcp_server.PROTOCOL_VERSIONS) <= set(r["supportedVersions"]), "the handshake era is still served"
+    assert r["capabilities"] == {"tools": {"listChanged": False}} and r["instructions"] == mcp_server.INSTRUCTIONS
+    assert r["_meta"][mcp_server.META_SERVER]["name"] == "knowgov"
+    assert isinstance(r["ttlMs"], int) and r["ttlMs"] >= 0 and r["cacheScope"] in ("public", "private")
+    tl = s.handle(_modern("tools/list", 2))["result"]
+    assert [t["name"] for t in tl["tools"]][0] == "store_status" and tl["resultType"] == "complete" and "ttlMs" in tl
+    with _Day():
+        call = s.handle(_modern("tools/call", 3, name="store_status", arguments={}))["result"]
+    assert call["structuredContent"]["scenario"] == "S1" and call["resultType"] == "complete" and "ttlMs" not in call
+    assert call["_meta"][mcp_server.META_SERVER]["name"] == "knowgov"
+
+
+def test_a_modern_request_is_refused_on_its_version_or_its_missing_meta():
+    s, _ = _server()
+    e = s.handle(_modern("server/discover", version="1900-01-01"))["error"]
+    assert e["code"] == -32022 and e["data"] == {"supported": mcp_server.SUPPORTED_VERSIONS, "requested": "1900-01-01"}
+    assert s.handle(_modern("tools/list", caps=False))["error"]["code"] == -32602
+    assert s.handle(_modern("ping"))["error"]["code"] == -32601, "ping is not a method of the stateless era"
+    bare = {"jsonrpc": "2.0", "id": 9, "method": "server/discover"}
+    assert s.handle(bare)["error"]["code"] == -32602   # no _meta: malformed, and a dual-era client falls back
+
+
+def test_the_handshake_is_unchanged_for_an_older_client():
+    s, _ = _server()
+    r = s.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25"}})["result"]
+    assert r["protocolVersion"] == "2025-11-25" and "resultType" not in r
+    tl = s.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})["result"]
+    assert "resultType" not in tl and "ttlMs" not in tl and "_meta" not in tl
+
+
+def _post_raw(url, body, headers):
+    req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream", **headers})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status, json.loads(r.read() or b"null")
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read() or b"null")
+
+
+def test_http_serves_the_revision_and_checks_its_headers_against_the_body():
+    httpd, base = _serve()
+    url = base + "/mcp"
+    hd = {"MCP-Protocol-Version": MODERN, "Mcp-Method": "server/discover"}
+    day = _Day()
+    day.__enter__()
+    try:
+        code, body = _post_raw(url, _modern("server/discover"), hd)
+        assert code == 200 and body["result"]["supportedVersions"][0] == MODERN
+        call = _modern("tools/call", 2, name="gate_verdict", arguments={})
+        code, body = _post_raw(url, call, {"MCP-Protocol-Version": MODERN, "Mcp-Method": "tools/call", "Mcp-Name": "gate_verdict"})
+        assert code == 200 and body["result"]["structuredContent"]["verdict"] == "BLOCKED"
+        import base64
+        enc = "=?base64?" + base64.b64encode(b"gate_verdict").decode() + "?="
+        assert _post_raw(url, call, {"MCP-Protocol-Version": MODERN, "Mcp-Method": "tools/call", "Mcp-Name": enc})[0] == 200
+        for bad in ({"Mcp-Method": "server/discover"}, {"MCP-Protocol-Version": "2025-11-25", "Mcp-Method": "server/discover"},
+                    {"MCP-Protocol-Version": MODERN, "Mcp-Method": "tools/list"}):
+            code, body = _post_raw(url, _modern("server/discover"), bad)
+            assert code == 400 and body["error"]["code"] == -32020, bad
+        code, body = _post_raw(url, call, {"MCP-Protocol-Version": MODERN, "Mcp-Method": "tools/call", "Mcp-Name": "three_valued_answer"})
+        assert code == 400 and body["error"]["code"] == -32020
+        old = _modern("server/discover", version="1900-01-01")
+        code, body = _post_raw(url, old, {"MCP-Protocol-Version": "1900-01-01", "Mcp-Method": "server/discover"})
+        assert code == 400 and body["error"]["code"] == -32022
+        code, body = _post_raw(url, _modern("ping"), {"MCP-Protocol-Version": MODERN, "Mcp-Method": "ping"})
+        assert code == 404 and body["error"]["code"] == -32601
+        # the handshake era on the same endpoint, as before: errors stay in a 200
+        code, body = _post_raw(url, {"jsonrpc": "2.0", "id": 5, "method": "resources/list"}, {})
+        assert code == 200 and body["error"]["code"] == -32601
+    finally:
+        day.__exit__()
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_a_tool_that_raises_is_an_error_result_not_a_dropped_connection():
+    s, _ = _server()
+    s.tools.store_status = lambda args: (_ for _ in ()).throw(RuntimeError("boom"))
+    r = s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "store_status", "arguments": {}}})["result"]
+    assert r["isError"] is True and "RuntimeError: boom" in r["content"][0]["text"]
