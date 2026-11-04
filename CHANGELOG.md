@@ -12,6 +12,15 @@ names that section with the version.
 
 ### Contract changes since 0.4.0
 
+- **`proposal_impact` branch mode** (task-0132, doc-0017 candidate 2; additive): `--register-branch DIR
+  --base REF` reads a register checkout's own additions since its merge base with REF (node files
+  added, links whose id is new, exception files added; a changed node file is a reused node
+  `changed`; anything else listed under `branch.not_read`) as the overlay, against the merge base's
+  register taken from git into a temporary directory. The checkout is never written. The report gains
+  `branch` (null for a proposal held in the call). `instance/ci/proposal-impact.sh` is an optional,
+  advisory step for a register pull request (exit 0 with a report, 2 cannot run), proven in
+  `harness.yml` by `tools/check_proposal_branch.py`: on a scratch branch of the public register, the
+  report equals the held overlay's, ids aside.
 - **A proposal read before approval: `proposal_impact`** (task-0130, task-0131, doc-0017; additive):
   a sixth read-only MCP tool and a command, `harness/proposal_impact.py`, with its report pinned by
   `harness/schemas/proposal-impact.schema.json` (version 1). A proposed addition (new nodes with

@@ -137,21 +137,8 @@ def test_a_proposal_that_cannot_be_read_is_refused():
 
 def _as_draft_files(root: Path, proposal: dict) -> None:
     """The proposal written into a scratch copy of the register as draft files, as an author would."""
-    import tomllib
-    k2t = pi.ri.load_tools(root)["register"].kind_taxonomy(pi.ri.load_tools(root)["register"].load_register(root))
-
-    def q(v):
-        return json.dumps(v)
-    for n in proposal["nodes"]:
-        lines = [f"{k} = {q(n[k])}" for k in ("id", "kind", "name", "parent") if n.get(k)]
-        lines += ['state = "draft"', f"owner = {q(n['owner'])}"]
-        (root / k2t[n["kind"]] / f"{n['id']}.toml").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    for i, ln in enumerate(proposal["links"]):
-        p = root / "relationships" / f"{ln['type']}.toml"
-        p.write_text(p.read_text(encoding="utf-8") + "\n[[link]]\n" + "\n".join([
-            f'id = "REL-9{i:04d}"', f"source = {q(ln['source'])}", f"target = {q(ln['target'])}", 'state = "draft"',
-            f"rationale = {q(ln['rationale'])}", 'owner = "ORG-0001"']) + "\n", encoding="utf-8")
-        tomllib.loads(p.read_text(encoding="utf-8"))
+    import check_proposal_branch
+    check_proposal_branch.write_as_files(root, proposal)
 
 
 def test_the_same_proposal_written_as_draft_changes_nothing_in_the_registers_checker():
@@ -346,3 +333,69 @@ def test_d2_matches_an_external_id_through_the_landed_synthetic_aris_export():
     assert "PROC-new" not in [x["element"] for x in r["placement"] if x["check"] == "source"]   # it names a tool
     # without a landed export, the public register carries no GUID: no D2
     assert not _cands(_report(p), "D2")
+
+
+# ---- task-0132: branch mode, the overlay from a register branch's diff against a base ref
+
+def test_branch_mode_equals_the_held_overlay_ids_aside_and_leaves_the_checkout_as_it_was():
+    """AC1 and AC2: tools/check_proposal_branch.py, the CI template's step on a scratch branch of the
+    vendored register, as harness.yml runs it."""
+    import check_proposal_branch
+    try:
+        assert check_proposal_branch.main([]) == 0
+    finally:
+        pi.ri.load_tools(ri.register_root())
+
+
+def test_branch_mode_reads_a_changed_node_as_changed_and_lists_what_is_not_an_addition():
+    import check_proposal_branch as cpb
+    top = Path(tempfile.mkdtemp(prefix="kg-proposal-branch-test-"))
+    try:
+        reg = cpb.scratch_branch(top, _proposal())
+        p = reg / "capabilities" / "CAP-0002.toml"
+        p.write_text(p.read_text(encoding="utf-8").replace('name = "Price a shipment"', 'name = "Price a shipment or a contract"'), encoding="utf-8")
+        rel = reg / "relationships" / "realizes.toml"
+        text = rel.read_text(encoding="utf-8")
+        first = text.index("[[link]]")
+        rel.write_text(text[:first] + text[text.index("[[link]]", first + 1):], encoding="utf-8")   # one link removed
+        (reg / "notes.md").write_text("not a register file\n", encoding="utf-8")
+        cpb.git(reg, "add", "-A")
+        cpb.git(reg, "commit", "-qm", "a change and a removal")
+        before = _digests(reg)
+        r = pi.evaluate_branch(reg, "main", today=TODAY)
+        _valid(r)
+        assert _digests(reg) == before
+        reach = {x["node"]: x for x in r["reach"]}
+        assert reach["CAP-0002"]["mode"] == "changed" and reach["CAP-0002"]["changed"] is True
+        assert any(a["what"] == "change" and a["id"] == "CAP-0002" for u in r["approvals"] for a in u["approve"])
+        assert [(x["path"].split(" ")[0], x["status"]) for x in r["branch"]["not_read"]] == [("relationships/realizes.toml", "D")]
+        assert r["branch"]["base"] == "main" and len(r["branch"]["head"]) == 40 and r["register"]["commit"] == r["branch"]["merge_base"]
+        assert r["register"]["tag"].startswith("v")   # the vendored copy's SOURCE.md
+        for bad in (("main~5",), ("no-such-ref",)):
+            try:
+                pi.evaluate_branch(reg, bad[0], today=TODAY)
+            except pi.ProposalError:
+                continue
+            raise AssertionError(bad)
+        try:
+            pi.evaluate_branch(top, "main", today=TODAY)
+        except pi.ProposalError as e:
+            assert "not a register checkout" in str(e)
+        else:
+            raise AssertionError("a directory that is not a register was read")
+        env = {**os.environ, "KG_TODAY": DAY}
+        cli = subprocess.run([sys.executable, str(ROOT / "harness" / "proposal_impact.py"), "--register-branch", str(reg)],
+                             capture_output=True, text=True, env=env, cwd=ROOT)
+        assert cli.returncode == 2 and "--base" in cli.stderr
+    finally:
+        shutil.rmtree(top, ignore_errors=True)
+        pi.ri.load_tools(ri.register_root())
+
+
+def test_the_ci_step_is_in_the_template_proven_in_harness_yml_and_documented():
+    step = (ROOT / "instance" / "ci" / "proposal-impact.sh").read_text(encoding="utf-8")
+    assert "--register-branch" in step and "--no-store" in step
+    wf = (ROOT / ".github" / "workflows" / "harness.yml").read_text(encoding="utf-8")
+    assert "python tools/check_proposal_branch.py" in wf
+    readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
+    assert "proposal-impact.sh" in readme and "--register-branch" in readme
