@@ -308,6 +308,19 @@ from the review itself, and the command refuses a review that breaks a rule, nam
   again until someone re-asks and a reviewer approves again. Set `KG_TODAY=YYYY-MM-DD` for a
   reproducible date.
 
+**When a document's review falls due.** A statement a document's review verified is current for
+the review months of the kind its key concerns, from your register's `metamodel/lifecycle.toml`:
+`[review.kinds]` (the example register: capability 12, product 6), the shortest among the nodes
+the key's row in your subject's `register_map.toml` names, else `[review] default_months` (knowgov
+decision-0005). The load writes that date as the verification's `valid_until`. From the next day the
+statement reads *validated*, its approval with it, and `gate_cli.py` lists a *lapsed* finding (major).
+Read as of today, which is the default, your `--baseline` pipeline then reports the key as
+`verified -> validated`, a regression. Renew it by a review: a reviewer of an owning unit approves the
+statement in a review file, as above (a document's statement needs the role `closes`), and it is
+current again for the key's months from the review's `on`. A verification by execution does not lapse by date. `--as-of YYYY-MM-DD` reads as of another
+date, to see what falls due when; `--as-of record` reads as of your subject's `[record] as_of`, if you
+pinned one.
+
 A review copied into `captures/reviews/` by hand is checked again on every load: one that breaks
 a rule is skipped, and the load prints why. The rules are knowgov's decision-0002; the handles
 and roles are ieam-register's decision 0009. `tools/check_review_walkthrough.py` runs the
