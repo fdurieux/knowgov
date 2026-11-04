@@ -181,7 +181,14 @@ def test_the_aris_dialect_bpmn_is_the_same_model_with_aris_ids_and_dropped_field
         assert "<semantic:definitions " in text[v] and "<bpmn:" not in text[v] and "SYNTHETIC" in text[v]
         root = _bpmn(v, "quote_process.aris.bpmn")
         assert root.get("exporter") == "ARIS" and root.get("targetNamespace") == "http://www.softwareag.com/aris/bpmn2"
-        assert root.get("id").startswith("Definitions_ID-") and root.get("{http://www.w3.org/XML/1998/namespace}lang")
+        assert root.get("id").startswith("Definitions_ID-") and root.get("{http://www.w3.org/XML/1998/namespace}lang") == "en"
+        assert root.get("exporterVersion") == "10.0.0.320027101"
+        # the namespace URIs a real ARIS 10.0 export declared, no stand-in left (task-0063)
+        for prefix, uri in ax.ARIS_XMLNS.items():
+            assert f'xmlns:{prefix}="{uri}"' in text[v] and "urn:knowgov" not in text[v]
+        ports = {e.get("{http://www.softwareag.com/aris/attributes}port")
+                 for e in root.iter("{http://www.omg.org/spec/BPMN/20100524/DI}BPMNEdge")}
+        assert ports == {"S", "CENTER"}, ports
         assert _flow(root) == _flow(_bpmn(v)), "the same elements, names, register ids and flow topology"
         proc = root.find(f"{BPMN}process")
         assert proc.get("isExecutable") is None and not any(k.startswith(KG) for el in root.iter() for k in el.attrib)
