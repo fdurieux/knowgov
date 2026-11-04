@@ -165,3 +165,42 @@ def test_api_runs_reads_run_json_and_is_unchanged_without_one():
     assert after[1] == before[1], "a folder without run.json is listed as before"
     assert {k: v for k, v in after[0].items() if k != "run"} == before[0]
     assert after[0]["run"]["status"] == "done" and after[0]["run"]["by"] == "page" and schema_check.validate(after[0]["run"], SCHEMA) == []
+
+
+def test_join_waits_for_the_end_write_so_a_temporary_run_folder_can_go():
+    """The race behind a one-off rmtree failure on main: the waiter writes the end-of-run run.json
+    after the process returns, and a test's temporary RUNS_DIR could be removed first. Runner.join()
+    waits for it; a slow end write proves it."""
+    import threading
+    import time
+    keep = server.subprocess.Popen, server.RUNS_DIR, server.write_run_json
+    orig = server.write_run_json
+
+    def slow(rec):
+        if rec["status"] != "running":
+            time.sleep(0.3)
+        orig(rec)
+    with tempfile.TemporaryDirectory() as td:
+        server.subprocess.Popen = lambda cmd, **_: _Proc(0)
+        server.RUNS_DIR, server.write_run_json = Path(td), slow
+        runner = server.Runner()
+        try:
+            with page_subject.using(CARGO_QUOTE):
+                runner.start("S1", "deterministic", 1)
+            assert isinstance(runner.waiters[-1], threading.Thread)
+            runner.join()
+            j = json.loads((_folder(Path(td)) / "run.json").read_text(encoding="utf-8"))
+            assert j["status"] == "done", "join returned before the end was written"
+        finally:
+            server.subprocess.Popen, server.RUNS_DIR, server.write_run_json = keep
+
+
+def test_every_test_that_starts_a_run_joins_it():
+    """A test that starts a run on a stub process with RUNS_DIR in a temporary directory joins the
+    Runner's waiter before the directory goes (or runs the waiter inline, as this file does)."""
+    import re
+    for f in sorted(Path(__file__).parent.glob("test_*.py")):
+        text = f.read_text(encoding="utf-8")
+        if not re.search(r"\.start\(\"S\d", text) or "server.RUNS_DIR" not in text:
+            continue
+        assert ".join()" in text or "_Inline" in text, f"{f.name} starts a run and never joins its waiter"

@@ -117,20 +117,23 @@ def test_a_run_through_the_app_passes_its_date_and_refuses_a_bad_one():
     keep_popen, keep_runs = server.subprocess.Popen, server.RUNS_DIR
     with tempfile.TemporaryDirectory() as td:
         server.subprocess.Popen, server.RUNS_DIR = popen, Path(td)
+        runners = [server.Runner() for _ in range(3)]
         try:
             import page_subject
             with page_subject.using(CARGO_QUOTE):
-                rec = server.Runner().start("S1", "deterministic", 1, as_of="2027-09-01")
+                rec = runners[0].start("S1", "deterministic", 1, as_of="2027-09-01")
                 assert rec["as_of"] == "2027-09-01" and started[-1][-2:] == ["--as-of", "2027-09-01"], started[-1]
-                rec = server.Runner().start("S1", "deterministic", 1)
+                rec = runners[1].start("S1", "deterministic", 1)
                 assert rec["as_of"] is None and "--as-of" not in started[-1], "no date: the run reads the record date"
                 for bad in ("2027-13-01", "2027-9-1", "record; rm -rf /"):
                     try:
-                        server.Runner().start("S1", "deterministic", 1, as_of=bad)
+                        runners[2].start("S1", "deterministic", 1, as_of=bad)
                     except ValueError:
                         continue
                     raise AssertionError(f"{bad!r} accepted")
         finally:
+            for r in runners:
+                r.join()   # each waiter writes its run's end into td: done before td goes
             server.subprocess.Popen, server.RUNS_DIR = keep_popen, keep_runs
     page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
     assert 'id="as-of"' in page and "as_of: $('#as-of').value" in page

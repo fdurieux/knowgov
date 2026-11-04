@@ -383,6 +383,7 @@ class Runner:
         self.lock = threading.Lock()
         self.current: dict | None = None
         self.history: list[dict] = []
+        self.waiters: list[threading.Thread] = []   # one per started run; join() waits for their end writes
 
     def start(self, scenario: str, mode: str, n: int, row: str | None = None, effort: str | None = None,
               as_of: str | None = None, by: str = "page") -> dict:
@@ -461,7 +462,9 @@ class Runner:
                 self.history.append(rec)
                 raise RuntimeError(rec["error"]) from None
             self.current = rec
-            threading.Thread(target=self._wait, args=(proc, fh, rec), daemon=True).start()
+            waiter = threading.Thread(target=self._wait, args=(proc, fh, rec), daemon=True)
+            self.waiters.append(waiter)
+            waiter.start()
             return self.describe(rec)
 
     def _wait(self, proc, fh, rec) -> None:
@@ -470,6 +473,15 @@ class Runner:
         rec.update(status="done" if code == 0 else "failed", exit_code=code, finished=_now())
         write_run_json(rec)
         self.history.append(rec)
+
+    def join(self, timeout: float = 30.0) -> None:
+        """Wait until every started run's waiter has written its end: the page never calls it; a test
+        whose run folder is a temporary directory does, before the directory goes."""
+        for waiter in self.waiters:
+            if waiter.is_alive():
+                waiter.join(timeout)
+            if waiter.is_alive():
+                raise TimeoutError(f"a run's waiter is still running after {timeout} s")
 
     def describe(self, rec: dict | None = None) -> dict | None:
         rec = rec or self.current

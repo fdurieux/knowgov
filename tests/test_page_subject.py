@@ -84,9 +84,10 @@ def test_a_run_folder_names_its_subject_and_older_runs_are_still_read():
     keep_popen, keep_runs = server.subprocess.Popen, server.RUNS_DIR
     with tempfile.TemporaryDirectory() as td:
         server.subprocess.Popen, server.RUNS_DIR = popen, Path(td)
+        runner = server.Runner()
         try:
             with page_subject.using(CARGO_QUOTE):
-                rec = server.Runner().start("S1", "deterministic", 1)
+                rec = runner.start("S1", "deterministic", 1)
             out = Path(rec["out_dir"])
             assert out.parent == Path(td) / "cargo_quote" and rec["subject"] == "cargo_quote"
             assert rec["source"] == f"demo-runs/cargo_quote/{out.name}" and started[0]["env"]["KG_SUBJECT"] == str(CARGO_QUOTE.root)
@@ -103,6 +104,7 @@ def test_a_run_folder_names_its_subject_and_older_runs_are_still_read():
                 assert server.list_runs() == [] and [s["id"] for s in views.sources_for("C", Path(td))] == ["record"], \
                     "another subject's runs are not listed for J-F"
         finally:
+            runner.join()   # the waiter writes the run's end into td: done before td goes
             server.subprocess.Popen, server.RUNS_DIR = keep_popen, keep_runs
 
 
