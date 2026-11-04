@@ -81,7 +81,7 @@ services:
       start_period: 20s
 
   app:
-    image: ghcr.io/fdurieux/knowgov:v0.1.0@sha256:bcd27f59a19dfe1589979f12a8bc0218084f63356f5cef615ffb0c6ebb997532   # the release (decision-0003) and its digest; :latest is the last main (task-0092)
+    image: ghcr.io/fdurieux/knowgov:v0.2.0@sha256:45158832c7ad57b42dc7f4bdfd0d9f836ca6b5303767d1e972de27834fcea8d2   # the release (decision-0003) and its digest; :latest is the last main (task-0092)
     depends_on:
       neo4j:
         condition: service_healthy
