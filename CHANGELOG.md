@@ -54,6 +54,10 @@ names that section with the version.
   months; as of 2027-02-07, S1, S3 and S6 read QUALIFIED. The record (as of 2026-10-30) is
   unchanged.
 
+### Also since 0.3.0
+
+- **The MCP allowlist leaves the managed hook fragment** (task-0107): `instance/ci/claude/managed-settings.json` carries `allowManagedHooksOnly` and the hook only; `allowManagedMcpServersOnly` and `allowedMcpServers` move to `managed-mcp-allowlist.json`, an opt-in whose lists replace lower sources' and must be merged; the hook stays mandatory without it.
+
 ## 0.3.0 — 2026-11-04
 
 A hardening release on top of 0.2.0. The page's writes need a token beyond the local machine. A
