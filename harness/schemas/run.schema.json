@@ -1,0 +1,130 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/run.schema.json",
+ "title": "knowgov run folder record",
+ "description": "What a run folder, runs/<subject id>/<stamp>/run.json, says of the run that wrote it (task-0127): the page's Runner writes it when the run starts (status running) and again when it ends (finished, status done or failed, exit_code); a run whose process could not start is failed with an error and no exit code. by names who asked: the page's buttons or knowgov-runs (mcp). Never a key, a token or the run's environment; log is the log's file name in the folder; source is the id the page's views read the folder by. Version 1; a change is additive or a new version. A folder from before it has none, and its readers infer as before.",
+ "type": "object",
+ "required": [
+  "version",
+  "id",
+  "subject",
+  "scenario",
+  "mode",
+  "n",
+  "row",
+  "model",
+  "effort",
+  "host",
+  "model_deviation",
+  "as_of",
+  "by",
+  "started",
+  "finished",
+  "status",
+  "exit_code",
+  "error",
+  "source",
+  "log"
+ ],
+ "additionalProperties": false,
+ "properties": {
+  "version": {
+   "const": 1
+  },
+  "id": {
+   "type": "string"
+  },
+  "subject": {
+   "type": "string"
+  },
+  "scenario": {
+   "type": "string"
+  },
+  "mode": {
+   "enum": [
+    "deterministic",
+    "arms"
+   ]
+  },
+  "n": {
+   "type": "integer",
+   "minimum": 1
+  },
+  "row": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "model": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "effort": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "host": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "model_deviation": {
+   "type": "boolean"
+  },
+  "as_of": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "by": {
+   "enum": [
+    "page",
+    "mcp"
+   ]
+  },
+  "started": {
+   "type": "string"
+  },
+  "finished": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "status": {
+   "enum": [
+    "running",
+    "done",
+    "failed"
+   ]
+  },
+  "exit_code": {
+   "type": [
+    "integer",
+    "null"
+   ]
+  },
+  "error": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "source": {
+   "type": "string"
+  },
+  "log": {
+   "type": [
+    "string",
+    "null"
+   ]
+  }
+ }
+}

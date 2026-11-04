@@ -343,6 +343,38 @@ def _now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
 
+RUN_BY = ("page", "mcp")   # who asked for a run: the page's buttons, or knowgov-runs (decision-0008)
+# what run.json keeps of a run's record (task-0127): no environment, no log text, no absolute path,
+# so nothing secret and nothing of the host; the record itself never holds a key or the page's token
+RUN_JSON_FIELDS = ("id", "subject", "scenario", "mode", "n", "row", "model", "effort", "host", "model_deviation",
+                   "as_of", "by", "started", "finished", "status", "exit_code", "error", "source")
+RUN_JSON_VERSION = 1
+
+
+def run_json(rec: dict) -> dict:
+    """The run.json a run folder carries for its record (harness/schemas/run.schema.json)."""
+    out = {"version": RUN_JSON_VERSION, **{k: rec.get(k) for k in RUN_JSON_FIELDS}}
+    out["log"] = Path(rec["log"]).name if rec.get("log") else None
+    return out
+
+
+def write_run_json(rec: dict) -> None:
+    """Write <out_dir>/run.json whole or not at all: a reader never sees half a file."""
+    target = Path(rec["out_dir"]) / "run.json"
+    tmp = target.with_name("run.json.tmp")
+    tmp.write_text(json.dumps(run_json(rec), indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, target)
+
+
+def read_run_json(folder: Path) -> dict | None:
+    """A run folder's run.json, or None when it has none (a run from before task-0127) or it is unreadable."""
+    try:
+        j = json.loads((folder / "run.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return j if isinstance(j, dict) else None
+
+
 class Runner:
     """One harness subprocess at a time: the community edition serves one
     database, so two loads would race."""
@@ -353,8 +385,10 @@ class Runner:
         self.history: list[dict] = []
 
     def start(self, scenario: str, mode: str, n: int, row: str | None = None, effort: str | None = None,
-              as_of: str | None = None) -> dict:
+              as_of: str | None = None, by: str = "page") -> dict:
         ps = _ps()   # the subject this run is for: its scenarios, its record, its run folder, the harness's KG_SUBJECT
+        if by not in RUN_BY:
+            raise ValueError(f"by must be one of {list(RUN_BY)}, not {by!r}")
         if scenario not in ps.scenarios:
             raise ValueError(f"unknown scenario {scenario}")
         if mode not in ("deterministic", "arms"):
@@ -407,14 +441,25 @@ class Runner:
             if mode == "arms":
                 env.update(model_env)  # base URL, key variable's name, model and effort, all from the row
             log = out_dir / f"{scenario}-{mode}.log"
-            fh = open(log, "w", encoding="utf-8")  # noqa: SIM115 — closed when the process ends
-            proc = subprocess.Popen(cmd, cwd=str(HARNESS), stdout=fh, stderr=subprocess.STDOUT, env=env)
             rec = {"id": out_dir.name, "subject": ps.id, "scenario": scenario, "mode": mode, "n": n, "status": "running",
                    "model": chosen["model"] if chosen else None, "effort": model_env.get("KG_ARMS_EFFORT") if chosen else None,
                    "row": chosen["id"] if chosen else None, "host": chosen["host"] if chosen else None,
-                   "model_deviation": deviation, "as_of": as_of,
+                   "model_deviation": deviation, "as_of": as_of, "by": by,
                    "started": _now(), "finished": None, "exit_code": None,
                    "out_dir": str(out_dir), "log": str(log), "source": f"demo-runs/{ps.id}/{out_dir.name}", "cmd": " ".join(cmd)}
+            write_run_json(rec)
+            fh = None
+            try:
+                fh = open(log, "w", encoding="utf-8")  # noqa: SIM115 — closed when the process ends
+                proc = subprocess.Popen(cmd, cwd=str(HARNESS), stdout=fh, stderr=subprocess.STDOUT, env=env)
+            except OSError as e:
+                if fh:
+                    fh.close()
+                # the folder stays, and says the run never ran: a run.json left at running would lie
+                rec.update(status="failed", finished=_now(), error=f"the run could not start: {e.strerror or e}")
+                write_run_json(rec)
+                self.history.append(rec)
+                raise RuntimeError(rec["error"]) from None
             self.current = rec
             threading.Thread(target=self._wait, args=(proc, fh, rec), daemon=True).start()
             return self.describe(rec)
@@ -423,6 +468,7 @@ class Runner:
         code = proc.wait()
         fh.close()
         rec.update(status="done" if code == 0 else "failed", exit_code=code, finished=_now())
+        write_run_json(rec)
         self.history.append(rec)
 
     def describe(self, rec: dict | None = None) -> dict | None:
@@ -458,7 +504,13 @@ def list_runs() -> list[dict]:
             if not scenarios:
                 continue
             modes = sorted({("arms" if list((d / s).glob("run*_G.json")) else "deterministic") for s in scenarios})
-            out.append({"id": prefix + d.name, "scenarios": scenarios, "modes": modes, "logs": sorted(p.name for p in d.glob("*.log"))})
+            entry = {"id": prefix + d.name, "scenarios": scenarios, "modes": modes, "logs": sorted(p.name for p in d.glob("*.log"))}
+            run = read_run_json(d)
+            if run is not None:
+                # the folder says what it was: its mode, status, dates and initiator (task-0127)
+                entry["modes"] = [run["mode"]] if run.get("mode") in ("deterministic", "arms") else modes
+                entry["run"] = run
+            out.append(entry)
     return out
 
 
@@ -700,7 +752,8 @@ class Handler(BaseHTTPRequestHandler):
                 rec = RUNNER.start(str(body.get("scenario", "")), str(body.get("mode", "")), int(body.get("n", 1)),
                                    row=(str(body["row"]) if body.get("row") else None),
                                    effort=(str(body["effort"]) if body.get("effort") is not None else None),
-                                   as_of=(str(body["as_of"]) if body.get("as_of") else None))
+                                   as_of=(str(body["as_of"]) if body.get("as_of") else None),
+                                   by=str(body.get("by") or "page"))
                 return self._json(rec, 202)
             except (ValueError, RuntimeError) as e:
                 return self._json({"error": str(e)}, 409 if isinstance(e, RuntimeError) else 400)
