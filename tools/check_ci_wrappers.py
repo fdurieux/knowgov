@@ -9,9 +9,13 @@ CI_PROJECT_NAME) and the knowgov clone its ``before_script`` makes replaced by t
 On the store KG_STORE names, persisted under OUT_DIR for rdflib:
 
 1. ``gate`` on S6: exit 0. ``trace-register`` of the reference code: exit 0, one ledger entry.
-2. ``gate`` on S6 with KG_STAGE=2: exit 1 (the change, BLOCKED).
+2. ``gate`` on S6 with KG_STAGE=2: exit 1 (the change, BLOCKED), and the template's KG_ANNOTATE
+   leaves gl-code-quality-report.json, GitLab's code-quality report (task-0083), in the project
+   directory, with no KG_REPORT set: the suspect derived output a blocker, the stale statements major
+   and info, each fingerprint distinct, every path relative to the project directory.
 3. ``trace-check`` with the merge request's diff base: the edit is drift, and the registered build is
-   suspect, a blocker naming APP-0001: exit 1, the JSON report valid against its schema.
+   suspect, a blocker naming APP-0001: exit 1, the JSON report valid against its schema, and the
+   code-quality report puts the suspect build on reference_impl.py under the instance.
 Needs pyyaml (harness.yml installs it) to read the template.
 """
 from __future__ import annotations
@@ -49,6 +53,22 @@ def job(env: dict, gate: str, **kg: str) -> int:
     return p.returncode
 
 
+def code_quality(out: Path) -> list[dict]:
+    """The code-quality report the job left, checked for what GitLab requires of each issue."""
+    f = out / "gl-code-quality-report.json"
+    if not f.exists():
+        sys.exit("FAIL: the job left no gl-code-quality-report.json")
+    issues = json.loads(f.read_text(encoding="utf-8"))
+    for i in issues:
+        if not (i["description"] and i["check_name"] and i["severity"] in ("info", "minor", "major", "critical", "blocker")
+                and isinstance(i["location"]["lines"]["begin"], int) and (out / i["location"]["path"]).is_file()):
+            sys.exit(f"FAIL: a code-quality issue GitLab would refuse or could not place: {i}")
+    if len({i["fingerprint"] for i in issues}) != len(issues):
+        sys.exit("FAIL: code-quality fingerprints repeat")
+    f.unlink()
+    return issues
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -74,6 +94,11 @@ def main() -> None:
         sys.exit(f"FAIL: the ledger entry names the GitLab project and commit: {e}")
     if job(env, "gate", KG_SCENARIO="S6", KG_STAGE="2") != 1:
         sys.exit("FAIL: the gate on S6's change, want exit 1")
+    cq = sorted((i["check_name"], i["severity"]) for i in code_quality(out))
+    want = {("knowgov-suspect_derived", "blocker"), ("knowgov-stale", "major"), ("knowgov-stale", "info"), ("knowgov-key", "blocker")}
+    if not want <= set(cq):
+        sys.exit(f"FAIL: S6's change in the code-quality report, want {sorted(want)}: {cq}")
+    print(f"    code quality: {len(cq)} issue(s), " + ", ".join(sorted({f'{c} {s}' for c, s in cq})))
 
     root = inst / "subjects" / "cargo_quote" / "vendor" / "stack_experiment" / "cargo_quote"
     (root / "reference_impl.py").write_text((root / "reference_impl.py").read_text(encoding="utf-8") + "\n# an edit in the merge request\n", encoding="utf-8")
@@ -86,6 +111,11 @@ def main() -> None:
     kinds = sorted((f["kind"], f["app"]) for f in rep["findings"] if f["kind"] in ("suspect", "drift"))
     if errs or rep["changed"] != ["reference_impl.py"] or kinds != [("drift", "APP-0001"), ("suspect", "APP-0001")]:
         sys.exit(f"FAIL: want the changed path from the diff base, drift and suspect on APP-0001: {errs[:3]}\n{json.dumps(rep, indent=1)[:3000]}")
+    placed = {(i["check_name"], i["severity"], i["location"]["path"]) for i in code_quality(out)}
+    code = (root / "reference_impl.py").relative_to(out).as_posix()
+    if not {("knowgov-suspect", "blocker", code), ("knowgov-drift", "minor", code)} <= placed:
+        sys.exit(f"FAIL: want the suspect build and its drift on {code} in the code-quality report: {sorted(placed)}")
+    print(f"    code quality: suspect (blocker) and drift (minor) on {code}")
     print("GitLab include: the same command line as the action and the shell snippet; S6's change fails the merge request naming APP-0001")
 
 

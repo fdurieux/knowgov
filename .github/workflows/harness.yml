@@ -220,6 +220,17 @@ jobs:
           test "$STAGE2" = failure && test "$CHECK" = failure
           python3 -c 'import json; g=json.load(open("runs/wrap/gate-stage2.json")); t=json.load(open("runs/wrap/trace-check.json")); assert g["exit_code"]==1 and g["verdict"]=="BLOCKED", g["verdict"]; s=[f for f in t["findings"] if f["kind"]=="suspect"]; assert t["exit_code"]==1 and t["changed"]==["reference_impl.py"] and len(s)==1 and s[0]["app"]=="APP-0001", t; print("action:", g["verdict"], "then suspect on", s[0]["app"])'
           unset KG_RDFLIB_FILE; rm -rf runs/wrap-gitlab && KG_STORE=rdflib python tools/check_ci_wrappers.py runs/wrap-gitlab
+      - name: "The reports as annotations (task-0083): S6's change, from the action's two reports, as GitHub commands, code quality and SARIF"
+        run: |
+          a() { python harness/annotate.py "$@" --instance runs/wrap/instance --subject runs/wrap/instance/subjects/cargo_quote; }
+          a runs/wrap/gate-stage2.json -t github > runs/wrap/gate-stage2.gh
+          a runs/wrap/trace-check.json -t github > runs/wrap/trace-check.gh
+          a runs/wrap/trace-check.json -t gitlab -o runs/wrap/trace-check.cq.json
+          a runs/wrap/gate-stage2.json -t sarif -o runs/wrap/gate-stage2.sarif
+          grep -c '^::error file=runs/wrap/instance/subjects/cargo_quote/subject.toml,line=1,title=knowgov gate suspect_derived derived%3AS1%3AG%3Arun1 (blocker)::' runs/wrap/gate-stage2.gh
+          grep -c '^::warning file=runs/wrap/instance/subjects/cargo_quote/subject.toml,line=1,title=knowgov gate stale ' runs/wrap/gate-stage2.gh
+          grep -c '^::error file=runs/wrap/instance/subjects/cargo_quote/vendor/stack_experiment/cargo_quote/reference_impl.py,line=1,title=knowgov trace suspect APP-0001 (blocker)::' runs/wrap/trace-check.gh
+          python3 -c 'import json; cq=json.load(open("runs/wrap/trace-check.cq.json")); s=json.load(open("runs/wrap/gate-stage2.sarif")); r=s["runs"][0]["results"]; assert any(i["check_name"]=="knowgov-suspect" and i["severity"]=="blocker" and i["location"]["path"].endswith("cargo_quote/reference_impl.py") for i in cq), cq; assert s["version"]=="2.1.0" and {"suspect_derived","stale"} <= {x["ruleId"] for x in r}, r; print("code quality:", len(cq), "issues; SARIF:", len(r), "results")'
       - name: The capture path (task-0009), questionnaire, answers, the gate after, and nothing above proposed
         run: |
           rm -rf runs/capture && python tools/example_instance.py runs/capture > /dev/null
