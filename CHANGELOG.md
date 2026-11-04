@@ -22,6 +22,7 @@ names that section with the version.
   loaded, each key carries its level, stale statements, suspect derived outputs and findings, as
   `gate_verdict` reports that key set on the same `as_of`. It is additive: the store view's reads
   are unchanged and nothing is written.
+- `instance/README.md` "Letting an AI assistant ask the gate": connecting Claude Code (`claude mcp add -s user`) and Claude Desktop (config file, absolute paths, the full `docker` path, the log) over the container's stdio, the phone through Remote Control, `KG_SUBJECT` as a path, `scenario` in every call, and a stateless HTTP example with `clientCapabilities` that a test runs against the server, with a guard on every flag the section names (task-0117).
 
 ## 0.4.0 — 2026-11-04
 
