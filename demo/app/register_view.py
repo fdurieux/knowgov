@@ -142,6 +142,14 @@ def _node_panel(nid: str, n: dict, reg: dict, C, D) -> dict:
 WALKS = ("dependants", "realisers")   # the register's named walks (its decisions 0010 and 0012)
 
 
+def followed(e: dict) -> str:
+    """The panel's and the rows form's followed column: an edge back to the walk's start (the register's
+    decision 0016, v0.2.9, ``to_start``) is followed and never counted among what is reached."""
+    if not e["live"]:
+        return "no, withdrawn"
+    return "yes, back to the start, not counted" if e.get("to_start") else "yes"
+
+
 @takes_subject
 def impact(start: str, walk: str = "dependants", children: bool = False) -> dict | None:
     """The register's own impact walk from one node (tools/impact.py, vendored), each edge
@@ -153,7 +161,8 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
     edge is listed and not followed, and only the far ends of live edges count as reached. With
     ``children`` (decision 0014, v0.2.8; task-0112) it also starts from every approved descendant by
     parent, as ``impact.walk_children`` does: every descendant is listed, a withdrawn one is not
-    walked from, and the start and its descendants are not counted among what is reached. That is
+    walked from, and the start and its descendants are not counted among what is reached. An edge
+    back to a walk's start is listed and never counted (decision 0016, v0.2.9; ``reached``). That is
     the register tool's behaviour, shown as it is."""
     T = _load_tools()
     reg = T["register"].load_register(REGISTER)
@@ -172,7 +181,7 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
     names = {nid: n.get("name", "") for nid, n in reg["nodes"].items()}
     owners = {nid: owning_unit(reg, nid) for nid in {start} | {e["to"] for e in edges} | {d["id"] for d in descendants or []}}
     rows = [[e["from"], e["rel"], e["to"], names.get(e["to"], ""), unit_text(owners[e["to"]]), reg["nodes"].get(e["to"], {}).get("state", ""), e["state"],
-             "yes" if e["live"] else "no, withdrawn", e["owner"], ", ".join(e["evidence"])] for e in edges]
+             followed(e), e["owner"], ", ".join(e["evidence"])] for e in edges]
     withdrawn = sum(1 for e in edges if not e["live"])
     by_prefix = lambda p: [x for x in reached if x.startswith(p + "-")]  # noqa: E731
     products, journeys, processes, applications = by_prefix("PRD"), by_prefix("JRN"), by_prefix("PROC"), by_prefix("APP")
@@ -190,6 +199,7 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
                          "An application leads nowhere, so the walk never turns back to what rests on the capability.")
     intro += " " + C("It stops at a deprecated or retired node.", "A withdrawn edge is listed and not followed.",
                      "Its link is not approved, or its far node is deprecated or retired.")
+    intro += " " + C("An edge back to the start is listed and not counted: the start is never among what it reaches.")
     if children:
         intro += " " + C("It also starts from every descendant by parent, at any depth, each by its own kind.",
                          "An approved descendant is walked; any other is listed as withdrawn and not walked from.",

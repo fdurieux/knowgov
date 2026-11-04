@@ -3,9 +3,11 @@ id: TASK-0122
 title: >-
   A register change invalidates: deprecated nodes and withdrawn links mark what
   rests on them stale or suspect
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-04T18:33:00Z'
+updated_date: '2026-11-04T19:18:00Z'
 labels:
   - register
   - gate
@@ -28,3 +30,9 @@ From the doc-0011 fit-gap (2026-11-04): a register change re-projects but invali
 - [ ] #2 A register update with no state change invalidates nothing; the record and the comparator are unchanged
 - [ ] #3 Both adapters agree; the Turtle round trip carries the new staleness; the CHANGELOG names it under Unreleased
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+PR 1: vendor ieam-register v0.2.9 (decision 0016); mark to_start edges on the page and in the Cypher rows form; tags; CHANGELOG. PR 2: register-change invalidation (compare with the previous vendored tag; stale statements and suspect outputs; gate findings; both adapters; Turtle round trip).
+<!-- SECTION:PLAN:END -->

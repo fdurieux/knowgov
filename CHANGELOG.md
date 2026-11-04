@@ -96,6 +96,14 @@ names that section with the version.
   `register-realisers-children`. `check_impact_cypher.py` checks all four walks on every node.
   Without the options the panel and its Cypher are unchanged. The record and the comparator are
   unchanged.
+- **The register is vendored at ieam-register `v0.2.9`** (task-0122, first half), which carries its
+  decision 0016: a walk never counts its start among what it reaches. An edge back to the start is
+  still listed, and the register marks it `to_start`. On CargoQuote's register, 19 nodes stop reaching
+  themselves on the `dependants` walk; no other node joins or leaves a reached set, and the
+  `realisers` walk and the descent by `parent` are unchanged, so `register_impact`'s keys are too.
+  The page's impact panel and its Cypher rows form mark such an edge "yes, back to the start, not
+  counted", and `check_impact_cypher.py` compares that column too. The record (as of 2026-10-30)
+  and the comparator are unchanged.
 - `instance/README.md` "Letting an AI assistant ask the gate": connecting Claude Code (`claude mcp add -s user`) and Claude Desktop (config file, absolute paths, the full `docker` path, the log) over the container's stdio, the phone through Remote Control, `KG_SUBJECT` as a path, `scenario` in every call, and a stateless HTTP example with `clientCapabilities` that a test runs against the server, with a guard on every flag the section names (task-0117).
 
 ## 0.4.0 — 2026-11-04

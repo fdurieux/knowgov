@@ -31,7 +31,7 @@ def test_register_view_builds_from_the_vendored_copy_at_the_pinned_date():
     v = register_view.build()
     assert v["source"]["repo"] == "fdurieux/ieam-register" and len(v["source"]["commit"]) == 40 and v["source"]["digest_ok"]
     assert v["source"]["kind"] == "copy" and register_view.REGISTER == (DEMO / "register").resolve()
-    assert v["source"]["tag"] == "v0.2.8" and v["source"]["commit"].startswith("f8fb17e")  # the tag sits on the vendored commit
+    assert v["source"]["tag"] == "v0.2.9" and v["source"]["commit"].startswith("4bb0923")  # the tag sits on the vendored commit
     assert v["pinned"] and v["run_date"] == v["source"]["pinned_date"]
     assert v["summary"] == {"nodes": 57, "links": 65, "errors": 0, "warnings": 7}   # the J-F slice (decisions 0005 and 0006): 29 nodes, 37 links, seven parentless nodes; ORG-0004 (decision 0011)
     assert v["coverage_lines"][0] == "C1: 7/8 covered, 1 excepted, 0 uncovered"
@@ -228,7 +228,7 @@ def test_projection_rows_and_statements():
     r = rp.rows(loaded_at="2026-10-31T00:00:00+00:00")
     c = r["counts"]
     assert c["nodes"] == 57 and c["links"] == 65 and c["types"] == 10 and c["documents"] == 10 and c["externals"] == 1 and c["exceptions"] == 1
-    assert r["stamp"]["tag"] == "v0.2.8" and r["stamp"]["commit"].startswith("f8fb17e") and r["stamp"]["export_date"] == "2026-10-30"   # the subject's export, not the newest
+    assert r["stamp"]["tag"] == "v0.2.9" and r["stamp"]["commit"].startswith("4bb0923") and r["stamp"]["export_date"] == "2026-10-30"   # the subject's export, not the newest
     assert len(r["parents"]) == sum(1 for n in r["nodes"] if n["parent"]) and len(r["owners"]) == 57
     assert sum(len(v) for v in r["typed"].values()) == 64 and len(r["maps_to"]) == 1 and len(r["link_of"]) == 129 and len(r["of_type"]) == 65
     assert {"reg_id": "REL-08002", "path": "kit/requirements.md", "anchor": "kit:requirements.md#REQ-05"} in r["cites"]
@@ -238,7 +238,7 @@ def test_projection_rows_and_statements():
     ok = (str, int, float, bool)
     for key in ("nodes", "types", "links", "documents", "externals", "exceptions"):
         for row in r[key]:
-            assert row["tag"] == "v0.2.8" and row["commit"] and row["loaded_at"] and len(row["digest"]) == 64, (key, row["reg_id"])
+            assert row["tag"] == "v0.2.9" and row["commit"] and row["loaded_at"] and len(row["digest"]) == 64, (key, row["reg_id"])
             for k, v in row.items():
                 assert isinstance(v, ok) or (isinstance(v, list) and all(isinstance(x, str) for x in v)), (key, row["reg_id"], k, v)
     # the load is the Neo4j adapter's project_register, read as source: the tests job has no driver
@@ -262,7 +262,7 @@ def test_projection_is_wired_and_named():
     ci = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert '["api", "register", "project"]' in server and "s.register_census()" in server and '"register": None' in server
     assert 'id="project-btn"' in page and "/api/register/project" in page and "register ${s.register ? 'projected at '" in page
-    assert "POST localhost:8080/api/register/project" in ci and '"tag"]=="v0.2.8"' in ci
+    assert "POST localhost:8080/api/register/project" in ci and '"tag"]=="v0.2.9"' in ci
     assert "projection" in views.GLOSSARY and "**The projection.**" in (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
     adapter = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")   # the saved queries are the adapter's
     ids = [m.group(1) for m in _re.finditer(r'\{"id": "([a-z0-9-]+)", "needs": "[^"]+", "title"', adapter)]
@@ -642,12 +642,12 @@ def test_impact_browser_links_open_a_served_guide_and_the_stack_job_runs_them():
         httpd.shutdown()
         httpd.server_close()
     # the comparator's shapes: the walk's edges as the rows form returns them, the paths' distinct relationships and starts
-    edges = [{"from": "A", "rel": "supports", "to": "P", "state": "approved", "owner": "O", "evidence": ["e1"]}]
-    rows = [{"from": "A", "relationship": "supports", "to": "P", "link state": "approved", "owner": "O", "evidence": None,
+    edges = [{"from": "A", "rel": "supports", "to": "P", "state": "approved", "owner": "O", "evidence": ["e1"], "live": True, "to_start": False}]
+    rows = [{"from": "A", "relationship": "supports", "to": "P", "link state": "approved", "followed": "yes", "owner": "O", "evidence": None,
              "unit": "ORG-1", "unit name": "Unit", "owns links": ["ORG-2", "ORG-1"]}]
     owners = {"P": {"unit": "ORG-1", "name": "Unit", "owns": ["ORG-1", "ORG-2"]}}
-    assert cic.row_keys(rows) == [("A", "supports", "P", "approved", "O", (), "ORG-1", "Unit", ("ORG-1", "ORG-2"))]
-    assert cic.edge_keys(edges, owners) == [("A", "supports", "P", "approved", "O", ("e1",), "ORG-1", "Unit", ("ORG-1", "ORG-2"))]
+    assert cic.row_keys(rows) == [("A", "supports", "P", "approved", "yes", "O", (), "ORG-1", "Unit", ("ORG-1", "ORG-2"))]
+    assert cic.edge_keys(edges, owners) == [("A", "supports", "P", "approved", "yes", "O", ("e1",), "ORG-1", "Unit", ("ORG-1", "ORG-2"))]
     assert cic.row_keys([dict(rows[0], unit=None, **{"unit name": None, "owns links": []})])[0][-3:] == ("", "", ())
 
     class Rel(dict):   # the driver's relationship: an element id, its properties by get
@@ -1188,3 +1188,32 @@ def test_impact_view_serves_every_variants_cypher_guides_and_saved_queries():
         httpd.server_close()
     page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
     assert 'id="impact-walk"' in page and 'id="impact-children"' in page and "?walk=${encodeURIComponent(walk)}&children=${children}" in page
+
+
+# ---- the register's decision 0016 (v0.2.9): the start is never counted among what a walk reaches
+
+@on_cargo_quote
+def test_the_start_is_never_reached_and_an_edge_back_to_it_is_marked():
+    """0016's table, measured on the page: 19 starts close a cycle of approved links back to themselves
+    on the dependants walk, none on the realisers walk; each lists the edge back, marked, and never
+    counts itself. The rows form's followed column marks it the same way (t = a, the CALL's start)."""
+    import store_neo4j as sn
+    T = register_view._load_tools()
+    reg = T["register"].load_register(register_view.REGISTER)
+    back = {"dependants": set(), "realisers": set()}
+    for nid in reg["nodes"]:
+        for walk in back:
+            w = register_view.impact(nid, walk)
+            assert nid not in w["reached"]["all"], (nid, walk)
+            marked = [r for r in w["rows"] if r[7] == "yes, back to the start, not counted"]
+            assert len(marked) == sum(1 for e in w["edges"] if e["live"] and e["to"] == nid), (nid, walk)
+            if marked:
+                back[walk].add(nid)
+                assert all(r[2] == nid for r in marked)
+    assert len(back["dependants"]) == 19 and back["realisers"] == set(), back
+    assert {"JRN-0001", "PRD-0002", "PROC-0006", "PROC-0010"} <= back["dependants"]
+    assert register_view.impact("JRN-0001")["reached"]["all"] == ["PRD-0002", "PROC-0001"], "0016: reaches 2, not 3"
+    assert "An edge back to the start is listed and not counted" in register_view.impact("JRN-0001")["panel"]["intro"]
+    for walk in ("dependants", "realisers"):
+        for children in (False, True):
+            assert "WHEN t = a THEN 'yes, back to the start, not counted'" in sn.impact_texts(walk, children)["rows"]
