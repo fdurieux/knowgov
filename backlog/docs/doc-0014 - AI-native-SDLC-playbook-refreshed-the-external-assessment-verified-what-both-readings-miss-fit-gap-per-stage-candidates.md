@@ -5,7 +5,7 @@ title: >-
   readings miss, fit/gap per stage, candidates
 type: specification
 created_date: '2026-11-04T09:23:00Z'
-updated_date: '2026-11-04T09:23:00Z'
+updated_date: '2026-11-04T10:45:00Z'
 tags:
   - canvas
   - fit-gap
@@ -186,3 +186,12 @@ C5 (isolation) needs no task: P1's recipe states one store per worktree (`KG_RDF
 ## 10. What would reopen this
 
 A new playbook edition; the vendor changing hook exit semantics; a pilot whose false-block rate makes a mandatory gate unworkable; a re-measurement of the governed arm under withholding at a second model.
+
+## 11. The maintainer's decisions, 2026-11-04
+
+The maintainer took the advice given on §9 ("go with your advice"). Tasks 0099–0104 already carry P1–P6 (#169); the coordinating session mints any new id.
+
+1. **The MCP date default: today for both tools, a minor version.** task-0100 as proposed: one `as_of` per server process (`KG_AS_OF`, else today); `evidence_bundle` loses its `record` default, which stays an explicit choice. A contract change under decision-0003, named in the CHANGELOG. The split default is not kept as documentation: a client that omits the date would still get a verdict and a bundle on different dates.
+2. **Dogfood the hook here, small.** This repository gains a `.claude/` with two hooks on its own protected paths: a vendored file or its `SOURCE.md` edited by hand, and a backlog markdown file written other than through the CLI. They reuse task-0099's exit mapping (block on 1 and 2) and call nothing else; the knowledge gate is not wired to this repository's own commits, since no subject describes it. A new task, after task-0099.
+3. **Order:** task-0099 and task-0100 together (the hook is honest only once the dates agree); then task-0102 (a block without an owner route invites an override); then task-0101; task-0103 with the lighthouse; task-0104 parked.
+4. **No outcome claim** from the 20-of-20 figure in any recipe, README or release note: advisory arm, one model, toy scale. The claim is a deterministic, fail-closed check.
