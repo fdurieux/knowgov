@@ -203,6 +203,10 @@ keys = ["S-review|notified", "S-refuse|notified", "QuoteAPI|notified_after_scree
 
 [record]
 dir = "vendor/kg_experiment/results"
+# the date the record is read as of (decision-0005): its smoke run and authoring, 2026-10-30. A
+# deterministic run and the comparator read review currency on it, so the record never moves by the
+# clock; the gate command reads today. The review-only keys, reviewed 2026-08-06, lapse on 2027-08-07.
+as_of = 2026-10-30
 
 # the page's heading, and sentences it adds to every scenario's oracle panel (the record's S6 asks for the new prices)
 [page]

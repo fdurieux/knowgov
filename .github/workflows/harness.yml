@@ -122,13 +122,14 @@ jobs:
       - name: The gate as a command (task-0007) exits 0, 1 or 2 under the contract, and ratchets on the record
         run: |
           cd harness
-          gate() { KG_STORE=rdflib python gate_cli.py "$@" > /dev/null 2>&1; echo $?; }
+          # read as of the record's pinned date (decision-0005), so the expectations never move by the clock
+          gate() { KG_STORE=rdflib python gate_cli.py --as-of record "$@" > /dev/null 2>&1; echo $?; }
           test "$(gate --scenario S1)" = 0
           test "$(gate --scenario S2)" = 1
           test "$(gate --scenario S3)" = 0
           test "$(gate --scenario S3 --fail-on major)" = 1
           test "$(gate --scenario S2 --baseline record)" = 0
-          KG_STORE=rdflib python gate_cli.py --scenario S1 -f json -o ../runs/gate-s1.json > /dev/null
+          KG_STORE=rdflib python gate_cli.py --as-of record --scenario S1 -f json -o ../runs/gate-s1.json > /dev/null
           test "$(gate --scenario S2 --baseline ../runs/gate-s1.json)" = 1
           test "$(gate --scenario nope)" = 2
           test "$(gate --scenario S6 --stage 2)" = 1
@@ -137,7 +138,13 @@ jobs:
           test "$(gate --scenario S6 --stage 2 --no-load)" = 2
           test "$(gate --subject ../subjects/jef_data_load --baseline record)" = 0
           test "$(gate --subject ../subjects/minimal)" = 1
-          KG_STORE=rdflib python gate_cli.py --scenario S2 --baseline record
+          # decision-0005: CargoQuote's ten review-only keys, reviewed 2026-08-06, lapse on 2027-08-07; J-F rests on execution
+          test "$(gate --scenario S1 --as-of 2027-08-06 --baseline record)" = 0
+          test "$(gate --scenario S1 --as-of 2027-08-07)" = 1
+          test "$(gate --scenario S1 --as-of 2027-08-07 --baseline record)" = 1
+          test "$(gate --subject ../subjects/jef_data_load --as-of 2030-01-01 --baseline record)" = 0
+          test "$(gate --scenario S1 --as-of 2027-13-01)" = 2
+          KG_STORE=rdflib python gate_cli.py --as-of record --scenario S2 --baseline record
           python3 -c 'import sys,json; sys.path.insert(0,"."); import schema_check as s; r=json.load(open("../runs/gate-s1.json")); e=s.validate(r, s.load("gate-report")); assert not e, e; assert r["schema_version"]==2, r["schema_version"]; print("report valid:", r["schema_version"], r["verdict"], r["exit_code"])'
       - name: The gate brings in S6's later version (task-0049), BLOCKED on four invalidated statements, then after re-verification exits 1 on the suspect derived output (task-0048)
         run: KG_STORE=rdflib python tools/check_gate_after_change.py runs/gate-change

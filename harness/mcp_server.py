@@ -73,7 +73,8 @@ TOOLS = [
          "task": {"type": "string", "description": "the task class whose required keys are resolved (default: codegen); with keys, its block levels and bar apply"},
          "keys": {"type": "array", "items": {"type": "string"}, "minItems": 1, "description": "resolve these entity|attribute keys instead of the task's"},
          "fail_on": {"type": "string", "enum": ["blocker", "critical", "major", "minor", "info"], "description": "the severity at or above which exit_code is 1 (default: blocker)"},
-         "baseline": {"type": "string", "enum": ["none", "record"], "description": "record: exit_code 1 only on a regression against the subject's record (codegen only)"}}},
+         "baseline": {"type": "string", "enum": ["none", "record"], "description": "record: exit_code 1 only on a regression against the subject's record (codegen only)"},
+         "as_of": {"type": "string", "description": "the date review currency is read on (decision-0005): today (default), record (the subject's pinned record date) or YYYY-MM-DD; a review past its key's review months reads validated"}}},
      "annotations": READ_ONLY},
     {"name": "three_valued_answer", "title": "Is it asserted, documented absent, or unknown?",
      "description": "For one key: 'asserted' with its values, 'documented_absent' when the documents say there is none, "
@@ -185,6 +186,11 @@ class Tools:
             raise ToolError("baseline must be none or record; a file path is not served")
         if keys is not None and which == "record":
             raise ToolError("the record is a baseline for a task class, not for a key set of your own")
+        import cadence
+        try:
+            on = cadence.as_of(args.get("as_of") or "today").isoformat()
+        except ValueError as e:
+            raise ToolError(f"as_of: {e}") from e
         spec = dict(TASKS[task])
         name = task
         if keys is not None:
@@ -199,7 +205,7 @@ class Tools:
                 raise ToolError(str(e)) from e
             return gate_cli.evaluate(st, subject=SUBJECT.id, scenario=scenario, task=name, spec=spec,
                                      threshold=threshold, baseline=base, loaded=False,
-                                     version=gate_cli.held_version(st))
+                                     version=gate_cli.held_version(st), as_of=on)
         return self._with_store(go)
 
     def three_valued_answer(self, args: dict) -> dict:

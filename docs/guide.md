@@ -90,6 +90,7 @@ whether it is contested, or why a key is empty.
 | status `invalidated` | a source change ended it and its verifications | `prov:wasInvalidatedBy` the re-ingestion `prov:Activity`, at `prov:invalidatedAtTime` | superseded, once a verified or approved successor exists (`prov:wasRevisionOf` from the successor); else no counterpart |
 | status `rejected` | a ruling took it out of the live set; it keeps its history | no counterpart | rejected |
 | approval lapsed | a person's approved answer six months after it was given; it reads proposed again | no counterpart | expiry date (closest) |
+| review lapsed | a document's verification by review past its key's review months (the register's `lifecycle.toml`, 12 for a capability, 6 for a product); the statement reads validated until a new review | the verification's `valid_until` date, read as of a date; no PROV-O counterpart for currency | expiry date (closest) |
 | key level `absent` | no live assertion holds the key | no counterpart | no counterpart |
 | key level `declared_gap` | a document declares the key open, with an owner | no counterpart | no counterpart |
 <!-- provenance crosswalk: end -->
@@ -612,6 +613,32 @@ blocker, whatever the verdict on the keys, until it is regenerated. An invalidat
 required key is a finding of its own: major while nothing verified or approved replaces it, info
 once something does. So after S6's change and re-verification the verdict reads PROCEED and the
 command still exits 1 on `derived:S1:G:run1` (report version 2; task-0048).
+
+### When a review falls due
+
+A statement verified by a review stays current for the review months of the kind its key concerns,
+then lapses (decision-0005). The months are your register's: `metamodel/lifecycle.toml`, `[review.kinds]`
+(12 for a capability, 6 for a product in the example register), else `[review] default_months`. A key
+whose row in `register_map.toml` names nodes of several kinds takes the shortest; a key with no row takes
+the default. The load writes the due date as the verification's `valid_until`. On the day after it, the
+statement reads *validated*, its approval falls with it, and the gate lists a *lapsed* finding (major)
+naming the statement, its date and the review. A verification by execution never lapses by date: the
+oracle runs again on every load.
+
+```bash
+python harness/gate_cli.py --scenario S1 --as-of 2027-08-07 --baseline record
+```
+
+In plain English: read the store as of 7 August 2027 and compare with the record. CargoQuote's ten
+review-only keys were reviewed on 6 August 2026 and fall due after twelve months. They read validated,
+10 of 36 keys are below verified, above the 25 % bar, and the command exits 1, naming each
+`approved -> validated` as a regression. `--as-of` is today by default, so a pipeline's ratchet catches
+a review falling due. The remedy is a new review: a person of a unit that owns the key approves the
+statement in a review file (section 6; approving a document's statement needs the role `closes`,
+decision-0002). That makes it current again for the key's months from the review's date. Or you record
+a new baseline, deliberately. `--as-of record` reads as of the subject's pinned record date
+(`subject.toml` `[record] as_of`). The deterministic run and the comparator always read on that date,
+so the record never moves because the calendar did.
 
 To see a change, add `--stage 2`: the command loads the scenario, then brings in its changed
 document as the next version. For S6 that invalidates four statements and the gate is BLOCKED.

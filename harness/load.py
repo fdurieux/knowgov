@@ -170,6 +170,10 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
     # requirements and links: authored by the maintainer -> reviewed by construction
     counts["review"] += st.verify_authored(authored.get("at", ts), authored.get("scope", "authored"), HUMAN["id"])
     counts["approved"] = st.approve_verified(approval.get("at", ts), approval.get("record", "approval"), HUMAN["id"])
+    # decision-0005: every review falls due after its key's review months; the date is the verification's
+    # valid_until, which the gate reads as of a date (harness/cadence.py). Not counted: the record's counts stand.
+    import cadence
+    cadence.date_reviews(st)
     return counts
 
 

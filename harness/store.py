@@ -101,6 +101,15 @@ class Store:
         """Re-verify and re-approve the new version's assertions on the named keys; their ids."""
         raise NotImplementedError
 
+    def review_verifications(self) -> list[dict]:
+        """Every verification of method review that carries no ``valid_until``: {id, key, at}, ``key``
+        the key of the statement it verifies (decision-0005; harness/cadence.py dates them)."""
+        raise NotImplementedError
+
+    def set_valid_until(self, dates: dict[str, str]) -> None:
+        """Write ``valid_until`` on the verifications named, verification id -> YYYY-MM-DD."""
+        raise NotImplementedError
+
     def register_derived(self, did: str, kind: str, sha: str, assertion_ids: list[str]) -> None:
         raise NotImplementedError
 

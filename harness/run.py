@@ -42,6 +42,12 @@ def dump(path: Path, obj) -> None:
     path.write_text(json.dumps(obj, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
 
 
+def gate_summary(g: dict) -> dict:
+    """The gate's result as the record holds it: without its keys and without the as-of date, which
+    the run records once, at its top (decision-0005)."""
+    return {k: v for k, v in g.items() if k not in ("keys", "as_of")}
+
+
 def d5(s) -> dict:
     """The three-valued answer for the keys the subject names."""
     return {key: three_valued(s, key) for key in SUBJECT.three_valued}
@@ -62,8 +68,8 @@ def deterministic(sc: str, pv: dict, s) -> dict:
     reviews = load_reviews(s, sc)   # a person's rulings, after the rules (task-0037); none without captures/reviews/
     cen = census(s)
     gate = resolve(s, "codegen")
-    out = {"scenario": sc, "store": s.name, "D1_constraints": d1, "load": load, "verifications": ver, "rules": rules,
-           "D2_census": cen, "D4_shacl": shacl.run(s), "D6_gate": {k: v for k, v in gate.items() if k != "keys"},
+    out = {"scenario": sc, "store": s.name, "as_of": gate["as_of"], "D1_constraints": d1, "load": load, "verifications": ver, "rules": rules,
+           "D2_census": cen, "D4_shacl": shacl.run(s), "D6_gate": gate_summary(gate),
            "gate_keys": {k: {"level": v["level"], "flags": v["flags"], "n": len(v["assertions"])} for k, v in gate["keys"].items()}}
     if captures["files"]:
         out["captures"] = captures
@@ -84,9 +90,9 @@ def stage2(sc: str, cfg2: dict, pv: dict, s, derived_code: str | None, derived_i
     rever = reverify(sc, cfg2, pv, s, ch["kit2"])
     gate_after = resolve(s, "codegen")
     stage2 = {"load_v2": ch["load_v2"], "D3_stale": ch["D3_stale"], "R-STRUCT_after": ch["R-STRUCT_after"],
-              "gate_before_reverification": {k: v for k, v in gate_blocked.items() if k != "keys"},
+              "gate_before_reverification": gate_summary(gate_blocked),
               "reverified": rever,
-              "gate_after_reverification": {k: v for k, v in gate_after.items() if k != "keys"},
+              "gate_after_reverification": gate_summary(gate_after),
               "census_after": census(s),
               "suspect_derived": s.all_derived()}
     return stage2, gate_after, ch["kit2"]
