@@ -47,7 +47,7 @@ What it collects for each subject:
 | item | what it shows | how |
 |---|---|---|
 | walk | what a change to a register node reaches, and the statements behind it | the register's own impact walk from every node the subject's register map names; then, on the first scenario, the statements each node's cited anchor reaches in the store |
-| gate | whether a task may build on its knowledge | `harness/gate_cli.py` on every scenario, with each verdict next to the record's |
+| gate | whether a task may build on its knowledge | `harness/gate_cli.py` on every scenario, with each verdict next to the record's. The record's gate is the `codegen` class; every other class the subject declares (CargoQuote's `design`) runs on the same store and its verdict is recorded beside it, compared with nothing |
 | three-valued answer and evidence bundle over MCP | what an assistant sees when it asks | the read-only MCP server over stdio (or HTTP, `--transport http`), on the store each gate left. Its `gate_verdict` must equal `gate_cli.py --no-load`. Its `three_valued_answer` must carry provenance. Its `evidence_bundle`, as of the record, must carry the same verdict and date as its `gate_verdict`; the item records the bundle's size, digest, assertions and verbatim documents. The store's census must be unchanged |
 | invalidation | what a document change does | for a scenario with a later version (CargoQuote S6): `--stage 2`, then `--stage 2 --reverify`. It records what was invalidated, what supersedes it (`superseded_by`) and the code marked suspect |
 | export manifest | that the register's copy of the documents is the subject's | every file digest in the register's export manifest, checked against the subject's bytes, and the reconciliation record next to it |
@@ -222,6 +222,28 @@ What knowgov can do instead is gate the *definition* of an action. An action's s
 and the decision logic it calls are declared design, read from documents like any decision table.
 knowgov can answer "may this change to the action ship?" in the same way it answers for code.
 
+## Which task class each pilot transition uses
+
+A task class is the set of keys one step of delivery rests on, with the levels that block it
+(`[tasks.*]` in the subject, `subjects/README.md`). The pilot gates the design-to-build transition,
+and the fail-closed hook (`instance/ci/claude/`, task-0099) fires at three points. Each uses one
+class:
+
+| Transition | Hook stage | Class | Why |
+|---|---|---|---|
+| The specification is committed (design to build) | `spec` | `design` | the requirements, the decisions and the structure the specification writes down; not the build detail |
+| The build plan is accepted, before any code | `plan` | `codegen` | everything the code will encode, field bounds and arithmetic included |
+| Before the push | `push` | `codegen` | the code that leaves the session rests on the same keys as its plan |
+
+So the hook runs with `--task codegen --task-for spec=design`. On the rehearsal, CargoQuote declares
+both classes; its `design` class names 36 keys: each requirement's text and the component that
+carries it, the screening bands and what each does, the failure behaviours, the flow's order, the
+response statuses and the containers' calls. The structure comes from the C4 diagram and is never
+verified, so a clean kit reads QUALIFIED for design where it reads PROCEED for codegen. J-F declares
+`codegen` only, and its hook uses that class at every stage. A `plan` or `review` class is added
+only if the pilot asks for one. The pilot writes its own classes' keys and rationale, and each
+class's keys change only by pull request.
+
 ## The pilot checklist
 
 The pilot runs on the lighthouse organisation's own instance (task-0062 chooses the pilot and its
@@ -232,6 +254,7 @@ appears in the maintainer's notes.
 - [ ] The instance is built in the organisation's repositories and `tools/check_instance.py` passes on it.
 - [ ] The register content comes in from the incumbent tool through one verified route; the export manifest reconciles.
 - [ ] Every key of the main delivery task maps to a register node with an owner.
+- [ ] The `design` class and the `codegen` class each name their keys and rationale, and the hook uses each at its transition.
 - [ ] The gate runs on that task; every BLOCKED and QUALIFIED key is reviewed by its owner and any wrong level is counted.
 - [ ] One real document change is followed to its statements, nodes and code; the person who made it confirms the reach.
 - [ ] The assistant uses the MCP server on at least one real task; the verdict it got and what it did are recorded.

@@ -96,7 +96,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
      "description": "The subject, the scenario the store holds (null when none is loaded), the store kind, the task "
-                    "classes with their required keys, the keys the subject asks the three-valued question of, and "
+                    "classes with their required keys (and the rationale a class states), the keys the subject asks the three-valued question of, and "
                     "the date gate_verdict and evidence_bundle read on when a call names none (as_of, from as_of_from).",
      "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
      "annotations": READ_ONLY},
@@ -259,7 +259,8 @@ class Tools:
                     "as_of": on, "as_of_from": self.as_of_from,
                     "scenarios": list(SUBJECT.order),
                     "tasks": {n: {"keys": t["keys"], "block_levels": sorted(t["block_levels"]),
-                                  "max_unverified_share": t["max_unverified_share"]} for n, t in TASKS.items()},
+                                  "max_unverified_share": t["max_unverified_share"],
+                                  **({"rationale": t["rationale"]} if t["rationale"] else {})} for n, t in TASKS.items()},
                     "three_valued_keys": list(SUBJECT.three_valued)}
         return self._with_store(go)
 

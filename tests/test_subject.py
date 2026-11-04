@@ -164,3 +164,20 @@ def test_no_module_names_the_subject_a_document_or_a_scenario():
     assert not hits, "\n".join(hits)
     # the exception is bounded: the mappers name entities and phrases, never a scenario id
     assert not any(re.search(r"\bS[1-7]\b", s) for s in _code_lines(ROOT / "harness" / "extract.py"))
+
+
+def test_cargo_quote_declares_a_design_class_beside_the_frozen_codegen_one():
+    """task-0101 (doc-0014 C3): the keys a requirements-and-design pass rests on, with its rationale and
+    block levels. codegen stays the record's class, frozen at its 36 keys."""
+    d, c = CARGO.tasks["design"], CARGO.tasks["codegen"]
+    assert len(c["keys"]) == 36 and c["keys"][0] == "shipper_id|present" and c["keys"][-1] == "response|quote_id_presence"
+    assert "rationale" not in c, "the frozen class is not rewritten"
+    assert len(d["keys"]) == len(set(d["keys"])) == 36
+    assert set(d["block_levels"]) == {"absent", "declared_gap", "disputed", "invalidated"} and d["max_unverified_share"] == 0.25
+    assert "design" in d["rationale"] and "QUALIFIED" in d["rationale"]
+    reqs = sorted({k.split("|")[0] for k in d["keys"] if k.startswith("REQ-")})
+    assert reqs == [f"REQ-0{i}" for i in range(1, 9)]
+    assert {f"{r}|{a}" for r in reqs for a in ("text", "implemented_by")} <= set(d["keys"])
+    # the build detail stays codegen's: field bounds, pricing arithmetic, field presence in a response
+    assert not [k for k in d["keys"] if k.split("|")[0] in ("weight_kg", "distance_km", "declared_value", "P1", "P2", "P3", "P4")]
+    assert not [k for k in d["keys"] if k.endswith("_presence") or k.endswith("|priced")]

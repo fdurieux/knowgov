@@ -197,6 +197,63 @@ keys = [
 block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
 max_unverified_share = 0.25
 
+# The design pass (doc-0014 C3, task-0101): what one session writing the specification from the intent
+# reads before it commits, the keys a requirements-and-design pass rests on. codegen above stays frozen;
+# this class is the platform's, recorded nowhere in the record, and the comparator never reads it.
+[tasks.design]
+rationale = """
+A design pass turns the requirements into decisions and structure: what each requirement says
+and which component carries it, where the screening bands fall and what each band does, what the
+service does when a dependency fails, the order of the flow, the statuses the interface answers
+with, and which containers call which. It rests on those keys and not on the build detail the
+codegen class adds (field bounds, pricing arithmetic, field presence in a response), which the
+design leaves to the build. The test-side trace (a requirement's verified_by) belongs to the test
+stage. The structure is extracted from the C4 diagram and never verified, so a clean kit reads
+QUALIFIED here: the design may proceed on it, named as unverified, as long as it stays under the
+bar. A requirement a document leaves open, a contradiction, a missing statement or one a change
+ended blocks, as for codegen: a design written over them would decide what its owner has not.
+"""
+keys = [
+  "REQ-01|text",
+  "REQ-02|text",
+  "REQ-03|text",
+  "REQ-04|text",
+  "REQ-05|text",
+  "REQ-06|text",
+  "REQ-07|text",
+  "REQ-08|text",
+  "REQ-01|implemented_by",
+  "REQ-02|implemented_by",
+  "REQ-03|implemented_by",
+  "REQ-04|implemented_by",
+  "REQ-05|implemented_by",
+  "REQ-06|implemented_by",
+  "REQ-07|implemented_by",
+  "REQ-08|implemented_by",
+  "S-accept|max",
+  "S-review|min",
+  "S-review|max",
+  "S-refuse|min",
+  "S-accept|status",
+  "S-review|status",
+  "S-refuse|status",
+  "S-accept|notified",
+  "S-review|notified",
+  "S-refuse|notified",
+  "QuoteAPI|on_store_failure",
+  "QuoteAPI|on_notification_failure",
+  "QuoteAPI|on_screening_outage",
+  "flow|order",
+  "response|statuses",
+  "shipper|uses:quote_api",
+  "quote_api|uses:screening_service",
+  "quote_api|uses:tariff_engine",
+  "quote_api|uses:quote_store",
+  "quote_api|uses:notification_service",
+]
+block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
+max_unverified_share = 0.25
+
 # D5: the three-valued answer, measured on the scenario that asks for it
 [three_valued]
 keys = ["S-review|notified", "S-refuse|notified", "QuoteAPI|notified_after_screening"]

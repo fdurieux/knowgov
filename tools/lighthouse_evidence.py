@@ -10,7 +10,10 @@ cite:
     walk           the register's impact walk (the vendored tools/impact.py) from every node the
                    subject's register map names, and the statements a node's anchor reaches in the
                    store (task-0046), on the subject's first scenario
-    gate           harness/gate_cli.py on every scenario, verdict and exit code beside the record's
+    gate           harness/gate_cli.py on every scenario, verdict and exit code beside the record's;
+                   then every other task class the subject declares (CargoQuote's design, task-0101)
+                   on the same store with --no-load, its verdict recorded and compared with nothing,
+                   since the record's gate is codegen's
     mcp            the read-only MCP server, over stdio or Streamable HTTP (--transport), on the store
                    each gate left: gate_verdict equal to gate_cli --no-load, the three-valued answer
                    with provenance, the evidence bundle an agent reads (evidence_bundle, as of the
@@ -126,12 +129,20 @@ def node_statements(starts: list[str]) -> dict:
         st.close()
 
 
-def collect_mcp(sc: str, keys: list[str], expected: dict, failures: list[str], transport: str = "stdio") -> dict:
+def collect_mcp(sc: str, keys: list[str], expected: dict, failures: list[str], transport: str = "stdio",
+                declared: list[str] | None = None) -> dict:
     sys.path.insert(0, str(TOOLS))
     from check_mcp_server import HttpClient, StdioClient, census
+    if declared is None:
+        from tasks import TASKS
+        declared = list(TASKS)
     before = census()
     client = HttpClient() if transport == "http" else StdioClient()
     try:
+        status = client.call("store_status", {})
+        classes = sorted(status["tasks"])
+        if classes != sorted(declared):
+            failures.append(f"mcp {sc}: store_status lists task classes {classes}, the subject declares {sorted(declared)}")
         verdict = client.call("gate_verdict", {"scenario": sc})
         equal = verdict == expected
         if not equal:
@@ -160,7 +171,7 @@ def collect_mcp(sc: str, keys: list[str], expected: dict, failures: list[str], t
     unchanged = census() == before
     if not unchanged:
         failures.append(f"mcp {sc}: the store changed while the server read it")
-    return {"transport": transport, "gate_verdict_equals_gate_cli": equal, "three_valued": answers,
+    return {"transport": transport, "task_classes": classes, "gate_verdict_equals_gate_cli": equal, "three_valued": answers,
             "evidence_bundle": bundle, "store_unchanged": unchanged}
 
 
@@ -198,7 +209,15 @@ def child(out: Path, cap: int | None, only: list[str] | None = None, transport: 
         if rec_verdict and rec_verdict != rep["verdict"]:
             failures.append(f"gate {sc}: {rep['verdict']}, the record says {rec_verdict}")
         gates[sc] = {"verdict": rep["verdict"], "exit_code": code, "record_verdict": rec_verdict, "counts": rep["counts"],
-                     "keys": rep["keys"]}
+                     "keys": rep["keys"], "classes": {"codegen": {"verdict": rep["verdict"], "exit_code": code}}}
+        # every other class on the store this gate loaded (task-0101): the record holds codegen's only
+        for t in sorted(set(TASKS) - {"codegen"}):
+            (c_t, r_t, e_t), tt = timed(gate_cli, "--scenario", sc, "--task", t, "--no-load")
+            ev["timings_s"][f"gate {sc} {t}"] = tt
+            if r_t is None or c_t == 2:
+                failures.append(f"gate {sc} --task {t}: could not run: {e_t}")
+                continue
+            gates[sc]["classes"][t] = {"verdict": r_t["verdict"], "exit_code": c_t, "counts": r_t["counts"]}
         if i == 0:
             starts = sorted(ev["walk"]["starts"])
             ev["walk"]["statements_at_anchor"], ev["timings_s"]["walk statements"] = timed(node_statements, starts)
@@ -209,7 +228,7 @@ def child(out: Path, cap: int | None, only: list[str] | None = None, transport: 
             continue
         # the subject's three-valued keys; a subject that names none is asked of its codegen task's first keys
         keys = list(SUBJECT.three_valued) or (list(TASKS["codegen"]["keys"])[:3] if "codegen" in TASKS else [])
-        mcp[sc], ev["timings_s"][f"mcp {sc}"] = timed(collect_mcp, sc, keys, expected, failures, transport)
+        mcp[sc], ev["timings_s"][f"mcp {sc}"] = timed(collect_mcp, sc, keys, expected, failures, transport, list(TASKS))
     ev["gate"], ev["mcp"] = gates, mcp
 
     inval = {}
@@ -307,12 +326,17 @@ def summary(ev: dict) -> str:
             out.append(f"- **Statements at an anchor** ({w.get('statements_scenario')}): "
                        + ", ".join(f"{n}: {v['statements']}" for n, v in w["statements_at_anchor"].items()))
         out.append("- **Gate**: " + ", ".join(f"{sc} {g['verdict']} (exit {g['exit_code']}; record {g['record_verdict'] or '-'})" for sc, g in s["gate"].items()))
+        others = sorted({t for g in s["gate"].values() for t in g.get("classes", {})} - {"codegen"})
+        for t in others:
+            out.append(f"- **Gate, {t} class** (no record): " + ", ".join(
+                f"{sc} {g['classes'][t]['verdict']} (exit {g['classes'][t]['exit_code']})" for sc, g in s["gate"].items() if t in g.get("classes", {})))
         eq = all(m["gate_verdict_equals_gate_cli"] for m in s["mcp"].values())
         un = all(m["store_unchanged"] for m in s["mcp"].values())
         answers = sorted({a["answer"] for m in s["mcp"].values() for a in m["three_valued"].values()})
         bundles = [m["evidence_bundle"] for m in s["mcp"].values() if m.get("evidence_bundle")]
         transport = next((m.get("transport") for m in s["mcp"].values()), None) or "stdio"
-        out.append(f"- **MCP** (over {transport}): gate_verdict equal to gate_cli on {len(s['mcp'])} scenario(s): {'yes' if eq else 'NO'}; "
+        listed = sorted({c for m in s["mcp"].values() for c in m.get("task_classes", [])})
+        out.append(f"- **MCP** (over {transport}): task classes store_status lists: {', '.join(listed) or 'not collected'}; gate_verdict equal to gate_cli on {len(s['mcp'])} scenario(s): {'yes' if eq else 'NO'}; "
                    f"three-valued answers seen: {', '.join(answers) or 'none'}; store unchanged by the server: {'yes' if un else 'NO'}")
         if bundles:
             same = all(b["agrees_with_gate"] for b in bundles)
