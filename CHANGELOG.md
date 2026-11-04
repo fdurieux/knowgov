@@ -5,6 +5,23 @@ One section per release, newest first. The version in `VERSION` is the top secti
 gate command's exit codes or flags, the JSON shapes under `harness/schemas/`, the instance layout,
 the store port, the subject manifest format.
 
+Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
+names that section with the version.
+
+## Unreleased
+
+### Contract changes (raise the minor version at the next release, decision-0003)
+
+- **MCP server, one `as_of` per process** (task-0100, doc-0014 C2): `harness/mcp_server.py` reads
+  `KG_AS_OF` (or `--as-of`: `YYYY-MM-DD`, `record` or `today`; default `today`) once at start and
+  resolves it once. `gate_verdict` and `evidence_bundle` read review currency on that date unless a
+  call names its own; a call's `today` or `record` is also resolved once per process.
+  **`evidence_bundle`'s default changes from `record` to the server's date** (today unless
+  `KG_AS_OF` says otherwise); `record` stays available as an explicit `as_of`, as
+  `tools/check_mcp_server.py` and `tools/lighthouse_evidence.py` pass it. `store_status` carries
+  `as_of` and `as_of_from`. A bad `KG_AS_OF`, or a relative date under `KG_CLOCK=pinned` with no
+  `KG_TODAY`, stops the server at start (exit 2).
+
 ## 0.3.0 — 2026-11-04
 
 A hardening release on top of 0.2.0. The page's writes need a token beyond the local machine. A

@@ -42,7 +42,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   outcome (KG_TODAY, else the wall clock); under `KG_CLOCK=pinned` (the test runner, the rdflib job,
   every check tool's commands via `review.pinned`/`cadence.pin_record`) it refuses the wall clock.
   `tests/test_clock.py` names every other read, holds each check tool pinned and each workflow gate
-  command to an `--as-of`. `harness/mcp_server.py` the gate, the three-valued answer and the arms' evidence bundle (`evidence_bundle`, task-0080) as a read-only MCP server (stdio, or
+  command to an `--as-of`. `harness/mcp_server.py` the gate, the three-valued answer and the arms' evidence bundle (`evidence_bundle`, task-0080) as a read-only MCP server (one `as_of` per process: `KG_AS_OF` or `--as-of`, today by default, read once at start, the default of both `gate_verdict` and `evidence_bundle` and reported by `store_status`; task-0100) (stdio, or
   Streamable HTTP on 127.0.0.1 with `KG_MCP_TOKEN` for any wider bind; dual-era: the 2026-07-28 stateless revision
   (`server/discover`, per-request `_meta`, header checks) beside the `initialize` handshake, task-0079; standard library; the store behind a
   view that lets the port's reads through and nothing else; `tools/check_mcp_server.py` holds its report equal

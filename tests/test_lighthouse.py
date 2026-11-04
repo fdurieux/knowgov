@@ -3,6 +3,7 @@ executing business actions out of scope with the reason, keeps the pilot's evide
 the evidence script's summary reads a collection. Standard library only."""
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -66,7 +67,15 @@ def test_the_http_client_reaches_the_server_and_lists_evidence_bundle():
     """task-0095: --transport http starts mcp_server.py --http on a free loopback port and speaks the
     handshake over POSTs; listing the tools opens no store."""
     import check_mcp_server as cms
-    client = cms.HttpClient()
+    old = os.environ.get("KG_TODAY")
+    os.environ["KG_TODAY"] = "2026-11-04"   # the server reads its date at start; the runner refuses the wall clock (task-0100)
+    try:
+        client = cms.HttpClient()
+    finally:
+        if old is None:
+            os.environ.pop("KG_TODAY")
+        else:
+            os.environ["KG_TODAY"] = old
     try:
         assert client.url.startswith("http://127.0.0.1:") and client.url.endswith("/mcp")
         names = {t["name"] for t in client.request("tools/list", {})["result"]["tools"]}

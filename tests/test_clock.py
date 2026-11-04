@@ -81,6 +81,35 @@ def test_a_pinned_run_refuses_the_wall_clock():
                 os.environ[k] = v
 
 
+def test_the_mcp_server_reads_its_date_once_and_a_pinned_start_refuses_the_wall_clock():
+    # task-0100: KG_AS_OF is read in one place, Tools.__init__; today and record resolve through
+    # cadence.as_of (review.today) once per process; a pinned start with no KG_TODAY exits 2 at start
+    import mcp_server
+    text = (ROOT / "harness" / "mcp_server.py").read_text(encoding="utf-8")
+    assert text.count('os.environ.get("KG_AS_OF")') == 1 and "def __init__(self, opener=open_read_only, as_of" in text
+    assert "cadence.as_of(" in text and text.count("cadence.as_of(") == 2, "every date the server reads goes through _resolve"
+    keep = {k: os.environ.pop(k, None) for k in ("KG_TODAY", "KG_AS_OF", review.CLOCK)}
+    try:
+        os.environ[review.CLOCK] = "pinned"
+        try:
+            mcp_server.Tools().session_as_of()
+            raise AssertionError("a pinned server start with no KG_TODAY read the wall clock")
+        except review.WallClock:
+            pass
+        assert mcp_server.main([]) == 2, "refused at start, before stdio is read"
+        assert mcp_server.Tools(as_of="2026-11-03").session_as_of() == "2026-11-03"   # a named date needs no clock
+        os.environ["KG_TODAY"] = "2026-11-03"
+        tools = mcp_server.Tools()
+        assert tools.session_as_of() == "2026-11-03"
+        os.environ["KG_TODAY"] = "2026-11-04"
+        assert tools.session_as_of() == "2026-11-03", "read once: a later day does not move a running server"
+    finally:
+        for k, v in keep.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
+
+
 def test_the_record_pin_is_the_subjects_record_date():
     import cadence
     from _subject_pin import CARGO_QUOTE

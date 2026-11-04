@@ -1,10 +1,11 @@
 ---
 id: TASK-0100
 title: One as_of per MCP server process
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-04T09:47:00Z'
-updated_date: '2026-11-04T10:47:00Z'
+updated_date: '2026-11-04T11:18:00Z'
 labels:
   - mcp
   - clock
@@ -28,8 +29,19 @@ From doc-0014 (C2). harness/mcp_server.py reads KG_AS_OF (YYYY-MM-DD, record or 
 - [ ] #3 CHANGELOG names the changed default
 <!-- AC:END -->
 
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. mcp_server.Tools: read KG_AS_OF (default today) once, resolve today/record once per process (cached, locked); gate_verdict and evidence_bundle default to the session date; an explicit argument wins. main() resolves at start, exits 2 on a bad KG_AS_OF or a pinned clock without KG_TODAY; --as-of flag over KG_AS_OF.
+2. store_status carries as_of and its source.
+3. Tests: test_mcp_server (one session, verdict and bundle same as_of; explicit record still wins), test_clock (names the KG_AS_OF read, holds it pinned).
+4. CHANGELOG Unreleased: evidence_bundle default record -> session date; store_status as_of.
+<!-- SECTION:PLAN:END -->
+
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Decided 2026-11-04 by the maintainer (doc-0014 §11, #170): the default is today for both gate_verdict and evidence_bundle; evidence_bundle loses its record default, which stays an explicit choice. A contract change under decision-0003, so a minor version, named in the CHANGELOG. The split default is not kept as documentation.
+
+Implemented: Tools(as_of) reads KG_AS_OF once (Tools.__init__), resolves today/record once per process under a lock; main() resolves at start (exit 2 on a bad date or a pinned clock without KG_TODAY), --as-of flag; the HTTP start line names the date. store_status carries as_of and as_of_from. evidence_bundle default record -> session date. tests: test_mcp_server one-session test, test_clock names the read and holds it pinned, test_lighthouse and the stdio test pin KG_TODAY for the server start. CHANGELOG ## Unreleased (test_release now admits one leading Unreleased section; release.yml stays strict at tag time). instance/README and CLAUDE.md updated.
 <!-- SECTION:NOTES:END -->

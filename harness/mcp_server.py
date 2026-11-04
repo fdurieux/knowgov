@@ -25,6 +25,13 @@ for rdflib the Turtle file ``KG_RDFLIB_FILE``, read and never written back), thr
 refuses every operation of the store port that is not a read. Writes to the record stay pull
 requests. A baseline is ``none`` or ``record`` only: a path would let a client read files.
 
+One ``as_of`` per process (task-0100, doc-0014 C2). ``KG_AS_OF`` (or ``--as-of``: YYYY-MM-DD, ``record`` or
+``today``, default ``today``) is read once, at start, and resolved once: ``gate_verdict`` and
+``evidence_bundle`` read review currency on that date unless a call names its own, and ``store_status``
+reports it. A call's ``today`` or ``record`` is resolved once per process too, so a session that runs
+past midnight never reads two days. The date comes from ``review.today()``: under ``KG_CLOCK=pinned``
+a start with no ``KG_TODAY`` and a relative date is refused.
+
 Over HTTP it binds 127.0.0.1 unless ``--host``/``KG_MCP_HOST`` says otherwise; a bind that is not
 a loopback address needs ``KG_MCP_TOKEN``, which every request then carries as
 ``Authorization: Bearer <token>``. A request whose ``Origin`` is not a loopback host is refused, so
@@ -49,6 +56,7 @@ import ipaddress
 import json
 import os
 import sys
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -81,13 +89,15 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "before generating code or a document from the organisation's knowledge: BLOCKED means do not build, "
                 "QUALIFIED means build only with every key below verified stated as an assumption, PROCEED means the "
                 "required keys are verified or approved. Call evidence_bundle for the knowledge itself, with its "
-                "evidence, as the governed arm reads it. Call three_valued_answer for one key: 'unknown' is not "
+                "evidence, as the governed arm reads it; both read review currency on the server's one date unless "
+                "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. A status is the repository's; you may not upgrade it. This server only reads.")
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
      "description": "The subject, the scenario the store holds (null when none is loaded), the store kind, the task "
-                    "classes with their required keys, and the keys the subject asks the three-valued question of.",
+                    "classes with their required keys, the keys the subject asks the three-valued question of, and "
+                    "the date gate_verdict and evidence_bundle read on when a call names none (as_of, from as_of_from).",
      "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
      "annotations": READ_ONLY},
     {"name": "gate_verdict", "title": "May I build on this?",
@@ -100,7 +110,7 @@ TOOLS = [
          "keys": {"type": "array", "items": {"type": "string"}, "minItems": 1, "description": "resolve these entity|attribute keys instead of the task's"},
          "fail_on": {"type": "string", "enum": ["blocker", "critical", "major", "minor", "info"], "description": "the severity at or above which exit_code is 1 (default: blocker)"},
          "baseline": {"type": "string", "enum": ["none", "record"], "description": "record: exit_code 1 only on a regression against the subject's record (codegen only)"},
-         "as_of": {"type": "string", "description": "the date review currency is read on (decision-0005): today (default), record (the subject's pinned record date) or YYYY-MM-DD; a review past its key's review months reads validated"}}},
+         "as_of": {"type": "string", "description": "the date review currency is read on (decision-0005): the server's date (default: KG_AS_OF, else today, read once at start, as store_status reports it), today, record (the subject's pinned record date) or YYYY-MM-DD; a review past its key's review months reads validated"}}},
      "annotations": READ_ONLY},
     {"name": "three_valued_answer", "title": "Is it asserted, documented absent, or unknown?",
      "description": "For one key: 'asserted' with its values, 'documented_absent' when the documents say there is none, "
@@ -129,7 +139,7 @@ TOOLS.append(
          "task": {"type": "string", "description": "the task class whose required keys are resolved and whose verbatim documents are served (default: codegen)"},
          "keys": {"type": "array", "items": {"type": "string"}, "minItems": 1, "description": "resolve these entity|attribute keys instead of the task's; the task's block levels, bar and verbatim documents apply"},
          "verbatim": {"type": "boolean", "description": "include the documents the task names as needed verbatim (default: true)"},
-         "as_of": {"type": "string", "description": "the date review currency is read on: record (default, as the arms read it), today or YYYY-MM-DD"}}},
+         "as_of": {"type": "string", "description": "the date review currency is read on: the server's date (default, the one gate_verdict reads), record (the subject's pinned record date, as the arms read it), today or YYYY-MM-DD"}}},
      "annotations": READ_ONLY})
 
 
@@ -185,10 +195,38 @@ def _stage(scenario: str, version: str | None) -> int:
 
 
 class Tools:
-    """The three tools over a store opener; each call opens the store, reads and releases it."""
+    """The tools over a store opener; each call opens the store, reads and releases it. ``as_of`` is
+    the session's date (default: ``KG_AS_OF``, else ``today``), read here and resolved on first use
+    or by ``session_as_of()`` at start, then held for the life of the process (task-0100)."""
 
-    def __init__(self, opener=open_read_only):
+    def __init__(self, opener=open_read_only, as_of: str | None = None):
         self.opener = opener
+        self.as_of_from = as_of or os.environ.get("KG_AS_OF") or "today"   # the one read of KG_AS_OF
+        self._dates: dict[str, str] = {}
+        self._lock = threading.Lock()
+
+    def _resolve(self, value: str) -> str:
+        """``value`` as an ISO date; ``today`` and ``record`` resolved once per process."""
+        import cadence
+        if value not in ("today", "record"):
+            return cadence.as_of(value).isoformat()
+        with self._lock:
+            if value not in self._dates:
+                self._dates[value] = cadence.as_of(value).isoformat()
+            return self._dates[value]
+
+    def session_as_of(self) -> str:
+        """The date a call that names none reads on."""
+        return self._resolve(self.as_of_from)
+
+    def _as_of(self, args: dict) -> str:
+        value = args.get("as_of")
+        if value is not None and not isinstance(value, str):
+            raise ToolError("as_of: a string, YYYY-MM-DD, today or record")
+        try:
+            return self._resolve(value) if value else self.session_as_of()
+        except ValueError as e:
+            raise ToolError(f"as_of: {e}") from e
 
     def _with_store(self, fn):
         try:
@@ -211,8 +249,14 @@ class Tools:
         from subject import SUBJECT
         from tasks import TASKS
 
+        try:
+            on = self.session_as_of()
+        except ValueError as e:
+            raise ToolError(f"as_of: {e}") from e
+
         def go(st):
             return {"subject": SUBJECT.id, "store": st.name, "scenario": _held(st),
+                    "as_of": on, "as_of_from": self.as_of_from,
                     "scenarios": list(SUBJECT.order),
                     "tasks": {n: {"keys": t["keys"], "block_levels": sorted(t["block_levels"]),
                                   "max_unverified_share": t["max_unverified_share"]} for n, t in TASKS.items()},
@@ -237,11 +281,7 @@ class Tools:
             raise ToolError("baseline must be none or record; a file path is not served")
         if keys is not None and which == "record":
             raise ToolError("the record is a baseline for a task class, not for a key set of your own")
-        import cadence
-        try:
-            on = cadence.as_of(args.get("as_of") or "today").isoformat()
-        except ValueError as e:
-            raise ToolError(f"as_of: {e}") from e
+        on = self._as_of(args)
         spec = dict(TASKS[task])
         name = task
         if keys is not None:
@@ -262,9 +302,9 @@ class Tools:
     def evidence_bundle(self, args: dict) -> dict:
         """The bundle as harness/run.py hands it to the governed arm: ``render_bundle`` over the gate's
         result, with the policy and the task's verbatim documents from the kit of the version the
-        store holds. ``as_of`` defaults to ``record``, the date the arms resolve on."""
+        store holds. ``as_of`` defaults to the session's date, as ``gate_verdict``'s does; the arms'
+        date is ``record``, named explicitly (task-0100)."""
         import arms
-        import cadence
         import gate_cli
         from gate import render_bundle, resolve_spec
         from kitio import kit_for, verbatim_documents
@@ -279,10 +319,7 @@ class Tools:
         with_verbatim = args.get("verbatim", True)
         if not isinstance(with_verbatim, bool):
             raise ToolError("verbatim must be true or false")
-        try:
-            on = cadence.as_of(args.get("as_of") or "record").isoformat()
-        except ValueError as e:
-            raise ToolError(f"as_of: {e}") from e
+        on = self._as_of(args)
         spec = dict(TASKS[task])
         name = task
         if keys is not None:
@@ -575,8 +612,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--http", action="store_true", help="serve Streamable HTTP at /mcp instead of stdio")
     ap.add_argument("--host", default=os.environ.get("KG_MCP_HOST", DEFAULT_HOST), help=f"HTTP bind address (default: KG_MCP_HOST, else {DEFAULT_HOST})")
     ap.add_argument("--port", type=int, default=int(os.environ.get("KG_MCP_PORT", DEFAULT_PORT)), help=f"HTTP port (default: KG_MCP_PORT, else {DEFAULT_PORT})")
+    ap.add_argument("--as-of", default=None, help="the date every call that names none reads on: YYYY-MM-DD, record or today "
+                                                  "(default: KG_AS_OF, else today), read once at start (task-0100)")
     args = ap.parse_args(argv)
-    server = Server()
+    server = Server(Tools(as_of=args.as_of))
+    try:
+        on = server.tools.session_as_of()
+    except Exception as e:  # noqa: BLE001 - a bad date or a pinned clock with no KG_TODAY: refuse at start, not per call
+        print(f"mcp_server: as_of {server.tools.as_of_from!r}: {e}", file=sys.stderr)
+        return 2
     if not args.http:
         serve_stdio(server)
         return 0
@@ -586,7 +630,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"mcp_server: refusing to bind: {why}", file=sys.stderr)
         return 2
     httpd = serve_http(server, args.host, args.port, token)
-    print(f"mcp_server: http://{args.host}:{httpd.server_address[1]}/mcp (read-only{', bearer token required' if token else ''})", file=sys.stderr)
+    print(f"mcp_server: http://{args.host}:{httpd.server_address[1]}/mcp (read-only, as of {on} from {server.tools.as_of_from}"
+          f"{', bearer token required' if token else ''})", file=sys.stderr)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
