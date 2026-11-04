@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-03T23:53:00Z'
-updated_date: '2026-11-04T00:06:00Z'
+updated_date: '2026-11-04T00:16:00Z'
 labels:
   - store
 milestone: m-8
@@ -41,3 +41,12 @@ doc-0013 P4. Portability is asked of every platform, knowgov included; the rdfli
 4. CI: rdflib,rdflib on both subjects in harness.yml; neo4j,rdflib,neo4j on both subjects in the stack job (demo.yml). tests/test_round_trip.py holds the port, both adapters, the comparison and the CI lines.
 5. Prove locally on rdflib and on Neo4j 5.26 community.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Contract change under decision-0003: Store.export_turtle() -> str and Store.import_turtle(text) added to the port (harness/store.py), implemented by both adapters. CHANGELOG left to the release PR.
+Two store-order dependences the round trip found and fixed at the source: gate_cli.findings joined Neo4j collect() lists in store order in its messages (S6 stage 2's suspect_derived and stale messages); now sorted. extraction_activities ordered on at alone, and S6's v1 and v2 extractions share a second, so held_version depended on store order after an import into Neo4j; both adapters now break the tie on id.
+Lists inside answers (provenance verifications) are compared order-insensitively: their order is the store's (collect()), as the deterministic comparator treats lists.
+Local proof: rdflib,rdflib on both subjects (CargoQuote S1-S7 and S6 stage 2; J-F C, D1-D5) every answer survives; Neo4j 5.26.0 community (Java 21) neo4j,rdflib,neo4j on both subjects, and rdflib,neo4j,rdflib on CargoQuote, every answer survives; compare_deterministic on rdflib 0 differing leaves; tests 183/183.
+<!-- SECTION:NOTES:END -->
