@@ -172,6 +172,8 @@ jobs:
           # the saved query the page lists runs on S6 and returns one row per statement
           docker compose exec -T app python demo/tools/check_saved_queries.py | tee queries-s6.txt
           grep -E '^ok +register-node-statements +[1-9][0-9]* rows' queries-s6.txt
+          # the impact panel for the typed node shows the same assertions beside the walk (task-0047), through the page
+          curl -fsS "localhost:8080/api/register/impact/ENT-0004" | python3 -c 'import json,sys; w=json.load(sys.stdin); s=w["statements"]; sec=[x for x in w["panel"]["sections"] if x["heading"]=="Assertions its cited anchors name"][0]; assert s["missing"] is None and len(s["rows"]) == 13 and len(sec["table"]["rows"]) == 13, s; assert w["owners"]["PROC-0001"]["unit"] == "ORG-0001", w["owners"]; print("impact ENT-0004:", len(sec["table"]["rows"]), "assertions beside the walk")'
 
       - name: The example instance mounted read-only (task-0006) replays and runs deterministically, and not one byte of it changes
         run: |
