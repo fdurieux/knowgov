@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 
-from store import Store
+from store import Store, part_list, part_rows
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
 
@@ -176,21 +176,21 @@ _NODE_STATEMENTS = (
 NODE_STATEMENTS = _NODE_STATEMENTS.replace("$start", f"'{INFORMATION_START}'")
 # The citations beside the store's versions of what they cite (task-0088), joined as _NODE_STATEMENTS
 # joins: the file artefact of the path, whose version digest is the file's and is compared with the
-# register's digest at the tag; or the file's fragments in a directory artefact (J-F's
-# contracts/chain.md in contracts/, locators chain.md:row/15), whose version digest is the whole
-# directory's, so the row names the directory and counts the file's fragments instead of comparing.
+# register's digest at the tag; or the file as a part of a directory artefact (J-F's contracts/chain.md
+# in contracts/), whose version digest is the whole directory's, so the file's own digest, which the
+# load keeps in the version's part_sha256 (task-0094), is compared instead, and the row names the directory.
 REGISTER_CITES = (
-    "// the register's digest at the tag beside the store's per version: 'same as tag' or 'differs' for a file artefact,\n"
-    "// a file of a directory artefact is matched by its fragments' '<file>:' locators, and the store keeps no digest of the file\n"
+    "// the register's digest at the tag beside the store's per version: 'same as tag' or 'differs' for a file artefact, and for\n"
+    "// a file of a directory artefact, whose version's digest is the bundle's, the file's own from part_sha256 (task-0094)\n"
     "MATCH (l:RegLink)-[c:REG_CITES]->(d:RegDocument)\n"
     "OPTIONAL MATCH (a:Artefact) WHERE a.id = d.path OR (a.id ENDS WITH '/' AND d.path STARTS WITH a.id)\n"
     "OPTIONAL MATCH (a)-[:HAS_VERSION]->(v:Version)\n"
-    "OPTIONAL MATCH (v)-[:HAS_FRAGMENT]->(f:Fragment) WHERE a.id <> d.path AND f.locator STARTS WITH substring(d.path, size(a.id)) + ':'\n"
-    "WITH l, c, d, a, v, count(DISTINCT f) AS parts\n"
+    "WITH l, c, d, a, v, CASE WHEN a.id <> d.path THEN\n"
+    "       [x IN coalesce(v.part_sha256, []) WHERE x ENDS WITH '  ' + substring(d.path, size(a.id)) | left(x, 64)][0] END AS part\n"
     "RETURN d.path AS document, left(d.digest, 12) AS digest_at_tag, collect(DISTINCT l.reg_id) AS links,\n"
     "       collect(DISTINCT c.anchor) AS anchors,\n"
     "       collect(DISTINCT CASE WHEN a.id = d.path THEN v.tag + ': ' + CASE WHEN v.sha256 = d.digest THEN 'same as tag' ELSE 'differs, ' + left(v.sha256, 12) END\n"
-    "                             WHEN parts > 0 THEN v.tag + ': in ' + a.id + ', ' + toString(parts) + CASE parts WHEN 1 THEN ' fragment' ELSE ' fragments' END + ', no file digest in the store' END) AS versions_in_store\n"
+    "                             WHEN part IS NOT NULL THEN v.tag + ': in ' + a.id + ', ' + CASE WHEN part = d.digest THEN 'same as tag' ELSE 'differs, ' + left(part, 12) END END) AS versions_in_store\n"
     "ORDER BY document")
 PRELOAD_FIELDS = ("state", "tool", "tool_version", "digest", "report", "why")   # a Version's preload_* properties (task-0064)
 # The literal start each saved query carries, by the taxonomy the page picks its default from.
@@ -252,7 +252,7 @@ SAVED_QUERIES = [
               "  AND NOT (s)-[:REG_IS_SUPPORTED_BY]->(:RegNode)\n"
               "OPTIONAL MATCH (e:RegException {rule:'C1'})-[x:REG_EXCEPTS]->(s)\n"
               "RETURN s.reg_id AS uncovered, s.name AS name, e.reg_id AS exception, x.expires AS expires")},
-    {"id": "register-cites", "needs": "register+scenario", "title": "The links that cite a kit document, joined to the harness's Artefact by path, or by locator in a directory artefact: the one query across both namespaces",
+    {"id": "register-cites", "needs": "register+scenario", "title": "The links that cite a kit document, joined to the harness's Artefact by path, or as a file of a directory artefact, each compared with the register's digest: the one query across both namespaces",
      "text": REGISTER_CITES},
 ]
 
@@ -372,6 +372,15 @@ class Neo4jStore(Store):
             MERGE (a)-[:CURRENT]->(v)
             WITH v MATCH (act:Activity {id:$aid}) MERGE (act)-[:USED]->(v)""",
                  path=path, family=family, fmt=fmt, vid=vid, sha=sha, bytes=nbytes, ts=ts, tag=tag, aid=aid).consume()
+
+    def record_part_digests(self, vid, parts) -> None:
+        self.run("MATCH (v:Version {id:$vid}) SET v.part_sha256 = $parts", vid=vid, parts=part_list(parts)).consume()
+
+    def part_digests(self) -> list[dict]:
+        rows = self.run("MATCH (a:Artefact)-[:HAS_VERSION]->(v:Version) WHERE v.part_sha256 IS NOT NULL "
+                        "RETURN a.id AS artefact, v.tag AS version, v.part_sha256 AS parts")
+        return sorted((p for r in rows for p in part_rows(r["artefact"], r["version"], r["parts"])),
+                      key=lambda p: (p["artefact"], p["version"], p["part"]))
 
     def find_fragment(self, artefact, locator, sha) -> str | None:
         row = self.run("MATCH (f:Fragment {artefact:$art, locator:$loc, sha256:$sha}) RETURN f.id AS id LIMIT 1",

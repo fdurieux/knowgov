@@ -20,6 +20,16 @@ import os
 from typing import Any
 
 
+def part_list(parts: dict[str, str]) -> list[str]:
+    """A directory artefact's file digests as a Version's ``part_sha256``: ``"<sha256>  <rel>"`` by path."""
+    return [f"{sha}  {rel}" for rel, sha in sorted(parts.items())]
+
+
+def part_rows(artefact: str, version: str, entries) -> list[dict]:
+    """``part_sha256`` entries back as {artefact, version, part, sha256} rows."""
+    return [{"artefact": artefact, "version": version, "part": e[66:], "sha256": e[:64]} for e in entries or []]
+
+
 class Store:
     """The port. An adapter subclasses it and implements every method; the base raises."""
 
@@ -58,6 +68,18 @@ class Store:
         raise NotImplementedError
 
     def upsert_artefact_version(self, path: str, family: str, fmt: str, vid: str, sha: str, nbytes: int, ts: str, tag: str, aid: str) -> None:
+        raise NotImplementedError
+
+    def record_part_digests(self, vid: str, parts: dict[str, str]) -> None:
+        """Set on Version ``vid`` of a directory artefact the sha256 of each file in its bundle,
+        relative path -> hex digest (task-0094): the Version's own ``sha256`` is the whole bundle's,
+        so a citation of one file is compared with this. Stored as ``part_sha256``, a list of
+        ``"<sha256>  <relative path>"`` sorted by path, sha256sum's form."""
+        raise NotImplementedError
+
+    def part_digests(self) -> list[dict]:
+        """Every file digest a directory artefact's versions carry: artefact, version (tag), part,
+        sha256; sorted by artefact, version and part. Empty when no directory artefact is loaded."""
         raise NotImplementedError
 
     def find_fragment(self, artefact: str, locator: str, sha: str) -> str | None:

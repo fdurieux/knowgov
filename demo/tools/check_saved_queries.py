@@ -13,8 +13,11 @@ returns no rows, and a syntax error shows either way.
 ``register-cites`` is held to the join ``register_node_statements`` makes (task-0088): when it
 returns rows, every cited document the subject loads (``KG_SUBJECT``: a file artefact of that path,
 or a file of a directory artefact, J-F's ``contracts/chain.md`` in ``contracts/``) has a version in
-the store, a file artefact's compared by digest, a directory part's counted by its fragments. Exit
-0 iff every statement ran and that holds.
+the store compared with the register's digest at the tag, a file artefact's by its version's digest, a
+directory part's by the file's own digest the load kept (task-0094), and its row names the directory.
+The summary line counts the loaded documents whose every version is the same as the tag and those
+with a version that differs; the stack job pins it on J-F's C, the kit as committed. Exit 0 iff
+every statement ran and the join holds.
 
 Runs where the harness and the driver are, with the store's settings from the
 environment: in the stack job, ``docker compose exec -T app python
@@ -45,9 +48,15 @@ def loaded(path: str, keys) -> bool:
     return path in keys or any(k.endswith("/") and path.startswith(k) for k in keys)
 
 
+def compared(v: str) -> bool:
+    """A version compared with the register's digest: ``same as tag``, or ``differs, <digest>``."""
+    return v.endswith("same as tag") or "differs, " in v
+
+
 def cites_failures(rows: list[dict], keys) -> list[str]:
     """register-cites' rows against the subject's artefact keys: every loaded document cited has a
-    version in the store, a directory part's naming its directory (task-0088)."""
+    version in the store compared by digest, a directory part's naming its directory (task-0088,
+    task-0094)."""
     out = []
     for r in rows:
         doc, vs = r["document"], r["versions_in_store"]
@@ -55,9 +64,21 @@ def cites_failures(rows: list[dict], keys) -> list[str]:
             continue
         if not vs:
             out.append(f"{doc}: the subject loads it and register-cites finds no version in the store")
-        elif doc not in keys and not all(": in " in v and v.endswith(", no file digest in the store") for v in vs):
-            out.append(f"{doc}: a file of a directory artefact compared by digest: {vs}")
+        elif not all(compared(v) for v in vs):
+            out.append(f"{doc}: a version not compared with the register's digest: {vs}")
+        elif doc not in keys and not all(": in " in v for v in vs):
+            out.append(f"{doc}: a file of a directory artefact whose row names no directory: {vs}")
     return out
+
+
+def cites_summary(rows: list[dict], keys) -> str:
+    """The line the stack job pins: how many documents, of which kind, and how they compare."""
+    mine = [r for r in rows if loaded(r["document"], keys)]
+    files = sum(1 for r in mine if r["document"] in keys)
+    same = sum(1 for r in mine if r["versions_in_store"] and all(v.endswith("same as tag") for v in r["versions_in_store"]))
+    differ = sum(1 for r in mine if any("differs, " in v for v in r["versions_in_store"]))
+    return (f"register-cites: {len(rows)} documents, {files} file artefacts, {len(mine) - files} files of a directory artefact, "
+            f"{len(rows) - len(mine)} the subject does not load; {same} same as tag, {differ} differ")
 
 
 def main() -> int:
@@ -81,10 +102,7 @@ def main() -> int:
                 print(f"ok   {label:22} {len(rows)} rows")
                 if q["id"] == "register-cites" and rows:
                     bad = cites_failures(rows, keys)
-                    parts = sum(1 for r in rows if r["document"] not in keys and loaded(r["document"], keys))
-                    files = sum(1 for r in rows if r["document"] in keys)
-                    print(f"     register-cites: {len(rows)} documents, {files} file artefacts, {parts} files of a directory artefact, "
-                          f"{len(rows) - files - parts} the subject does not load")
+                    print(f"     {cites_summary(rows, keys)}")
                     for b in bad:
                         print(f"FAIL register-cites   {b}")
                     failures += len(bad)

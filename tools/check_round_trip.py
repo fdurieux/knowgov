@@ -1,6 +1,6 @@
 """The store survives a round trip through Turtle (task-0070, doc-0013 P4).
 
-    python tools/check_round_trip.py [--chain rdflib,rdflib] [--scenarios S1,S2] [--no-stage2] [--expect-preload]
+    python tools/check_round_trip.py [--chain rdflib,rdflib] [--scenarios S1,S2] [--no-stage2] [--expect-preload] [--expect-parts]
 
 For each scenario of the subject (``KG_SUBJECT``): load it into the chain's first store with
 ``gate_cli.py``'s own load, then hand it on, hop by hop, as Turtle: ``export_turtle`` on one store,
@@ -16,7 +16,9 @@ nodes and edges, by id, label, type and property, as the first's. A scenario wit
 The pre-load verdicts (task-0064, task-0085) are compared too: every Version's preload_* verdict
 (``preload_verdicts``) and, per task, the gate's preload bundle (the documents behind the keys whose
 form was unchecked or had findings), as well as the info findings of kind preload the gate reports
-carry. A subject inside an instance with a pre-load report (``tools/preload_check.py -o
+carry. So are the file digests a directory artefact's versions carry (``part_digests``, task-0094),
+row for row; ``--expect-parts`` fails a scenario whose first store recorded none (a subject with a
+directory artefact, J-F). A subject inside an instance with a pre-load report (``tools/preload_check.py -o
 <instance>/preload-report.json``) records them; ``--expect-preload`` fails a scenario whose first
 store recorded none, so a run meant to prove they survive cannot pass on a store that never held one.
 
@@ -63,6 +65,8 @@ def answers(st, scenario: str) -> dict:
     return {"gate": reports,
             "three_valued": {k: strip(tools.three_valued_answer({"key": k, "scenario": scenario})) for k in keys},
             "census": st.census(),
+            # task-0094: the file digests a directory artefact's versions carry
+            "parts": st.part_digests(),
             # task-0085: each Version's pre-load verdict, and per task the gate's preload bundle and its info findings
             "preload": {"verdicts": view.preload_verdicts(),
                         "bundle": {t: gate.resolve(view, t).get("preload") for t in sorted(TASKS)},
@@ -104,12 +108,14 @@ def differences(a: dict, b: dict, where: str) -> list[str]:
     for part in ("verdicts", "bundle", "findings"):
         if a.get("preload", {}).get(part) != b.get("preload", {}).get(part):
             out.append(f"{where}: preload {part} differs")
+    if a.get("parts") != b.get("parts"):
+        out.append(f"{where}: part digests differ: {len(a.get('parts') or [])} -> {len(b.get('parts') or [])}")
     if a["census"] != b["census"]:
         out.append(f"{where}: census {a['census']} != {b['census']}")
     return out
 
 
-def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = False) -> list[str]:
+def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = False, expect_parts: bool = False) -> list[str]:
     import gate_cli
     from subject import SUBJECT
     label = f"{scenario}{' stage 2' if stage2 else ''}"
@@ -125,6 +131,8 @@ def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = 
     failures = []
     if expect_preload and not base["preload"]["verdicts"]:
         failures.append(f"{label} {chain[0]}: the load recorded no pre-load verdict: is there a report at the instance's root or in KG_PRELOAD_REPORT?")
+    if expect_parts and not base["parts"]:
+        failures.append(f"{label} {chain[0]}: the load recorded no file digest of a directory artefact: does the subject load one?")
     for i, kind in enumerate(chain[1:], 1):
         st = open_kind(kind, SUBJECT.id)
         try:
@@ -143,6 +151,7 @@ def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = 
     print(f"{label}: {'→'.join(chain)}: {len(base['gate'])} gate report(s) (codegen {v.get('verdict')}), "
           f"{len(base['three_valued'])} three-valued answer(s), {base['census']['nodes']} nodes, "
           f"{base['census']['relationships']} relationships, "
+          f"{len(base['parts'])} file digest(s) of directory artefacts, "
           f"{len(base['preload']['verdicts'])} pre-load verdict(s), {sum(map(len, base['preload']['findings'].values()))} preload finding(s): " + ("equal" if not failures else f"{len(failures)} difference(s)"))
     return failures
 
@@ -154,6 +163,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-stage2", action="store_true", help="skip the later version of a scenario that has one")
     ap.add_argument("--expect-preload", action="store_true",
                     help="fail when the first store recorded no pre-load verdict (the subject's instance has no report)")
+    ap.add_argument("--expect-parts", action="store_true",
+                    help="fail when the first store recorded no file digest of a directory artefact (task-0094)")
     args = ap.parse_args(argv)
     chain = [k.strip().lower() for k in args.chain.split(",") if k.strip()]
     if len(chain) < 2:
@@ -164,9 +175,9 @@ def main(argv: list[str] | None = None) -> int:
     scenarios = args.scenarios.split(",") if args.scenarios else list(SUBJECT.order)
     failures = []
     for sc in scenarios:
-        failures += check(sc, chain, False, args.expect_preload)
+        failures += check(sc, chain, False, args.expect_preload, args.expect_parts)
         if not args.no_stage2 and SUBJECT.scenario(sc).get("stage2"):
-            failures += check(sc, chain, True, args.expect_preload)
+            failures += check(sc, chain, True, args.expect_preload, args.expect_parts)
     for f in failures:
         print("FAIL " + f, file=sys.stderr)
     print(f"round trip {SUBJECT.id} {'→'.join(chain)}: " + ("every answer survives" if not failures else f"{len(failures)} failure(s)"))
