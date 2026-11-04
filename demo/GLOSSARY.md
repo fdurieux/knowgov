@@ -80,6 +80,8 @@ and the test checks this file names every term of it.
 | reference | An underlined cell of a panel's table that opens its subject's own panel under the table: a node, a link, a requirement, a key or a document. |
 | owning unit | The organisation unit a register node's owner field names. The impact panel shows it beside each reached node, to say whom to inform. An approved owns link names a unit too; the walk never follows one. |
 | projection | The register's nodes and links loaded into the store in their own namespace at the vendored tag: derived, loaded on demand, wiped by a run, never the record. |
+| as-of date | The date the gate reads review currency on: the subject's record date, unless a run names another. |
+| lapsed | A review is lapsed when its key's review months have passed. The assertion then reads validated until a new review. |
 
 The definitions may use a forbidden word once, to name what the term
 replaces ("assertion" is defined as a fact, "arm" as an AI assistant):

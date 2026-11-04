@@ -1,9 +1,11 @@
 ---
 id: TASK-0076
 title: The page shows the as-of date and the lapsed statements
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-04T00:44:00Z'
+updated_date: '2026-11-04T01:14:00Z'
 labels:
   - page
   - gate
@@ -26,3 +28,14 @@ task-0068 added gate_cli --as-of and the lapsed finding (decision-0005); the pag
 - [ ] #2 Lapsed verifications are listed with the date they lapsed and the kind's review months
 - [ ] #3 The stack job asserts both on S1 as of a date after 2027-08-07
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. cadence.lapse carries lapsed_on (valid_until + 1 day), months and kind (the register kind the key's months come from; kind_for).
+2. run.py --as-of (record by default) threads the date into every resolve, so a run records as_of.
+3. The app's POST /api/run takes as_of (YYYY-MM-DD, else 400) and passes --as-of; the menu has a Reviews as of date.
+4. views: as_of_view (the run's as_of, else the subject's record date); gate box line 'as of DATE' and the lapse count; gate panel 'Review currency' section with the lapsed table; narrative sentences; a run not as of the record date is said not to be measured by it. Glossary: as-of date, lapsed.
+5. tests/test_page_as_of.py; demo.yml step runs S1 through the app as of 2027-09-01 and asserts the page.
+6. Prove on rdflib and Neo4j 5.26 locally.
+<!-- SECTION:PLAN:END -->

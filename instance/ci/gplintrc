@@ -1,0 +1,17 @@
+// The configuration tools/preload_check.py gives gplint for artefacts/acceptance-scenarios/ when the
+// instance has no .gplintrc of its own at its root (task-0082): the structural rules, none of the
+// stylistic ones. Copy it to your instance root as .gplintrc to tune it; that one then applies instead.
+{
+  "no-unnamed-features": "error",
+  "no-unnamed-scenarios": "error",
+  "no-dupe-feature-names": "error",
+  "no-dupe-scenario-names": "error",
+  "no-empty-file": "error",
+  "no-files-without-scenarios": "error",
+  "no-empty-background": "error",
+  "no-background-only-scenario": "error",
+  "no-scenario-outlines-without-examples": "error",
+  "no-examples-in-scenarios": "error",
+  "no-unused-variables": "error",
+  "keywords-in-logical-order": "error"
+}

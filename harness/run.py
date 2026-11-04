@@ -3,6 +3,7 @@
     python run.py --deterministic            # D1-D6 only, no model
     python run.py --scenarios S1 --n 1       # calibration
     python run.py --n 5                      # the scored run
+    python run.py --deterministic --as-of 2027-09-01   # read review currency as of that date (decision-0005)
 
 Results land in runs/<scenario>/ (or --out) with SHA256SUMS of
 the harness and kit written beside them.
@@ -19,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import arms
+import cadence
 import measures
 import shacl
 from gate import resolve, render_bundle, render_index, knowledge_reader, three_valued
@@ -53,7 +55,7 @@ def d5(s) -> dict:
     return {key: three_valued(s, key) for key in SUBJECT.three_valued}
 
 
-def deterministic(sc: str, pv: dict, s) -> dict:
+def deterministic(sc: str, pv: dict, s, as_of=None) -> dict:
     cfg = SUBJECT.scenario(sc)
     s.wipe()
     d1 = s.apply_constraints()
@@ -67,7 +69,7 @@ def deterministic(sc: str, pv: dict, s) -> dict:
     rules = run_all(s, sc)
     reviews = load_reviews(s, sc)   # a person's rulings, after the rules (task-0037); none without captures/reviews/
     cen = census(s)
-    gate = resolve(s, "codegen")
+    gate = resolve(s, "codegen", as_of)
     out = {"scenario": sc, "store": s.name, "as_of": gate["as_of"], "D1_constraints": d1, "load": load, "verifications": ver, "rules": rules,
            "D2_census": cen, "D4_shacl": shacl.run(s), "D6_gate": gate_summary(gate),
            "gate_keys": {k: {"level": v["level"], "flags": v["flags"], "n": len(v["assertions"])} for k, v in gate["keys"].items()}}
@@ -80,15 +82,15 @@ def deterministic(sc: str, pv: dict, s) -> dict:
     return out, gate, kit
 
 
-def stage2(sc: str, cfg2: dict, pv: dict, s, derived_code: str | None, derived_ids: list[str]) -> tuple[dict, dict, dict]:
+def stage2(sc: str, cfg2: dict, pv: dict, s, derived_code: str | None, derived_ids: list[str], as_of=None) -> tuple[dict, dict, dict]:
     """The scenario's second stage (the subject's ``[scenario.stage2]``): register the earlier
     governed output as derived, re-ingest the changed artefact as a new version, invalidate what
     rested on the changed fragments, then record the re-verification of the named keys. The two
     steps are ``change.py``'s, which the gate command's ``--stage 2`` shares (task-0049)."""
     ch = apply_change(sc, cfg2, s, derived_code, derived_ids)
-    gate_blocked = resolve(s, "codegen")
+    gate_blocked = resolve(s, "codegen", as_of)
     rever = reverify(sc, cfg2, pv, s, ch["kit2"])
-    gate_after = resolve(s, "codegen")
+    gate_after = resolve(s, "codegen", as_of)
     stage2 = {"load_v2": ch["load_v2"], "D3_stale": ch["D3_stale"], "R-STRUCT_after": ch["R-STRUCT_after"],
               "gate_before_reverification": gate_summary(gate_blocked),
               "reverified": rever,
@@ -230,7 +232,14 @@ def main() -> None:
     ap.add_argument("--deterministic", action="store_true")
     ap.add_argument("--out", default=str(RUNS))
     ap.add_argument("--resume", action="store_true", help="skip cells whose run json exists")
+    ap.add_argument("--as-of", default="record",
+                    help="the date review currency is read on (decision-0005): 'record' (the subject's pinned date, "
+                         "the default, which the comparator reads), 'today' or YYYY-MM-DD; the run records it as as_of")
     args = ap.parse_args()
+    try:
+        as_of = cadence.as_of(args.as_of).isoformat()
+    except ValueError as e:
+        ap.error(str(e))
     out_root = Path(args.out)
     pv = pristine_values()
     d = open_store(instance=SUBJECT.id)
@@ -238,7 +247,7 @@ def main() -> None:
     for sc in args.scenarios:
         out_dir = out_root / sc
         out_dir.mkdir(parents=True, exist_ok=True)
-        det, gate, kit = deterministic(sc, pv, d)   # one store, one scenario at a time
+        det, gate, kit = deterministic(sc, pv, d, as_of)   # one store, one scenario at a time
         cfg = SUBJECT.scenario(sc)
         task = cfg.get("prompts", "task_codegen")
         runs = {}
@@ -250,7 +259,7 @@ def main() -> None:
             code_path = out_root / derived.get("from_scenario", sc) / derived.get("file", "run1_G.py")
             derived_code = code_path.read_text(encoding="utf-8") if code_path.exists() else None
             derived_ids = [a["id"] for v in gate["keys"].values() for a in v["assertions"]] if derived_code else []
-            s2, gate, kit = stage2(sc, cfg["stage2"], pv, d, derived_code, derived_ids)
+            s2, gate, kit = stage2(sc, cfg["stage2"], pv, d, derived_code, derived_ids, as_of)
             det["stage2"] = s2
         dump(out_dir / "deterministic.json", det)
         print(f"{sc}: gate {det['D6_gate']['verdict']} — {det['D6_gate']['why']}", flush=True)

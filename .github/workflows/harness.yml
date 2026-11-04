@@ -6,7 +6,7 @@ name: harness
 # image installs, no Neo4j. The stack job (demo.yml) is the Neo4j adapter's proof.
 #
 # Budget (task-0084): a pull request's rdflib job within 12 minutes.
-# J-F on a pull request (task-0084): the J-F round trip and MCP checks run the named subset
+# J-F on a pull request (task-0084): the J-F round trip, MCP and lighthouse steps run the named subset
 # KG_JF_SCENARIOS = C,D3 (the kit as committed, PROCEED; every layer consistently wrong,
 # QUALIFIED). Its six scenarios cost about the same each, so the subset is a third of the time.
 # The full set runs on every push to main, nightly (03:17 UTC) and on a manual dispatch, so no
@@ -142,6 +142,17 @@ jobs:
           rc=0; sh instance/ci/preload-check.sh . runs/preload-api HEAD~1 || rc=$?; test "$rc" = 1
           rc=0; python tools/preload_check.py runs/preload-api --since HEAD~1 -f json -o runs/preload-api.json > /dev/null || rc=$?; test "$rc" = 1
           python3 -c 'import sys,json; sys.path.insert(0,"harness"); import schema_check as s; r=json.load(open("runs/preload-api.json")); e=s.validate(r, s.load("preload-report")); assert not e, e; [f]=r["files"]; assert f["tool"]=="Spectral" and f["state"]=="findings" and any(x["rule"]=="invalid-ref" and x["severity"]=="major" for x in f["findings"]), f; print("broken contract:", f["why"])'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"   # bpmnlint 12 and dmnlint 2 need Node 24
+      - name: The pre-load check runs markdownlint, gplint, bpmnlint and dmnlint (task-0082), pinned, through the CI template's script, a clean file of each kind exits 0, a planted broken one exits 1
+        run: |
+          npm install --prefix runs/node-linters "markdownlint-cli2@0.24.0" "gplint@2.6.0" "bpmnlint@12.0.0" "dmnlint@2.0.0" > /dev/null
+          bin=$PWD/runs/node-linters/node_modules/.bin
+          rm -rf runs/preload-node && python tools/example_instance.py runs/preload-node > /dev/null
+          # not installed: the kind stays unchecked, naming its tool
+          python tools/preload_check.py runs/preload-node --changed artefacts/acceptance-scenarios/acceptance.feature | grep '^UNCHECKED  artefacts/acceptance-scenarios/acceptance.feature \[acceptance-scenarios\]: form unchecked: gplint is not installed here'
+          KG_MARKDOWNLINT=$bin/markdownlint-cli2 KG_GPLINT=$bin/gplint KG_BPMNLINT=$bin/bpmnlint KG_DMNLINT=$bin/dmnlint python tools/check_preload_linters.py runs/preload-linters
       - name: The pre-load verdict read at the load (task-0064), rdflib, the example instance with its report; none without one, as the instance step above shows
         run: |
           rm -rf runs/verdict runs/verdict-runs && python tools/example_instance.py runs/verdict > /dev/null
@@ -158,7 +169,7 @@ jobs:
           docs = {x["artefact"]: x for x in d["load"]["preload"]["documents"]}
           assert d["load"]["preload"]["report"] == "preload-report.json" and len(docs) == 10, d["load"]["preload"]
           assert docs["behavior/quote_flow.puml"]["state"] == "clean" and docs["behavior/quote_flow.puml"]["tool"] == "pumllint", docs
-          assert docs["contract/spec.md"]["state"] == "unchecked" and docs["contract/spec.md"]["tool"] == "Vale, markdownlint", docs
+          assert docs["contract/spec.md"]["state"] == "unchecked" and docs["contract/spec.md"]["tool"] == "markdownlint", docs
           assert {x["artefact"] for x in d["D6_gate"]["preload"]} >= {"contract/spec.md"} and all(x["state"] != "clean" for x in d["D6_gate"]["preload"])
           s6 = json.load(open(f"{inst}-runs/S6/deterministic.json"))
           [v2] = s6["stage2"]["load_v2"]["preload"]["documents"]
@@ -298,10 +309,10 @@ jobs:
           KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_mcp_server.py ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
       - name: A person's statement against the documents' (task-0038), on S2 a contradiction raises a conflict, an agreement corroborates and raises nothing
         run: KG_STORE=rdflib python tools/check_capture_pairing.py runs/pairing
-      - name: The lighthouse protocol's public evidence (task-0069), CargoQuote from the example instance and the J-F kit, every item agreeing with the record
+      - name: The lighthouse protocol's public evidence (task-0069), CargoQuote from the example instance and the J-F kit (the subset on a pull request), every item agreeing with the record
         run: |
           rm -rf runs/lighthouse
-          KG_STORE=rdflib python tools/lighthouse_evidence.py runs/lighthouse
+          KG_STORE=rdflib python tools/lighthouse_evidence.py runs/lighthouse ${KG_JF_SCENARIOS:+--only "jef_data_load=$KG_JF_SCENARIOS"}
       - name: Route (c), a transcript read by a stub model (task-0041), gives inferred candidates on S2's empty keys only, listed in the questionnaire; no key, exit 2
         run: KG_STORE=rdflib python tools/check_transcript_route.py runs/transcript
       - name: The store survives a round trip (task-0070), every CargoQuote scenario and J-F's (the subset on a pull request) through Turtle into a fresh store, the same gate reports and three-valued answers

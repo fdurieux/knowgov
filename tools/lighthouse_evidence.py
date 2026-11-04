@@ -1,6 +1,6 @@
 """The lighthouse evaluation protocol's public evidence (task-0069, doc-0013 §5 candidate 8).
 
-    python tools/lighthouse_evidence.py OUT_DIR [--scenarios-cap N]
+    python tools/lighthouse_evidence.py OUT_DIR [--scenarios-cap N] [--only SUBJECT=ID,ID ...]
 
 The rehearsal half of docs/lighthouse-evaluation.md, on public, synthetic content only. It builds the
 example instance (tools/example_instance.py) under OUT_DIR/instance and collects, for CargoQuote
@@ -28,6 +28,10 @@ agrees with the record, 1 when one does not, 2 when the collection could not run
 
 The pilot half of the protocol is a checklist whose evidence stays in the pilot's private record;
 nothing of it is collected here or written into this repository.
+
+Each child reads as of its subject's pinned record date (KG_TODAY at ``[record] as_of``, KG_CLOCK=pinned;
+task-0075), so the evidence never moves by the calendar. ``--only jef_data_load=C,D3`` limits one subject
+to named scenarios: a pull request's rdflib job runs J-F's subset (task-0084), every other event the full set.
 """
 from __future__ import annotations
 
@@ -146,10 +150,12 @@ def collect_mcp(sc: str, keys: list[str], expected: dict, failures: list[str]) -
     return {"gate_verdict_equals_gate_cli": equal, "three_valued": answers, "store_unchanged": unchanged}
 
 
-def child(out: Path, cap: int | None) -> int:
+def child(out: Path, cap: int | None, only: list[str] | None = None) -> int:
     sys.path.insert(0, str(HARNESS))
+    import cadence
     from subject import SUBJECT
     from tasks import TASKS
+    os.environ.update(cadence.pin_record({}))   # the record's day, the wall clock refused (task-0075)
     failures: list[str] = []
     ev: dict = {"subject": SUBJECT.id, "root": os.environ.get("KG_SUBJECT"), "store": (os.environ.get("KG_STORE") or "neo4j").lower(),
                 "register": os.environ.get("KG_REGISTER"), "timings_s": {}}
@@ -158,6 +164,12 @@ def child(out: Path, cap: int | None) -> int:
     ev["walk"], ev["timings_s"]["walk"] = timed(collect_walk, SUBJECT, register, failures)
 
     scenarios = list(SUBJECT.order)[:cap] if cap else list(SUBJECT.order)
+    if only:
+        unknown = [sc for sc in only if sc not in SUBJECT.order]
+        if unknown:
+            failures.append(f"--only names scenarios {SUBJECT.id} does not declare: {unknown}")
+        scenarios = [sc for sc in scenarios if sc in only]
+    ev["scenarios"] = scenarios
     gates, mcp = {}, {}
     for i, sc in enumerate(scenarios):
         (code, rep, err), t = timed(gate_cli, "--scenario", sc)
@@ -314,10 +326,21 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("out", help="a directory that does not exist or is empty")
     ap.add_argument("--scenarios-cap", type=int, help="only the first N scenarios of each subject (a quicker rehearsal)")
+    ap.add_argument("--only", action="append", default=[], metavar="SUBJECT=ID,ID",
+                    help="only these scenarios of that subject (repeatable; a pull request's J-F subset, task-0084)")
     ap.add_argument("--child", help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
+    only: dict[str, list[str]] = {}
+    for o in args.only:
+        name, _, ids = o.partition("=")
+        if not ids:
+            ap.error(f"--only {o!r}: want SUBJECT=ID,ID")
+        only[name] = [x for x in ids.split(",") if x]
     if args.child:
-        return child(Path(args.child), args.scenarios_cap)
+        return child(Path(args.child), args.scenarios_cap, next(iter(only.values()), None))
+    unknown = sorted(set(only) - {"cargo_quote", "jef_data_load"})
+    if unknown:
+        ap.error(f"--only: no subject {unknown[0]!r} here; cargo_quote or jef_data_load")
     out = Path(args.out).resolve()
     if out.exists() and any(out.iterdir()):
         print(f"lighthouse: {out} is not empty", file=sys.stderr)
@@ -342,6 +365,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd = [sys.executable, str(Path(__file__).resolve()), str(out), "--child", str(part)]
         if args.scenarios_cap:
             cmd += ["--scenarios-cap", str(args.scenarios_cap)]
+        if name in only:
+            cmd += ["--only", f"{name}={','.join(only[name])}"]
         r = subprocess.run(cmd, env=env, cwd=ROOT, text=True, capture_output=True)
         if not part.exists():
             print(f"lighthouse: {name} could not be collected:\n{r.stdout}{r.stderr}", file=sys.stderr)

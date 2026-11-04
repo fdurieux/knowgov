@@ -267,7 +267,7 @@ def test_projection_is_wired_and_named():
     adapter = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")   # the saved queries are the adapter's
     ids = [m.group(1) for m in _re.finditer(r'\{"id": "([a-z0-9-]+)", "needs": "[^"]+", "title"', adapter)]
     assert ids[-5:] == ["register-tag", "register-impact", "register-impact-paths", "register-c1", "register-cites"], ids
-    for cy in ("MATCH SHORTEST 1 (a)", '("REG_DELIVERS", "REG_REALIZES")', "REG_EXCEPTS", "Artefact {id:d.path}", "v.sha256 = d.digest THEN 'same as tag'"):
+    for cy in ("MATCH SHORTEST 1 (a)", '("REG_DELIVERS", "REG_REALIZES")', "REG_EXCEPTS", "a.id ENDS WITH '/' AND d.path STARTS WITH a.id", "v.sha256 = d.digest THEN 'same as tag'"):
         assert cy in adapter
     # task-0023: the saved query is the walk impact.py makes, not a one-direction chain
     assert "REG_SUPPORTS|REG_IS_SUPPORTED_BY|REG_DELIVERS*1..4" not in adapter
@@ -793,6 +793,39 @@ def test_statements_view_has_a_browser_link_to_a_served_guide_of_register_node_s
     assert 'sv["browser"]' in src and "statement_keys(st_rows) != statement_keys(shown)" in src
     demo = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert "every node agrees: 57 nodes, both forms and the statements view \\(17 nodes reach statements\\)" in demo
+# ---- task-0088: register-cites joins a citation to the store as register_node_statements does
+def test_register_cites_joins_directory_artefacts_by_locator_and_checks_a_jef_directory_citation():
+    import store_neo4j as sn
+    sys.path.insert(0, str(DEMO / "tools"))
+    import check_saved_queries as csq
+    raw = sn.REGISTER_CITES
+    assert ";" not in raw and "{id:d.path}" not in raw
+    listed = {q["id"]: q for q in sn.SAVED_QUERIES}["register-cites"]
+    assert listed["text"] == raw and listed["needs"] == "register+scenario" and "by locator in a directory artefact" in listed["title"]
+    # the artefact join is _NODE_STATEMENTS's, and a directory part is reached through its fragments' "<file>:" locators
+    assert "MATCH (a:Artefact) WHERE a.id = d.path OR (a.id ENDS WITH '/' AND d.path STARTS WITH a.id)" in raw
+    assert "f.locator STARTS WITH substring(d.path, size(a.id)) + ':'" in raw and "a.id <> d.path" in raw
+    # a digest is compared only where the version is the file's; a directory's version digest is the whole bundle's
+    assert "WHEN a.id = d.path THEN v.tag + ': ' + CASE WHEN v.sha256 = d.digest" in raw and "WHEN parts > 0" in raw
+    import subject as subject_mod
+    keys = subject_mod.load(ROOT / "subjects" / "jef_data_load").store_keys
+    reg = register_view._load_tools()["register"].load_register(register_view.REGISTER)
+    cited = sorted({ev.split(":", 1)[1].split("#")[0] for rel in reg["relationships"].values() for ln in rel["links"]
+                    if ln.get("state") == "approved" for ev in ln.get("evidence", []) if ev.startswith("jef_kit:")})
+    parts = [p for p in cited if p not in keys and csq.loaded(p, keys)]
+    assert "contracts/chain.md" in parts and "contracts/dmn/actions_gate.dmn" in parts and "uml/sync_run.puml" in parts, parts
+    assert len(parts) == 13 and [p for p in cited if p in keys] == ["requirements.json"] and not csq.loaded("README.md", keys)
+    # the check: a J-F directory citation reaches a version named by its directory; empty or compared by digest fails
+    good = [{"document": "contracts/chain.md", "versions_in_store": ["v1: in contracts/, 31 fragments, no file digest in the store"]},
+            {"document": "requirements.json", "versions_in_store": ["v1: same as tag"]},
+            {"document": "README.md", "versions_in_store": []}]
+    assert csq.cites_failures(good, keys) == []
+    bad = [{"document": "contracts/chain.md", "versions_in_store": []},
+           {"document": "uml/sync_run.puml", "versions_in_store": ["v1: differs, 0123456789ab"]}]
+    assert [f.split(":")[0] for f in csq.cites_failures(bad, keys)] == ["contracts/chain.md", "uml/sync_run.puml"]
+    demo = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
+    assert "-e KG_SUBJECT=/repo/subjects/jef_data_load app python demo/tools/check_saved_queries.py" in demo
+    assert "register-cites: 15 documents, 1 file artefacts, 13 files of a directory artefact, 1 the subject does not load" in demo
 
 
 # ---- task-0077: the projection cites by the subject's own source-system prefix, never a literal kit:

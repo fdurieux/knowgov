@@ -145,12 +145,15 @@ def test_the_report_records_the_digest_of_each_file_judged():
     with tempfile.TemporaryDirectory() as td:
         inst = Path(td) / "inst"
         example_instance.build(inst)
-        saved = preload_check.pumllint_cmd, preload_check.spectral_cmd
-        preload_check.pumllint_cmd = preload_check.spectral_cmd = lambda: None   # nothing installed: every file unchecked, still digested
+        names = [n for n in vars(preload_check) if n.endswith("_cmd")]
+        saved = {n: getattr(preload_check, n) for n in names}
+        for n in names:
+            setattr(preload_check, n, lambda: None)   # nothing installed: every file unchecked, still digested
         try:
             rep = preload_check.check(inst)
         finally:
-            preload_check.pumllint_cmd, preload_check.spectral_cmd = saved
+            for n, f in saved.items():
+                setattr(preload_check, n, f)
         assert schema_check.validate(rep, schema_check.load("preload-report")) == []
         for r in rep["files"]:
             assert r["sha256"] == hashlib.sha256((inst / r["file"]).read_bytes()).hexdigest(), r["file"]

@@ -109,7 +109,8 @@ def test_a_review_lapses_the_day_after_its_due_date_and_execution_never_does():
         got = cadence.lapse(json.loads(json.dumps(row)), row["id"][2:], D(on), CARGO_QUOTE)
         assert bool(got) == gone, (row["id"], on, got)
     got = cadence.lapse(rev, "k|rev", D("2027-08-07"), CARGO_QUOTE)
-    assert got == {"id": "A:k|rev", "key": "k|rev", "from": "approved", "valid_until": "2027-08-06", "verifications": ["ver:review:A:k|rev"]}
+    assert got == {"id": "A:k|rev", "key": "k|rev", "from": "approved", "valid_until": "2027-08-06",
+                   "lapsed_on": "2027-08-07", "months": 12, "kind": None, "verifications": ["ver:review:A:k|rev"]}   # task-0076: the page's columns
     both = dict(rev, verifications=rev["verifications"] + exe["verifications"])
     assert cadence.lapse(both, "k|rev", D("2030-01-01"), CARGO_QUOTE) is None, "an execution verification keeps it current"
     tag = dict(rev, verifications=[dict(rev["verifications"][0], valid_until="v2")])

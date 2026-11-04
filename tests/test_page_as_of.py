@@ -1,0 +1,136 @@
+"""Task-0076: the page shows the as-of date its gate read and the reviews that had lapsed by then
+(decision-0005, task-0068). A run names its date (``run.py --as-of``, the app's ``as_of``); the gate
+box and panel name it, the panel lists each lapsed review with the date it lapsed and its key's
+review months; the record reads as of the subject's pinned date. The stack job proves it through
+the app on S1 as of 2027-09-01 (demo.yml); here the view is built from a run folder standard-library
+only, and its prose is held to the controlled-English limits."""
+from __future__ import annotations
+
+import datetime as dt
+import json
+import re
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path[:0] = [str(ROOT / "harness"), str(ROOT / "demo" / "app"), str(Path(__file__).resolve().parent)]
+import cadence  # noqa: E402
+import server  # noqa: E402
+import views  # noqa: E402
+from _subject_pin import CARGO_QUOTE, on_cargo_quote  # noqa: E402
+
+RESULTS = ROOT / "subjects" / "cargo_quote" / "vendor" / "kg_experiment" / "results"
+NO_RUNS = ROOT / "nonexistent-demo-runs"
+D = dt.date.fromisoformat
+
+
+def _row(key, at="2026-08-06"):
+    return {"id": f"A:{key}", "status": "approved", "approvals": [],
+            "verifications": [{"id": f"ver:review:A:{key}", "method": "review", "at": at, "valid_until": cadence.due(at, key, CARGO_QUOTE)}]}
+
+
+def test_a_lapse_names_the_day_it_lapsed_its_months_and_the_kind_they_come_from():
+    got = cadence.lapse(_row("shipper_id|present"), "shipper_id|present", D("2027-09-01"), CARGO_QUOTE)
+    assert got["valid_until"] == "2027-08-06" and got["lapsed_on"] == "2027-08-07", got
+    assert got["months"] == 12 and got["kind"] == "capability", "CAP-0004 is a capability; the register names its months"
+    assert cadence.lapse(_row("shipper_id|present"), "shipper_id|present", D("2027-08-06"), CARGO_QUOTE) is None, "current on its last day"
+    # a key whose nodes are of kinds the register names no months for takes the default, and no kind
+    assert cadence.kind_for("response|statuses", CARGO_QUOTE) is None and cadence.months_for("response|statuses", CARGO_QUOTE) == 12
+
+
+def _lapsed_run(td: Path) -> Path:
+    """A demo run folder of S1 as of 2027-09-01: the record's numbers, the gate as the run gives it."""
+    j = json.loads((RESULTS / "S1" / "deterministic.json").read_text(encoding="utf-8"))
+    keys = ["shipper_id|present", "weight_kg|max", "response|statuses"]
+    lapsed = [cadence.lapse(_row(k), k, D("2027-09-01"), CARGO_QUOTE) for k in keys] + [cadence.lapse(dict(_row(keys[0]), id="B"), keys[0], D("2027-09-01"), CARGO_QUOTE)]
+    j["as_of"] = "2027-09-01"
+    j["D6_gate"].update(verdict="BLOCKED", why="10 of 36 required keys (28%) are below verified; the bar is 25%", lapsed=lapsed)
+    d = td / "demo-runs" / "cargo_quote" / "2027-09-01-0000" / "S1"
+    d.mkdir(parents=True)
+    (d / "deterministic.json").write_text(json.dumps(j), encoding="utf-8")
+    return td / "demo-runs"
+
+
+def _sentences(text):
+    return [s for s in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(])", text.strip()) if s]
+
+
+@on_cargo_quote
+def test_the_gate_box_and_panel_name_the_as_of_date_and_list_each_lapsed_review():
+    with tempfile.TemporaryDirectory() as td:
+        runs = _lapsed_run(Path(td))
+        v = views.build("S1", "demo-runs/cargo_quote/2027-09-01-0000", runs)
+    assert v["as_of"] == {"date": "2027-09-01", "record_date": "2026-10-30", "from_run": True, "is_record": False}
+    gate = next(s for s in v["stages"] if s["id"] == "gate")
+    assert gate["lines"][:3] == ["BLOCKED", "as of 2027-09-01", "4 reviews lapsed, on 3 keys"], gate["lines"]
+    sec = next(x for x in v["details"]["gate"]["sections"] if x["heading"].startswith("Review currency"))
+    assert sec["heading"] == "Review currency: 4 reviews on 3 keys lapsed by 2027-09-01" and "as of 2027-09-01" in sec["text"]
+    t = sec["table"]
+    assert t["cols"] == ["assertion", "key", "was", "current until", "lapsed on", "review months", "kind"]
+    assert len(t["rows"]) == 4 and {r[4] for r in t["rows"]} == {"2027-08-07"} and {r[5] for r in t["rows"]} == {"12"}
+    assert {r[1]: r[6] for r in t["rows"]} == {"shipper_id|present": "capability", "weight_kg|max": "capability", "response|statuses": "default"}
+    text = " ".join(v["narrative"])
+    assert "as of 2027-09-01, not the record date 2026-10-30." in text and "By then 4 reviews on 3 keys had lapsed." in text
+    assert "so the record is not its measure" in text, "a run read as of another date is not the record's measure"
+    # every generated sentence keeps to the page's controlled English (tests/test_demo.py's rules)
+    for item in v["text_registry"]:
+        if item["kind"] == "data":
+            continue
+        for s in _sentences(item["text"]):
+            assert len(s.split()) <= {"controlled": 20, "reading": 25}[item["kind"]], s
+            assert not [f for f in views.FORBIDDEN if re.search(r"\b" + re.escape(f) + r"\b", s.lower())], s
+
+
+@on_cargo_quote
+def test_the_record_reads_as_of_its_pinned_date_and_names_no_lapse():
+    v = views.build("S1", "record", NO_RUNS)
+    assert v["as_of"]["date"] == CARGO_QUOTE.record_as_of and v["as_of"]["is_record"] and not v["as_of"]["from_run"]
+    assert "as of " + CARGO_QUOTE.record_as_of in next(s for s in v["stages"] if s["id"] == "gate")["lines"]
+    assert v["gate"]["lapsed"] == []
+    sec = next(x for x in v["details"]["gate"]["sections"] if x["heading"].startswith("Review currency"))
+    assert sec["heading"] == "Review currency: no review lapsed" and "table" not in sec
+    assert any("the subject's record date." in n for n in v["narrative"])
+    for t in ("as-of date", "lapsed"):
+        assert t in views.GLOSSARY and f"| {t} |" in (ROOT / "demo" / "GLOSSARY.md").read_text(encoding="utf-8")
+
+
+def test_a_run_through_the_app_passes_its_date_and_refuses_a_bad_one():
+    started = []
+
+    class _Proc:
+        def wait(self):
+            return 0
+
+    def popen(cmd, cwd=None, stdout=None, stderr=None, env=None):
+        started.append(cmd)
+        return _Proc()
+    keep_popen, keep_runs = server.subprocess.Popen, server.RUNS_DIR
+    with tempfile.TemporaryDirectory() as td:
+        server.subprocess.Popen, server.RUNS_DIR = popen, Path(td)
+        try:
+            import page_subject
+            with page_subject.using(CARGO_QUOTE):
+                rec = server.Runner().start("S1", "deterministic", 1, as_of="2027-09-01")
+                assert rec["as_of"] == "2027-09-01" and started[-1][-2:] == ["--as-of", "2027-09-01"], started[-1]
+                rec = server.Runner().start("S1", "deterministic", 1)
+                assert rec["as_of"] is None and "--as-of" not in started[-1], "no date: the run reads the record date"
+                for bad in ("2027-13-01", "2027-9-1", "record; rm -rf /"):
+                    try:
+                        server.Runner().start("S1", "deterministic", 1, as_of=bad)
+                    except ValueError:
+                        continue
+                    raise AssertionError(f"{bad!r} accepted")
+        finally:
+            server.subprocess.Popen, server.RUNS_DIR = keep_popen, keep_runs
+    page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
+    assert 'id="as-of"' in page and "as_of: $('#as-of').value" in page
+
+
+def test_the_run_reads_its_date_and_the_stack_job_asserts_the_page_on_s1_after_the_lapse():
+    run_py = (ROOT / "harness" / "run.py").read_text(encoding="utf-8")
+    assert 'ap.add_argument("--as-of", default="record"' in run_py and 'resolve(s, "codegen", as_of)' in run_py
+    wf = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
+    step = wf.split("task-0076", 1)[1].split("- name:", 1)[0]
+    assert '"as_of":"2027-09-01"' in step and 'x["lapsed_on"] == "2027-08-07" and x["months"] == 12' in step
+    assert 'v["as_of"]["date"] == "2027-09-01"' in step and '"as of 2027-09-01" in gate["lines"]' in step
