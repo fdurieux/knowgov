@@ -1,11 +1,11 @@
 ---
 id: TASK-0095
 title: The lighthouse evidence script reads evidence_bundle over MCP
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T07:29:00Z'
-updated_date: '2026-11-04T08:07:00Z'
+updated_date: '2026-11-04T08:08:00Z'
 labels:
   - lighthouse
   - mcp
@@ -25,8 +25,8 @@ Proposed by the task-0080 session: tools/lighthouse_evidence.py (task-0069) rebu
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 lighthouse_evidence.py takes the bundle from evidence_bundle and the run's evidence is unchanged
-- [ ] #2 harness.yml's lighthouse step still passes on the PR subset and the full set
+- [x] #1 lighthouse_evidence.py takes the bundle from evidence_bundle and the run's evidence is unchanged
+- [x] #2 harness.yml's lighthouse step still passes on the PR subset and the full set
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -46,3 +46,9 @@ Full set, stdio and http run concurrently: both exit 0, 8m54 and 8m45 contended;
 Every other item unchanged: evidence-<subject>.json of main's run and this one are equal once timings and the new mcp fields are dropped, both subjects.
 tests/run_tests.py 287/287 plain and with KG_SUBJECT=subjects/jef_data_load.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+tools/lighthouse_evidence.py's mcp item reads the evidence bundle through the read-only server's evidence_bundle (as of the record), the path an agent uses, over stdio by default or Streamable HTTP with --transport http (HttpClient in tools/check_mcp_server.py, a loopback server it starts itself). It records the bundle's verdict, date, version, size, digest, assertions and verbatim documents, and fails when its verdict or date is not gate_verdict's. The bundle is not rebuilt here: check_mcp_server.py holds it equal to the arms' in the same job. docs/lighthouse-evaluation.md (run, item table, criterion 4), docs/security.md and test_security's network guard follow. PR subset on rdflib 3m04 to 3m31; full set exits 0 over both transports; every other item byte-equal to main's run; tests 287/287 both subjects. PR #165.
+<!-- SECTION:FINAL_SUMMARY:END -->
