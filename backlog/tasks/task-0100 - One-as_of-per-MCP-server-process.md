@@ -1,11 +1,11 @@
 ---
 id: TASK-0100
 title: One as_of per MCP server process
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T09:47:00Z'
-updated_date: '2026-11-04T11:18:00Z'
+updated_date: '2026-11-04T11:52:00Z'
 labels:
   - mcp
   - clock
@@ -24,9 +24,9 @@ From doc-0014 (C2). harness/mcp_server.py reads KG_AS_OF (YYYY-MM-DD, record or 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 With no argument, one session's verdict and bundle carry the same as_of
-- [ ] #2 tests/test_clock.py names the new read and holds it pinned
-- [ ] #3 CHANGELOG names the changed default
+- [x] #1 With no argument, one session's verdict and bundle carry the same as_of
+- [x] #2 tests/test_clock.py names the new read and holds it pinned
+- [x] #3 CHANGELOG names the changed default
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -44,4 +44,12 @@ From doc-0014 (C2). harness/mcp_server.py reads KG_AS_OF (YYYY-MM-DD, record or 
 Decided 2026-11-04 by the maintainer (doc-0014 §11, #170): the default is today for both gate_verdict and evidence_bundle; evidence_bundle loses its record default, which stays an explicit choice. A contract change under decision-0003, so a minor version, named in the CHANGELOG. The split default is not kept as documentation.
 
 Implemented: Tools(as_of) reads KG_AS_OF once (Tools.__init__), resolves today/record once per process under a lock; main() resolves at start (exit 2 on a bad date or a pinned clock without KG_TODAY), --as-of flag; the HTTP start line names the date. store_status carries as_of and as_of_from. evidence_bundle default record -> session date. tests: test_mcp_server one-session test, test_clock names the read and holds it pinned, test_lighthouse and the stdio test pin KG_TODAY for the server start. CHANGELOG ## Unreleased (test_release now admits one leading Unreleased section; release.yml stays strict at tag time). instance/README and CLAUDE.md updated.
+
+Verified: tests/test_mcp_server.py test_one_session_reads_one_as_of (AC1: verdict, bundle and store_status carry DAY with no argument, unmoved when KG_TODAY moves); tests/test_clock.py test_the_mcp_server_reads_its_date_once_and_a_pinned_start_refuses_the_wall_clock (AC2); CHANGELOG ## Unreleased names evidence_bundle's changed default (AC3). Local 309/309 on both subjects; PR #174 stack green on 4ded04e (check_mcp_server, lighthouse on the live store with explicit record).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+harness/mcp_server.py reads KG_AS_OF (or --as-of; default today) once at start and resolves today/record once per process; gate_verdict and evidence_bundle default to that date, an explicit as_of still wins, store_status reports as_of and as_of_from; a bad date or a pinned clock with no KG_TODAY stops the server at start (exit 2). Contract change: evidence_bundle's default moves from record to the server's date, named under CHANGELOG ## Unreleased (test_release admits one leading Unreleased section; release.yml unchanged and strict at tag time). check_mcp_server.py, lighthouse_evidence.py and the comparator pass record explicitly and are unchanged. Follow-up for the coordinator: the next release PR names ## Unreleased 0.4.0.
+<!-- SECTION:FINAL_SUMMARY:END -->
