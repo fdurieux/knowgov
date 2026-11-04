@@ -19,7 +19,8 @@ On the store KG_STORE names, persisted under OUT_DIR for rdflib:
    suspect, a blocker naming APP-0001: exit 1, the JSON report valid against its schema, and the
    code-quality report puts the suspect build on reference_impl.py under the instance. With KG_AS_OF,
    the same check reads the task's gate as of that day: the report's gate names it, and its lapses
-   are gate:lapsed findings.
+   are gate:lapsed findings. ``trace-register`` with KG_AS_OF records that day in its ledger entry, the
+   record's day without it (task-0093).
 Needs pyyaml (harness.yml installs it) to read the template.
 """
 from __future__ import annotations
@@ -106,7 +107,7 @@ def main() -> None:
     if job(env, "trace-register", KG_FILES="reference_impl.py") != 0:
         sys.exit("FAIL: trace-register, want exit 0")
     [e] = json.loads((out / "ledger.json").read_text(encoding="utf-8"))["entries"]
-    if (e["id"], e["app"]) != (f"derived:cargo-quote@{base}:reference_impl.py", "APP-0001"):
+    if (e["id"], e["app"], e.get("as_of")) != (f"derived:cargo-quote@{base}:reference_impl.py", "APP-0001", env["KG_TODAY"]):
         sys.exit(f"FAIL: the ledger entry names the GitLab project and commit: {e}")
     if job(env, "gate", KG_SCENARIO="S6", KG_STAGE="2") != 1:
         sys.exit("FAIL: the gate on S6's change, want exit 1")
@@ -142,8 +143,14 @@ def main() -> None:
         sys.exit(f"FAIL: want trace-check's gate as of {LAPSE_DAY} (unset: {env['KG_TODAY']}, read {on}) with gate:lapsed findings: "
                  f"{errs[:3]} {rep['gate']} {len(lapsed)}")
     print(f"    trace-check KG_AS_OF={LAPSE_DAY}: gate {rep['gate']['verdict']} as of {rep['gate']['as_of']}, {len(lapsed)} gate:lapsed finding(s)")
+    if job(env, "trace-register", KG_FILES="reference_impl.py", KG_AS_OF=LAPSE_DAY, KG_LEDGER=str(out / "ledger-lapsed.json")) != 0:
+        sys.exit(f"FAIL: trace-register as of {LAPSE_DAY}, want exit 0")
+    [e] = json.loads((out / "ledger-lapsed.json").read_text(encoding="utf-8"))["entries"]
+    if e.get("as_of") != LAPSE_DAY:
+        sys.exit(f"FAIL: trace-register with KG_AS_OF={LAPSE_DAY}: the ledger entry records {e.get('as_of')}")
+    print(f"    trace-register KG_AS_OF={LAPSE_DAY}: the ledger entry as of {e['as_of']}")
     print("GitLab include: the same command line as the action and the shell snippet; S6's change fails the merge request naming APP-0001; "
-          f"KG_AS_OF reads both gates as of {LAPSE_DAY}")
+          f"KG_AS_OF reads both gates and the registration as of {LAPSE_DAY}")
 
 
 if __name__ == "__main__":

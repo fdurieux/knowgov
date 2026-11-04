@@ -14,7 +14,8 @@
 #   KG_TASK         gate, trace-*: the task (default codegen)
 #   KG_STAGE        gate: 2 to bring in the scenario's later version
 #   KG_NO_LOAD      gate: 1 to read the store as the instance's load left it
-#   KG_AS_OF        gate, trace-check: the date review currency is read on (--as-of; decision-0005): YYYY-MM-DD,
+#   KG_AS_OF        gate, trace-*: the date review currency is read on (--as-of; decision-0005; trace-register
+#                   picks the gate's statements on it and records it in the ledger, task-0093): YYYY-MM-DD,
 #                   record (the subject's pinned record date) or today; unset: today (KG_TODAY, else the clock)
 #   KG_LEDGER       trace-*: the registrations' ledger (default trace-ledger.json in the working directory)
 #   KG_CODE_REPO    trace-register: the code repository's name in the derived id (default code)
@@ -116,9 +117,9 @@ trace-check|trace-register)
     set -- "${GATE#trace-}" --instance "$INST" --ledger "$(abspath "${KG_LEDGER:-trace-ledger.json}")" --subject "$(subject)" --task "${KG_TASK:-codegen}"
     [ -n "$REPORT" ] && set -- "$@" -o "$REPORT"
     [ -n "${KG_COMMIT:-}" ] && set -- "$@" --commit "$KG_COMMIT"
+    [ -n "${KG_AS_OF:-}" ] && set -- "$@" --as-of "$KG_AS_OF"
     if [ "$GATE" = trace-check ]; then
         [ -n "${KG_FAIL_ON:-}" ] && set -- "$@" --fail-on "$KG_FAIL_ON"
-        [ -n "${KG_AS_OF:-}" ] && set -- "$@" --as-of "$KG_AS_OF"
         if [ -n "${KG_BASE:-}" ]; then
             paths=$(changed) || exit 2
             [ -z "$paths" ] && { echo "knowgov-gate: no code changed since $KG_BASE"; exit 0; }
