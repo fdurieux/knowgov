@@ -21,6 +21,31 @@ names that section with the version.
   `tools/check_mcp_server.py` and `tools/lighthouse_evidence.py` pass it. `store_status` carries
   `as_of` and `as_of_from`. A bad `KG_AS_OF`, or a relative date under `KG_CLOCK=pinned` with no
   `KG_TODAY`, stops the server at start (exit 2).
+- **Gate report, owner and route on findings** (task-0102, doc-0014 C7): a `key`, `stale` or
+  `lapsed` finding carries `owner`, the unit that answers for the key in the subject's
+  `register_map.toml`, and `route`, the owner's questionnaire. Additive: `schema_version` stays 2
+  and a report from before still validates. The page's gate box names the owner.
+- **`knowgov-gate.sh` refuses `KG_TASK=keys`** (task-0102, doc-0014 C4): a mandatory check runs a
+  task class, never an agent-chosen key set.
+
+### Also since 0.3.0
+
+- **A fail-closed Claude Code hook for the gate** (task-0099, doc-0014 C1): `instance/ci/claude/`
+  runs the gate at stage transitions (plan accepted, spec committed, before push), never on every
+  edit. A finding and an unavailable gate both block, with the reason and the route to approval;
+  a `keys` report or one for another task is refused. Three settings snippets: repository, managed
+  (the mandatory one) and an advisory variant labelled fail-open. Supersedes doc-0004's exit-code
+  adapter.
+- **Pre-load findings reach the platform's annotations** (task-0106): the `preload` gate writes its
+  report under `KG_REPORT`, so `KG_ANNOTATE` turns its findings into GitHub annotations and GitLab
+  code quality; a finding the baseline holds is at most a warning.
+- **knowgov dogfoods the hook** (task-0105): this repository's `.claude/` blocks hand edits to
+  vendored files and to the backlog.
+
+### Known limits
+
+- The GitLab include is proven by shell, not yet on a GitLab runner (task-0108).
+- The hooks see Edit and Write, not a shell command writing the same file.
 
 ## 0.3.0 — 2026-11-04
 
