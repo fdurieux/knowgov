@@ -750,7 +750,9 @@ export KG_NEO4J_PASSWORD=choose-a-password
 laptop nothing changes: `http://localhost:8080` works as before. To reach them from other machines,
 set `KG_BIND` to the address to publish on (`0.0.0.0` for every interface, or one of the host's
 addresses) and choose a password: with a wider bind the stack refuses to start while the Neo4j
-password is the default, and `docker compose logs neo4j` says why.
+password is the default, and `docker compose logs neo4j` says why. Neo4j takes its password when
+its data volume is first created, so if the stack ran before with the default, run
+`docker compose down -v` once before starting with the new password.
 
 ```bash
 export KG_NEO4J_PASSWORD=choose-a-password KG_BIND=0.0.0.0
