@@ -42,18 +42,43 @@ sys.exit(1 if any(ladder.index(x["severity"]) >= ladder.index(fail) for x in fou
 '''
 
 
+# Spectral's command line, as preload_check calls it: --version; lint -r RULESET -f json -o OUT -q --fail-severity
+# hint FILE... A line holding "BROKEN" is an error (severity 0, invalid-ref); every file gets a warning.
+FAKE_SPECTRAL = r'''
+import json, sys
+a = sys.argv[1:]
+if a == ["--version"]:
+    print("6.0.0-standin"); sys.exit(0)
+assert a[0] == "lint" and "-r" in a and a[a.index("-f") + 1] == "json", a
+out = a[a.index("-o") + 1]
+files = [x for i, x in enumerate(a[1:], 1) if not x.startswith("-") and a[i - 1] not in ("-r", "-f", "-o", "--fail-severity")]
+found = []
+for f in files:
+    found.append({"code": "info-contact", "severity": 1, "message": "no contact", "source": f, "range": {"start": {"line": 0}}})
+    for n, line in enumerate(open(f, encoding="utf-8")):
+        if "BROKEN" in line:
+            found.append({"code": "invalid-ref", "severity": 0, "message": "does not exist", "source": f, "range": {"start": {"line": n}}})
+json.dump(found, open(out, "w"))
+sys.exit(1 if found else 0)
+'''
+
+
 class _Standin:
+    """pumllint and Spectral stood in for; present=False: neither is installed."""
     def __init__(self, td: Path, present: bool = True):
         self.script = td / "fake_pumllint.py"
         self.script.write_text(FAKE, encoding="utf-8")
+        self.spectral = td / "fake_spectral.py"
+        self.spectral.write_text(FAKE_SPECTRAL, encoding="utf-8")
         self.present = present
 
     def __enter__(self):
-        self.saved = preload_check.pumllint_cmd
+        self.saved = preload_check.pumllint_cmd, preload_check.spectral_cmd
         preload_check.pumllint_cmd = (lambda: [sys.executable, str(self.script)]) if self.present else (lambda: None)
+        preload_check.spectral_cmd = (lambda: [sys.executable, str(self.spectral)]) if self.present else (lambda: None)
 
     def __exit__(self, *exc):
-        preload_check.pumllint_cmd = self.saved
+        preload_check.pumllint_cmd, preload_check.spectral_cmd = self.saved
 
 
 def _digest(root: Path) -> str:
@@ -81,10 +106,11 @@ def test_the_clean_example_instance_exits_0_and_lists_every_unchecked_kind_by_it
         assert rep["exit_code"] == 0 and rep["scope"] == "all" and rep["threshold"] == "major"
         states = {r["file"]: (r["state"], r["tool"]) for r in rep["files"]}
         assert states["artefacts/plantuml-models/quote_flow.puml"] == ("clean", "pumllint")
-        assert states["artefacts/api-contracts/openapi.yaml"] == ("unchecked", "Spectral, vacuum, Redocly")
-        assert rep["counts"] == {"clean": 2, "findings": 0, "held": 0, "unchecked": 8, "cannot_run": 0, "skipped": 0}, rep["counts"]
-        [lt] = rep["linters"]
-        assert (lt["tool"], lt["version"], lt["files"], lt["exit"]) == ("pumllint", "0.0-standin", 2, 0)
+        assert states["artefacts/api-contracts/openapi.yaml"] == ("clean", "Spectral")
+        assert states["artefacts/specification-prose/spec.md"] == ("unchecked", "Vale, markdownlint")
+        assert rep["counts"] == {"clean": 3, "findings": 0, "held": 0, "unchecked": 7, "cannot_run": 0, "skipped": 0}, rep["counts"]
+        lts = {lt["tool"]: (lt["version"], lt["files"], lt["exit"]) for lt in rep["linters"]}
+        assert lts == {"pumllint": ("0.0-standin", 2, 0), "Spectral": ("6.0.0-standin", 1, 0)}, lts
         assert all(r["state"] in ("clean", "unchecked") for r in rep["files"])
         text = preload_check.render(rep)
         assert "UNCHECKED  artefacts/bpmn-process-models/quote_process.bpmn [bpmn-process-models]: form unchecked: the table names bpmnlint" in text
@@ -113,7 +139,7 @@ def test_a_broken_plantuml_file_exits_1_and_the_threshold_moves_it():
         assert low["files"][0]["state"] == "findings" and low["exit_code"] == 1, "an info finding fails at --fail-on info"
 
 
-def test_what_cannot_be_checked_exits_2_never_passes():
+def test_what_cannot_be_checked_exits_2_and_a_missing_linter_leaves_its_kind_unchecked():
     with tempfile.TemporaryDirectory() as td:
         out = Path(td) / "inst"
         example_instance.build(out)
@@ -127,9 +153,11 @@ def test_what_cannot_be_checked_exits_2_never_passes():
                 assert rep["exit_code"] == 2 and why in rep["files"][0]["why"], rep["files"]
                 assert preload_check.main([str(out), "--changed", *changed]) == 2
         with _Standin(Path(td), present=False):
-            rep = preload_check.check(out, ["artefacts/plantuml-models/quote_flow.puml"])
-            assert rep["exit_code"] == 2 and "pumllint is not installed" in rep["files"][0]["why"]
-            assert rep["linters"][0]["exit"] == 2
+            # task-0066: a linter not installed here leaves its kind unchecked, naming it; never passed, never cannot-run
+            rep = preload_check.check(out, ["artefacts/plantuml-models/quote_flow.puml", "artefacts/api-contracts/openapi.yaml"])
+            assert rep["exit_code"] == 0 and [r["state"] for r in rep["files"]] == ["unchecked", "unchecked"], rep["files"]
+            assert "pumllint is not installed here" in rep["files"][0]["why"] and rep["files"][1]["tool"] == "Spectral"
+            assert "Spectral is not installed here" in rep["files"][1]["why"]
             _valid(rep)
         assert preload_check.main([str(Path(td) / "nope")]) == 2
 
@@ -148,8 +176,10 @@ def test_a_kind_with_no_linter_is_reported_unchecked_and_says_the_table_names_no
 
 def test_every_runner_names_the_tool_its_kind_names_and_the_ci_template_runs_the_script():
     table = check_instance.kinds()
-    for kind, (tool, _) in preload_check.RUNNERS.items():
-        assert table[kind]["lint"]["tool"] == tool and table[kind]["lint"]["capable"], kind
+    runs = {kind: k["lint"]["runs"] for kind, k in table.items() if "runs" in k["lint"]}
+    assert runs == {kind: tool for kind, (tool, _) in preload_check.RUNNERS.items()}, "kinds.toml runs and RUNNERS differ"
+    for kind, tool in runs.items():
+        assert tool in [x.strip() for x in table[kind]["lint"]["tool"].split(",")] and table[kind]["lint"]["capable"], kind
     ci = ROOT / "instance" / "ci"
     script = (ci / "preload-check.sh").read_text(encoding="utf-8")
     assert "tools/preload_check.py" in script and "tools/check_instance.py" in script and "--since" in script
@@ -158,6 +188,9 @@ def test_every_runner_names_the_tool_its_kind_names_and_the_ci_template_runs_the
     pin = re.search(r'PUMLLINT: "([\d.]+)"', wf).group(1)
     harness = (ROOT / ".github" / "workflows" / "harness.yml").read_text(encoding="utf-8")
     assert f'"pumllint=={pin}"' in harness, "the template's pumllint pin is not the harness's"
+    spectral = re.search(r'SPECTRAL: "([\d.]+)"', wf).group(1)
+    assert f'npm install -g "@stoplight/spectral-cli@{spectral}"' in harness, "the template's Spectral pin is not the harness's"
+    assert 'npm install -g "@stoplight/spectral-cli@${SPECTRAL}"' in wf, "the template does not install the Spectral it runs"
     assert "instance/ci/preload-check.sh" in harness, "harness.yml does not prove the template's script"
     readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
     guide = (ROOT / "docs" / "guide.md").read_text(encoding="utf-8")
@@ -222,3 +255,25 @@ def test_a_baseline_holds_what_it_recorded_and_fails_only_on_a_regression():
             bad.write_text("{}", encoding="utf-8")
             assert preload_check.main([str(out), "--baseline", str(bad)]) == 2
             assert preload_check.main([str(out), "--baseline", str(Path(td) / "missing.json")]) == 2
+
+
+def test_api_contracts_run_spectral_under_the_same_contract():
+    """task-0066: Spectral for api-contracts, its error a major finding (fails at the default threshold), its
+    warning minor; the shipped ruleset holds Spectral's OpenAPI and AsyncAPI rules."""
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "inst"
+        example_instance.build(out)
+        bad = out / "artefacts" / "api-contracts" / "broken.yaml"
+        bad.write_text("openapi: 3.0.3\n$ref: BROKEN\n", encoding="utf-8")
+        with _Standin(Path(td)):
+            rep = preload_check.check(out, ["artefacts/api-contracts/broken.yaml"])
+            assert preload_check.main([str(out), "--changed", "artefacts/api-contracts/broken.yaml"]) == 1
+            assert preload_check.main([str(out), "--changed", "artefacts/api-contracts/broken.yaml", "--fail-on", "critical"]) == 0
+            assert preload_check.main([str(out), "--changed", "artefacts/api-contracts/openapi.yaml"]) == 0
+            assert preload_check.main([str(out), "--changed", "artefacts/api-contracts/openapi.yaml", "--fail-on", "minor"]) == 1
+        _valid(rep)
+        [row] = rep["files"]
+        assert row["state"] == "findings" and row["tool"] == "Spectral"
+        assert row["findings"][0] == {"rule": "invalid-ref", "severity": "major", "line": 2, "message": "does not exist"}, row["findings"]
+    ruleset = (ROOT / "instance" / "ci" / "spectral.yaml").read_text(encoding="utf-8")
+    assert ruleset.strip().endswith('extends: ["spectral:oas", "spectral:asyncapi"]')

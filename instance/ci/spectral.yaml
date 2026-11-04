@@ -1,0 +1,4 @@
+# The ruleset tools/preload_check.py gives Spectral for artefacts/api-contracts/ when the instance has
+# no .spectral.yaml of its own at its root (task-0066): Spectral's built-in OpenAPI and AsyncAPI rules.
+# Copy it to your instance root as .spectral.yaml to tune it; that one then applies instead.
+extends: ["spectral:oas", "spectral:asyncapi"]

@@ -6,10 +6,11 @@
 
 For each file under the instance's artefacts/<kind>/ (every file, or only those named by
 --changed, or only those changed since the git ref REF in the instance's checkout), run the
-linter instance/kinds.toml names for the kind, when this environment can run it. Today one can:
-pumllint, for plantuml-models, the harness's own pin. Every other kind's files are reported
-*unchecked*, naming the tool the programme's table names (or saying it names none): an
-unchecked file does not fail the check, and it is never passed silently.
+linter instance/kinds.toml names for the kind, when this environment can run it (RUNNERS, the
+kind's lint.runs): pumllint for plantuml-models, the harness's own pin; Spectral for api-contracts
+(task-0066), KG_SPECTRAL or spectral on PATH. Every other kind's files, and a kind whose linter is
+not installed here, are reported *unchecked*, naming the tool (or saying the table names none):
+an unchecked file does not fail the check, and it is never passed silently.
 
 The programme's gate contract:
 
@@ -18,7 +19,8 @@ The programme's gate contract:
        --baseline, only one the baseline does not hold
     2  cannot run: no such instance, a kind folder instance/kinds.toml does not know, a file at
        the top of artefacts/, a named file that does not exist or lies outside the instance, a
-       linter this kind needs that is not installed or could not run, a --since git cannot diff
+       linter that is installed and could not run, a --since git cannot diff, a --baseline that is
+       not a report
 
 A --changed file outside artefacts/ (a subject manifest, a register row) is listed as skipped:
 it is not a document of a kind. The JSON report (-f json) is pinned by
@@ -44,6 +46,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -75,7 +78,7 @@ def run_pumllint(files: list[Path], cwd: Path, threshold: str) -> dict:
     """{rc, version, findings: [{file, rule, severity, line, message}], error}; rc 2 when it cannot run."""
     cmd = pumllint_cmd()
     if cmd is None:
-        return {"rc": 2, "version": None, "findings": [], "error": "pumllint is not installed (pip install pumllint)"}
+        return {"rc": 2, "missing": True, "version": None, "findings": [], "error": "pumllint is not installed here (pip install pumllint)"}
     ver = subprocess.run(cmd + ["--version"], cwd=cwd, capture_output=True, text=True)
     version = (ver.stdout.strip() or ver.stderr.strip()).split()[-1] if ver.returncode == 0 else None
     with tempfile.TemporaryDirectory() as td:
@@ -93,9 +96,51 @@ def run_pumllint(files: list[Path], cwd: Path, threshold: str) -> dict:
     return {"rc": p.returncode, "version": version, "findings": findings, "error": None}
 
 
-# kind folder -> (the tool's name as kinds.toml names it, the runner). The only linter this
-# repository's environment installs; a kind added here must name the same tool in kinds.toml.
-RUNNERS = {"plantuml-models": ("pumllint", run_pumllint)}
+# Spectral's severities (0 error, 1 warn, 2 info, 3 hint) on the contract's ladder: an error is major,
+# so the default threshold fails on Spectral's own errors and lists its warnings.
+SPECTRAL_SEVERITY = {0: "major", 1: "minor", 2: "info", 3: "info"}
+SPECTRAL_RULESETS = (".spectral.yaml", ".spectral.yml", ".spectral.json")
+
+
+def spectral_cmd() -> list[str] | None:
+    """The command that runs Spectral here (KG_SPECTRAL, else spectral on PATH), or None."""
+    exe = os.environ.get("KG_SPECTRAL") or shutil.which("spectral")
+    return [exe] if exe and Path(exe).exists() else None
+
+
+def run_spectral(files: list[Path], cwd: Path, threshold: str) -> dict:
+    """Spectral over API contracts (task-0066), with the instance's own ruleset (.spectral.yaml at its
+    root) when it has one, else instance/ci/spectral.yaml (spectral:oas and spectral:asyncapi).
+    rc is 1 when a finding reaches the threshold on the contract's ladder, 0 otherwise, 2 when it
+    cannot run; Spectral's own exit only says whether it ran."""
+    cmd = spectral_cmd()
+    if cmd is None:
+        return {"rc": 2, "missing": True, "version": None, "findings": [],
+                "error": "Spectral is not installed here (npm install -g @stoplight/spectral-cli)"}
+    ver = subprocess.run(cmd + ["--version"], cwd=cwd, capture_output=True, text=True)
+    version = ver.stdout.strip().split()[-1] if ver.returncode == 0 and ver.stdout.strip() else None
+    ruleset = next((cwd / r for r in SPECTRAL_RULESETS if (cwd / r).is_file()), ROOT / "instance" / "ci" / "spectral.yaml")
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "report.json"
+        p = subprocess.run(cmd + ["lint", "-r", str(ruleset), "-f", "json", "-o", str(out), "-q", "--fail-severity", "hint"]
+                           + [str(f) for f in files], cwd=cwd, capture_output=True, text=True)
+        if p.returncode not in (0, 1):
+            return {"rc": 2, "version": version, "findings": [], "error": (p.stderr or p.stdout).strip()[-500:] or f"exit {p.returncode}"}
+        try:
+            raw = json.loads(out.read_text(encoding="utf-8") or "[]")
+        except (OSError, ValueError) as e:
+            return {"rc": 2, "version": version, "findings": [], "error": f"no readable report: {e}"}
+    findings = [{"file": str(Path(x["source"]).resolve()), "rule": x.get("code", ""), "severity": SPECTRAL_SEVERITY.get(x.get("severity"), "info"),
+                 "line": (x.get("range") or {}).get("start", {}).get("line", -1) + 1, "message": x.get("message", "")} for x in raw]
+    hit = any(SEVERITIES.index(f["severity"]) <= SEVERITIES.index(threshold) for f in findings)
+    return {"rc": 1 if hit else 0, "version": version, "findings": findings, "error": None}
+
+
+# kind folder -> (the tool's name, the runner): the linters this repository's environment can run.
+# The tool is the kind's lint.runs in instance/kinds.toml, one of the tools its lint.tool names;
+# tests/test_preload.py holds the two equal. A runner whose tool is not installed leaves the kind's
+# files unchecked, naming it (task-0066), never passed and never cannot-run.
+RUNNERS = {"plantuml-models": ("pumllint", run_pumllint), "api-contracts": ("Spectral", run_spectral)}
 
 
 def _since(instance: Path, ref: str) -> list[str]:
@@ -175,6 +220,10 @@ def check(instance: Path, changed: list[str] | None = None, threshold: str = "ma
         res = runner(files, inst, threshold)
         linters.append({"kind": kind, "tool": tool, "version": res["version"], "files": len(files), "exit": res["rc"], "error": res["error"]})
         rels = [f.relative_to(inst).as_posix() for f in files]
+        if res.get("missing"):
+            for rel in rels:
+                by_file[rel].update(state="unchecked", tool=tool, why=f"form unchecked: {res['error']}")
+            continue
         if res["rc"] == 2:
             for rel in rels:
                 by_file[rel].update(state="cannot_run", why=f"{tool}: {res['error']}")
