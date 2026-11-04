@@ -12,6 +12,15 @@ names that section with the version.
 
 ### Also since 0.4.0
 
+- **A synthetic CargoQuote ARIS export** (task-0119): `tools/aris_export.py` writes one AML file
+  and one BPMN 2.0 file per variant from public CargoQuote material only (the vendored kit's
+  `quote_process.bpmn` and the vendored register), committed under
+  `tools/fixtures/aris_cargo_quote/{first,later}/` for the ARIS connector (task-0063). Every
+  process, capability, application system type and person type carries its register id in
+  `AT_ID`; every object has a uuid5 GUID stable across runs and variants. `later` drops PROC-0005
+  and renames PROC-0004, for the connector's append-only and stale-id cases. Marked synthetic in
+  its header; the ARIS type names are unverified against any method filter. bpmnlint's
+  recommended rules find nothing in either BPMN file.
 - **MCP server, a fifth read-only tool, `register_impact`** (task-0111): what retiring or changing
   a register node touches. It runs the register's own impact walk from a register id
   (`dependants` by default, or `realisers`) on `KG_REGISTER`, and returns the register's tag and

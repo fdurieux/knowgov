@@ -158,6 +158,10 @@ jobs:
           # not installed: the kind stays unchecked, naming its tool
           python tools/preload_check.py runs/preload-node --changed artefacts/acceptance-scenarios/acceptance.feature | grep '^UNCHECKED  artefacts/acceptance-scenarios/acceptance.feature \[acceptance-scenarios\]: form unchecked: gplint is not installed here'
           KG_MARKDOWNLINT=$bin/markdownlint-cli2 KG_GPLINT=$bin/gplint KG_BPMNLINT=$bin/bpmnlint KG_DMNLINT=$bin/dmnlint python tools/check_preload_linters.py runs/preload-linters
+      - name: The synthetic CargoQuote ARIS export (task-0119) equals its generator and its BPMN has no bpmnlint finding under the shipped rules
+        run: |
+          python tools/aris_export.py --check
+          $PWD/runs/node-linters/node_modules/.bin/bpmnlint -c instance/ci/bpmnlintrc tools/fixtures/aris_cargo_quote/*/quote_process.bpmn
       - name: The pre-load verdict read at the load (task-0064), rdflib, the example instance with its report; none without one, as the instance step above shows
         run: |
           rm -rf runs/verdict runs/verdict-runs && python tools/example_instance.py runs/verdict > /dev/null
