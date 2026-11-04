@@ -66,6 +66,36 @@ full list and the synonyms to avoid.
 | store | the graph that holds the assertions: Neo4j, or an in-memory store for tests and a first try |
 | projection | a copy of the register loaded into the store beside the assertions, so one query can cross both |
 
+### The words in provenance vocabularies
+
+If your team already speaks W3C PROV-O (https://www.w3.org/TR/prov-o/), or asks for each claim's
+derivation method and validation status, this table maps knowgov's words onto both. It changes no
+field. A row with no counterpart is a thing the other vocabulary cannot say: whether a fact holds,
+whether it is contested, or why a key is empty.
+
+<!-- provenance crosswalk: begin (docs/guide.md and demo/GLOSSARY.md carry the same table; tests/test_crosswalk.py holds them equal) -->
+| knowgov | meaning here | W3C PROV-O | derivation method, validation status (doc-0013 §3) |
+|---|---|---|---|
+| basis `authored` | a person wrote the document the assertion is read from as the record | `prov:wasAttributedTo` a `prov:Person`; `prov:hadPrimarySource` the document | authored |
+| basis `extracted` | a parser read it from a fragment of a document | `prov:wasGeneratedBy` an extraction `prov:Activity`, `prov:wasAssociatedWith` a `prov:SoftwareAgent`; `prov:wasDerivedFrom` the fragment; `prov:hadPrimarySource` the document version | imported |
+| basis `elicited` | a person's answer to a questionnaire, under an issued handle | `prov:wasAttributedTo` a `prov:Person` (the handle); `prov:hadPrimarySource` the capture record | tacit knowledge, captured; no derivation term |
+| basis `inferred` | a model's proposal for a gap, never above proposed | `prov:wasGeneratedBy` an inference `prov:Activity`, `prov:wasAssociatedWith` a `prov:SoftwareAgent` (the model); the gap it proposes to fill has no PROV-O term | derived; the logic is not typed (deductive, inductive or abductive) |
+| basis `assumed` | an assumption an arm states in order to build | no counterpart | other |
+| basis `hypothesised` | a conjecture offered for a gap | no counterpart | abductive |
+| status `proposed` | loaded, not yet corroborated, verified or approved | no counterpart: PROV-O records how a thing came to be, not whether it holds | proposed |
+| status `validated` | corroborated: another assertion of the same key agrees | no counterpart | unverified (closest) |
+| status `verified` | a verification passed: execution by the oracle, or a review | the verification is a `prov:Activity` that `prov:used` the assertion; the status has no counterpart | verified |
+| status `approved` | a person approved a verified assertion, with who, when and which record | the approval is a `prov:Activity` `prov:wasAssociatedWith` the approver; the status has no counterpart | verified, with the approver |
+| status `disputed` | two assertions of one key conflict and nobody has ruled | no counterpart | no counterpart |
+| status `invalidated` | a source change ended it and its verifications | `prov:wasInvalidatedBy` the re-ingestion `prov:Activity`, at `prov:invalidatedAtTime` | superseded, once a verified or approved successor exists (`prov:wasRevisionOf` from the successor); else no counterpart |
+| status `rejected` | a ruling took it out of the live set; it keeps its history | no counterpart | rejected |
+| approval lapsed | a person's approved answer six months after it was given; it reads proposed again | no counterpart | expiry date (closest) |
+| key level `absent` | no live assertion holds the key | no counterpart | no counterpart |
+| key level `declared_gap` | a document declares the key open, with an owner | no counterpart | no counterpart |
+<!-- provenance crosswalk: end -->
+
+[`demo/GLOSSARY.md`](../demo/GLOSSARY.md) carries the same table.
+
 ## 3. Try it on public content
 
 Start the demo stack as [`demo/README.md`](../demo/README.md) describes ("Quick start on a Mac,
