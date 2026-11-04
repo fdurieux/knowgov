@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-04T00:44:00Z'
-updated_date: '2026-11-04T01:45:00Z'
+updated_date: '2026-11-04T01:47:00Z'
 labels:
   - preload
 milestone: m-6
@@ -38,3 +38,9 @@ task-0066 runs Spectral for api-contracts; the kinds with a mapper and a named t
 3. tools/check_preload_linters.py: the example instance's clean files, clean planted files exit 0 and broken exit 1 through instance/ci/preload-check.sh; run in harness.yml with the pins (Node 24).
 4. Template preload-check.yml installs the four pinned; README and guide §5; Vale not added, with reason.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+PR #132. Runners added; harness step proven locally with real pins (Node 22 warns for bpmnlint 12/dmnlint 2; CI uses setup-node 24). Vale not added: ships no rules of its own. The example's quote_process.bpmn fails bpmnlint:recommended (97 errors: no BPMNDI, no incoming/outgoing): vendored, not edited. GitLab include and composite action leave linter installs to the caller, as for Spectral.
+<!-- SECTION:NOTES:END -->
