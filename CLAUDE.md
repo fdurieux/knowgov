@@ -116,7 +116,7 @@ then; any other PR gets auto-merge when it opens. A PR that must wait (a propose
 ordering) gets none. A `stack` red on `main` after a merge is fixed at once.
 
 CI budget (task-0084): a pull request's `rdflib` and `stack` each within 12 minutes. On a pull
-request the J-F round trip and MCP checks run the named subset `KG_JF_SCENARIOS=C,D3` (the kit as
+request the J-F round trip, MCP and lighthouse steps run the named subset `KG_JF_SCENARIOS=C,D3` (the kit as
 committed and every layer consistently wrong); the full J-F set runs on every push to `main`,
 nightly at 03:17 UTC and on a `workflow_dispatch` of `harness.yml` or `demo.yml`, so a red full run
 on `main` is fixed like any other. The J-F record comparison and its oracle always run in full.

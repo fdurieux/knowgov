@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-04T00:44:00Z'
-updated_date: '2026-11-04T01:48:00Z'
+updated_date: '2026-11-04T02:09:00Z'
 labels:
   - ci
 milestone: m-6
@@ -37,3 +37,9 @@ The Turtle round trip (task-0070) added about 7 minutes to stack and the lightho
 4. Budget: 12 minutes for rdflib and stack on a PR, in both workflow headers and CLAUDE.md; tests/test_ci_subset.py holds it.
 5. The lighthouse rehearsal (task-0069, #124) is not on main yet: once it lands, its J-F part takes the subset too (a follow-up if it lands after this PR).
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Lighthouse (task-0069, #124) landed during #133's run: its step took 291 s and passed only because the composite action's setup writes KG_TODAY to GITHUB_ENV earlier in the job. Follow-up PR: lighthouse_evidence pins each child to its subject's record date, takes --only SUBJECT=IDS, the rdflib job passes the J-F subset; tests/test_clock.py now scans every tool, not only check_*.
+<!-- SECTION:NOTES:END -->
