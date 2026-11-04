@@ -99,8 +99,9 @@ def findings(res: dict, block_levels: set[str]) -> list[dict]:
     if res["verdict"] == "BLOCKED" and not res["blocked_keys"]:
         out.append(_finding("blocker", "task", res["why"]))
     for x in res.get("stale") or []:
-        settled = [t["id"] for t in x.get("successors") or [] if t.get("id") and t.get("status") in SETTLED]
-        ended = ", ".join(v["id"] for v in x.get("verifications") or [] if v.get("id")) or "none"
+        # sorted: the store collects these in its own order, and one store's answer must read the same in another (task-0070)
+        settled = sorted(t["id"] for t in x.get("successors") or [] if t.get("id") and t.get("status") in SETTLED)
+        ended = ", ".join(sorted(v["id"] for v in x.get("verifications") or [] if v.get("id"))) or "none"
         if settled:
             out.append(_finding("info", "stale", f"{x['id']} on {x['key']} was invalidated by {x['invalidated_by']} (verifications ended: {ended}); "
                                 f"replaced by {', '.join(settled)}", key=x["key"], level="invalidated", ref=x["id"], related=settled))
@@ -108,7 +109,7 @@ def findings(res: dict, block_levels: set[str]) -> list[dict]:
             out.append(_finding("major", "stale", f"{x['id']} on {x['key']} was invalidated by {x['invalidated_by']} (verifications ended: {ended}); "
                                 "no verified or approved successor replaces it", key=x["key"], level="invalidated", ref=x["id"]))
     for d in res.get("suspect_derived") or []:
-        used = list(d.get("used_invalidated") or [])
+        used = sorted(d.get("used_invalidated") or [])
         out.append(_finding("blocker", "suspect_derived", f"{d['id']} ({d.get('kind') or 'derived output'}) used {len(used)} statement(s) now invalidated "
                             f"({', '.join(used)}): it may not be reused as it is: regenerate it from the current statements", ref=d["id"], related=used))
     kinds = ["task", "key", "suspect_derived", "stale"]

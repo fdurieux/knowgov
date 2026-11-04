@@ -217,6 +217,14 @@ class RdflibStore(Store):
         self.g = Graph()
         self._nodes, self._out, self._in, self._seq = {}, {}, {}, 0
 
+    def export_turtle(self) -> str:
+        return self.g.serialize(format="turtle")
+
+    def import_turtle(self, text: str) -> None:
+        self.wipe()
+        self.g.parse(data=text, format="turtle")
+        self._reindex()
+
     def apply_constraints(self) -> list[dict]:
         return [{"type": kind, "cypher": name, "accepted": ok, "message": msg} for kind, name, ok, msg in CONSTRAINTS]
 
