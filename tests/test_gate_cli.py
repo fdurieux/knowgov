@@ -172,6 +172,33 @@ def test_after_s6s_change_a_suspect_derived_output_fails_the_gate_whatever_the_v
     assert clean["exit_code"] == 0 and _report({**after, "suspect_derived": []}, "info")["exit_code"] == 1
 
 
+def test_after_s6s_re_verification_each_stale_statement_names_what_supersedes_it():
+    """task-0071 (doc-0013 P5): superseded is a reading of an invalidated statement with a verified or
+    approved successor, never a stored status. The report and the bundle name ``superseded_by``; the
+    record's after-re-verification successors are what they name."""
+    import gate
+    det = _scored_s6()
+    after = _stage2(det["stage2"]["gate_after_reverification"], det)
+    rep = _report(after)
+    want = {x["id"]: sorted({t["id"] for t in x["successors"] if t["id"] and t["status"] in ("verified", "approved")})
+            for x in det["stage2"]["gate_after_reverification"]["stale"]}
+    assert rep["superseded_by"] == want and len(want) == 3 and all(want.values())
+    assert rep["superseded_by"]["A:dt:P3|order@v1"] == ["A:dt:P3|order#1@v1", "A:dt:P3|order@v2"]
+    assert schema_check.validate(rep, SCHEMA) == []
+    bare = {**after, "keys": {}}   # the record keeps no per-key assertions; the stale section is what is asked
+    bundle = gate.render_bundle(bare, "POLICY")
+    for sid, ids in want.items():
+        assert f"[{sid}]" in bundle and f"superseded_by: {', '.join(ids)}" in bundle, sid
+    assert all(f"{sid} superseded_by" in gate.render_index(bare, "POLICY") for sid in want)
+    # a successor merely proposed or validated supersedes nothing: the statement still blocks its key
+    weak = {**bare, "stale": [{**x, "successors": [{**t, "status": "proposed"} for t in x["successors"]]} for x in after["stale"]]}
+    assert _report(weak)["superseded_by"] == {}
+    assert "superseded_by: none: it still blocks its key" in gate.render_bundle(weak, "POLICY")
+    # a report from before task-0071 still validates: the field is additive
+    old = {k: v for k, v in rep.items() if k != "superseded_by"}
+    assert schema_check.validate(old, SCHEMA) == []
+
+
 def test_before_re_verification_the_stale_statements_on_the_blocked_keys_are_major():
     det = _scored_s6()
     before = _stage2(det["stage2"]["gate_before_reverification"], det)
