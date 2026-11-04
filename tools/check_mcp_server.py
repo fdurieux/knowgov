@@ -84,6 +84,51 @@ class StdioClient:
         self.p.wait(timeout=30)
 
 
+class HttpClient(StdioClient):
+    """The same client over Streamable HTTP: start ``mcp_server.py --http`` on a free loopback port,
+    then one POST per message (task-0095)."""
+
+    def __init__(self):
+        import re
+        self.p = subprocess.Popen([sys.executable, str(HARNESS / "mcp_server.py"), "--http", "--host", "127.0.0.1", "--port", "0"],
+                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                  text=True, env=os.environ.copy())
+        line = self.p.stderr.readline()
+        m = re.search(r"(http://127\.0\.0\.1:\d+/mcp)", line)
+        if not m:
+            self.p.kill()
+            raise RuntimeError(f"mcp_server.py --http did not start: {line.strip()}")
+        self.url = m.group(1)
+        import threading   # the server logs each request to stderr: drain it so the pipe never fills
+        threading.Thread(target=lambda: [None for _ in self.p.stderr], daemon=True).start()
+        self.n = 0
+        init = self.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
+                                           "clientInfo": {"name": "check_mcp_server", "version": "1"}})
+        assert init["result"]["serverInfo"]["name"] == "knowgov", init
+        self.notify("notifications/initialized")
+
+    def _post(self, body: dict) -> dict | None:
+        import urllib.request
+        req = urllib.request.Request(self.url, data=json.dumps(body).encode("utf-8"), method="POST",
+                                     headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"})
+        with urllib.request.urlopen(req, timeout=300) as r:
+            data = r.read()
+        return json.loads(data) if data else None
+
+    def notify(self, method: str) -> None:
+        self._post({"jsonrpc": "2.0", "method": method})
+
+    def request(self, method: str, params: dict) -> dict:
+        self.n += 1
+        resp = self._post({"jsonrpc": "2.0", "id": self.n, "method": method, "params": params})
+        assert resp.get("id") == self.n, resp
+        return resp
+
+    def close(self) -> None:
+        self.p.terminate()
+        self.p.wait(timeout=30)
+
+
 def settled(stale: list[dict]) -> dict[str, list[str]]:
     """The record's stale statements and their verified or approved successors (task-0071)."""
     out = {x["id"]: sorted({t["id"] for t in x.get("successors") or [] if t.get("id") and t.get("status") in ("verified", "approved")})

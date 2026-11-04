@@ -60,3 +60,28 @@ def test_the_summary_reads_a_collection_and_names_its_failures():
     text = lh.summary({"store": "rdflib", "instance_unchanged": True, "subjects": [sub], "failures": ["demo: one"]})
     assert "S1 PROCEED (exit 0; record PROCEED)" in text and "x@v1 → x@v2" in text
     assert "2 digest(s) match" in text and "out of scope" in text and "- demo: one" in text
+
+
+def test_the_http_client_reaches_the_server_and_lists_evidence_bundle():
+    """task-0095: --transport http starts mcp_server.py --http on a free loopback port and speaks the
+    handshake over POSTs; listing the tools opens no store."""
+    import check_mcp_server as cms
+    client = cms.HttpClient()
+    try:
+        assert client.url.startswith("http://127.0.0.1:") and client.url.endswith("/mcp")
+        names = {t["name"] for t in client.request("tools/list", {})["result"]["tools"]}
+        assert {"gate_verdict", "three_valued_answer", "evidence_bundle"} <= names
+    finally:
+        client.close()
+    assert client.p.returncode is not None
+
+
+def test_the_evidence_reads_the_bundle_through_the_mcp_server():
+    """task-0095: criterion 4 is evidenced by the path an agent uses, not by a bundle rebuilt here."""
+    import inspect
+    import lighthouse_evidence as lh
+    src = inspect.getsource(lh.collect_mcp)
+    assert 'client.call("evidence_bundle"' in src and "render_bundle" not in inspect.getsource(lh)
+    text = DOC.read_text(encoding="utf-8")
+    grounding = text.split("### Agent grounding", 1)[1].split("\n### ", 1)[0]
+    assert "evidence_bundle" in grounding and "--transport" in text
