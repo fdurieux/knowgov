@@ -44,7 +44,9 @@ CONSTRAINTS = [
 # walk's own frontier is), and from each of them every step its kind allows is one row. The step
 # predicate is the same text in both places. IMPACT_ROWS is the saved query, one row per edge as the
 # panel's table, with whether the walk followed it; IMPACT_PATHS returns the edges as paths, which
-# the Browser draws as a graph. Equivalence with walk() is tested over the projection's rows.
+# the Browser draws as a graph. Equivalence with walk() is tested over the projection's rows. Each row
+# also names the far node's owning unit (task-0047): its owner field, that unit's name, and the sources
+# of the approved owns links to it (the owner field's own REG_OWNS edge carries no state), as the panel.
 IMPACT_START = "APP-0002"
 _LIVE = "NOT {0}.state IN ['deprecated','retired']"
 _OK = "{0}.state = 'approved'"
@@ -82,9 +84,12 @@ IMPACT_ROWS = (
     + IMPACT_WALK +
     "WITH nodes(p)[0] AS f, relationships(p)[0] AS r, nodes(p)[1] AS t\n"
     "OPTIONAL MATCH (l:RegLink {reg_id: r.reg_id})   // the evidence sits on the link node\n"
+    "OPTIONAL MATCH (u:RegNode {reg_id: t.owner})   // the owning unit: the far node's owner field, shown, not walked\n"
     "RETURN f.reg_id AS `from`,\n"
     "       toLower(replace(type(r), 'REG_', '')) + CASE WHEN startNode(r) = f THEN '' ELSE ' (inverse)' END AS relationship,\n"
-    "       t.reg_id AS `to`, t.name AS name, t.state AS `node state`, r.state AS `link state`,\n"
+    "       t.reg_id AS `to`, t.name AS name, t.owner AS unit, u.name AS `unit name`,\n"
+    "       [(o:RegNode)-[w:REG_OWNS]->(t) WHERE w.state = 'approved' | o.reg_id] AS `owns links`,\n"
+    "       t.state AS `node state`, r.state AS `link state`,\n"
     "       CASE WHEN r.state = 'approved' AND NOT t.state IN ['deprecated','retired'] THEN 'yes' ELSE 'no, withdrawn' END AS followed,\n"
     "       r.owner AS owner, l.evidence AS evidence, r.reg_id AS link\n"
     "ORDER BY link, `from`")

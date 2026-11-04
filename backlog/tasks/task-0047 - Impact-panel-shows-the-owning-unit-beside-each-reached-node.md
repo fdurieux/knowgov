@@ -1,9 +1,11 @@
 ---
 id: TASK-0047
 title: Impact panel shows the owning unit beside each reached node
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-03T22:40:00Z'
+updated_date: '2026-11-03T23:58:00Z'
 labels:
   - impact
   - page
