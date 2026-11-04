@@ -115,6 +115,20 @@ def test_the_review_walkthrough_runs_on_its_own_pinned_day():
     assert "review.pinned(env, ON)" in text and "2027-05-03" not in text
 
 
+def test_the_trace_walkthrough_registers_as_of_a_day_after_the_lapse():
+    # task-0093: register takes the date check takes; the walkthrough registers and checks on one after 2027-08-07
+    sys.path.insert(0, str(ROOT / "tools"))
+    import check_trace_walkthrough as w
+    assert dt.date.fromisoformat(w.LAPSE_DAY) > dt.date(2027, 8, 7)
+    text = (ROOT / "tools" / "check_trace_walkthrough.py").read_text(encoding="utf-8")
+    assert '"register", "--commit", "c0ffee1", "--file", CODE, "--as-of", LAPSE_DAY' in text
+    assert '"check", "--as-of", LAPSE_DAY' in text and "cadence.pin_record(" in text
+    sh = (ROOT / "instance" / "ci" / "knowgov-gate.sh").read_text(encoding="utf-8")
+    trace_arm = sh[sh.index("trace-check|trace-register)"):]
+    assert trace_arm.index('--as-of "$KG_AS_OF"') < trace_arm.index('if [ "$GATE" = trace-check ]'), \
+        "KG_AS_OF reaches both trace commands"
+
+
 def test_every_gate_command_in_the_workflows_names_its_date():
     wf = ROOT / ".github" / "workflows"
     bad = []

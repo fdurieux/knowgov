@@ -48,7 +48,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   view that lets the port's reads through and nothing else; `tools/check_mcp_server.py` holds its report equal
   to `gate_cli.py --no-load`'s and its bundle to the arms' `render_bundle` on a live store; task-0056). `harness/trace.py`
   knowgov-trace (task-0051): `register` records built files as derived outputs (store and a JSON
-  ledger, since a load wipes the store), `check` reports suspect, drift, missing, unmapped and the
+  ledger, since a load wipes the store; `--as-of` as `check`'s, each entry recording the date read, task-0093), `check` reports suspect, drift, missing, unmapped and the
   task's gate under the same exit contract, JSON pinned by `harness/schemas/trace-report.schema.json`;
   the APP comes from the instance's `code_map.toml` (`harness/code_map.py`, task-0050); S6 shown by
   `tools/check_trace_walkthrough.py`. `KG_SUBJECT` selects the root; nothing in `harness/` or

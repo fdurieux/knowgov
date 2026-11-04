@@ -40,7 +40,7 @@ inputs:
     description: "gate: 2 to bring in the scenario's later version"
     default: ""
   as-of:
-    description: "gate, trace-check: the date review currency is read on (YYYY-MM-DD, record or today); default today"
+    description: "gate, trace-*: the date review currency is read on (YYYY-MM-DD, record or today); trace-register records it in the ledger; default today"
     default: ""
   ledger:
     description: "trace-*: the registrations' ledger, relative to the workspace"
