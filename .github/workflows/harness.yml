@@ -141,6 +141,8 @@ jobs:
           python3 -c 'import sys,json; sys.path.insert(0,"."); import schema_check as s; r=json.load(open("../runs/gate-s1.json")); e=s.validate(r, s.load("gate-report")); assert not e, e; assert r["schema_version"]==2, r["schema_version"]; print("report valid:", r["schema_version"], r["verdict"], r["exit_code"])'
       - name: The gate brings in S6's later version (task-0049), BLOCKED on four invalidated statements, then after re-verification exits 1 on the suspect derived output (task-0048)
         run: KG_STORE=rdflib python tools/check_gate_after_change.py runs/gate-change
+      - name: knowgov-trace (task-0051) on the example instance, a registered build of APP-0001 turns suspect after S6's change and check exits 1 naming it
+        run: rm -rf runs/trace && KG_STORE=rdflib python tools/check_trace_walkthrough.py runs/trace
       - name: The capture path (task-0009), questionnaire, answers, the gate after, and nothing above proposed
         run: |
           rm -rf runs/capture && python tools/example_instance.py runs/capture > /dev/null

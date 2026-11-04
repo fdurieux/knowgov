@@ -115,7 +115,7 @@ def findings(res: dict, block_levels: set[str]) -> list[dict]:
         ended = ", ".join(v["id"] for v in x.get("verifications") or [] if v.get("id")) or "none"
         if settled:
             out.append(_finding("info", "stale", f"{x['id']} on {x['key']} was invalidated by {x['invalidated_by']} (verifications ended: {ended}); "
-                                f"replaced by {', '.join(settled)}", key=x["key"], level="invalidated", ref=x["id"], related=settled))
+                                f"superseded by {', '.join(settled)}", key=x["key"], level="invalidated", ref=x["id"], related=settled))
         else:
             out.append(_finding("major", "stale", f"{x['id']} on {x['key']} was invalidated by {x['invalidated_by']} (verifications ended: {ended}); "
                                 "no verified or approved successor replaces it", key=x["key"], level="invalidated", ref=x["id"]))
@@ -167,6 +167,11 @@ def compare(res: dict, base: dict, source: str) -> dict:
             "worse_verdict": worse, "regressed_keys": regressed, "new_suspect": new_suspect}
 
 
+def superseded_map(res: dict) -> dict[str, list[str]]:
+    from gate import superseded_map as m
+    return m(res)
+
+
 def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loaded: bool,
            block_levels: set[str], threshold: str, baseline: dict | None,
            version: str | None = None, change: dict | None = None) -> dict:
@@ -178,6 +183,7 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
             "keys": {"total": len(res["keys"]), "below_verified": len(res["below_verified"]), "flagged": len(res["flagged"])},
             "conflicts": len(res.get("conflicts") or []),
             "stale": [x["id"] for x in res.get("stale") or []],                    # the statements, by id (a count in version 1)
+            "superseded_by": superseded_map(res),                                     # task-0071: the stale ones a settled successor supersedes
             "suspect_derived": [d["id"] for d in res.get("suspect_derived") or []],  # the derived outputs, by id (a count in version 1)
             "as_of": res.get("as_of"), "lapsed": [x["id"] for x in res.get("lapsed") or []],   # decision-0005, added in version 2
             "levels": {k: v["level"] for k, v in res["keys"].items()},   # what a later run's --baseline FILE compares with

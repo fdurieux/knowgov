@@ -1,0 +1,266 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/trace-report.schema.json",
+ "title": "knowgov trace report",
+ "description": "What `python harness/trace.py register|check -f json` prints (task-0051): the registered outputs (register: those just recorded; check: those in scope, with their state against the files and the statements they used now invalidated), the task's gate on the store as it is (check only), the findings on the contract's severity ladder (kind suspect, unmapped, missing, drift, or gate:<the gate report's kind>), the threshold and the exit code. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "type": "object",
+ "required": [
+  "schema_version",
+  "tool",
+  "command",
+  "store",
+  "task",
+  "commit",
+  "code_root",
+  "ledger",
+  "changed",
+  "registered",
+  "gate",
+  "findings",
+  "counts",
+  "threshold",
+  "exit_code"
+ ],
+ "additionalProperties": false,
+ "properties": {
+  "schema_version": {
+   "const": 1
+  },
+  "tool": {
+   "const": "knowgov trace"
+  },
+  "command": {
+   "enum": [
+    "register",
+    "check"
+   ]
+  },
+  "store": {
+   "type": "string"
+  },
+  "task": {
+   "type": "string"
+  },
+  "commit": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "code_root": {
+   "type": "string"
+  },
+  "ledger": {
+   "type": "string"
+  },
+  "changed": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "registered": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/registered"
+   }
+  },
+  "gate": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "required": [
+    "task",
+    "verdict",
+    "why"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "task": {
+     "type": "string"
+    },
+    "verdict": {
+     "enum": [
+      "PROCEED",
+      "QUALIFIED",
+      "BLOCKED"
+     ]
+    },
+    "why": {
+     "type": "string"
+    }
+   }
+  },
+  "findings": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/finding"
+   }
+  },
+  "counts": {
+   "type": "object",
+   "required": [
+    "blocker",
+    "critical",
+    "major",
+    "minor",
+    "info"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "blocker": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "critical": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "major": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "minor": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "info": {
+     "type": "integer",
+     "minimum": 0
+    }
+   }
+  },
+  "threshold": {
+   "enum": [
+    "blocker",
+    "critical",
+    "major",
+    "minor",
+    "info",
+    null
+   ]
+  },
+  "exit_code": {
+   "enum": [
+    0,
+    1
+   ]
+  }
+ },
+ "$defs": {
+  "finding": {
+   "type": "object",
+   "required": [
+    "severity",
+    "kind",
+    "app",
+    "path",
+    "ref",
+    "related",
+    "message"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "severity": {
+     "enum": [
+      "blocker",
+      "critical",
+      "major",
+      "minor",
+      "info"
+     ]
+    },
+    "kind": {
+     "type": "string"
+    },
+    "app": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "path": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "ref": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "related": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "registered": {
+   "type": "object",
+   "required": [
+    "id",
+    "path",
+    "app",
+    "sha256",
+    "current_sha256",
+    "state",
+    "used",
+    "used_invalidated",
+    "successors"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    },
+    "app": {
+     "type": "string"
+    },
+    "sha256": {
+     "type": "string"
+    },
+    "current_sha256": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "state": {
+     "enum": [
+      "registered",
+      "unchanged",
+      "drift",
+      "missing"
+     ]
+    },
+    "used": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "used_invalidated": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "successors": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ }
+}

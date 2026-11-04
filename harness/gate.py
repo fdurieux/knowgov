@@ -85,6 +85,28 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
 
 
 THREE_VALUED_STATUSES = ["verified", "approved", "validated", "proposed"]
+SETTLED = ("verified", "approved")   # a successor at one of these supersedes an invalidated statement
+
+
+def superseded_by(stale: dict) -> list[str]:
+    """The verified or approved successors of one invalidated statement, as ``stale_on_keys`` lists
+    them (task-0071): superseded is this reading, never a stored status. Empty when none replaces it,
+    and the statement then still blocks its key."""
+    return sorted({t["id"] for t in stale.get("successors") or [] if t.get("id") and t.get("status") in SETTLED})
+
+
+def superseded_map(res: dict) -> dict[str, list[str]]:
+    """{invalidated statement id: its verified or approved successors} over a gate result's stale
+    statements, for those a successor supersedes."""
+    return {x["id"]: ids for x in res.get("stale") or [] if (ids := superseded_by(x))}
+
+
+def invalidated_on_key(s, key: str) -> list[dict]:
+    """The invalidated statements on one key, each naming its ``superseded_by`` (empty when nothing
+    replaces it): what the three-valued answer adds so an agent that sees a successor knows what
+    it replaced, and one that sees none knows the old value no longer holds."""
+    return [{"id": x["id"], "value": x["value"], "invalidated_by": x["invalidated_by"], "superseded_by": superseded_by(x)}
+            for x in sorted(s.stale_on_keys([key]), key=lambda x: x["id"])]
 
 
 def three_valued(s, key: str) -> dict:
@@ -138,7 +160,9 @@ def render_index(res: dict, policy: str, documents: list[str] | None = None) -> 
         for c in res["conflicts"]:
             out.append(f"  {c['id']}: {c['text']}")
     if res.get("stale"):
-        out.append("\nINVALIDATED BY A SOURCE CHANGE: " + ", ".join(x.get("key", "") for x in res["stale"]))
+        out.append("\nINVALIDATED BY A SOURCE CHANGE: " + ", ".join(
+            x.get("key", "") + (f" ({x['id']} superseded_by {', '.join(ids)})" if (ids := superseded_by(x)) else f" ({x['id']} not superseded)")
+            for x in res["stale"]))
     if res.get("lapsed"):
         out.append(f"\nREVIEW LAPSED as of {res['as_of']}: " + ", ".join(x["key"] for x in res["lapsed"]))
     if documents:
@@ -176,7 +200,8 @@ def render_bundle(res: dict, policy: str, verbatim: dict[str, str] | None = None
         for x in res["stale"]:
             succ = ", ".join(f"{t['id']} value={t['value']!r} status={t['status']}" for t in x["successors"] if t["id"]) or "none"
             vers = ", ".join(f"{v['id']} valid_until={v['valid_until']}" for v in x["verifications"] if v["id"]) or "none"
-            out.append(f"  [{x['id']}] key={x['key']} old value={x['value']!r} invalidated_by={x['invalidated_by']}; verifications: {vers}; successor: {succ}")
+            sup = ", ".join(superseded_by(x)) or "none: it still blocks its key"
+            out.append(f"  [{x['id']}] key={x['key']} old value={x['value']!r} invalidated_by={x['invalidated_by']}; verifications: {vers}; successor: {succ}; superseded_by: {sup}")
     if res.get("lapsed"):
         out.append(f"\nREVIEW LAPSED as of {res['as_of']} (decision-0005: a review falls due after its key's review months; each reads validated until a new review):")
         for x in res["lapsed"]:
