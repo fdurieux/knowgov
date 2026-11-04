@@ -5,10 +5,11 @@ one; an instance's checkout before and after its update) and lists every node th
 or retired (or left the register) and every link withdrawn (approved before; not approved now, or
 gone), each with its reason: the register's decision record for the change. ``resting(change,
 register_map)`` lands them on the subject's keys: for a node, the map rows the register's own walk
-lands (``register_impact``: the dependants walk with the descent by ``parent``, decision 0014, the
-start never counted, decision 0016, on the previous register, where what rested on the node still
-stood; a row naming only a withdrawn descendant lands too, flagged, as ``register_impact`` lands it,
-task-0120); for a link, the rows that name both its ends and the rows the dependants walk from either end
+lands (the dependants walk with the descent by ``parent``, decision 0014, the start never counted,
+decision 0016, on the previous register, where what rested on the node still stood; a row naming only
+a withdrawn descendant lands too, flagged, as ``register_impact`` lands it, task-0120; a descendant
+the new register re-parented away from the node, in any state, is skipped with its subtree: it was
+moved, not withdrawn, the maintainer's choice of 2026-11-04); for a link, the rows that name both its ends and the rows the dependants walk from either end
 lands only through it. ``apply(store, landed)`` marks the live statements on those keys stale
 (``invalidated_by``: the reason) and the derived outputs that used them suspect, through the store
 port; the gate then reports them as it reports a source change (S6). A register update with no state
@@ -112,9 +113,33 @@ def _lost(T, reg: dict, start: str, link: dict) -> list[str]:
     return sorted(walk(reg) - walk(without))
 
 
-def resting(change: dict, register_map: dict, previous: Path) -> list[dict]:
+def descent(T, reg: dict, now: dict, node: str) -> dict:
+    """The dependants walk from a withdrawn ``node`` with the descent by ``parent`` (decision 0014) on
+    the previous register ``reg``, less what the update moved (the maintainer, 2026-11-04): a
+    descendant the new register ``now`` no longer places below ``node``, in any state, is skipped with
+    its subtree, since it was moved, not withdrawn; one still below it is descended as
+    ``impact.walk_children`` does (approved: walked; any other: withdrawn, not walked from). The start
+    and every descendant are never counted reached (decision 0016)."""
+    imp = T["impact"]
+    rows = getattr(imp, "WALKS", {}).get(WALK)
+    walk = (lambda start: imp.walk(reg, start)) if rows is None else (lambda start: imp.walk(reg, start, rows))  # noqa: E731
+    desc = imp.descendants(reg, node)
+    still = set(imp.descendants(now, node))
+    moved = [x for x in desc if x not in still]
+    below_moved = {y for x in moved for y in imp.descendants(reg, x)}
+    kept = [x for x in desc if x in still and x not in below_moved]
+    walked = [x for x in kept if reg["nodes"][x].get("state") == "approved"]
+    edges = [e for start in [node, *walked] for e in walk(start)]
+    return {"moved": sorted(set(moved) | below_moved), "walked": walked,
+            "withdrawn": [x for x in kept if x not in walked],
+            "reached": sorted(imp.reached(edges) - {node, *desc})}
+
+
+def resting(change: dict, register_map: dict, previous: Path, current: Path) -> list[dict]:
     """The subject's keys resting on what the change withdrew: one entry per key, with its owner, the
-    causes (the node or link, how it landed, the nodes it came through) and the reasons."""
+    causes (the node or link, how it landed, the nodes it came through) and the reasons. ``current``
+    is the register after the update: a descendant it moved away from a withdrawn node is skipped
+    (``descent``)."""
     previous = Path(previous).resolve()
     by_key: dict[str, dict] = {}
 
@@ -122,16 +147,15 @@ def resting(change: dict, register_map: dict, previous: Path) -> list[dict]:
         k = by_key.setdefault(row["key"], {"key": row["key"], "owner": row.get("owner"), "causes": []})
         k["causes"].append({**cause, "via": row["via"]})
 
+    T = ri.load_tools(previous)
+    reg = T["register"].load_register(previous)
+    now = ri.load_tools(Path(current).resolve())["register"].load_register(Path(current).resolve()) if change["nodes"] else None
     for n in change["nodes"]:
-        w = ri.walk(n["id"], WALK, root=previous, children=True)
-        walked = [d["id"] for d in w["children"] if d.get("walked")]
-        withdrawn = [d["id"] for d in w["children"] if d.get("withdrawn")]
-        for row in ri.landed_rows(register_map, n["id"], w["reached_ids"], walked, withdrawn):
-            land(row, {"node": n["id"], "walk": WALK, "children": True, "reason": n["reason"],
+        d = descent(T, reg, now, n["id"])
+        for row in ri.landed_rows(register_map, n["id"], d["reached"], d["walked"], d["withdrawn"]):
+            land(row, {"node": n["id"], "walk": WALK, "children": True, "reason": n["reason"], "moved": d["moved"],
                        **({"withdrawn": True} if row.get("withdrawn") else {})})
     if change["links"]:
-        T = ri.load_tools(previous)
-        reg = T["register"].load_register(previous)
         for ln in change["links"]:
             ends = [ln["source"], ln["target"]]
             for row in register_map.get("row", []):
