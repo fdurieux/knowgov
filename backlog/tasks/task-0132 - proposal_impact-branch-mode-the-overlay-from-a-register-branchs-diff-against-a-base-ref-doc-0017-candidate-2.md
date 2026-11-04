@@ -3,9 +3,11 @@ id: TASK-0132
 title: >-
   proposal_impact branch mode: the overlay from a register branch's diff against
   a base ref (doc-0017 candidate 2)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-04T20:25:00Z'
+updated_date: '2026-11-04T20:48:00Z'
 labels:
   - register
   - proposal
