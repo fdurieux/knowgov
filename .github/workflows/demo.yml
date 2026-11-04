@@ -152,6 +152,11 @@ jobs:
       - name: A person's statement against the documents' (task-0038) on the Neo4j store, on S2 a contradiction raises a conflict, an agreement corroborates
         run: docker compose exec -T app python tools/check_capture_pairing.py runs/pairing
 
+      - name: The store survives a round trip (task-0070), Neo4j to Turtle to rdflib and back to Neo4j, every scenario of both subjects, the same gate reports and three-valued answers
+        run: |
+          docker compose exec -T app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j
+          docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j
+
       - name: A register node to the statements its cited anchor names (task-0046), on Neo4j, S6 with the S1 code as derived, equal to the rdflib port
         run: |
           docker compose exec -T app sh -c 'rm -rf runs/anchor && mkdir -p runs/anchor/S1 && cp subjects/cargo_quote/vendor/kg_experiment/results/S1/run1_G.py runs/anchor/S1/ && python harness/run.py --deterministic --scenarios S6 --out runs/anchor > /dev/null'

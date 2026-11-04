@@ -190,3 +190,7 @@ jobs:
           KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_mcp_server.py
       - name: A person's statement against the documents' (task-0038), on S2 a contradiction raises a conflict, an agreement corroborates and raises nothing
         run: KG_STORE=rdflib python tools/check_capture_pairing.py runs/pairing
+      - name: The store survives a round trip (task-0070), every scenario of both subjects through Turtle into a fresh store, the same gate reports and three-valued answers
+        run: |
+          KG_STORE=rdflib python tools/check_round_trip.py --chain rdflib,rdflib
+          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_round_trip.py --chain rdflib,rdflib
