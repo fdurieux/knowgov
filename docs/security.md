@@ -116,13 +116,17 @@ pre-load check never call a model. A pilot can run with no key at all.
 
 **How the pins are kept current.** Dependabot (`.github/dependabot.yml`) proposes updates weekly
 for pip, npm, Docker, Docker Compose and GitHub Actions (`tests/test_pins.py::test_dependabot_watches_the_four_ecosystems_weekly`).
-Each proposal is a pull request, merged as a pin change under the tests above, on the
-maintainer's decision. A proposal moves one file: the watch-list, the Dockerfile, the compose file
-or `.github/workflows/`. Where the same pin is in other files, the tests stay red until a commit
-moves it there too (the CI template's actions, the Dockerfile's and `harness.yml`'s Python pins,
-the template's and `harness.yml`'s linters). The image's Python pins are the versions the proof of
-concept's record names, so moving one is a change to the record's environment, and the comparator
-in the `stack` job must still pass. The compose file's app image is a release: each release moves
+The pins are of two kinds. **Tool pins** (the actions, the pre-load linters, the images and
+pyyaml) move through these proposals: each is a pull request, merged as a pin change under the
+tests above on a green matrix. A proposal moves one file: the watch-list, the Dockerfile, the
+compose file or `.github/workflows/`. Where the same pin is in other files, the tests stay red
+until a commit moves it there too (the CI template's actions, the template's and `harness.yml`'s
+linters). **Record pins** (pumllint, neo4j, rdflib, pyshacl, openai, and the J-F oracle's pandas,
+numpy, requests, pyarrow, pytest, pytest-bdd) are the versions the scored record and the J-F kit's
+oracle name. They are frozen on purpose: Dependabot ignores them
+(`tests/test_pins.py::test_dependabot_ignores_the_record_pins`), they are watched by hand, and one
+moves only by a deliberate re-record, the comparator in the `stack` job and the oracle's 258 of 258
+still passing. A routine bump can break the record (pytest 9.2.0 breaks pytest-bdd 9.0.x). The compose file's app image is a release: each release moves
 it, and a merge to main does not. The vendored copies move only through `tools/vendor_register.py`,
 `tools/vendor_legible_model.py` and `tools/vendor_subject.py`, at an upstream tag. Each release
 (decision-0003) lists what moved in `CHANGELOG.md`.

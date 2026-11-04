@@ -113,3 +113,17 @@ def test_dependabot_watches_the_four_ecosystems_weekly():
     assert found["pip"][0] == "/demo" and (ROOT / "demo" / "requirements.txt").is_file()
     assert found["npm"][0] == "/instance/ci" and (ROOT / "instance" / "ci" / "package.json").is_file()
     assert found["docker"][0] == "/demo" and found["docker-compose"][0] == "/demo" and found["github-actions"][0] == "/"
+
+
+RECORD_PINS = {"pumllint", "neo4j", "rdflib", "pyshacl", "openai",                     # the scored record
+               "pandas", "numpy", "requests", "pyarrow", "pytest", "pytest-bdd"}       # the J-F kit's oracle
+
+
+def test_dependabot_ignores_the_record_pins():
+    """Record pins are frozen with the record and move only by a re-record, never by a routine bump;
+    every other watched pin is a tool pin and stays proposed."""
+    text = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+    ignored = set(re.findall(r"- dependency-name: (\S+)", text))
+    assert ignored == RECORD_PINS, ignored ^ RECORD_PINS
+    listed = set(_pip_pins((ROOT / "demo" / "requirements.txt").read_text(encoding="utf-8")))
+    assert RECORD_PINS <= listed and listed - RECORD_PINS == {"pyyaml"}, listed
