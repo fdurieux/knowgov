@@ -159,7 +159,15 @@ The walk follows approved links only (the register's
 decision 0007): an edge whose link is not approved, or whose far node is
 deprecated or retired, is listed as withdrawn and not followed, so only
 what lies behind approved links counts as reached. It does not climb a
-node's parent, and it says so when it reaches no product. A link runs the checker at today's date instead of the pinned
+node's parent, and it says so when it reaches no product. Beside each
+reached node it names the owning unit, the unit the node's owner field
+names (an approved owns link naming another unit is said beside it; the
+walk never follows one), and a *Who to inform* list groups what was
+reached by unit. Below the walk, when the store holds the register's
+projection and a loaded scenario, it lists the assertions the typed node's
+approved links cite, at the grain of the cited anchor, across every
+version, with the derived code that used each (the port's
+`register_node_statements`); otherwise it says what the store lacks. A link runs the checker at today's date instead of the pinned
 one, so you can see an exception expire. Clicking a scenario brings the
 report back. Nothing on the page is written back to the register.
 

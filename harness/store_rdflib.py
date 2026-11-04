@@ -217,6 +217,14 @@ class RdflibStore(Store):
         self.g = Graph()
         self._nodes, self._out, self._in, self._seq = {}, {}, {}, 0
 
+    def export_turtle(self) -> str:
+        return self.g.serialize(format="turtle")
+
+    def import_turtle(self, text: str) -> None:
+        self.wipe()
+        self.g.parse(data=text, format="turtle")
+        self._reindex()
+
     def apply_constraints(self) -> list[dict]:
         return [{"type": kind, "cypher": name, "accepted": ok, "message": msg} for kind, name, ok, msg in CONSTRAINTS]
 
@@ -719,7 +727,7 @@ class RdflibStore(Store):
 
     def extraction_activities(self) -> list[str]:
         acts = [a for a in self.nodes("Activity") if self.nid(a).startswith("act:extract:")]
-        return [self.nid(a) for a in sorted(acts, key=lambda a: (self.prop(a, "at") or "", self.prop(a, "_seq") or 0))]
+        return [self.nid(a) for a in sorted(acts, key=lambda a: (self.prop(a, "at") or "", self.nid(a)))]   # as the Neo4j adapter orders them
 
     def gaps_with_concerns(self) -> list[dict]:
         out = []

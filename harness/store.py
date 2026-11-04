@@ -256,6 +256,22 @@ class Store:
         sorted lists anchors, links, versions, fragments, derived ("<id>" or "<id> (suspect)")."""
         raise NotImplementedError
 
+    # ---- portability: the graph as Turtle (task-0070)
+    def export_turtle(self) -> str:
+        """Everything this instance holds, as Turtle in the interchange vocabulary, the rdflib
+        adapter's own form: a node is ``urn:kg:n:<quoted id>`` with ``rdf:type urn:kg:label:<L>``
+        per label and ``urn:kg:p:<k>`` per property (a list as a ``urn:kg:json`` literal); an edge
+        is a node ``urn:kg:e:<n>`` of type ``urn:kg:label:_Edge`` with ``_from``, ``_to``, ``_type``
+        and its properties; ``_seq`` keeps store order. A register node, which carries ``reg_id``
+        and no ``id``, is named ``reg:<label>:<reg_id>`` as the rdflib adapter names it. What one
+        adapter exports another imports and answers the same (tools/check_round_trip.py)."""
+        raise NotImplementedError
+
+    def import_turtle(self, text: str) -> None:
+        """Replace what this instance holds with the graph ``text`` holds, in the form
+        ``export_turtle`` writes. The store's constraints stay as ``apply_constraints`` left them."""
+        raise NotImplementedError
+
     # ---- what the page shows about the store
     def describe(self) -> dict:
         """uri, browser URL and the like: what the page's store card says."""

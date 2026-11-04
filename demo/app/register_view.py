@@ -157,7 +157,8 @@ def impact(start: str) -> dict | None:
     C = lambda *s: views._reg(reg_sentences, "controlled", *s)  # noqa: E731
     D = lambda *s: views._reg(reg_sentences, "data", *s)  # noqa: E731
     names = {nid: n.get("name", "") for nid, n in reg["nodes"].items()}
-    rows = [[e["from"], e["rel"], e["to"], names.get(e["to"], ""), reg["nodes"].get(e["to"], {}).get("state", ""), e["state"],
+    owners = {nid: owning_unit(reg, nid) for nid in {start} | {e["to"] for e in edges}}
+    rows = [[e["from"], e["rel"], e["to"], names.get(e["to"], ""), unit_text(owners[e["to"]]), reg["nodes"].get(e["to"], {}).get("state", ""), e["state"],
              "yes" if e["live"] else "no, withdrawn", e["owner"], ", ".join(e["evidence"])] for e in edges]
     reached = sorted(T["impact"].reached(edges))
     withdrawn = sum(1 for e in edges if not e["live"])
@@ -180,12 +181,42 @@ def impact(start: str) -> dict | None:
         summary += " " + C("No product is reached: no approved link leads from a reached node to a product.")
     if not edges:
         summary += " " + C("No link starts at this node in a direction the walk follows.")
-    return {"from": start, "edges": edges, "rows": rows, "reached": {"products": products, "journeys": journeys, "processes": processes, "all": reached},
+    # who to inform (task-0047): the unit that owns each reached node, by the node's owner field; the
+    # owns links are shown, not walked, and one that names another unit is said beside it
+    units: dict[str, list[str]] = {}
+    for x in reached:
+        units.setdefault(owners[x]["unit"] or "", []).append(x)
+    inform = [f"{unit_text(owners[xs[0]]) if u else 'no owner field'}: {', '.join(xs)}" for u, xs in sorted(units.items())]
+    inform_text = C("The owning unit of a node is the unit its owner field names.",
+                    "An approved owns link to the node names a unit too; the walk does not follow it.",
+                    "Inform each unit of the change to its reached nodes.")
+    if any(o["owns"] and o["owns"] != [o["unit"]] for o in owners.values()):
+        inform_text += " " + C("An owns link that names another unit is shown beside the owning unit.")
+    return {"from": start, "edges": edges, "rows": rows, "owners": owners,
+            "reached": {"products": products, "journeys": journeys, "processes": processes, "all": reached},
             "panel": {"title": C(f"Impact of retiring {start}"), "intro": intro,
                       "sections": [{"heading": C("Edges walked"), "text": summary,
-                                    "table": {"cols": ["from", "relationship", "to", "name", "node state", "link state", "followed", "owner", "evidence"], "rows": rows}},
-                                   {"heading": C("Reached"), "list": [f"{x}: {names.get(x, '')}" for x in reached] or ["nothing"]}]},
+                                    "table": {"cols": ["from", "relationship", "to", "name", "owning unit", "node state", "link state", "followed", "owner", "evidence"], "rows": rows}},
+                                   {"heading": C("Reached"), "list": [f"{x}: {names.get(x, '')}, owned by {unit_text(owners[x])}" for x in reached] or ["nothing"]},
+                                   {"heading": C("Who to inform"), "text": inform_text, "list": inform or ["nobody: nothing is reached"]}]},
             "text_registry": reg_sentences}
+
+
+def owning_unit(reg: dict, nid: str) -> dict:
+    """The unit that owns register node ``nid`` (task-0047): ``unit``, the node's owner field; ``name``,
+    that unit's name in the register; ``owns``, the sources of the approved owns links to the node,
+    sorted. The impact walk's saved Cypher returns the same three (IMPACT_ROWS: unit, unit name, owns links)."""
+    unit = (reg["nodes"].get(nid) or {}).get("owner", "") or ""
+    owns = sorted({ln["source"] for ln in reg["relationships"].get("owns", {}).get("links", [])
+                   if ln.get("target") == nid and ln.get("state") == "approved"})
+    return {"unit": unit, "name": (reg["nodes"].get(unit) or {}).get("name", ""), "owns": owns}
+
+
+def unit_text(o: dict) -> str:
+    """The owning unit as the panel shows it: its id and name, and any approved owns link naming another unit."""
+    text = f"{o['unit']} {o['name']}".strip() if o["unit"] else "none"
+    other = [u for u in o["owns"] if u != o["unit"]]
+    return text + (f" (owns link: {', '.join(other)})" if other else "")
 
 
 def with_cypher(walk: dict, cypher: dict, needs_text: str, browser: dict | None = None, guide: dict | None = None) -> dict:
@@ -208,6 +239,35 @@ def with_cypher(walk: dict, cypher: dict, needs_text: str, browser: dict | None 
         if browser:
             item["browser"] = browser[key]
     walk["panel"]["sections"].append({"heading": C("The walk in Cypher"), "text": text, "needs": "register", "needs_text": needs_text, "code": code})
+    return walk
+
+
+STATEMENT_COLS = ["assertion", "status", "document", "anchors", "links", "versions", "fragments", "derived"]
+
+
+def with_statements(walk: dict, read: dict, needs_text: str) -> dict:
+    """The impact panel with the assertions the start's cited anchors name beside the walk (task-0047):
+    the port's register_node_statements (task-0046) at the grain of the cited anchor, every version,
+    with the derived outputs that used each. ``read`` is the server's: rows, or what is missing."""
+    reg_sentences = walk["text_registry"]
+    C = lambda *s: views._reg(reg_sentences, "controlled", *s)  # noqa: E731
+    rows = read.get("rows")
+    walk["statements"] = {"rows": rows, "missing": read.get("missing"), "needs": "register+scenario", "needs_text": needs_text}
+    text = C(f"These assertions are those the approved links of {walk['from']} cite, at the grain of the cited anchor.",
+             "An anchor such as #DT-P names only the fragments under it; a citation without one names the whole document.",
+             "Every version is read, so an invalidated assertion still shows the derived code that used it.")
+    missing = {"driver": C("The store driver is not installed here, so no assertion is shown."),
+               "store": C("The store is not reachable, so no assertion is shown."),
+               "register": C("The register is not projected in the store, so no assertion is shown."),
+               "scenario": C("No scenario is loaded in the store, so no assertion is shown.")}
+    sec = {"heading": C("Assertions its cited anchors name"), "needs": "register+scenario", "needs_text": needs_text}
+    if rows is None:
+        sec["text"] = text + " " + missing.get(read.get("missing"), missing["store"])
+    else:
+        sec["text"] = text + " " + C(f"{views._plural(len(rows), 'assertion')} found in the loaded scenario.")
+        sec["table"] = {"cols": STATEMENT_COLS, "rows": [[r["statement"], r["status"], r["document"]] + [", ".join(r[k]) for k in
+                                                         ("anchors", "links", "versions", "fragments", "derived")] for r in rows]}
+    walk["panel"]["sections"].append(sec)
     return walk
 
 

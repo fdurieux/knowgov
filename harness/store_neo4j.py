@@ -44,7 +44,9 @@ CONSTRAINTS = [
 # walk's own frontier is), and from each of them every step its kind allows is one row. The step
 # predicate is the same text in both places. IMPACT_ROWS is the saved query, one row per edge as the
 # panel's table, with whether the walk followed it; IMPACT_PATHS returns the edges as paths, which
-# the Browser draws as a graph. Equivalence with walk() is tested over the projection's rows.
+# the Browser draws as a graph. Equivalence with walk() is tested over the projection's rows. Each row
+# also names the far node's owning unit (task-0047): its owner field, that unit's name, and the sources
+# of the approved owns links to it (the owner field's own REG_OWNS edge carries no state), as the panel.
 IMPACT_START = "APP-0002"
 _LIVE = "NOT {0}.state IN ['deprecated','retired']"
 _OK = "{0}.state = 'approved'"
@@ -82,9 +84,12 @@ IMPACT_ROWS = (
     + IMPACT_WALK +
     "WITH nodes(p)[0] AS f, relationships(p)[0] AS r, nodes(p)[1] AS t\n"
     "OPTIONAL MATCH (l:RegLink {reg_id: r.reg_id})   // the evidence sits on the link node\n"
+    "OPTIONAL MATCH (u:RegNode {reg_id: t.owner})   // the owning unit: the far node's owner field, shown, not walked\n"
     "RETURN f.reg_id AS `from`,\n"
     "       toLower(replace(type(r), 'REG_', '')) + CASE WHEN startNode(r) = f THEN '' ELSE ' (inverse)' END AS relationship,\n"
-    "       t.reg_id AS `to`, t.name AS name, t.state AS `node state`, r.state AS `link state`,\n"
+    "       t.reg_id AS `to`, t.name AS name, t.owner AS unit, u.name AS `unit name`,\n"
+    "       [(o:RegNode)-[w:REG_OWNS]->(t) WHERE w.state = 'approved' | o.reg_id] AS `owns links`,\n"
+    "       t.state AS `node state`, r.state AS `link state`,\n"
     "       CASE WHEN r.state = 'approved' AND NOT t.state IN ['deprecated','retired'] THEN 'yes' ELSE 'no, withdrawn' END AS followed,\n"
     "       r.owner AS owner, l.evidence AS evidence, r.reg_id AS link\n"
     "ORDER BY link, `from`")
@@ -253,6 +258,56 @@ class Neo4jStore(Store):
     # ---- lifecycle
     def wipe(self) -> None:
         self.run("MATCH (n) DETACH DELETE n").consume()
+
+    # ---- portability (task-0070): the graph through the rdflib adapter's property-graph layer,
+    # so the Turtle is that adapter's form whichever store wrote it
+    def export_turtle(self) -> str:
+        from store_rdflib import RdflibStore
+        g = RdflibStore(path="")
+        made = {}
+        for r in self.run("MATCH (n) RETURN elementId(n) AS el, labels(n) AS labels, properties(n) AS props"):
+            props, labels = dict(r["props"]), list(r["labels"])
+            nid = props.get("id")
+            if nid is None and "reg_id" in props:   # a register node: named as the rdflib adapter names it
+                nid = f"reg:{next((x for x in labels if x != 'Register'), 'Register')}:{props['reg_id']}"
+            made[r["el"]] = g.create_node(nid if nid is not None else f"el:{r['el']}", labels, props)
+        for r in self.run("MATCH (a)-[e]->(b) RETURN elementId(a) AS a, type(e) AS type, elementId(b) AS b, properties(e) AS props"):
+            g.create_edge(made[r["a"]], r["type"], made[r["b"]], dict(r["props"]) or None)
+        return g.export_turtle()
+
+    def import_turtle(self, text: str) -> None:
+        from store_rdflib import RdflibStore
+        g = RdflibStore(path="")
+        g.import_turtle(text)
+        q = lambda name: "`" + name.replace("`", "``") + "`"  # noqa: E731
+        self.wipe()
+        self.run("CREATE INDEX kg_import IF NOT EXISTS FOR (n:_KgImport) ON (n._kg)").consume()
+        self.run("CALL db.awaitIndexes()").consume()
+        runs: list[tuple[tuple, list]] = []   # consecutive nodes with one label set, in store order
+        for nid, n in g._nodes.items():
+            labels = tuple(g.labels(n))
+            props = g.props(n)
+            if "Register" in labels and "reg_id" in props:
+                props.pop("id", None)   # the Neo4j register carries reg_id only (project_register)
+            if not runs or runs[-1][0] != labels:
+                runs.append((labels, []))
+            runs[-1][1].append({"k": nid, "props": props})
+        for labels, rows in runs:
+            self.run(f"UNWIND $rows AS r CREATE (n:_KgImport{''.join(':' + q(x) for x in labels)}) SET n = r.props, n._kg = r.k",
+                     rows=rows).consume()
+        edges: list[tuple[str, list]] = []
+        key = {n: nid for nid, n in g._nodes.items()}
+        for n in g._nodes.values():
+            for e, dst in g.edges_out(n):
+                t = g._edge(e)[1]
+                if not edges or edges[-1][0] != t:
+                    edges.append((t, []))
+                edges[-1][1].append({"a": key[n], "b": key[dst], "props": g.props(e)})
+        for t, rows in edges:
+            self.run(f"UNWIND $rows AS r MATCH (a:_KgImport {{_kg:r.a}}), (b:_KgImport {{_kg:r.b}}) CREATE (a)-[e:{q(t)}]->(b) SET e = r.props",
+                     rows=rows).consume()
+        self.run("MATCH (n:_KgImport) REMOVE n:_KgImport, n._kg").consume()
+        self.run("DROP INDEX kg_import IF EXISTS").consume()
 
     def apply_constraints(self) -> list[dict]:
         out = []
@@ -625,7 +680,7 @@ class Neo4jStore(Store):
         return {"assertions_by_status": st, "gaps_by_kind": gaps, "contradicts": contradicts, "nodes": nodes, "relationships": rels}
 
     def extraction_activities(self) -> list[str]:
-        return [r["id"] for r in self.run("MATCH (a:Activity) WHERE a.id STARTS WITH 'act:extract:' RETURN a.id AS id ORDER BY a.at")]
+        return [r["id"] for r in self.run("MATCH (a:Activity) WHERE a.id STARTS WITH 'act:extract:' RETURN a.id AS id ORDER BY a.at, a.id")]   # two versions extracted in one second: the id decides, not store order (task-0070)
 
     def gaps_with_concerns(self) -> list[dict]:
         out = []
