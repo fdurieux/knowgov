@@ -4,7 +4,7 @@ title: >-
   Who attests an authored document's statements: a load verifies and approves by
   construction only what the subject declares
 date: '2026-11-04T22:47:00Z'
-status: proposed
+status: accepted
 ---
 ## Context
 
@@ -36,8 +36,9 @@ from lowering a validated key.
 
 ## Decision
 
-**Proposed; the maintainer decides.** The question is who may attest that an authored document's
-statements were reviewed and approved, and where that attestation is recorded.
+**(a), accepted by the maintainer on 2026-11-04** ("approve (a)", in the coordinating session's chat,
+relayed by it). The question was who may attest that an authored document's statements were
+reviewed and approved, and where that attestation is recorded.
 
 Options:
 
@@ -55,10 +56,10 @@ Options:
   verdict is unchecked unless its digest matches (task-0064).
 - **(d) No change; document the default** (task-0134 does this while the decision is open).
 
-**Recommendation: (a) now, and (c) as a follow-up decision once an instance exists (m-8).**
+**Accepted: (a).** (c) follows as its own decision, proposed at m-8. (b) and (d) are rejected.
 - (a) is the smallest change that stops "approved by nobody", and it moves no record.
-- (c) closes the remaining gap: today an attestation silently extends to a later edit, because the
-  next load verifies the new version's authored statements under the same declaration. In the public
+- (c) closes the remaining gap: an attestation silently extends to a later edit, because the next
+  load verifies the new version's authored statements under the same declaration. In the public
   subjects a digest test holds the vendored bytes, so the gap is an instance's, not the record's.
 - (b) is rejected as the default for documents. Per-statement rulings over a kit's hundreds of
   statements (J-F: 163 requirements) would make the review file a rubber stamp. It stays the route for
@@ -67,7 +68,6 @@ Options:
 
 ## Consequences
 
-If (a) is accepted:
 - **What moves.** `cargo_quote` and `jef_data_load` declare both tables, so their records, the
   comparator and the scored record do not move. `subjects/minimal/` has no artefacts, and the example
   instance is built from CargoQuote. A new or instance subject with no declaration reads its authored
@@ -76,10 +76,11 @@ If (a) is accepted:
   request.
 - **Contract.** The gate's verdict changes for an undeclared subject: a contract change, a minor version
   while 0.x (decision-0003), with a line under `## Unreleased`'s contract changes.
-- **The build task** (named, not created): `load_verifications` verifies authored statements and
-  approves only on a declaration; a test on doc-0018's probe subject (`REQ-01|text` `proposed`, not
-  `approved`); every fixture that relied on the default declares it. task-0135's subject check reports
-  a subject whose mappers emit `authored` statements and that declares no `authored` as an info finding
-  naming this decision. task-0134's README lines move from "until decision-0009" to the rule.
-- **Follow-ups.** doc-0018 candidate 5, the attestation hook, guards `[verification]` and
-  `[provenance]` against an assistant's write. (c) waits for its own decision.
+- **The build: task-0136.** `load_verifications` verifies authored statements and approves only on
+  a declaration; a test on doc-0018's probe subject (`REQ-01|text` `proposed`, not `approved`); every
+  fixture that relied on the default declares it. task-0135's subject check reports, as a note naming
+  this decision, a subject whose mappers emit `authored` statements and that declares no `authored`.
+  task-0134's README lines move from today's default to the rule.
+- **Follow-ups.** (c), an attestation bound to each attested artefact's digest, is a decision to
+  propose at m-8, once an instance exists; not created here. doc-0018 candidate 5, the attestation
+  hook, guards `[verification]` and `[provenance]` against an assistant's write.
