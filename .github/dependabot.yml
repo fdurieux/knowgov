@@ -2,14 +2,31 @@
 # pull requests; each is merged as a pin change under the tests that hold the pins
 # (tests/test_pins.py, tests/test_demo.py, tests/test_preload.py), so a proposal that moves a pin
 # in one place and not in the others stays red until a commit moves the rest.
-# pip and npm read watch-lists that install nothing (demo/requirements.txt, instance/ci/package.json):
-# the record's Python pins move only on the maintainer's decision, with the comparator green.
+# pip and npm read watch-lists that install nothing (demo/requirements.txt, instance/ci/package.json).
+# Record pins and tool pins: the actions, the linters and the images are tool pins and move here;
+# the record pins (below, ignored) do not.
 version: 2
 updates:
   - package-ecosystem: pip
     directory: /demo
     schedule:
       interval: weekly
+    # Record pins: the versions the scored record names (pumllint's evaluation §12) and the J-F kit's
+    # oracle (contracts/pins.md, 258 of 258). Frozen with the record and changed only by a re-record,
+    # never by a routine bump (pytest 9.2.0 breaks pytest-bdd 9.0.x: pumllint #198); watched by hand.
+    # tests/test_pins.py holds this list to the record's pins.
+    ignore:
+      - dependency-name: pumllint
+      - dependency-name: neo4j
+      - dependency-name: rdflib
+      - dependency-name: pyshacl
+      - dependency-name: openai
+      - dependency-name: pandas
+      - dependency-name: numpy
+      - dependency-name: requests
+      - dependency-name: pyarrow
+      - dependency-name: pytest
+      - dependency-name: pytest-bdd
   - package-ecosystem: npm
     directory: /instance/ci
     schedule:
