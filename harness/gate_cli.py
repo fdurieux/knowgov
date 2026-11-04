@@ -128,7 +128,13 @@ def findings(res: dict, block_levels: set[str]) -> list[dict]:
         out.append(_finding("major", "lapsed", f"{x['id']} on {x['key']} was {x['from']}; its review was current until {x['valid_until']} "
                             f"and has lapsed as of {res.get('as_of')}: it reads validated until a new review (decision-0005)",
                             key=x["key"], level="validated", ref=x["id"], related=x["verifications"]))
-    kinds = ["task", "key", "suspect_derived", "stale", "lapsed"]
+    for d in res.get("preload") or []:   # task-0064: form unchecked, or findings, on a document behind the keys
+        what = {"unchecked": "its form was not checked before the load", "findings": "the pre-load check found findings in it",
+                "held": "the pre-load check holds findings in it against a baseline"}[d["state"]]
+        out.append(_finding("info", "preload", f"{d['artefact']} {d['version']}, behind {len(d['keys'])} required key(s): {what}"
+                            + (f" ({d['tool']})" if d.get("tool") else "") + (f"; {d['why']}" if d.get("why") else ""),
+                            ref=f"{d['artefact']}@{d['version']}", related=d["keys"]))
+    kinds = ["task", "key", "suspect_derived", "stale", "lapsed", "preload"]
     return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), kinds.index(f["kind"]), f["key"] or "", f["ref"] or ""))
 
 

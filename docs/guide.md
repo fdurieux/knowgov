@@ -264,9 +264,18 @@ clean-up, is your commit, reviewed like any other. pumllint's own ratchet (`puml
 --baseline`) is not used for this: it ratchets maturity levels, not lint findings, and records its
 file itself when it is missing.
 
+**The verdict travels to the store.** Keep the merged report as `preload-report.json` at the
+root of your instance (or point `KG_PRELOAD_REPORT` at it). Each load then records, on every
+document version it reads, what the report said about those exact bytes: the tool, its version,
+the state and the digest judged. The load never re-runs a linter. A version the report does not
+cover, or whose bytes differ from the ones judged, is recorded as *unchecked*, never as clean. The
+page's ingest panel lists the verdict per document, and the gate (`harness/gate_cli.py`, its JSON
+and its bundle) lists the documents behind the task's keys whose form was unchecked or had
+findings, at `info`: the exit code moves only if you ask with `--fail-on info`. With no report,
+nothing is recorded and every output reads as before.
+
 Not built yet: the other kinds' tools (Vale or markdownlint for specification prose, gplint for
-Gherkin, bpmnlint, dmnlint), which your instance adds as steps of its own; and recording each
-document's verdict on its `Version` node in the store.
+Gherkin, bpmnlint, dmnlint), which your instance adds as steps of its own.
 
 ### Why this is not the knowgov gate
 
