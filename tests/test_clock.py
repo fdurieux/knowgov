@@ -89,7 +89,9 @@ def test_the_record_pin_is_the_subjects_record_date():
 
 
 def test_every_check_tool_that_reads_the_date_pins_it():
-    tools = sorted((ROOT / "tools").glob("check_*.py")) + sorted((ROOT / "demo" / "tools").glob("check_*.py"))
+    # every tool, not only the check_* ones: the lighthouse rehearsal runs the gate too (task-0084)
+    tools = [p for p in sorted((ROOT / "tools").glob("*.py")) + sorted((ROOT / "demo" / "tools").glob("*.py"))
+             if not p.name.startswith(("vendor_", "example_instance"))]
     unpinned, popped = [], []
     for p in tools:
         text = p.read_text(encoding="utf-8")
@@ -100,7 +102,8 @@ def test_every_check_tool_that_reads_the_date_pins_it():
     assert not popped, f"drops a pinned day for the wall clock: {popped}"
     # a check that only reads the store in process (no load of reviews, no gate command) needs no pin;
     # name it here with why, so a new check is pinned by default
-    in_process = {"check_saved_queries.py", "check_impact_cypher.py", "check_instance.py"}
+    in_process = {"check_saved_queries.py", "check_impact_cypher.py", "check_instance.py",
+                  "preload_check.py"}   # the last names the gate in its prose and runs no harness command
     assert not [n for n in unpinned if n not in in_process], f"runs a command that reads the date without pinning it: {unpinned}"
 
 

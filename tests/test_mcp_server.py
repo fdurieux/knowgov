@@ -117,10 +117,10 @@ def test_initialize_negotiates_a_version_and_offers_tools_only():
     assert s.handle({"id": 5, "method": "ping"})["error"]["code"] == -32600
 
 
-def test_three_tools_every_one_marked_read_only():
+def test_four_tools_every_one_marked_read_only():
     s, _ = _server()
     tools = s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]
-    assert [t["name"] for t in tools] == ["store_status", "gate_verdict", "three_valued_answer"]
+    assert [t["name"] for t in tools] == ["store_status", "gate_verdict", "three_valued_answer", "evidence_bundle"]
     for t in tools:
         a = t["annotations"]
         assert a["readOnlyHint"] is True and a["destructiveHint"] is False and a["openWorldHint"] is False, t["name"]
@@ -203,6 +203,33 @@ def test_the_three_valued_answer_carries_each_statements_provenance():
     r = _call(s, "three_valued_answer", {"key": "QuoteAPI|never_said"})["result"]["structuredContent"]
     assert r["answer"] == "unknown" and r["statements"] == [] and "not a documented absence" in r["why"]
     assert _call(s, "three_valued_answer", {})["result"]["isError"]
+
+
+def test_the_evidence_bundle_is_the_text_the_governed_arm_reads():
+    """Task-0080: render_bundle over the gate's result, with the policy and the task's verbatim
+    documents from the scenario's kit, as harness/run.py's arm_runs builds it."""
+    import arms
+    from gate import render_bundle, resolve_spec
+    from kitio import kit_for, verbatim_documents
+    from subject import SUBJECT
+    first = SUBJECT.order[0]   # a scenario of whichever subject runs the suite: the kit is read
+    s, stub = _server(Stub(scenario=first))
+    got = _call(s, "evidence_bundle", {"scenario": first})["result"]
+    assert got["isError"] is False
+    b = got["structuredContent"]
+    res = resolve_spec(stub, "codegen", TASKS["codegen"], "record")
+    verbatim = verbatim_documents(kit_for(first, 1), "task_codegen")
+    assert b["bundle"] == render_bundle(res, arms.policy(), verbatim)
+    assert b["verdict"] == res["verdict"] == "BLOCKED" and b["as_of"] == res["as_of"] and b["version"] == "v1"
+    assert b["verbatim"] == sorted(verbatim)
+    assert b["assertion_ids"] == sorted({a["id"] for v in res["keys"].values() for a in v["assertions"]})
+    keys = TASKS["codegen"]["keys"][1:3]
+    sub = _call(s, "evidence_bundle", {"keys": keys, "verbatim": False})["result"]["structuredContent"]
+    assert sub["task"] == "keys" and sub["verbatim"] == [] and sub["verdict"] == "PROCEED"
+    assert sub["bundle"] == render_bundle(resolve_spec(stub, "keys", dict(TASKS["codegen"], keys=keys), "record"), arms.policy())
+    for bad in ({"keys": []}, {"task": "nope"}, {"verbatim": "yes"}, {"as_of": "soon"}, {"scenario": "not-held"}):
+        assert _call(s, "evidence_bundle", bad)["result"]["isError"] is True, bad
+    assert stub.writes == []
 
 
 def test_stdio_is_one_json_message_a_line():
