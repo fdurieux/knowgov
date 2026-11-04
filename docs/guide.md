@@ -700,8 +700,9 @@ your own instance the register is your checkout, mounted read-only, and none of 
 ## 12. Limits
 
 - The store holds one scenario at a time, and every run first empties it, the projection included.
-- The page has no login. Run it on your own network, and do not expose port 7474: it is a live
-  console behind one password.
+- The page's reports have no login. Run it on your own network, and do not expose port 7474: it is
+  a live console behind one password. Beyond your own machine, the page starts a run or projects
+  the register only for a viewer who has entered its token (`KG_PAGE_TOKEN`; demo README).
 - The walk starts only from applications, processes and journeys. For a capability or an
   information node, use the saved queries of section 8.
 - A module reaches its code only through whole documents, and a change to code reaches nothing.

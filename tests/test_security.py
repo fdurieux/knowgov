@@ -7,6 +7,7 @@ fails here until the document says so. Standard library only."""
 from __future__ import annotations
 
 import ast
+import json
 import re
 import sys
 from pathlib import Path
@@ -14,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DOC = ROOT / "docs" / "security.md"
 sys.path.insert(0, str(ROOT / "harness"))
+sys.path.insert(0, str(ROOT / "demo" / "app"))   # the page's server, for task-0096's guard
 
 from tests import test_pins  # noqa: E402  (task-0092: the pins the closed gap named)
 
@@ -174,7 +176,12 @@ def test_the_gaps_named_here_are_still_the_codes():
     server = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
     assert unbound == ("listen on every interface" in gaps)
     assert guarded == ("the stack refuses to start until `KG_NEO4J_PASSWORD` is set" in gaps)
-    assert ('ThreadingHTTPServer(("0.0.0.0"' in server) == ("The page has no login" in gaps)
+    # task-0096 closed the writes: every POST passes write_guard; the GETs still pass nothing
+    get_body = server.split("    def do_GET(self)", 1)[1].split("\n    def ", 1)[0]
+    post_body = server.split("    def do_POST(self)", 1)[1].split("\n    def ", 1)[0]
+    writes_guarded = "write_guard(self.headers)" in post_body
+    assert writes_guarded and "The page has no login" not in gaps and "Its writes are closed (task-0096)" in gaps
+    assert ("guard" not in get_body) == ("**The page's reads have no login.**" in gaps)
     assert ("kgpoc2026" in compose) == ("kgpoc2026" in gaps)
     # 2. no harness module checks the gives role
     checks_gives = any(re.search(r"[\"']gives[\"']", p.read_text(encoding="utf-8")) for p in (ROOT / "harness").glob("*.py"))
@@ -187,6 +194,110 @@ def test_the_gaps_named_here_are_still_the_codes():
     assert not by_tag and "pinned by tag only" not in gaps, by_tag
     # 3. excerpts are stored (held above): the gap stays named while create_fragment takes text
     assert "**The store holds excerpts.**" in gaps
+
+
+def _page(env: dict):
+    """The page's handler on an ephemeral loopback port, with ``env`` over the process's for the
+    duration; yields a function that sends a request and returns (status, json, headers)."""
+    import contextlib
+    import json
+    import os
+    import threading
+    import urllib.error
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+    import server
+
+    @contextlib.contextmanager
+    def ctx():
+        keep = {k: os.environ.get(k) for k in env}
+        os.environ.update({k: v for k, v in env.items() if v is not None})
+        for k, v in env.items():
+            if v is None:
+                os.environ.pop(k, None)
+        class Quiet(server.Handler):
+            def log_message(self, fmt, *args):
+                pass
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), Quiet)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+
+        def call(path, body=None, headers=None):
+            data = json.dumps(body).encode() if body is not None else None
+            req = urllib.request.Request(base + path, data=data, headers={"Content-Type": "application/json", **(headers or {})},
+                                         method="POST" if data is not None else "GET")
+            try:
+                with urllib.request.urlopen(req, timeout=10) as r:   # noqa: S310 — the loopback test server
+                    return r.status, json.loads(r.read()), dict(r.headers)
+            except urllib.error.HTTPError as e:
+                return e.code, json.loads(e.read()), dict(e.headers)
+        try:
+            yield call
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            for k, v in keep.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+    return ctx()
+
+
+# a run the guard lets through and the runner then refuses: nothing is ever started
+_NO_RUN = {"scenario": "no-such-scenario", "mode": "deterministic"}
+
+
+def test_the_pages_writes_need_its_token_and_a_wider_bind_without_one_refuses_them():
+    """Task-0096: with KG_PAGE_TOKEN every POST carries it as a bearer token (401 without); without
+    it, a page published beyond this machine (KG_BIND, else its own listen address) refuses every
+    POST with a message naming the variable; on this machine a POST needs nothing, as the stack job
+    sends it. A request from another web origin is refused whatever the bind. Reads stay open."""
+    import server
+    for bind in ("127.0.0.1", None):   # compose's default, and a process outside compose listening on its default
+        with _page({"KG_BIND": bind, "KG_PAGE_LISTEN": None, "KG_PAGE_TOKEN": None}) as call:
+            code, body, _ = call("/api/run", _NO_RUN)
+            assert code == 400 and "unknown scenario" in body["error"], (bind, code, body)
+            assert server.writes_view() == {"token_required": False, "refused": None}
+            code, body, _ = call("/api/run", _NO_RUN, {"Origin": "http://evil.example"})
+            assert code == 403 and "another web origin" in body["error"], body
+    for env in ({"KG_BIND": "0.0.0.0", "KG_PAGE_TOKEN": None}, {"KG_BIND": None, "KG_PAGE_LISTEN": "0.0.0.0", "KG_PAGE_TOKEN": None},
+                {"KG_BIND": "192.0.2.7", "KG_PAGE_TOKEN": None}):
+        with _page(env) as call:
+            for path in ("/api/run", "/api/register/project"):
+                code, body, _ = call(path, _NO_RUN)
+                assert code == 403 and "KG_PAGE_TOKEN" in body["error"] and "beyond this machine" in body["error"], (env, path, body)
+            assert server.writes_view()["refused"] and not server.writes_view()["token_required"]
+            code, body, _ = call("/api/subjects")
+            assert code == 200 and body["subjects"], "reads stay open"
+            assert call("/health")[:2] == (200, {"ok": True})
+    secret = "t0ken-for-the-test"   # not a credential: the test's own value
+    for bind in ("0.0.0.0", "127.0.0.1"):
+        with _page({"KG_BIND": bind, "KG_PAGE_TOKEN": secret}) as call:
+            assert server.writes_view() == {"token_required": True, "refused": None}
+            for headers in ({}, {"Authorization": "Bearer wrong"}, {"Authorization": secret}):
+                code, body, hdrs = call("/api/run", _NO_RUN, headers)
+                assert code == 401 and hdrs.get("WWW-Authenticate") == "Bearer" and secret not in json.dumps(body), (bind, headers)
+            code, body, _ = call("/api/run", _NO_RUN, {"Authorization": f"Bearer {secret}"})
+            assert code == 400 and "unknown scenario" in body["error"], body
+            code, body, _ = call("/api/subjects")
+            assert code == 200 and secret not in json.dumps(body)
+
+
+def test_the_page_sends_its_token_and_the_stack_passes_the_bind_and_the_token():
+    """The page's JavaScript asks for the token only when the server says so, keeps it in the tab's
+    sessionStorage, and sends it on POSTs only; compose passes KG_BIND and KG_PAGE_TOKEN to the app,
+    whose image listens on every interface inside the container; the stack job's POSTs carry none."""
+    page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
+    assert "opts.method === 'POST' && pageToken()" in page and "Authorization: 'Bearer ' + pageToken()" in page
+    assert "sessionStorage.setItem('kg-page-token'" in page and "localStorage.setItem('kg-page-token'" not in page
+    assert "STATE.writes = j.writes" in page and "writesWhy()" in page
+    compose = (ROOT / "demo" / "docker-compose.yml").read_text(encoding="utf-8")
+    app = compose.split("\n  app:\n", 1)[1].split("\n  litellm:", 1)[0]
+    assert "KG_BIND: ${KG_BIND:-127.0.0.1}" in app and "KG_PAGE_TOKEN: ${KG_PAGE_TOKEN:-}" in app
+    assert "KG_PAGE_LISTEN=0.0.0.0" in (ROOT / "demo" / "Dockerfile").read_text(encoding="utf-8")
+    demo = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
+    assert "KG_PAGE_TOKEN" not in demo and "KG_BIND" not in demo and "-X POST localhost:8080/api/run" in demo
 
 
 def test_the_lighthouse_protocol_points_to_the_matrix():

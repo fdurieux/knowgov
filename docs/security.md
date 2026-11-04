@@ -75,6 +75,7 @@ machines, under the same access controls as the documents, and delete them when 
 | The key is passed through the environment, never written into the image or the models table; the page names the variable, never the key | — | `demo/docker-compose.yml`, `demo/models.toml` | `tests/test_demo.py::test_compose_files_agree`, `tests/test_demo.py::test_models_table_rows_resolve_to_the_harness_variables_and_never_carry_a_key`, `tests/test_arms.py::test_the_page_names_the_endpoint_and_the_key_variable_never_the_key` |
 | No module of the harness, the page or the tools opens any other outbound connection: the model client and the Neo4j driver are the only clients (apart from two checks that ask only a local server: `demo/tools/check_impact_cypher.py`, the stack job's page, and `tools/check_mcp_server.py`'s HTTP client, the MCP server it started on loopback), and the page loads no script or style from elsewhere | — | the imports of `harness/`, `demo/app/`, `tools/` | `tests/test_security.py::test_nothing_reaches_the_network_but_the_model_client_and_the_store_driver` |
 | The page, Neo4j Browser and bolt are published on `127.0.0.1` unless `KG_BIND` widens the bind; on a wider bind the stack refuses to start while the Neo4j password is the default | this machine only, by default | `demo/docker-compose.yml` (`${KG_BIND:-127.0.0.1}` on every published port), `demo/neo4j/bind-guard.sh` | `tests/test_demo.py::test_the_ports_bind_loopback_and_a_wider_bind_refuses_the_default_password`; CI: `demo.yml` reaches the stack on `localhost` from the runner |
+| The page's state-changing requests (a run, which reloads the store and may call the model, and the register's projection) are refused from another web origin; with `KG_PAGE_TOKEN` set each must carry it as a bearer token; without it, a page published beyond this machine refuses them. Its read-only requests stay open | this machine only, unless `KG_BIND` widens the bind and the token is set | `demo/app/server.py` `write_guard`, `demo/docker-compose.yml` (passes `KG_BIND` and `KG_PAGE_TOKEN` to the app) | `tests/test_security.py::test_the_pages_writes_need_its_token_and_a_wider_bind_without_one_refuses_them`, `tests/test_security.py::test_the_page_sends_its_token_and_the_stack_passes_the_bind_and_the_token`; CI: `demo.yml` starts runs on `localhost` with no token |
 | The MCP server listens on 127.0.0.1 by default, refuses a wider bind without `KG_MCP_TOKEN`, then asks every request for that token, and refuses a request from a non-local web origin | the assistant's process on the same machine (stdio), or a client on the network holding the token | `harness/mcp_server.py` `bind_check`, `Handler._guard` | `tests/test_mcp_server.py::test_it_binds_localhost_unless_told_and_a_wider_bind_needs_a_token`, `tests/test_mcp_server.py::test_http_with_a_token_refuses_a_request_without_it`, `tests/test_mcp_server.py::test_http_answers_on_mcp_refuses_a_foreign_origin_and_pushes_nothing` |
 | The MCP server answers with the gate's verdict, the three-valued answer and the evidence bundle. The bundle carries excerpts, so whoever holds the token reads them | the MCP client | `harness/mcp_server.py` `TOOLS` | `tests/test_mcp_server.py::test_four_tools_every_one_marked_read_only` |
 | People appear as opaque handles issued by the register, never as names or e-mail addresses | the store, the capture and review files | `harness/capture.py` (handle pattern, issued list), `harness/review.py` `check` (ieam-register decision 0009) | `tests/test_capture.py::test_a_name_a_future_date_a_contradiction_or_nothing_answered_is_refused`, `tests/test_capture.py::test_ingest_refuses_a_handle_the_register_has_not_issued_by_the_answers_date`, `tests/test_capture.py::test_ingest_refuses_a_handle_without_gives`, `tests/test_review.py::test_refused_the_giver_a_handle_without_approves_a_name_and_a_future_date` |
@@ -156,7 +157,7 @@ can reach the page.
 | The pipeline (load, `gate_cli`, knowgov-trace) | yes | yes: extracted and authored statements at `proposed`; trace records derived outputs | no | no | no | no |
 | A person by role (decision-0002) | yes | yes, with `gives`, under an issued handle in date | with `approves`, in the owning unit, never their own answer | with `closes`, as the gap's owner | no | no |
 | The register approver | yes | in ieam-register, not here | the register's own changes, upstream | no | yes, upstream in ieam-register; here only by re-vendoring a tag | no |
-| Anyone who reaches the page's port (this machine only, unless `KG_BIND` widens it) | yes | no | no | no | no | no; but may start a run (see Gaps) |
+| Anyone who reaches the page's port (this machine only, unless `KG_BIND` widens it) | yes (see Gaps) | no | no | no | no | no; starts a run or a projection on this machine, and beyond it only with `KG_PAGE_TOKEN` |
 <!-- permission matrix: end -->
 
 "Execute a business action: none." knowgov reads documents and answers. It has no connector to
@@ -180,6 +181,7 @@ Evidence per row:
 | `gives`: an answer's handle is issued, not withdrawn by the answer's date, and holds `gives` (task-0091) | `tests/test_capture.py::test_ingest_refuses_a_handle_without_gives`, `tests/test_capture.py::test_ingest_refuses_a_handle_the_register_has_not_issued_by_the_answers_date` |
 | The register is edited upstream only: here it is a vendored copy at a tag, held file by file to its digest, and the page reads it and never writes it | `tests/test_demo.py::test_vendored_register_matches_its_source_note_and_checks_clean`, `tests/test_vendor_register.py::test_vendor_register_refuses_a_dirty_tree_and_an_untagged_commit`, `tests/test_register_view.py::test_projection_rows_and_statements` |
 | An instance's own register is mounted read-only | `tests/test_demo.py::test_compose_files_agree` |
+| The page reads for anyone who reaches it; it starts a run or a projection beyond this machine only for a request carrying `KG_PAGE_TOKEN`, and never for another web origin | `tests/test_security.py::test_the_pages_writes_need_its_token_and_a_wider_bind_without_one_refuses_them` |
 | No business action: no outbound client but the model's and the store's | `tests/test_security.py::test_nothing_reaches_the_network_but_the_model_client_and_the_store_driver` |
 | Who may merge a change to this repository, or to an instance's | **Practice:** the repository's branch rules; in an instance, its own (an instance's CI runs the gate on every pull request, `instance/ci/`) |
 
@@ -190,14 +192,19 @@ Each gap is stated so that nobody reads the tables above as claiming more than t
 so this list is updated with the fix.
 
 <!-- gaps: begin -->
-1. **The page has no login.** The compose stack publishes the page (8080), Neo4j Browser (7474)
-   and bolt (7687) on `127.0.0.1` only, unless `KG_BIND` names a wider address (task-0090). Anyone
-   who reaches the page reads everything it shows, and can start a run (`POST /api/run`): the run
-   reloads the store and, with a key set, calls the model at the organisation's cost. On the
-   default bind Neo4j's password may stay `kgpoc2026`, so every local user of the host reaches the
-   store; on a wider bind the stack refuses to start until `KG_NEO4J_PASSWORD` is set. **Practice:**
-   widen the bind only behind a firewall, or a reverse proxy that authenticates, that admits the
-   people who should read the page, and set `KG_NEO4J_PASSWORD` on any host with other users.
+1. **The page's reads have no login.** The compose stack publishes the page (8080), Neo4j Browser
+   (7474) and bolt (7687) on `127.0.0.1` only, unless `KG_BIND` names a wider address (task-0090).
+   Its writes are closed (task-0096): a run (`POST /api/run`, which reloads the store and, with a
+   key set, calls the model at the organisation's cost) and the register's projection need
+   `KG_PAGE_TOKEN` beyond this machine, and are refused from another web origin. Its reads are not:
+   anyone who reaches the page reads everything it shows, excerpts included (Gap 2), as the demo
+   is meant to be shown. On this machine a write needs no token, so every local user of the host
+   can start a run; and on the default bind Neo4j's password may stay `kgpoc2026`, so every local
+   user reaches the store. On a wider bind the stack refuses to start until `KG_NEO4J_PASSWORD` is set.
+   **Practice:** widen the bind only behind a firewall, or a reverse proxy that authenticates,
+   that admits the people who should read the page; set `KG_PAGE_TOKEN` and `KG_NEO4J_PASSWORD` on
+   any host with other users; the page serves no TLS, so beyond a trusted network put it behind a
+   proxy that does, or the token crosses the network in clear.
 2. **The store holds excerpts.** "Status and provenance, never content" is true of whole documents
    only: fragments, statement values and their one-line texts are stored (see What is stored). This
    is by design, since the gate's evidence is the excerpt. An adopter must protect the store as they
@@ -213,8 +220,9 @@ enforce it:
   `runs/` or its keys to this repository.
 - Keep the store, its volume, `KG_RDFLIB_FILE` and `runs/` under the same access controls as the
   documents.
-- Leave `KG_BIND` unset unless other machines must reach the page; when it is widened, admit only
-  the people who should read the page, and set `KG_NEO4J_PASSWORD` on any shared host (Gap 1).
+- Leave `KG_BIND` unset unless other machines must reach the page; when it is widened, set
+  `KG_PAGE_TOKEN` so runs can start, admit only the people who should read the page, serve it over
+  TLS beyond a trusted network, and set `KG_NEO4J_PASSWORD` on any shared host (Gap 1).
 - Issue opaque handles, and keep names and identifying details out of answers' notes.
 - Leave the model key unset unless the arms or the transcript route are wanted. When they are,
   choose the endpoint with the table above in mind, and confirm where a private endpoint forwards.
