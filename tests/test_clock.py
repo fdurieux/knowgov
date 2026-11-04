@@ -24,7 +24,7 @@ WALL = re.compile(r"\b(?:date|datetime)\.(?:today|now|utcnow)\(|\btime\.(?:local
 VENDORED = ("demo/register/", "demo/model/", "/vendor/")
 # path -> (reads, what it stamps): a read here is a stamp or a view's choice, never a check's outcome
 ALLOWED = {
-    "harness/review.py": (1, "today() itself: KG_TODAY, else the wall clock unless KG_CLOCK=pinned"),
+    "harness/review.py": (2, "today() and now() themselves: KG_TODAY or KG_NOW, else the wall clock unless KG_CLOCK=pinned"),
     "harness/load.py": (1, "the load's provenance stamp when KG_TODAY is unset; no outcome reads it"),
     "demo/app/server.py": (3, "the page's run timestamps and elapsed time"),
     "demo/app/register_project.py": (1, "the projection's loaded_at stamp"),

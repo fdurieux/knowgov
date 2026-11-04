@@ -791,6 +791,10 @@ class Neo4jStore(Store):
     def extraction_activities(self) -> list[str]:
         return [r["id"] for r in self.run("MATCH (a:Activity) WHERE a.id STARTS WITH 'act:extract:' RETURN a.id AS id ORDER BY a.at, a.id")]   # two versions extracted in one second: the id decides, not store order (task-0070)
 
+    def extraction_times(self) -> list[dict]:
+        return [{"id": r["id"], "at": r["at"]} for r in self.run(
+            "MATCH (a:Activity) WHERE a.id STARTS WITH 'act:extract:' RETURN a.id AS id, a.at AS at ORDER BY a.at, a.id")]
+
     def gaps_with_concerns(self) -> list[dict]:
         out = []
         for r in self.run("""MATCH (g:Gap) OPTIONAL MATCH (g)-[r:CONCERNS|CONCERNS_KEY]->(t)

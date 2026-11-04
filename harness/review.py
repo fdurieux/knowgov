@@ -79,6 +79,20 @@ def today() -> dt.date:
     return dt.date.today()
 
 
+def now() -> dt.datetime:
+    """KG_NOW (an ISO instant; a naive one is UTC) for a reproducible read, else the wall clock in UTC;
+    under ``KG_CLOCK=pinned`` a missing KG_NOW raises WallClock, as ``today()`` does. The instant a
+    reader compares a run's heartbeat with (harness/runs_index.py, task-0128); no date is read from it."""
+    v = os.environ.get("KG_NOW")
+    if v:
+        t = dt.datetime.fromisoformat(v)
+        return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
+    if os.environ.get(CLOCK) == "pinned":
+        raise WallClock("KG_CLOCK=pinned and no KG_NOW: this read compares a run's heartbeat with the clock "
+                        "and must pin it (KG_NOW; task-0128)")
+    return dt.datetime.now(dt.timezone.utc)
+
+
 def pinned(env, on) -> dict:
     """``env`` for a check's commands: today is ``on`` (a date or YYYY-MM-DD) and the wall clock is
     refused (task-0075)."""

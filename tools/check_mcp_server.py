@@ -23,6 +23,8 @@ Then ask ``proposal_impact`` with doc-0017's worked example (``tools/fixtures/pr
 and require its gaps (C1 on the two unsupported new steps, C2 on the new capability) and every reused
 node's keys equal to what ``register_impact`` from that node gives for the same task and as_of, with
 every overlay element hypothetical (task-0130).
+Then ask ``scenario_runs`` and require the subject's scenarios in order, the held scenario this one with
+``store_status``'s ``loaded_at``, the record's D6 verdict for it, and no run in progress (task-0128).
 The same process also answers ``server/discover`` and a stateless (2026-07-28) ``gate_verdict``,
 which must equal the handshake's (task-0079).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
@@ -336,6 +338,29 @@ def check_task_classes(client: "StdioClient", sc: str, failures: list[str], labe
         failures.append(f"{label}: register_impact took task keys, a key set, not a class")
 
 
+def check_runs(client: "StdioClient", sc: str, status: dict, failures: list[str], label: str) -> None:
+    """scenario_runs (task-0128): every scenario of the subject in its order, the held one this one with
+    store_status's loaded_at, the record's entry for it with the D6 verdict its deterministic.json gives,
+    and no run in progress (the loads here are gate_cli's own, which write no run.json)."""
+    from subject import SUBJECT
+    got = client.call("scenario_runs", {})
+    if [x["id"] for x in got["scenarios"]] != list(SUBJECT.order):
+        failures.append(f"{label}: scenario_runs lists {[x['id'] for x in got['scenarios']]}, not {SUBJECT.order}")
+        return
+    held = got.get("held") or {}
+    if held.get("scenario") != sc or not status.get("loaded_at") or held.get("loaded_at") != status["loaded_at"]:
+        failures.append(f"{label}: scenario_runs holds {held}, store_status loaded_at {status.get('loaded_at')}")
+    if got["run_in_progress"] is not None:
+        failures.append(f"{label}: scenario_runs reports a run in progress: {got['run_in_progress']}")
+    entry = next(x for x in got["scenarios"] if x["id"] == sc)["record"][0]
+    det = SUBJECT.record_dir / sc / "deterministic.json"
+    want = json.loads(det.read_text(encoding="utf-8"))["D6_gate"]["verdict"] if det.exists() else None
+    if entry["gate"] != want:
+        failures.append(f"{label}: scenario_runs gives the record's gate as {entry['gate']}, its deterministic.json {want}")
+    print(f"{label}: scenario_runs lists {len(got['scenarios'])} scenario(s), holds {held.get('scenario')} loaded at "
+          f"{held.get('loaded_at')}, the record's gate {entry['gate']}")
+
+
 def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: str) -> None:
     """proposal_impact (task-0130): the worked example's gaps, and each reused node's keys equal to
     register_impact's for that node on the same scenario, task and as_of."""
@@ -419,6 +444,7 @@ def main(argv: list[str] | None = None) -> int:
             check_bundle(client, sc, 1, failures, sc)
             check_impact(client, sc, failures, sc)
             check_proposal(client, sc, failures, sc)
+            check_runs(client, sc, status, failures, sc)
         finally:
             client.close()
         if census() != before:

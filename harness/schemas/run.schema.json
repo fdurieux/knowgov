@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/run.schema.json",
  "title": "knowgov run folder record",
- "description": "What a run folder, runs/<subject id>/<stamp>/run.json, says of the run that wrote it (task-0127): the page's Runner writes it when the run starts (status running) and again when it ends (finished, status done or failed, exit_code); a run whose process could not start is failed with an error and no exit code. by names who asked: the page's buttons or knowgov-runs (mcp). Never a key, a token or the run's environment; log is the log's file name in the folder; source is the id the page's views read the folder by. Version 1; a change is additive or a new version. A folder from before it has none, and its readers infer as before.",
+ "description": "What a run folder, runs/<subject id>/<stamp>/run.json, says of the run that wrote it (task-0127): the page's Runner writes it when the run starts (status running) and again when it ends (finished, status done or failed, exit_code); a run whose process could not start is failed with an error and no exit code. by names who asked: the page's buttons or knowgov-runs (mcp). Never a key, a token or the run's environment; log is the log's file name in the folder; source is the id the page's views read the folder by. Version 2 adds heartbeat_at (task-0128): while the run is under way the Runner rewrites run.json with it every 30 s, and a reader counts a running run.json as live only while it is within 120 s of the reader's clock; the page closes a stale one at start as failed, error 'page restarted'. A version 1 file has none, and its start stands for it. A change is additive or a new version. A folder from before it has none, and its readers infer as before.",
  "type": "object",
  "required": [
   "version",
@@ -29,7 +29,10 @@
  "additionalProperties": false,
  "properties": {
   "version": {
-   "const": 1
+   "enum": [
+    1,
+    2
+   ]
   },
   "id": {
    "type": "string"
@@ -91,6 +94,12 @@
   },
   "started": {
    "type": "string"
+  },
+  "heartbeat_at": {
+   "type": [
+    "string",
+    "null"
+   ]
   },
   "finished": {
    "type": [

@@ -3,7 +3,7 @@
     python harness/mcp_server.py                      # stdio, for an agent that starts the server itself
     python harness/mcp_server.py --http [--host H] [--port P]   # Streamable HTTP at http://H:P/mcp
 
-The question an agent asks is "may I build on this?". Six tools answer it, all read-only:
+The question an agent asks is "may I build on this?". Seven tools answer it, all read-only:
 
     store_status          what the store holds: the subject, the scenario loaded, the tasks and the
                           keys the subject asks the three-valued question of
@@ -33,6 +33,15 @@ The question an agent asks is "may I build on this?". Six tools answer it, all r
                           reused nodes' keys as register_impact reads them, the new nodes left unmapped and
                           the approvals per owning unit; every overlay element hypothetical, nothing stored
                           (task-0130, task-0131, doc-0017)
+    scenario_runs         the subject's scenarios with what the record holds (deterministic; the arms with
+                          n and model; the extra sources) and the runs per mode, newest first, from each
+                          run folder's run.json or inferred; the scenario the store holds and when it was
+                          loaded; the run under way, if any. Replay is the record shown, never a run
+                          (task-0128, doc-0016 item 1)
+
+While a run folder of the server's subject reads running with a live heartbeat (run.json, within
+``runs_index.STALE_S`` of ``review.now()``), gate_verdict, three_valued_answer and evidence_bundle
+refuse and name the run: on Neo4j a run wipes the store and loads it in steps (doc-0016 F2).
 
 The server never loads, wipes or writes: it reads the store the page or a run left (``KG_STORE``;
 for rdflib the Turtle file ``KG_RDFLIB_FILE``, read and never written back), through a view that
@@ -95,7 +104,7 @@ DEFAULT_HOST, DEFAULT_PORT = "127.0.0.1", 8765
 
 # The store port's reads this server may call (harness/store.py); anything else raises.
 READS = frozenset({"key_evidence", "declared_gaps_for_key", "conflict_gaps", "stale_on_keys", "suspect_derived",
-                   "extraction_activities", "assertions_on_key", "census", "preload_verdicts"})
+                   "extraction_activities", "extraction_times", "assertions_on_key", "census", "preload_verdicts"})
 
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
 
@@ -107,7 +116,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
-                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. A status is the repository's; you may not upgrade it. This server only reads.")
+                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. A status is the repository's; you may not upgrade it. This server only reads.")
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -207,6 +216,22 @@ TOOLS.append(
      "annotations": READ_ONLY})
 
 
+TOOLS.append(
+    {"name": "scenario_runs", "title": "Which scenarios have been run, and what did they show?",
+     "description": "The subject's scenarios, each with its title and card line; what the record holds for it (record: the "
+                    "record and every extra source the subject declares, each with deterministic results or not, the D6 gate "
+                    "verdict and the arms with n, models, decisions and suite); and its runs newest first, from the run "
+                    "folder's run.json (mode, n, row, model, effort, as_of, started, finished, status, exit_code, by, the "
+                    "gate verdict of its results) or, for a folder from before run.json, inferred (inferred true: status, "
+                    "start and initiator unknown). Replay is the record shown, never a run: nothing records it. Also the "
+                    "scenario the store holds (version, stage, loaded_at) and run_in_progress, the run loading the store "
+                    "now, while gate_verdict, three_valued_answer and evidence_bundle refuse.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
+         "scenario": {"type": "string", "description": "one of the subject's scenarios (default: every one, in the subject's order)"},
+         "limit": {"type": "integer", "minimum": 1, "description": "at most this many runs per scenario, newest first (default: all)"}}},
+     "annotations": READ_ONLY})
+
+
 class ToolError(Exception):
     """A tool could not answer: returned to the client as a result with isError, never a crash."""
 
@@ -283,8 +308,10 @@ class Tools:
     the session's date (default: ``KG_AS_OF``, else ``today``), read here and resolved on first use
     or by ``session_as_of()`` at start, then held for the life of the process (task-0100)."""
 
-    def __init__(self, opener=open_read_only, as_of: str | None = None):
+    def __init__(self, opener=open_read_only, as_of: str | None = None, runs: Path | None = None):
+        import runs_index
         self.opener = opener
+        self.runs = Path(runs) if runs is not None else runs_index.runs_dir()   # the page's run folders (KG_DEMO_RUNS)
         self.as_of_from = as_of or os.environ.get("KG_AS_OF") or "today"   # the one read of KG_AS_OF
         self._dates: dict[str, str] = {}
         self._lock = threading.Lock()
@@ -311,6 +338,37 @@ class Tools:
             return self._resolve(value) if value else self.session_as_of()
         except ValueError as e:
             raise ToolError(f"as_of: {e}") from e
+
+    def _run_in_progress(self) -> dict | None:
+        """The subject's live run (runs_index), or None; the clock is read only when a run.json reads running."""
+        import review
+        import runs_index
+        from subject import SUBJECT
+        try:
+            return runs_index.run_in_progress(SUBJECT.id, self.runs)
+        except review.WallClock as e:
+            raise ToolError(f"a run.json reads running and its heartbeat cannot be read against the clock: {e}") from e
+
+    def _not_mid_run(self) -> None:
+        """Refuse while a run of this subject is loading the store (doc-0016 F2): a read then sees part of a graph."""
+        run = self._run_in_progress()
+        if run is not None:
+            raise ToolError(f"a run is loading the store: {run.get('subject')}/{run.get('id')} ({run.get('scenario')}, "
+                            f"{run.get('mode')}, by {run.get('by')}, started {run.get('started')}, heartbeat "
+                            f"{run.get('heartbeat_at') or run.get('started')}); call again when it has ended "
+                            "(scenario_runs shows it)")
+
+    def _held_detail(self, st) -> dict | None:
+        """The held scenario of this subject with its version, stage and the time it was loaded, else None."""
+        import gate_cli
+        held = _held(st)
+        if held is None:
+            return None
+        version = gate_cli.held_version(st)
+        times = st.extraction_times()
+        at = times[-1]["at"] if times else None
+        return {"scenario": held, "version": version, "stage": _stage(held, version),
+                "loaded_at": None if at is None else str(at)}
 
     def _with_store(self, fn):
         try:
@@ -339,7 +397,9 @@ class Tools:
             raise ToolError(f"as_of: {e}") from e
 
         def go(st):
+            held = self._held_detail(st)
             return {"subject": SUBJECT.id, "store": st.name, "scenario": _held(st),
+                    "loaded_at": held["loaded_at"] if held else None,
                     "held_by_other_subject": _foreign(st),
                     "as_of": on, "as_of_from": self.as_of_from,
                     "scenarios": list(SUBJECT.order),
@@ -373,6 +433,8 @@ class Tools:
         if keys is not None:
             spec["keys"] = list(dict.fromkeys(keys))
             name = "keys"
+
+        self._not_mid_run()
 
         def go(st):
             scenario = _check_scenario(st, args.get("scenario"))
@@ -411,6 +473,8 @@ class Tools:
         if keys is not None:
             spec["keys"] = list(dict.fromkeys(keys))
             name = "keys"
+
+        self._not_mid_run()
 
         def go(st):
             scenario = _check_scenario(st, args.get("scenario"))
@@ -514,12 +578,46 @@ class Tools:
                 return out
         return self._with_store(go)
 
+    def scenario_runs(self, args: dict) -> dict:
+        """The subject's scenarios with the record's sources and the runs (``runs_index.scenario_runs``), the
+        held scenario when the store answers, and the run under way (task-0128). No path is taken: the roots
+        are the subject's record and ``KG_DEMO_RUNS/<subject id>``."""
+        import runs_index
+        from subject import SUBJECT
+        scenario, limit = args.get("scenario"), args.get("limit")
+        if scenario is not None and scenario not in SUBJECT.scenarios:
+            raise ToolError(f"{SUBJECT.id}: no scenario {scenario!r}; the subject declares {SUBJECT.order}")
+        if limit is not None and (not isinstance(limit, int) or isinstance(limit, bool) or limit < 1):
+            raise ToolError("limit must be a whole number, 1 or more")
+        out = {"subject": SUBJECT.id,
+               "replay": "Replay is the record shown, not a run; nothing records it. record says what it holds.",
+               "scenarios": runs_index.scenario_runs(SUBJECT, self.runs, scenario, limit),
+               "run_in_progress": None, "held": None, "held_by_other_subject": None}
+        try:
+            out["run_in_progress"] = self._run_in_progress()
+        except ToolError as e:
+            out["run_in_progress_unknown"] = str(e)
+        if out["run_in_progress"] is not None:
+            out["store_skipped"] = "a run is loading the store; what it holds is read once the run has ended"
+            return out
+
+        def go(st):
+            out.update(held=self._held_detail(st), held_by_other_subject=_foreign(st))
+            return out
+        try:
+            return self._with_store(go)
+        except ToolError as e:   # the record and the runs answer without a store
+            out["store_unavailable"] = str(e)
+            return out
+
     def three_valued_answer(self, args: dict) -> dict:
         from gate import THREE_VALUED_STATUSES, invalidated_on_key, three_valued
         from subject import SUBJECT
         key = args.get("key")
         if not isinstance(key, str) or not key:
             raise ToolError("key is required, an entity|attribute string")
+
+        self._not_mid_run()
 
         def go(st):
             scenario = _check_scenario(st, args.get("scenario"))

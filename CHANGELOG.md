@@ -17,7 +17,7 @@ names that section with the version.
   (`finished`, `done` or `failed`, `exit_code`); a run whose process cannot start leaves it
   `failed` with an `error`. It names the mode, the model row, the as-of date and who asked
   (`by`: `page`, or `mcp`, which `POST /api/run` now takes as `by`), never a key, a token or the
-  environment. `harness/schemas/run.schema.json` pins it (version 1). `/api/runs` carries it as
+  environment. `harness/schemas/run.schema.json` pins it (version 1; version 2, task-0128). `/api/runs` carries it as
   `run` where present and is unchanged for a folder without one.
 - **A proposal read before approval: `proposal_impact`** (task-0130, task-0131, doc-0017; additive):
   a sixth read-only MCP tool and a command, `harness/proposal_impact.py`, with its report pinned by
@@ -32,6 +32,21 @@ names that section with the version.
   id is minted. Journey reuse shows through shared processes and D3 (decision-0007). The tool-count
   test is renamed `test_every_tool_listed_and_marked_read_only`. The record and the comparator are
   unchanged.
+- **`scenario_runs`, and the gate refuses mid-run** (task-0128, doc-0016 item 1; additive): a
+  seventh read-only MCP tool. Per scenario of the server's subject: its title and card line, what the
+  record holds (the record and each extra source, deterministic or not, the D6 verdict, the arms
+  with n, models, decisions and suite) and its runs newest first, from `run.json` or, for a folder
+  from before it, inferred (`inferred: true`); the held scenario with its version, stage and
+  `loaded_at`; and `run_in_progress`. Replay is reported as the record, never as a run. No path is
+  taken. `store_status` gains `loaded_at`; the store port gains a read, `extraction_times`. While a
+  `run.json` of the server's subject reads `running` with a heartbeat under 120 s old,
+  `gate_verdict`, `three_valued_answer` and `evidence_bundle` refuse and name the run (doc-0016 F2).
+  `run.json` moves to version 2: `heartbeat_at`, rewritten every 30 s while the run is under way;
+  version 1 is still read, its start standing for the heartbeat. The page closes a stale `running`
+  file as `failed` (`error: "page restarted"`) when it starts. `harness/runs_index.py` is the one
+  reader of the run folders: the page's `/api/runs` and source lists read through it, unchanged.
+  `review.now()` is the reader's clock (`KG_NOW`; refused under `KG_CLOCK=pinned` without it). The
+  record and the comparator are unchanged.
 
 ## 0.5.0 — 2026-11-04
 
