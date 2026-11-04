@@ -6,7 +6,7 @@ name: harness
 # image installs, no Neo4j. The stack job (demo.yml) is the Neo4j adapter's proof.
 #
 # Budget (task-0084): a pull request's rdflib job within 12 minutes.
-# J-F on a pull request (task-0084): the J-F round trip and MCP checks run the named subset
+# J-F on a pull request (task-0084): the J-F round trip, MCP and lighthouse steps run the named subset
 # KG_JF_SCENARIOS = C,D3 (the kit as committed, PROCEED; every layer consistently wrong,
 # QUALIFIED). Its six scenarios cost about the same each, so the subset is a third of the time.
 # The full set runs on every push to main, nightly (03:17 UTC) and on a manual dispatch, so no
@@ -300,10 +300,10 @@ jobs:
           KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_mcp_server.py ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
       - name: A person's statement against the documents' (task-0038), on S2 a contradiction raises a conflict, an agreement corroborates and raises nothing
         run: KG_STORE=rdflib python tools/check_capture_pairing.py runs/pairing
-      - name: The lighthouse protocol's public evidence (task-0069), CargoQuote from the example instance and the J-F kit, every item agreeing with the record
+      - name: The lighthouse protocol's public evidence (task-0069), CargoQuote from the example instance and the J-F kit (the subset on a pull request), every item agreeing with the record
         run: |
           rm -rf runs/lighthouse
-          KG_STORE=rdflib python tools/lighthouse_evidence.py runs/lighthouse
+          KG_STORE=rdflib python tools/lighthouse_evidence.py runs/lighthouse ${KG_JF_SCENARIOS:+--only "jef_data_load=$KG_JF_SCENARIOS"}
       - name: Route (c), a transcript read by a stub model (task-0041), gives inferred candidates on S2's empty keys only, listed in the questionnaire; no key, exit 2
         run: KG_STORE=rdflib python tools/check_transcript_route.py runs/transcript
       - name: The store survives a round trip (task-0070), every CargoQuote scenario and J-F's (the subset on a pull request) through Turtle into a fresh store, the same gate reports and three-valued answers

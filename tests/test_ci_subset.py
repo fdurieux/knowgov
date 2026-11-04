@@ -34,6 +34,8 @@ def test_every_jf_check_on_a_pull_request_takes_the_subset():
         for line in (WF / name).read_text(encoding="utf-8").splitlines():
             if "jef_data_load" in line and re.search(r"check_(round_trip|mcp_server)\.py", line):
                 assert '${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}' in line, f"{name}: {line.strip()}"
+            if "lighthouse_evidence.py" in line and not line.lstrip().startswith("#"):
+                assert '${KG_JF_SCENARIOS:+--only "jef_data_load=$KG_JF_SCENARIOS"}' in line, f"{name}: {line.strip()}"
 
 
 def test_the_full_set_runs_on_main_nightly_and_on_demand():
