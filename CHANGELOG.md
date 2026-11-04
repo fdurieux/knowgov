@@ -22,6 +22,19 @@ names that section with the version.
   `as_of` and `as_of_from`. A bad `KG_AS_OF`, or a relative date under `KG_CLOCK=pinned` with no
   `KG_TODAY`, stops the server at start (exit 2).
 
+### Also in this release
+
+- **A `design` task class on CargoQuote** (task-0101, doc-0014 C3): `[tasks.design]` names the 36
+  keys a requirements-and-design pass rests on (each requirement's text and the component that
+  carries it, the screening bands and their outcomes, the failure behaviours, the flow's order, the
+  response statuses, the containers' calls), with its `rationale` and the codegen block levels. The
+  `codegen` class and the record are unchanged; the comparator stays identical. `store_status`
+  reports a class's rationale; the lighthouse rehearsal runs every declared class on each scenario
+  and records the classes `store_status` lists. As of the record (2026-10-30), design reads S1
+  QUALIFIED, S2 BLOCKED, S3 QUALIFIED, S4 BLOCKED, S5 BLOCKED, S6 QUALIFIED, S7 BLOCKED: the
+  structure is extracted and never verified. `docs/lighthouse-evaluation.md` names the class at each
+  pilot transition: `design` at the specification's commit, `codegen` at plan acceptance and push.
+
 ## 0.3.0 — 2026-11-04
 
 A hardening release on top of 0.2.0. The page's writes need a token beyond the local machine. A

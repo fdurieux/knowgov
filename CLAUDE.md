@@ -54,7 +54,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   `tools/check_trace_walkthrough.py`. `KG_SUBJECT` selects the root; nothing in `harness/` or
   `demo/` names a subject, a document or a scenario (task-0002). Two public
   subjects: `cargo_quote` (the proof of concept, seven scenarios, the scored
-  record) and `jef_data_load` (the recreation experiment's kit, the degradation
+  record; a `design` task class beside the record's `codegen`, task-0101) and `jef_data_load` (the recreation experiment's kit, the degradation
   test's arms as scenarios, a deterministic record, the kit's own suite as oracle; task-0021).
   `docs/lighthouse-evaluation.md` the evaluation protocol (doc-0013's seven criteria; actions out of
   scope); `tools/lighthouse_evidence.py` collects its public evidence on both subjects (task-0069), the bundle by the server's `evidence_bundle`, over stdio or `--transport http` (task-0095).
