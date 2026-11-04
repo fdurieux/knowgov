@@ -1,0 +1,33 @@
+# doc-0018's probe subject, kept as tools/check_subject.py's fixture (task-0135). Synthetic. It
+# carries every defect the check names, each on purpose:
+# - REQ-02|txt is misspelt: the requirements mapper yields REQ-02|text (F2);
+# - [task.design] is not a table the loader reads: [tasks] is (F5);
+# - there is no scenarios.toml, and the gate exits 2 on a subject with a task and no scenario (F3);
+# - register_map.toml names CAP-9999, which the public register does not hold, and gives a row an
+#   owner, ORG-0001, that owns none of its nodes (CAP-0002 is ORG-0002's) (F4).
+[subject]
+id = "subject_probe"
+name = "Probe"
+listed = false
+description = "doc-0018's probe: a drafted requirements file and a misspelt key."
+
+[[artefact]]
+key = "kit/requirements.md"
+short = "req"
+family = "requirements"
+format = "markdown"
+label = "requirements"
+format_label = "markdown"
+path = "requirements.md"
+mapper = "requirements"
+
+[tasks.codegen]
+keys = ["REQ-01|text", "REQ-02|txt"]
+block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
+max_unverified_share = 0.25
+
+[task.design]
+keys = ["REQ-01|text"]
+
+[record]
+as_of = 2026-11-04

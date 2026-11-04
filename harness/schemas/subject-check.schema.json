@@ -1,0 +1,54 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/subject-check.schema.json",
+ "title": "knowgov subject check report",
+ "description": "What tools/check_subject.py --json prints for one subject root (task-0135; doc-0018 F2 to F5), and what tools/check_instance.py --json carries per subject as check. findings are errors (the manifest is refused: exit 1, and a layout error in check_instance.py) and warnings (a required key no document yields, with the near key the documents do yield); each names its rule, where it is, what is wrong and the fix. notes are for reading: a key no document yields with no near match, a register map left unchecked, a yield left unchecked and why. yield is unchecked when the mappers cannot run where the check runs (they need PyYAML, and the sequence and container mappers pumllint); keys is the number of distinct keys the documents yield. Version 1; a change is additive or a new version.",
+ "type": "object",
+ "required": ["schema_version", "tool", "subject", "root", "findings", "notes", "yield", "exit_code"],
+ "additionalProperties": false,
+ "properties": {
+  "schema_version": {"const": 1},
+  "tool": {"const": "check_subject"},
+  "subject": {"type": "string"},
+  "root": {"type": "string"},
+  "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+  "notes": {"type": "array", "items": {"$ref": "#/$defs/note"}},
+  "yield": {
+   "type": "object",
+   "required": ["state", "why", "keys", "artefacts"],
+   "additionalProperties": false,
+   "properties": {
+    "state": {"enum": ["checked", "unchecked"]},
+    "why": {"type": ["string", "null"]},
+    "keys": {"type": "integer", "minimum": 0},
+    "artefacts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}
+   }
+  },
+  "exit_code": {"enum": [0, 1]}
+ },
+ "$defs": {
+  "finding": {
+   "type": "object",
+   "required": ["level", "rule", "where", "message", "fix"],
+   "additionalProperties": false,
+   "properties": {
+    "level": {"enum": ["error", "warning"]},
+    "rule": {"enum": ["manifest", "table", "field", "required", "duplicate", "mapper", "path", "key-syntax", "block-level",
+                      "share", "scenario", "map-node", "map-owner", "mapper-failed", "yield"]},
+    "where": {"type": "string"},
+    "message": {"type": "string"},
+    "fix": {"type": "string"}
+   }
+  },
+  "note": {
+   "type": "object",
+   "required": ["rule", "where", "message"],
+   "additionalProperties": false,
+   "properties": {
+    "rule": {"enum": ["map", "yield", "unyielded"]},
+    "where": {"type": "string"},
+    "message": {"type": "string"}
+   }
+  }
+ }
+}

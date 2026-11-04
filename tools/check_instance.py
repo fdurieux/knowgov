@@ -22,9 +22,16 @@ row matches is listed as unmapped, a row matching no file as unmatched. With a c
 a [system.<name>] the register's metamodel/sources.toml does not name, or an id_attribute that is
 not a non-empty string, is an error (task-0121).
 
-Exit 0 when the layout holds (absent and unread files are findings to read, not errors), 1 when
-it does not (no register, an unknown kind folder, a subject that does not load, an artefact path
-that does not exist), 2 when the check cannot run (no such directory, an unreadable kinds table).
+Each subject is also checked by tools/check_subject.py (task-0135; doc-0018 F2 to F5): the
+manifest's tables and fields, a scenario for a task, the register map's nodes and owners against
+the instance's register, and the task keys against what the documents yield. Its refusals are
+layout errors here; its warnings (a key no document yields, with the near key they do) and notes
+are listed, and its report is the subject's ``check`` in the JSON.
+
+Exit 0 when the layout holds (absent and unread files, warnings and notes are findings to read, not
+errors), 1 when it does not (no register, an unknown kind folder, a subject that does not load, an
+artefact path that does not exist, a manifest check_subject.py refuses), 2 when the check cannot run
+(no such directory, an unreadable kinds table).
 Standard library plus the harness's subject reader.
 """
 from __future__ import annotations
@@ -39,6 +46,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 from subject import Subject  # noqa: E402
 from code_map import CODE_MAP, code_map, glob_re, register_apps  # noqa: E402,F401  (task-0050; harness/code_map.py)
+sys.path.insert(0, str(ROOT / "tools"))
+import check_subject  # noqa: E402  (task-0135)
 
 KINDS_TABLE = ROOT / "instance" / "kinds.toml"
 REGISTER_TREES = ("metamodel", "relationships", "decisions", "glossary", "exports")
@@ -167,6 +176,11 @@ def check(instance: Path, table: dict[str, dict] | None = None) -> dict:
                 for f in _files(p):
                     if f.is_relative_to(inst):
                         read.setdefault(f.relative_to(inst).as_posix(), []).append({"subject": s.id, "key": a["key"], "mapper": mapper, "state": state})
+            # the manifest's own content (task-0135): this check reports a missing path and an unknown mapper itself
+            srep["check"] = sc = check_subject.check(root, reg if reg.is_dir() else None, set(by_mapper))
+            for f in sc["findings"]:
+                if f["level"] == "error" and f["rule"] not in ("path", "mapper"):
+                    errors.append(f"subjects/{root.name}: {f['where']}: {f['message']}; fix: {f['fix']}")
             rep["subjects"].append(srep)
 
     for folder, k in table.items():
@@ -195,6 +209,16 @@ def render(rep: dict) -> str:
         out.append(f"subject {s['id']} ({s['root']}): {len(s['artefacts'])} artefacts, record {'present' if s['record'] else 'empty'}")
         for a in s["artefacts"]:
             out.append(f"  {a['state']:10s} {a['key']}  [{a['kind'] or '-'}] {a['mapper'] or '(no mapper)'}  {a['path']}")
+        chk = s.get("check")
+        if chk:
+            y = chk["yield"]
+            out.append(f"  yield: {y['keys']} key(s) from {len(y['artefacts'])} artefact(s)" if y["state"] == "checked"
+                       else f"  yield: unchecked ({y['why']})")
+            for f in chk["findings"]:
+                if f["level"] == "warning":
+                    out.append(f"WARNING {s['root']} {f['where']}: {f['message']}. Fix: {f['fix']}")
+            for n in chk["notes"]:
+                out.append(f"NOTE {s['root']} {n['where']}: {n['message']}")
     for folder, k in rep["kinds"].items():
         out.append(f"kind {folder} ({k['row']}): {len(k['files'])} file(s), mappers {', '.join(k['mappers']) or 'none'}")
     for a in rep["absent"]:

@@ -1,0 +1,9 @@
+# doc-0018's probe (task-0135): two rows the register map check refuses. Synthetic.
+[[row]]
+key = "REQ-01|text"
+owner = "ORG-0001"          # CAP-0002 is ORG-0002's: an owner of none of the row's nodes
+nodes = ["CAP-0002"]
+
+[[row]]
+key = "REQ-02|text"
+nodes = ["CAP-9999"]        # not in the public register
