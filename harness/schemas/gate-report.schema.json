@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/fdurieux/knowgov/harness/schemas/gate-report.schema.json",
   "title": "knowgov gate report",
-  "description": "What `python harness/gate_cli.py -f json` prints (task-0007): the gate's verdict for one task of one subject's scenario, its findings on the severity ladder, the threshold, the baseline comparison when one was asked for, and the exit code. Version 2 (task-0048); a change is additive or a new version. From version 1: a finding carries `kind` (key, task, stale, suspect_derived), `ref` (the statement or derived output it is about, null for a key or the task) and `related` (a stale statement's verified or approved successors; the invalidated statements a suspect derived output used); a stale statement on a required key is a finding (info when a verified or approved successor replaces it, major when none does) and a suspect derived output is a blocker, so both count toward --fail-on; `stale` and `suspect_derived` are lists of ids instead of counts; the baseline carries `new_suspect`, and a derived output suspect that the baseline did not hold suspect is a regression. A version-1 report still reads as a baseline, holding no derived output suspect. Added in version 2 (task-0049, additive, so not required: a report from before still validates): `version`, the version loaded, and `change`, --stage 2's change. Added since (task-0071, additive): `superseded_by`, each stale statement a verified or approved successor supersedes, with those successors. Added in version 2 (task-0068, decision-0005, additive): `as_of`, the date review currency was read on, and `lapsed`, the statements on required keys whose review has lapsed by then, each also a finding of kind `lapsed` (major). Added since, without a version change: findings of kind preload (info), when the load recorded pre-load verdicts (task-0064). Added since (task-0102, doc-0014 C7, additive, not required: a report from before still validates): a key, stale or lapsed finding carries `owner`, the key's owner unit from the subject's register_map.toml, and `route`, the route to approval (the owner's questionnaire). Added since (task-0110, additive, not required): a key finding on a declared gap carries `closer`, the unit that closes the gap (decision-0002), and its route names the close.",
+  "description": "What `python harness/gate_cli.py -f json` prints (task-0007): the gate's verdict for one task of one subject's scenario, its findings on the severity ladder, the threshold, the baseline comparison when one was asked for, and the exit code. Version 2 (task-0048); a change is additive or a new version. From version 1: a finding carries `kind` (key, task, stale, suspect_derived), `ref` (the statement or derived output it is about, null for a key or the task) and `related` (a stale statement's verified or approved successors; the invalidated statements a suspect derived output used); a stale statement on a required key is a finding (info when a verified or approved successor replaces it, major when none does) and a suspect derived output is a blocker, so both count toward --fail-on; `stale` and `suspect_derived` are lists of ids instead of counts; the baseline carries `new_suspect`, and a derived output suspect that the baseline did not hold suspect is a regression. A version-1 report still reads as a baseline, holding no derived output suspect. Added in version 2 (task-0049, additive, so not required: a report from before still validates): `version`, the version loaded, and `change`, --stage 2's change. Added since (task-0071, additive): `superseded_by`, each stale statement a verified or approved successor supersedes, with those successors. Added in version 2 (task-0068, decision-0005, additive): `as_of`, the date review currency was read on, and `lapsed`, the statements on required keys whose review has lapsed by then, each also a finding of kind `lapsed` (major). Added since, without a version change: findings of kind preload (info), when the load recorded pre-load verdicts (task-0064). Added since (task-0102, doc-0014 C7, additive, not required: a report from before still validates): a key, stale or lapsed finding carries `owner`, the key's owner unit from the subject's register_map.toml, and `route`, the route to approval (the owner's questionnaire). Added since (task-0110, additive, not required): a key finding on a declared gap carries `closer`, the unit that closes the gap (decision-0002), and its route names the close. Added since (task-0122, additive, not required): `register_change`, with --register-previous, what the register's update withdrew and the statements it invalidated, each also a stale finding naming the register's decision record, and the derived outputs that used them suspect.",
   "type": "object",
   "required": ["schema_version", "tool", "subject", "scenario", "task", "store", "loaded", "verdict", "why", "threshold", "findings", "counts", "keys", "conflicts", "stale", "suspect_derived", "levels", "baseline", "exit_code"],
   "additionalProperties": false,
@@ -27,6 +27,30 @@
         "reverified": {"type": "boolean", "description": "true (--reverify): the owner's recorded re-verification ran before the gate"},
         "reverified_statements": {"type": "array", "items": {"type": "string"}},
         "derived": {"type": ["string", "null"], "description": "the earlier governed output registered as derived, from the subject's record; null when the record holds none"}
+      }
+    },
+    "register_change": {
+      "type": "object",
+      "description": "--register-previous's register change (task-0122): what the register's update withdrew, the keys resting on it and the statements it invalidated; absent without the flag",
+      "required": ["from", "to", "nodes", "links", "keys", "invalidated", "derived"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {"$ref": "#/$defs/register_source"},
+        "to": {"$ref": "#/$defs/register_source"},
+        "nodes": {"type": "array", "description": "every node that became deprecated or retired, or left the register", "items": {
+          "type": "object", "required": ["id", "from", "to", "reason"], "additionalProperties": false,
+          "properties": {"id": {"type": "string"}, "from": {"type": ["string", "null"]}, "to": {"type": ["string", "null"]},
+                         "reason": {"type": "string", "description": "the register's decision record for the change"}}}},
+        "links": {"type": "array", "description": "every link approved before and not approved now, or gone", "items": {
+          "type": "object", "required": ["id", "rel", "source", "target", "from", "to", "reason"], "additionalProperties": false,
+          "properties": {"id": {"type": "string"}, "rel": {"type": "string"}, "source": {"type": "string"}, "target": {"type": ["string", "null"]},
+                         "from": {"type": "string"}, "to": {"type": ["string", "null"]}, "reason": {"type": "string"}}}},
+        "keys": {"type": "array", "description": "the subject's keys resting on what was withdrawn: its map rows plus the register's dependants walk (decision 0016)", "items": {
+          "type": "object", "required": ["key", "owner", "reasons", "causes"], "additionalProperties": false,
+          "properties": {"key": {"type": "string"}, "owner": {"type": ["string", "null"]}, "reasons": {"type": "array", "items": {"type": "string"}},
+                         "causes": {"type": "array", "items": {"type": "string"}, "description": "the withdrawn nodes and links it rests on, by id"}}}},
+        "invalidated": {"type": "array", "items": {"type": "string"}, "description": "every statement the change invalidated, by id"},
+        "derived": {"type": ["string", "null"], "description": "the scenario's governed output registered as derived, from the subject's record; null when it holds none or nothing landed"}
       }
     },
     "verdict": {"$ref": "#/$defs/verdict"},
@@ -91,6 +115,8 @@
   },
   "$defs": {
     "verdict": {"enum": ["PROCEED", "QUALIFIED", "BLOCKED"]},
+    "register_source": {"type": "object", "required": ["tag", "commit"], "additionalProperties": false,
+                        "properties": {"tag": {"type": "string"}, "commit": {"type": "string"}}},
     "severity": {"enum": ["blocker", "critical", "major", "minor", "info"]},
     "finding": {
       "type": "object",

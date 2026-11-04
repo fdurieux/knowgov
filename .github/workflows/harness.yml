@@ -237,6 +237,10 @@ jobs:
         run: KG_STORE=rdflib python tools/check_gate_after_change.py runs/gate-change
       - name: knowgov-trace (task-0051) on the example instance, a registered build of APP-0001 turns suspect after S6's change and check exits 1 naming it
         run: rm -rf runs/trace && KG_STORE=rdflib python tools/check_trace_walkthrough.py runs/trace
+      - name: A register change invalidates (task-0122), the fixture's deprecated CAP-0001 and withdrawn REL-06001 stale the keys resting on them and S1's output suspect, exit 1; no state change, nothing; the staleness survives the round trip
+        run: |
+          rm -rf runs/regchange && KG_STORE=rdflib python tools/check_register_change.py runs/regchange
+          KG_STORE=rdflib KG_REGISTER=runs/regchange/register-changed python tools/check_round_trip.py --chain rdflib,rdflib --scenarios S1 --no-stage2 --register-previous demo/register
       - name: "The pipeline wrappers (task-0052): the GitHub composite action, on the example instance, S6: setup"
         run: |
           rm -rf runs/wrap && python tools/example_instance.py runs/wrap/instance > /dev/null

@@ -1,0 +1,155 @@
+"""A register change invalidates (task-0122): what a register update withdrew, and what rested on it.
+
+``diff(previous, current)`` compares two register roots (the previous vendored tag and the current
+one; an instance's checkout before and after its update) and lists every node that became deprecated
+or retired (or left the register) and every link withdrawn (approved before; not approved now, or
+gone), each with its reason: the register's decision record for the change. ``resting(change,
+register_map)`` lands them on the subject's keys: for a node, the map rows the register's own walk
+lands (``register_impact``: the dependants walk with the descent by ``parent``, decision 0014, the
+start never counted, decision 0016, on the previous register, where what rested on the node still
+stood; a row naming only a withdrawn descendant lands too, flagged, as ``register_impact`` lands it,
+task-0120); for a link, the rows that name both its ends and the rows the dependants walk from either end
+lands only through it. ``apply(store, landed)`` marks the live statements on those keys stale
+(``invalidated_by``: the reason) and the derived outputs that used them suspect, through the store
+port; the gate then reports them as it reports a source change (S6). A register update with no state
+change lands nothing and writes nothing. Standard library only; nothing here names a subject.
+"""
+from __future__ import annotations
+
+import copy
+import re
+from pathlib import Path
+
+import register_impact as ri
+
+WITHDRAWN = ("deprecated", "retired")
+WALK = "dependants"   # decision 0016 point 3: the walk named; with the descent by parent for a node
+LIVE = ("proposed", "validated", "verified", "approved", "disputed")   # what a register change can invalidate
+_STATE_NOTE = re.compile(r'^\s*state\s*=\s*"(?:deprecated|retired)"\s*#[^\n]*?\bdecision\s+(\d{4})', re.M)
+
+
+def _decision(root: Path, number: str) -> str | None:
+    hits = sorted((root / "decisions").glob(f"{number}-*.md"))
+    return f"decisions/{hits[0].name}" if hits else None
+
+
+def _decisions(root: Path) -> set[str]:
+    d = root / "decisions"
+    return {f"decisions/{p.name}" for p in d.glob("*.md")} if d.is_dir() else set()
+
+
+def _link_block(text: str, lid: str) -> str:
+    """The ``[[link]]`` block of one link in a relationship file's text."""
+    for block in re.split(r"^\[\[link\]\]\s*$", text, flags=re.M)[1:]:
+        if re.search(rf'^\s*id\s*=\s*"{re.escape(lid)}"', block, re.M):
+            return block
+    return ""
+
+
+def _record(item: dict) -> str | None:
+    a = item.get("approval")
+    return a.get("record") if isinstance(a, dict) else None
+
+
+def _reason(root: Path, text: str, before: dict, after: dict, added: list[str], tag: str) -> str:
+    """The register's decision record for one change: the decision its state line's note names (the
+    register's own practice: ``state = "deprecated"   # decision 0006: ...``), else its approval
+    record when the change moved it, else the decisions the update added, else the register's tag."""
+    m = _STATE_NOTE.search(text)
+    rec = _decision(root, m.group(1)) if m else None
+    if rec is None and after and _record(after) and _record(after) != _record(before):
+        rec = _record(after)
+    if rec is None and added:
+        rec = ", ".join(added)
+    where = f"the register at {tag}" if tag else "the register"
+    return f"{where}: {rec}" if rec else where
+
+
+def diff(previous: Path, current: Path) -> dict:
+    """What the update from ``previous`` to ``current`` withdrew: {from, to, nodes, links}, each item
+    with its id, its state before and after (None when gone) and its reason."""
+    previous, current = Path(previous).resolve(), Path(current).resolve()
+    T = ri.load_tools(previous)
+    before = T["register"].load_register(previous)
+    after = ri.load_tools(current)["register"].load_register(current)
+    tag = ri.source(current)["tag"] or ri.source(current)["commit"][:7]
+    added = sorted(_decisions(current) - _decisions(previous))
+    nodes = []
+    for nid, n in sorted(before["nodes"].items()):
+        if n.get("state") in WITHDRAWN:
+            continue
+        m = after["nodes"].get(nid)
+        state = m.get("state") if m else None
+        if m is not None and state not in WITHDRAWN:
+            continue
+        text = Path(m["_path"]).read_text(encoding="utf-8") if m else ""
+        nodes.append({"id": nid, "from": n.get("state"), "to": state, "reason": _reason(current, text, n, m or {}, added, tag)})
+    links = []
+    for rel, spec in sorted(before["relationships"].items()):
+        now = {ln.get("id"): ln for ln in after["relationships"].get(rel, {}).get("links", [])}
+        for ln in spec.get("links", []):
+            if ln.get("state") != "approved":
+                continue
+            m = now.get(ln.get("id"))
+            if m is not None and m.get("state") == "approved":
+                continue
+            path = after["relationships"].get(rel, {}).get("_path")
+            text = _link_block(Path(path).read_text(encoding="utf-8"), ln["id"]) if m and path else ""
+            links.append({"id": ln.get("id"), "rel": rel, "source": ln.get("source"), "target": ln.get("target"),
+                          "from": "approved", "to": m.get("state") if m else None,
+                          "reason": _reason(current, text, ln, m or {}, added, tag)})
+    return {"from": ri.source(previous), "to": ri.source(current), "nodes": nodes, "links": links}
+
+
+def _lost(T, reg: dict, start: str, link: dict) -> list[str]:
+    """What the dependants walk from ``start`` reached only through ``link``: its reach on ``reg``
+    less its reach with the link withdrawn (decision 0016: never the start)."""
+    rows = T["impact"].WALKS.get(WALK) if hasattr(T["impact"], "WALKS") else None
+    walk = lambda r: T["impact"].reached(T["impact"].walk(r, start) if rows is None else T["impact"].walk(r, start, rows))  # noqa: E731
+    without = copy.copy(reg)
+    without["relationships"] = {k: dict(v, links=[dict(x, state="withdrawn") if x.get("id") == link["id"] else x for x in v.get("links", [])])
+                                for k, v in reg["relationships"].items()}
+    return sorted(walk(reg) - walk(without))
+
+
+def resting(change: dict, register_map: dict, previous: Path) -> list[dict]:
+    """The subject's keys resting on what the change withdrew: one entry per key, with its owner, the
+    causes (the node or link, how it landed, the nodes it came through) and the reasons."""
+    previous = Path(previous).resolve()
+    by_key: dict[str, dict] = {}
+
+    def land(row: dict, cause: dict) -> None:
+        k = by_key.setdefault(row["key"], {"key": row["key"], "owner": row.get("owner"), "causes": []})
+        k["causes"].append({**cause, "via": row["via"]})
+
+    for n in change["nodes"]:
+        w = ri.walk(n["id"], WALK, root=previous, children=True)
+        walked = [d["id"] for d in w["children"] if d.get("walked")]
+        withdrawn = [d["id"] for d in w["children"] if d.get("withdrawn")]
+        for row in ri.landed_rows(register_map, n["id"], w["reached_ids"], walked, withdrawn):
+            land(row, {"node": n["id"], "walk": WALK, "children": True, "reason": n["reason"],
+                       **({"withdrawn": True} if row.get("withdrawn") else {})})
+    if change["links"]:
+        T = ri.load_tools(previous)
+        reg = T["register"].load_register(previous)
+        for ln in change["links"]:
+            ends = [ln["source"], ln["target"]]
+            for row in register_map.get("row", []):
+                if all(e in (row.get("nodes") or []) for e in ends):
+                    land({**row, "via": ends}, {"link": ln["id"], "walk": None, "reason": ln["reason"]})
+            for start in ends:
+                lost = _lost(T, reg, start, ln)
+                for row in ri.landed_rows(register_map, "", lost):
+                    land(row, {"link": ln["id"], "walk": WALK, "from": start, "reason": ln["reason"]})
+    out = []
+    for k in sorted(by_key.values(), key=lambda k: k["key"]):
+        k["reasons"] = sorted({c["reason"] for c in k["causes"]})
+        out.append(k)
+    return out
+
+
+def apply(store, landed: list[dict]) -> dict:
+    """Mark the live statements on the landed keys stale and what used them suspect, through the port."""
+    if not landed:
+        return {"invalidated": []}
+    return store.invalidate_keys({k["key"]: "; ".join(k["reasons"]) for k in landed})

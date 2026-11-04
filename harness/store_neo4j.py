@@ -668,6 +668,19 @@ class Neo4jStore(Store):
             RETURN DISTINCT x.id AS id, x.key AS key, x.status AS status""", tag=new_tag))
         return {"invalidated": inv, "kept": kept}
 
+    def invalidate_keys(self, reasons) -> dict:
+        inv = _rows(self.run("""
+            UNWIND $pairs AS p
+            MATCH (x:Assertion {key:p.key}) WHERE x.status IN ['proposed','validated','verified','approved','disputed']
+            SET x.status='invalidated', x.invalidated_at=datetime().epochSeconds, x.invalidated_by=p.reason
+            WITH x, p
+            OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x) SET v.valid_until=p.reason
+            WITH DISTINCT x
+            OPTIONAL MATCH (d:Derived)-[:USED_ASSERTION]->(x) SET d.suspect=true
+            RETURN x.id AS id, x.key AS key, collect(DISTINCT d.id) AS derived""",
+            pairs=[{"key": k, "reason": r} for k, r in sorted(reasons.items())]))
+        return {"invalidated": sorted(({**r, "derived": sorted(d for d in r["derived"] if d)} for r in inv), key=lambda r: r["id"])}
+
     # ---- the gate
     def key_evidence(self, key, live) -> list[dict]:
         rows = _rows(self.run("""

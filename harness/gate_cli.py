@@ -64,6 +64,15 @@ change (``change``: the artefact, the statements invalidated, the re-verified, t
 ``--no-load`` reads the store as it is, for a stack whose page has already loaded a scenario; the
 scenario named must be the one the store holds. A load wipes the store first, as a run does.
 
+``--register-previous DIR`` (task-0122, harness/register_change.py): after the load, the register as
+it was before its update (DIR: the previous vendored tag, an instance's checkout before its pull) is
+compared with the register the gate reads (``KG_REGISTER``). Every node that became deprecated or
+retired and every link withdrawn marks the live statements on the keys resting on it invalidated, the
+reason its decision record, and the scenario's governed output in the subject's record, registered as
+derived, suspect: stale and suspect_derived findings, as a source change gives. ``register_change``
+in the report says what was withdrawn, the keys and the statements; an update with no state change
+writes nothing. Refused with ``--no-load``, which never writes.
+
 Each key, stale and lapsed finding names its key's owner unit (``owner``, from the subject's
 ``register_map.toml`` through capture.py's ``answering_owners``, task-0043; null when no row maps
 the key or several units answer for it) and the route to approval (``route``: the owner's
@@ -212,7 +221,8 @@ def superseded_map(res: dict) -> dict[str, list[str]]:
 def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loaded: bool,
            block_levels: set[str], threshold: str, baseline: dict | None,
            version: str | None = None, change: dict | None = None, owners: dict[str, dict] | None = None,
-           route_task: str | None = None, route_keys=None, closers: dict[str, dict] | None = None) -> dict:
+           route_task: str | None = None, route_keys=None, closers: dict[str, dict] | None = None,
+           register_change: dict | None = None) -> dict:
     """``route_task`` is the task class whose questionnaire a finding's route names (``task`` by default;
     the MCP server's agent-chosen key set, task ``keys``, names the class it was resolved under), and
     ``route_keys`` the keys that questionnaire covers (None: every key): a key outside them has no route."""
@@ -233,7 +243,8 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
             "suspect_derived": [d["id"] for d in res.get("suspect_derived") or []],  # the derived outputs, by id (a count in version 1)
             "as_of": res.get("as_of"), "lapsed": [x["id"] for x in res.get("lapsed") or []],   # decision-0005, added in version 2
             "levels": {k: v["level"] for k, v in res["keys"].items()},   # what a later run's --baseline FILE compares with
-            "baseline": baseline, "exit_code": 1 if fail else 0}
+            "baseline": baseline, "exit_code": 1 if fail else 0,
+            **({"register_change": register_change} if register_change is not None else {})}   # task-0122, additive
 
 
 def render(rep: dict) -> str:
@@ -243,6 +254,13 @@ def render(rep: dict) -> str:
         out.append(f"  version  {ch['version']} of {ch['artefact']}: {len(ch['invalidated'])} statement(s) invalidated ({', '.join(ch['invalidated']) or 'none'}); "
                    + (f"re-verified {', '.join(ch['reverified_statements']) or 'none'}" if ch["reverified"] else "before re-verification")
                    + (f"; derived {ch['derived']} registered" if ch["derived"] else ""))
+    rc = rep.get("register_change")
+    if rc is not None:   # task-0122
+        tag = lambda x: x["tag"] or x["commit"][:7]  # noqa: E731
+        out.append(f"  register {tag(rc['from'])} -> {tag(rc['to'])}: " + (", ".join(
+            [f"{n['id']} {n['to'] or 'gone'}" for n in rc["nodes"]] + [f"{ln['id']} {ln['to'] or 'gone'}" for ln in rc["links"]]) or "nothing withdrawn")
+                   + f"; {len(rc['keys'])} key(s) resting on it, {len(rc['invalidated'])} statement(s) invalidated"
+                   + (f"; derived {rc['derived']} registered" if rc["derived"] else ""))
     for f in rep["findings"]:
         out.append(f"  {f['severity']:8s} {f['message']}" + (f" [owner {f['owner'] or 'none in the register map'}"
                                                          + (f"; closed by {f['closer'] or 'no unit of the register'}" if "closer" in f else "") + "]"
@@ -306,6 +324,16 @@ def run(args) -> dict:
         on = cadence.as_of(args.as_of).isoformat()
     except ValueError as e:
         raise CannotRun(f"--as-of: {e}") from e
+    reg_change = previous = None
+    if args.register_previous:
+        if args.no_load:
+            raise CannotRun("--register-previous marks statements stale on a load; --no-load reads the store as it is: drop one")
+        import register_change as rc
+        previous = Path(args.register_previous)
+        try:
+            reg_change = rc.diff(previous, rc.ri.register_root())
+        except Exception as e:  # noqa: BLE001 — a register that does not load is a cannot-run
+            raise CannotRun(f"--register-previous: the registers do not compare: {type(e).__name__}: {e}") from e
     from store import open_store
     try:
         st = open_store(instance=SUBJECT.id)
@@ -325,9 +353,11 @@ def run(args) -> dict:
             if cfg2:
                 change = _change(st, SUBJECT, scenario, cfg2, args.reverify)
                 version = change["version"]
+            if reg_change is not None:
+                reg_change = _register_change(st, SUBJECT, scenario, reg_change, previous)
         return evaluate(st, subject=SUBJECT.id, scenario=scenario, task=args.task, spec=TASKS[args.task],
                         threshold=args.fail_on, baseline=base, loaded=not args.no_load, version=version, change=change,
-                        as_of=on)
+                        as_of=on, register_change=reg_change)
     except CannotRun:
         raise
     except Exception as e:  # noqa: BLE001 — an unreachable store fails here, on the first statement
@@ -342,7 +372,8 @@ def run(args) -> dict:
 def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshold: str,
              baseline: tuple[dict, str] | None, loaded: bool, version: str | None = None,
              change: dict | None = None, as_of="today", owners: dict[str, dict] | None = None,
-             route_task: str | None = None, closers: dict[str, dict] | None = None) -> dict:
+             route_task: str | None = None, closers: dict[str, dict] | None = None,
+             register_change: dict | None = None) -> dict:
     """Resolve ``spec`` on the store as it stands, as of ``as_of`` (today by default; harness/cadence.py), and build the report. The command calls this
     after its load (and stage 2's change, if any); the MCP server (harness/mcp_server.py) calls it
     on a store it only reads, so one input gives one report whichever way it was asked. ``owners``
@@ -362,7 +393,7 @@ def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshol
                   block_levels=set(spec["block_levels"]), threshold=threshold,
                   baseline=compare(res, *baseline) if baseline else None, version=version, change=change, owners=owners,
                   route_task=route_task, route_keys=_route_keys(route_task) if route_task and route_task != task else None,
-                  closers=closers)
+                  closers=closers, register_change=register_change)
 
 
 def _route_keys(task: str) -> set[str] | None:
@@ -394,6 +425,34 @@ def _change(st, subject, scenario: str, cfg2: dict, reverified: bool) -> dict:
     return {"artefact": cfg2["artefact"], "version": version_of(cfg2),
             "invalidated": sorted(x["id"] for x in ch["D3_stale"]["invalidated"]),
             "reverified": reverified, "reverified_statements": sorted(rever), "derived": ch["derived"]}
+
+
+def _register_change(st, subject, scenario: str, change: dict, previous: Path) -> dict:
+    """A register change on a store holding the scenario (task-0122, harness/register_change.py): the
+    scenario's governed output in the subject's record (the stage-2 ``derived`` table of any scenario
+    that names this one ``from_scenario``) is registered as derived with the statements the codegen
+    gate served, as stage 2 registers it; then the keys resting on what the change withdrew are
+    invalidated, each by its reason. A change that withdrew nothing writes nothing."""
+    import register_change as rc
+    landed = rc.resting(change, subject.register_map(), previous)
+    did = None
+    if landed:
+        from gate import resolve
+        from kitio import sha256
+        from tasks import TASKS
+        for sid in subject.order:
+            d = (subject.scenario(sid).get("stage2") or {}).get("derived") or {}
+            path = subject.record_dir / d.get("from_scenario", "") / d.get("file", "run1_G.py")
+            if d.get("from_scenario") == scenario and path.exists():
+                did = d.get("id", f"derived:{scenario}")
+                ids = [a["id"] for v in resolve(st, "codegen")["keys"].values() for a in v["assertions"]] if "codegen" in TASKS else []
+                st.register_derived(did, d.get("kind", "artefact"), sha256(path.read_text(encoding="utf-8")), ids)
+                break
+    done = rc.apply(st, landed)
+    return {"from": change["from"], "to": change["to"], "nodes": change["nodes"], "links": change["links"],
+            "keys": [{"key": k["key"], "owner": k["owner"], "reasons": k["reasons"],
+                      "causes": [c.get("node") or c.get("link") for c in k["causes"]]} for k in landed],
+            "invalidated": [x["id"] for x in done["invalidated"]], "derived": did}
 
 
 def _load(st, scenario: str) -> None:
@@ -428,6 +487,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="1 (default): the scenario as first loaded; 2: then its later version, the subject's [scenario.stage2] change, before re-verification")
     ap.add_argument("--reverify", action="store_true", help="with --stage 2: the owner's recorded re-verification of the named keys before the gate")
     ap.add_argument("--no-load", action="store_true", help="read the store as it is instead of loading the scenario first")
+    ap.add_argument("--register-previous", metavar="DIR",
+                    help="the register before its update (task-0122): what the update withdrew from the register (KG_REGISTER) marks the statements resting on it stale")
     ap.add_argument("--as-of", default="today", metavar="DATE",
                     help="the date review currency is read on (decision-0005): today (default), record (the subject's pinned record date) or YYYY-MM-DD")
     ap.add_argument("-f", "--format", choices=["text", "json"], default="text")
