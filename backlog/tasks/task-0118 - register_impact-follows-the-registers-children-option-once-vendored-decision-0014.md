@@ -3,11 +3,11 @@ id: TASK-0118
 title: >-
   register_impact follows the register's children option once vendored (decision
   0014)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T15:07:00Z'
-updated_date: '2026-11-04T17:03:00Z'
+updated_date: '2026-11-04T17:44:00Z'
 labels:
   - mcp
   - register
@@ -52,3 +52,9 @@ Both test runs 339/339.
 
 AC #2 holds across the two walks: dependants with children reaches the three nodes (31 keys), realisers with children lands the 36 codegen keys; tests/test_mcp_server.py holds both and the default unchanged.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+register_impact gains children (default false), the register's own descent by parent (ieam-register decision 0014, walk_children), with the register vendored at v0.2.8 (decisions 0014 and 0015). An approved descendant is walked; any other is listed withdrawn and not walked from; a map row lands on a walked descendant too. Default unchanged; record and comparator unchanged (rdflib, as of 2026-10-30, 0 differing leaves). CAP-0001 with children: dependants reaches PRD-0002, PROC-0001, JRN-0001 and lands 31 keys; realisers lands the 36 codegen keys. Tests on both subjects (339/339 each); check_mcp_server green on S6 and C. Merged in #194. Page panel not adopted (its saved Cypher, guide and Cypher-equals-walk test would all need the descent): proposed as a follow-up.
+<!-- SECTION:FINAL_SUMMARY:END -->
