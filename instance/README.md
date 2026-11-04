@@ -105,6 +105,46 @@ instance carries one: CargoQuote's reference code, mapped to `APP-0001`. A later
 (`implemented_by`) may carry the same fact in the register itself; that is the register's
 decision, and the file would then yield to it.
 
+## Tracing a code change to the knowledge
+
+```bash
+python harness/trace.py register --instance /path/to/your/instance --ledger trace/ledger.json \
+    --commit "$SHA" --file quote/api.py --subject /path/to/your/instance/subjects/<id>
+python harness/trace.py check --instance /path/to/your/instance --ledger trace/ledger.json \
+    --changed quote/api.py --subject /path/to/your/instance/subjects/<id>
+```
+
+In plain English: `register` runs in your code's pipeline after a merge and a build. It records each
+file you name (relative to `code_map.toml`'s root) as an output built from the statements the
+task's gate serves now, or the ones you name with `--assertion`. It also records the file's digest and
+the application `code_map.toml` gives it. The record goes into the store and into the *ledger*, a JSON
+file you keep with your code. A load wipes the store, so the ledger is what survives the next one.
+`check` runs on every pull request into the code. It reads the ledger against the store as your
+instance's last load left it, and against your files:
+
+- **suspect** (blocker): a registered file was built from a statement that has since been
+  invalidated, because a document changed. The finding names the application, the statements and
+  their successors. Rebuild the file from the current statements and register it again.
+- **missing** (major): a registered file no longer exists. **unmapped** (major): a changed code file
+  that no row of `code_map.toml` maps.
+- **drift** (minor): a registered file changed since its registration. The edit is legitimate, so
+  the finding lists what the registered version rested on and asks for a new registration.
+- the task's gate on the store as it is: its blockers and other findings, as `harness/gate_cli.py`
+  reports them.
+
+With `--changed`, it looks only at the registered files that changed and the applications a
+changed file belongs to. Without it, it looks at every registered file. It exits 0, 1 or 2 like the
+gate: 1 on a finding at or above `--fail-on` (default `blocker`), 2 when it cannot run (no
+`code_map.toml`, one that does not hold, no ledger, an unreachable store). `-f json` prints the
+report under `harness/schemas/trace-report.schema.json`. Every input is a flag. Nothing reads a CI
+platform's variables, so a wrapper for your platform maps its commit and changed files to the
+flags. `tools/check_trace_walkthrough.py` runs it on the example instance: S6's change to the decision
+table turns the registered reference code suspect, and `check` exits 1 naming `APP-0001`.
+
+What it does not do: it does not read code. It cannot tell whether a file does what its statements
+say (that is your tests' job), and hand-written code that cites nothing maps to an application,
+not to statements.
+
 ## Checking a document before the load
 
 ```bash
@@ -115,13 +155,16 @@ python tools/preload_check.py /path/to/your/instance --since origin/main
 
 In plain English: this runs, for each document under `artefacts/<kind>/`, the linter the
 programme's table names for its kind (the `lint` field of `instance/kinds.toml`), when that
-linter can run here. Today one can: pumllint, for `plantuml-models`. Every other kind's files are
-listed as *UNCHECKED*, with the tool the table names (or "names no linter"), so the gap stays in
-sight; an unchecked file does not fail the check, and it is never passed quietly. Without
+linter can run here. Two kinds are checked today: `plantuml-models` with pumllint, and
+`api-contracts` with Spectral (its built-in OpenAPI and AsyncAPI rules, or your own
+`.spectral.yaml` at the instance root). Every other kind's files, and a kind whose linter is not
+installed where the check runs, are listed as *UNCHECKED*, with the tool the table names (or
+"names no linter"), so the gap stays in sight; an unchecked file does not fail the check, and it
+is never passed quietly. Spectral's errors count as `major`, its warnings as `minor`. Without
 `--changed` or `--since` it checks every file; with them, only the files named, or changed since
 that git reference. It exits 0 when every checked file is clean, 1 when one has a finding at or
-above `--fail-on` (default `major`, pumllint's own), and 2 when it cannot run: a linter not
-installed, a folder that is not a kind, a named file that does not exist. `-f json` prints the
+above `--fail-on` (default `major`, pumllint's own), and 2 when it cannot run: a linter that is
+installed but fails, a folder that is not a kind, a named file that does not exist. `-f json` prints the
 report under `harness/schemas/preload-report.schema.json`. The linter runs with your instance as
 its working directory, so your own pumllint configuration applies.
 
@@ -129,8 +172,9 @@ To run it on every pull request, copy `instance/ci/preload-check.yml` into your 
 `.github/workflows/`, pin `KNOWGOV_REF` to a knowgov tag, and make the job a required check with
 a reviewer who is not the author. It lints the documents the pull request changes, then runs
 `tools/check_instance.py`; the script it calls, `instance/ci/preload-check.sh`, is the one this
-repository's CI runs on the example instance. Your other linters (Spectral, Vale, bpmnlint...) go
-in as steps of their own before it. The load reads only what was merged.
+repository's CI runs on the example instance. It installs the linters the check runs, pinned
+(`PUMLLINT`, `SPECTRAL`). Your other linters (Vale, gplint, bpmnlint...) go in as steps of their
+own before it. The load reads only what was merged.
 
 **What it does not do.** It checks *form*, one file at a time: is this a well-formed document
 of its kind? It does not check *knowledge*. Two well-formed documents that disagree, or a fact
@@ -178,7 +222,10 @@ no register row covers goes to a questionnaire named `unassigned`, so nothing is
 The owner fills it in: a value in `answer`, or `nobody_knows = true` when no one can say. They
 add their *handle* and the date under `[answered]`. A handle is a short lower-case label such
 as `employee-1`, never a name or an e-mail address, and one your register has issued (its
-`people/handles.toml`, ieam-register decision 0009). Then:
+`people/handles.toml`, ieam-register decision 0009). A `note` must not identify them either: no
+name, no role only they hold, nothing like "as the author of the 2025 memo". The note travels with
+the answer into everything that reads it, and no check can tell an identifying note from a harmless
+one; only the reviewer reads it (below). Then:
 
 ```bash
 python harness/capture.py ingest questionnaires/questionnaire-cargo_quote-S2-ORG-0002.toml
@@ -220,6 +267,23 @@ outcome = "approved"
 python harness/capture.py review review.toml
 ```
 
+Before ruling, read what you rule on:
+
+```bash
+python harness/capture.py review review.toml --show
+```
+
+In plain English: this prints each answer the review rules on, with the note that came with it,
+and writes nothing. Check that no note names or points at the person who gave it. If one does,
+reject that statement and ask for the answer again without the note: a capture is never edited,
+so the corrected answer is a new capture. Nothing else looks at a note.
+
+Then rule:
+
+```bash
+python harness/capture.py review review.toml
+```
+
 In plain English: this loads the scenario, checks the review against what the store holds, and
 saves it in `captures/reviews/`. Every later load of that scenario applies it. An approved
 statement counts as *approved*; a rejected one, whether a person's answer or a document's
@@ -248,6 +312,23 @@ A review copied into `captures/reviews/` by hand is checked again on every load:
 a rule is skipped, and the load prints why. The rules are knowgov's decision-0002; the handles
 and roles are ieam-register's decision 0009. `tools/check_review_walkthrough.py` runs the
 whole path on the example instance.
+
+**Asking again when an answer falls due.** What a person said is due for review six months after
+they said it (ieam-register decision 0008). To ask again:
+
+```bash
+python harness/capture.py due --out questionnaires/
+```
+
+In plain English: this finds every captured answer given six months ago or more, the latest per
+person and key (one a review rejected is not asked again), and writes one questionnaire per handle,
+each answer pre-filled with what they said and when. The person keeps an answer to confirm it,
+changes it to correct it, or empties it to skip it, then fills `[answered]` and you ingest it as
+before. A confirmation is a new capture on the new date, which restarts the six months; a change
+is a new statement beside the old one, for a reviewer. The earlier capture is never edited. If a
+handle has been withdrawn (the person left), its answers go to the owner unit instead. The command
+also lists any register link carrying an `elicited` block whose `review_due` has come: those are
+reviewed in the register, not here. `--on YYYY-MM-DD` (or `KG_TODAY`) sets the date it counts to.
 
 **Starting from a conversation.** If someone has talked through what they know (a recorded
 interview, meeting minutes), a model can read the transcript and suggest answers:
