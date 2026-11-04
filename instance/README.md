@@ -515,3 +515,63 @@ token is a lock, not a reason to put it on the internet.
 Outside the container, the server needs the same Python packages as the harness and the same
 store settings (`KG_STORE`, and for rdflib `KG_RDFLIB_FILE`, the file a run left). For a store
 with nothing loaded, every tool says so instead of answering.
+
+## A fail-closed hook for Claude Code
+
+The CI route above fails closed: a pull request whose gate exits 1 or 2 does not merge. The same
+gate can stop an AI coding assistant earlier, at the moment it moves from one stage to the next,
+before anything reaches a pull request. `instance/ci/claude/` holds the recipe for Claude Code:
+
+| File | Where it goes | Mandatory? |
+|---|---|---|
+| `managed-settings.json` | your organisation's managed settings: as a drop-in file, `/etc/claude-code/managed-settings.d/50-knowgov.json` on Linux and WSL, `/Library/Application Support/ClaudeCode/managed-settings.d/50-knowgov.json` on macOS, `C:\Program Files\ClaudeCode\managed-settings.d\50-knowgov.json` on Windows; or its keys in server-managed settings from the claude.ai console, the only kind a cloud session receives | **yes**: only the managed one is mandatory |
+| `settings.json` | the instance repository's `.claude/settings.json`, committed | no: a team default an engineer can switch off |
+| `settings.advisory-fail-open.json` | the same place, *instead of* `settings.json`, for a team that chooses it | no: advisory, and fail-open |
+| `knowgov_hook.py` | stays in a knowgov checkout at a tag, outside the repository the assistant edits (`/opt/knowgov` in the snippets: change the path to yours) | the script all three call |
+
+In plain English: a hook in the repository's `.claude/settings.json` is one an engineer, or the
+assistant, can edit away. A hook in managed settings is not: `allowManagedHooksOnly` runs only the
+organisation's hooks, and `allowManagedMcpServersOnly` with `allowedMcpServers` lets the assistant
+reach the knowgov MCP server (named `knowgov`, as "Letting an AI assistant ask the gate" registers
+it) and no server the organisation has not listed. Those two lists replace any lower source's, so
+merge the fragment's entries into the lists your managed settings already hold.
+
+**When it fires.** At stage transitions, never on every edit: a gate that loads the store takes
+seconds, and a hook on every edit must be fast and file-scoped. The script decides itself whether a
+tool call is a transition, so the snippets need no fragile command pattern:
+
+- **plan**: the assistant presents a plan for acceptance (`ExitPlanMode`);
+- **spec**: a `git commit` that carries a spec file (`--spec GLOB`, default `spec.md` at any depth);
+- **push**: before `git push`.
+
+Any other tool call gets no decision from it, and goes on through the normal permissions.
+
+**What it does.** It runs `knowgov-gate.sh gate` with the task class the snippet names
+(`--task codegen`; `--task-for spec=CLASS` for another class at one stage), reads the report, and
+maps the exit code. Claude Code blocks a tool call when a hook exits 2 (exit 1 is only a warning there), so:
+
+| Gate | Mandatory hook | Advisory profile (fail-open) |
+|---|---|---|
+| 0, PROCEED | the action goes ahead | the action goes ahead |
+| 1, a finding | **blocked**, naming the findings and the route to approval: the key's owner answers it, a reviewer who is not the author settles it | **blocked**, the same |
+| 2, cannot run (store unreachable, no subject, a timeout) | **blocked**, naming the gate as unavailable | goes ahead, with a warning that says FAIL-OPEN |
+| a report for another task, or for `keys` | **refused**, blocked | **refused**, blocked |
+
+A report for `keys` is one the MCP server's `gate_verdict` gives for a set of keys the assistant chose
+itself; a mandatory check reads only the task class's own scope, which changes by pull request. The
+snippets also set `"onFailure": "block"` (Claude Code 2.1.295 or later), so a missing script, a
+crash or a timeout blocks too; the advisory one does not. A block is never lifted by the session
+that hit it: the route is the owner's answer, or an exception from whoever owns the managed settings.
+
+**Its settings.** The store, the subject, the scenario and the date are the gate's own `KG_*`
+variables, as "Running the gates in your pipeline" lists them, in the environment Claude Code starts
+with (the managed settings' `env` key, or the engineer's shell). Keep one store per worktree:
+the gate loads the scenario before it reads, so two sessions sharing one Neo4j would overwrite each
+other's load. Use rdflib in memory (`KG_STORE=rdflib` and no `KG_RDFLIB_FILE`: every run loads its
+own), a `KG_RDFLIB_FILE` inside each worktree, or one compose project per worktree; and pass the MCP
+tools' `scenario` argument, so a read of another session's load is refused.
+
+`python3 knowgov_hook.py run -- COMMAND` maps any other check under the gate contract the same way,
+and `decide()` is the mapping for a script that imports it. This repository's tests run the script
+against PROCEED, BLOCKED, an unreachable store and a missing subject; only PROCEED lets the action
+through (`tests/test_claude_hook.py`, live on rdflib in CI).

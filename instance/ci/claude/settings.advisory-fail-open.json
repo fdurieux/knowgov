@@ -1,0 +1,26 @@
+{
+  "env": {
+    "KG_HOME": "/opt/knowgov"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "ExitPlanMode|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "/opt/knowgov/instance/ci/claude/knowgov_hook.py",
+              "gate",
+              "--task",
+              "codegen",
+              "--advisory"
+            ],
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  }
+}
