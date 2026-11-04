@@ -317,3 +317,41 @@ def test_an_agent_chosen_key_set_routes_to_the_questionnaire_of_its_task_class()
     assert routed[some[0]] and "--task codegen" in routed[some[0]] and "--task keys" not in routed[some[0]]
     assert all(r is None for k, r in routed.items() if k not in some)
     assert schema_check.validate(rep, SCHEMA) == []
+
+
+def test_a_declared_gaps_finding_names_the_unit_that_closes_it_from_its_declaration():
+    """Task-0110 (decision-0002 point 3): S2's OD-1 finding names ORG-0002 as answering and ORG-0004
+    as closing, the unit the declaration's text names (compliance), not a constant: another text names
+    another unit, a text naming none falls to the key's owners, and one naming no unit of the register
+    gives null. The report validates with ``closer`` and without it, and no other finding carries it."""
+    import capture
+    rules = CARGO_QUOTE.rules
+    key = "QuoteAPI|on_screening_outage"
+    od1 = {"id": rules["declared_gap_id"], "text": rules["declared_gap_text"].format(req="REQ-06")}
+    closers = capture.gap_closers(CARGO_QUOTE, {key: [od1]})
+    assert closers == {key: {"unit": "ORG-0004", "name": "Compliance (stand-in)", "gap": "gap:declared:OD-1"}}
+    other = lambda text: capture.gap_closers(CARGO_QUOTE, {key: [{"id": "g", "text": text}]})[key]["unit"]  # noqa: E731
+    assert other("REQ-06 is open (owner: Architecture stewardship)") == "ORG-0002"
+    assert other("REQ-06 is open (owner: ORG-0001)") == "ORG-0001"
+    of_key = capture.owners_of(CARGO_QUOTE, capture.register_nodes(capture.register_root()))[key]
+    assert other("REQ-06 is open") == (of_key[0] if len(of_key) == 1 else None), of_key
+    assert other("REQ-06 is open (owner: treasury)") is None
+    assert capture.gap_closers(CARGO_QUOTE, {key: []}) == {}
+
+    res = _res(_record("S2"))
+    rep = gate_cli.report(res, subject="cargo_quote", scenario="S2", task="codegen", store="rdflib", loaded=True,
+                          block_levels=BLOCK, threshold="blocker", baseline=None,
+                          owners=capture.finding_owners(CARGO_QUOTE), closers=closers)
+    assert schema_check.validate(rep, SCHEMA) == []
+    f = next(f for f in rep["findings"] if f["key"] == key)
+    assert f["owner"] == "ORG-0002" and f["closer"] == "ORG-0004", f
+    assert "ORG-0002 answers" in f["route"] and f["route"].endswith(capture.closing_route("gap:declared:OD-1", "ORG-0004")), f
+    assert [x for x in rep["findings"] if "closer" in x] == [f]
+    assert "[owner ORG-0002; closed by ORG-0004]" in gate_cli.render(rep)
+    # without closers: task-0102's report, which the schema still validates
+    old = gate_cli.report(res, subject="cargo_quote", scenario="S2", task="codegen", store="rdflib", loaded=True,
+                          block_levels=BLOCK, threshold="blocker", baseline=None, owners=capture.finding_owners(CARGO_QUOTE))
+    assert not any("closer" in x for x in old["findings"]) and schema_check.validate(old, SCHEMA) == []
+    bad = json.loads(json.dumps(rep))
+    next(x for x in bad["findings"] if "closer" in x)["closer"] = 4
+    assert schema_check.validate(bad, SCHEMA), "a non-string closer passed"

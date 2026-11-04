@@ -119,6 +119,40 @@ def finding_owners(subject, root: Path | None = None) -> dict[str, dict]:
     return out
 
 
+def gap_closers(subject, gaps: dict[str, list[dict]], root: Path | None = None) -> dict[str, dict]:
+    """key -> {unit, name, gap} for each key holding a declared gap (task-0110, decision-0002 point 3):
+    the unit that closes it, as review.py's ``check`` admits a close. The owner the declaration's text
+    names (``review.gap_owner``), else, when it names none, the key's owners (``owners_of``); unit None
+    when that is no unit of the register or several, or the key's gaps name different ones. ``gaps`` is
+    key -> [{id, text}], the gate's ``declared_gaps``. A register that cannot be read names no unit."""
+    import review
+    root = root or register_root()
+    try:
+        nodes, units = register_nodes(root), review.organisation_units(root)
+    except (OSError, ValueError):
+        nodes, units = {}, {}
+    owners = owners_of(subject, nodes)
+    out = {}
+    for key, gs in gaps.items():
+        if not gs:
+            continue
+        found = set()
+        for g in gs:
+            named, _ = review.gap_owner(str(g.get("text") or ""), units)
+            cands = owners.get(key, []) if named is None else named
+            found.add(cands[0] if len(cands) == 1 else None)
+        unit = found.pop() if len(found) == 1 else None
+        out[key] = {"unit": unit, "name": units.get(unit, "") if unit else "", "gap": sorted(str(g.get("id")) for g in gs)[0]}
+    return out
+
+
+def closing_route(gap: str, unit: str | None) -> str:
+    """The route's closing half for a declared gap (task-0110): the unit its declaration names closes it
+    by a review whose handle holds the role closes (decision-0002 point 3, task-0054)."""
+    return (f"; {unit or 'the owner its declaration names'} closes the declared gap {gap} by a review "
+            "(python harness/capture.py review) under a handle with the role closes")
+
+
 def questionnaire_route(subject_id: str, scenario: str, task: str, unit: str | None) -> str:
     """The route to approval a finding names (task-0102, doc-0014 C7): the owner's questionnaire
     (task-0009), the command that writes it and the file it writes, then its ingest and a review."""
