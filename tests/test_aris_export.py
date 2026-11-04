@@ -204,8 +204,10 @@ def test_the_aris_dialect_bpmn_is_the_same_model_with_aris_ids_and_dropped_field
         assert all(s.get("bpmnElement") in own for s in [*root.iter(f"{di}BPMNShape"), *root.iter(f"{di}BPMNEdge")])
         assert root.find(f".//{di}BPMNLabelStyle") is not None
         ids[v] = own
-    # ARIS id stability across two exports was not observed, so the fixture assumes none
-    assert not ids["first"] & ids["later"]
+    # two exports of one ARIS model keep their ids: the later export's are the first's, less what it dropped
+    assert ids["later"] < ids["first"]
+    defs = {v: _bpmn(v, "quote_process.aris.bpmn").get("id") for v in ax.VARIANTS}
+    assert defs["first"] == defs["later"]
 
 
 def test_bpmnlint_finds_nothing_when_installed_here():

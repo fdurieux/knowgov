@@ -389,9 +389,10 @@ ARIS_XMLNS = {p: f"urn:knowgov:synthetic:aris-dialect:{p}" for p in ("aris", "ar
 
 def aris_id(v: dict, key: str) -> str:
     """An id of ARIS's form ID-<time-based uuid>, derived here (uuid5 bytes stamped version 1).
-    Whether ARIS keeps such ids across two exports was not observed, so each variant gets its own:
-    a reader that matched them across exports would fail on this fixture."""
-    return "ID-" + str(uuid.UUID(bytes=uuid.uuid5(NAMESPACE, f"aris-id/{v['date']}/{key}").bytes, version=1))
+    Two exports of one ARIS model gave byte-identical files, ids unchanged (observed on ARIS 10.0;
+    a re-import or a copied model would mint new ids, untested), so an element keeps its id from
+    the first variant to the later one, as the stale check in task-0063 assumes within one database."""
+    return "ID-" + str(uuid.UUID(bytes=uuid.uuid5(NAMESPACE, f"aris-id/{key}").bytes, version=1))
 
 
 def render_bpmn(reg: dict, e: Epc, flow: tuple[dict, list], v: dict, dialect: str = "knowgov") -> str:

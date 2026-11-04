@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T16:54:00Z'
-updated_date: '2026-11-04T17:13:00Z'
+updated_date: '2026-11-04T17:18:00Z'
 labels:
   - aris
   - connector
@@ -57,6 +57,8 @@ Revision after the coordinator's evidence (2026-11-04): the maintainer imported 
 - bpmnlint 12.0.0 (recommended): 0 problems on all four BPMN files.
 
 Control result (coordinator, 2026-11-04): the same generated BPMN was round-tripped through bpmn.io (bpmn-js 18.31.1) and lost nothing. All ids and the definitions id were kept, as were calledElement, timeCycle, process documentation, isExecutable and the multi-instance id; flows and names were identical. The only changes: every shape was offset by (+140, +50), 14 BPMNLabel bounds were added, the DI elements were reordered, and ' was written as &#39;. So the losses above come from ARIS's export, not from malformed input. bpmn-js import or bpmnlint is a sound validity check for the generated BPMN; here bpmnlint 12.0.0 runs in CI. For task-0063: a reader must not treat DI coordinates as identity.
+
+Correction (coordinator, 2026-11-04): ARIS 10.0 exported the same imported model twice and the two BPMN files were byte-identical (59,203 bytes), with the ID-... and Definitions_ID-... ids unchanged. A re-import or a copied model would mint new ids; that case is untested. The fixture now follows this. Its ARIS-dialect ids no longer depend on the variant: an element keeps its ID-... from first to later, and so does the definitions id. The test holds that the later export's ids are the first's, less those of what it dropped. This replaces the earlier note that each variant gets different ID-... values. task-0063's stale check may rely on stable ARIS ids only within one ARIS database.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
