@@ -149,6 +149,9 @@ jobs:
       - name: The gate brings in S6's later version (task-0049) on the Neo4j store, BLOCKED, then exits 1 on the suspect derived output after re-verification
         run: docker compose exec -T app python tools/check_gate_after_change.py runs/gate-change
 
+      - name: knowgov-trace (task-0051) on the Neo4j store, the example instance, a registered build of APP-0001 turns suspect after S6's change and check exits 1 naming it
+        run: docker compose exec -T app sh -c 'rm -rf runs/trace && python tools/check_trace_walkthrough.py runs/trace'
+
       - name: A person's statement against the documents' (task-0038) on the Neo4j store, on S2 a contradiction raises a conflict, an agreement corroborates
         run: docker compose exec -T app python tools/check_capture_pairing.py runs/pairing
 

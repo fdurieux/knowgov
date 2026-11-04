@@ -150,6 +150,43 @@ jobs:
         run: KG_STORE=rdflib python tools/check_gate_after_change.py runs/gate-change
       - name: knowgov-trace (task-0051) on the example instance, a registered build of APP-0001 turns suspect after S6's change and check exits 1 naming it
         run: rm -rf runs/trace && KG_STORE=rdflib python tools/check_trace_walkthrough.py runs/trace
+      - name: "The pipeline wrappers (task-0052): the GitHub composite action, on the example instance, S6: setup"
+        run: |
+          rm -rf runs/wrap && python tools/example_instance.py runs/wrap/instance > /dev/null
+          g() { git -C runs/wrap/instance -c user.name=ci -c user.email=ci@example.invalid "$@"; }
+          g init -q -b main && g commit -q --allow-empty -m root && g add -A && g commit -qm instance
+          echo "KG_STORE=rdflib" >> "$GITHUB_ENV"; echo "KG_RDFLIB_FILE=$PWD/runs/wrap/store.ttl" >> "$GITHUB_ENV"
+      - name: "The action: preload, clean, exit 0"
+        uses: ./instance/ci/github
+        with: { gate: preload, instance: runs/wrap/instance, base: HEAD~1 }
+      - name: "The action: gate on S6, exit 0"
+        uses: ./instance/ci/github
+        with: { gate: gate, instance: runs/wrap/instance, scenario: S6 }
+      - name: "The action: trace-register the reference code, exit 0"
+        uses: ./instance/ci/github
+        with: { gate: trace-register, instance: runs/wrap/instance, files: reference_impl.py, ledger: runs/wrap/ledger.json }
+      - name: "The action: gate on S6's change, exit 1"
+        id: wrap_stage2
+        continue-on-error: true
+        uses: ./instance/ci/github
+        with: { gate: gate, instance: runs/wrap/instance, scenario: S6, stage: "2", report: runs/wrap/gate-stage2.json }
+      - name: "A code change in the instance's repository: an edit to the registered file"
+        run: |
+          f=runs/wrap/instance/subjects/cargo_quote/vendor/stack_experiment/cargo_quote/reference_impl.py && echo "# an edit in the pull request" >> "$f"
+          git -C runs/wrap/instance -c user.name=ci -c user.email=ci@example.invalid commit -qam edit
+      - name: "The action: trace-check after the change, exit 1 naming APP-0001"
+        id: wrap_check
+        continue-on-error: true
+        uses: ./instance/ci/github
+        with: { gate: trace-check, instance: runs/wrap/instance, ledger: runs/wrap/ledger.json, base: HEAD~1, report: runs/wrap/trace-check.json }
+      - name: "The action's two failing steps failed with exit 1, by their reports; then the GitLab include's script lines, run by a shell, the same command line"
+        env:
+          STAGE2: ${{ steps.wrap_stage2.outcome }}
+          CHECK: ${{ steps.wrap_check.outcome }}
+        run: |
+          test "$STAGE2" = failure && test "$CHECK" = failure
+          python3 -c 'import json; g=json.load(open("runs/wrap/gate-stage2.json")); t=json.load(open("runs/wrap/trace-check.json")); assert g["exit_code"]==1 and g["verdict"]=="BLOCKED", g["verdict"]; s=[f for f in t["findings"] if f["kind"]=="suspect"]; assert t["exit_code"]==1 and t["changed"]==["reference_impl.py"] and len(s)==1 and s[0]["app"]=="APP-0001", t; print("action:", g["verdict"], "then suspect on", s[0]["app"])'
+          unset KG_RDFLIB_FILE; rm -rf runs/wrap-gitlab && KG_STORE=rdflib python tools/check_ci_wrappers.py runs/wrap-gitlab
       - name: The capture path (task-0009), questionnaire, answers, the gate after, and nothing above proposed
         run: |
           rm -rf runs/capture && python tools/example_instance.py runs/capture > /dev/null
