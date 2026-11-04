@@ -3,8 +3,8 @@
 # before the load"). Make it a required check in the default branch's protection, with a
 # reviewer who is not the author: the load reads only the merged tree.
 #
-# Set KNOWGOV_REF to the knowgov tag your instance is pinned to, and PUMLLINT to the pin the
-# tag's harness.yml installs. Other linters your organisation runs go in as steps of their own
+# Set KNOWGOV_REF to the knowgov tag your instance is pinned to, and PUMLLINT and SPECTRAL to the
+# pins the tag's harness.yml installs. Other linters your organisation runs go in as steps of their own
 # before the check; this workflow runs only what knowgov can run and lists every other
 # kind's files as unchecked, naming the tool the programme's table names.
 #
@@ -24,6 +24,7 @@ permissions:
 env:
   KNOWGOV_REF: main        # pin a tag
   PUMLLINT: "0.33.0"
+  SPECTRAL: "6.17.0"       # @stoplight/spectral-cli, for artefacts/api-contracts/
   KG_FAIL_ON: major
   KG_PRELOAD_BASELINE: ""   # e.g. preload-baseline.json: a report you chose to commit; findings it holds do not fail
 
@@ -44,5 +45,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install "pumllint==${PUMLLINT}"
+      - run: npm install -g "@stoplight/spectral-cli@${SPECTRAL}"
       - name: Each changed document against its kind's linter, then the layout
         run: sh knowgov/instance/ci/preload-check.sh knowgov instance ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}

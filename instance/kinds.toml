@@ -11,8 +11,9 @@
 # lint     the linter the table names for the kind, from doc-0008 §5 (task-0045): tool and gate
 #          as the brief's columns word them, capable = true when the tool exits non-zero on a
 #          finding today ("yes ..." or "via ..."). tools/preload_check.py runs the ones this
-#          repository's environment can run (pumllint) and reports every other kind's files as
-#          unchecked, naming the tool; never passed silently
+#          repository's environment can run and reports every other kind's files as unchecked,
+#          naming the tool; never passed silently. runs: the one of those tools
+#          tools/preload_check.py RUNNERS runs for the kind (task-0066), absent where none does
 #
 # tests/test_instance.py holds every mapper the harness has to exactly one kind, so a new mapper
 # must say what it reads before it ships, and every lint field to doc-0008 §5's table.
@@ -20,7 +21,7 @@
 [[kind]]
 folder = "plantuml-models"
 row = "PlantUML models"
-lint = { tool = "pumllint", gate = "yes (score, ratchet)", capable = true }
+lint = { tool = "pumllint", gate = "yes (score, ratchet)", capable = true, runs = "pumllint" }
 mappers = ["sequence", "containers", "plantuml_realises"]
 
 [[kind]]
@@ -98,7 +99,7 @@ mappers = []
 [[kind]]
 folder = "api-contracts"
 row = "API contracts (OpenAPI, AsyncAPI)"
-lint = { tool = "Spectral, vacuum, Redocly", gate = "yes (vacuum score)", capable = true }
+lint = { tool = "Spectral, vacuum, Redocly", gate = "yes (vacuum score)", capable = true, runs = "Spectral" }
 mappers = ["openapi"]
 
 [[kind]]

@@ -78,7 +78,7 @@ jobs:
         run: |
           rm -rf runs/preload && python tools/example_instance.py runs/preload > /dev/null
           rc=0; sh instance/ci/preload-check.sh . runs/preload || rc=$?; test "$rc" = 0
-          python tools/preload_check.py runs/preload | grep '^UNCHECKED  artefacts/api-contracts/openapi.yaml \[api-contracts\]: form unchecked: the table names Spectral'
+          python tools/preload_check.py runs/preload | grep '^UNCHECKED  artefacts/api-contracts/openapi.yaml \[api-contracts\]: form unchecked: Spectral is not installed here'
           git -C runs/preload init -q -b main && git -C runs/preload add -A && git -C runs/preload -c user.name=ci -c user.email=ci@example.invalid commit -qm clean
           printf '@startuml\nparticipant A\nA -> B : hi\n@enduml\n' > runs/preload/artefacts/plantuml-models/broken.puml
           git -C runs/preload add -A && git -C runs/preload -c user.name=ci -c user.email=ci@example.invalid commit -qm broken
@@ -99,6 +99,19 @@ jobs:
           rc=0; python tools/preload_check.py runs/preload-baseline --baseline runs/preload-baseline/preload-baseline.json -o runs/preload-baseline/preload-baseline.json > /dev/null 2>&1 || rc=$?; test "$rc" = 2
           test "$base" = "$(sha256sum runs/preload-baseline/preload-baseline.json)" && echo "baseline unchanged"
           python3 -c 'import sys,json; sys.path.insert(0,"harness"); import schema_check as s; r=json.load(open("runs/preload-now.json")); e=s.validate(r, s.load("preload-report")); assert not e, e; assert r["baseline"]["held"]==1 and r["baseline"]["new"]==1, r["baseline"]; print("baseline:", r["baseline"])'
+      - name: The pre-load check runs Spectral on api-contracts (task-0066), pinned, through the CI template's script, a clean contract exits 0, a planted broken one exits 1
+        run: |
+          npm install -g "@stoplight/spectral-cli@6.17.0" > /dev/null
+          rm -rf runs/preload-api && python tools/example_instance.py runs/preload-api > /dev/null
+          rc=0; sh instance/ci/preload-check.sh . runs/preload-api > runs/preload-api.txt || rc=$?; test "$rc" = 0
+          grep '^CLEAN      artefacts/api-contracts/openapi.yaml \[api-contracts\] Spectral' runs/preload-api.txt
+          grep '^linter Spectral 6.17.0 on api-contracts' runs/preload-api.txt
+          git -C runs/preload-api init -q -b main && git -C runs/preload-api add -A && git -C runs/preload-api -c user.name=ci -c user.email=ci@example.invalid commit -qm clean
+          printf 'openapi: 3.0.3\ninfo:\n  title: Broken\n  version: "1"\npaths:\n  /x:\n    get:\n      responses:\n        "200":\n          description: ok\n          content:\n            application/json:\n              schema:\n                $ref: "#/components/schemas/Missing"\n' > runs/preload-api/artefacts/api-contracts/broken.yaml
+          git -C runs/preload-api add -A && git -C runs/preload-api -c user.name=ci -c user.email=ci@example.invalid commit -qm broken
+          rc=0; sh instance/ci/preload-check.sh . runs/preload-api HEAD~1 || rc=$?; test "$rc" = 1
+          rc=0; python tools/preload_check.py runs/preload-api --since HEAD~1 -f json -o runs/preload-api.json > /dev/null || rc=$?; test "$rc" = 1
+          python3 -c 'import sys,json; sys.path.insert(0,"harness"); import schema_check as s; r=json.load(open("runs/preload-api.json")); e=s.validate(r, s.load("preload-report")); assert not e, e; [f]=r["files"]; assert f["tool"]=="Spectral" and f["state"]=="findings" and any(x["rule"]=="invalid-ref" and x["severity"]=="major" for x in f["findings"]), f; print("broken contract:", f["why"])'
       - name: The gate as a command (task-0007) exits 0, 1 or 2 under the contract, and ratchets on the record
         run: |
           cd harness
@@ -121,6 +134,8 @@ jobs:
           python3 -c 'import sys,json; sys.path.insert(0,"."); import schema_check as s; r=json.load(open("../runs/gate-s1.json")); e=s.validate(r, s.load("gate-report")); assert not e, e; assert r["schema_version"]==2, r["schema_version"]; print("report valid:", r["schema_version"], r["verdict"], r["exit_code"])'
       - name: The gate brings in S6's later version (task-0049), BLOCKED on four invalidated statements, then after re-verification exits 1 on the suspect derived output (task-0048)
         run: KG_STORE=rdflib python tools/check_gate_after_change.py runs/gate-change
+      - name: knowgov-trace (task-0051) on the example instance, a registered build of APP-0001 turns suspect after S6's change and check exits 1 naming it
+        run: rm -rf runs/trace && KG_STORE=rdflib python tools/check_trace_walkthrough.py runs/trace
       - name: The capture path (task-0009), questionnaire, answers, the gate after, and nothing above proposed
         run: |
           rm -rf runs/capture && python tools/example_instance.py runs/capture > /dev/null
