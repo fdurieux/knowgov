@@ -12,6 +12,16 @@ names that section with the version.
 
 ### Also since 0.4.0
 
+- **MCP server, a fifth read-only tool, `register_impact`** (task-0111): what retiring or changing
+  a register node touches. It runs the register's own impact walk from a register id
+  (`dependants` by default, or `realisers`) on `KG_REGISTER`, and returns the register's tag and
+  commit, the node, its children listed but not walked (the register's decision 0014 would add
+  that descent), every edge with `live`, and what the walk reached by id prefix with each node's
+  owning unit. It also returns the `register_map.toml` keys whose rows name the node or what it
+  reaches, each with its owner, anchor and the nodes it came through (`via`). With a scenario
+  loaded, each key carries its level, stale statements, suspect derived outputs and findings, as
+  `gate_verdict` reports that key set on the same `as_of`. It is additive: the store view's reads
+  are unchanged and nothing is written.
 - `instance/README.md` "Letting an AI assistant ask the gate": connecting Claude Code (`claude mcp add -s user`) and Claude Desktop (config file, absolute paths, the full `docker` path, the log) over the container's stdio, the phone through Remote Control, `KG_SUBJECT` as a path, `scenario` in every call, and a stateless HTTP example with `clientCapabilities` that a test runs against the server, with a guard on every flag the section names (task-0117).
 
 ## 0.4.0 — 2026-11-04

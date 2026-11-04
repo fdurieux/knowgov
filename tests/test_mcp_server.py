@@ -117,10 +117,10 @@ def test_initialize_negotiates_a_version_and_offers_tools_only():
     assert s.handle({"id": 5, "method": "ping"})["error"]["code"] == -32600
 
 
-def test_four_tools_every_one_marked_read_only():
+def test_five_tools_every_one_marked_read_only():
     s, _ = _server()
     tools = s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]
-    assert [t["name"] for t in tools] == ["store_status", "gate_verdict", "three_valued_answer", "evidence_bundle"]
+    assert [t["name"] for t in tools] == ["store_status", "gate_verdict", "three_valued_answer", "evidence_bundle", "register_impact"]
     for t in tools:
         a = t["annotations"]
         assert a["readOnlyHint"] is True and a["destructiveHint"] is False and a["openWorldHint"] is False, t["name"]
@@ -451,6 +451,82 @@ def test_a_tool_that_raises_is_an_error_result_not_a_dropped_connection():
     s.tools.store_status = lambda args: (_ for _ in ()).throw(RuntimeError("boom"))
     r = s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "store_status", "arguments": {}}})["result"]
     assert r["isError"] is True and "RuntimeError: boom" in r["content"][0]["text"]
+
+
+# ---- register_impact (task-0111): the register's walk, the map rows it lands on, the gate's levels
+
+def _register_view():
+    sys.path.insert(0, str(ROOT / "demo" / "app"))
+    import register_view
+    return register_view
+
+
+def test_register_impact_walks_as_the_page_does_for_every_node():
+    """Edges, what is reached and each reached node's owning unit equal register_view.impact's, for
+    every node of the vendored register, on the subject the runner holds; no store needed."""
+    import register_impact as ri
+    rv = _register_view()
+    s = mcp_server.Server(mcp_server.Tools(opener=lambda: (_ for _ in ()).throw(OSError("no store here"))))
+    reg = ri.load_tools()["register"].load_register(ri.register_root())
+    assert len(reg["nodes"]) > 40
+    for nid in sorted(reg["nodes"]):
+        page = rv.impact(nid)
+        r = _call(s, "register_impact", {"node": nid})["result"]
+        assert r["isError"] is False, (nid, r["content"][0]["text"])
+        got = r["structuredContent"]
+        assert got["edges"] == page["edges"], nid
+        ids = sorted(x["id"] for xs in got["reached"].values() for x in xs)
+        assert ids == page["reached"]["all"], nid
+        assert all(x["id"].startswith(p + "-") for p, xs in got["reached"].items() for x in xs), nid
+        assert {x["id"]: x["owning_unit"] for xs in got["reached"].values() for x in xs} == {x: page["owners"][x] for x in ids}, nid
+        assert got["node"]["id"] == nid and got["node"]["owning_unit"] == page["owners"][nid]
+        assert got["scenario"] is None and got["gate"] is None and "store_unavailable" in got
+        assert all(e["live"] in (True, False) for e in got["edges"])
+        assert all(k["via"] and k["via"][0] in [nid] + ids for k in got["keys"]), nid
+
+
+def test_register_impact_lists_a_domains_children_without_walking_them():
+    s, _ = _server()
+    got = _call(s, "register_impact", {"node": "CAP-0001"})["result"]["structuredContent"]
+    assert got["edges"] == [] and got["reached"] == {}
+    assert [c["id"] for c in got["children"]] == ["CAP-0002", "CAP-0003", "CAP-0004", "CAP-0005"]
+    assert all(c["walked"] is False and c["state"] for c in got["children"])
+    assert got["node"]["kind"] == "capability_domain" and got["node"]["parent"] is None
+    assert got["register"]["tag"].startswith("v") and len(got["register"]["commit"]) == 40
+
+
+def test_register_impact_refuses_an_unknown_or_malformed_id():
+    s, _ = _server()
+    for bad in ({"node": "CAP-9999"}, {"node": "cap-0001"}, {"node": "CAP-01"}, {"node": 7}, {},
+                {"node": "CAP-0002", "walk": "ancestors"}):
+        r = _call(s, "register_impact", bad)["result"]
+        assert r["isError"] is True, bad
+    assert _call(s, "register_impact", {"node": "CAP-0002", "scenario": "S9"})["result"]["isError"] is True
+
+
+def test_register_impact_reads_levels_as_gate_verdict_and_writes_nothing():
+    """With a scenario held, the landed keys carry the levels gate_verdict gives that key set on the
+    same as_of; the store sees reads only."""
+    from subject import SUBJECT
+    rows = SUBJECT.register_map().get("row") or []
+    if not rows:
+        return
+    writes = []
+    s, _ = _server(Stub(writes=writes))
+    start = rows[0]["nodes"][0]
+    got = _call(s, "register_impact", {"node": start, "as_of": DAY})["result"]["structuredContent"]
+    assert got["scenario"] == "S1" and got["as_of"] == DAY and got["keys"]
+    assert rows[0]["key"] in [k["key"] for k in got["keys"]]
+    keys = [k["key"] for k in got["keys"]]
+    want = _call(s, "gate_verdict", {"keys": keys, "as_of": DAY})["result"]["structuredContent"]
+    assert {k["key"]: k["level"] for k in got["keys"]} == want["levels"]
+    assert got["gate"]["verdict"] == want["verdict"] and got["gate"]["exit_code"] == want["exit_code"]
+    for k in got["keys"]:
+        assert k["findings"] == [f for f in want["findings"] if f["kind"] in ("key", "stale", "lapsed") and f["key"] == k["key"]]
+        assert k["stale"] == [] and k["suspect"] == [] and k["via"]
+    assert writes == []
+    held_none = _call(_server(Stub(scenario=None))[0], "register_impact", {"node": start})["result"]["structuredContent"]
+    assert held_none["scenario"] is None and all("level" not in k for k in held_none["keys"])
 
 
 # Task-0117: the adopter section of instance/README.md, held to the server and the commands it names.

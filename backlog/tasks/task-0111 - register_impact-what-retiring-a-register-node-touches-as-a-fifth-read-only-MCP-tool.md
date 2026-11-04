@@ -3,9 +3,11 @@ id: TASK-0111
 title: >-
   register_impact: what retiring a register node touches, as a fifth read-only
   MCP tool
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-11-04T14:45:00Z'
+updated_date: '2026-11-04T15:41:00Z'
 labels:
   - mcp
   - register
@@ -30,10 +32,38 @@ CAP-0001 is a capability domain with no links of its own: its walk is empty in b
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 harness/mcp_server.py offers a fifth tool, register_impact, marked read-only like the other four, taking a register id, the walk (dependants by default, realisers), the scenario and as_of; READS is unchanged and the store is never written
-- [ ] #2 Its walk and reached set equal register_view.impact for every node of the vendored register, on both subjects; an unknown or malformed id is an isError result
-- [ ] #3 It returns the node (kind, name, state, owner, parent), its approved children listed as not walked unless the vendored register offers the descent, each reached node's owning unit, and the register_map keys whose rows name the start or a reached node, each with the node it came through
-- [ ] #4 With a scenario held, each key carries its gate level, stale finding and suspect derived outputs as gate_verdict and evidence_bundle report them on the same as_of; tools/check_mcp_server.py shows CAP-0002 on S6 naming P2|surcharge stale and derived:S1:G:run1 suspect, on rdflib and on Neo4j
-- [ ] #5 CAP-0001 answers an empty walk with CAP-0002..CAP-0005 as children, until a vendored register carries decision 0014; then its children option reaches the keys through them
-- [ ] #6 INSTRUCTIONS, instance/README.md's tool table and the 'four tools' wording (tests, doc-0014) say five; nothing in harness/ names a subject, a register id or a key
+- [x] #1 harness/mcp_server.py offers a fifth tool, register_impact, marked read-only like the other four, taking a register id, the walk (dependants by default, realisers), the scenario and as_of; READS is unchanged and the store is never written
+- [x] #2 Its walk and reached set equal register_view.impact for every node of the vendored register, on both subjects; an unknown or malformed id is an isError result
+- [x] #3 It returns the node (kind, name, state, owner, parent), its approved children listed as not walked unless the vendored register offers the descent, each reached node's owning unit, and the register_map keys whose rows name the start or a reached node, each with the node it came through
+- [x] #4 With a scenario held, each key carries its gate level, stale finding and suspect derived outputs as gate_verdict and evidence_bundle report them on the same as_of; tools/check_mcp_server.py shows CAP-0002 on S6 naming P2|surcharge stale and derived:S1:G:run1 suspect, on rdflib and on Neo4j
+- [x] #5 CAP-0001 answers an empty walk with CAP-0002..CAP-0005 as children, until a vendored register carries decision 0014; then its children option reaches the keys through them
+- [x] #6 INSTRUCTIONS, instance/README.md's tool table and the 'four tools' wording (tests, doc-0014) say five; nothing in harness/ names a subject, a register id or a key
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. harness/register_impact.py: load the register's register.py/impact.py by path from KG_REGISTER (cadence.register_root); walk(node, walk) -> register {tag, commit}, node, children (listed, walked false), edges with live, reached by prefix with owning_unit; landed_rows from register_map.toml with via; with_levels from gate_cli.evaluate over the landed keys (task keys, route codegen), so each key reads as gate_verdict reports it.
+2. mcp_server.py: fifth tool register_impact (READ_ONLY), inputs node/walk/scenario/as_of; READS unchanged; answers without a store when no scenario is named.
+3. Tests: five tools; walk/reached/owners equal register_view.impact for every node; CAP-0001 children; isError; levels equal gate_verdict, no write.
+4. tools/check_mcp_server.py: stage 1 levels equal gate_verdict; S6 stage 2 names each stale key's statement and suspect derived output.
+5. Docs: INSTRUCTIONS, instance/README.md table, docs/security.md, doc-0014, CLAUDE.md, CHANGELOG Unreleased.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+PR #190. Children: CAP-0005 is proposed, so AC#3 (approved children) and AC#5 (CAP-0002..0005) disagree; every child is listed with its state, walked false. The S6 suspect check reads gate_verdict's live report, not the record: d3check/S6 holds no Derived node (task-0018). Verified: tests 333/333 both subjects; check_mcp_server rdflib S1,S6 and J-F C hold.
+
+PR #190 matrix green on e46c11c: tests, rdflib (check_mcp_server rdflib on S1,S2,S6 and J-F C,D3), stack (Neo4j, check_mcp_server S1,S2,S6 including the S6 stage-2 register_impact check).
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+register_impact, a fifth read-only MCP tool (harness/register_impact.py, harness/mcp_server.py). It runs the vendored register's own impact walk from a register id (dependants or realisers, loaded by path from KG_REGISTER) and returns the register tag and commit, the node, its children with their states listed as not walked, the edges with live, what is reached by prefix with each owning unit, and the register_map rows landed on with via. With a scenario held, each key carries its level, stale statements, suspect derived outputs and findings from gate_cli.evaluate over that key set, so it reads exactly as gate_verdict reports it. READS is unchanged and nothing is written.
+
+Verified: tests 333/333 on both subjects. Walk, reached and owners equal register_view.impact for every node; CAP-0001 gives an empty walk with CAP-0002..0005 listed. check_mcp_server on rdflib and Neo4j: on S6 stage 2, CAP-0002 names P2|surcharge stale and derived:S1:G:run1 suspect.
+
+Open points: CAP-0005 is proposed, so AC#3 (approved children) and AC#5 (CAP-0002..0005) disagree; every child is listed with its state. The children input waits on task-0118.
+<!-- SECTION:FINAL_SUMMARY:END -->
