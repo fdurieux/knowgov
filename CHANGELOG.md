@@ -27,6 +27,31 @@ names that section with the version.
   `uncitable` (info). A ledger written before still reads. The record and the comparator are
   unchanged.
 
+- **A register change invalidates** (task-0122, additive): `gate_cli.py --register-previous DIR`
+  compares the register as it was before its update (the previous vendored tag, or an instance's
+  checkout before its pull) with the register the gate reads (`KG_REGISTER`). Every node that
+  became deprecated or retired (or left the register), and every approved link withdrawn, marks
+  the live statements on the keys resting on it as stale. The reason is the register's decision
+  record: the decision its state line names, else its moved approval record, else the decisions
+  the update added. The derived outputs that used those statements turn suspect, and the scenario's
+  governed output from the subject's record is registered first. The gate reports them as `stale`
+  and `suspect_derived` findings, as it does for a source change, so it exits 1.
+  - "Resting on" is the subject's map rows plus the register's own `dependants` walk, on the
+    previous register. For a node, the walk descends by `parent` (decision 0014) and never counts
+    the start (decision 0016); a row naming only a withdrawn descendant lands too, as in
+    `register_impact`. For a link, the rows naming both its ends, and the rows the walk from either
+    end lands only through the link.
+  - The report gains an optional `register_change` section: what was withdrawn, each item's reason,
+    the keys, the statements invalidated and the derived output. The schema stays at version 2.
+  - The store port gains one write, `invalidate_keys`. Both adapters implement it and agree, and
+    `check_round_trip.py --register-previous` holds the staleness across Turtle hops.
+  - Proven on a fixture built from the vendored register, which is never edited
+    (`tools/register_fixture.py`): CAP-0001 deprecated, its children moved and REL-06001 withdrawn.
+    On CargoQuote's S1 this stales 32 keys and 81 statements and marks `derived:S1:G:run1` suspect,
+    and the gate exits 1. An update with no state change leaves the report as it was.
+    `tools/check_register_change.py` runs it on rdflib in `harness.yml` and on Neo4j and rdflib in
+    the stack job. The record and the comparator are unchanged.
+
 ### Also since 0.4.0
 
 - **Hand-written code cites the keys it rests on** (task-0124, doc-0015 §3). A header comment line,

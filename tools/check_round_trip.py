@@ -1,6 +1,7 @@
 """The store survives a round trip through Turtle (task-0070, doc-0013 P4).
 
     python tools/check_round_trip.py [--chain rdflib,rdflib] [--scenarios S1,S2] [--no-stage2] [--expect-preload] [--expect-parts]
+                                     [--register-previous DIR]
 
 For each scenario of the subject (``KG_SUBJECT``): load it into the chain's first store with
 ``gate_cli.py``'s own load, then hand it on, hop by hop, as Turtle: ``export_turtle`` on one store,
@@ -26,6 +27,11 @@ The chain names store kinds (``KG_STORE``'s values), first the one loaded: ``rdf
 no database (harness.yml); ``neo4j,rdflib,neo4j`` is Neo4j to Turtle to rdflib and back, the stack
 job's. The free Neo4j edition serves one database, so a later Neo4j hop wipes the store the first
 was read from: every answer is taken before the hop. An rdflib store here lives in memory only.
+With ``--register-previous DIR`` (task-0122), every load is followed by the register change from DIR to
+the register the subject reads (``KG_REGISTER``), as ``gate_cli.py --register-previous`` applies it:
+the statements resting on what it withdrew are invalidated, and must survive every hop as they do; a
+scenario where it invalidated nothing fails, so a run meant to prove the staleness survives cannot pass
+on a store that never held any.
 Exit 0 when every check holds, 1 when one does not.
 """
 from __future__ import annotations
@@ -115,7 +121,8 @@ def differences(a: dict, b: dict, where: str) -> list[str]:
     return out
 
 
-def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = False, expect_parts: bool = False) -> list[str]:
+def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = False, expect_parts: bool = False,
+          register_previous: Path | None = None) -> list[str]:
     import gate_cli
     from subject import SUBJECT
     label = f"{scenario}{' stage 2' if stage2 else ''}"
@@ -124,11 +131,18 @@ def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = 
         gate_cli._load(first, scenario)
         if stage2:
             gate_cli._change(first, SUBJECT, scenario, SUBJECT.scenario(scenario)["stage2"], False)
+        rc = None
+        if register_previous is not None:
+            import register_change
+            rc = gate_cli._register_change(first, SUBJECT, scenario, register_change.diff(register_previous, register_change.ri.register_root()),
+                                           register_previous)
         base = answers(first, scenario)
         ttl0 = ttl = first.export_turtle()
     finally:
         first.close()
     failures = []
+    if rc is not None and not rc["invalidated"]:
+        failures.append(f"{label} {chain[0]}: the register change invalidated nothing: does KG_REGISTER withdraw what the subject's keys rest on?")
     if expect_preload and not base["preload"]["verdicts"]:
         failures.append(f"{label} {chain[0]}: the load recorded no pre-load verdict: is there a report at the instance's root or in KG_PRELOAD_REPORT?")
     if expect_parts and not base["parts"]:
@@ -163,6 +177,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-stage2", action="store_true", help="skip the later version of a scenario that has one")
     ap.add_argument("--expect-preload", action="store_true",
                     help="fail when the first store recorded no pre-load verdict (the subject's instance has no report)")
+    ap.add_argument("--register-previous", metavar="DIR", type=Path,
+                    help="apply the register change from DIR to KG_REGISTER after every load (task-0122) and require it to invalidate something")
     ap.add_argument("--expect-parts", action="store_true",
                     help="fail when the first store recorded no file digest of a directory artefact (task-0094)")
     args = ap.parse_args(argv)
@@ -175,9 +191,9 @@ def main(argv: list[str] | None = None) -> int:
     scenarios = args.scenarios.split(",") if args.scenarios else list(SUBJECT.order)
     failures = []
     for sc in scenarios:
-        failures += check(sc, chain, False, args.expect_preload, args.expect_parts)
+        failures += check(sc, chain, False, args.expect_preload, args.expect_parts, args.register_previous)
         if not args.no_stage2 and SUBJECT.scenario(sc).get("stage2"):
-            failures += check(sc, chain, True, args.expect_preload, args.expect_parts)
+            failures += check(sc, chain, True, args.expect_preload, args.expect_parts, args.register_previous)
     for f in failures:
         print("FAIL " + f, file=sys.stderr)
     print(f"round trip {SUBJECT.id} {'→'.join(chain)}: " + ("every answer survives" if not failures else f"{len(failures)} failure(s)"))
