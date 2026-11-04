@@ -68,6 +68,32 @@ def test_register_records_the_file_its_app_and_the_statements_and_supersedes_by_
         trace.register(st, instance=inst, ledger=led, commit="c2", files=["reference_impl.py"], resolve=_resolve())   # idempotent in the store
 
 
+def test_register_reads_the_gate_as_of_the_date_given_and_the_ledger_records_it():
+    # task-0093: the date register reads is the one check reads; an older entry without it still reads
+    with tempfile.TemporaryDirectory() as td:
+        inst, led, st = _setup(td)
+        seen = []
+
+        def dated(st, task, as_of=None):
+            seen.append(as_of)
+            return _resolve()(st, task)
+        rep = _valid(trace.register(st, instance=inst, ledger=led, commit="c1", files=["reference_impl.py"], resolve=dated, as_of="2027-09-01"))
+        assert seen == ["2027-09-01"] and rep["registered"][0]["as_of"] == "2027-09-01"
+        [e] = json.loads(led.read_text(encoding="utf-8"))["entries"]
+        assert e["as_of"] == "2027-09-01"
+        rep = _valid(trace.check(st, instance=inst, ledger=led, resolve=_resolve()))
+        assert rep["registered"][0]["as_of"] == "2027-09-01"
+        led2 = Path(td) / "ledger2.json"
+        trace.register(st, instance=inst, ledger=led2, commit="c2", files=["reference_impl.py"], assertions=["A:1@v1"],
+                       resolve=_resolve(), as_of="2027-09-01")
+        [e] = json.loads(led2.read_text(encoding="utf-8"))["entries"]
+        assert e["as_of"] == "2027-09-01", "with --assertion the entry records the day the registration read"
+        del e["as_of"]
+        led2.write_text(json.dumps({"tool": trace.LEDGER_TOOL, "schema_version": 1, "entries": [e]}), encoding="utf-8")
+        rep = _valid(trace.check(FakeStore(), instance=inst, ledger=led2, resolve=_resolve()))
+        assert "as_of" not in rep["registered"][0], "a ledger written before task-0093 still reads"
+
+
 def test_register_refuses_an_unmapped_file_a_missing_map_and_no_statement():
     with tempfile.TemporaryDirectory() as td:
         inst, led, st = _setup(td)

@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/trace-report.schema.json",
  "title": "knowgov trace report",
- "description": "What `python harness/trace.py register|check -f json` prints (task-0051): the registered outputs (register: those just recorded; check: those in scope, with their state against the files and the statements they used now invalidated), the task's gate on the store as it is (check only), the findings on the contract's severity ladder (kind suspect, unmapped, missing, drift, or gate:<the gate report's kind>), the threshold and the exit code. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "description": "What `python harness/trace.py register|check -f json` prints (task-0051): the registered outputs (register: those just recorded; check: those in scope, with their state against the files and the statements they used now invalidated), the task's gate on the store as it is (check only), the findings on the contract's severity ladder (kind suspect, unmapped, missing, drift, or gate:<the gate report's kind>), the threshold and the exit code. A registered row's as_of is the date its registration read (task-0093, additive). Version 1; a change is additive or a new version. Exit 2 prints no report.",
  "type": "object",
  "required": [
   "schema_version",
@@ -262,6 +262,10 @@
      "items": {
       "type": "string"
      }
+    },
+    "as_of": {
+     "type": "string",
+     "description": "the date the registration read the task's gate on (task-0093); absent from a ledger entry written before it"
     }
    }
   }
