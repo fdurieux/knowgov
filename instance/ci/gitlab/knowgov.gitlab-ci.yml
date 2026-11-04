@@ -20,6 +20,7 @@
     KNOWGOV_PIP: "pumllint==0.33.0 rdflib==7.6.0 pyshacl==0.40.2 pyyaml==6.0.3"   # the tag's harness.yml pins your store needs
     KG_GATE: gate              # preload, gate, trace-check or trace-register
     KG_INSTANCE: instance
+    KG_AS_OF: ""               # gate, trace-check: the date review currency is read on (YYYY-MM-DD, record); empty: today
     GIT_DEPTH: "0"             # the diff against the merge request's base
     KG_ANNOTATE: "gitlab:gl-code-quality-report.json"   # empty: no code-quality report
   before_script:

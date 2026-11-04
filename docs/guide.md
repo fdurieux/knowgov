@@ -668,6 +668,11 @@ instead of reading the wall clock. knowgov's own CI runs that way (task-0075): t
 `KG_CLOCK=pinned`, the gate commands name `--as-of`, and each check tool pins its commands to the
 record's date, or, for the review walkthrough, to the day its reviews are written.
 
+The pipeline wrappers (`instance/README.md`, "Running the gates in your pipeline") take the date as `KG_AS_OF`: `instance/ci/knowgov-gate.sh` passes it
+to the gate and to `trace-check` as `--as-of`, the GitHub action as its input `as-of`, the GitLab include
+as its variable `KG_AS_OF`. Unset, they read today (`KG_TODAY`, else the clock). A pipeline checking a
+release as of its cut date sets it to that date (task-0089).
+
 To see a change, add `--stage 2`: the command loads the scenario, then brings in its changed
 document as the next version. For S6 that invalidates four statements and the gate is BLOCKED.
 `--stage 2 --reverify` adds the owner's re-verification: PROCEED, and exit 1 on the suspect code.

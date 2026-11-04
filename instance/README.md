@@ -157,9 +157,15 @@ sh knowgov/instance/ci/knowgov-gate.sh knowgov instance trace-check   # or prelo
 ```
 
 In plain English: the script reads `KG_*` variables (the list is at its top: `KG_BASE`, `KG_COMMIT`,
-`KG_FAIL_ON`, `KG_SCENARIO`, `KG_LEDGER`, `KG_FILES`, `KG_REPORT`...). It works out the changed code
+`KG_FAIL_ON`, `KG_SCENARIO`, `KG_AS_OF`, `KG_LEDGER`, `KG_FILES`, `KG_REPORT`...). It works out the changed code
 from git against `KG_BASE`, in the folder `code_map.toml` names, and calls the core command. Its exit
 code is the command's: 0, 1 or 2.
+
+`KG_AS_OF` is the date the gate and `trace-check` read review currency on (`--as-of`, decision-0005):
+a `YYYY-MM-DD` date, `record` (the subject's pinned record date) or `today`, the default. Set it to
+check a release as of its cut date, or to rehearse a lapse before it falls due: S1 as of 2027-08-08
+is BLOCKED, with a `lapsed` finding for each review past its months. The action takes it as the
+input `as-of`; the GitLab include as the variable `KG_AS_OF` (task-0089).
 
 - **GitHub Actions**: a composite action. It runs the knowgov tag you name in `uses:`, and maps the
   commit and the pull request's base for you:
