@@ -187,18 +187,31 @@ GUIDE_WHAT = {"rows": "one row per edge", "paths": "the paths, for the graph vie
               "statements": "the assertions its cited anchors name"}
 
 
-def guide_path(start: str, form: str) -> str:
-    return f"/api/register/impact/{urllib.parse.quote(start)}/guide/{form}"
+def variant_of(walk: str = "dependants", children: bool = False) -> str:
+    """The name a walk and its children option go by in a guide's path (task-0112): dependants,
+    dependants-children, realisers, realisers-children. A path segment, not a query string: the
+    Browser reads the play command's argument only up to the first ``&``."""
+    return walk + ("-children" if children else "")
 
 
-def guide_html(start: str, form: str, text: str) -> str:
+def guide_path(start: str, form: str, variant: str = "dependants") -> str:
+    """The default walk's guide keeps its path; another variant names itself before ``guide``."""
+    mid = "" if variant == "dependants" or form == "statements" else f"/{variant}"
+    return f"/api/register/impact/{urllib.parse.quote(start)}{mid}/guide/{form}"
+
+
+GUIDE_TITLE = {"dependants": "Impact of retiring {}", "dependants-children": "Impact of retiring {} and its descendants",
+               "realisers": "What realises {}", "realisers-children": "What realises {} and its descendants"}
+
+
+def guide_html(start: str, form: str, text: str, variant: str = "dependants") -> str:
     """A Neo4j Browser guide (task-0025): an article the Browser fetches cross-origin and shows in a
     frame. Its block marked runnable puts its text in the editor on a click, through the Browser's
     own click-to-insert, and runs nothing; the viewer presses play. The edit command of the manual
     (?cmd=edit&arg=) is not used: Browser 5.26.0 sends it before the editor listens."""
     h = html.escape
     what = GUIDE_WHAT[form]
-    return (f'<article class="guide"><h3>Impact of retiring {h(start)}: {what}</h3>\n'
+    return (f'<article class="guide"><h3>{GUIDE_TITLE[variant].format(h(start))}: {what}</h3>\n'
             "<p>A click on the query puts it in the editor. Nothing runs until you press play. "
             "A run wipes the projection: project the register again first.</p>\n"
             f'<pre class="pre-scrollable code runnable">{h(text)}</pre></article>\n')
@@ -233,13 +246,15 @@ def node_statements(start: str) -> dict:
     return out
 
 
-def impact_view(start: str, origin: str = "http://localhost:8080", statements: bool = True) -> dict | None:
+def impact_view(start: str, origin: str = "http://localhost:8080", statements: bool = True,
+                walk: str = "dependants", children: bool = False) -> dict | None:
     """The impact walk from one node, with the walk's Cypher for the id typed when the store has a
     console (task-0024): both forms, and for each the guide the server serves and the Browser link
-    that opens it, on the origin the viewer reached (the request's Host). None for an unknown id.
+    that opens it, on the origin the viewer reached (the request's Host). None for an unknown id or
+    walk. Either of the register's walks, with or without its children option (task-0112).
     The id is a node of the register, so it is a plain literal in the query; nothing is run but the
     port's own read of the assertions the node's cited anchors name, shown beside the walk (task-0047)."""
-    out = register_view.impact(start)
+    out = register_view.impact(start, walk, children)
     if out is None:
         return None
     if statements:
@@ -250,8 +265,8 @@ def impact_view(start: str, origin: str = "http://localhost:8080", statements: b
             from store_neo4j import impact_cypher, node_statements_cypher
         except ImportError:
             return out
-        cy = impact_cypher(start)
-        guides = {form: guide_path(start, form) for form in WALK_FORMS}
+        cy = impact_cypher(start, walk, children)
+        guides = {form: guide_path(start, form, variant_of(walk, children)) for form in WALK_FORMS}
         register_view.with_cypher(out, cy, NEEDS_TEXT["register"], browser={form: browser_play_url(origin, guides[form]) for form in WALK_FORMS}, guide=guides)
         if statements:
             guide = guide_path(start, "statements")
@@ -259,15 +274,20 @@ def impact_view(start: str, origin: str = "http://localhost:8080", statements: b
     return out
 
 
-def impact_guide(start: str, form: str) -> str | None:
-    """The guide of one form for one node, or None when there is no such node or form, or no console."""
+def impact_guide(start: str, form: str, variant: str = "dependants") -> str | None:
+    """The guide of one form for one node and walk variant, or None when there is no such node, form
+    or variant, or no console. The statements view's guide has the default variant only."""
     if form not in GUIDE_FORMS or not _console_store() or register_view.impact(start) is None:
         return None
     try:
-        from store_neo4j import impact_cypher, node_statements_cypher
+        from store_neo4j import IMPACT_VARIANTS, impact_cypher, node_statements_cypher
     except ImportError:
         return None
-    return guide_html(start, form, node_statements_cypher(start) if form == "statements" else impact_cypher(start)[form])
+    if variant not in IMPACT_VARIANTS or (form == "statements" and variant != "dependants"):
+        return None
+    if form == "statements":
+        return guide_html(start, form, node_statements_cypher(start))
+    return guide_html(start, form, impact_cypher(start, *IMPACT_VARIANTS[variant])[form], variant)
 
 
 # ------------------------------------------------------------------ the store
@@ -529,10 +549,12 @@ class Handler(BaseHTTPRequestHandler):
         return "http://" + (self.headers.get("Host") or f"localhost:{PORT}")
 
     @staticmethod
-    def _guide_parts(path: str) -> tuple[str, str] | None:
+    def _guide_parts(path: str) -> tuple[str, str, str] | None:
         parts = [p for p in path.split("/") if p]
         if parts[:3] == ["api", "register", "impact"] and len(parts) == 6 and parts[4] == "guide":
-            return urllib.parse.unquote(parts[3]), parts[5]
+            return urllib.parse.unquote(parts[3]), parts[5], "dependants"
+        if parts[:3] == ["api", "register", "impact"] and len(parts) == 7 and parts[5] == "guide" and parts[4] != "dependants":
+            return urllib.parse.unquote(parts[3]), parts[6], parts[4]
         return None
 
     def do_OPTIONS(self) -> None:  # noqa: N802
@@ -612,13 +634,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"error": f"no {kind} {ident} in the register"}, 404)
                 return self._json(r)
             if self._guide_parts(u.path) is not None:
-                start, form = self._guide_parts(u.path)
-                guide = impact_guide(start, form)
+                start, form, variant = self._guide_parts(u.path)
+                guide = impact_guide(start, form, variant)
                 if guide is None:
                     return self._json({"error": f"no guide {form} for {start}"}, 404)
                 return self._send(200, guide.encode("utf-8"), "text/html; charset=utf-8", cors=True)
             if parts[:3] == ["api", "register", "impact"] and len(parts) == 4:
-                out = impact_view(parts[3], self._origin())
+                walk, children = q.get("walk", ["dependants"])[0], q.get("children", ["0"])[0]
+                if walk not in register_view.WALKS or children not in ("0", "1", "false", "true"):
+                    return self._json({"error": f"walk must be one of {list(register_view.WALKS)}, children 0 or 1"}, 400)
+                out = impact_view(parts[3], self._origin(), walk=walk, children=children in ("1", "true"))
                 return self._json(out) if out is not None else self._json({"error": f"no such node: {parts[3]}"}, 404)
             if parts[:2] == ["api", "gaps"] and len(parts) == 3 and parts[2] in views.SCENARIOS:
                 return self._json(store_gaps(parts[2]))

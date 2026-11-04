@@ -71,7 +71,7 @@ button.primary{background:var(--teal);color:#fff;border-color:var(--teal)}
 .detail .sub:empty{display:none} .detail .sub{margin-top:12px;border-top:2px solid var(--line);padding-top:8px} .detail .sub .crumb{font-size:12px;color:var(--muted);margin-bottom:4px} .detail .sub .detail{margin:0;padding:0;border:0}
 .detail .tw{overflow:auto;max-height:340px} .detail table{font-size:12.5px} .detail th{position:sticky;top:0;background:var(--card)}
 .detail .close{float:right}
-.rnode{margin:3px 0} .rnode.other{opacity:.65} .rstate{font-family:var(--mono);font-size:11px;color:var(--muted)} #register details{margin:4px 0} #register summary{cursor:pointer;font-weight:600} #register-detail .detail{margin-top:10px} .impact{display:flex;gap:6px;margin:4px 0} .impact input{flex:1;min-width:0;font-family:var(--mono);font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:6px}
+.rnode{margin:3px 0} .rnode.other{opacity:.65} .rstate{font-family:var(--mono);font-size:11px;color:var(--muted)} #register details{margin:4px 0} #register summary{cursor:pointer;font-weight:600} #register-detail .detail{margin-top:10px} .impact{display:flex;gap:6px;margin:4px 0} .impact input{flex:1;min-width:0;font-family:var(--mono);font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:6px} .impact label{display:flex;align-items:center;gap:3px;white-space:nowrap} .impact label input{flex:none;padding:0;border:0}
 .gfilter{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px} .gfilter button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .gsrc{font-size:12.5px;color:var(--muted);margin:4px 0 8px} .gsrc b{color:var(--ink);font-weight:600}
 .gkeys{display:flex;flex-wrap:wrap;gap:4px} .gkeys code{font-size:11.5px;padding:1px 6px;border:1px solid var(--line);border-radius:6px} .gkeys code.req{border-color:var(--amber);background:var(--warn)}
@@ -373,8 +373,8 @@ async function showRegister(today) {
         <div>
           <h3 style="margin-top:0">Relationship types</h3><div class="tw"><table><thead><tr><th>type</th><th>links</th><th>approved</th><th>ARIS</th><th>Archi</th></tr></thead><tbody>${r.relationship_types.map(t => `<tr><td>${esc(t.name)}</td><td>${t.links}</td><td>${t.approved}</td><td>${esc(t.aris_status)}</td><td>${esc(t.archi_status)}</td></tr>`).join('')}</tbody></table></div>
           <h3>Impact · which products and journeys would retiring a node touch</h3>
-          <form id="impact-form" class="impact"><input id="impact-id" type="text" value="${esc(r.impact_default)}" spellcheck="false" list="impact-ids"><datalist id="impact-ids">${Object.values(r.nodes_by_taxonomy).flat().map(n => `<option value="${esc(n.id)}">${esc(n.name)}</option>`).join('')}</datalist><button type="submit" class="small">walk</button></form>
-          <div class="small">The walk follows approved links only and does not climb a node's parent; the panel lists every edge met and says what it reached.</div>
+          <form id="impact-form" class="impact"><input id="impact-id" type="text" value="${esc(r.impact_default)}" spellcheck="false" list="impact-ids"><datalist id="impact-ids">${Object.values(r.nodes_by_taxonomy).flat().map(n => `<option value="${esc(n.id)}">${esc(n.name)}</option>`).join('')}</datalist><select id="impact-walk" class="small" title="the register's named walks"><option value="dependants">dependants</option><option value="realisers">realisers</option></select><label class="small" title="also walk from every approved descendant by parent (the register's decision 0014)"><input type="checkbox" id="impact-children"> children</label><button type="submit" class="small">walk</button></form>
+          <div class="small">The dependants walk finds what rests on a node; the realisers walk finds what implements a capability. Either follows approved links only and does not climb a node's parent; with children it also starts from every approved descendant. The panel lists every edge met and says what it reached.</div>
         </div>
       </div>
       <div id="register-detail"></div>
@@ -386,7 +386,8 @@ async function showRegister(today) {
   $('#impact-form').addEventListener('submit', async ev => {
     ev.preventDefault();
     const id = $('#impact-id').value.trim();
-    try { const w = await api(`/api/register/impact/${encodeURIComponent(id)}`); openPanel(renderDetail(w.panel)); }
+    const walk = $('#impact-walk').value, children = $('#impact-children').checked ? 1 : 0;
+    try { const w = await api(`/api/register/impact/${encodeURIComponent(id)}?walk=${encodeURIComponent(walk)}&children=${children}`); openPanel(renderDetail(w.panel)); }
     catch (e) { openPanel(`<div class="detail"><button class="close small">close</button><p>${esc(e.message)}</p></div>`); }
   });
   const wall = $('#reg-wall'); if (wall) wall.addEventListener('click', ev => { ev.preventDefault(); showRegister('wall'); });

@@ -98,7 +98,12 @@ the walk does not: what rests on a capability, what touches an
 information node, and from an application or module to the documents its
 approved links cite, their assertions and the code derived from them
 (the adopter's guide, [`docs/guide.md`](../docs/guide.md), section 8,
-explains each). Every saved query
+explains each). The impact panel offers the register's two walks,
+*dependants* (what rests on a node) and *realisers* (what implements a
+capability), each with or without *children*, the walk also started from
+every approved descendant by parent (`tools/impact.py --walk`,
+`--children`); three saved queries carry the other three: the walk with
+children, the realiser walk, and the realiser walk with children. Every saved query
 carries a marker, *runs now* or *needs S6 loaded deterministically*,
 *needs S4 loaded*, *needs the register projected*: the store holds one
 scenario at a time, so a query run against the wrong state gets Neo4j's

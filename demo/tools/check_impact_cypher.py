@@ -10,7 +10,9 @@ runnable block must be the form's listed text, the rows form must give the walk'
 relationship, to, link state, owner, evidence, and the far node's owning unit:
 its owner field, that unit's name and the approved owns links to it, task-0047), the paths form the same distinct relationships
 as the rows form's links (a link the walk meets from both ends is two edges and one relationship,
-decision 0010), with the start returned. The statements view's link (task-0078) is followed the
+decision 0010), with the start returned. Every walk the panel offers is checked so (task-0112): the
+dependants and the realisers walk, each with and without children, whose paths form returns the node
+and each approved descendant as its starts. The statements view's link (task-0078) is followed the
 same way: its guide's block must be the listed register-node-statements from the node, and its
 rows those the panel shows from the port's register_node_statements, when a scenario is loaded
 (else it must run). Exit 0 iff every node agrees. Runs where the harness and the driver are,
@@ -33,6 +35,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / "harness"), str(ROOT / "demo" / "app")]
 DEMO = os.environ.get("KG_DEMO_URL", "http://localhost:8080")
+VARIANTS = [(w, c) for w in ("dependants", "realisers") for c in (False, True)]   # every walk the panel offers (task-0112)
 
 
 def guide_url_of(link: str) -> str:
@@ -103,34 +106,37 @@ def main() -> int:
     failures = reached = 0
     with open_store() as store:
         for nid in nodes:
-            w = _get(f"/api/register/impact/{urllib.parse.quote(nid)}")
-            cy = w.get("cypher")
-            if not cy or not cy.get("browser"):
-                print(f"FAIL {nid:10} no Cypher on the panel: the store has no console")
-                failures += 1
-                continue
-            problems = []
-            try:
-                rows_text, paths_text = (block_of(fetch_guide(guide_url_of(cy["browser"][form]))) for form in ("rows", "paths"))
-            except Exception as e:   # noqa: BLE001 — the guide, its headers or its block
-                failures += 1
-                print(f"FAIL {nid:10} guide: {str(e).strip().splitlines()[0] if str(e).strip() else type(e).__name__}")
-                continue
-            if rows_text != cy["rows"] or paths_text != cy["paths"]:
-                problems.append("the guide's block is not the listed text")
-            expect = edge_keys(w["edges"], w["owners"])
-            try:
-                rows = store.console_query(rows_text)
-                got = row_keys(rows)
-                n_rels, path_links, starts = path_shape(store.console_query(paths_text))
-            except Exception as e:   # the driver's error, whatever its class
-                problems.append(str(e).strip().splitlines()[0] if str(e).strip() else type(e).__name__)
-            else:
+            problems, counts, w = [], [], None
+            for walk, children in VARIANTS:
+                got_w = _get(f"/api/register/impact/{urllib.parse.quote(nid)}?walk={walk}&children={int(children)}")
+                w = w or got_w   # the default walk's panel carries the statements view checked below
+                name = walk + (" with children" if children else "")
+                cy = got_w.get("cypher")
+                if not cy or not cy.get("browser"):
+                    problems.append(f"{name}: no Cypher on the panel, the store has no console")
+                    continue
+                try:
+                    rows_text, paths_text = (block_of(fetch_guide(guide_url_of(cy["browser"][form]))) for form in ("rows", "paths"))
+                except Exception as e:   # noqa: BLE001 — the guide, its headers or its block
+                    problems.append(f"{name}: guide: {str(e).strip().splitlines()[0] if str(e).strip() else type(e).__name__}")
+                    continue
+                if rows_text != cy["rows"] or paths_text != cy["paths"]:
+                    problems.append(f"{name}: the guide's block is not the listed text")
+                expect = edge_keys(got_w["edges"], got_w["owners"])
+                want_starts = {nid} | {d["id"] for d in got_w.get("descendants", []) if d["walked"]}
+                try:
+                    rows = store.console_query(rows_text)
+                    got = row_keys(rows)
+                    n_rels, path_links, starts = path_shape(store.console_query(paths_text))
+                except Exception as e:   # the driver's error, whatever its class
+                    problems.append(f"{name}: " + (str(e).strip().splitlines()[0] if str(e).strip() else type(e).__name__))
+                    continue
                 if got != expect:
-                    problems.append(f"rows {len(got)}, the walk {len(expect)} edges")
+                    problems.append(f"{name}: rows {len(got)}, the walk {len(expect)} edges")
                 row_links = {r["link"] for r in rows}
-                if n_rels != len(row_links) or path_links != row_links or starts != {nid}:
-                    problems.append(f"paths {n_rels} relationships from {sorted(starts)}, the rows form {len(row_links)} links")
+                if n_rels != len(row_links) or path_links != row_links or starts != want_starts:
+                    problems.append(f"{name}: paths {n_rels} relationships from {sorted(starts)}, the rows form {len(row_links)} links")
+                counts.append(len(expect))
             sv = (w.get("statements") or {}).get("cypher") or {}
             n_st = None
             if not sv.get("browser"):
@@ -154,9 +160,9 @@ def main() -> int:
                 failures += 1
                 print(f"FAIL {nid:10} {'; '.join(problems)}{tag}")
             else:
-                print(f"ok   {nid:10} {len(expect)} edges in both forms, {n_st} statements{tag}")
+                print(f"ok   {nid:10} {'/'.join(map(str, counts))} edges in both forms, {n_st} statements{tag}")
     print(f"{failures} of {len(nodes)} nodes disagree" if failures else
-          f"every node agrees: {len(nodes)} nodes, both forms and the statements view ({reached} nodes reach statements)")
+          f"every node agrees: {len(nodes)} nodes, {len(VARIANTS)} walks in both forms and the statements view ({reached} nodes reach statements)")
     return 1 if failures else 0
 
 

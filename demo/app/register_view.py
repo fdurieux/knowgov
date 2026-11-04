@@ -139,48 +139,76 @@ def _node_panel(nid: str, n: dict, reg: dict, C, D) -> dict:
             "panel": {"title": C(f"{nid}, a {kind_words} in {tax}"), "intro": intro, "sections": secs}}
 
 
+WALKS = ("dependants", "realisers")   # the register's named walks (its decisions 0010 and 0012)
+
+
 @takes_subject
-def impact(start: str) -> dict | None:
+def impact(start: str, walk: str = "dependants", children: bool = False) -> dict | None:
     """The register's own impact walk from one node (tools/impact.py, vendored), each edge
     with its state, owner, evidence and whether the walk followed it, and what it reached. None
-    for an unknown id. The walk follows approved links only, stops at a deprecated or retired
+    for an unknown id or walk. The walk follows approved links only, stops at a deprecated or retired
     node and does not climb a node's parent (the register's decision 0007, v0.2.2); from each node
-    it takes the steps its kind has, toward what rests on it (decision 0010, v0.2.6): a withdrawn
-    edge is listed and not followed, and only the far ends of live edges count as reached. That
-    is the register tool's behaviour, shown as it is."""
+    it takes the steps its kind has: by default toward what rests on it (decision 0010, v0.2.6), with
+    ``walk="realisers"`` toward what implements a capability (decision 0012, v0.2.7). A withdrawn
+    edge is listed and not followed, and only the far ends of live edges count as reached. With
+    ``children`` (decision 0014, v0.2.8; task-0112) it also starts from every approved descendant by
+    parent, as ``impact.walk_children`` does: every descendant is listed, a withdrawn one is not
+    walked from, and the start and its descendants are not counted among what is reached. That is
+    the register tool's behaviour, shown as it is."""
     T = _load_tools()
     reg = T["register"].load_register(REGISTER)
-    if start not in reg["nodes"]:
+    if start not in reg["nodes"] or walk not in WALKS:
         return None
-    edges = T["impact"].walk(reg, start)
+    rows_of = T["impact"].WALKS[walk]
+    if children:
+        got = T["impact"].walk_children(reg, start, rows_of)
+        edges, reached, descendants = got["edges"], sorted(got["reached"]), got["descendants"]
+    else:
+        edges = T["impact"].walk(reg, start) if walk == "dependants" else T["impact"].walk(reg, start, rows_of)
+        reached, descendants = sorted(T["impact"].reached(edges)), None
     reg_sentences: list[dict] = []
     C = lambda *s: views._reg(reg_sentences, "controlled", *s)  # noqa: E731
     D = lambda *s: views._reg(reg_sentences, "data", *s)  # noqa: E731
     names = {nid: n.get("name", "") for nid, n in reg["nodes"].items()}
-    owners = {nid: owning_unit(reg, nid) for nid in {start} | {e["to"] for e in edges}}
+    owners = {nid: owning_unit(reg, nid) for nid in {start} | {e["to"] for e in edges} | {d["id"] for d in descendants or []}}
     rows = [[e["from"], e["rel"], e["to"], names.get(e["to"], ""), unit_text(owners[e["to"]]), reg["nodes"].get(e["to"], {}).get("state", ""), e["state"],
              "yes" if e["live"] else "no, withdrawn", e["owner"], ", ".join(e["evidence"])] for e in edges]
-    reached = sorted(T["impact"].reached(edges))
     withdrawn = sum(1 for e in edges if not e["live"])
     by_prefix = lambda p: [x for x in reached if x.startswith(p + "-")]  # noqa: E731
-    products, journeys, processes = by_prefix("PRD"), by_prefix("JRN"), by_prefix("PROC")
+    products, journeys, processes, applications = by_prefix("PRD"), by_prefix("JRN"), by_prefix("PROC"), by_prefix("APP")
     start_node = reg["nodes"][start]
-    intro = C(f"The walk starts at {start}, a {start_node.get('kind', '').replace('_', ' ')} in state {start_node.get('state')}.",
-              "It follows approved links toward what rests on each node, by the node's kind.",
-              "An application leads to its processes; a process to its products, capabilities and journey steps.",
-              "A capability leads to the products that require it.",
-              "An information entity leads to the processes and applications that use it.",
-              "A product leads to its journeys and processes; a journey step to its process and product.",
-              "It stops at a deprecated or retired node.", "A withdrawn edge is listed and not followed.",
-              "Its link is not approved, or its far node is deprecated or retired.",
-              "It does not climb a node's parent, so a module's application is not reached.")
+    intro = C(f"The walk starts at {start}, a {start_node.get('kind', '').replace('_', ' ')} in state {start_node.get('state')}.")
+    if walk == "dependants":
+        intro += " " + C("It follows approved links toward what rests on each node, by the node's kind.",
+                         "An application leads to its processes; a process to its products, capabilities and journey steps.",
+                         "A capability leads to the products that require it.",
+                         "An information entity leads to the processes and applications that use it.",
+                         "A product leads to its journeys and processes; a journey step to its process and product.")
+    else:
+        intro += " " + C("This is the realiser walk: it follows approved links toward what implements a capability.",
+                         "A capability leads to the processes that realise it; a process to the applications that support it.",
+                         "An application leads nowhere, so the walk never turns back to what rests on the capability.")
+    intro += " " + C("It stops at a deprecated or retired node.", "A withdrawn edge is listed and not followed.",
+                     "Its link is not approved, or its far node is deprecated or retired.")
+    if children:
+        intro += " " + C("It also starts from every descendant by parent, at any depth, each by its own kind.",
+                         "An approved descendant is walked; any other is listed as withdrawn and not walked from.",
+                         "The start and its descendants are not counted among what is reached.",
+                         "It never climbs a node's parent.")
+    else:
+        intro += " " + C("It does not climb a node's parent, so a module's application is not reached.")
     intro += " " + D(f"Name: {names.get(start, '')}.")
-    summary = C(f"{views._plural(len(edges), 'edge')} walked, {withdrawn} withdrawn; {views._plural(len(processes), 'process', 'processes')}, "
-                f"{views._plural(len(products), 'product')} and {views._plural(len(journeys), 'journey element')} reached.")
-    if not products and (processes or journeys):
-        summary += " " + C("No product is reached: no approved link leads from a reached node to a product.")
+    if walk == "dependants":
+        summary = C(f"{views._plural(len(edges), 'edge')} walked, {withdrawn} withdrawn; {views._plural(len(processes), 'process', 'processes')}, "
+                    f"{views._plural(len(products), 'product')} and {views._plural(len(journeys), 'journey element')} reached.")
+        if not products and (processes or journeys):
+            summary += " " + C("No product is reached: no approved link leads from a reached node to a product.")
+    else:
+        summary = C(f"{views._plural(len(edges), 'edge')} walked, {withdrawn} withdrawn; {views._plural(len(processes), 'process', 'processes')} "
+                    f"and {views._plural(len(applications), 'application')} reached.")
     if not edges:
-        summary += " " + C("No link starts at this node in a direction the walk follows.")
+        summary += " " + C("No link starts at this node in a direction the walk follows." if not children else
+                           "No link starts at this node or a walked descendant in a direction the walk follows.")
     # who to inform (task-0047): the unit that owns each reached node, by the node's owner field; the
     # owns links are shown, not walked, and one that names another unit is said beside it
     units: dict[str, list[str]] = {}
@@ -192,14 +220,26 @@ def impact(start: str) -> dict | None:
                     "Inform each unit of the change to its reached nodes.")
     if any(o["owns"] and o["owns"] != [o["unit"]] for o in owners.values()):
         inform_text += " " + C("An owns link that names another unit is shown beside the owning unit.")
-    return {"from": start, "edges": edges, "rows": rows, "owners": owners,
-            "reached": {"products": products, "journeys": journeys, "processes": processes, "all": reached},
-            "panel": {"title": C(f"Impact of retiring {start}"), "intro": intro,
-                      "sections": [{"heading": C("Edges walked"), "text": summary,
-                                    "table": {"cols": ["from", "relationship", "to", "name", "owning unit", "node state", "link state", "followed", "owner", "evidence"], "rows": rows}},
-                                   {"heading": C("Reached"), "list": [f"{x}: {names.get(x, '')}, owned by {unit_text(owners[x])}" for x in reached] or ["nothing"]},
-                                   {"heading": C("Who to inform"), "text": inform_text, "list": inform or ["nobody: nothing is reached"]}]},
-            "text_registry": reg_sentences}
+    sections = [{"heading": C("Edges walked"), "text": summary,
+                 "table": {"cols": ["from", "relationship", "to", "name", "owning unit", "node state", "link state", "followed", "owner", "evidence"], "rows": rows}},
+                {"heading": C("Reached"), "list": [f"{x}: {names.get(x, '')}, owned by {unit_text(owners[x])}" for x in reached] or ["nothing"]},
+                {"heading": C("Who to inform"), "text": inform_text, "list": inform or ["nobody: nothing is reached"]}]
+    if children:
+        walked_n = sum(1 for d in descendants if d["live"])
+        sections.insert(0, {"heading": C("Descendants by parent"),
+                            "text": C(f"{views._plural(len(descendants), 'descendant')}, {walked_n} walked, {len(descendants) - walked_n} withdrawn."),
+                            "table": {"cols": ["descendant", "name", "parent", "node state", "walked"],
+                                      "rows": [[d["id"], names.get(d["id"], ""), reg["nodes"][d["id"]].get("parent", ""), d["state"],
+                                                "yes" if d["live"] else "no, withdrawn"] for d in descendants]}})
+    title = C((f"Impact of retiring {start}" if walk == "dependants" else f"What realises {start}") + (", with its descendants" if children else ""))
+    out = {"from": start, "walk": walk, "children": children, "edges": edges, "rows": rows, "owners": owners,
+           "reached": {"products": products, "journeys": journeys, "processes": processes, "applications": applications, "all": reached},
+           "panel": {"title": title, "intro": intro, "sections": sections},
+           "text_registry": reg_sentences}
+    if children:
+        out["descendants"] = [{"id": d["id"], "name": names.get(d["id"], ""), "parent": reg["nodes"][d["id"]].get("parent"),
+                               "state": d["state"], "walked": d["live"], "withdrawn": not d["live"]} for d in descendants]
+    return out
 
 
 def owning_unit(reg: dict, nid: str) -> dict:
@@ -307,15 +347,20 @@ def impact_default() -> str:
 def start_default(taxonomy: str) -> str:
     """The start a saved query from ``taxonomy`` is listed with: for applications the walk's default;
     otherwise this subject's node of that taxonomy that the most links point at, ties by id, else the
-    register's first node of it. The register's own, not any subject's id (task-0002)."""
+    register's first node of it; for ``<taxonomy>+children`` the one with the most descendants by
+    parent (task-0112). The register's own, not any subject's id (task-0002)."""
     if taxonomy == "applications":
         return impact_default()
     T = _load_tools()
     reg = T["register"].load_register(REGISTER)
     into = {}
-    for rel in reg["relationships"].values():
-        for ln in rel["links"]:
-            into[ln.get("target")] = into.get(ln.get("target"), 0) + 1
+    if taxonomy.endswith("+children"):   # a children form (task-0112): the node of the taxonomy with the most descendants by parent
+        taxonomy = taxonomy.removesuffix("+children")
+        into = {nid: len(T["impact"].descendants(reg, nid)) for nid in reg["nodes"]}
+    else:
+        for rel in reg["relationships"].values():
+            for ln in rel["links"]:
+                into[ln.get("target")] = into.get(ln.get("target"), 0) + 1
     of = [(nid, n) for nid, n in reg["nodes"].items() if n["_taxonomy"] == taxonomy]
     mine = [kv for kv in of if (kv[1].get("source") or {}).get("system", "") == _ps().system] or of
     mine.sort(key=lambda kv: (-into.get(kv[0], 0), kv[0]))

@@ -132,12 +132,19 @@ jobs:
               n = int(re.search(rf"^ok\s+{qid}\s+(\d+) rows", open("queries.txt").read(), re.M).group(1))
               assert n > 0, (qid, n)
               print(f"{qid}: {n} rows")
+          # the other three walks (task-0112): each saved query's rows are the panel's edges for its start
+          for qid, walk, children in (("register-impact-children", "dependants", 1), ("register-realisers", "realisers", 0), ("register-realisers-children", "realisers", 1)):
+              start = re.search(r"reg_id:'([^']+)'", listed[qid]).group(1)
+              edges = len(json.load(urllib.request.urlopen(f"http://localhost:8080/api/register/impact/{start}?walk={walk}&children={children}"))["edges"])
+              n = int(re.search(rf"^ok\s+{qid}\s+(\d+) rows", open("queries.txt").read(), re.M).group(1))
+              assert n == edges > 0, (qid, n, edges)
+              print(f"{qid} from {start}: {n} rows, the walk's {edges} edges")
           PY
 
       - name: The impact panel's Browser links carry the walk and the statements view's query (task-0078), for every node of the register
         run: |
           docker compose exec -T app python demo/tools/check_impact_cypher.py | tee impact-cypher.txt
-          grep -E '^every node agrees: 57 nodes, both forms and the statements view \(17 nodes reach statements\)$' impact-cypher.txt
+          grep -E '^every node agrees: 57 nodes, 4 walks in both forms and the statements view \(17 nodes reach statements\)$' impact-cypher.txt
 
       - name: An empty subject loads and the gate reports every required key absent
         run: |

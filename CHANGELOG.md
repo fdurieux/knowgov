@@ -48,6 +48,17 @@ names that section with the version.
   vendored at ieam-register `v0.2.8`, which also carries decision 0015 (an approved child of a
   deprecated parent is a checker error). The record (as of 2026-10-30) and the comparator are
   unchanged. The page's impact panel still walks without children.
+- **The page's impact panel offers both walks and the children option** (task-0112): beside the
+  node id, a `dependants`/`realisers` choice and a `children` box; `GET /api/register/impact/<id>`
+  takes `?walk=` and `?children=1` (a bad value is a 400). The panel names its walk in its title
+  ("What realises CAP-0002"; "…, with its descendants"), lists every descendant with its state and
+  whether it was walked, and reaches what `register_impact` reaches on every node, both walks, both
+  options. Each variant's Cypher is on the panel with its own Browser guide
+  (`/api/register/impact/<id>/<variant>/guide/<form>`; the default walk's paths are unchanged), and
+  three saved queries join the list: `register-impact-children`, `register-realisers` and
+  `register-realisers-children`. `check_impact_cypher.py` checks all four walks on every node.
+  Without the options the panel and its Cypher are unchanged. The record and the comparator are
+  unchanged.
 - `instance/README.md` "Letting an AI assistant ask the gate": connecting Claude Code (`claude mcp add -s user`) and Claude Desktop (config file, absolute paths, the full `docker` path, the log) over the container's stdio, the phone through Remote Control, `KG_SUBJECT` as a path, `scenario` in every call, and a stateless HTTP example with `clientCapabilities` that a test runs against the server, with a guard on every flag the section names (task-0117).
 
 ## 0.4.0 — 2026-11-04
