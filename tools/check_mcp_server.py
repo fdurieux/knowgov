@@ -11,6 +11,8 @@ Then ask ``evidence_bundle`` for the codegen task as of the record and require t
 arm reads: ``gate.render_bundle`` over ``gate.resolve(store, "codegen")`` with the policy and the
 task's verbatim documents from the scenario's kit, exactly as ``harness/run.py``'s ``arm_runs`` builds
 it (task-0080); and for a key set, the same over ``resolve_spec`` on those keys.
+Then ask ``register_impact`` from the first node of the subject's first register-map row and require
+every key it lands on at the level ``gate_verdict`` gives that key set (task-0111).
 The same process also answers ``server/discover`` and a stateless (2026-07-28) ``gate_verdict``,
 which must equal the handshake's (task-0079).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
@@ -19,7 +21,9 @@ A scenario with a later version (``[scenario.stage2]``, S6) is asked a second ti
 ``gate_cli.py --stage 2 --reverify`` has loaded the change and its re-verification (task-0071): the
 reports must again be equal, ``superseded_by`` must name for each stale statement the verified or
 approved successors the record's ``gate_after_reverification`` lists, and ``three_valued_answer``
-must name the same successors under ``invalidated`` for every stale key.
+must name the same successors under ``invalidated`` for every stale key, and ``register_impact`` from
+the first node of each stale key's map row must name the key's stale statement and the suspect
+derived outputs that used it, as the record and ``gate_verdict`` do.
 
 ``KG_STORE`` picks the store as everywhere: ``rdflib`` needs ``KG_RDFLIB_FILE`` (the script sets
 one in a temporary directory when it is unset), ``neo4j`` the stack's database. Exit 0 when every
@@ -172,6 +176,7 @@ def check_stage2(sc: str, subject, failures: list[str]) -> None:
               f"equals gate_cli --no-load; superseded_by names {len(want)} statement(s) as the record does, "
               f"in the gate and in {len(by_key)} three-valued answer(s)")
         check_bundle(client, sc, 2, failures, f"{sc} stage 2")
+        check_impact(client, sc, failures, f"{sc} stage 2", rec["gate_after_reverification"], got)
     finally:
         client.close()
     if census() != before:
@@ -216,6 +221,44 @@ def check_bundle(client: "StdioClient", sc: str, stage: int, failures: list[str]
         failures.append(f"{label}: evidence_bundle for {keys} differs from render_bundle over those keys")
     print(f"{label}: evidence_bundle ({got['verdict']}, {len(got['bundle']):,} characters, {len(ids)} assertion(s), "
           f"{len(got['verbatim'])} verbatim document(s)) equals the bundle the arms read; a key set of {len(keys)} likewise")
+
+
+def check_impact(client: "StdioClient", sc: str, failures: list[str], label: str, rec: dict | None = None,
+                 gate: dict | None = None) -> None:
+    """register_impact (task-0111). Stage 1: from the first map row's first node, every landed key reads
+    the level gate_verdict gives that key set on the record's date. With ``rec`` (a stage-2 gate of the
+    record) and ``gate`` (gate_verdict's report on the same store): from the first node of each stale
+    key's row, the key names the record's stale statement and the suspect derived outputs that used it
+    as the report's suspect_derived findings name them (the record's d3check/S6 holds no derived output;
+    the command's stage 2 registers one, task-0018)."""
+    sys.path.insert(0, str(HARNESS))
+    from subject import SUBJECT
+    rows = {r["key"]: r for r in SUBJECT.register_map().get("row") or []}
+    if not rows:
+        print(f"{label}: register_impact not checked, the subject maps no key onto the register")
+        return
+    if rec is None:
+        first = next(iter(rows.values()))
+        got = client.call("register_impact", {"node": first["nodes"][0], "scenario": sc, "as_of": "record"})
+        keys = [k["key"] for k in got["keys"]]
+        want = client.call("gate_verdict", {"scenario": sc, "keys": keys, "as_of": "record"}) if keys else {"levels": {}}
+        if not keys or {k["key"]: k["level"] for k in got["keys"]} != want["levels"]:
+            failures.append(f"{label}: register_impact from {first['nodes'][0]} lands {len(keys)} key(s) whose levels differ from gate_verdict's")
+        print(f"{label}: register_impact from {first['nodes'][0]} reaches {sum(len(v) for v in got['reached'].values())} node(s) "
+              f"and lands {len(keys)} key(s), each at gate_verdict's level")
+        return
+    for x in sorted(rec.get("stale") or [], key=lambda x: x["key"]):
+        if x["key"] not in rows:
+            continue
+        start = rows[x["key"]]["nodes"][0]
+        want_suspect = sorted(f["ref"] for f in gate["findings"] if f["kind"] == "suspect_derived" and x["id"] in f["related"])
+        got = client.call("register_impact", {"node": start, "scenario": sc, "as_of": "record"})
+        k = next((k for k in got["keys"] if k["key"] == x["key"]), None)
+        if k is None or x["id"] not in k["stale"] or k["suspect"] != want_suspect:
+            failures.append(f"{label}: register_impact from {start} on {x['key']}: {k and (k['stale'], k['suspect'])}, "
+                            f"the record {x['id']} stale and {want_suspect} suspect")
+            continue
+        print(f"{label}: register_impact from {start} names {x['key']} stale ({x['id']}) and {', '.join(want_suspect) or 'nothing'} suspect")
 
 
 def census() -> dict:
@@ -279,6 +322,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{sc}: gate_verdict {got['verdict']} (exit_code {got['exit_code']}) equals gate_cli --no-load; "
                   f"{len(SUBJECT.three_valued)} three-valued key(s) checked")
             check_bundle(client, sc, 1, failures, sc)
+            check_impact(client, sc, failures, sc)
         finally:
             client.close()
         if census() != before:

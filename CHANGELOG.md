@@ -8,6 +8,21 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
+## Unreleased
+
+### Also since 0.4.0
+
+- **MCP server, a fifth read-only tool, `register_impact`** (task-0111): what retiring or changing
+  a register node touches. It runs the register's own impact walk from a register id
+  (`dependants` by default, or `realisers`) on `KG_REGISTER`, and returns the register's tag and
+  commit, the node, its children listed but not walked (the register's decision 0014 would add
+  that descent), every edge with `live`, and what the walk reached by id prefix with each node's
+  owning unit. It also returns the `register_map.toml` keys whose rows name the node or what it
+  reaches, each with its owner, anchor and the nodes it came through (`via`). With a scenario
+  loaded, each key carries its level, stale statements, suspect derived outputs and findings, as
+  `gate_verdict` reports that key set on the same `as_of`. It is additive: the store view's reads
+  are unchanged and nothing is written.
+
 ## 0.4.0 — 2026-11-04
 
 The gate becomes something an AI-native delivery pipeline can rely on. A fail-closed Claude Code

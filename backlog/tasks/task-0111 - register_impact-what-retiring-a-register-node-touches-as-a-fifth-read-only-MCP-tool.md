@@ -3,9 +3,11 @@ id: TASK-0111
 title: >-
   register_impact: what retiring a register node touches, as a fifth read-only
   MCP tool
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-04T14:45:00Z'
+updated_date: '2026-11-04T15:23:00Z'
 labels:
   - mcp
   - register
@@ -37,3 +39,13 @@ CAP-0001 is a capability domain with no links of its own: its walk is empty in b
 - [ ] #5 CAP-0001 answers an empty walk with CAP-0002..CAP-0005 as children, until a vendored register carries decision 0014; then its children option reaches the keys through them
 - [ ] #6 INSTRUCTIONS, instance/README.md's tool table and the 'four tools' wording (tests, doc-0014) say five; nothing in harness/ names a subject, a register id or a key
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. harness/register_impact.py: load the register's register.py/impact.py by path from KG_REGISTER (cadence.register_root); walk(node, walk) -> register {tag, commit}, node, children (listed, walked false), edges with live, reached by prefix with owning_unit; landed_rows from register_map.toml with via; with_levels from gate_cli.evaluate over the landed keys (task keys, route codegen), so each key reads as gate_verdict reports it.
+2. mcp_server.py: fifth tool register_impact (READ_ONLY), inputs node/walk/scenario/as_of; READS unchanged; answers without a store when no scenario is named.
+3. Tests: five tools; walk/reached/owners equal register_view.impact for every node; CAP-0001 children; isError; levels equal gate_verdict, no write.
+4. tools/check_mcp_server.py: stage 1 levels equal gate_verdict; S6 stage 2 names each stale key's statement and suspect derived output.
+5. Docs: INSTRUCTIONS, instance/README.md table, docs/security.md, doc-0014, CLAUDE.md, CHANGELOG Unreleased.
+<!-- SECTION:PLAN:END -->

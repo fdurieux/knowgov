@@ -5,7 +5,7 @@ title: >-
   readings miss, fit/gap per stage, candidates
 type: specification
 created_date: '2026-11-04T09:23:00Z'
-updated_date: '2026-11-04T10:45:00Z'
+updated_date: '2026-11-04T15:22:00Z'
 tags:
   - canvas
   - fit-gap
@@ -27,13 +27,13 @@ Marks: **correct**, **incorrect**, **outdated** (true at 4810262, not at `6a1bb4
 
 | § | Claim | Mark | Evidence at `6a1bb48` |
 |---|---|---|---|
-| 1, 3 | Statement-level provenance and state, a task gate, evidence bundles, read-only MCP, capture and review, invalidation, trace from code to statements exist | correct | `harness/gate.py` `evaluate`; `harness/mcp_server.py` (four tools, `READ_ONLY` view); `harness/capture.py`, `harness/review.py`; `harness/change.py`; `harness/trace.py` `register`/`check` |
+| 1, 3 | Statement-level provenance and state, a task gate, evidence bundles, read-only MCP, capture and review, invalidation, trace from code to statements exist | correct | `harness/gate.py` `evaluate`; `harness/mcp_server.py` (five tools since task-0111, `READ_ONLY` view); `harness/capture.py`, `harness/review.py`; `harness/change.py`; `harness/trace.py` `register`/`check` |
 | 1 | Value across a full enterprise SDLC needs a real pilot; outcome a hypothesis | correct | pumllint `docs/neo4j-governed-knowledge-evaluation.md` l. 45–47 ("supported for the mechanism and unproven for the outcome"); task-0057 To Do |
 | 3 | PROCEED: required keys verified/approved, unflagged; QUALIFIED: under the bar, some below verified or flagged; BLOCKED: a blocking level or the share below verified over the bar | correct | `harness/gate.py` l. 65–75 (`block_levels`, `max_unverified_share`) |
 | 3 | A suspect derived output can fail the gate under PROCEED; integrations must read findings and exit code | correct | `harness/gate_cli.py` `_findings`: `suspect_derived` is `blocker`; docstring "PROCEED with a suspect derived output exits 1" |
 | 3 | The five-against-ten-seconds conflict is exposed once both map to the same key; no discovery in arbitrary prose | correct | conflicts are `R-CONFLICT` on a shared key (store port `mark_conflict`); mappers per kind (`instance/kinds.toml`) |
 | 4 | Both public subjects configure `codegen` | correct, incomplete | `subjects/cargo_quote/subject.toml` and `subjects/jef_data_load/subject.toml` `[tasks.codegen]`, and so does `subjects/minimal`. Incomplete: `codegen` is the *only* task class anywhere, though `subjects/README.md` allows one table per class |
-| 5 | Four read-only MCP tools: `store_status`, `gate_verdict`, `three_valued_answer`, `evidence_bundle` | correct | `harness/mcp_server.py` `TOOLS` |
+| 5 | Five read-only MCP tools: `store_status`, `gate_verdict`, `three_valued_answer`, `evidence_bundle`, and `register_impact` since task-0111 | correct | `harness/mcp_server.py` `TOOLS` |
 | 5 | The built-in agent loop uses Python functions, not MCP | correct | `harness/agent.py` tools through the store port (task-0022.03); MCP is the external route (task-0056) |
 | 5 | MCP alone leaves compliance to the assistant; enforcement must come from the environment | correct | the server serves reads only; `instance/ci/knowgov-gate.sh` is the enforcing route |
 | 6.1 | A mandatory check needs an independently maintained scope so the agent cannot omit a key | incomplete | true of MCP: `gate_verdict` `keys` resolves "these … keys instead of the task's" and the report then names the task `keys`. Not true of the CLI or CI: `gate_cli.py` has no `--keys`; the scope is the subject's `[tasks.*]` table, changed only by pull request. The gap is that nothing refuses a `keys` report where a mandatory check expects a task class |

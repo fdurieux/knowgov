@@ -3,7 +3,7 @@
     python harness/mcp_server.py                      # stdio, for an agent that starts the server itself
     python harness/mcp_server.py --http [--host H] [--port P]   # Streamable HTTP at http://H:P/mcp
 
-The question an agent asks is "may I build on this?". Four tools answer it, all read-only:
+The question an agent asks is "may I build on this?". Five tools answer it, all read-only:
 
     store_status          what the store holds: the subject, the scenario loaded, the tasks and the
                           keys the subject asks the three-valued question of
@@ -19,6 +19,10 @@ The question an agent asks is "may I build on this?". Four tools answer it, all 
                           supersedes them, the lapsed reviews, the pre-load verdicts behind the keys,
                           the suspect derived outputs, and the documents the task names verbatim
                           (task-0080)
+    register_impact       what retiring a register node touches: the register's own walk from it, what it
+                          reaches and who owns each, its children listed and not walked, and the
+                          register-map keys it lands on, each with its level, stale statements and
+                          suspect derived outputs as gate_verdict reports them (task-0111)
 
 The server never loads, wipes or writes: it reads the store the page or a run left (``KG_STORE``;
 for rdflib the Turtle file ``KG_RDFLIB_FILE``, read and never written back), through a view that
@@ -91,7 +95,8 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "required keys are verified or approved. Call evidence_bundle for the knowledge itself, with its "
                 "evidence, as the governed arm reads it; both read review currency on the server's one date unless "
                 "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
-                "'documented_absent'. A status is the repository's; you may not upgrade it. This server only reads.")
+                "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
+                "the register's walk reaches, who owns it and the keys that rest on it. A status is the repository's; you may not upgrade it. This server only reads.")
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -140,6 +145,24 @@ TOOLS.append(
          "keys": {"type": "array", "items": {"type": "string"}, "minItems": 1, "description": "resolve these entity|attribute keys instead of the task's; the task's block levels, bar and verbatim documents apply"},
          "verbatim": {"type": "boolean", "description": "include the documents the task names as needed verbatim (default: true)"},
          "as_of": {"type": "string", "description": "the date review currency is read on: the server's date (default, the one gate_verdict reads), record (the subject's pinned record date, as the arms read it), today or YYYY-MM-DD"}}},
+     "annotations": READ_ONLY})
+
+
+TOOLS.append(
+    {"name": "register_impact", "title": "What does retiring this register node touch?",
+     "description": "The register's own impact walk from one node of the organisation's register (approved links only; "
+                    "a deprecated or retired node is not expanded; a withdrawn edge is listed with live false and not "
+                    "followed; a node's parent is never climbed): the register's tag and commit, the node (kind, name, "
+                    "state, owner, parent), its children with their states (listed, not walked), every edge, what the walk "
+                    "reached by id prefix with each node's owning unit, and the register-map keys whose rows name the "
+                    "start or a reached node, each with its owner, anchor and the nodes it came through (via). With a "
+                    "scenario held, each key carries its gate level, its stale statements, the suspect derived outputs "
+                    "that used them and its findings, as gate_verdict reports that key set on the same as_of.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "required": ["node"], "properties": {
+         "node": {"type": "string", "pattern": r"^[A-Z]+-\d{4,}$", "description": "a register id, as the register's files name it"},
+         "walk": {"type": "string", "enum": ["dependants", "realisers"], "description": "dependants: what rests on the node (default); realisers: what implements a capability, where the register offers that walk"},
+         "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another (default: whatever it holds; with none held, the keys carry no level)"},
+         "as_of": {"type": "string", "description": "the date review currency is read on: the server's date (default, the one gate_verdict reads), today, record or YYYY-MM-DD"}}},
      "annotations": READ_ONLY})
 
 
@@ -339,6 +362,48 @@ class Tools:
                     "assertion_ids": sorted({a["id"] for v in res["keys"].values() for a in v["assertions"]}),
                     "verbatim": sorted(verbatim or {}),
                     "bundle": render_bundle(res, arms.policy(), verbatim)}
+        return self._with_store(go)
+
+    def register_impact(self, args: dict) -> dict:
+        """The register's walk from ``node`` (``register_impact.walk``), the map rows it lands on, and,
+        with a scenario held, each landed key as the gate reports that key set (task-0111). The
+        register is read from ``KG_REGISTER``; the store only through the port's reads."""
+        import gate_cli
+        import register_impact as ri
+        from subject import SUBJECT
+        from tasks import TASKS
+        which = args.get("walk") or "dependants"
+        try:
+            out = ri.walk(args.get("node"), which)
+        except ri.ImpactError as e:
+            raise ToolError(str(e)) from e
+        out.pop("reached_ids")
+        reached = [x["id"] for xs in out["reached"].values() for x in xs]
+        keys = ri.landed_rows(SUBJECT.register_map(), out["node"]["id"], reached)
+        task = "codegen" if "codegen" in TASKS else next(iter(TASKS), None)   # gate_verdict's default class: its block levels and route
+        head = {"subject": SUBJECT.id, "store": None, "scenario": None, "as_of": None}
+
+        def go(st):
+            head["store"] = st.name
+            if args.get("scenario") is None and _held(st) is None:
+                return {**head, **out, "keys": keys, "gate": None}
+            scenario = _check_scenario(st, args.get("scenario"))
+            on = self._as_of(args)
+            head.update(scenario=scenario, as_of=on)
+            if not keys or task is None:
+                return {**head, **out, "keys": keys, "gate": None}
+            spec = dict(TASKS[task], keys=[k["key"] for k in keys])
+            rep = gate_cli.evaluate(st, subject=SUBJECT.id, scenario=scenario, task="keys", spec=spec, threshold="blocker",
+                                    baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=on, route_task=task)
+            return {**head, **out, "keys": ri.with_levels(keys, rep),
+                    "gate": {"task": task, "verdict": rep["verdict"], "why": rep["why"], "exit_code": rep["exit_code"]}}
+        if args.get("scenario") is None:
+            try:   # the register answers without a store; only a named scenario needs one
+                return self._with_store(go)
+            except ToolError as e:
+                if not str(e).startswith("the store cannot be opened"):
+                    raise
+                return {**head, **out, "keys": keys, "gate": None, "store_unavailable": str(e)}
         return self._with_store(go)
 
     def three_valued_answer(self, args: dict) -> dict:
