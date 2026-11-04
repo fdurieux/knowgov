@@ -32,6 +32,14 @@ a web page in the operator's browser cannot reach the server (DNS rebinding).
 
 Standard library only, like the page and the gate command: MCP's JSON-RPC 2.0 messages, newline
 delimited on stdio, one JSON response per POST over HTTP.
+
+Dual-era (task-0079). A request whose ``_meta`` carries ``io.modelcontextprotocol/protocolVersion``
+is served statelessly per the 2026-07-28 revision: ``server/discover`` answers the supported
+versions, the capabilities, the instructions and the server's identity; every result carries
+``resultType`` and the ``serverInfo`` stamp; an unsupported version is ``-32022`` with the versions
+supported; ``server/discover`` and ``tools/list`` carry the caching hints; over HTTP the ``MCP-Protocol-Version``, ``Mcp-Method`` and ``Mcp-Name`` headers must match
+the body (``-32020``) and an error is a 400, or a 404 for an unknown method. A request without that
+``_meta`` is the handshake era, unchanged: ``initialize`` negotiates one of the legacy versions.
 """
 from __future__ import annotations
 
@@ -49,7 +57,18 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 SERVER = {"name": "knowgov", "title": "knowgov gate (read-only)", "version": "1"}
-PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]   # newest first
+PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]   # the handshake era, newest first
+MODERN_VERSIONS = ["2026-07-28"]                                               # stateless, per-request _meta
+SUPPORTED_VERSIONS = MODERN_VERSIONS + PROTOCOL_VERSIONS
+META_VERSION = "io.modelcontextprotocol/protocolVersion"
+META_CAPABILITIES = "io.modelcontextprotocol/clientCapabilities"
+META_SERVER = "io.modelcontextprotocol/serverInfo"
+HEADER_MISMATCH, UNSUPPORTED_VERSION = -32020, -32022
+CAPABILITIES = {"tools": {"listChanged": False}}
+# The caching hints the revision requires on server/discover and tools/list: both are fixed for the
+# life of the process; private, because a bearer token may stand in front of them (a gate answer,
+# tools/call, is never cacheable and carries none).
+CACHE = {"ttlMs": 3_600_000, "cacheScope": "private"}
 DEFAULT_HOST, DEFAULT_PORT = "127.0.0.1", 8765
 
 # The store port's reads this server may call (harness/store.py); anything else raises.
@@ -308,8 +327,61 @@ def _result(id_, result: dict) -> dict:
     return {"jsonrpc": "2.0", "id": id_, "result": result}
 
 
-def _error(id_, code: int, message: str) -> dict:
-    return {"jsonrpc": "2.0", "id": id_, "error": {"code": code, "message": message}}
+def _error(id_, code: int, message: str, data=None) -> dict:
+    err = {"code": code, "message": message}
+    if data is not None:
+        err["data"] = data
+    return {"jsonrpc": "2.0", "id": id_, "error": err}
+
+
+def modern_version(msg) -> str | None:
+    """The protocol version a 2026-07-28-era request declares in its ``_meta``, else None (the
+    handshake era)."""
+    params = msg.get("params") if isinstance(msg, dict) else None
+    meta = params.get("_meta") if isinstance(params, dict) else None
+    v = meta.get(META_VERSION) if isinstance(meta, dict) else None
+    return v if isinstance(v, str) else None
+
+
+def http_status(resp: dict | None, modern: bool) -> int:
+    """The HTTP status of a response: a handshake-era error stays 200, as before; a modern one is a
+    400 (version, malformed request, header mismatch) or a 404 (no such method)."""
+    if resp is None:
+        return 202
+    err = resp.get("error")
+    if not modern or not err:
+        return 200
+    return 404 if err["code"] == -32601 else 400
+
+
+def decode_header(value: str) -> str:
+    """A header value as the 2026-07-28 binding encodes it: ``=?base64?...?=`` for what is not plain ASCII."""
+    if value.startswith("=?base64?") and value.endswith("?="):
+        import base64
+        try:
+            return base64.b64decode(value[9:-2], validate=True).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            return "\x00invalid"   # never equal to a body value
+    return value
+
+
+def header_mismatch(msg: dict, headers) -> str | None:
+    """Why a modern request's HTTP headers do not match its body, else None."""
+    version = modern_version(msg)
+    got = headers.get("MCP-Protocol-Version")
+    if got is None:
+        return "the MCP-Protocol-Version header is missing"
+    if got != version:
+        return f"MCP-Protocol-Version header {got!r} does not match the body's {version!r}"
+    if headers.get("Mcp-Method") != msg.get("method"):
+        return f"Mcp-Method header {headers.get('Mcp-Method')!r} does not match the body's {msg.get('method')!r}"
+    if msg.get("method") == "tools/call":
+        name = headers.get("Mcp-Name")
+        if name is None:
+            return "the Mcp-Name header is missing"
+        if decode_header(name) != (msg.get("params") or {}).get("name"):
+            return f"Mcp-Name header {name!r} does not match the body's tool name"
+    return None
 
 
 class Server:
@@ -328,28 +400,59 @@ class Server:
         if "id" not in msg:
             return None                      # a notification: notifications/initialized and the like
         params = msg.get("params") or {}
+        if not isinstance(params, dict):
+            return _error(id_, -32602, "params must be an object")
+        if modern_version(msg) is not None:
+            return self._modern(id_, method, params)
+        if method == "server/discover":
+            return _error(id_, -32602, f"server/discover needs _meta[{META_VERSION!r}] and _meta[{META_CAPABILITIES!r}]")
         if method == "initialize":
             asked = params.get("protocolVersion")
             version = asked if asked in PROTOCOL_VERSIONS else PROTOCOL_VERSIONS[0]
-            return _result(id_, {"protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
+            return _result(id_, {"protocolVersion": version, "capabilities": CAPABILITIES,
                                  "serverInfo": SERVER, "instructions": INSTRUCTIONS})
         if method == "ping":
             return _result(id_, {})
-        if method == "tools/list":
-            return _result(id_, {"tools": TOOLS})
-        if method == "tools/call":
-            name, args = params.get("name"), params.get("arguments") or {}
-            if name not in {t["name"] for t in TOOLS}:
-                return _error(id_, -32602, f"unknown tool {name!r}")
-            if not isinstance(args, dict):
-                return _error(id_, -32602, "arguments must be an object")
-            try:
-                data = getattr(self.tools, name)(args)
-            except (ToolError, PermissionError) as e:
-                return _result(id_, {"content": [{"type": "text", "text": str(e)}], "isError": True})
-            return _result(id_, {"content": [{"type": "text", "text": json.dumps(data, indent=1, ensure_ascii=False, default=str)}],
-                                 "structuredContent": data, "isError": False})
+        if method in ("tools/list", "tools/call"):
+            return self._tools(id_, method, params)
         return _error(id_, -32601, f"method not found: {method}")
+
+    def _tools(self, id_, method: str, params: dict, stamp: dict | None = None) -> dict:
+        """tools/list and tools/call, either era; ``stamp`` is what a modern result adds."""
+        stamp = stamp or {}
+        if method == "tools/list":
+            return _result(id_, {"tools": TOOLS, **stamp, **(CACHE if stamp else {})})
+        name, args = params.get("name"), params.get("arguments") or {}
+        if name not in {t["name"] for t in TOOLS}:
+            return _error(id_, -32602, f"unknown tool {name!r}")
+        if not isinstance(args, dict):
+            return _error(id_, -32602, "arguments must be an object")
+        try:
+            data = getattr(self.tools, name)(args)
+        except (ToolError, PermissionError) as e:
+            return _result(id_, {"content": [{"type": "text", "text": str(e)}], "isError": True, **stamp})
+        except Exception as e:  # noqa: BLE001 - a tool that cannot answer is an error result, never a dropped connection
+            return _result(id_, {"content": [{"type": "text", "text": f"{name} could not answer: {type(e).__name__}: {e}"}],
+                                 "isError": True, **stamp})
+        return _result(id_, {"content": [{"type": "text", "text": json.dumps(data, indent=1, ensure_ascii=False, default=str)}],
+                             "structuredContent": data, "isError": False, **stamp})
+
+    def _modern(self, id_, method: str, params: dict) -> dict:
+        """A self-contained 2026-07-28 request: nothing is read from an earlier one."""
+        meta = params["_meta"]
+        version = meta[META_VERSION]
+        if version not in MODERN_VERSIONS:
+            return _error(id_, UNSUPPORTED_VERSION, "Unsupported protocol version",
+                          {"supported": SUPPORTED_VERSIONS, "requested": version})
+        if not isinstance(meta.get(META_CAPABILITIES), dict):
+            return _error(id_, -32602, f"_meta[{META_CAPABILITIES!r}] is required on every request")
+        stamp = {"resultType": "complete", "_meta": {META_SERVER: {"name": SERVER["name"], "version": SERVER["version"]}}}
+        if method == "server/discover":
+            return _result(id_, {"supportedVersions": SUPPORTED_VERSIONS, "capabilities": CAPABILITIES,
+                                 "instructions": INSTRUCTIONS, **stamp, **CACHE})
+        if method in ("tools/list", "tools/call"):
+            return self._tools(id_, method, params, stamp)
+        return _error(id_, -32601, f"method not found: {method}")   # ping and initialize are not methods of this era
 
     def handle_text(self, text: str) -> dict | None:
         try:
@@ -357,6 +460,21 @@ class Server:
         except json.JSONDecodeError as e:
             return _error(None, -32700, f"parse error: {e}")
         return self.handle(msg)
+
+    def handle_http(self, text: str, headers) -> tuple[int, dict | None]:
+        """One POST body and its headers: the HTTP status and the response. A modern request's
+        headers must match its body before anything else is read."""
+        try:
+            msg = json.loads(text)
+        except json.JSONDecodeError as e:
+            return 400, _error(None, -32700, f"parse error: {e}")
+        modern = isinstance(msg, dict) and "id" in msg and "method" in msg and modern_version(msg) is not None
+        if modern:
+            why = header_mismatch(msg, headers)
+            if why:
+                return 400, _error(msg.get("id"), HEADER_MISMATCH, f"Header mismatch: {why}")
+        resp = self.handle(msg)
+        return http_status(resp, modern), resp
 
 
 def serve_stdio(server: Server, inp=None, out=None) -> None:
@@ -432,11 +550,8 @@ def make_handler(server: Server, token: str | None):
                 return
             n = int(self.headers.get("Content-Length") or 0)
             text = self.rfile.read(n).decode("utf-8", "replace")
-            resp = server.handle_text(text)
-            if resp is None:
-                self._send(202)
-            else:
-                self._send(200, resp)
+            code, resp = server.handle_http(text, self.headers)
+            self._send(code, resp)
 
         def do_GET(self):
             if self._guard():

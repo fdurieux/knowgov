@@ -11,6 +11,8 @@ Then ask ``evidence_bundle`` for the codegen task as of the record and require t
 arm reads: ``gate.render_bundle`` over ``gate.resolve(store, "codegen")`` with the policy and the
 task's verbatim documents from the scenario's kit, exactly as ``harness/run.py``'s ``arm_runs`` builds
 it (task-0080); and for a key set, the same over ``resolve_spec`` on those keys.
+The same process also answers ``server/discover`` and a stateless (2026-07-28) ``gate_verdict``,
+which must equal the handshake's (task-0079).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
 
 A scenario with a later version (``[scenario.stage2]``, S6) is asked a second time after
@@ -70,6 +72,12 @@ class StdioClient:
         if r.get("isError"):
             raise AssertionError(f"{name}{args}: {r['content'][0]['text']}")
         return r["structuredContent"]
+
+    def modern(self, method: str, params: dict) -> dict:
+        """A self-contained 2026-07-28 request on the same process (task-0079): no handshake state used."""
+        meta = {"io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {},
+                "io.modelcontextprotocol/clientInfo": {"name": "check_mcp_server", "version": "1"}}
+        return self.request(method, {**params, "_meta": meta})
 
     def close(self) -> None:
         self.p.stdin.close()
@@ -206,6 +214,10 @@ def main(argv: list[str] | None = None) -> int:
             if got != expected:
                 diff = sorted(k for k in set(got) | set(expected) if got.get(k) != expected.get(k))
                 failures.append(f"{sc}: gate_verdict differs from gate_cli --no-load on {diff}")
+            disc = client.modern("server/discover", {})["result"]
+            stateless = client.modern("tools/call", {"name": "gate_verdict", "arguments": {"scenario": sc, "as_of": "record"}})["result"]
+            if disc.get("supportedVersions", [None])[0] != "2026-07-28" or stateless.get("structuredContent") != expected:
+                failures.append(f"{sc}: the stateless revision's gate_verdict differs from the handshake's, or server/discover did not answer")
             status = client.call("store_status", {})
             if status["scenario"] != sc:
                 failures.append(f"{sc}: store_status says the store holds {status['scenario']}")
