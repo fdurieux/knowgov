@@ -7,7 +7,11 @@ last one left).
 1. Build the example instance under OUT_DIR; load S6's stage 1 (``gate_cli.py --scenario S6``).
 2. ``trace.py register`` the reference code, as a merge would after the build: exit 0, one entry
    in the ledger, APP-0001 from code_map.toml.
+   The entry records the date it read, the record's day (task-0093).
 3. ``trace.py check``: unchanged, PROCEED, exit 0.
+   ``trace.py register --as-of`` a day after 2027-08-07, the date CargoQuote's reviews lapse by, into
+   a second ledger: the entry and the report name that day, and ``check --as-of`` the same day reads
+   the gate on it with its lapses (task-0093).
 4. The decision table's change (``gate_cli.py --scenario S6 --stage 2``): a reload, so the store loses
    the registration; the ledger keeps it.
 5. ``trace.py check``: the registered build is suspect, built from statements the change invalidated,
@@ -33,6 +37,7 @@ import schema_check  # noqa: E402
 
 APP = "APP-0001"
 CODE = "reference_impl.py"
+LAPSE_DAY = "2027-09-01"   # after 2027-08-07, the day S6's reviews lapse by (decision-0005)
 
 
 def run(env: dict, *args: str) -> tuple[int, str]:
@@ -40,9 +45,9 @@ def run(env: dict, *args: str) -> tuple[int, str]:
     return p.returncode, p.stdout + p.stderr
 
 
-def trace(env: dict, out: Path, name: str, *args: str) -> tuple[int, dict]:
+def trace(env: dict, out: Path, name: str, *args: str, ledger: str = "ledger.json") -> tuple[int, dict]:
     report = out / f"trace-{name}.json"
-    code, text = run(env, "trace.py", *args, "--instance", str(out / "inst"), "--ledger", str(out / "ledger.json"), "-o", str(report))
+    code, text = run(env, "trace.py", *args, "--instance", str(out / "inst"), "--ledger", str(out / ledger), "-o", str(report))
     if code not in (0, 1) or not report.exists():
         sys.exit(f"FAIL: trace.py {' '.join(args)} could not run (exit {code}):\n{text}")
     rep = json.loads(report.read_text(encoding="utf-8"))
@@ -69,12 +74,26 @@ def main() -> None:
 
     code, rep = trace(env, out, "register", "register", "--commit", "c0ffee1", "--file", CODE)
     [e] = json.loads((out / "ledger.json").read_text(encoding="utf-8"))["entries"]
-    if code != 0 or e["app"] != APP or e["id"] != f"derived:code@c0ffee1:{CODE}" or not e["assertions"]:
-        sys.exit(f"FAIL: register: want exit 0 and one {APP} entry:\n{json.dumps(rep, indent=1)}")
+    if code != 0 or e["app"] != APP or e["id"] != f"derived:code@c0ffee1:{CODE}" or not e["assertions"] \
+            or e.get("as_of") != env["KG_TODAY"] or rep["registered"][0].get("as_of") != env["KG_TODAY"]:
+        sys.exit(f"FAIL: register: want exit 0 and one {APP} entry as of {env['KG_TODAY']}:\n{json.dumps(rep, indent=1)}")
 
     code, rep = trace(env, out, "stage1", "check")
     if code != 0 or rep["gate"]["verdict"] != "PROCEED" or [r["state"] for r in rep["registered"]] != ["unchanged"] or rep["findings"]:
         sys.exit(f"FAIL: check at stage 1: want exit 0, PROCEED, unchanged, no finding:\n{json.dumps(rep, indent=1)}")
+
+    # a registration while rehearsing a later date reads the gate on that date and says so (task-0093)
+    code, rep = trace(env, out, "register-lapsed", "register", "--commit", "c0ffee1", "--file", CODE, "--as-of", LAPSE_DAY,
+                      ledger="ledger-lapsed.json")
+    [f] = json.loads((out / "ledger-lapsed.json").read_text(encoding="utf-8"))["entries"]
+    if code != 0 or f.get("as_of") != LAPSE_DAY or rep["registered"][0].get("as_of") != LAPSE_DAY or not f["assertions"]:
+        sys.exit(f"FAIL: register --as-of {LAPSE_DAY}: want exit 0 and the entry as of it:\n{json.dumps(rep, indent=1)}")
+    code, rep = trace(env, out, "check-lapsed", "check", "--as-of", LAPSE_DAY, "--fail-on", "major", ledger="ledger-lapsed.json")
+    lapsed = [g for g in rep["findings"] if g["kind"] == "gate:lapsed"]
+    if code != 1 or rep["gate"].get("as_of") != LAPSE_DAY or rep["gate"]["verdict"] != "BLOCKED" or not lapsed \
+            or rep["registered"][0].get("as_of") != LAPSE_DAY:
+        sys.exit(f"FAIL: check --as-of {LAPSE_DAY}: want exit 1, BLOCKED as of it with gate:lapsed findings:\n{json.dumps(rep, indent=1)}")
+    print(f"    registered and checked as of {LAPSE_DAY}: gate {rep['gate']['verdict']}, {len(lapsed)} gate:lapsed finding(s)")
 
     code, text = run(env, "gate_cli.py", "--scenario", "S6", "--stage", "2")
     if code != 1:

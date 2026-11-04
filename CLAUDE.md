@@ -48,7 +48,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   view that lets the port's reads through and nothing else; `tools/check_mcp_server.py` holds its report equal
   to `gate_cli.py --no-load`'s and its bundle to the arms' `render_bundle` on a live store; task-0056). `harness/trace.py`
   knowgov-trace (task-0051): `register` records built files as derived outputs (store and a JSON
-  ledger, since a load wipes the store), `check` reports suspect, drift, missing, unmapped and the
+  ledger, since a load wipes the store; `--as-of` as `check`'s, each entry recording the date read, task-0093), `check` reports suspect, drift, missing, unmapped and the
   task's gate under the same exit contract, JSON pinned by `harness/schemas/trace-report.schema.json`;
   the APP comes from the instance's `code_map.toml` (`harness/code_map.py`, task-0050); S6 shown by
   `tools/check_trace_walkthrough.py`. `KG_SUBJECT` selects the root; nothing in `harness/` or
@@ -144,6 +144,20 @@ The description is in the adopter register (the README's reader, not this file's
 The description restates the changelog's top section and never adds a claim it lacks. A step that
 waits on the published image, such as the compose pin's digest, is named as a follow-up after the
 Release.
+
+Two artifact pages are the maintainer's running view of pumllint, knowgov and ieam-register:
+the queue, *Two roadmaps, one queue*
+(https://claude.ai/code/artifact/a6e5007e-36f8-4a94-b3de-3ba2690512cc), and the reconciliation,
+*Two loops against two roadmaps* (https://claude.ai/code/artifact/c3e39034-e727-430b-8170-8ca152ea9b80).
+A merged PR refreshes both pages in the same turn, without being asked:
+- in the queue's "done" column, the PR link with a one-line what-and-why, and every queue row
+  whose state it changes (a decision answered, a task unblocked);
+- in the reconciliation's Record, a line, when the merge bears on the loops or the seam.
+The session that refreshes is the coordinating session, when one dispatches the work. Its
+sub-sessions report their merges to it and never publish to the pages, so that two writers never
+overwrite each other. With no coordinator, the session that merged refreshes. The backlog and the
+decision records land first; the pages quote them and are views, never the record. A session that
+cannot reach the pages says so and leaves the record as it is.
 
 ## Boundaries
 

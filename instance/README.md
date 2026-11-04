@@ -119,6 +119,8 @@ file you name (relative to `code_map.toml`'s root) as an output built from the s
 task's gate serves now, or the ones you name with `--assertion`. It also records the file's digest and
 the application `code_map.toml` gives it. The record goes into the store and into the *ledger*, a JSON
 file you keep with your code. A load wipes the store, so the ledger is what survives the next one.
+`--as-of` (today by default, `record` or a `YYYY-MM-DD` date) is the date the gate is read on, and each
+ledger entry records it as `as_of`, so a registration made while rehearsing a later date says so.
 `check` runs on every pull request into the code. It reads the ledger against the store as your
 instance's last load left it, and against your files:
 
@@ -161,11 +163,11 @@ In plain English: the script reads `KG_*` variables (the list is at its top: `KG
 from git against `KG_BASE`, in the folder `code_map.toml` names, and calls the core command. Its exit
 code is the command's: 0, 1 or 2.
 
-`KG_AS_OF` is the date the gate and `trace-check` read review currency on (`--as-of`, decision-0005):
+`KG_AS_OF` is the date the gate, `trace-check` and `trace-register` read review currency on (`--as-of`, decision-0005):
 a `YYYY-MM-DD` date, `record` (the subject's pinned record date) or `today`, the default. Set it to
 check a release as of its cut date, or to rehearse a lapse before it falls due: S1 as of 2027-08-08
 is BLOCKED, with a `lapsed` finding for each review past its months. The action takes it as the
-input `as-of`; the GitLab include as the variable `KG_AS_OF` (task-0089).
+input `as-of`; the GitLab include as the variable `KG_AS_OF` (task-0089; `trace-register`, task-0093).
 
 - **GitHub Actions**: a composite action. It runs the knowgov tag you name in `uses:`, and maps the
   commit and the pull request's base for you:

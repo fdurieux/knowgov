@@ -2,7 +2,7 @@
 
     python harness/trace.py register --instance DIR --commit SHA --file PATH [--file PATH ...]
                                      --ledger FILE [--repo NAME] [--assertion ID ...] [--task NAME]
-                                     [--subject DIR] [-f text|json] [-o FILE]
+                                     [--as-of today|record|YYYY-MM-DD] [--subject DIR] [-f text|json] [-o FILE]
     python harness/trace.py check    --instance DIR --ledger FILE [--changed PATH ...] [--commit SHA]
                                      [--task NAME] [--fail-on SEVERITY] [--as-of today|record|YYYY-MM-DD]
                                      [--subject DIR] [-f text|json] [-o FILE]
@@ -16,7 +16,9 @@ here reads a CI platform's variables, which a wrapper maps to these flags.
 ``derived:<repo>@<commit>:<path>``, with its sha256, its APP and the statements it was built from:
 the ones named with --assertion, else every statement the task's gate serves now. It calls the
 store's register_derived (USED_ASSERTION) and writes the entry to the ledger, replacing an earlier
-entry for the same path. The ledger is the registration's record: a load wipes the store, so ``check``
+entry for the same path. --as-of is the date the task's gate is read on to pick those statements, as
+check's (task-0093): today by default, ``record`` or a YYYY-MM-DD date; each entry and each registered
+row carry it as ``as_of``, with --assertion too (the day the registration read). The ledger is the registration's record: a load wipes the store, so ``check``
 re-registers from it what the store no longer holds. Exit 0 recorded, 2 could not.
 
 ``check`` (on a pull request into the code) reads the ledger against the store and the files:
@@ -93,26 +95,29 @@ def read_ledger(path: Path, *, missing_ok: bool) -> dict:
         raise CannotRun(f"the ledger {path} does not parse: {e}") from e
     ok = isinstance(led, dict) and led.get("tool") == LEDGER_TOOL and isinstance(led.get("entries"), list) and all(
         isinstance(e, dict) and all(isinstance(e.get(k), str) for k in ("id", "path", "app", "sha256", "commit"))
-        and isinstance(e.get("assertions"), list) for e in led["entries"])
+        and isinstance(e.get("assertions"), list) and isinstance(e.get("as_of", ""), str) for e in led["entries"])
     if not ok:
         raise CannotRun(f"the ledger {path} is not a {LEDGER_TOOL}")
     return led
 
 
-def _gate_ids(st, task: str, resolve=None) -> list[str]:
+def _gate_ids(st, task: str, resolve=None, as_of: str | None = None) -> list[str]:
     if resolve is None:
         from gate import resolve
-    return [a["id"] for v in resolve(st, task)["keys"].values() for a in v["assertions"]]
+    res = resolve(st, task, as_of) if as_of else resolve(st, task)
+    return [a["id"] for v in res["keys"].values() for a in v["assertions"]]
 
 
 def register(st, *, instance: Path, ledger: Path, commit: str, files: list[str], repo: str = "code",
-             task: str = "codegen", assertions: list[str] | None = None, kind: str = "code", resolve=None) -> dict:
-    """Register each file as a derived output; write the ledger. Returns the report."""
+             task: str = "codegen", assertions: list[str] | None = None, kind: str = "code", resolve=None,
+             as_of: str | None = None) -> dict:
+    """Register each file as a derived output; write the ledger. Returns the report. ``as_of`` (YYYY-MM-DD)
+    is the date the task's gate is read on; None reads the gate's own default, and the ledger records none."""
     cm, root = read_map(instance)
     led = read_ledger(ledger, missing_ok=True)
     if not files:
         raise CannotRun("no --file: name the built or changed files to register")
-    ids = list(assertions) if assertions else _gate_ids(st, task, resolve)
+    ids = list(assertions) if assertions else _gate_ids(st, task, resolve, as_of)
     if not ids:
         raise CannotRun(f"no statement to register against: the store serves none for {task!r}; is the instance loaded?")
     held = {d["id"] for d in st.all_derived()}
@@ -127,6 +132,8 @@ def register(st, *, instance: Path, ledger: Path, commit: str, files: list[str],
             raise CannotRun(f"{rel}: no row of code_map.toml maps it; map it before registering it")
         e = {"id": f"derived:{repo}@{commit}:{rel}", "path": rel, "app": app, "sha256": _sha(p), "commit": commit,
              "repo": repo, "kind": kind, "task": task, "assertions": ids}
+        if as_of:
+            e["as_of"] = as_of
         if e["id"] not in held:   # the same commit and path registered twice is one output
             st.register_derived(e["id"], kind, e["sha256"], ids)
         entries.append(e)
@@ -137,7 +144,8 @@ def register(st, *, instance: Path, ledger: Path, commit: str, files: list[str],
     return {"schema_version": SCHEMA_VERSION, "tool": "knowgov trace", "command": "register", "store": st.name,
             "task": task, "commit": commit, "code_root": cm["root"], "ledger": str(ledger), "changed": [],
             "registered": [{"id": e["id"], "path": e["path"], "app": e["app"], "sha256": e["sha256"], "current_sha256": e["sha256"],
-                            "state": "registered", "used": len(ids), "used_invalidated": [], "successors": []} for e in entries],
+                            "state": "registered", "used": len(ids), "used_invalidated": [], "successors": [],
+                            **({"as_of": e["as_of"]} if "as_of" in e else {})} for e in entries],
             "gate": None, "findings": [], "counts": {s: 0 for s in SEVERITIES}, "threshold": None, "exit_code": 0}
 
 
@@ -181,7 +189,8 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
                        for t in x.get("successors") or [] if t.get("id")})
         state = "missing" if cur is None else ("drift" if cur != e["sha256"] else "unchanged")
         rows.append({"id": e["id"], "path": e["path"], "app": e["app"], "sha256": e["sha256"], "current_sha256": cur,
-                     "state": state, "used": len(e["assertions"]), "used_invalidated": bad, "successors": succ})
+                     "state": state, "used": len(e["assertions"]), "used_invalidated": bad, "successors": succ,
+                     **({"as_of": e["as_of"]} if isinstance(e.get("as_of"), str) else {})})
         if bad:
             fs.append(_finding("blocker", "suspect", f"{e['path']} ({e['app']}), registered as {e['id']}, was built from {len(bad)} statement(s) "
                                f"now invalidated ({', '.join(bad)}); successors {', '.join(succ) or 'none'}: rebuild it from the current "
@@ -225,7 +234,8 @@ def render(rep: dict) -> str:
     out = [f"knowgov trace {rep['command']} ({rep['store']}, task {rep['task']}, code root {rep['code_root']})"]
     for r in rep["registered"]:
         out.append(f"  {r['state']:10s} {r['app']}  {r['path']}  {r['id']}"
-                   + (f"  {len(r['used_invalidated'])} of {r['used']} statement(s) invalidated" if r["used_invalidated"] else f"  {r['used']} statement(s)"))
+                   + (f"  {len(r['used_invalidated'])} of {r['used']} statement(s) invalidated" if r["used_invalidated"] else f"  {r['used']} statement(s)")
+                   + (f", registered as of {r['as_of']}" if r.get("as_of") else ""))
     if rep["gate"]:
         out.append(f"  gate {rep['gate']['task']}: {rep['gate']['verdict']} — {rep['gate']['why']}"
                    + (f" (as of {rep['gate']['as_of']})" if rep["gate"].get("as_of") else ""))
@@ -256,6 +266,8 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--file", action="append", default=[], help="a built or changed file, relative to the code map's root (repeat)")
     r.add_argument("--repo", default="code", help="the code repository's name, in the derived id (default: code)")
     r.add_argument("--assertion", action="append", default=[], help="a statement the build used (repeat; default: every statement the task's gate serves)")
+    r.add_argument("--as-of", default="today", metavar="DATE",
+                   help="the date the task's gate is read on to pick the statements (decision-0005): today (default), record or YYYY-MM-DD")
     c = sub.choices["check"]
     c.add_argument("--changed", action="append", help="a changed path, relative to the code map's root (repeat; default: check every registered output)")
     c.add_argument("--fail-on", choices=SEVERITIES, default="blocker")
@@ -274,13 +286,11 @@ def main(argv: list[str] | None = None) -> int:
             raise CannotRun(f"the subject does not load: {e}") from e
         if args.task not in TASKS:
             raise CannotRun(f"{SUBJECT.id}: no task {args.task!r}")
-        on = None
-        if args.command == "check":
-            import cadence
-            try:
-                on = cadence.as_of(args.as_of).isoformat()
-            except ValueError as e:
-                raise CannotRun(f"--as-of: {e}") from e
+        import cadence
+        try:
+            on = cadence.as_of(args.as_of).isoformat()
+        except ValueError as e:
+            raise CannotRun(f"--as-of: {e}") from e
         from store import open_store
         try:
             st = open_store(instance=SUBJECT.id)
@@ -289,7 +299,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             if args.command == "register":
                 rep = register(st, instance=args.instance, ledger=args.ledger, commit=args.commit, files=args.file,
-                               repo=args.repo, task=args.task, assertions=args.assertion)
+                               repo=args.repo, task=args.task, assertions=args.assertion, as_of=on)
             else:
                 rep = check(st, instance=args.instance, ledger=args.ledger, changed=args.changed, commit=args.commit,
                             task=args.task, fail_on=args.fail_on, block_levels=set(TASKS[args.task]["block_levels"]), as_of=on)
