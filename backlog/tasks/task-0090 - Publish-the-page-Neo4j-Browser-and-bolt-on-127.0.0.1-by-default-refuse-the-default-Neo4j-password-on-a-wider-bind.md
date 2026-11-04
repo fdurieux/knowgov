@@ -3,11 +3,11 @@ id: TASK-0090
 title: >-
   Publish the page, Neo4j Browser and bolt on 127.0.0.1 by default; refuse the
   default Neo4j password on a wider bind
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T03:18:00Z'
-updated_date: '2026-11-04T03:33:00Z'
+updated_date: '2026-11-04T03:49:00Z'
 labels:
   - security
 milestone: m-8
@@ -25,9 +25,9 @@ Found by task-0059 (docs/security.md, gaps): the compose stack publishes 8080, 7
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The compose files bind 8080, 7474 and 7687 to 127.0.0.1 unless a named variable widens the bind
-- [ ] #2 With a wider bind the stack refuses to start while the Neo4j password is the default
-- [ ] #3 docs/security.md, the demo README and test_security.py's gap list move with the fix; the stack job still passes
+- [x] #1 The compose files bind 8080, 7474 and 7687 to 127.0.0.1 unless a named variable widens the bind
+- [x] #2 With a wider bind the stack refuses to start while the Neo4j password is the default
+- [x] #3 docs/security.md, the demo README and test_security.py's gap list move with the fix; the stack job still passes
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -45,4 +45,12 @@ Found by task-0059 (docs/security.md, gaps): the compose stack publishes 8080, 7
 
 <!-- SECTION:NOTES:BEGIN -->
 Proved locally on neo4j:5.26-community with the image built from this checkout: default bind publishes 127.0.0.1 only (curl and urllib reach localhost; the host's own address 192.0.2.2 refused); KG_BIND=0.0.0.0 with the default password: neo4j exits 78, compose up --wait fails, logs name KG_NEO4J_PASSWORD; KG_BIND=0.0.0.0 with a password of its own on a fresh volume: both healthy on 0.0.0.0; S1 deterministic through POST /api/run then compare_deterministic: 122 leaves, 0 differ; check_saved_queries: every saved query ran. run_tests 277/277 plain and with KG_SUBJECT=subjects/jef_data_load. Neo4j takes its password when its volume is created, so the README says to down -v once before a new password.
+
+CI on PR #146 head 40833eb: tests, stack (the whole compose stack on the default 127.0.0.1 bind, reached from the runner on localhost) green.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+The compose stack publishes the page, Neo4j Browser and bolt on KG_BIND, 127.0.0.1 unless widened. Neo4j starts through demo/neo4j/bind-guard.sh, which exits 78 on a wider bind while the password is the harness default (the app waits on Neo4j's health check, so the stack stays down), and otherwise runs the image's own entrypoint. tests/test_demo.py holds every compose file's ports to KG_BIND and runs the guard; docs/security.md (a What-is-sent row, Gap 1 rewritten as the page's missing login with the new default, the matrix row, the operator practices) and test_security's gap check follow; the demo README says what changed, how to widen, and that a new password needs a fresh volume. Proved on Neo4j 5.26 locally and in the stack job. Remaining: the page still has no login (Gap 1 stays named).
+<!-- SECTION:FINAL_SUMMARY:END -->
