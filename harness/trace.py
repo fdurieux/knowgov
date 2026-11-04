@@ -4,8 +4,8 @@
                                      --ledger FILE [--repo NAME] [--assertion ID ...] [--task NAME]
                                      [--subject DIR] [-f text|json] [-o FILE]
     python harness/trace.py check    --instance DIR --ledger FILE [--changed PATH ...] [--commit SHA]
-                                     [--task NAME] [--fail-on SEVERITY] [--subject DIR]
-                                     [-f text|json] [-o FILE]
+                                     [--task NAME] [--fail-on SEVERITY] [--as-of today|record|YYYY-MM-DD]
+                                     [--subject DIR] [-f text|json] [-o FILE]
 
 Both read the store KG_STORE names (neo4j by default, rdflib with KG_RDFLIB_FILE to persist), as the
 instance's load left it; neither loads. Paths are relative to the root of the instance's
@@ -33,6 +33,9 @@ re-registers from it what the store no longer holds. Exit 0 recorded, 2 could no
 With --changed, only registered outputs whose path changed or whose APP a changed path belongs to are
 in scope; without it, every registered output. The task's gate runs on the store as it is, as
 ``gate_cli.py --no-load`` does; its suspect_derived findings are left out, the ledger's are reported.
+--as-of is the date it reads review currency on, as gate_cli's (decision-0005; task-0089): today by
+default, ``record`` or a YYYY-MM-DD date; a lapse is the gate's ``lapsed`` finding, and the report's
+``gate`` names the date read.
 
 Exit 0: no finding at or above --fail-on (blocker by default); 1: a finding at or above it; 2: the
 check could not run: no code_map.toml or one that does not hold, no ledger or a malformed one, a
@@ -143,7 +146,8 @@ def _finding(severity, kind, message, *, app=None, path=None, ref=None, related=
 
 
 def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None, commit: str | None = None,
-          task: str = "codegen", fail_on: str = "blocker", block_levels: set[str] | None = None, resolve=None) -> dict:
+          task: str = "codegen", fail_on: str = "blocker", block_levels: set[str] | None = None, resolve=None,
+          as_of: str | None = None) -> dict:
     """The check's report; raises CannotRun for what exit 2 covers."""
     cm, root = read_map(instance)
     led = read_ledger(ledger, missing_ok=False)
@@ -198,8 +202,10 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
         import gate_cli
         if resolve is None:
             from gate import resolve
-        res = resolve(st, task)
+        res = resolve(st, task, as_of) if as_of else resolve(st, task)
         gate = {"task": task, "verdict": res["verdict"], "why": res["why"]}
+        if res.get("as_of"):
+            gate["as_of"] = res["as_of"]
         apps = sorted(scope_apps) if scope_apps is not None else sorted({e["app"] for e in led["entries"]})
         for g in gate_cli.findings(res, block_levels or set()):
             if g["kind"] == "suspect_derived":
@@ -221,7 +227,8 @@ def render(rep: dict) -> str:
         out.append(f"  {r['state']:10s} {r['app']}  {r['path']}  {r['id']}"
                    + (f"  {len(r['used_invalidated'])} of {r['used']} statement(s) invalidated" if r["used_invalidated"] else f"  {r['used']} statement(s)"))
     if rep["gate"]:
-        out.append(f"  gate {rep['gate']['task']}: {rep['gate']['verdict']} — {rep['gate']['why']}")
+        out.append(f"  gate {rep['gate']['task']}: {rep['gate']['verdict']} — {rep['gate']['why']}"
+                   + (f" (as of {rep['gate']['as_of']})" if rep["gate"].get("as_of") else ""))
     for f in rep["findings"]:
         out.append(f"  {f['severity']:8s} {f['message']}")
     if rep["command"] == "register":
@@ -252,6 +259,8 @@ def main(argv: list[str] | None = None) -> int:
     c = sub.choices["check"]
     c.add_argument("--changed", action="append", help="a changed path, relative to the code map's root (repeat; default: check every registered output)")
     c.add_argument("--fail-on", choices=SEVERITIES, default="blocker")
+    c.add_argument("--as-of", default="today", metavar="DATE",
+                   help="the date the task's gate reads review currency on (decision-0005): today (default), record or YYYY-MM-DD")
     args = ap.parse_args(argv)
     try:
         if not args.instance.is_dir():
@@ -265,6 +274,13 @@ def main(argv: list[str] | None = None) -> int:
             raise CannotRun(f"the subject does not load: {e}") from e
         if args.task not in TASKS:
             raise CannotRun(f"{SUBJECT.id}: no task {args.task!r}")
+        on = None
+        if args.command == "check":
+            import cadence
+            try:
+                on = cadence.as_of(args.as_of).isoformat()
+            except ValueError as e:
+                raise CannotRun(f"--as-of: {e}") from e
         from store import open_store
         try:
             st = open_store(instance=SUBJECT.id)
@@ -276,7 +292,7 @@ def main(argv: list[str] | None = None) -> int:
                                repo=args.repo, task=args.task, assertions=args.assertion)
             else:
                 rep = check(st, instance=args.instance, ledger=args.ledger, changed=args.changed, commit=args.commit,
-                            task=args.task, fail_on=args.fail_on, block_levels=set(TASKS[args.task]["block_levels"]))
+                            task=args.task, fail_on=args.fail_on, block_levels=set(TASKS[args.task]["block_levels"]), as_of=on)
         except CannotRun:
             raise
         except Exception as e:  # noqa: BLE001

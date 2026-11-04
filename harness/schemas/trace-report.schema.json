@@ -89,6 +89,9 @@
     },
     "why": {
      "type": "string"
+    },
+    "as_of": {
+     "type": "string"
     }
    }
   },

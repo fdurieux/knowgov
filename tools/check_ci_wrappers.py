@@ -8,6 +8,8 @@ CI_PROJECT_NAME) and the knowgov clone its ``before_script`` makes replaced by t
 
 On the store KG_STORE names, persisted under OUT_DIR for rdflib:
 
+0. ``gate`` on S1 as of the record's day: exit 0; with KG_AS_OF a day after 2027-08-07, the date S1's
+   reviews lapse by: exit 1, BLOCKED, the report as of that day with its lapsed findings (task-0089).
 1. ``gate`` on S6: exit 0. ``trace-register`` of the reference code: exit 0, one ledger entry.
 2. ``gate`` on S6 with KG_STAGE=2: exit 1 (the change, BLOCKED), and the template's KG_ANNOTATE
    leaves gl-code-quality-report.json, GitLab's code-quality report (task-0083), in the project
@@ -15,7 +17,9 @@ On the store KG_STORE names, persisted under OUT_DIR for rdflib:
    and info, each fingerprint distinct, every path relative to the project directory.
 3. ``trace-check`` with the merge request's diff base: the edit is drift, and the registered build is
    suspect, a blocker naming APP-0001: exit 1, the JSON report valid against its schema, and the
-   code-quality report puts the suspect build on reference_impl.py under the instance.
+   code-quality report puts the suspect build on reference_impl.py under the instance. With KG_AS_OF,
+   the same check reads the task's gate as of that day: the report's gate names it, and its lapses
+   are gate:lapsed findings.
 Needs pyyaml (harness.yml installs it) to read the template.
 """
 from __future__ import annotations
@@ -35,6 +39,7 @@ import example_instance  # noqa: E402
 import schema_check  # noqa: E402
 
 TEMPLATE = ROOT / "instance" / "ci" / "gitlab" / "knowgov.gitlab-ci.yml"
+LAPSE_DAY = "2027-08-08"   # a day after 2027-08-07, when S1's review verifications have lapsed (decision-0005)
 CLONE = "/tmp/knowgov"   # where the template's before_script clones knowgov
 
 
@@ -85,6 +90,17 @@ def main() -> None:
     env = cadence.pin_record(dict(os.environ, CI_PROJECT_DIR=str(out), CI_PROJECT_NAME="cargo-quote", CI_COMMIT_SHA=base,
                                   KG_RDFLIB_FILE=str(out / "store.ttl"), KG_LEDGER=str(out / "ledger.json"), PYTHONDONTWRITEBYTECODE="1"))
 
+    if job(env, "gate", KG_SCENARIO="S1", KG_ANNOTATE="", KG_REPORT=str(out / "gate-s1.json")) != 0:
+        sys.exit("FAIL: the gate on S1 as of the record's day, want exit 0")
+    if job(env, "gate", KG_SCENARIO="S1", KG_ANNOTATE="", KG_AS_OF=LAPSE_DAY, KG_REPORT=str(out / "gate-s1-lapsed.json")) != 1:
+        sys.exit(f"FAIL: the gate on S1 as of {LAPSE_DAY}, want exit 1")
+    rep = json.loads((out / "gate-s1-lapsed.json").read_text(encoding="utf-8"))
+    errs = schema_check.validate(rep, schema_check.load("gate-report"))
+    lapsed = [f for f in rep["findings"] if f["kind"] == "lapsed"]
+    if errs or (rep["verdict"], rep["as_of"]) != ("BLOCKED", LAPSE_DAY) or not lapsed or not rep["lapsed"]:
+        sys.exit(f"FAIL: want S1 BLOCKED as of {LAPSE_DAY} with lapsed findings: {errs[:3]} {rep['verdict']} {rep['as_of']} {len(lapsed)}")
+    print(f"    KG_AS_OF={LAPSE_DAY}: {rep['verdict']}, {len(lapsed)} lapsed finding(s)")
+
     if job(env, "gate", KG_SCENARIO="S6") != 0:
         sys.exit("FAIL: the gate on S6's stage 1, want exit 0")
     if job(env, "trace-register", KG_FILES="reference_impl.py") != 0:
@@ -116,7 +132,18 @@ def main() -> None:
     if not {("knowgov-suspect", "blocker", code), ("knowgov-drift", "minor", code)} <= placed:
         sys.exit(f"FAIL: want the suspect build and its drift on {code} in the code-quality report: {sorted(placed)}")
     print(f"    code quality: suspect (blocker) and drift (minor) on {code}")
-    print("GitLab include: the same command line as the action and the shell snippet; S6's change fails the merge request naming APP-0001")
+    on = json.loads((out / "trace-check.json").read_text(encoding="utf-8"))["gate"].get("as_of")
+    if job(env, "trace-check", KG_ANNOTATE="", KG_AS_OF=LAPSE_DAY, KG_REPORT=str(out / "trace-check-lapsed.json")) != 1:
+        sys.exit(f"FAIL: trace-check as of {LAPSE_DAY}, want exit 1")
+    rep = json.loads((out / "trace-check-lapsed.json").read_text(encoding="utf-8"))
+    errs = schema_check.validate(rep, schema_check.load("trace-report"))
+    lapsed = [f for f in rep["findings"] if f["kind"] == "gate:lapsed"]
+    if errs or on != env["KG_TODAY"] or rep["gate"].get("as_of") != LAPSE_DAY or not lapsed:
+        sys.exit(f"FAIL: want trace-check's gate as of {LAPSE_DAY} (unset: {env['KG_TODAY']}, read {on}) with gate:lapsed findings: "
+                 f"{errs[:3]} {rep['gate']} {len(lapsed)}")
+    print(f"    trace-check KG_AS_OF={LAPSE_DAY}: gate {rep['gate']['verdict']} as of {rep['gate']['as_of']}, {len(lapsed)} gate:lapsed finding(s)")
+    print("GitLab include: the same command line as the action and the shell snippet; S6's change fails the merge request naming APP-0001; "
+          f"KG_AS_OF reads both gates as of {LAPSE_DAY}")
 
 
 if __name__ == "__main__":

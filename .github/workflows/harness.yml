@@ -229,6 +229,11 @@ jobs:
       - name: "The action: preload, clean, exit 0"
         uses: ./instance/ci/github
         with: { gate: preload, instance: runs/wrap/instance, base: HEAD~1 }
+      - name: "The action: gate on S1 as of 2027-08-08, a day after its reviews lapse, exit 1 (task-0089)"
+        id: wrap_as_of
+        continue-on-error: true
+        uses: ./instance/ci/github
+        with: { gate: gate, instance: runs/wrap/instance, scenario: S1, as-of: "2027-08-08", report: runs/wrap/gate-s1-lapsed.json, annotate: "false" }
       - name: "The action: gate on S6, exit 0"
         uses: ./instance/ci/github
         with: { gate: gate, instance: runs/wrap/instance, scenario: S6 }
@@ -253,8 +258,10 @@ jobs:
         env:
           STAGE2: ${{ steps.wrap_stage2.outcome }}
           CHECK: ${{ steps.wrap_check.outcome }}
+          AS_OF: ${{ steps.wrap_as_of.outcome }}
         run: |
-          test "$STAGE2" = failure && test "$CHECK" = failure
+          test "$STAGE2" = failure && test "$CHECK" = failure && test "$AS_OF" = failure
+          python3 -c 'import json; g=json.load(open("runs/wrap/gate-s1-lapsed.json")); n=sum(f["kind"]=="lapsed" for f in g["findings"]); assert g["exit_code"]==1 and g["verdict"]=="BLOCKED" and g["as_of"]=="2027-08-08" and n, g["as_of"]; print("action as-of:", g["verdict"], g["as_of"], n, "lapsed")'
           python3 -c 'import json; g=json.load(open("runs/wrap/gate-stage2.json")); t=json.load(open("runs/wrap/trace-check.json")); assert g["exit_code"]==1 and g["verdict"]=="BLOCKED", g["verdict"]; s=[f for f in t["findings"] if f["kind"]=="suspect"]; assert t["exit_code"]==1 and t["changed"]==["reference_impl.py"] and len(s)==1 and s[0]["app"]=="APP-0001", t; print("action:", g["verdict"], "then suspect on", s[0]["app"])'
           unset KG_RDFLIB_FILE; rm -rf runs/wrap-gitlab && KG_STORE=rdflib python tools/check_ci_wrappers.py runs/wrap-gitlab
       - name: "The reports as annotations (task-0083): S6's change, from the action's two reports, as GitHub commands, code quality and SARIF"
