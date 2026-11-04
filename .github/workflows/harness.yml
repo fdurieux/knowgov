@@ -98,6 +98,12 @@ jobs:
           assert w["cypher"] is None and all(w["owners"][x]["unit"] for x in w["reached"]["all"]), w["owners"]
           print(f"impact panel ENT-0004: {len(sec['table']['rows'])} assertions beside the walk")
           PY
+      - name: Every subject's citations reach the statements of the documents it loads (task-0077), through the rdflib port, CargoQuote's ENT-0004 on S6 and J-F's ENT-0009 on C through its directory artefacts
+        run: |
+          KG_STORE=rdflib KG_RDFLIB_FILE=runs/anchor/store.ttl python tools/check_node_statements.py --node ENT-0004 --expect 13 --total 392
+          rm -rf runs/anchor-jef && mkdir -p runs/anchor-jef
+          cd harness && KG_STORE=rdflib KG_SUBJECT=../subjects/jef_data_load KG_RDFLIB_FILE=../runs/anchor-jef/store.ttl python run.py --deterministic --scenarios C --out ../runs/anchor-jef > /dev/null && cd ..
+          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load KG_RDFLIB_FILE=runs/anchor-jef/store.ttl python tools/check_node_statements.py --node ENT-0009 --expect 28 --total 707
       - name: The pre-load check (task-0045) through the CI template's script, real pumllint, the example instance clean exits 0, a planted broken PlantUML file exits 1
         run: |
           rm -rf runs/preload && python tools/example_instance.py runs/preload > /dev/null
