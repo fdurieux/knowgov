@@ -35,10 +35,12 @@ def _approval(a: dict | None) -> dict:
     return {"approval_by": a.get("by", ""), "approval_on": _iso(a.get("on")), "approval_record": a.get("record", "")}
 
 
-def _doc_key(anchor: str, files: dict) -> str | None:
-    """The manifest key a kit evidence anchor names: kit:requirements.md#REQ-05 is the manifest's
-    kit/requirements.md, kit:contract/decision_table.md#DT-P its contract/decision_table.md."""
-    a = anchor[4:] if anchor.startswith("kit:") else anchor
+def _doc_key(anchor: str, files: dict, system: str = "kit:") -> str | None:
+    """The manifest key an evidence anchor of the subject's source system names: kit:requirements.md#REQ-05
+    is the manifest's kit/requirements.md, kit:contract/decision_table.md#DT-P its contract/decision_table.md,
+    jef_kit:contracts/chain.md the J-F export's contracts/chain.md (task-0077: the prefix is the subject's,
+    ``register_view._ps().sys``, never a literal)."""
+    a = anchor[len(system):] if anchor.startswith(system) else anchor
     a = a.split("#", 1)[0]
     for key in (a, "kit/" + a):
         if key in files:
@@ -68,6 +70,7 @@ def rows(loaded_at: str | None = None) -> dict:
             owners.append({"owner": n["owner"], "node": nid})
     types, links, typed, maps_to, link_of, of_type, cites = [], [], {}, [], [], [], []
     externals: dict[str, dict] = {}
+    system = register_view._ps().sys    # the prefix the subject's evidence anchors carry (kit:, jef_kit:)
     for rname, rel in reg["relationships"].items():
         t = rel["type"]
         types.append({"reg_id": rname, "source_kind": list(t.get("source_kind", [])), "target_kind": list(t.get("target_kind", [])),
@@ -87,10 +90,11 @@ def rows(loaded_at: str | None = None) -> dict:
                 link_of.append({"reg_id": ln["id"], "node": ln["target"], "role": "target"})
             else:
                 ext = ln.get("target_external", "")
-                externals.setdefault(ext, {"reg_id": ext, "path": _doc_key(ext, files) or "", "digest": files.get(_doc_key(ext, files) or "", ""), **stamp})
+                key = _doc_key(ext, files, system) if ext.startswith(system) else None
+                externals.setdefault(ext, {"reg_id": ext, "path": key or "", "digest": files.get(key or "", ""), **stamp})
                 maps_to.append({"source": ln["source"], "external": ext, "props": props})
             for ev in ln.get("evidence", []):
-                key = _doc_key(ev, files) if ev.startswith("kit:") else None
+                key = _doc_key(ev, files, system) if ev.startswith(system) else None
                 if key:
                     cites.append({"reg_id": ln["id"], "path": key, "anchor": ev})
     documents = [{"reg_id": key, "path": key, "digest": sha, **stamp} for key, sha in files.items()]

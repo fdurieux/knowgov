@@ -180,6 +180,12 @@ jobs:
           # the impact panel for the typed node shows the same assertions beside the walk (task-0047), through the page
           curl -fsS "localhost:8080/api/register/impact/ENT-0004" | python3 -c 'import json,sys; w=json.load(sys.stdin); s=w["statements"]; sec=[x for x in w["panel"]["sections"] if x["heading"]=="Assertions its cited anchors name"][0]; assert s["missing"] is None and len(s["rows"]) == 13 and len(sec["table"]["rows"]) == 13, s; assert w["owners"]["PROC-0001"]["unit"] == "ORG-0001", w["owners"]; print("impact ENT-0004:", len(sec["table"]["rows"]), "assertions beside the walk")'
 
+      - name: Every subject's citations reach the statements of the documents it loads (task-0077), on Neo4j, CargoQuote's ENT-0004 on S6 and J-F's ENT-0009 on C through its directory artefacts
+        run: |
+          docker compose exec -T app python tools/check_node_statements.py --node ENT-0004 --expect 13 --total 392
+          docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python harness/run.py --deterministic --scenarios C --out runs/anchor-jef > /dev/null
+          docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_node_statements.py --node ENT-0009 --expect 28 --total 707
+
       - name: The example instance mounted read-only (task-0006) replays and runs deterministically, and not one byte of it changes
         run: |
           # outside runs/, which the app container created as root

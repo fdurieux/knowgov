@@ -829,7 +829,8 @@ class RdflibStore(Store):
         n = self.node(f"reg:RegNode:{start}", "RegNode")
         if n is None:
             return []
-        rows: dict[str, dict] = {}
+        rows: dict[tuple[str, str], dict] = {}   # one row per statement and cited document, as the Cypher groups them
+        artefacts = [(self.prop(a, "id") or "", a) for a in self.nodes("Artefact")]
         for l in self.inn(n, "REG_LINK_OF"):
             if not self.has_label(l, "RegLink") or self.prop(l, "state") != "approved":
                 continue
@@ -837,16 +838,23 @@ class RdflibStore(Store):
                 cited = self.prop(e, "anchor") or ""
                 anchor = cited.split("#", 1)[1] if "#" in cited else None
                 path = self.prop(d, "path")
-                for a in self.nodes("Artefact", id=path):
+                for aid, a in artefacts:
+                    # the file artefact of the path, or the file's fragments in a directory artefact (task-0077)
+                    if aid == path:
+                        file = ""
+                    elif aid.endswith("/") and path.startswith(aid):
+                        file = path[len(aid):] + ":"
+                    else:
+                        continue
                     for v in self.out(a, "HAS_VERSION"):
                         for f in self.out(v, "HAS_FRAGMENT"):
                             loc = self.prop(f, "locator") or ""
-                            if anchor is not None and anchor not in loc.split("/"):
+                            if not loc.startswith(file) or (anchor is not None and anchor not in loc[len(file):].split("/")):
                                 continue
                             for x in self.inn(f, "SUPPORTED_BY"):
                                 if not self.has_label(x, "Assertion"):
                                     continue
-                                r = rows.setdefault(self.nid(x), {"statement": self.nid(x), "status": self.prop(x, "status"), "document": path,
+                                r = rows.setdefault((self.nid(x), path), {"statement": self.nid(x), "status": self.prop(x, "status"), "document": path,
                                                                   "anchors": set(), "links": set(), "versions": set(), "fragments": set(), "derived": set()})
                                 r["anchors"].add(anchor or "(whole document)")
                                 r["links"].add(self.prop(l, "reg_id"))
