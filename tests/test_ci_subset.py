@@ -45,3 +45,20 @@ def test_the_full_set_runs_on_main_nightly_and_on_demand():
         assert re.search(r'^  schedule:\n    - cron: "17 3 \* \* \*"', on, re.M), name
         assert re.search(r"^  workflow_dispatch:", on, re.M), name
         assert "Budget (task-0084)" in on and "within 12 minutes" in on, name
+
+
+CQ = re.compile(r"^\s+KG_CQ_SCENARIOS: \$\{\{ github\.event_name == 'pull_request' && '([A-Z0-9,]+)' \|\| '' \}\}$", re.M)
+
+
+def test_cargo_quote_subsets_only_its_non_record_steps():
+    text = (WF / "harness.yml").read_text(encoding="utf-8")
+    (subset,) = CQ.findall(text)
+    assert subset == "S1,S2,S6" and f"KG_CQ_SCENARIOS={subset}" in (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    flag = "KG_CQ_SCENARIOS"
+    for line in text.splitlines():
+        if line.lstrip().startswith("#") or "jef_data_load python" in line:
+            continue
+        if re.search(r"check_round_trip\.py|compare_deterministic\.py|run\.py --deterministic", line):
+            assert flag not in line, f"the scored record runs whole: {line.strip()}"
+        if re.search(r"check_mcp_server\.py$|check_mcp_server\.py \$|lighthouse_evidence\.py", line):
+            assert '${KG_CQ_SCENARIOS:+' in line, line.strip()

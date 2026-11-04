@@ -119,7 +119,9 @@ CI budget (task-0084): a pull request's `rdflib` and `stack` each within 12 minu
 request the J-F round trip, MCP and lighthouse steps run the named subset `KG_JF_SCENARIOS=C,D3` (the kit as
 committed and every layer consistently wrong); the full J-F set runs on every push to `main`,
 nightly at 03:17 UTC and on a `workflow_dispatch` of `harness.yml` or `demo.yml`, so a red full run
-on `main` is fixed like any other. The J-F record comparison and its oracle always run in full.
+on `main` is fixed like any other. The J-F record comparison and its oracle always run in full. In `harness.yml` CargoQuote's MCP
+and lighthouse steps also take a pull-request subset, `KG_CQ_SCENARIOS=S1,S2,S6`; its comparator
+and round trip, the scored record, never do.
 `tests/test_ci_subset.py` holds the subset the same in both workflows and here.
 
 Releases (decision-0003): SemVer, `VERSION` and `CHANGELOG.md` move together in a release PR
