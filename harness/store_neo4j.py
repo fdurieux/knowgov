@@ -102,7 +102,7 @@ def _impact_walk(steps: list = IMPACT_STEPS, children: bool = False) -> str:
 
 
 _ROWS_TAIL = (
-    "WITH nodes(p)[0] AS f, relationships(p)[0] AS r, nodes(p)[1] AS t\n"
+    "WITH a, nodes(p)[0] AS f, relationships(p)[0] AS r, nodes(p)[1] AS t\n"
     "OPTIONAL MATCH (l:RegLink {reg_id: r.reg_id})   // the evidence sits on the link node\n"
     "OPTIONAL MATCH (u:RegNode {reg_id: t.owner})   // the owning unit: the far node's owner field, shown, not walked\n"
     "RETURN f.reg_id AS `from`,\n"
@@ -110,7 +110,9 @@ _ROWS_TAIL = (
     "       t.reg_id AS `to`, t.name AS name, t.owner AS unit, u.name AS `unit name`,\n"
     "       [(o:RegNode)-[w:REG_OWNS]->(t) WHERE w.state = 'approved' | o.reg_id] AS `owns links`,\n"
     "       t.state AS `node state`, r.state AS `link state`,\n"
-    "       CASE WHEN r.state = 'approved' AND NOT t.state IN ['deprecated','retired'] THEN 'yes' ELSE 'no, withdrawn' END AS followed,\n"
+    "       CASE WHEN NOT (r.state = 'approved' AND NOT t.state IN ['deprecated','retired']) THEN 'no, withdrawn'\n"
+    "            WHEN t = a THEN 'yes, back to the start, not counted'   // decision 0016: the start is never reached\n"
+    "            ELSE 'yes' END AS followed,\n"
     "       r.owner AS owner, l.evidence AS evidence, r.reg_id AS link\n"
     "ORDER BY link, `from`")
 _WHAT = {("dependants", False): "the walk tools/impact.py makes",

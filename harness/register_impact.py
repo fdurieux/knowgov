@@ -8,7 +8,9 @@ a node's ``parent`` is not descended: its children are listed, each with its sta
 ``children`` (task-0118) the descent is the register's own (its decision 0014, ``impact.walk_children``,
 v0.2.8 on): the walk also starts from every descendant by ``parent``, recursively, each by its own
 taxonomy's row; an approved one is walked, any other is listed withdrawn and not walked from, and what
-is reached is the union less the start and its descendants. ``parent`` is never climbed. The rows are
+is reached is the union less the start and its descendants. Either way the start is never counted
+reached (decision 0016, v0.2.9 on: an edge back to it is listed, ``to_start``, and ``impact.reached``
+drops it). ``parent`` is never climbed. The rows are
 the subject's ``register_map.toml``: a row whose nodes name the start, a walked descendant or a reached
 node lands, with the nodes it came through; with ``children``, a row that names only a withdrawn
 descendant lands after them, flagged ``withdrawn`` (task-0120). Its owner is the row's, as the gate's

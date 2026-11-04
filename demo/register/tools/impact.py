@@ -12,6 +12,9 @@ With --children (decision 0014), the walk also starts from every descendant reac
 recursively: approved ones are walked, each by its own taxonomy's row; any other is reported,
 marked withdrawn, and not walked from. `parent` adds starts, never steps; off by default.
 
+The start is never counted among what a walk reaches (decision 0016): an edge back to it is reported
+and marked ``to_start``, not counted; below a withdrawn descendant the descent continues to approved ones.
+
     python tools/impact.py --from APP-0002
     python tools/impact.py --from CAP-0002 --walk realisers
     python tools/impact.py --from CAP-0001 --children
@@ -56,7 +59,8 @@ WITHDRAWN = ("deprecated", "retired")
 
 def walk(reg: dict, start: str, rows: dict | None = None) -> list[dict]:
     """Every edge the walk met, in order, each with ``live``: True when the link is approved and the
-    far node is neither deprecated nor retired; a withdrawn edge is reported and not followed."""
+    far node is neither deprecated nor retired; a withdrawn edge is reported and not followed. An edge
+    whose far node is the start is reported with ``to_start`` and never counted (decision 0016)."""
     seen, out, frontier = {start}, [], [start]
     while frontier:
         nxt = []
@@ -72,7 +76,7 @@ def walk(reg: dict, start: str, rows: dict | None = None) -> list[dict]:
                     far = reg["nodes"].get(b) or {}
                     live = ln.get("state") == "approved" and far.get("state") not in WITHDRAWN
                     out.append({"from": nid, "rel": rel if forward else f"{rel} (inverse)", "to": b, "state": ln.get("state"), "owner": ln.get("owner"),
-                                "evidence": ln.get("evidence", []), "live": live})
+                                "evidence": ln.get("evidence", []), "live": live, "to_start": b == start})
                     if live and b not in seen:
                         seen.add(b)
                         nxt.append(b)
@@ -81,8 +85,8 @@ def walk(reg: dict, start: str, rows: dict | None = None) -> list[dict]:
 
 
 def reached(edges: list[dict]) -> set[str]:
-    """What the walk reached: the far ends of live edges only."""
-    return {e["to"] for e in edges if e.get("live")}
+    """What the walk reached: the far ends of live edges only, never the start (decision 0016)."""
+    return {e["to"] for e in edges if e.get("live") and not e.get("to_start")}
 
 
 def descendants(reg: dict, start: str) -> list[str]:

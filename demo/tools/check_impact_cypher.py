@@ -65,13 +65,15 @@ def fetch_guide(url: str) -> str:
 
 def edge_keys(edges: list[dict], owners: dict) -> list[tuple]:
     """The walk's edges as the rows form returns them, each with its far node's owning unit as the
-    panel shows it (task-0047): the owner field, the unit's name, the approved owns links' sources."""
-    return sorted((e["from"], e["rel"], e["to"], e["state"], e["owner"], tuple(e["evidence"]),
+    panel shows it (task-0047): the owner field, the unit's name, the approved owns links' sources;
+    and the followed column, an edge back to the start marked as the register marks it (decision 0016)."""
+    from register_view import followed
+    return sorted((e["from"], e["rel"], e["to"], e["state"], followed(e), e["owner"], tuple(e["evidence"]),
                    owners[e["to"]]["unit"], owners[e["to"]]["name"], tuple(owners[e["to"]]["owns"])) for e in edges)
 
 
 def row_keys(rows: list[dict]) -> list[tuple]:
-    return sorted((r["from"], r["relationship"], r["to"], r["link state"], r["owner"], tuple(r["evidence"] or []),
+    return sorted((r["from"], r["relationship"], r["to"], r["link state"], r["followed"], r["owner"], tuple(r["evidence"] or []),
                    r["unit"] or "", r["unit name"] or "", tuple(sorted(r["owns links"] or []))) for r in rows)
 
 
