@@ -57,7 +57,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   record) and `jef_data_load` (the recreation experiment's kit, the degradation
   test's arms as scenarios, a deterministic record, the kit's own suite as oracle; task-0021).
   `docs/lighthouse-evaluation.md` the evaluation protocol (doc-0013's seven criteria; actions out of
-  scope); `tools/lighthouse_evidence.py` collects its public evidence on both subjects (task-0069).
+  scope); `tools/lighthouse_evidence.py` collects its public evidence on both subjects (task-0069), the bundle by the server's `evidence_bundle`, over stdio or `--transport http` (task-0095).
 - The register the page reads is `KG_REGISTER` (default `demo/register`, the public register
   vendored at a tag): one register per organisation, shared by every subject of it; an
   instance mounts its own checkout read-only (`demo/docker-compose.instance.yml`). A subject
