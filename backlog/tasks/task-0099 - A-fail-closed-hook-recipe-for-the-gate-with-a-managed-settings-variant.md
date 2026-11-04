@@ -1,11 +1,11 @@
 ---
 id: TASK-0099
 title: A fail-closed hook recipe for the gate, with a managed-settings variant
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T09:47:00Z'
-updated_date: '2026-11-04T10:56:00Z'
+updated_date: '2026-11-04T10:58:00Z'
 labels:
   - ci
   - gate
@@ -25,9 +25,9 @@ From doc-0014 (C1, C4); supersedes doc-0004's fail-open exit-code adapter. insta
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A test runs the script against PROCEED, BLOCKED, an unreachable store and a missing subject; only PROCEED lets the action through
-- [ ] #2 The instance README says where each settings file goes and that only the managed one is mandatory
-- [ ] #3 The recipe's header cites doc-0004's exit-code paragraph as superseded by doc-0014
+- [x] #1 A test runs the script against PROCEED, BLOCKED, an unreachable store and a missing subject; only PROCEED lets the action through
+- [x] #2 The instance README says where each settings file goes and that only the managed one is mandatory
+- [x] #3 The recipe's header cites doc-0004's exit-code paragraph as superseded by doc-0014
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -45,3 +45,9 @@ From doc-0014 (C1, C4); supersedes doc-0004's fail-open exit-code adapter. insta
 <!-- SECTION:NOTES:BEGIN -->
 Hook contract checked against code.claude.com/docs/en/hooks (2026-11-04): exit 2 blocks PreToolUse and stderr is the reason Claude sees; exit 1 is non-blocking unless onFailure: block (v2.1.295+); ExitPlanMode is a PreToolUse tool name. The snippets use one ExitPlanMode|Bash matcher with no if filter: the docs call if best-effort and git -C x push would miss Bash(git push *), so the script decides. Live check on rdflib locally: CargoQuote S1 PROCEED goes ahead, S2 BLOCKED exits 2 naming QuoteAPI|on_screening_outage and response|hold_presence; neo4j at bolt://127.0.0.1:9 exits 2 as unavailable. Both suites 307/307.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+instance/ci/claude/ gains knowgov_hook.py (stdlib) and three settings snippets: settings.json (repository), managed-settings.json (allowManagedHooksOnly, allowManagedMcpServersOnly, knowgov allowlisted), settings.advisory-fail-open.json. The hook fires only at plan (ExitPlanMode), spec commit and push. It maps gate 1 and 2 both to Claude Code's blocking exit 2, naming a finding or the gate unavailable and the route to approval. It refuses a keys or other-task report. --advisory is doc-0004's adapter, labelled fail-open. decide() and 'run -- CMD' are the mapping for task-0105 to reuse. The header cites doc-0004's Exit codes paragraph as superseded by doc-0014. The instance README places each file and says only the managed one is mandatory, and one store per worktree. tests/test_claude_hook.py covers PROCEED, BLOCKED, an unreachable store and a missing subject; only PROCEED goes through. It runs live on rdflib in harness.yml. Risk: the vendor's hook semantics (exit 2, onFailure from v2.1.295) are as documented on 2026-11-04.
+<!-- SECTION:FINAL_SUMMARY:END -->
