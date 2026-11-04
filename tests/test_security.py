@@ -126,9 +126,11 @@ NETWORK = {"requests", "httpx", "urllib3", "aiohttp", "socket", "smtplib", "ftpl
 NETWORK_DOTTED = {"urllib.request", "http.client", "xmlrpc.client"}
 CLIENTS = {"openai": {"harness/arms.py", "harness/agent.py"}, "neo4j": {"harness/store_neo4j.py"}}
 # the stack job's own check of the page it just started: it asks the local page and nothing else
-# and the MCP check's HTTP client (task-0095), which asks only the loopback server it started itself
+# and the MCP check's HTTP client (task-0095), which asks only the loopback server it started itself;
+# and knowgov-runs (task-0133), a client of the page's run API at the operator's KG_PAGE_URL, the local page by default
 LOCAL_CHECKS = {"demo/tools/check_impact_cypher.py": 'os.environ.get("KG_DEMO_URL", "http://localhost:8080")',
-                "tools/check_mcp_server.py": '"--http", "--host", "127.0.0.1", "--port", "0"'}
+                "tools/check_mcp_server.py": '"--http", "--host", "127.0.0.1", "--port", "0"',
+                "harness/mcp_runs.py": 'DEFAULT_PAGE = "http://localhost:8080"'}
 
 
 def test_nothing_reaches_the_network_but_the_model_client_and_the_store_driver():

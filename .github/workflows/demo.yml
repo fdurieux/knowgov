@@ -141,6 +141,40 @@ jobs:
           PY
           )
 
+      - name: Run S1 through knowgov-runs, the second MCP server (task-0133)
+        run: |
+          # decision-0008: start and poll through the page's run API over stdio; the reader then gates the new load
+          docker compose exec -T app python - <<'PY'
+          import json, subprocess, sys, time
+          sys.path[:0] = ["harness"]
+          p = subprocess.Popen([sys.executable, "harness/mcp_runs.py"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+          def call(name, args, i=[0]):
+              i[0] += 1
+              p.stdin.write(json.dumps({"jsonrpc": "2.0", "id": i[0], "method": "tools/call", "params": {"name": name, "arguments": args}}) + "\n")
+              p.stdin.flush()
+              r = json.loads(p.stdout.readline())["result"]
+              assert not r["isError"], (name, r["content"][0]["text"])
+              return r["structuredContent"]
+          opts = call("run_options", {})
+          assert opts["allowed_modes"] == ["deterministic"] and opts["deterministic_enabled"], opts
+          run = call("start_run", {"scenario": "S1", "mode": "deterministic"})
+          for _ in range(90):
+              st = call("run_status", {"run": run["id"]})
+              if st["status"] != "running":
+                  break
+              time.sleep(2)
+          p.stdin.close(); p.wait(10)
+          assert st["status"] == "done" and st["by"] == "mcp", st
+          import mcp_server
+          tools = mcp_server.Tools()
+          gate = tools.gate_verdict({"scenario": "S1", "as_of": "record"})
+          assert gate["verdict"] == "PROCEED", gate["verdict"]
+          rows = tools.scenario_runs({"scenario": "S1"})["scenarios"][0]["runs"]
+          mine = [r for r in rows if r["id"].endswith("/" + run["id"])]
+          assert mine and mine[0]["by"] == "mcp" and mine[0]["status"] == "done", rows[:2]
+          print("knowgov-runs:", run["id"], st["status"], "by", st["by"], "; the reader's gate", gate["verdict"], "; scenario_runs lists it")
+          PY
+
       - name: Project the register into the store beside the run, and read the census
         run: |
           curl -fsS -X POST localhost:8080/api/register/project -H 'Content-Type: application/json' -d '{}' | python3 -c 'import json,sys; c=json.load(sys.stdin); assert c["nodes"]==57 and c["links"]==65 and c["tag"]=="v0.2.9" and c["relationships"]==c["counts"]["relationships"] and c["relationships"]>=150, c; print("projection:", c["by_label"], c["relationships"], "relationships at", c["tag"])'

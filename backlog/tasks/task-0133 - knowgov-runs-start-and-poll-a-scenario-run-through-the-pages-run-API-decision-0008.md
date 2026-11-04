@@ -3,9 +3,11 @@ id: TASK-0133
 title: >-
   knowgov-runs: start and poll a scenario run through the page's run API
   (decision-0008)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-04T20:56:00Z'
+updated_date: '2026-11-04T23:30:00Z'
 labels:
   - mcp
   - runs
@@ -31,3 +33,12 @@ doc-0016 §4, decision-0008 (accepted 2026-11-04). A second stdio MCP server, `k
 - [ ] #4 The reader re-opens its handle after a run's end recorded in run.json, so a gate call after an agent's run reads the new load (test on rdflib)
 - [ ] #5 instance/README.md section on knowgov-runs (adopter register): what it does, the modes, the spend and the shared store; CHANGELOG under Unreleased
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. mcp_server.Server takes a tool table, server info and instructions (defaults: the reader's).
+2. harness/mcp_runs.py, knowgov-runs, stdio only: Page client (KG_PAGE_URL, KG_PAGE_TOKEN sent as Bearer, redacted from every reply), run_options (GET /api/scenarios), start_run (POST /api/run, n=1, by mcp, modes from KG_MCP_RUN_MODES, deterministic by default; row/effort only for arms), run_status (GET /api/run, else /api/runs' run.json). start_run annotated not read-only, destructive, not idempotent, open-world only when arms are allowed.
+3. Reader re-open (F6): the reader opens the store per call (task-0097 not built), so the next call reads a run's new load; a test on rdflib holds it.
+4. Tests on a stub page (AC1), the reader unchanged and the allowlist (AC3), the rdflib re-read (AC4); a stack step (AC2); instance/README.md section, CHANGELOG (AC5); the page's banner names a run started over MCP.
+<!-- SECTION:PLAN:END -->
