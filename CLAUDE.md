@@ -99,6 +99,10 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
 - The CargoQuote subject and the proof-of-concept record stay in pumllint and
   are vendored here at a tag with a SOURCE note and a digest test, as the
   register is. Never edit a vendored file or its note by hand.
+- `.claude/` holds two fail-closed PreToolUse hooks on Edit, Write, MultiEdit and NotebookEdit
+  (`.claude/hooks/protected_paths.py`, task-0105): `vendored` blocks a hand edit to a file or `SOURCE.md`
+  under a vendor tool's destination, `backlog` blocks a `backlog/**/*.md` written other than by the CLI;
+  both map through task-0099's `decide` and call nothing else, and the knowledge gate is not wired here.
 
 ## Pull requests
 
