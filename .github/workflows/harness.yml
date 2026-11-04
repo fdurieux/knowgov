@@ -152,7 +152,7 @@ jobs:
           node-version: "24"   # bpmnlint 12 and dmnlint 2 need Node 24
       - name: The pre-load check runs markdownlint, gplint, bpmnlint and dmnlint (task-0082), pinned, through the CI template's script, a clean file of each kind exits 0, a planted broken one exits 1
         run: |
-          npm install --prefix runs/node-linters "markdownlint-cli2@0.24.0" "gplint@2.6.0" "bpmnlint@12.0.0" "dmnlint@2.0.0" > /dev/null
+          npm install --prefix runs/node-linters "markdownlint-cli2@0.24.0" "gplint@2.6.1" "bpmnlint@12.0.0" "dmnlint@2.0.0" > /dev/null
           bin=$PWD/runs/node-linters/node_modules/.bin
           rm -rf runs/preload-node && python tools/example_instance.py runs/preload-node > /dev/null
           # not installed: the kind stays unchecked, naming its tool
