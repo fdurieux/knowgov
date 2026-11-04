@@ -296,7 +296,7 @@ class Tools:
                 raise ToolError(str(e)) from e
             return gate_cli.evaluate(st, subject=SUBJECT.id, scenario=scenario, task=name, spec=spec,
                                      threshold=threshold, baseline=base, loaded=False,
-                                     version=gate_cli.held_version(st), as_of=on)
+                                     version=gate_cli.held_version(st), as_of=on, route_task=task)
         return self._with_store(go)
 
     def evidence_bundle(self, args: dict) -> dict:
