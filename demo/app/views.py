@@ -154,6 +154,15 @@ def as_of_view(det: dict) -> dict:
     return {"date": on, "record_date": rec, "from_run": bool(det.get("as_of")), "is_record": on == rec}
 
 
+def _gate_lines(gate: dict, as_of: dict, L, DL) -> list[str]:
+    """A gate box's lines, the stage-1 box's and each stage-2 box's alike (task-0086): the verdict,
+    the as-of date it read review currency on, the reviews lapsed by then, and why."""
+    lapsed = gate.get("lapsed") or []
+    return (L(gate["verdict"]) + (L(f"as of {as_of['date']}") if as_of["date"] else [])
+            + (L(f"{_plural(len(lapsed), 'review')} lapsed, on {_plural(len({x['key'] for x in lapsed}), 'key')}") if lapsed else [])
+            + DL(gate["why"]))
+
+
 def _stage_colour(kind: str, det: dict, gate: dict) -> str:
     rules = det["rules"]
     if kind == "extract":
@@ -248,8 +257,7 @@ def build(scenario: str, source: str, runs_dir: Path) -> dict:
         {"id": "gaps", "label": L("gaps (found by the rules)")[0], "colour": _gaps_colour(det),
          "lines": L(*_gaps_lines(det))},
         {"id": "gate", "label": L("gate")[0], "colour": _stage_colour("gate", det, gate),
-         "lines": L(gate["verdict"]) + (L(f"as of {as_of['date']}") if as_of["date"] else [])
-                  + (L(f"{_plural(len(gate['lapsed']), 'review')} lapsed, on {_plural(len({x['key'] for x in gate['lapsed']}), 'key')}") if gate.get("lapsed") else []) + DL(gate["why"]) + (DL(f"blocking: {', '.join(gate['blocked_keys'])}") if gate.get("blocked_keys") else [])},
+         "lines": _gate_lines(gate, as_of, L, DL) + (DL(f"blocking: {', '.join(gate['blocked_keys'])}") if gate.get("blocked_keys") else [])},
     ]
     arms = {}
     for arm in ("G", "B"):
@@ -313,12 +321,12 @@ def build(scenario: str, source: str, runs_dir: Path) -> dict:
                           + L(f"{len(s2['D3_stale']['kept'])} kept at their status")
                           + (DL("suspect: " + ", ".join(x["id"] for x in s2["suspect_derived"] if x.get("suspect"))) if s2["suspect_derived"]
                              else L("no Derived registered (deterministic mode creates none)"))},
-                {"id": "gate_before", "label": L("gate")[0], "colour": "bad",
-                 "lines": L(s2["gate_before_reverification"]["verdict"]) + DL(s2["gate_before_reverification"]["why"])},
+                {"id": "gate_before", "label": L("gate")[0], "colour": _stage_colour("gate", det, s2["gate_before_reverification"]),
+                 "lines": _gate_lines(s2["gate_before_reverification"], as_of, L, DL)},
                 {"id": "reverify", "label": L("re-verification")[0], "colour": "ok",
                  "lines": L(f"{len(s2['reverified'])} successors re-verified and approved (owner stand-in)") + DL(*s2["reverified"])},
-                {"id": "gate_after", "label": L("gate")[0], "colour": "ok",
-                 "lines": L(s2["gate_after_reverification"]["verdict"]) + DL(s2["gate_after_reverification"]["why"])},
+                {"id": "gate_after", "label": L("gate")[0], "colour": _stage_colour("gate", det, s2["gate_after_reverification"]),
+                 "lines": _gate_lines(s2["gate_after_reverification"], as_of, L, DL)},
             ]}
     view["narrative"] = narrative(view, det, reg)
     view["details"] = stage_details(view, det, runs, reg)
@@ -547,6 +555,10 @@ def narrative(view: dict, det: dict, reg: list) -> list[str]:
             parts.append(C(f"{s2['kept']} other assertions of the same document kept their status."))
         parts.append(C(f"The gate went {s2['gate_before']['verdict']} until the {_plural(len(s2['reverified']), 'replacement assertion')} were re-verified and approved.",
                        f"Then it gave {s2['gate_after']['verdict']}."))
+        if s2["gate_after"]["lapsed"]:
+            la = s2["gate_after"]["lapsed"]
+            parts.append(C(f"Re-verification renewed none of the {_plural(len(la), 'lapsed review')} on {_plural(len({x['key'] for x in la}), 'key')}.",
+                           "They still read validated."))
         out.append(" ".join(parts))
     arms = view["arms"]
     if arms["G"]["summary"]["n"] or arms["B"]["summary"]["n"]:
@@ -805,13 +817,15 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
                                    {"heading": C("Derived outputs"), "list": [f"{x['id']}: suspect={x['suspect']}" for x in s2["suspect_derived"]] or ["none registered in this source"]}]}
         gb = s2["gate_before_reverification"]
         d["gate_before"] = {"title": C(f"Gate before re-verification: {gb['verdict']}"), "intro": D(gb["why"] + "."),
-                            "sections": [{"heading": C("Invalidated assertions on the keys the task needs, with their successors"), "table": _table(["assertion", "key", "old value", "successor", "successor status"], [(x["id"], x["key"], x["value"], ", ".join(t["id"] for t in x["successors"] if t["id"]), ", ".join(t["status"] for t in x["successors"] if t["id"])) for x in gb["stale"]])}]}
+                            "sections": [{"heading": C("Invalidated assertions on the keys the task needs, with their successors"), "table": _table(["assertion", "key", "old value", "successor", "successor status"], [(x["id"], x["key"], x["value"], ", ".join(t["id"] for t in x["successors"] if t["id"]), ", ".join(t["status"] for t in x["successors"] if t["id"])) for x in gb["stale"]])},
+                                         _currency_section(view["as_of"], gb.get("lapsed") or [], C)]}
         d["reverify"] = {"title": C("Re-verification by the owner stand-in"),
                          "intro": C("A verification record, method review and dated, and an approval for each successor assertion.", "The record is a node, not a property flip."),
                          "sections": [{"heading": C("Re-verified and approved"), "list": s2["reverified"]}]}
         ga = s2["gate_after_reverification"]
         d["gate_after"] = {"title": C(f"Gate after re-verification: {ga['verdict']}"), "intro": D(ga["why"] + "."),
-                           "sections": [{"heading": C("Census after"), "text": D(f"{s2['census_after']['nodes']} nodes, {s2['census_after']['relationships']} relationships; {s2['census_after']['assertions_by_status']}.")}]}
+                           "sections": [{"heading": C("Census after"), "text": D(f"{s2['census_after']['nodes']} nodes, {s2['census_after']['relationships']} relationships; {s2['census_after']['assertions_by_status']}.")},
+                                        _currency_section(view["as_of"], ga.get("lapsed") or [], C)]}
     d["gaps"] = {"title": C("Gaps: everything the rules found wanting"),
                  "intro": C("Grouped by kind.", "The counts are the store's census after the rules ran."), "sections": []}
     return d
