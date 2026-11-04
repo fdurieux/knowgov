@@ -8,6 +8,18 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
+## Unreleased
+
+### Contract changes since 0.5.0
+
+- **A run folder describes itself** (task-0127, additive): the page's Runner writes
+  `runs/<subject>/<stamp>/run.json` when a run starts (status `running`) and again when it ends
+  (`finished`, `done` or `failed`, `exit_code`); a run whose process cannot start leaves it
+  `failed` with an `error`. It names the mode, the model row, the as-of date and who asked
+  (`by`: `page`, or `mcp`, which `POST /api/run` now takes as `by`), never a key, a token or the
+  environment. `harness/schemas/run.schema.json` pins it (version 1). `/api/runs` carries it as
+  `run` where present and is unchanged for a folder without one.
+
 ## 0.5.0 — 2026-11-04
 
 The impact walk is complete, and it now runs both ways. A fifth read-only MCP tool,
