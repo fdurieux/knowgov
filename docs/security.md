@@ -77,13 +77,13 @@ machines, under the same access controls as the documents, and delete them when 
 | The page, Neo4j Browser and bolt are published on `127.0.0.1` unless `KG_BIND` widens the bind; on a wider bind the stack refuses to start while the Neo4j password is the default | this machine only, by default | `demo/docker-compose.yml` (`${KG_BIND:-127.0.0.1}` on every published port), `demo/neo4j/bind-guard.sh` | `tests/test_demo.py::test_the_ports_bind_loopback_and_a_wider_bind_refuses_the_default_password`; CI: `demo.yml` reaches the stack on `localhost` from the runner |
 | The MCP server listens on 127.0.0.1 by default, refuses a wider bind without `KG_MCP_TOKEN`, then asks every request for that token, and refuses a request from a non-local web origin | the assistant's process on the same machine (stdio), or a client on the network holding the token | `harness/mcp_server.py` `bind_check`, `Handler._guard` | `tests/test_mcp_server.py::test_it_binds_localhost_unless_told_and_a_wider_bind_needs_a_token`, `tests/test_mcp_server.py::test_http_with_a_token_refuses_a_request_without_it`, `tests/test_mcp_server.py::test_http_answers_on_mcp_refuses_a_foreign_origin_and_pushes_nothing` |
 | The MCP server answers with the gate's verdict, the three-valued answer and the evidence bundle. The bundle carries excerpts, so whoever holds the token reads them | the MCP client | `harness/mcp_server.py` `TOOLS` | `tests/test_mcp_server.py::test_four_tools_every_one_marked_read_only` |
-| People appear as opaque handles issued by the register, never as names or e-mail addresses | the store, the capture and review files | `harness/capture.py` (handle pattern, issued list), `harness/review.py` `check` (ieam-register decision 0009) | `tests/test_capture.py::test_a_name_a_future_date_a_contradiction_or_nothing_answered_is_refused`, `tests/test_capture.py::test_ingest_refuses_a_handle_the_register_has_not_issued_by_the_answers_date`, `tests/test_review.py::test_refused_the_giver_a_handle_without_approves_a_name_and_a_future_date` |
+| People appear as opaque handles issued by the register, never as names or e-mail addresses | the store, the capture and review files | `harness/capture.py` (handle pattern, issued list), `harness/review.py` `check` (ieam-register decision 0009) | `tests/test_capture.py::test_a_name_a_future_date_a_contradiction_or_nothing_answered_is_refused`, `tests/test_capture.py::test_ingest_refuses_a_handle_the_register_has_not_issued_by_the_answers_date`, `tests/test_capture.py::test_ingest_refuses_a_handle_without_gives`, `tests/test_review.py::test_refused_the_giver_a_handle_without_approves_a_name_and_a_future_date` |
 | A note in an answer must not identify the person: the questionnaire says so, and the reviewer sees each note before ruling | the capture file | `harness/capture.py` | `tests/test_capture.py::test_the_questionnaire_warns_that_a_note_must_not_identify_the_person`; **Practice:** the code warns and does not check the note's words |
 | The instance is created in the organisation's repositories and is never pushed to this one | — | — | **Practice.** CI here runs only the public example instance built by `tools/example_instance.py`; nothing in this repository fetches or uploads an instance |
 
 The handle check is a pattern (`^[a-z][a-z0-9-]{1,39}$` by default, or the register's own) and,
-once the register lists issued handles, membership of that list. A lowercase handle that happens
-to be a person's name (`jdoe`) passes the pattern. **Practice:** the register issues opaque
+once the register lists issued handles, membership of that list, in date, with the role `gives`
+(task-0091). A lowercase handle that happens to be a person's name (`jdoe`) passes the pattern. **Practice:** the register issues opaque
 handles (`employee-1`, not initials), as ieam-register decision 0009 asks.
 
 ## What leaves the network, per model-endpoint setting
@@ -154,7 +154,7 @@ can reach the page.
 | The model (arms, transcript route) | only what it is sent: documents, bundle, transcript | yes, as basis `inferred` at status `proposed`, only on keys with no value | no | no | no | no |
 | An agent over MCP | the port's reads only (`READS` in `harness/mcp_server.py`) | no | no | no | no | no |
 | The pipeline (load, `gate_cli`, knowgov-trace) | yes | yes: extracted and authored statements at `proposed`; trace records derived outputs | no | no | no | no |
-| A person by role (decision-0002) | yes | yes, with `gives` (an issued handle; see Gaps) | with `approves`, in the owning unit, never their own answer | with `closes`, as the gap's owner | no | no |
+| A person by role (decision-0002) | yes | yes, with `gives`, under an issued handle in date | with `approves`, in the owning unit, never their own answer | with `closes`, as the gap's owner | no | no |
 | The register approver | yes | in ieam-register, not here | the register's own changes, upstream | no | yes, upstream in ieam-register; here only by re-vendoring a tag | no |
 | Anyone who reaches the page's port (this machine only, unless `KG_BIND` widens it) | yes | no | no | no | no | no; but may start a run (see Gaps) |
 <!-- permission matrix: end -->
@@ -177,7 +177,7 @@ Evidence per row:
 | Overruling a document or settling a dispute needs `closes`, and a dispute is settled whole | `tests/test_review.py::test_overruling_a_document_needs_closes`, `tests/test_review.py::test_a_dispute_is_settled_only_whole_and_on_one_value` |
 | `closes`: only the gap's owner | `tests/test_review.py::test_a_declared_gap_is_closed_only_by_its_owner` |
 | An approval lapses six months after the capture | `tests/test_review.py::test_an_approval_of_what_a_person_gave_lapses_six_months_after_the_capture` |
-| `gives` | not enforced: see Gaps |
+| `gives`: an answer's handle is issued, not withdrawn by the answer's date, and holds `gives` (task-0091) | `tests/test_capture.py::test_ingest_refuses_a_handle_without_gives`, `tests/test_capture.py::test_ingest_refuses_a_handle_the_register_has_not_issued_by_the_answers_date` |
 | The register is edited upstream only: here it is a vendored copy at a tag, held file by file to its digest, and the page reads it and never writes it | `tests/test_demo.py::test_vendored_register_matches_its_source_note_and_checks_clean`, `tests/test_vendor_register.py::test_vendor_register_refuses_a_dirty_tree_and_an_untagged_commit`, `tests/test_register_view.py::test_projection_rows_and_statements` |
 | An instance's own register is mounted read-only | `tests/test_demo.py::test_compose_files_agree` |
 | No business action: no outbound client but the model's and the store's | `tests/test_security.py::test_nothing_reaches_the_network_but_the_model_client_and_the_store_driver` |
@@ -198,10 +198,7 @@ so this list is updated with the fix.
    store; on a wider bind the stack refuses to start until `KG_NEO4J_PASSWORD` is set. **Practice:**
    widen the bind only behind a firewall, or a reverse proxy that authenticates, that admits the
    people who should read the page, and set `KG_NEO4J_PASSWORD` on any host with other users.
-2. **The `gives` role is not checked.** An answer is refused when its handle is not issued or has
-   been withdrawn, but not when the handle lacks `gives`. Proposed fix: `capture.check_answers`
-   refuses a handle without `gives`, as `review.check` does for `approves` and `closes`.
-3. **The store holds excerpts.** "Status and provenance, never content" is true of whole documents
+2. **The store holds excerpts.** "Status and provenance, never content" is true of whole documents
    only: fragments, statement values and their one-line texts are stored (see What is stored). This
    is by design, since the gate's evidence is the excerpt. An adopter must protect the store as they
    protect the documents.

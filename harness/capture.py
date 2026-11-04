@@ -175,8 +175,8 @@ def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
                   handles: dict[str, dict] | None = None) -> tuple[list[str], dict]:
     """(errors, the normalised capture) for an answered questionnaire. ``handles`` is the register's
     issued list (harness/review.py ``issued_handles``, decision 0009): when it lists any, the handle
-    must be on it, issued by the answer's date and not withdrawn by then; when it lists none, the
-    pattern alone applies."""
+    must be on it, hold the role ``gives``, and be issued by the answer's date and not withdrawn by
+    then (task-0091); when it lists none, the pattern alone applies."""
     errs = []
     q, a = doc.get("questionnaire", {}), doc.get("answered", {})
     handle = a.get("from", "")
@@ -192,7 +192,9 @@ def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
         h = handles.get(str(handle))
         if h is None:
             errs.append(f"answered.from {handle!r} is not an issued handle (decision 0009): the register's issued list does not name it")
-        elif on is not None:
+        elif "gives" not in h.get("roles", set()):
+            errs.append(f"answered.from {handle} lacks the role gives, which an answer needs (decision 0009)")
+        if h is not None and on is not None:
             if h.get("issued") and h["issued"] > on:
                 errs.append(f"answered.from {handle} was issued on {h['issued']}, after the answer's date {on} (decision 0009)")
             if h.get("withdrawn") and h["withdrawn"] <= on:

@@ -161,6 +161,22 @@ def test_ingest_refuses_a_handle_the_register_has_not_issued_by_the_answers_date
         assert capture.check_answers(_answered(handle="steward-1"), pattern, keys, TODAY, none)[0] == []
 
 
+
+def test_ingest_refuses_a_handle_without_gives():
+    """task-0091: an answer needs a handle holding gives (ieam-register decision 0009), as a ruling
+    needs approves or closes; issued and in date is not enough."""
+    import review
+    keys = set(CARGO_QUOTE.tasks["codegen"]["keys"])
+    reg = ROOT / "demo" / "register"
+    pattern, handles = capture.handle_pattern(reg), review.issued_handles(reg)
+    assert all("gives" in h["roles"] for h in handles.values()), "every handle the vendored register issues may give"
+    approver = dict(handles, **{"employee-7": {"unit": "ORG-0002", "roles": {"approves", "closes"}, "issued": dt.date(2026, 1, 1), "withdrawn": None}})
+    errs, cap = capture.check_answers(_answered(handle="employee-7"), pattern, keys, TODAY, approver)
+    assert len(errs) == 1 and "employee-7 lacks the role gives" in errs[0], errs
+    # the same handle with gives added answers
+    giver = dict(approver, **{"employee-7": dict(approver["employee-7"], roles={"gives", "approves", "closes"})})
+    assert capture.check_answers(_answered(handle="employee-7"), pattern, keys, TODAY, giver)[0] == []
+
 def test_ingest_reads_the_registers_issued_list():
     src = (ROOT / "harness" / "capture.py").read_text(encoding="utf-8")
     block = src[src.index("def _ingest"):src.index("def _review")]
