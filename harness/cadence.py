@@ -22,7 +22,7 @@ import os
 import tomllib
 from pathlib import Path
 
-from review import add_months, today
+from review import add_months, pinned, today
 from subject import ROOT, SUBJECT
 
 FALLBACK_MONTHS = 12      # a register with no lifecycle.toml [review] default_months (the vendored one says 12)
@@ -111,6 +111,15 @@ def record_date(subject=None) -> dt.date | None:
     """The subject's pinned record date (``[record] as_of``), if it names one."""
     subject = subject or SUBJECT
     return _date(subject.record_as_of) if subject.record_as_of else None
+
+
+def pin_record(env=None, subject=None) -> dict:
+    """``env`` (os.environ by default) for a check that holds its outcome to the record: KG_TODAY at the
+    subject's pinned record date and KG_CLOCK=pinned (task-0075), so nothing it runs reads the wall clock."""
+    on = record_date(subject)
+    if on is None:
+        raise ValueError(f"{(subject or SUBJECT).id} pins no record date ([record] as_of); a check cannot pin its clock")
+    return pinned(os.environ if env is None else env, on.isoformat())
 
 
 def as_of(value=None, subject=None) -> dt.date:

@@ -19,6 +19,10 @@
 #   KG_FILES        trace-register: the files to register, relative to code_map.toml's root;
 #                   unset: the code files changed since KG_BASE
 #   KG_REPORT       gate, trace-*: also write the JSON report here (-o), for the platform to annotate or keep
+#   KG_ANNOTATE     gate, trace-*: the report as annotations (harness/annotate.py; task-0083), a comma-separated
+#                   list of FORMAT[:FILE], FORMAT github, summary, gitlab or sarif; no FILE: the job's log.
+#                   summary appends to its FILE, the others overwrite theirs. Paths in them are relative to
+#                   the working directory the script was called from; a run that exits 2 writes none
 #   KG_STORE, KG_RDFLIB_FILE, KG_NEO4J_*   the store, as the harness reads them
 #
 # trace-check and trace-register take the changed paths from git, in the code map's root
@@ -30,6 +34,7 @@ KG=${1:?knowgov checkout}
 INST=${2:?instance checkout}
 GATE=${3:?preload, gate, trace-check or trace-register}
 PY=${PYTHON:-python3}
+HERE=$(pwd)
 KG=$(cd "$KG" && pwd)
 INST=$(cd "$INST" && pwd)
 
@@ -60,6 +65,37 @@ print("\n".join(f for f in p.stdout.split() if code_map.is_code(cm, f)))
 PY
 }
 
+annotate() {   # KG_ANNOTATE: the report the core command wrote, as each named format, after it ran
+    [ -n "${KG_ANNOTATE:-}" ] || return 0
+    [ -f "$REPORT" ] || { echo "knowgov-gate: no report to annotate (the command could not run)" >&2; return 0; }
+    subj=$(subject 2>/dev/null) || subj=
+    set -f; old=$IFS; IFS=,
+    for spec in $KG_ANNOTATE; do
+        IFS=$old
+        fmt=${spec%%:*}; file=
+        case "$spec" in *:*) file=$(abspath "${spec#*:}") ;; esac
+        set -- "$KG/harness/annotate.py" "$REPORT" -t "$fmt" --instance "$INST" --root "$HERE"
+        [ -n "$subj" ] && set -- "$@" --subject "$subj"
+        if [ -z "$file" ]; then "$PY" "$@"
+        elif [ "$fmt" = summary ]; then "$PY" "$@" >> "$file"
+        else "$PY" "$@" -o "$file"; fi || echo "knowgov-gate: annotate $fmt failed" >&2
+    done
+    IFS=$old; set +f
+}
+
+core() {   # the core command in the harness, then its annotations; the exit code is the command's
+    rc=0
+    [ -n "${KG_ANNOTATE:-}" ] && rm -f "$REPORT"   # annotate this run's report, never an earlier one
+    (cd "$KG/harness" && exec "$PY" "$@") || rc=$?
+    annotate
+    [ -n "${TMP_REPORT:-}" ] && rm -f "$TMP_REPORT"
+    exit "$rc"
+}
+
+REPORT=
+if [ -n "${KG_REPORT:-}" ]; then REPORT=$(abspath "$KG_REPORT")
+elif [ -n "${KG_ANNOTATE:-}" ]; then TMP_REPORT=$(mktemp); rm -f "$TMP_REPORT"; REPORT=$TMP_REPORT; fi
+
 case "$GATE" in
 preload)
     exec sh "$KG/instance/ci/preload-check.sh" "$KG" "$INST" "${KG_BASE:-}"
@@ -70,12 +106,12 @@ gate)
     [ -n "${KG_FAIL_ON:-}" ] && set -- "$@" --fail-on "$KG_FAIL_ON"
     [ -n "${KG_STAGE:-}" ] && set -- "$@" --stage "$KG_STAGE"
     [ "${KG_NO_LOAD:-}" = 1 ] && set -- "$@" --no-load
-    [ -n "${KG_REPORT:-}" ] && set -- "$@" -o "$(abspath "$KG_REPORT")"
-    cd "$KG/harness" && exec "$PY" gate_cli.py "$@"
+    [ -n "$REPORT" ] && set -- "$@" -o "$REPORT"
+    core gate_cli.py "$@"
     ;;
 trace-check|trace-register)
     set -- "${GATE#trace-}" --instance "$INST" --ledger "$(abspath "${KG_LEDGER:-trace-ledger.json}")" --subject "$(subject)" --task "${KG_TASK:-codegen}"
-    [ -n "${KG_REPORT:-}" ] && set -- "$@" -o "$(abspath "$KG_REPORT")"
+    [ -n "$REPORT" ] && set -- "$@" -o "$REPORT"
     [ -n "${KG_COMMIT:-}" ] && set -- "$@" --commit "$KG_COMMIT"
     if [ "$GATE" = trace-check ]; then
         [ -n "${KG_FAIL_ON:-}" ] && set -- "$@" --fail-on "$KG_FAIL_ON"
@@ -92,7 +128,7 @@ trace-check|trace-register)
         [ -n "$files" ] || { echo "knowgov-gate: nothing to register: set KG_FILES or KG_BASE" >&2; exit 2; }
         for p in $files; do set -- "$@" --file "$p"; done
     fi
-    cd "$KG/harness" && exec "$PY" trace.py "$@"
+    core trace.py "$@"
     ;;
 *)
     echo "knowgov-gate: no gate $GATE: preload, gate, trace-check or trace-register" >&2

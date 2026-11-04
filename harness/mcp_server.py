@@ -431,6 +431,9 @@ class Server:
             data = getattr(self.tools, name)(args)
         except (ToolError, PermissionError) as e:
             return _result(id_, {"content": [{"type": "text", "text": str(e)}], "isError": True, **stamp})
+        except Exception as e:  # noqa: BLE001 - a tool that cannot answer is an error result, never a dropped connection
+            return _result(id_, {"content": [{"type": "text", "text": f"{name} could not answer: {type(e).__name__}: {e}"}],
+                                 "isError": True, **stamp})
         return _result(id_, {"content": [{"type": "text", "text": json.dumps(data, indent=1, ensure_ascii=False, default=str)}],
                              "structuredContent": data, "isError": False, **stamp})
 

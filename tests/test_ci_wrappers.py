@@ -42,6 +42,23 @@ def test_both_wrappers_call_the_same_script_with_the_platforms_commit_and_base()
     assert "${{ inputs." not in action.split("run: |", 1)[1], "inputs reach the shell through env, never inline"
 
 
+def test_both_wrappers_annotate_by_default_and_gitlab_keeps_the_code_quality_report():
+    action, gitlab = ACTION.read_text(encoding="utf-8"), GITLAB.read_text(encoding="utf-8")
+    assert 'export KG_ANNOTATE="github,summary:$GITHUB_STEP_SUMMARY"' in action and re.search(r'annotate:\n.*\n\s+default: "true"', action)
+    assert re.search(r'^    KG_ANNOTATE: "gitlab:gl-code-quality-report\.json"', gitlab, re.M)
+    assert re.search(r"^  artifacts:\n    when: always\b.*\n    reports:\n      codequality: gl-code-quality-report\.json$", gitlab, re.M)
+
+
+def test_annotations_never_change_the_exit_code_and_a_run_that_cannot_run_annotates_nothing():
+    with tempfile.TemporaryDirectory() as td:
+        inst = Path(td) / "inst"
+        (inst / "subjects").mkdir(parents=True)
+        env = {"PATH": "/usr/bin:/bin", "KG_SUBJECT": str(inst), "KG_ANNOTATE": f"gitlab:{td}/cq.json", "KG_REPORT": f"{td}/r.json"}
+        Path(td, "r.json").write_text('{"tool": "knowgov gate"}', encoding="utf-8")   # an earlier run's: never annotated
+        p = subprocess.run(["sh", str(SCRIPT), str(ROOT), str(inst), "trace-check"], capture_output=True, text=True, env=env)
+        assert p.returncode == 2 and "no report to annotate" in p.stderr and not Path(td, "cq.json").exists(), p.stderr
+
+
 def test_the_script_exits_2_on_an_unknown_gate_and_an_instance_without_one_subject():
     with tempfile.TemporaryDirectory() as td:
         inst = Path(td) / "inst"
