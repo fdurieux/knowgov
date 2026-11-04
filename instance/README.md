@@ -309,7 +309,8 @@ python harness/capture.py ingest questionnaires/questionnaire-cargo_quote-S2-ORG
 ```
 
 In plain English: this checks the answers and refuses a name in place of a handle, a handle the
-register has not issued (or issued only after the answer's date, or withdrawn by then), a date in the
+register has not issued (or issued only after the answer's date, or withdrawn by then), a handle
+issued without the role `gives` (one that may only approve or close cannot answer), a date in the
 future, or an item that has both an answer and "nobody knows". It then saves them in the
 subject's `captures/` folder, which you commit like any other change. From then on, every
 load reads that folder. An answer becomes a statement *proposed* by that person on that date,
