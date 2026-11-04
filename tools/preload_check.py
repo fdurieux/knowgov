@@ -44,6 +44,7 @@ Standard library, plus the linters it runs.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -258,6 +259,10 @@ def check(instance: Path, changed: list[str] | None = None, threshold: str = "ma
             for rel in rels:   # the linter's own exit is the authority: never pass what it failed
                 by_file[rel].update(state="findings", why=f"{tool} exited 1 at --fail-on {threshold}")
 
+    for r in rows:   # the bytes judged, so the load can tell a verdict from a later edit (task-0064)
+        f = inst / r["file"]
+        if r["kind"] and f.is_file():
+            r["sha256"] = hashlib.sha256(f.read_bytes()).hexdigest()
     counts = {s: sum(1 for r in rows if r["state"] == s) for s in STATES}
     code = 2 if counts["cannot_run"] else 1 if counts["findings"] else 0
     out = {"schema_version": 1, "tool": "knowgov preload check", "instance": str(inst),

@@ -79,9 +79,38 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
     # scored run, whose S6 bundle carried none of this - see the pre-registration's run notes)
     stale = s.stale_on_keys(spec["keys"])
     suspect = s.suspect_derived()
-    return {"task": task, "verdict": verdict, "why": why, "keys": keys, "conflicts": conflicts,
-            "blocked_keys": blocked_keys, "below_verified": below, "flagged": flagged,
-            "stale": stale, "suspect_derived": suspect, "lapsed": lapsed, "as_of": on.isoformat()}
+    out = {"task": task, "verdict": verdict, "why": why, "keys": keys, "conflicts": conflicts,
+           "blocked_keys": blocked_keys, "below_verified": below, "flagged": flagged,
+           "stale": stale, "suspect_derived": suspect, "lapsed": lapsed, "as_of": on.isoformat()}
+    form = preload_behind(s, keys)
+    if form is not None:   # only when a load recorded verdicts (task-0064); absent otherwise, so the record reads as before
+        out["preload"] = form
+    return out
+
+
+def preload_behind(s, keys: dict) -> list[dict] | None:
+    """The documents behind the keys' live statements (artefact and version) whose pre-load verdict is
+    unchecked or has findings; None when the store holds no verdict at all."""
+    try:
+        held = s.preload_verdicts()
+    except (AttributeError, NotImplementedError):   # a store view without the read holds no verdict
+        return None
+    verdicts = {(v["artefact"], v["version"]): v for v in held}
+    if not verdicts:
+        return None
+    behind: dict[tuple, set] = {}
+    for key, k in keys.items():
+        for r in k["assertions"]:
+            if r.get("artefact") and "@" in r["id"]:
+                behind.setdefault((r["artefact"], r["id"].rsplit("@", 1)[1]), set()).add(key)
+    out = []
+    for (art, ver), ks in sorted(behind.items()):
+        v = verdicts.get((art, ver))
+        state = v["state"] if v else "unchecked"
+        if state in ("unchecked", "findings", "held"):
+            out.append({"artefact": art, "version": ver, "state": state, "tool": v["tool"] if v else None,
+                        "why": (v["why"] if v else "no verdict recorded for this version"), "keys": sorted(ks)})
+    return out
 
 
 THREE_VALUED_STATUSES = ["verified", "approved", "validated", "proposed"]

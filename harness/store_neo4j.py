@@ -174,6 +174,7 @@ _NODE_STATEMENTS = (
     "       collect(DISTINCT dv.id + CASE WHEN dv.suspect THEN ' (suspect)' ELSE '' END) AS derived\n"
     "ORDER BY document, statement")
 NODE_STATEMENTS = _NODE_STATEMENTS.replace("$start", f"'{INFORMATION_START}'")
+PRELOAD_FIELDS = ("state", "tool", "tool_version", "digest", "report", "why")   # a Version's preload_* properties (task-0064)
 # The literal start each saved query carries, by the taxonomy the page picks its default from.
 START_LITERALS = {"applications": IMPACT_START, "capabilities": CAPABILITY_START, "information": INFORMATION_START}
 
@@ -672,6 +673,18 @@ class Neo4jStore(Store):
 
     def all_derived(self) -> list[dict]:
         return _rows(self.run("MATCH (dv:Derived) RETURN dv.id AS id, dv.suspect AS suspect"))
+
+    def record_preload(self, vid, verdict) -> None:
+        props = {f"preload_{k}": verdict.get(k) for k in PRELOAD_FIELDS}
+        self.run("MATCH (v:Version {id:$vid}) SET v += $props", vid=vid, props=props).consume()
+
+    def preload_verdicts(self) -> list[dict]:
+        return _rows(self.run("""
+            MATCH (a:Artefact)-[:HAS_VERSION]->(v:Version) WHERE v.preload_state IS NOT NULL
+            RETURN a.id AS artefact, v.tag AS version, v.preload_state AS state, v.preload_tool AS tool,
+                   v.preload_tool_version AS tool_version, v.preload_digest AS digest, v.preload_report AS report,
+                   v.preload_why AS why
+            ORDER BY artefact, version"""))
 
     def register_node_statements(self, start: str) -> list[dict]:
         rows = _rows(self.run(_NODE_STATEMENTS, start=start))

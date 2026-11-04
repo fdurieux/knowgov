@@ -212,6 +212,17 @@ class Store:
         """Every derived output with its suspect flag."""
         raise NotImplementedError
 
+    # ---- the pre-load check's verdict on a version (task-0064; harness/preload.py)
+    def record_preload(self, vid: str, verdict: dict) -> None:
+        """Set on Version ``vid`` the verdict a pre-load report gave its bytes: preload_state,
+        preload_tool, preload_tool_version, preload_digest, preload_report, preload_why."""
+        raise NotImplementedError
+
+    def preload_verdicts(self) -> list[dict]:
+        """Every version that carries a verdict: artefact, version (tag), state, tool, tool_version,
+        digest, report, why; sorted by artefact and version. Empty when no load recorded one."""
+        raise NotImplementedError
+
     # ---- the census and the page
     def census(self) -> dict:
         raise NotImplementedError

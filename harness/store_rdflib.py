@@ -714,6 +714,20 @@ class RdflibStore(Store):
     def all_derived(self) -> list[dict]:
         return [{"id": self.nid(d), "suspect": self.prop(d, "suspect")} for d in self.nodes("Derived")]
 
+    def record_preload(self, vid, verdict) -> None:
+        v = self.node(vid, "Version")
+        if v is not None:
+            self.set_props(v, {f"preload_{k}": verdict.get(k) for k in ("state", "tool", "tool_version", "digest", "report", "why")})
+
+    def preload_verdicts(self) -> list[dict]:
+        out = []
+        for a in self.nodes("Artefact"):
+            for v in self.out(a, "HAS_VERSION"):
+                if self.prop(v, "preload_state") is not None:
+                    out.append({"artefact": self.nid(a), "version": self.prop(v, "tag"),
+                                **{k: self.prop(v, f"preload_{k}") for k in ("state", "tool", "tool_version", "digest", "report", "why")}})
+        return sorted(out, key=lambda r: (r["artefact"], r["version"]))
+
     # ---- the census and the page -------------------------------------------------------------
     def census(self) -> dict:
         st: dict[str, int] = {}
