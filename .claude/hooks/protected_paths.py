@@ -90,6 +90,11 @@ CHECKS = {"vendored": ("knowgov protected path: vendored", check_vendored,
                        "Route: re-vendor with the tool at a tag of the source repository."),
           "backlog": ("knowgov protected path: backlog", check_backlog,
                       "Route: make the change with the backlog CLI (`backlog <command> --help`).")}
+# the route when the check cannot tell (task-0102 folds in task-0099's note): not the gate's wording,
+# since no store, subject or scenario is involved here
+UNAVAILABLE_ROUTE = ("Route: the hook could not tell whether the path is protected; fix what the message names (the "
+                     "hook event, the vendor tools, instance/ci/claude/knowgov_hook.py), then repeat the edit, or make "
+                     "it through the vendor tool or the backlog CLI.")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -101,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if len(argv) != 1 or argv[0] not in CHECKS:
         return hook.emit(hook.decide(CANNOT_TELL, check="knowgov protected paths",
-                                     unavailable=f"usage: protected_paths.py {{{','.join(CHECKS)}}}"))
+                                     unavailable=f"usage: protected_paths.py {{{','.join(CHECKS)}}}", unavailable_route=UNAVAILABLE_ROUTE))
     name, check, route = CHECKS[argv[0]]
     try:
         event = json.loads(sys.stdin.read())
@@ -111,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         rc, why = (CLEAR, "") if p is None else check(p)
     except Exception as e:   # cannot tell: the mapping blocks it (fail closed)
         rc, why = CANNOT_TELL, f"{e.__class__.__name__}: {e}"
-    return hook.emit(hook.decide(rc, check=name, finding=why, unavailable=why, route=route))
+    return hook.emit(hook.decide(rc, check=name, finding=why, unavailable=why, route=route, unavailable_route=UNAVAILABLE_ROUTE))
 
 
 if __name__ == "__main__":

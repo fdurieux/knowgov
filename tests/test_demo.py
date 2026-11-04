@@ -46,6 +46,20 @@ def test_every_scenario_replays_from_the_record():
 
 
 @on_cargo_quote
+def test_the_gate_box_names_the_owner_of_the_blocking_keys():
+    """Task-0102 (doc-0014 C7): the gate box names the unit that answers for each blocking key, else for
+    each key below verified, as the gate report's ``owner`` does; a scenario with neither names none."""
+    lines = lambda sc: next(s for s in views.build(sc, views.default_source(sc), NO_RUNS)["stages"] if s["id"] == "gate")["lines"]  # noqa: E731
+    s2 = lines("S2")
+    assert "owner: ORG-0002 Architecture stewardship (stand-in) (2 keys)" in s2, s2
+    assert s2.index("owner: ORG-0002 Architecture stewardship (stand-in) (2 keys)") > s2.index(next(x for x in s2 if x.startswith("blocking: ")))
+    for sc in views.ORDER:
+        g = views.build(sc, views.default_source(sc), NO_RUNS)["gate"]
+        has = any(x.startswith("owner") for x in lines(sc))
+        assert has == bool(g["blocked_keys"] or g["below_verified"]), (sc, lines(sc))
+
+
+@on_cargo_quote
 def test_s6_sources_and_stage_two():
     rerun = views.build("S6", "rerun", NO_RUNS)
     assert views.default_source("S6") == "rerun"

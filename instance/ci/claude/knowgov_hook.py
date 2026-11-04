@@ -75,11 +75,12 @@ class Decision:
 
 
 def decide(rc: int, *, check: str = "knowgov gate", finding: str = "", unavailable: str = "",
-           route: str = ROUTE, advisory: bool = False) -> Decision:
+           route: str = ROUTE, unavailable_route: str = UNAVAILABLE_ROUTE, advisory: bool = False) -> Decision:
     """The contract's exit code mapped to the hook's. Mandatory (the default): 0 lets the action
-    through; 1 blocks, naming the finding and the route to approval; 2 or anything else blocks,
-    naming the gate as unavailable (fail closed). Advisory, fail-open: 1 still blocks, but the gate
-    unavailable lets the action through with a warning."""
+    through; 1 blocks, naming the finding and the route to approval (``route``); 2 or anything else
+    blocks, naming the gate as unavailable (fail closed) and the route to making it run
+    (``unavailable_route``, the gate's by default; a check other than the gate passes its own).
+    Advisory, fail-open: 1 still blocks, but the gate unavailable lets the action through with a warning."""
     if rc == PASS:
         return Decision(HOOK_ALLOW)
     if rc == FINDING:
@@ -87,7 +88,7 @@ def decide(rc: int, *, check: str = "knowgov gate", finding: str = "", unavailab
     what = f"{check}: the gate is unavailable (exit {rc})" + (f": {unavailable}" if unavailable else "")
     if advisory:
         return Decision(HOOK_ALLOW, output={"systemMessage": f"{what}. ADVISORY PROFILE, FAIL-OPEN: the action goes ahead unchecked."})
-    return Decision(HOOK_BLOCK, f"{what}.\nFail-closed: the action is blocked until the gate runs.\n{UNAVAILABLE_ROUTE}")
+    return Decision(HOOK_BLOCK, f"{what}.\nFail-closed: the action is blocked until the gate runs.\n{unavailable_route}")
 
 
 def refuse(check: str, why: str) -> Decision:
@@ -158,7 +159,10 @@ def _summary(rep: dict) -> str:
             f"as of {rep.get('as_of')}, threshold {rep.get('threshold')}")
     worst = [f for f in rep.get("findings") or [] if f.get("severity") in ("blocker", "critical")] or (rep.get("findings") or [])
     lines = [f"  {f.get('severity')} {f.get('kind')}" + (f" {f['key']}" if f.get("key") else "") + f": {f.get('message')}"
+             + (f" (owner {f.get('owner') or 'none in the register map'})" if "owner" in f else "")
              for f in worst[:6]]
+    routes = sorted({f["route"] for f in worst[:6] if f.get("route")})   # task-0102: each owner's questionnaire
+    lines += [f"  route: {r}" for r in routes]
     more = len(worst) - len(lines)
     return "\n".join([head, *lines] + ([f"  ... and {more} more"] if more > 0 else []))
 
@@ -228,6 +232,7 @@ def main(argv: list[str] | None = None) -> int:
     r = sub.add_parser("run", help="any check under the gate contract, mapped the same way")
     r.add_argument("--check", default="check", help="the check's name in the message")
     r.add_argument("--route", default=ROUTE, help="the route to approval a finding names")
+    r.add_argument("--unavailable-route", default=UNAVAILABLE_ROUTE, help="the route to making the check run, when it cannot")
     r.add_argument("--advisory", action="store_true", help="FAIL-OPEN: exit 2 lets the action through")
     r.add_argument("command", nargs=argparse.REMAINDER, help="-- COMMAND ...")
     a = ap.parse_args(argv)
@@ -244,7 +249,8 @@ def main(argv: list[str] | None = None) -> int:
         except OSError as e:
             return emit(decide(CANNOT_RUN, check=a.check, unavailable=str(e), advisory=a.advisory))
         said = (p.stderr or p.stdout).strip()
-        return emit(decide(p.returncode, check=a.check, finding=said, unavailable=said, route=a.route, advisory=a.advisory))
+        return emit(decide(p.returncode, check=a.check, finding=said, unavailable=said, route=a.route,
+                           unavailable_route=a.unavailable_route, advisory=a.advisory))
 
     if a.task == FREE_KEYS:
         return emit(refuse("knowgov hook", "--task keys is an agent-chosen key set, not a task class"))

@@ -257,3 +257,63 @@ def test_the_report_names_the_version_and_the_change_and_a_report_without_them_s
     assert rep["verdict"] == "BLOCKED" and rep["exit_code"] == 1 and len(rep["change"]["invalidated"]) == 4
     assert "v2 of contract/decision_table.md: 4 statement(s) invalidated" in gate_cli.render(rep)
     assert schema_check.validate({**rep, "change": {**change, "extra": 1}}, SCHEMA)
+
+
+def test_key_stale_and_lapsed_findings_name_the_owner_unit_and_the_questionnaire_route():
+    """Task-0102 (doc-0014 C7): S2's blocking findings name their key's owner unit from the subject's
+    register_map.toml and the owner's questionnaire; the report validates with the fields and without
+    (the version-2 report as first published), and the other kinds carry neither."""
+    import capture
+    owners = capture.finding_owners(CARGO_QUOTE)
+    assert owners["QuoteAPI|on_screening_outage"] == {"unit": "ORG-0002", "name": "Architecture stewardship (stand-in)"}
+    res = _res(_record("S2"))
+    rep = gate_cli.report(res, subject="cargo_quote", scenario="S2", task="codegen", store="rdflib", loaded=True,
+                          block_levels=BLOCK, threshold="blocker", baseline=None, owners=owners)
+    assert schema_check.validate(rep, SCHEMA) == []
+    blockers = [f for f in rep["findings"] if f["severity"] == "blocker"]
+    assert blockers and all(f["kind"] == "key" for f in blockers)
+    for f in blockers:
+        assert f["owner"] == owners[f["key"]]["unit"] == "ORG-0002", f
+        assert f["route"].startswith("python harness/capture.py questionnaire --scenario S2 --task codegen --out DIR"), f
+        assert "questionnaire-cargo_quote-S2-ORG-0002.toml" in f["route"] and "ingest" in f["route"], f
+    assert all(("owner" in f) == (f["kind"] in gate_cli.OWNED) for f in rep["findings"])
+    assert "[owner ORG-0002]" in gate_cli.render(rep)
+    # without owners: version 2 as first published, which the schema still validates
+    old = _report(res)
+    assert not any("owner" in f or "route" in f for f in old["findings"]) and schema_check.validate(old, SCHEMA) == []
+    # a key no row maps names no unit, and the route its unassigned questionnaire
+    rep = gate_cli.report(res, subject="cargo_quote", scenario="S2", task="codegen", store="rdflib", loaded=True,
+                          block_levels=BLOCK, threshold="blocker", baseline=None, owners={})
+    f = next(f for f in rep["findings"] if f["kind"] == "key")
+    assert f["owner"] is None and "questionnaire-cargo_quote-S2-unassigned.toml" in f["route"]
+    assert schema_check.validate(rep, SCHEMA) == []
+    bad = json.loads(json.dumps(rep))
+    bad["findings"][0]["owner"] = 7
+    assert schema_check.validate(bad, SCHEMA), "a non-string owner passed"
+
+
+def test_stale_and_lapsed_findings_name_the_owner_too():
+    res = {"verdict": "PROCEED", "why": "w", "keys": {}, "blocked_keys": [], "below_verified": [], "flagged": [],
+           "stale": [{"id": "a1", "key": "k|p", "invalidated_by": "act:x", "successors": [], "verifications": []}],
+           "lapsed": [{"id": "a2", "key": "k|q", "from": "verified", "valid_until": "2026-01-01", "verifications": ["v1"]}],
+           "suspect_derived": [{"id": "d1", "kind": "code", "used_invalidated": ["a1"]}], "as_of": "2026-11-04"}
+    fs = gate_cli.findings(res, BLOCK, {"k|p": {"unit": "U-1", "name": ""}, "k|q": {"unit": None, "name": ""}}, lambda u, k: f"to {u}")
+    by = {f["kind"]: f for f in fs}
+    assert by["stale"]["owner"] == "U-1" and by["stale"]["route"] == "to U-1"
+    assert by["lapsed"]["owner"] is None and by["lapsed"]["route"] == "to None"
+    assert "owner" not in by["suspect_derived"] and "route" not in by["suspect_derived"]
+
+
+def test_an_agent_chosen_key_set_routes_to_the_questionnaire_of_its_task_class():
+    """The MCP server's ``keys`` report (task-0102): the route names the class the keys were resolved
+    under, never ``--task keys``, which capture.py refuses; a key outside that class has no route."""
+    res = _res(_record("S2"))
+    owners = {k: {"unit": "ORG-0002", "name": ""} for k in res["keys"]}
+    some = sorted(res["blocked_keys"])[:1]
+    rep = gate_cli.report(res, subject="cargo_quote", scenario="S2", task="keys", store="rdflib", loaded=False,
+                          block_levels=BLOCK, threshold="blocker", baseline=None, owners=owners,
+                          route_task="codegen", route_keys=set(some))
+    routed = {f["key"]: f["route"] for f in rep["findings"] if f["kind"] == "key"}
+    assert routed[some[0]] and "--task codegen" in routed[some[0]] and "--task keys" not in routed[some[0]]
+    assert all(r is None for k, r in routed.items() if k not in some)
+    assert schema_check.validate(rep, SCHEMA) == []

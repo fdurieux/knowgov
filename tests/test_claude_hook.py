@@ -211,3 +211,23 @@ def test_the_header_cites_doc_0004_as_superseded_and_the_readme_places_each_file
     for s in ["/etc/claude-code/managed-settings.d/", "/Library/Application Support/ClaudeCode/", ".claude/settings.json",
               "settings.advisory-fail-open.json", "only the managed", "one store per worktree"]:
         assert s in sec, s
+
+
+def test_unavailable_takes_its_own_route_and_the_summary_names_the_owner():
+    """Task-0102, folding in task-0099's notes: ``decide`` takes the unavailable route as it takes the
+    finding's, the gate's wording by default; the summary names each finding's owner and its route."""
+    assert hook.UNAVAILABLE_ROUTE in hook.decide(2).reason
+    own = hook.decide(2, unavailable_route="Route: fix the thing.")
+    assert own.exit_code == 2 and "Route: fix the thing." in own.reason and hook.UNAVAILABLE_ROUTE not in own.reason
+    assert "Route: fix the thing." not in hook.decide(1, unavailable_route="Route: fix the thing.").reason
+    rep = {"verdict": "BLOCKED", "subject": "s", "scenario": "S2", "task": "codegen", "as_of": "2026-10-30", "threshold": "blocker",
+           "findings": [{"severity": "blocker", "kind": "key", "key": "k|p", "message": "k|p is absent", "owner": "ORG-0002",
+                         "route": "python harness/capture.py questionnaire ..."},
+                        {"severity": "blocker", "kind": "key", "key": "k|q", "message": "k|q is absent", "owner": None, "route": "r2"},
+                        {"severity": "blocker", "kind": "suspect_derived", "key": None, "message": "d1 used a1"}]}
+    text = hook._summary(rep)
+    assert "k|p is absent (owner ORG-0002)" in text and "k|q is absent (owner none in the register map)" in text
+    assert "d1 used a1\n" in text + "\n" and "d1 used a1 (owner" not in text
+    assert "  route: python harness/capture.py questionnaire ..." in text and "  route: r2" in text
+    p = _hook(PLAN, "run", "--unavailable-route", "Route: mine.", "--", "sh", "-c", "exit 2")
+    assert p.returncode == 2 and "Route: mine." in p.stderr and hook.UNAVAILABLE_ROUTE not in p.stderr
