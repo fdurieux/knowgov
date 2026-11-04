@@ -19,7 +19,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   picks one, `neo4j` by default. No other module speaks Cypher; a test guards
   it (task-0003). `export_turtle`/`import_turtle` carry a store into a fresh one of either kind in the rdflib
   adapter's form; `tools/check_round_trip.py --chain` holds every scenario's gate reports and three-valued
-  answers equal across the hops (rdflib in `harness.yml`, Neo4j to rdflib and back in the stack job; task-0070). The comparator compares D1, the Neo4j edition's constraint
+  answers equal across the hops (rdflib in `harness.yml`, Neo4j to rdflib and back in the stack job; task-0070), and with `--expect-preload` on the example instance with its report every Version's pre-load verdict, the gate's preload bundle and its info findings, both ways through Neo4j (task-0085). The comparator compares D1, the Neo4j edition's constraint
   measurement, only between runs of the same store kind (task-0004). `demo/` the page, the vendored model, the vendored
   register, the comparator, the Docker files; `subjects/<id>/` a subject root
   (`subjects/README.md` documents the format): `subject.toml`, `scenarios.toml`,
