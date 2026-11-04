@@ -360,6 +360,8 @@ jobs:
         run: |
           KG_STORE=rdflib python tools/check_mcp_server.py ${KG_CQ_SCENARIOS:+--scenarios "$KG_CQ_SCENARIOS"}
           KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_mcp_server.py ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
+      - name: proposal_impact's branch mode (task-0132) through the CI template's step, doc-0017's worked example on a scratch branch of the public register, equal to the held overlay's report and the checkout unchanged
+        run: python tools/check_proposal_branch.py
       - name: A person's statement against the documents' (task-0038), on S2 a contradiction raises a conflict, an agreement corroborates and raises nothing
         run: KG_STORE=rdflib python tools/check_capture_pairing.py runs/pairing
       - name: The lighthouse protocol's public evidence (task-0069), CargoQuote from the example instance and the J-F kit (the subset on a pull request), every item agreeing with the record

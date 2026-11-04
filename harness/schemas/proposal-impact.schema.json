@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/proposal-impact.schema.json",
  "title": "knowgov proposal impact report",
- "description": "What `python harness/proposal_impact.py PROPOSAL -f json` prints and the MCP tool proposal_impact returns (task-0130, task-0131): a proposed addition read against the register as if approved, without approving it. Every overlay node, link and exception is hypothetical (const true) and read_as approved; nothing is stored (stored const false). Candidates carry their rule (D1-D4), their basis (authored or inferred) and the status proposed, never more; D5 is a placement finding. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "description": "What `python harness/proposal_impact.py PROPOSAL -f json` prints and the MCP tool proposal_impact returns (task-0130, task-0131): a proposed addition read against the register as if approved, without approving it. Every overlay node, link and exception is hypothetical (const true) and read_as approved; nothing is stored (stored const false). Candidates carry their rule (D1-D4), their basis (authored or inferred) and the status proposed, never more; D5 is a placement finding. branch is null for a proposal held in the call and, in branch mode (task-0132, additive), names the checkout, the base, the merge base and head commits and what the diff holds that is not an addition. Version 1; a change is additive or a new version. Exit 2 prints no report.",
  "type": "object",
  "additionalProperties": false,
  "required": [
@@ -24,7 +24,8 @@
   "keys",
   "unmapped",
   "approvals",
-  "limits"
+  "limits",
+  "branch"
  ],
  "$defs": {
   "marked": {
@@ -1000,6 +1001,58 @@
    "type": "array",
    "items": {
     "type": "string"
+   }
+  },
+  "branch": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "description": "Branch mode (task-0132): the register checkout, the base ref, the merge base and head commits, and what the diff holds that is not an addition (not_read); null for a proposal held in the call",
+   "required": [
+    "checkout",
+    "base",
+    "merge_base",
+    "head",
+    "not_read"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "checkout": {
+     "type": "string"
+    },
+    "base": {
+     "type": "string"
+    },
+    "merge_base": {
+     "type": "string"
+    },
+    "head": {
+     "type": "string"
+    },
+    "not_read": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": [
+       "path",
+       "status",
+       "why"
+      ],
+      "additionalProperties": false,
+      "properties": {
+       "path": {
+        "type": "string"
+       },
+       "status": {
+        "type": "string"
+       },
+       "why": {
+        "type": "string"
+       }
+      }
+     }
+    }
    }
   }
  }
