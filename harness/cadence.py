@@ -42,6 +42,7 @@ def _toml(p: Path) -> dict:
 
 
 _CACHE: dict[tuple[str, str], tuple[dict[str, int], int]] = {}
+_KINDS: dict[tuple[str, str], dict[str, str]] = {}   # key -> the kind whose months it takes (none: the default's)
 
 
 def cadence(subject=None, register: Path | None = None) -> tuple[dict[str, int], int]:
@@ -51,11 +52,11 @@ def cadence(subject=None, register: Path | None = None) -> tuple[dict[str, int],
     root = Path(register or register_root())
     ck = (str(root), str(subject.root))
     if ck not in _CACHE:
-        _CACHE[ck] = _read(subject, root)
+        _CACHE[ck], _KINDS[ck] = _read(subject, root)
     return _CACHE[ck]
 
 
-def _read(subject, root: Path) -> tuple[dict[str, int], int]:
+def _read(subject, root: Path) -> tuple[tuple[dict[str, int], int], dict[str, str]]:
     review = _toml(root / "metamodel" / "lifecycle.toml").get("review", {})
     default = int(review.get("default_months", FALLBACK_MONTHS))
     by_kind = {k: int(v["months"]) for k, v in review.get("kinds", {}).items() if isinstance(v, dict) and "months" in v}
@@ -65,17 +66,28 @@ def _read(subject, root: Path) -> tuple[dict[str, int], int]:
             n = _toml(p)
             if "id" in n and "kind" in n:
                 kinds[n["id"]] = n["kind"]
-    out = {}
+    out, which = {}, {}
     for row in subject.register_map().get("row", []):
-        months = [by_kind.get(kinds.get(n, ""), default) for n in row.get("nodes", [])]
-        out[row["key"]] = min(months) if months else default
-    return out, default
+        # (months, unnamed, kind) per node, the kind blank where the register names no months for it: the
+        # shortest months win, and on a tie the kind the register names months for, which the page shows
+        months = sorted((by_kind[k], 0, k) if (k := kinds.get(n, "")) in by_kind else (default, 1, "") for n in row.get("nodes", []))
+        out[row["key"]] = months[0][0] if months else default
+        if months and months[0][2]:
+            which[row["key"]] = months[0][2]
+    return (out, default), which
 
 
 def months_for(key: str, subject=None) -> int:
     """The review months of the key: the shortest among its register nodes' kinds, else the default."""
     by_key, default = cadence(subject)
     return by_key.get(key, default)
+
+
+def kind_for(key: str, subject=None) -> str | None:
+    """The register kind whose review months the key takes, or None when it takes the default."""
+    subject = subject or SUBJECT
+    cadence(subject)
+    return _KINDS[(str(register_root()), str(subject.root))].get(key)
 
 
 def _date(v) -> dt.date | None:
@@ -150,4 +162,6 @@ def lapse(row: dict, key: str, on: dt.date, subject=None) -> dict | None:
     if on <= until:
         return None
     return {"id": row["id"], "key": key, "from": row["status"], "valid_until": until.isoformat(),
+            "lapsed_on": (until + dt.timedelta(days=1)).isoformat(),   # the first day it reads validated
+            "months": months_for(key, subject), "kind": kind_for(key, subject),
             "verifications": sorted(v["id"] for v in vers if v.get("id"))}
