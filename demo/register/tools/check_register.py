@@ -89,6 +89,11 @@ def check_nodes(reg: dict, f: Findings, today: dt.date):
                 allowed = types["taxonomy"][tax]["parent_of"].get(kind, [])
                 if p.get("kind") not in allowed:
                     f.error("hierarchy", where, f"a {kind} may not have a {p.get('kind')} parent (allowed: {allowed})")
+                # decision 0015: an approved child of a deprecated or retired parent is an error; a
+                # proposed or draft one a warning; a deprecated, retired or rejected one nothing
+                if p.get("state") in ("deprecated", "retired") and n.get("state") in ("approved", "proposed", "draft"):
+                    (f.error if n.get("state") == "approved" else f.warn)(
+                        "lifecycle", where, f"{n.get('state')} node has parent {parent} in state {p.get('state')}")
         elif types["taxonomy"][tax]["parent_of"].get(kind):
             f.warn("hierarchy", where, f"a {kind} usually has a parent of kind {types['taxonomy'][tax]['parent_of'][kind]}")
         state = n.get("state")

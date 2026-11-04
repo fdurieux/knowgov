@@ -20,7 +20,8 @@ The question an agent asks is "may I build on this?". Five tools answer it, all 
                           the suspect derived outputs, and the documents the task names verbatim
                           (task-0080)
     register_impact       what retiring a register node touches: the register's own walk from it, what it
-                          reaches and who owns each, its children listed and not walked, and the
+                          reaches and who owns each, its children listed and not walked (or, with
+                          children, walked as the register's decision 0014 does, task-0118), and the
                           register-map keys it lands on, each with its level, stale statements and
                           suspect derived outputs as gate_verdict reports them (task-0111)
 
@@ -153,14 +154,15 @@ TOOLS.append(
      "description": "The register's own impact walk from one node of the organisation's register (approved links only; "
                     "a deprecated or retired node is not expanded; a withdrawn edge is listed with live false and not "
                     "followed; a node's parent is never climbed): the register's tag and commit, the node (kind, name, "
-                    "state, owner, parent), its children with their states (listed, not walked), every edge, what the walk "
-                    "reached by id prefix with each node's owning unit, and the register-map keys whose rows name the "
-                    "start or a reached node, each with its owner, anchor and the nodes it came through (via). With a "
+                    "state, owner, parent), its children with their states (listed, not walked, unless children is true), "
+                    "every edge, what the walk reached by id prefix with each node's owning unit, and the register-map keys "
+                    "whose rows name the start, a walked descendant or a reached node, each with its owner, anchor and the nodes it came through (via). With a "
                     "scenario held, each key carries its gate level, its stale statements, the suspect derived outputs "
                     "that used them and its findings, as gate_verdict reports that key set on the same as_of.",
      "inputSchema": {"type": "object", "additionalProperties": False, "required": ["node"], "properties": {
          "node": {"type": "string", "pattern": r"^[A-Z]+-\d{4,}$", "description": "a register id, as the register's files name it"},
          "walk": {"type": "string", "enum": ["dependants", "realisers"], "description": "dependants: what rests on the node (default); realisers: what implements a capability, where the register offers that walk"},
+         "children": {"type": "boolean", "description": "also walk from every descendant by parent, recursively, as the register's decision 0014 does: an approved one is walked by its own kind's row, any other is listed withdrawn and not walked from; what is reached excludes the start and its descendants (default: false, children listed and not walked)"},
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another (default: whatever it holds; with none held, the keys carry no level)"},
          "as_of": {"type": "string", "description": "the date review currency is read on: the server's date (default, the one gate_verdict reads), today, record or YYYY-MM-DD"}}},
      "annotations": READ_ONLY})
@@ -374,12 +376,13 @@ class Tools:
         from tasks import TASKS
         which = args.get("walk") or "dependants"
         try:
-            out = ri.walk(args.get("node"), which)
+            out = ri.walk(args.get("node"), which, children=args.get("children", False))
         except ri.ImpactError as e:
             raise ToolError(str(e)) from e
         out.pop("reached_ids")
         reached = [x["id"] for xs in out["reached"].values() for x in xs]
-        keys = ri.landed_rows(SUBJECT.register_map(), out["node"]["id"], reached)
+        walked = [c["id"] for c in out["children"] if c["walked"]]
+        keys = ri.landed_rows(SUBJECT.register_map(), out["node"]["id"], reached, walked)
         task = "codegen" if "codegen" in TASKS else next(iter(TASKS), None)   # gate_verdict's default class: its block levels and route
         head = {"subject": SUBJECT.id, "store": None, "scenario": None, "as_of": None}
 
