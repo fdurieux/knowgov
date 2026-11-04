@@ -64,6 +64,12 @@ change (``change``: the artefact, the statements invalidated, the re-verified, t
 ``--no-load`` reads the store as it is, for a stack whose page has already loaded a scenario; the
 scenario named must be the one the store holds. A load wipes the store first, as a run does.
 
+Each key, stale and lapsed finding names its key's owner unit (``owner``, from the subject's
+``register_map.toml`` through capture.py's ``answering_owners``, task-0043; null when no row maps
+the key or several units answer for it) and the route to approval (``route``: the owner's
+questionnaire, task-0009), so a block explains itself (task-0102, doc-0014 C7); the text form adds
+``[owner UNIT]`` to each such line.
+
 The JSON report (-f json) is pinned by harness/schemas/gate-report.schema.json, version 2 (the
 schema's description says what changed from 1 and what was added since), and validated before it
 is printed.
@@ -95,8 +101,15 @@ def _finding(severity: str, kind: str, message: str, *, key=None, level=None, fl
             "ref": ref, "related": list(related), "message": message}
 
 
-def findings(res: dict, block_levels: set[str]) -> list[dict]:
-    """The gate's result as findings on the severity ladder, worst first, then by kind, key and ref."""
+OWNED = ("key", "stale", "lapsed")   # the finding kinds that name the key's owner and the route (task-0102)
+
+
+def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None = None,
+             route=None) -> list[dict]:
+    """The gate's result as findings on the severity ladder, worst first, then by kind, key and ref.
+    With ``owners`` (key -> {unit, name}, ``capture.finding_owners``) and ``route`` ((unit, key) -> text or None),
+    each key, stale and lapsed finding also names its key's owner unit and the route to approval
+    (task-0102); without them the findings are version 2's as first published."""
     out = []
     for key, v in res["keys"].items():
         lvl, flags = v["level"], v["flags"]
@@ -134,6 +147,12 @@ def findings(res: dict, block_levels: set[str]) -> list[dict]:
         out.append(_finding("info", "preload", f"{d['artefact']} {d['version']}, behind {len(d['keys'])} required key(s): {what}"
                             + (f" ({d['tool']})" if d.get("tool") else "") + (f"; {d['why']}" if d.get("why") else ""),
                             ref=f"{d['artefact']}@{d['version']}", related=d["keys"]))
+    if owners is not None:
+        for f in out:
+            if f["kind"] in OWNED:
+                unit = (owners.get(f["key"]) or {}).get("unit")
+                f["owner"] = unit
+                f["route"] = route(unit, f["key"]) if route else None
     kinds = ["task", "key", "suspect_derived", "stale", "lapsed", "preload"]
     return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), kinds.index(f["kind"]), f["key"] or "", f["ref"] or ""))
 
@@ -181,8 +200,17 @@ def superseded_map(res: dict) -> dict[str, list[str]]:
 
 def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loaded: bool,
            block_levels: set[str], threshold: str, baseline: dict | None,
-           version: str | None = None, change: dict | None = None) -> dict:
-    fs = findings(res, block_levels)
+           version: str | None = None, change: dict | None = None, owners: dict[str, dict] | None = None,
+           route_task: str | None = None, route_keys=None) -> dict:
+    """``route_task`` is the task class whose questionnaire a finding's route names (``task`` by default;
+    the MCP server's agent-chosen key set, task ``keys``, names the class it was resolved under), and
+    ``route_keys`` the keys that questionnaire covers (None: every key): a key outside them has no route."""
+    from capture import questionnaire_route
+    rt = route_task or task
+
+    def route(unit, key):
+        return questionnaire_route(subject, scenario, rt, unit) if route_keys is None or key in route_keys else None
+    fs = findings(res, block_levels, owners, route)
     fail = baseline["regression"] if baseline is not None else bool(at_or_above(fs, threshold))
     return {"schema_version": SCHEMA_VERSION, "tool": "knowgov gate", "subject": subject, "scenario": scenario, "task": task,
             "store": store, "loaded": loaded, "version": version, "change": change, "verdict": res["verdict"], "why": res["why"], "threshold": threshold,
@@ -205,7 +233,7 @@ def render(rep: dict) -> str:
                    + (f"re-verified {', '.join(ch['reverified_statements']) or 'none'}" if ch["reverified"] else "before re-verification")
                    + (f"; derived {ch['derived']} registered" if ch["derived"] else ""))
     for f in rep["findings"]:
-        out.append(f"  {f['severity']:8s} {f['message']}")
+        out.append(f"  {f['severity']:8s} {f['message']}" + (f" [owner {f['owner'] or 'none in the register map'}]" if "owner" in f else ""))
     c = rep["counts"]
     out.append("findings: " + ", ".join(f"{c[s]} {s}" for s in SEVERITIES if c[s]) if any(c.values()) else "findings: none")
     b = rep["baseline"]
@@ -300,15 +328,30 @@ def run(args) -> dict:
 
 def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshold: str,
              baseline: tuple[dict, str] | None, loaded: bool, version: str | None = None,
-             change: dict | None = None, as_of="today") -> dict:
+             change: dict | None = None, as_of="today", owners: dict[str, dict] | None = None,
+             route_task: str | None = None) -> dict:
     """Resolve ``spec`` on the store as it stands, as of ``as_of`` (today by default; harness/cadence.py), and build the report. The command calls this
     after its load (and stage 2's change, if any); the MCP server (harness/mcp_server.py) calls it
-    on a store it only reads, so one input gives one report whichever way it was asked."""
+    on a store it only reads, so one input gives one report whichever way it was asked. ``owners``
+    defaults to the loaded subject's (``capture.finding_owners``) when ``subject`` is its id;
+    ``route_task``, the class an agent-chosen key set was resolved under, names its questionnaire."""
     from gate import resolve_spec
     res = resolve_spec(st, task, spec, as_of)
+    if owners is None:
+        from subject import SUBJECT
+        if SUBJECT.id == subject:
+            from capture import finding_owners
+            owners = finding_owners(SUBJECT)
     return report(res, subject=subject, scenario=scenario, task=task, store=st.name, loaded=loaded,
                   block_levels=set(spec["block_levels"]), threshold=threshold,
-                  baseline=compare(res, *baseline) if baseline else None, version=version, change=change)
+                  baseline=compare(res, *baseline) if baseline else None, version=version, change=change, owners=owners,
+                  route_task=route_task, route_keys=_route_keys(route_task) if route_task and route_task != task else None)
+
+
+def _route_keys(task: str) -> set[str] | None:
+    """The keys the questionnaire of task class ``task`` covers; None when the subject declares no such class."""
+    from tasks import TASKS
+    return set(TASKS[task]["keys"]) if task in TASKS else None
 
 
 def held_version(st) -> str | None:

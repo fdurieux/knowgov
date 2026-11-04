@@ -104,6 +104,29 @@ def answering_owners(subject, nodes: dict[str, dict]) -> dict[str, list[str]]:
     return out
 
 
+def finding_owners(subject, root: Path | None = None) -> dict[str, dict]:
+    """key -> {unit, name} for the gate's findings (task-0102): the one unit that answers for the key
+    (``answering_owners``), or unit None when no row maps it or several units answer for it. A register
+    that cannot be read names no unit: the gate's verdict never rests on it, so it cannot stop the gate."""
+    try:
+        nodes = register_nodes(root or register_root())
+    except (OSError, ValueError):   # tomllib.TOMLDecodeError is a ValueError
+        nodes = {}
+    out = {}
+    for key, units in answering_owners(subject, nodes).items():
+        unit = units[0] if len(units) == 1 else None
+        out[key] = {"unit": unit, "name": nodes.get(unit, {}).get("name", "") if unit else ""}
+    return out
+
+
+def questionnaire_route(subject_id: str, scenario: str, task: str, unit: str | None) -> str:
+    """The route to approval a finding names (task-0102, doc-0014 C7): the owner's questionnaire
+    (task-0009), the command that writes it and the file it writes, then its ingest and a review."""
+    return (f"python harness/capture.py questionnaire --scenario {scenario} --task {task} --out DIR; "
+            f"{unit or 'the owner'} answers DIR/questionnaire-{subject_id}-{scenario}-{unit or UNASSIGNED}.toml, "
+            "then python harness/capture.py ingest it and a reviewer who is not the author rules on it")
+
+
 def question_for(key: str) -> str:
     ent, pred = key.split("|", 1)
     return f"For {ent}, what is the value of {pred}? Give it as the documents would state it."

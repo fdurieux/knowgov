@@ -11,7 +11,8 @@
 #   KG_FAIL_ON      the severity at or above which the gate exits 1 (each core command's default)
 #   KG_SUBJECT      the subject root (gate, trace-*; default: the instance's only subject)
 #   KG_SCENARIO     gate: the scenario to load (default: the subject's first)
-#   KG_TASK         gate, trace-*: the task (default codegen)
+#   KG_TASK         gate, trace-*: the task class (default codegen); never keys, the MCP server's agent-chosen
+#                   key set: the CI route requires a task class (doc-0014 C4), so keys exits 2
 #   KG_STAGE        gate: 2 to bring in the scenario's later version
 #   KG_NO_LOAD      gate: 1 to read the store as the instance's load left it
 #   KG_AS_OF        gate, trace-*: the date review currency is read on (--as-of; decision-0005; trace-register
@@ -102,6 +103,11 @@ finish() {   # the annotations of the report just written, then the command's ex
 REPORT=
 if [ -n "${KG_REPORT:-}" ]; then REPORT=$(abspath "$KG_REPORT")
 elif [ -n "${KG_ANNOTATE:-}" ]; then TMP_REPORT=$(mktemp); rm -f "$TMP_REPORT"; REPORT=$TMP_REPORT; fi
+
+if [ "${KG_TASK:-}" = keys ]; then
+    echo "knowgov-gate: KG_TASK=keys is an agent-chosen key set, not a task class; the CI route requires one (doc-0014 C4)" >&2
+    exit 2
+fi
 
 case "$GATE" in
 preload)

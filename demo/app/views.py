@@ -163,6 +163,26 @@ def _gate_lines(gate: dict, as_of: dict, L, DL) -> list[str]:
             + DL(gate["why"]))
 
 
+def _owner_lines(gate: dict) -> list[str]:
+    """The gate box's owner line (task-0102, doc-0014 C7): the unit that answers for each blocking key,
+    else for each key below verified, from the subject's register map (capture.finding_owners, the
+    gate report's ``owner``); none when the subject maps no key onto the register."""
+    keys = gate.get("blocked_keys") or gate.get("below_verified") or []
+    if not keys:
+        return []
+    from capture import finding_owners
+    owners = finding_owners(_ps().subject)
+    units: dict[str, list[str]] = {}
+    for k in keys:
+        o = owners.get(k) or {}
+        if o.get("unit"):
+            units.setdefault(f"{o['unit']} {o['name']}".strip(), []).append(k)
+    if not units:
+        return []
+    return [("owner: " if gate.get("blocked_keys") else "owner of the keys below verified: ")
+            + "; ".join(f"{u} ({_plural(len(ks), 'key')})" for u, ks in sorted(units.items()))]
+
+
 def _stage_colour(kind: str, det: dict, gate: dict) -> str:
     rules = det["rules"]
     if kind == "extract":
@@ -257,7 +277,8 @@ def build(scenario: str, source: str, runs_dir: Path) -> dict:
         {"id": "gaps", "label": L("gaps (found by the rules)")[0], "colour": _gaps_colour(det),
          "lines": L(*_gaps_lines(det))},
         {"id": "gate", "label": L("gate")[0], "colour": _stage_colour("gate", det, gate),
-         "lines": _gate_lines(gate, as_of, L, DL) + (DL(f"blocking: {', '.join(gate['blocked_keys'])}") if gate.get("blocked_keys") else [])},
+         "lines": _gate_lines(gate, as_of, L, DL) + (DL(f"blocking: {', '.join(gate['blocked_keys'])}") if gate.get("blocked_keys") else [])
+                  + DL(*_owner_lines(gate))},
     ]
     arms = {}
     for arm in ("G", "B"):

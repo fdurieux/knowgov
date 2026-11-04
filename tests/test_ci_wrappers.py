@@ -69,6 +69,11 @@ def test_the_script_exits_2_on_an_unknown_gate_and_an_instance_without_one_subje
         assert p.returncode == 2 and "set KG_SUBJECT" in p.stderr, p.stderr
         p = subprocess.run(["sh", str(SCRIPT), str(ROOT), str(inst), "trace-register"], capture_output=True, text=True, env={"PATH": "/usr/bin:/bin", "KG_SUBJECT": str(inst)})
         assert p.returncode == 2 and "needs KG_COMMIT" in p.stderr, p.stderr
+        # doc-0014 C4: the CI route requires a task class, never the MCP server's agent-chosen key set (task-0102)
+        for gate in ("gate", "trace-check", "preload"):
+            p = subprocess.run(["sh", str(SCRIPT), str(ROOT), str(inst), gate], capture_output=True, text=True,
+                               env={"PATH": "/usr/bin:/bin", "KG_SUBJECT": str(inst), "KG_TASK": "keys"})
+            assert p.returncode == 2 and "KG_TASK=keys is an agent-chosen key set" in p.stderr, (gate, p.stderr)
 
 
 def test_the_pre_load_gate_writes_its_report_through_kg_report():

@@ -80,6 +80,8 @@ def test_cannot_tell_blocks_fail_closed():
         for raw in ["", "not json", "[]", json.dumps({"tool_name": "Edit", "tool_input": {}})]:
             p = _hook(check, raw=raw)
             assert p.returncode == 2 and "unavailable (exit 2)" in p.stderr and "Fail-closed" in p.stderr, (check, raw)
+            # its own route, not the gate's (task-0102: no store, subject or scenario is involved here)
+            assert pp.UNAVAILABLE_ROUTE in p.stderr and "the store reachable" not in p.stderr, (check, raw)
     p = _hook("nonsense", _ev("Edit", "README.md"))
     assert p.returncode == 2 and "usage" in p.stderr
 

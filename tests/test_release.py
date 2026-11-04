@@ -11,8 +11,12 @@ ROOT = Path(__file__).resolve().parent.parent
 def test_version_and_changelog_agree():
     v = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     assert re.fullmatch(r"\d+\.\d+\.\d+", v), v
-    top = next(ln for ln in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines() if ln.startswith("## "))
+    heads = [ln for ln in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines() if ln.startswith("## ")]
+    # between releases an "## Unreleased" section may lead; the release PR renames it, and release.yml
+    # holds the tag's top section to the version with no such section
+    top = heads[1] if heads[0] == "## Unreleased" else heads[0]
     assert top.startswith(f"## {v} — "), top
+    assert "## Unreleased" not in heads[1:], "one Unreleased section, on top"
 
 
 def test_the_release_workflow_tags_the_image_and_checks_the_version():
