@@ -131,6 +131,19 @@ Releases (decision-0003): SemVer, `VERSION` and `CHANGELOG.md` move together in 
 (a test holds them equal); a contract change raises the minor version while 0.x. A hosted
 session cannot push a tag: the owner publishes the GitHub Release on the release PR's merge
 commit, typing the tag as new, and the tag's `release.yml` publishes `ghcr.io/fdurieux/knowgov:<tag>`.
+The session that prepares a release PR also hands the owner, in its reply, the Release's title and
+Markdown description, ready to paste, as part of the release. The title is one line, `knowgov X.Y.Z — <what moved>`.
+The description is in the adopter register (the README's reader, not this file's). It covers:
+- what the release does, in one paragraph;
+- a highlights list;
+- the contract changes that set the version;
+- the `docker pull` line for the image;
+- a table of what it carries (pumllint, the register tag, the record's pins);
+- the known limits;
+- a link to the tag's `CHANGELOG.md`.
+The description restates the changelog's top section and never adds a claim it lacks. A step that
+waits on the published image, such as the compose pin's digest, is named as a follow-up after the
+Release.
 
 ## Boundaries
 
