@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-04T00:44:00Z'
-updated_date: '2026-11-04T02:27:00Z'
+updated_date: '2026-11-04T02:56:00Z'
 labels:
   - ci
 milestone: m-6
@@ -44,4 +44,6 @@ The Turtle round trip (task-0070) added about 7 minutes to stack and the lightho
 Lighthouse (task-0069, #124) landed during #133's run: its step took 291 s and passed only because the composite action's setup writes KG_TODAY to GITHUB_ENV earlier in the job. Follow-up PR: lighthouse_evidence pins each child to its subject's record date, takes --only SUBJECT=IDS, the rdflib job passes the J-F subset; tests/test_clock.py now scans every tool, not only check_*.
 
 Measured on pull-request heads. stack: 12.5 min before, 7.7 min (#133) and 8.0 min (#134) after. rdflib: 16.4 min before (982 s, without the rehearsal). After: 14.0 min on #133's head, with the rehearsal still full at 291 s. #134's head took 16.8 min with the rehearsal on the subset at 193 s, but every step ran about 1.5x slower there than on #133's runner (round trip 117 -> 182 s, J-F record comparison 80 -> 135 s, both unchanged). Scaled to #133's runner it is about 11 min. The 12-minute budget holds for stack. It holds for rdflib only at #133's runner speed, so AC #1 stays unchecked until a typical run shows it. The remaining time is CargoQuote's full round trip, MCP and rehearsal, plus the full J-F record comparison and oracle.
+
+Medians, as the coordinator asked. Three post-#134 PR rdflib runs: 1161 s (#136), 1095 s (task-0085), 646 s (task-0079); median 1095 s = 18.3 min, over budget. Their largest steps: lighthouse 221/197/109 s, round trip 197/209/99 s, MCP 185/165/141 s, J-F comparison 134/124/67 s, oracle 80/80/46 s, pip about 20 s (so no cache). The 646 s run is uncontended; the others shared the runners with four or five PRs. Per the coordinator: CargoQuote's MCP and lighthouse steps take a PR subset, KG_CQ_SCENARIOS=S1,S2,S6 (S6 keeps the later version); its comparator and round trip never do. Locally on rdflib: MCP 33 s, lighthouse 138 s (both subjects on their subsets).
 <!-- SECTION:NOTES:END -->

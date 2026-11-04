@@ -11,7 +11,9 @@ name: harness
 # QUALIFIED). Its six scenarios cost about the same each, so the subset is a third of the time.
 # The full set runs on every push to main, nightly (03:17 UTC) and on a manual dispatch, so no
 # scenario goes unproven; a release is cut from main, which the full set has proven. The J-F
-# record comparison and its oracle run in full on every event.
+# record comparison and its oracle run in full on every event. CargoQuote's MCP and lighthouse
+# steps run KG_CQ_SCENARIOS = S1,S2,S6 on a pull request (here only; the median of three PR runs
+# after the J-F subset was 18 min); its comparator and round trip, the scored record, always run whole.
 
 on:
   pull_request:
@@ -33,6 +35,9 @@ jobs:
       KG_CLOCK: pinned
       # task-0084: the J-F subset on a pull request, empty (every scenario) on any other event
       KG_JF_SCENARIOS: ${{ github.event_name == 'pull_request' && 'C,D3' || '' }}
+      # CargoQuote's non-record steps (MCP, lighthouse) on a pull request: S1, S2 and S6 (S6 carries the
+      # later version); its comparator and round trip always run whole, being the scored record
+      KG_CQ_SCENARIOS: ${{ github.event_name == 'pull_request' && 'S1,S2,S6' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@v6
@@ -307,14 +312,14 @@ jobs:
         run: KG_STORE=rdflib python tools/check_review_walkthrough.py runs/review
       - name: The MCP server (task-0056) gives gate_cli's report for the same store, the record's three-valued answers, and writes nothing
         run: |
-          KG_STORE=rdflib python tools/check_mcp_server.py
+          KG_STORE=rdflib python tools/check_mcp_server.py ${KG_CQ_SCENARIOS:+--scenarios "$KG_CQ_SCENARIOS"}
           KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_mcp_server.py ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
       - name: A person's statement against the documents' (task-0038), on S2 a contradiction raises a conflict, an agreement corroborates and raises nothing
         run: KG_STORE=rdflib python tools/check_capture_pairing.py runs/pairing
       - name: The lighthouse protocol's public evidence (task-0069), CargoQuote from the example instance and the J-F kit (the subset on a pull request), every item agreeing with the record
         run: |
           rm -rf runs/lighthouse
-          KG_STORE=rdflib python tools/lighthouse_evidence.py runs/lighthouse ${KG_JF_SCENARIOS:+--only "jef_data_load=$KG_JF_SCENARIOS"}
+          KG_STORE=rdflib python tools/lighthouse_evidence.py runs/lighthouse ${KG_JF_SCENARIOS:+--only "jef_data_load=$KG_JF_SCENARIOS"} ${KG_CQ_SCENARIOS:+--only "cargo_quote=$KG_CQ_SCENARIOS"}
       - name: Route (c), a transcript read by a stub model (task-0041), gives inferred candidates on S2's empty keys only, listed in the questionnaire; no key, exit 2
         run: KG_STORE=rdflib python tools/check_transcript_route.py runs/transcript
       - name: The store survives a round trip (task-0070), every CargoQuote scenario and J-F's (the subset on a pull request) through Turtle into a fresh store, the same gate reports and three-valued answers
