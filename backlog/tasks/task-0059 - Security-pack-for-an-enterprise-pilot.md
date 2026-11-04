@@ -1,7 +1,7 @@
 ---
 id: TASK-0059
 title: Security pack for an enterprise pilot
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-03T22:49:00Z'
@@ -50,3 +50,9 @@ A regulated organisation's procurement asks for a security description before a 
 <!-- SECTION:NOTES:BEGIN -->
 Found and stated as gaps, not fixed (stack paths; proposed under NEXT): the page, Neo4j Browser and bolt are published on every interface, the page has no login and can start a run (POST /api/run) that calls the model; Neo4j's default password kgpoc2026; the gives role is never checked (capture.check_answers checks issued/withdrawn only); no Dependabot/Renovate; python:3.12-slim, neo4j:5.26-community, knowgov:latest and actions/setup-python@v6, setup-node@v6 pinned by tag only. Corrected the brief's premise: the store holds excerpts (fragment text) and statement values, not whole documents; the doc says so. The arms send whole documents (baseline) and bundles with named documents verbatim (governed); the transcript route sends the transcript and keeps only its digest. Local: run_tests.py 268/268 plain and with KG_SUBJECT=subjects/jef_data_load.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+docs/security.md is the security description a procurement reviewer reads: data flows with enforcing files and evidence, egress per model-endpoint setting (none without a key or with a private endpoint), pins and how they move, and the permission matrix (model, agent over MCP, pipeline, person by role, register approver, plus anyone reaching the page; nobody executes a business action). SECURITY.md gives private vulnerability reporting. tests/test_security.py (10 tests, stdlib) holds every citation to a real test, adds the holds that were missing, and fails when a named gap is fixed until the document follows. Five gaps stated plainly rather than claimed: ports on every interface with no page login and a default Neo4j password; gives unchecked; no automated dependency updates; tag-only pins on three images and two actions; the store holds excerpts. Verified: 268/268 on both subjects.
+<!-- SECTION:FINAL_SUMMARY:END -->
