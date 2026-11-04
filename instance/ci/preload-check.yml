@@ -46,11 +46,11 @@ jobs:
           repository: fdurieux/knowgov
           ref: ${{ env.KNOWGOV_REF }}
           path: knowgov
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
       - run: pip install "pumllint==${PUMLLINT}"
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"   # bpmnlint 12 and dmnlint 2 need Node 24
       - run: npm install -g "@stoplight/spectral-cli@${SPECTRAL}"

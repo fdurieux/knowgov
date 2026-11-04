@@ -749,6 +749,22 @@ Optionally choose a database password other than the default
 export KG_NEO4J_PASSWORD=choose-a-password
 ```
 
+**What changed in the bind (task-0090).** The stack now publishes the page (8080), Neo4j Browser
+(7474) and bolt (7687) on `127.0.0.1` only, so they answer on this machine and nowhere else. On a
+laptop nothing changes: `http://localhost:8080` works as before. To reach them from other machines,
+set `KG_BIND` to the address to publish on (`0.0.0.0` for every interface, or one of the host's
+addresses) and choose a password: with a wider bind the stack refuses to start while the Neo4j
+password is the default, and `docker compose logs neo4j` says why. Neo4j takes its password when
+its data volume is first created, so if the stack ran before with the default, run
+`docker compose down -v` once before starting with the new password.
+
+```bash
+export KG_NEO4J_PASSWORD=choose-a-password KG_BIND=0.0.0.0
+```
+
+The page has no login, and anyone who reaches it can start a run, so widen the bind only behind a
+firewall that admits the people who should see it.
+
 **3. Clone and start the stack.** Paste the whole block at once. It
 checks the tools and says what to install if one is missing, clones the
 repository into your home folder (or updates it if it is already there),
@@ -836,8 +852,8 @@ alias knowgov='git -C "$HOME/knowgov" pull --ff-only && docker compose --project
 
 Two cautions. Never commit the key or put it in a `.env` file you might
 push. And if you ever run this on a server (see the EC2 route below),
-restrict the firewall to your own address on ports 8080, 7474 and 7687:
-the demo page has no login, and 7474 is a live database console.
+`KG_BIND` must widen the bind for you to reach it at all; restrict the firewall to your own
+address on ports 8080, 7474 and 7687: the demo page has no login, and 7474 is a live database console.
 
 ### What the start block does, in plain English
 
@@ -854,10 +870,14 @@ two addresses, and open the demo.
 
 ## Start it elsewhere
 
-**Another laptop, without building.** The compose file names the image
-the repository publishes on every merge, `ghcr.io/fdurieux/knowgov:latest`
-(also tagged with the commit's short SHA). From the `demo`
-directory of a checkout:
+**Another laptop, without building.** The compose file names a released
+image, `ghcr.io/fdurieux/knowgov:<version>`, pinned by its digest
+(task-0092); the repository also publishes every merge as `:latest` and
+as the commit's short SHA, which you can name in its place. So the two
+ways to start differ: `docker compose up --build` in this directory builds
+the checkout you have (main, or whatever you checked out), while a plain
+pull with `-f docker-compose.yml` runs the named release. Each release
+moves the pin. From the `demo` directory of a checkout:
 
 ```bash
 docker compose -f docker-compose.yml pull
@@ -877,7 +897,8 @@ package public. Demo runs then live in a Docker volume named
 **An EC2 instance.** A `t3.medium` (two vCPUs, 4 GB) is enough: Neo4j is
 configured for 1 GB of heap and 512 MB of page cache, the app needs little.
 Use an Ubuntu image with Docker installed, clone the repository, and start
-the stack as above with `KG_BROWSER_URL=http://<the instance's public address>:7474`
+the stack as above with `KG_BIND=0.0.0.0`, a `KG_NEO4J_PASSWORD` of your own (the stack refuses
+the default on a wider bind), and `KG_BROWSER_URL=http://<the instance's public address>:7474`
 exported so the demo's "Open Neo4j Browser" link and the impact panel's
 Browser links point at the instance rather than at your own machine, and
 `KG_DEMO_HOST=<the instance's public address>` so the Browser is allowed

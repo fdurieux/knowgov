@@ -1,0 +1,17 @@
+# The image's Python pins (demo/Dockerfile), listed here so Dependabot's pip entry can see them
+# (task-0092). This file installs nothing: the Dockerfile and harness.yml carry the pins, and
+# tests/test_pins.py holds the three equal, so an update proposed here stays red until the pin
+# moves in all of them. The pins are the record's environment (pumllint's evaluation §12, the
+# J-F kit's contracts/pins.md): moving one is the maintainer's decision, and the comparator must pass.
+pumllint==0.33.0
+neo4j==6.4.1
+pyyaml==6.0.3
+rdflib==7.6.0
+pyshacl==0.40.2
+openai==3.41.0
+pandas==3.0.5
+numpy==2.4.6
+requests==2.34.2
+pyarrow==25.0.1
+pytest==9.1.1
+pytest-bdd==9.0.1

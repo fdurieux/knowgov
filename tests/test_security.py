@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 DOC = ROOT / "docs" / "security.md"
 sys.path.insert(0, str(ROOT / "harness"))
 
+from tests import test_pins  # noqa: E402  (task-0092: the pins the closed gap named)
+
 CITE = re.compile(r"`(tests/test_\w+\.py)::(test_\w+)`")
 ACTORS = ["The model", "An agent over MCP", "The pipeline", "A person by role", "The register approver",
           "Anyone who reaches the page's port"]
@@ -161,30 +163,27 @@ def test_the_gaps_named_here_are_still_the_codes():
     text = _text()
     gaps = text[text.index("<!-- gaps: begin -->"):text.index("<!-- gaps: end -->")]
     compose = (ROOT / "demo" / "docker-compose.yml").read_text(encoding="utf-8")
-    # 1. the published ports carry no host address, and the page binds every interface with no login
-    unbound = all(f'"${{{v}:-{p}}}:{p}"' in compose for v, p in (("KG_PORT_APP", 8080), ("KG_PORT_BROWSER", 7474), ("KG_PORT_BOLT", 7687)))
+    # 1. every published port carries the host address KG_BIND, 127.0.0.1 unless widened (task-0090);
+    # the guard refuses the default password on a wider bind; the page still has no login
+    ports = [l.strip() for f in sorted((ROOT / "demo").glob("docker-compose*.yml"))
+             for b in re.findall(r"\n    ports:\n((?:      - .*\n)+)", f.read_text(encoding="utf-8")) for l in b.splitlines()]
+    unbound = not ports or not all(l.startswith('- "${KG_BIND:-127.0.0.1}:') for l in ports)
+    guarded = "/knowgov/bind-guard.sh" in compose and "neo4j/kgpoc2026" in (ROOT / "demo" / "neo4j" / "bind-guard.sh").read_text(encoding="utf-8")
     server = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
     assert unbound == ("listen on every interface" in gaps)
+    assert guarded == ("the stack refuses to start until `KG_NEO4J_PASSWORD` is set" in gaps)
     assert ('ThreadingHTTPServer(("0.0.0.0"' in server) == ("The page has no login" in gaps)
     assert ("kgpoc2026" in compose) == ("kgpoc2026" in gaps)
     # 2. no harness module checks the gives role
     checks_gives = any(re.search(r"[\"']gives[\"']", p.read_text(encoding="utf-8")) for p in (ROOT / "harness").glob("*.py"))
     assert (not checks_gives) == ("**The `gives` role is not checked.**" in gaps)
-    # 3. no automated dependency updates
-    bot = (ROOT / ".github" / "dependabot.yml").exists() or (ROOT / ".github" / "dependabot.yaml").exists() or (ROOT / "renovate.json").exists()
-    assert (not bot) == ("**No automated dependency updates.**" in gaps)
-    # 4. what is pinned by tag only is exactly what the gap names
-    by_tag = set()
-    for path in list((ROOT / ".github" / "workflows").glob("*.yml")) + [ROOT / "instance" / "ci" / "preload-check.yml"]:
-        for ref in re.findall(r"uses:\s*([\w.-]+/[\w./-]+@[\w.-]+)", path.read_text(encoding="utf-8")):
-            if not re.fullmatch(r".*@[0-9a-f]{40}", ref):
-                by_tag.add(ref)
-    images = set(re.findall(r"^FROM (\S+)", (ROOT / "demo" / "Dockerfile").read_text(encoding="utf-8"), re.M))
-    images |= {i for i in re.findall(r"image:\s*(\S+)", compose) if "@sha256:" not in i}
-    for ref in by_tag | images:
-        assert f"`{ref}`" in gaps, ref
-    assert "Three images and two actions" in gaps and len(images) == 3 and len(by_tag) == 2, (images, by_tag)
-    # 5. excerpts are stored (held above): the gap stays named while create_fragment takes text
+    # closed by task-0092: Dependabot runs, and nothing is pinned by tag only (tests/test_pins.py holds the pins)
+    bot = (ROOT / ".github" / "dependabot.yml").exists()
+    assert bot and "No automated dependency updates" not in gaps
+    by_tag = [u for _, u in test_pins._uses() if not test_pins.SHA.fullmatch(u)]
+    by_tag += [r for _, r in test_pins._images() if not test_pins.DIGEST.fullmatch(r)]
+    assert not by_tag and "pinned by tag only" not in gaps, by_tag
+    # 3. excerpts are stored (held above): the gap stays named while create_fragment takes text
     assert "**The store holds excerpts.**" in gaps
 
 

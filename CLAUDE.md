@@ -116,7 +116,9 @@ up-to-date branch. So: a PR whose diff touches `stack`'s paths (`demo/`, `harnes
 then; any other PR gets auto-merge when it opens. A PR that must wait (a proposed decision, an
 ordering) gets none. A `stack` red on `main` after a merge is fixed at once.
 
-CI budget (task-0084): a pull request's `rdflib` and `stack` each within 12 minutes. On a pull
+CI budget (task-0084): a pull request's `rdflib` and `stack` each within 12 minutes on an
+uncontended runner; under parallel load the job may run longer, and the record is never subset to
+meet it. On a pull
 request the J-F round trip, MCP and lighthouse steps run the named subset `KG_JF_SCENARIOS=C,D3` (the kit as
 committed and every layer consistently wrong); the full J-F set runs on every push to `main`,
 nightly at 03:17 UTC and on a `workflow_dispatch` of `harness.yml` or `demo.yml`, so a red full run

@@ -232,14 +232,14 @@ def test_the_mcp_server_adds_no_dependency_to_the_image():
 def test_compose_files_agree():
     compose = (DEMO / "docker-compose.yml").read_text(encoding="utf-8")
     override = (DEMO / "docker-compose.override.yml").read_text(encoding="utf-8")
-    assert "image: ghcr.io/fdurieux/knowgov:latest" in compose
+    assert re.search(r"image: ghcr\.io/fdurieux/knowgov:v\d+\.\d+\.\d+@sha256:[0-9a-f]{64}", compose), "the app image is a release, pinned by digest (task-0092)"
     assert "neo4j:5.26-community" in compose and "condition: service_healthy" in compose
     assert "OPENAI_API_KEY: ${OPENAI_API_KEY:-}" in compose, "the key is passed through, never baked in"
     assert "KG_REGISTER: ${KG_REGISTER:-/repo/demo/register}" in compose, "one register per organisation: the root is configuration"
     # task-0031: the three published ports are variables with today's defaults, so a second stack for
     # another subject runs beside the default one under its own project name; the README shows it
     for var, port in (("KG_PORT_APP", 8080), ("KG_PORT_BROWSER", 7474), ("KG_PORT_BOLT", 7687)):
-        assert f'"${{{var}:-{port}}}:{port}"' in compose, var
+        assert f'${{{var}:-{port}}}:{port}"' in compose, var
     readme = (DEMO / "README.md").read_text(encoding="utf-8")
     assert "docker compose -p knowgov-jef up" in readme and "KG_PORT_APP=8081" in readme and "KG_BROWSER_URL=http://localhost:7475" in readme
     instance = (DEMO / "docker-compose.instance.yml").read_text(encoding="utf-8")
@@ -249,6 +249,41 @@ def test_compose_files_agree():
     assert "ghcr.io/fdurieux/knowgov:${{ steps.sha.outputs.short }}" in workflow
     assert "packages: write" in workflow and "compare_deterministic.py" in workflow
 
+
+
+def test_the_ports_bind_loopback_and_a_wider_bind_refuses_the_default_password():
+    """Task-0090: every port a compose file publishes carries the host address ${KG_BIND:-127.0.0.1},
+    and Neo4j starts through the guard, which refuses a wider bind while the password is the default
+    and otherwise hands over to the image's own entrypoint."""
+    import subprocess
+    for path in sorted(DEMO.glob("docker-compose*.yml")):
+        text = path.read_text(encoding="utf-8")
+        for block in re.findall(r"\n    ports:\n((?:      - .*\n)+)", text):
+            for line in block.splitlines():
+                assert line.strip().startswith('- "${KG_BIND:-127.0.0.1}:'), (path.name, line)
+    compose = (DEMO / "docker-compose.yml").read_text(encoding="utf-8")
+    neo4j = compose.split("\n  neo4j:\n", 1)[1].split("\n  app:\n", 1)[0]
+    assert '"/bin/sh", "/knowgov/bind-guard.sh", "tini", "-g", "--", "/startup/docker-entrypoint.sh"' in neo4j
+    assert 'command: ["neo4j"]' in neo4j and "./neo4j/bind-guard.sh:/knowgov/bind-guard.sh:ro" in neo4j
+    assert "KG_BIND: ${KG_BIND:-127.0.0.1}" in neo4j
+    guard = DEMO / "neo4j" / "bind-guard.sh"
+
+    def run(bind, auth):
+        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "NEO4J_AUTH": auth}
+        if bind is not None:
+            env["KG_BIND"] = bind
+        return subprocess.run(["sh", str(guard), "echo", "started"], env=env, capture_output=True, text=True)
+
+    for bind in (None, "127.0.0.1", "localhost", "[::1]"):
+        r = run(bind, "neo4j/kgpoc2026")
+        assert r.returncode == 0 and r.stdout.strip() == "started", (bind, r.stderr)
+    for bind in ("0.0.0.0", "[::]", "192.0.2.10"):
+        r = run(bind, "neo4j/kgpoc2026")
+        assert r.returncode == 78 and "started" not in r.stdout and "KG_NEO4J_PASSWORD" in r.stderr, (bind, r)
+        r = run(bind, "neo4j/example-not-the-default")
+        assert r.returncode == 0 and r.stdout.strip() == "started", (bind, r.stderr)
+    readme = (DEMO / "README.md").read_text(encoding="utf-8")
+    assert "KG_BIND=0.0.0.0" in readme and "127.0.0.1" in readme
 
 def test_readme_paste_block_is_zsh_safe():
     text = (DEMO / "README.md").read_text(encoding="utf-8")

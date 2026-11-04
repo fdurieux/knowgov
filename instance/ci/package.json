@@ -1,0 +1,12 @@
+{
+  "name": "knowgov-preload-linters",
+  "private": true,
+  "description": "The pre-load linters' pins (preload-check.yml's env, harness.yml's installs), listed so Dependabot's npm entry can see them (task-0092). Nothing installs from this file; tests/test_pins.py holds it equal to both.",
+  "dependencies": {
+    "@stoplight/spectral-cli": "6.17.0",
+    "bpmnlint": "12.0.0",
+    "dmnlint": "2.0.0",
+    "gplint": "2.6.0",
+    "markdownlint-cli2": "0.24.0"
+  }
+}

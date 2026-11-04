@@ -74,6 +74,7 @@ machines, under the same access controls as the documents, and delete them when 
 | With a key, the transcript route sends the transcript's text and the keys asked about; without one it exits 2 | `KG_MODEL_BASE_URL` | `harness/transcript.py` | `tests/test_transcript.py::test_with_no_model_key_it_refuses_with_exit_2` |
 | The key is passed through the environment, never written into the image or the models table; the page names the variable, never the key | — | `demo/docker-compose.yml`, `demo/models.toml` | `tests/test_demo.py::test_compose_files_agree`, `tests/test_demo.py::test_models_table_rows_resolve_to_the_harness_variables_and_never_carry_a_key`, `tests/test_arms.py::test_the_page_names_the_endpoint_and_the_key_variable_never_the_key` |
 | No module of the harness, the page or the tools opens any other outbound connection: the model client and the Neo4j driver are the only clients (apart from one stack-job check, `demo/tools/check_impact_cypher.py`, which asks the local page), and the page loads no script or style from elsewhere | — | the imports of `harness/`, `demo/app/`, `tools/` | `tests/test_security.py::test_nothing_reaches_the_network_but_the_model_client_and_the_store_driver` |
+| The page, Neo4j Browser and bolt are published on `127.0.0.1` unless `KG_BIND` widens the bind; on a wider bind the stack refuses to start while the Neo4j password is the default | this machine only, by default | `demo/docker-compose.yml` (`${KG_BIND:-127.0.0.1}` on every published port), `demo/neo4j/bind-guard.sh` | `tests/test_demo.py::test_the_ports_bind_loopback_and_a_wider_bind_refuses_the_default_password`; CI: `demo.yml` reaches the stack on `localhost` from the runner |
 | The MCP server listens on 127.0.0.1 by default, refuses a wider bind without `KG_MCP_TOKEN`, then asks every request for that token, and refuses a request from a non-local web origin | the assistant's process on the same machine (stdio), or a client on the network holding the token | `harness/mcp_server.py` `bind_check`, `Handler._guard` | `tests/test_mcp_server.py::test_it_binds_localhost_unless_told_and_a_wider_bind_needs_a_token`, `tests/test_mcp_server.py::test_http_with_a_token_refuses_a_request_without_it`, `tests/test_mcp_server.py::test_http_answers_on_mcp_refuses_a_foreign_origin_and_pushes_nothing` |
 | The MCP server answers with the gate's verdict, the three-valued answer and the evidence bundle. The bundle carries excerpts, so whoever holds the token reads them | the MCP client | `harness/mcp_server.py` `TOOLS` | `tests/test_mcp_server.py::test_four_tools_every_one_marked_read_only` |
 | People appear as opaque handles issued by the register, never as names or e-mail addresses | the store, the capture and review files | `harness/capture.py` (handle pattern, issued list), `harness/review.py` `check` (ieam-register decision 0009) | `tests/test_capture.py::test_a_name_a_future_date_a_contradiction_or_nothing_answered_is_refused`, `tests/test_capture.py::test_ingest_refuses_a_handle_the_register_has_not_issued_by_the_answers_date`, `tests/test_capture.py::test_ingest_refuses_a_handle_without_gives`, `tests/test_review.py::test_refused_the_giver_a_handle_without_approves_a_name_and_a_future_date` |
@@ -110,16 +111,26 @@ pre-load check never call a model. A pilot can run with no key at all.
 | The pre-load linters (Spectral 6.17.0, markdownlint-cli2 0.24.0, gplint 2.6.0, bpmnlint 12.0.0, dmnlint 2.0.0, pumllint 0.33.0) | `instance/ci/preload-check.yml`, `.github/workflows/harness.yml` | exact versions, the same in both | `tests/test_preload.py::test_every_runner_names_the_tool_its_kind_names_and_the_ci_template_runs_the_script` |
 | The LiteLLM gateway image | `demo/docker-compose.yml` | tag and SHA-256 digest | `tests/test_demo.py::test_the_claude_row_goes_through_a_pinned_gateway_started_only_by_its_profile` |
 | The vendored register, the Legible model and the subjects' bytes | `demo/register/SOURCE.md`, `demo/model/SOURCE.md`, each subject's `vendor/SOURCE.md` | an upstream tag and a digest per file | `tests/test_demo.py::test_vendored_register_matches_its_source_note_and_checks_clean`, `tests/test_demo.py::test_vendored_model_matches_its_source_note`, `tests/test_vendor_subject.py::test_every_vendored_subject_matches_its_note` |
-| GitHub Actions | `.github/workflows/`, `instance/ci/preload-check.yml` | by commit SHA, except the two named under Gaps | `tests/test_security.py::test_the_gaps_named_here_are_still_the_codes` |
-| The base images `python:3.12-slim` and `neo4j:5.26-community`, and the app image `ghcr.io/fdurieux/knowgov:latest` in `demo/docker-compose.yml` | `demo/Dockerfile`, `demo/docker-compose.yml` | by tag only | `tests/test_security.py::test_the_gaps_named_here_are_still_the_codes`; **Practice:** an instance pins the app image to a release tag (`ghcr.io/fdurieux/knowgov:<tag>`) |
+| GitHub Actions | `.github/workflows/`, `instance/ci/preload-check.yml` | by full commit SHA, the version in a comment, one SHA per action across every file | `tests/test_pins.py::test_every_remote_action_is_pinned_by_commit_sha_with_its_version`, `tests/test_pins.py::test_each_action_and_image_has_one_pin_everywhere` |
+| The images: the base `python:3.12-slim`, `neo4j:5.26-community`, the app image (a release, `ghcr.io/fdurieux/knowgov:v0.1.0`), the LiteLLM gateway, and the GitLab template's `python:3.12` | `demo/Dockerfile`, `demo/docker-compose.yml`, `instance/ci/gitlab/knowgov.gitlab-ci.yml` | tag and SHA-256 index digest (`name:tag@sha256:…`) | `tests/test_pins.py::test_every_image_is_pinned_by_digest_with_its_tag`; **Practice:** an instance names the release it runs, as the compose file does |
+| What Dependabot reads: the image's Python pins in `demo/requirements.txt`, the linters' in `instance/ci/package.json` | the two watch-lists; nothing installs from them | equal to the pins that install | `tests/test_pins.py::test_the_pip_watch_list_is_the_images_pins`, `tests/test_pins.py::test_the_npm_watch_list_is_the_linters_pins` |
 
-**How the pins are kept current.** Pins move by hand, in a pull request, on the maintainer's
-decision. The image's Python pins are the versions the proof of concept's record names, so moving
-one is a change to the record's environment, and the comparator in the `stack` job must still pass.
-A pin that moves in one place and not in the other fails the tests above. The vendored copies move
-only through `tools/vendor_register.py`, `tools/vendor_legible_model.py` and
-`tools/vendor_subject.py`, at an upstream tag. Each release (decision-0003) lists what moved in
-`CHANGELOG.md`. No automated dependency update runs today: see Gaps.
+**How the pins are kept current.** Dependabot (`.github/dependabot.yml`) proposes updates weekly
+for pip, npm, Docker, Docker Compose and GitHub Actions (`tests/test_pins.py::test_dependabot_watches_the_four_ecosystems_weekly`).
+The pins are of two kinds. **Tool pins** (the actions, the pre-load linters, the images and
+pyyaml) move through these proposals: each is a pull request, merged as a pin change under the
+tests above on a green matrix. A proposal moves one file: the watch-list, the Dockerfile, the
+compose file or `.github/workflows/`. Where the same pin is in other files, the tests stay red
+until a commit moves it there too (the CI template's actions, the template's and `harness.yml`'s
+linters). **Record pins** (pumllint, neo4j, rdflib, pyshacl, openai, and the J-F oracle's pandas,
+numpy, requests, pyarrow, pytest, pytest-bdd) are the versions the scored record and the J-F kit's
+oracle name. They are frozen on purpose: Dependabot ignores them
+(`tests/test_pins.py::test_dependabot_ignores_the_record_pins`), they are watched by hand, and one
+moves only by a deliberate re-record, the comparator in the `stack` job and the oracle's 258 of 258
+still passing. A routine bump can break the record (pytest 9.2.0 breaks pytest-bdd 9.0.x). The compose file's app image is a release: each release moves
+it, and a merge to main does not. The vendored copies move only through `tools/vendor_register.py`,
+`tools/vendor_legible_model.py` and `tools/vendor_subject.py`, at an upstream tag. Each release
+(decision-0003) lists what moved in `CHANGELOG.md`.
 
 **Reporting a vulnerability:** privately, as [`SECURITY.md`](../SECURITY.md) says.
 
@@ -145,7 +156,7 @@ can reach the page.
 | The pipeline (load, `gate_cli`, knowgov-trace) | yes | yes: extracted and authored statements at `proposed`; trace records derived outputs | no | no | no | no |
 | A person by role (decision-0002) | yes | yes, with `gives`, under an issued handle in date | with `approves`, in the owning unit, never their own answer | with `closes`, as the gap's owner | no | no |
 | The register approver | yes | in ieam-register, not here | the register's own changes, upstream | no | yes, upstream in ieam-register; here only by re-vendoring a tag | no |
-| Anyone who reaches the page's port | yes | no | no | no | no | no; but may start a run (see Gaps) |
+| Anyone who reaches the page's port (this machine only, unless `KG_BIND` widens it) | yes | no | no | no | no | no; but may start a run (see Gaps) |
 <!-- permission matrix: end -->
 
 "Execute a business action: none." knowgov reads documents and answers. It has no connector to
@@ -179,24 +190,15 @@ Each gap is stated so that nobody reads the tables above as claiming more than t
 so this list is updated with the fix.
 
 <!-- gaps: begin -->
-1. **The page and Neo4j listen on every interface.** `demo/docker-compose.yml` publishes the page
-   (8080), Neo4j Browser (7474) and bolt (7687) without a host address, so they listen on every
-   interface of the host. The page has no login. Anyone who reaches it reads everything it shows,
-   and can start a run (`POST /api/run`): the run reloads the store and, with a key set, calls the
-   model at the organisation's cost. Neo4j's password defaults to `kgpoc2026`. **Practice until
-   fixed:** run the stack on a machine only its users reach, or behind a firewall, and set
-   `KG_NEO4J_PASSWORD`. Proposed fix: publish the three ports on `127.0.0.1` by default, with a
-   variable to widen them, and refuse to start with the default password once the bind is wider.
-2. **No automated dependency updates.** No Dependabot or Renovate configuration exists, so a
-   vulnerable pin is found only when someone looks. Proposed fix: `.github/dependabot.yml` for
-   pip, npm, Docker and GitHub Actions, with each update merged as a pin change under the tests
-   above.
-3. **Three images and two actions are pinned by tag only.** `python:3.12-slim`,
-   `neo4j:5.26-community` and the app image `ghcr.io/fdurieux/knowgov:latest` in
-   `demo/docker-compose.yml`; `actions/setup-python@v6` and `actions/setup-node@v6`. A tag can move.
-   Proposed fix: pin each by digest or commit SHA with the version in a comment, as the other
-   actions and the LiteLLM image already are.
-4. **The store holds excerpts.** "Status and provenance, never content" is true of whole documents
+1. **The page has no login.** The compose stack publishes the page (8080), Neo4j Browser (7474)
+   and bolt (7687) on `127.0.0.1` only, unless `KG_BIND` names a wider address (task-0090). Anyone
+   who reaches the page reads everything it shows, and can start a run (`POST /api/run`): the run
+   reloads the store and, with a key set, calls the model at the organisation's cost. On the
+   default bind Neo4j's password may stay `kgpoc2026`, so every local user of the host reaches the
+   store; on a wider bind the stack refuses to start until `KG_NEO4J_PASSWORD` is set. **Practice:**
+   widen the bind only behind a firewall, or a reverse proxy that authenticates, that admits the
+   people who should read the page, and set `KG_NEO4J_PASSWORD` on any host with other users.
+2. **The store holds excerpts.** "Status and provenance, never content" is true of whole documents
    only: fragments, statement values and their one-line texts are stored (see What is stored). This
    is by design, since the gate's evidence is the excerpt. An adopter must protect the store as they
    protect the documents.
@@ -211,8 +213,8 @@ enforce it:
   `runs/` or its keys to this repository.
 - Keep the store, its volume, `KG_RDFLIB_FILE` and `runs/` under the same access controls as the
   documents.
-- Expose the page, Neo4j Browser and bolt only to the people who should read them, and set
-  `KG_NEO4J_PASSWORD` (Gap 1).
+- Leave `KG_BIND` unset unless other machines must reach the page; when it is widened, admit only
+  the people who should read the page, and set `KG_NEO4J_PASSWORD` on any shared host (Gap 1).
 - Issue opaque handles, and keep names and identifying details out of answers' notes.
 - Leave the model key unset unless the arms or the transcript route are wanted. When they are,
   choose the endpoint with the table above in mind, and confirm where a private endpoint forwards.

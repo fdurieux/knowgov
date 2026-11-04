@@ -40,7 +40,7 @@ jobs:
       KG_CQ_SCENARIOS: ${{ github.event_name == 'pull_request' && 'S1,S2,S6' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"   # the interpreter the demo image and the J-F kit's pins name
       - run: pip install "pumllint==0.33.0" "pyyaml==6.0.3" "rdflib==7.6.0" "pyshacl==0.40.2" "openai==3.41.0" "pandas==3.0.5" "numpy==2.4.6" "requests==2.34.2" "pyarrow==25.0.1" "pytest==9.1.1" "pytest-bdd==9.0.1"
@@ -147,7 +147,7 @@ jobs:
           rc=0; sh instance/ci/preload-check.sh . runs/preload-api HEAD~1 || rc=$?; test "$rc" = 1
           rc=0; python tools/preload_check.py runs/preload-api --since HEAD~1 -f json -o runs/preload-api.json > /dev/null || rc=$?; test "$rc" = 1
           python3 -c 'import sys,json; sys.path.insert(0,"harness"); import schema_check as s; r=json.load(open("runs/preload-api.json")); e=s.validate(r, s.load("preload-report")); assert not e, e; [f]=r["files"]; assert f["tool"]=="Spectral" and f["state"]=="findings" and any(x["rule"]=="invalid-ref" and x["severity"]=="major" for x in f["findings"]), f; print("broken contract:", f["why"])'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"   # bpmnlint 12 and dmnlint 2 need Node 24
       - name: The pre-load check runs markdownlint, gplint, bpmnlint and dmnlint (task-0082), pinned, through the CI template's script, a clean file of each kind exits 0, a planted broken one exits 1
