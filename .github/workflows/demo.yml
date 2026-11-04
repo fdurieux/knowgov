@@ -134,8 +134,10 @@ jobs:
               print(f"{qid}: {n} rows")
           PY
 
-      - name: The impact panel's Browser links carry the walk, for every node of the register
-        run: docker compose exec -T app python demo/tools/check_impact_cypher.py
+      - name: The impact panel's Browser links carry the walk and the statements view's query (task-0078), for every node of the register
+        run: |
+          docker compose exec -T app python demo/tools/check_impact_cypher.py | tee impact-cypher.txt
+          grep -E '^every node agrees: 57 nodes, both forms and the statements view \(17 nodes reach statements\)$' impact-cypher.txt
 
       - name: An empty subject loads and the gate reports every required key absent
         run: |
@@ -236,6 +238,36 @@ jobs:
           rec = json.load(urllib.request.urlopen("http://localhost:8080/api/results/S1?source=record"))
           assert rec["as_of"]["is_record"] and rec["gate"]["lapsed"] == [] and "as of " + rec["as_of"]["record_date"] in [s for s in rec["stages"] if s["id"] == "gate"][0]["lines"], rec["as_of"]
           print(f"S1 as of {v['as_of']['date']}: {v['gate']['verdict']}, {len(lapsed)} reviews on 10 keys lapsed on 2027-08-07 at 12 months; the record as of {rec['as_of']['date']}, none")
+          PY
+
+      - name: S6's stage-2 gates list the lapsed reviews as stage 1's does (task-0086), S6 run through the app as of 2027-09-01
+        run: |
+          curl -fsS -X POST localhost:8080/api/run -H 'Content-Type: application/json' -d '{"scenario":"S6","mode":"deterministic","as_of":"2027-09-01"}' | python3 -c 'import json,sys; r=json.load(sys.stdin); assert "--as-of 2027-09-01" in r["cmd"], r; print(r["cmd"])'
+          for i in $(seq 1 90); do
+            status=$(curl -fsS localhost:8080/api/run | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')
+            [ "$status" != "running" ] && break
+            sleep 2
+          done
+          curl -fsS localhost:8080/api/run | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["status"]=="done", r["log_text"]; print(r["source"]); open("asof_s6_source","w").write(r["source"])'
+          python3 - <<'PY'
+          import json, urllib.parse, urllib.request
+          src = open("asof_s6_source").read().strip()
+          v = json.load(urllib.request.urlopen("http://localhost:8080/api/results/S6?source=" + urllib.parse.quote(src)))
+          assert v["as_of"]["date"] == "2027-09-01" and not v["as_of"]["is_record"], v["as_of"]
+          boxes = {s["id"]: s for s in v["stage2"]["stages"]}
+          for panel in ("gate_before", "gate_after"):
+              lapsed = v["stage2"][panel]["lapsed"]
+              assert len({x["key"] for x in lapsed}) == 10 and all(x["lapsed_on"] == "2027-08-07" and x["months"] == 12 for x in lapsed), (panel, lapsed)
+              lines = boxes[panel]["lines"]
+              assert "as of 2027-09-01" in lines and any(l.endswith("lapsed, on 10 keys") for l in lines), (panel, lines)
+              sec = [x for x in v["details"][panel]["sections"] if x["heading"].startswith("Review currency")][0]
+              cols = sec["table"]["cols"]
+              assert "as of 2027-09-01" in sec["text"] and len(sec["table"]["rows"]) == len(lapsed), (panel, sec)
+              assert {r[cols.index("lapsed on")] for r in sec["table"]["rows"]} == {"2027-08-07"} and {r[cols.index("review months")] for r in sec["table"]["rows"]} == {"12"}, (panel, sec["table"])
+          assert v["stage2"]["gate_after"]["verdict"] == "BLOCKED" and boxes["gate_after"]["colour"] == "bad", (v["stage2"]["gate_after"], boxes["gate_after"]["colour"])
+          rec = json.load(urllib.request.urlopen("http://localhost:8080/api/results/S6?source=record"))
+          assert all(rec["stage2"][p]["lapsed"] == [] for p in ("gate_before", "gate_after")) and rec["stage2"]["gate_after"]["verdict"] == "PROCEED", rec["stage2"]["gate_after"]
+          print(f"S6 as of {v['as_of']['date']}: stage 2 {v['stage2']['gate_before']['verdict']} then {v['stage2']['gate_after']['verdict']}, reviews on 10 keys lapsed on 2027-08-07 in both; the record as of {rec['as_of']['date']}, none")
           PY
 
       - name: The pre-load verdict read at the load (task-0064) on the Neo4j store, the example instance with its report

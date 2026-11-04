@@ -271,6 +271,23 @@ def with_statements(walk: dict, read: dict, needs_text: str) -> dict:
     return walk
 
 
+def with_statements_cypher(walk: dict, text: str, browser: str | None = None, guide: str | None = None) -> dict:
+    """The statements view with its Cypher (task-0078): the saved query register-node-statements from
+    the start, as text to paste, and a Browser link when the server gives one, opening a guide the
+    server serves whose block fills the editor on a click, as the walk's does (task-0025)."""
+    reg_sentences = walk["text_registry"]
+    C = lambda *s: views._reg(reg_sentences, "controlled", *s)  # noqa: E731
+    sec = next(x for x in walk["panel"]["sections"] if x.get("needs") == "register+scenario" and x["heading"] == C("Assertions its cited anchors name"))
+    walk["statements"]["cypher"] = {"text": text, "browser": browser, "guide": guide}
+    item = {"label": C("Rows, one per assertion and cited document"), "text": text}
+    if browser:
+        item["browser"] = browser
+        sec["text"] += " " + C("The Browser link opens a guide beside the editor, connected to the store.",
+                               "A click on the guide's query puts it in the editor; nothing runs until you press play.")
+    sec["code"] = [item]
+    return walk
+
+
 @takes_subject
 def impact_default() -> str:
     """The start the page offers first: this subject's application with the most links out, else
