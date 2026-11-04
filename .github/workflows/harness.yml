@@ -332,4 +332,4 @@ jobs:
       - name: The store survives a round trip (task-0070), every CargoQuote scenario and J-F's (the subset on a pull request) through Turtle into a fresh store, the same gate reports and three-valued answers
         run: |
           KG_STORE=rdflib python tools/check_round_trip.py --chain rdflib,rdflib
-          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_round_trip.py --chain rdflib,rdflib ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
+          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_round_trip.py --chain rdflib,rdflib --expect-parts ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}

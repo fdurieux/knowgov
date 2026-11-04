@@ -25,7 +25,7 @@ from urllib.parse import quote, unquote
 
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
 
-from store import Store
+from store import Store, part_list, part_rows
 
 N = Namespace("urn:kg:n:")        # nodes
 L = Namespace("urn:kg:label:")    # labels
@@ -254,6 +254,16 @@ class RdflibStore(Store):
         act = self.node(aid, "Activity")
         if act is not None:
             self.merge_edge(act, "USED", v)
+
+    def record_part_digests(self, vid, parts) -> None:
+        v = self.node(vid, "Version")
+        if v is not None:
+            self.set_props(v, {"part_sha256": part_list(parts)})
+
+    def part_digests(self) -> list[dict]:
+        out = [p for a in self.nodes("Artefact") for v in self.out(a, "HAS_VERSION")
+               for p in part_rows(self.nid(a), self.prop(v, "tag"), self.prop(v, "part_sha256"))]
+        return sorted(out, key=lambda p: (p["artefact"], p["version"], p["part"]))
 
     def find_fragment(self, artefact, locator, sha) -> str | None:
         for f in self.nodes("Fragment", artefact=artefact, locator=locator, sha256=sha):

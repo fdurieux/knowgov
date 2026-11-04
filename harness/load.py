@@ -12,7 +12,7 @@ import re
 import tomllib
 
 from kitio import FAMILY, sha256, pristine
-from subject import SUBJECT
+from subject import SUBJECT, bundle_parts
 from extract import extract_all, short, NONE
 
 STORE = SUBJECT.store_keys        # artefact keys the store holds; the others are documents for the arms only
@@ -76,6 +76,8 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
             continue
         family, fmt = FAMILY[path]
         st.upsert_artefact_version(path, family, fmt, f"V:{path}:{version_tag}", sha256(text), len(text.encode()), ts, version_tag, aid)
+        if path.endswith("/"):   # a directory artefact: its digest is the bundle's, so each file's is kept too (task-0094)
+            st.record_part_digests(f"V:{path}:{version_tag}", {rel: sha256(part) for rel, part in bundle_parts(text) if rel})
     preload = _record_preload(st, kit, version_tag)
     for bag in bags:
         art = next(p for p in kit if p in FAMILY and bag.artefact == short(p))
