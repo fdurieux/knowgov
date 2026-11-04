@@ -119,6 +119,34 @@ jobs:
           rc=0; sh instance/ci/preload-check.sh . runs/preload-api HEAD~1 || rc=$?; test "$rc" = 1
           rc=0; python tools/preload_check.py runs/preload-api --since HEAD~1 -f json -o runs/preload-api.json > /dev/null || rc=$?; test "$rc" = 1
           python3 -c 'import sys,json; sys.path.insert(0,"harness"); import schema_check as s; r=json.load(open("runs/preload-api.json")); e=s.validate(r, s.load("preload-report")); assert not e, e; [f]=r["files"]; assert f["tool"]=="Spectral" and f["state"]=="findings" and any(x["rule"]=="invalid-ref" and x["severity"]=="major" for x in f["findings"]), f; print("broken contract:", f["why"])'
+      - name: The pre-load verdict read at the load (task-0064), rdflib, the example instance with its report; none without one, as the instance step above shows
+        run: |
+          rm -rf runs/verdict runs/verdict-runs && python tools/example_instance.py runs/verdict > /dev/null
+          python tools/preload_check.py runs/verdict -o runs/verdict/preload-report.json > /dev/null
+          cd harness && KG_STORE=rdflib KG_SUBJECT=../runs/verdict/subjects/cargo_quote python run.py --deterministic --scenarios S1 S6 --out ../runs/verdict-runs > /dev/null
+          KG_STORE=rdflib KG_SUBJECT=../runs/verdict/subjects/cargo_quote python gate_cli.py --scenario S1 -f json -o ../runs/verdict-gate.json > /dev/null
+          rc=0; KG_STORE=rdflib KG_SUBJECT=../runs/verdict/subjects/cargo_quote python gate_cli.py --scenario S1 --fail-on info > /dev/null || rc=$?; test "$rc" = 1
+          cd ..
+          python3 - runs/verdict <<'PY'
+          import json, sys
+          sys.path[:0] = ["harness"]
+          inst = sys.argv[1]
+          d = json.load(open(f"{inst}-runs/S1/deterministic.json"))
+          docs = {x["artefact"]: x for x in d["load"]["preload"]["documents"]}
+          assert d["load"]["preload"]["report"] == "preload-report.json" and len(docs) == 10, d["load"]["preload"]
+          assert docs["behavior/quote_flow.puml"]["state"] == "clean" and docs["behavior/quote_flow.puml"]["tool"] == "pumllint", docs
+          assert docs["contract/spec.md"]["state"] == "unchecked" and docs["contract/spec.md"]["tool"] == "Vale, markdownlint", docs
+          assert {x["artefact"] for x in d["D6_gate"]["preload"]} >= {"contract/spec.md"} and all(x["state"] != "clean" for x in d["D6_gate"]["preload"])
+          s6 = json.load(open(f"{inst}-runs/S6/deterministic.json"))
+          [v2] = s6["stage2"]["load_v2"]["preload"]["documents"]
+          assert v2["artefact"] == "contract/decision_table.md" and v2["version"] == "v2" and v2["state"] == "unchecked", v2
+          r = json.load(open(f"{inst}-gate.json"))
+          import schema_check as s
+          assert not s.validate(r, s.load("gate-report")), s.validate(r, s.load("gate-report"))
+          pre = [f for f in r["findings"] if f["kind"] == "preload"]
+          assert pre and all(f["severity"] == "info" for f in pre) and r["exit_code"] == 0, (pre, r["exit_code"])
+          print(f"{r['store']}: {len(pre)} document(s) behind the keys unchecked or with findings; exit {r['exit_code']}")
+          PY
       - name: The gate as a command (task-0007) exits 0, 1 or 2 under the contract, and ratchets on the record
         run: |
           cd harness
