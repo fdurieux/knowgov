@@ -145,6 +145,20 @@ The description restates the changelog's top section and never adds a claim it l
 waits on the published image, such as the compose pin's digest, is named as a follow-up after the
 Release.
 
+Two artifact pages are the maintainer's running view of pumllint, knowgov and ieam-register:
+the queue, *Two roadmaps, one queue*
+(https://claude.ai/code/artifact/a6e5007e-36f8-4a94-b3de-3ba2690512cc), and the reconciliation,
+*Two loops against two roadmaps* (https://claude.ai/code/artifact/c3e39034-e727-430b-8170-8ca152ea9b80).
+A merged PR refreshes both pages in the same turn, without being asked:
+- in the queue's "done" column, the PR link with a one-line what-and-why, and every queue row
+  whose state it changes (a decision answered, a task unblocked);
+- in the reconciliation's Record, a line, when the merge bears on the loops or the seam.
+The session that refreshes is the coordinating session, when one dispatches the work. Its
+sub-sessions report their merges to it and never publish to the pages, so that two writers never
+overwrite each other. With no coordinator, the session that merged refreshes. The backlog and the
+decision records land first; the pages quote them and are views, never the record. A session that
+cannot reach the pages says so and leaves the record as it is.
+
 ## Boundaries
 
 - `pumllint/` imports nothing from here and reads no register; this repository
