@@ -451,3 +451,144 @@ def test_a_tool_that_raises_is_an_error_result_not_a_dropped_connection():
     s.tools.store_status = lambda args: (_ for _ in ()).throw(RuntimeError("boom"))
     r = s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "store_status", "arguments": {}}})["result"]
     assert r["isError"] is True and "RuntimeError: boom" in r["content"][0]["text"]
+
+
+# Task-0117: the adopter section of instance/README.md, held to the server and the commands it names.
+
+README = ROOT / "instance" / "README.md"
+
+
+def _assistant_section() -> str:
+    text = README.read_text(encoding="utf-8")
+    start = text.index("## Letting an AI assistant ask the gate")
+    return text[start:text.index("\n## ", start + 1)]
+
+
+def _blocks(section: str, lang: str) -> list[str]:
+    import re
+    return re.findall(rf"```{lang}\n(.*?)```", section, re.S)
+
+
+def _commands(section: str) -> list[list[str]]:
+    """Each command of the section's bash blocks and of the Desktop JSON's command and args, as argv."""
+    import re
+    import shlex
+    out = []
+    for block in _blocks(section, "bash"):
+        pending = ""
+        for line in block.replace("\\\n", " ").splitlines():
+            line = line.split("   #")[0].strip()
+            if not pending and (not line or line.startswith("#")):
+                continue
+            pending = f"{pending}\n{line}" if pending else line
+            try:
+                out.append(shlex.split(pending))       # a quoted argument may span lines
+            except ValueError:
+                continue
+            pending = ""
+        assert not pending, pending
+    for block in _blocks(section, "json"):
+        for entry in json.loads(re.sub(r"^\s{3}", "", block, flags=re.M))["mcpServers"].values():
+            out.append([Path(entry["command"]).name, *entry["args"]])
+    for inline in re.findall(r"`((?:claude|docker|exec) [^`]+)`", section):   # inline commands too
+        out.append(shlex.split(inline if not inline.startswith("exec ") else "docker compose " + inline))
+    return out
+
+
+# Flags of programs this repository does not ship, as their help prints them (claude mcp add on
+# Claude Code 2.x, claude remote-control, Docker Compose v2, curl): a flag the section adds must be
+# checked against the tool's own --help and added here.
+EXTERNAL_FLAGS = {
+    "claude mcp add": {"-s", "--scope", "-e", "--env", "-t", "--transport", "-H", "--header"},
+    "claude": set(),
+    "docker compose": {"-f", "--file", "-p", "--project-name"},
+    "docker compose exec": {"-T", "-e", "--env"},
+    "curl": {"-s", "-H", "-d"},
+}
+
+
+def _script_flags(script: str) -> set[str]:
+    import re
+    import subprocess
+    help_text = subprocess.run([sys.executable, str(ROOT / script), "--help"], capture_output=True, text=True,
+                               cwd=ROOT, timeout=60).stdout
+    return set(re.findall(r"(?<![\w-])(--?[A-Za-z][\w-]*)", help_text))
+
+
+def test_every_flag_the_assistant_section_names_exists():
+    """Every option a command in the section passes is one its program accepts (task-0117 AC3)."""
+    import re
+    section, seen, scripts = _assistant_section(), set(), {}
+    for argv in _commands(section):
+        program = None
+        for i, tok in enumerate(argv):
+            if program is None and re.fullmatch(r"[A-Z_]+=\S*", tok):
+                continue                                        # an environment assignment before the program
+            if tok == "--" and program and program.startswith("claude"):
+                program = None                                  # the command claude starts begins here
+                continue
+            if program is None or (program.startswith("docker compose") and tok == "exec"):
+                if tok in ("python", "python3"):
+                    program = argv[i + 1]
+                    scripts.setdefault(program, _script_flags(program))
+                elif tok == "claude":
+                    program = "claude mcp add" if argv[i + 1:i + 3] == ["mcp", "add"] else "claude"
+                elif tok == "docker":
+                    program = "docker compose"
+                elif tok == "exec":
+                    program = "docker compose exec"
+                elif tok in ("curl",):
+                    program = tok
+                continue
+            if program == "docker compose exec" and tok in ("python", "python3"):
+                program = argv[i + 1]
+                scripts.setdefault(program, _script_flags(program))
+                continue
+            if tok.startswith("-") and tok != "--":
+                allowed = scripts.get(program) or EXTERNAL_FLAGS.get(program)
+                assert allowed is not None, f"{program}: a program the guard does not know"
+                assert tok in allowed, f"{program} has no option {tok} (instance/README.md)"
+                seen.add((program, tok))
+    assert ("harness/mcp_server.py", "--http") in seen and ("claude mcp add", "-s") in seen
+    assert ("docker compose exec", "-T") in seen and ("harness/mcp_server.py", "--as-of") in seen
+
+
+def test_the_assistant_section_answers_the_connection_pitfalls():
+    """The findings behind task-0117: each pitfall is answered where an adopter reads it."""
+    s = _assistant_section()
+    for needle in ("is the *path* to the subject's folder", "never the bare `cargo_quote`",
+                   "replacing `/path/to/knowgov` with the absolute",
+                   "full path to `docker`", "~/Library/Application Support/Claude/claude_desktop_config.json",
+                   r"%APPDATA%\Claude\claude_desktop_config.json", "do not replace the file", "Quit Claude Desktop",
+                   "~/Library/Logs/Claude/mcp-server-knowgov.log", "some builds show no Developer section",
+                   "cannot reach a stack on your computer", "not the server's HTTP port (8765)",
+                   "pass `scenario`", "restart the assistant's connection", "-s user", "Remote Control",
+                   "Never put the server on a public address", "io.modelcontextprotocol/clientCapabilities", "-32602"):
+        assert needle in s, needle
+
+
+def test_the_readmes_stateless_example_runs_against_the_server():
+    """The curl example, as printed, answers over HTTP; without clientCapabilities it is -32602 (task-0117 AC2)."""
+    import shlex
+    block = next(b for b in _blocks(_assistant_section(), "bash") if "clientCapabilities" in b)
+    argv = shlex.split(block.replace("\\\n", " "))
+    assert argv[0] == "curl" and argv[2] == "http://127.0.0.1:8765/mcp", argv[:3]
+    headers = dict(h.split(": ", 1) for flag, h in zip(argv, argv[1:]) if flag == "-H")
+    body = json.loads(argv[argv.index("-d") + 1])
+    httpd, base = _serve()
+    day = _Day()
+    day.__enter__()
+    try:
+        code, resp = _post_raw(base + "/mcp", body, headers)
+        assert code == 200, resp
+        result = resp["result"]
+        assert result["isError"] is False and result["resultType"] == "complete"
+        assert result["structuredContent"]["verdict"] == "BLOCKED" and result["structuredContent"]["task"] == "codegen"
+        bare = json.loads(json.dumps(body))
+        del bare["params"]["_meta"][mcp_server.META_CAPABILITIES]
+        code, resp = _post_raw(base + "/mcp", bare, headers)
+        assert resp["error"]["code"] == -32602, resp
+    finally:
+        day.__exit__()
+        httpd.shutdown()
+        httpd.server_close()
