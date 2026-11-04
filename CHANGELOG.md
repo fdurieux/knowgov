@@ -10,6 +10,18 @@ names that section with the version.
 
 ## Unreleased
 
+### Contract changes since 0.4.0
+
+- **`register_impact` takes a `task` input** (task-0120, additive): an optional declared task
+  class (default `codegen`, as `gate_verdict`'s) under whose block levels, bar and route each
+  landed key's level and findings are read, as `gate_verdict --task` reads that key set. For
+  CargoQuote, `design` and `codegen` give their own answers. `keys` is a key set, not a class,
+  and is refused. With `children`, a map row that names only a withdrawn descendant (one the
+  descent lists and does not walk) now lands too, after the others, flagged `withdrawn: true`,
+  walked no further; before, it was left out. CAP-0001's `dependants` walk with children lands
+  32 keys, the 32nd `QuoteAPI|on_notification_failure` through the proposed CAP-0005; the
+  `realisers` walk still lands 36. The record and the comparator are unchanged.
+
 ### Also since 0.4.0
 
 - **The connector for a system of record** (task-0063, decision-0006): `tools/connector.py` lands

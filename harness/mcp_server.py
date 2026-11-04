@@ -23,7 +23,9 @@ The question an agent asks is "may I build on this?". Five tools answer it, all 
                           reaches and who owns each, its children listed and not walked (or, with
                           children, walked as the register's decision 0014 does, task-0118), and the
                           register-map keys it lands on, each with its level, stale statements and
-                          suspect derived outputs as gate_verdict reports them (task-0111)
+                          suspect derived outputs as gate_verdict reports them for a task class
+                          (task-0111; ``task``, and with children the keys resting only on a
+                          withdrawn descendant, flagged ``withdrawn``, task-0120)
 
 The server never loads, wipes or writes: it reads the store the page or a run left (``KG_STORE``;
 for rdflib the Turtle file ``KG_RDFLIB_FILE``, read and never written back), through a view that
@@ -97,7 +99,8 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "evidence, as the governed arm reads it; both read review currency on the server's one date unless "
                 "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
-                "the register's walk reaches, who owns it and the keys that rest on it. A status is the repository's; you may not upgrade it. This server only reads.")
+                "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
+                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. A status is the repository's; you may not upgrade it. This server only reads.")
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -156,13 +159,15 @@ TOOLS.append(
                     "followed; a node's parent is never climbed): the register's tag and commit, the node (kind, name, "
                     "state, owner, parent), its children with their states (listed, not walked, unless children is true), "
                     "every edge, what the walk reached by id prefix with each node's owning unit, and the register-map keys "
-                    "whose rows name the start, a walked descendant or a reached node, each with its owner, anchor and the nodes it came through (via). With a "
+                    "whose rows name the start, a walked descendant or a reached node, each with its owner, anchor and the nodes it came through (via); "
+                    "with children, then the keys resting only on a withdrawn descendant, flagged withdrawn. With a "
                     "scenario held, each key carries its gate level, its stale statements, the suspect derived outputs "
-                    "that used them and its findings, as gate_verdict reports that key set on the same as_of.",
+                    "that used them and its findings, as gate_verdict reports that key set for the task class on the same as_of.",
      "inputSchema": {"type": "object", "additionalProperties": False, "required": ["node"], "properties": {
          "node": {"type": "string", "pattern": r"^[A-Z]+-\d{4,}$", "description": "a register id, as the register's files name it"},
          "walk": {"type": "string", "enum": ["dependants", "realisers"], "description": "dependants: what rests on the node (default); realisers: what implements a capability, where the register offers that walk"},
-         "children": {"type": "boolean", "description": "also walk from every descendant by parent, recursively, as the register's decision 0014 does: an approved one is walked by its own kind's row, any other is listed withdrawn and not walked from; what is reached excludes the start and its descendants (default: false, children listed and not walked)"},
+         "children": {"type": "boolean", "description": "also walk from every descendant by parent, recursively, as the register's decision 0014 does: an approved one is walked by its own kind's row, any other is listed withdrawn and not walked from; what is reached excludes the start and its descendants; a key whose row names only a withdrawn descendant is listed last, flagged withdrawn true, and walked no further (default: false, children listed and not walked)"},
+         "task": {"type": "string", "description": "the task class whose block levels, bar and route each landed key is read under, as gate_verdict's task (default: codegen); a declared class, never keys"},
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another (default: whatever it holds; with none held, the keys carry no level)"},
          "as_of": {"type": "string", "description": "the date review currency is read on: the server's date (default, the one gate_verdict reads), today, record or YYYY-MM-DD"}}},
      "annotations": READ_ONLY})
@@ -368,13 +373,19 @@ class Tools:
 
     def register_impact(self, args: dict) -> dict:
         """The register's walk from ``node`` (``register_impact.walk``), the map rows it lands on, and,
-        with a scenario held, each landed key as the gate reports that key set (task-0111). The
+        with a scenario held, each landed key as the gate reports that key set under ``task``'s block
+        levels, bar and route (task-0111; ``task`` and the withdrawn flag, task-0120). The
         register is read from ``KG_REGISTER``; the store only through the port's reads."""
         import gate_cli
         import register_impact as ri
         from subject import SUBJECT
         from tasks import TASKS
         which = args.get("walk") or "dependants"
+        task = args.get("task")
+        if task is None:   # gate_verdict's default class: its block levels, bar and route
+            task = "codegen" if "codegen" in TASKS else next(iter(TASKS), None)
+        elif task not in TASKS:   # "keys" names a key set, not a class (task-0120)
+            raise ToolError(f"{SUBJECT.id}: no task {task!r}; the subject declares {sorted(TASKS) or 'none'}")
         try:
             out = ri.walk(args.get("node"), which, children=args.get("children", False))
         except ri.ImpactError as e:
@@ -382,8 +393,8 @@ class Tools:
         out.pop("reached_ids")
         reached = [x["id"] for xs in out["reached"].values() for x in xs]
         walked = [c["id"] for c in out["children"] if c["walked"]]
-        keys = ri.landed_rows(SUBJECT.register_map(), out["node"]["id"], reached, walked)
-        task = "codegen" if "codegen" in TASKS else next(iter(TASKS), None)   # gate_verdict's default class: its block levels and route
+        withdrawn = [c["id"] for c in out["children"] if c.get("withdrawn")]
+        keys = ri.landed_rows(SUBJECT.register_map(), out["node"]["id"], reached, walked, withdrawn)
         head = {"subject": SUBJECT.id, "store": None, "scenario": None, "as_of": None}
 
         def go(st):
