@@ -7,7 +7,8 @@ panel lists (task-0024.02, task-0025).
 
 The guide must answer the Browser's cross-origin fetch (the header, and the preflight), its one
 runnable block must be the form's listed text, the rows form must give the walk's edges (from,
-relationship, to, link state, owner, evidence), the paths form the same distinct relationships
+relationship, to, link state, owner, evidence, and the far node's owning unit:
+its owner field, that unit's name and the approved owns links to it, task-0047), the paths form the same distinct relationships
 as the rows form's links (a link the walk meets from both ends is two edges and one relationship,
 decision 0010), with the start returned. Exit 0 iff every node agrees. Runs where the harness and the driver are,
 with the store's settings from the environment and the page at KG_DEMO_URL
@@ -56,13 +57,16 @@ def fetch_guide(url: str) -> str:
         return resp.read().decode("utf-8")
 
 
-def edge_keys(edges: list[dict]) -> list[tuple]:
-    """The walk's edges as the rows form returns them."""
-    return sorted((e["from"], e["rel"], e["to"], e["state"], e["owner"], tuple(e["evidence"])) for e in edges)
+def edge_keys(edges: list[dict], owners: dict) -> list[tuple]:
+    """The walk's edges as the rows form returns them, each with its far node's owning unit as the
+    panel shows it (task-0047): the owner field, the unit's name, the approved owns links' sources."""
+    return sorted((e["from"], e["rel"], e["to"], e["state"], e["owner"], tuple(e["evidence"]),
+                   owners[e["to"]]["unit"], owners[e["to"]]["name"], tuple(owners[e["to"]]["owns"])) for e in edges)
 
 
 def row_keys(rows: list[dict]) -> list[tuple]:
-    return sorted((r["from"], r["relationship"], r["to"], r["link state"], r["owner"], tuple(r["evidence"] or [])) for r in rows)
+    return sorted((r["from"], r["relationship"], r["to"], r["link state"], r["owner"], tuple(r["evidence"] or []),
+                   r["unit"] or "", r["unit name"] or "", tuple(sorted(r["owns links"] or []))) for r in rows)
 
 
 def path_shape(rows: list[dict]) -> tuple[int, set, set]:
@@ -105,7 +109,7 @@ def main() -> int:
                 continue
             if rows_text != cy["rows"] or paths_text != cy["paths"]:
                 problems.append("the guide's block is not the listed text")
-            expect = edge_keys(w["edges"])
+            expect = edge_keys(w["edges"], w["owners"])
             try:
                 rows = store.console_query(rows_text)
                 got = row_keys(rows)

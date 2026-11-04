@@ -560,7 +560,7 @@ def test_listed_impact_query_uses_the_registers_default_start_and_the_panel_carr
         r = server.impact_view("APP-0003")
     finally:
         del os.environ["KG_STORE"]
-    assert r["cypher"] is None and [sec["heading"] for sec in r["panel"]["sections"]] == ["Edges walked", "Reached"]
+    assert r["cypher"] is None and [sec["heading"] for sec in r["panel"]["sections"]] == ["Edges walked", "Reached", "Who to inform", "Assertions its cited anchors name"]
     # the page: a code section renders a copy button and the chip; the copy buttons are wired where a panel opens
     page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
     assert "x.code ? x.code.map(" in page and 'class="codebox"' in page and "needsChip(x.needs, x.needs_text)" in page
@@ -642,8 +642,12 @@ def test_impact_browser_links_open_a_served_guide_and_the_stack_job_runs_them():
         httpd.server_close()
     # the comparator's shapes: the walk's edges as the rows form returns them, the paths' distinct relationships and starts
     edges = [{"from": "A", "rel": "supports", "to": "P", "state": "approved", "owner": "O", "evidence": ["e1"]}]
-    rows = [{"from": "A", "relationship": "supports", "to": "P", "link state": "approved", "owner": "O", "evidence": None}]
-    assert cic.row_keys(rows) == [("A", "supports", "P", "approved", "O", ())] and cic.edge_keys(edges) == [("A", "supports", "P", "approved", "O", ("e1",))]
+    rows = [{"from": "A", "relationship": "supports", "to": "P", "link state": "approved", "owner": "O", "evidence": None,
+             "unit": "ORG-1", "unit name": "Unit", "owns links": ["ORG-2", "ORG-1"]}]
+    owners = {"P": {"unit": "ORG-1", "name": "Unit", "owns": ["ORG-1", "ORG-2"]}}
+    assert cic.row_keys(rows) == [("A", "supports", "P", "approved", "O", (), "ORG-1", "Unit", ("ORG-1", "ORG-2"))]
+    assert cic.edge_keys(edges, owners) == [("A", "supports", "P", "approved", "O", ("e1",), "ORG-1", "Unit", ("ORG-1", "ORG-2"))]
+    assert cic.row_keys([dict(rows[0], unit=None, **{"unit name": None, "owns links": []})])[0][-3:] == ("", "", ())
 
     class Rel(dict):   # the driver's relationship: an element id, its properties by get
         def __init__(self, i, link):
@@ -739,3 +743,115 @@ def test_node_statements_query_is_the_ports_cypher_at_anchor_grain():
     src = (ROOT / "harness" / "store_rdflib.py").read_text(encoding="utf-8")
     body = src[src.index("def register_node_statements("):src.index("# ---- what the page shows")]
     assert 'anchor not in loc.split("/")' in body and '"HAS_VERSION"' in body and 'self.prop(l, "state") != "approved"' in body
+
+
+# ---- task-0047: the impact panel names the owning unit of each reached node, and who to inform
+def test_impact_panel_shows_the_owning_unit_from_the_registers_owner_field_on_every_node():
+    import register_project as rp
+    import store_neo4j as sn
+    reg = register_view._load_tools()["register"].load_register(register_view.REGISTER)
+    owns = {}
+    for ln in reg["relationships"]["owns"]["links"]:
+        if ln["state"] == "approved":
+            owns.setdefault(ln["target"], set()).add(ln["source"])
+    shown = 0
+    for nid in reg["nodes"]:
+        w = register_view.impact(nid)
+        cols = w["panel"]["sections"][0]["table"]["cols"]
+        assert cols[4] == "owning unit" and cols[8] == "owner", "the node's owning unit beside its name; the link's owner where it was"
+        for e, row in zip(w["edges"], w["panel"]["sections"][0]["table"]["rows"]):
+            node = reg["nodes"][e["to"]]
+            o = w["owners"][e["to"]]
+            assert o["unit"] == node["owner"] and o["name"] == reg["nodes"][node["owner"]]["name"], e["to"]
+            assert o["owns"] == sorted(owns.get(e["to"], ())) and row[4] == f"{node['owner']} {o['name']}", (e["to"], row[4])
+            shown += 1
+        reached = w["reached"]["all"]
+        assert [i for i in w["panel"]["sections"][1]["list"] if i != "nothing"] == [
+            f"{x}: {reg['nodes'][x]['name']}, owned by {reg['nodes'][x]['owner']} {reg['nodes'][reg['nodes'][x]['owner']]['name']}" for x in reached]
+        inform = w["panel"]["sections"][2]
+        assert inform["heading"] == "Who to inform"
+        if reached:
+            listed = [x for item in inform["list"] for x in item.split(": ", 1)[1].split(", ")]
+            assert sorted(listed) == reached, (nid, inform["list"])
+            assert all(item.startswith(reg["nodes"][item.split(": ", 1)[1].split(", ")[0]]["owner"] + " ") for item in inform["list"])
+        else:
+            assert inform["list"] == ["nobody: nothing is reached"]
+        _check_sentences(w["text_registry"])
+    assert shown == 469
+    import views
+    glossary = (DEMO / "GLOSSARY.md").read_text(encoding="utf-8")
+    assert "| owning unit |" in glossary and views.GLOSSARY["owning unit"] in glossary and "owner field" in views.GLOSSARY["owning unit"]
+    for s in _sentences(views.GLOSSARY["owning unit"]):
+        assert len(s.split()) <= 25 and not _forbidden_in(s), s
+    a = register_view.impact("APP-0002")
+    assert a["owners"]["PRD-0002"]["unit"] == "ORG-0001" and a["owners"]["PRD-0002"]["owns"] == ["ORG-0001"], "field and owns link agree"
+    assert any(i.startswith("ORG-0001 ") and "PRD-0002" in i for i in a["panel"]["sections"][2]["list"])
+    # an owns link that names another unit is said beside the owning unit, and a node without an owner field says none
+    fake = {"nodes": {"P": {"owner": "ORG-1"}, "ORG-1": {"name": "One"}, "Q": {}}, "relationships": {"owns": {"links": [
+        {"source": "ORG-2", "target": "P", "state": "approved"}, {"source": "ORG-3", "target": "P", "state": "proposed"}]}}}
+    assert register_view.owning_unit(fake, "P") == {"unit": "ORG-1", "name": "One", "owns": ["ORG-2"]}
+    assert register_view.unit_text(register_view.owning_unit(fake, "P")) == "ORG-1 One (owns link: ORG-2)"
+    assert register_view.unit_text(register_view.owning_unit(fake, "Q")) == "none"
+    # the saved Cypher returns the same three, from the projection's owner field and its approved owns links
+    for frag in ("OPTIONAL MATCH (u:RegNode {reg_id: t.owner})", "t.owner AS unit, u.name AS `unit name`",
+                 "[(o:RegNode)-[w:REG_OWNS]->(t) WHERE w.state = 'approved' | o.reg_id] AS `owns links`"):
+        assert frag in sn.IMPACT_ROWS and frag not in sn.IMPACT_PATHS, frag
+    rows = rp.rows(loaded_at="2026-10-31T00:00:00+00:00")
+    by_id = {n["reg_id"]: n for n in rows["nodes"]}
+    proj_owns = {}
+    for it in rows["typed"]["REG_OWNS"]:
+        if it["props"]["state"] == "approved":
+            proj_owns.setdefault(it["target"], set()).add(it["source"])
+    assert all("state" not in o for o in rows["owners"]), "the owner field's REG_OWNS edge carries no state, so the Cypher counts owns links only"
+    for nid in reg["nodes"]:
+        o = register_view.owning_unit(reg, nid)
+        assert (by_id[nid]["owner"], by_id.get(by_id[nid]["owner"], {}).get("name", ""), sorted(proj_owns.get(nid, ()))) == (o["unit"], o["name"], o["owns"]), nid
+
+
+# ---- task-0047: beside the walk, the assertions the typed node's cited anchors name (register_node_statements, #95)
+def test_impact_panel_shows_the_ports_node_statements_beside_the_walk():
+    import contextlib
+    import server
+    calls = []
+
+    class Fake:
+        def __init__(self, census, acts):
+            self.census, self.acts = census, acts
+        def register_census(self):
+            return self.census
+        def extraction_activities(self):
+            return self.acts
+        def register_node_statements(self, start):
+            calls.append(start)
+            return [{"statement": "a:1", "status": "invalidated", "document": "contract/decision_table.md", "anchors": ["DT-P"], "links": ["REL-1"],
+                     "versions": ["v1", "v2"], "fragments": ["DT-P/row/P1"], "derived": ["derived:S1:G:run1 (suspect)"]}]
+
+    def opener(store):
+        @contextlib.contextmanager
+        def _open(timeout=3):
+            if isinstance(store, Exception):
+                raise store
+            yield store
+        return _open
+
+    real = server._store
+    try:
+        server._store = opener(Fake({"nodes": 1}, ["act:extract:S6"]))
+        w = server.impact_view("ENT-0004", statements=True)
+        sec = [x for x in w["panel"]["sections"] if x["heading"] == "Assertions its cited anchors name"][0]
+        assert calls == ["ENT-0004"] and w["statements"]["missing"] is None and sec["needs"] == "register+scenario"
+        assert sec["table"]["cols"] == register_view.STATEMENT_COLS and sec["table"]["rows"] == [
+            ["a:1", "invalidated", "contract/decision_table.md", "DT-P", "REL-1", "v1, v2", "DT-P/row/P1", "derived:S1:G:run1 (suspect)"]]
+        assert "1 assertion found in the loaded scenario." in sec["text"] and "ENT-0004" in sec["text"]
+        assert w["panel"]["sections"][-1]["heading"] == ("The walk in Cypher" if server._console_store() else sec["heading"])
+        _check_sentences(w["text_registry"])
+        for store, missing in ((Fake(None, []), "register"), (Fake({"nodes": 1}, []), "scenario"), (ImportError("no driver"), "driver"), (OSError("refused"), "store")):
+            server._store = opener(store)
+            w = server.impact_view("ENT-0004")
+            sec = [x for x in w["panel"]["sections"] if x["heading"] == "Assertions its cited anchors name"][0]
+            assert w["statements"]["missing"] == missing and w["statements"]["rows"] is None and "table" not in sec and "so no assertion is shown." in sec["text"], missing
+            _check_sentences(w["text_registry"])
+        assert [x["heading"] for x in server.impact_view("ENT-0004", statements=False)["panel"]["sections"]][:3] == ["Edges walked", "Reached", "Who to inform"]
+        assert "Assertions its cited anchors name" not in [x["heading"] for x in server.impact_view("ENT-0004", statements=False)["panel"]["sections"]]
+    finally:
+        server._store = real

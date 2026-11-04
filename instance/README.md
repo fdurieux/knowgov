@@ -313,6 +313,23 @@ a rule is skipped, and the load prints why. The rules are knowgov's decision-000
 and roles are ieam-register's decision 0009. `tools/check_review_walkthrough.py` runs the
 whole path on the example instance.
 
+**Asking again when an answer falls due.** What a person said is due for review six months after
+they said it (ieam-register decision 0008). To ask again:
+
+```bash
+python harness/capture.py due --out questionnaires/
+```
+
+In plain English: this finds every captured answer given six months ago or more, the latest per
+person and key (one a review rejected is not asked again), and writes one questionnaire per handle,
+each answer pre-filled with what they said and when. The person keeps an answer to confirm it,
+changes it to correct it, or empties it to skip it, then fills `[answered]` and you ingest it as
+before. A confirmation is a new capture on the new date, which restarts the six months; a change
+is a new statement beside the old one, for a reviewer. The earlier capture is never edited. If a
+handle has been withdrawn (the person left), its answers go to the owner unit instead. The command
+also lists any register link carrying an `elicited` block whose `review_due` has come: those are
+reviewed in the register, not here. `--on YYYY-MM-DD` (or `KG_TODAY`) sets the date it counts to.
+
 **The register's capture fields.** The three fields a capture carries are `from` (the handle),
 `on` (the date) and `record` (where the answer is kept). They are the fields ieam-register's
 [decision 0008](https://github.com/fdurieux/ieam-register/blob/main/decisions/0008-knowledge-a-person-gave.md)
