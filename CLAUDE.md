@@ -28,7 +28,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   mapper in exactly one), checked by `tools/check_instance.py`, with a public example from
   `tools/example_instance.py` that CI mounts read-only and digests before and after (task-0006). Each kind's `lint`
   field is doc-0008 §5's tool and gate column; `tools/preload_check.py` lints an instance's documents
-  with the ones that run here (pumllint), lists every other kind's files as unchecked, exits under the
+  with the ones that run here (pumllint; Spectral for api-contracts, task-0066; `--baseline` fails only on regression, task-0065), lists every other kind's files, and a kind whose linter is not installed, as unchecked, exits under the
   gate contract, JSON under `harness/schemas/preload-report.schema.json`; `instance/ci/` is the
   template an instance copies, its script proven in `harness.yml` (task-0045). Form, not knowledge. `harness/gate_cli.py`
   the gate as a command (exit 0/1/2, `--fail-on`, `--baseline record|FILE`, JSON pinned by

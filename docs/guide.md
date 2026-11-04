@@ -205,14 +205,17 @@ python tools/preload_check.py /path/to/your/instance --since origin/main
 2. The instance's CI (copy `instance/ci/preload-check.yml`) runs `tools/preload_check.py` on the
    changed files, then `tools/check_instance.py`. Each file is linted by the tool its kind's
    `lint` field in `instance/kinds.toml` names, when that tool runs here: pumllint for
-   `plantuml-models`, today the only one. A file of any other kind is listed as unchecked, with
-   the tool the programme's table names, so the gap stays visible; it does not fail the check.
+   `plantuml-models` and Spectral for `api-contracts` (the kind's `lint.runs`). A file of any
+   other kind, or of a kind whose linter is not installed, is listed as unchecked, with the tool
+   the programme's table names, so the gap stays visible; it does not fail the check. Spectral's
+   errors count as `major` and its warnings as `minor`; it uses your `.spectral.yaml` at the
+   instance root, or else its own OpenAPI and AsyncAPI rules.
 3. Your branch protection requires that job to pass, and a reviewer who is not the author.
 4. The load reads only what was merged. Nothing loads from a branch.
 
 The check keeps the exit codes of the programme's gate contract: 0 clean, 1 a finding at or above
-the threshold you set (`--fail-on`, `major` by default), 2 could not run (a linter missing, a
-folder that is not a kind, a file that does not exist). `-f json` writes the report under
+the threshold you set (`--fail-on`, `major` by default), 2 could not run (a linter that is
+installed but fails, a folder that is not a kind, a file that does not exist). `-f json` writes the report under
 `harness/schemas/preload-report.schema.json`.
 
 **Adopting it over documents that already have findings.** Run the check once with
@@ -225,8 +228,9 @@ clean-up, is your commit, reviewed like any other. pumllint's own ratchet (`puml
 --baseline`) is not used for this: it ratchets maturity levels, not lint findings, and records its
 file itself when it is missing.
 
-Not built yet: running the other kinds' tools, which your instance adds as steps of its own; and
-recording each document's verdict on its `Version` node in the store.
+Not built yet: the other kinds' tools (Vale or markdownlint for specification prose, gplint for
+Gherkin, bpmnlint, dmnlint), which your instance adds as steps of its own; and recording each
+document's verdict on its `Version` node in the store.
 
 ### Why this is not the knowgov gate
 
@@ -606,7 +610,8 @@ your own instance the register is your checkout, mounted read-only, and none of 
 - The walk starts only from applications, processes and journeys. For a capability or an
   information node, use the saved queries of section 8.
 - A module reaches its code only through whole documents, and a change to code reaches nothing.
-- Before the load, only PlantUML models have their form checked (pumllint). Every other kind is
-  listed as unchecked, naming the tool your instance would add (section 5).
+- Before the load, only PlantUML models (pumllint) and API contracts (Spectral) have their form
+  checked. Every other kind is listed as unchecked, naming the tool your instance would add
+  (section 5).
 - QUALIFIED is not safe. A defect present in every document passes the gate (J-F D3 and D5).
 - A person's answer reaches *proposed* at most until the review record is built (section 6).

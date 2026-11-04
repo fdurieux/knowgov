@@ -58,7 +58,7 @@ def test_every_kind_names_its_linter_as_doc_0008_section_5_does():
     assert list(brief) == list(table), "the brief's kinds and kinds.toml differ, or their order does"
     for folder, k in table.items():
         lint = k["lint"]
-        assert set(lint) == {"tool", "gate", "capable"}, folder
+        assert set(lint) - {"runs"} == {"tool", "gate", "capable"}, folder
         assert (lint["tool"], lint["gate"]) == brief[folder], folder
         assert lint["capable"] is lint["gate"].startswith(("yes", "via")), folder
     assert sum(k["lint"]["capable"] for k in table.values()) == 10
