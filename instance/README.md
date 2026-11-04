@@ -494,23 +494,99 @@ It speaks both versions of the protocol in use: the current stateless one (2026-
 client asks `server/discover` and every request is self-contained, and the older handshake
 (`initialize`), so an assistant built on either connects without a fallback.
 
+**Which subject it answers for.** The server answers for one subject, the one `KG_SUBJECT` names.
+`KG_SUBJECT` is the *path* to the subject's folder (its root, the folder holding `subject.toml`),
+not the subject's id: `subjects/cargo_quote` from a knowgov checkout, `/repo/subjects/cargo_quote`
+inside the container, never the bare `cargo_quote`. Inside the stack's container it is already set
+to the subject the page opens on.
+
+**Which scenario it reads.** The server reads whatever scenario the store holds: the one the page
+or a run loaded last. Have the assistant pass `scenario` (for example `"S1"`) in every call to
+`gate_verdict`, `three_valued_answer` and `evidence_bundle`: a call that names a scenario the store
+does not hold is refused, so an answer about the wrong load never comes back looking right. After
+you load another scenario on the page, restart the assistant's connection to the server (quit and
+reopen Claude Desktop; `/mcp` and reconnect in Claude Code, or a new session): the server fixes its
+review date when it starts, and may keep its connection to the store for as long as it runs.
+
+### Connecting Claude Code, the command-line assistant
+
 **With the stack running** (above), the simplest connection needs no extra port: the assistant
-starts the server inside the container and talks to it over the connection it opened. For Claude
-Code:
+starts the server inside the `app` container and talks to it over standard input and output
+("stdio"), the connection it opened. Run this once, replacing `/path/to/knowgov` with the absolute
+path of your knowgov checkout (for example `/Users/you/src/knowgov`):
 
 ```bash
-claude mcp add knowgov -- docker compose -f /path/to/knowgov/demo/docker-compose.yml exec -T app python harness/mcp_server.py
+claude mcp add knowgov -s user -- docker compose -f /path/to/knowgov/demo/docker-compose.yml exec -T app python harness/mcp_server.py
 ```
 
 In plain English: `claude mcp add knowgov` registers a tool server named knowgov, and everything
 after `--` is the command that starts it. Here that command runs `harness/mcp_server.py` in the
-`app` container. Other assistants take the same command in their MCP settings, usually as
-`"command": "docker"` with the rest as `"args"`.
+`app` container; `-T` gives it plain input and output rather than a terminal, which the protocol
+needs. `-s user` registers it for you in every folder; without it, Claude Code registers it only for
+the folder you ran the command in, and a session started anywhere else does not see it. `claude mcp
+list` then shows `knowgov` as connected, and inside a session `/mcp` shows its four tools.
 
-**Over HTTP**, for an assistant that connects to a URL:
+The compose file publishes the page and Neo4j, not the server's HTTP port (8765), so this stdio
+route is the one that works with the stack as it stands. For a stack started under another project
+name (`docker compose -p knowgov-jef`, as the compose file's notes show), add the same `-p` after
+`docker compose`. To ask about another subject than the one the page opens on, name its root in the
+container: `exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python harness/mcp_server.py`.
+
+### Connecting Claude Desktop
+
+Claude Desktop starts the same command, but it reads it from a file, and it starts it without your
+shell: no `PATH`, no `~`, no `$HOME`. Every path in the file must therefore be absolute, and the
+command must be the full path to `docker`. Find it with `which docker` in a terminal (Docker
+Desktop on a Mac usually gives `/usr/local/bin/docker`).
+
+1. Open the configuration file. On macOS it is
+   `~/Library/Application Support/Claude/claude_desktop_config.json`; on Windows,
+   `%APPDATA%\Claude\claude_desktop_config.json`. Claude Desktop's Settings, under Developer, has an
+   *Edit Config* button that opens it; some builds show no Developer section, and editing the file
+   directly works the same.
+2. Add the knowgov entry under `mcpServers`, with your own paths in place of `/usr/local/bin/docker`
+   and `/Users/you/src/knowgov`. If the file already has an `mcpServers` object, add `"knowgov"`
+   inside it beside the servers already there; do not replace the file.
+
+   ```json
+   {
+     "mcpServers": {
+       "knowgov": {
+         "command": "/usr/local/bin/docker",
+         "args": ["compose", "-f", "/Users/you/src/knowgov/demo/docker-compose.yml",
+                  "exec", "-T", "app", "python", "harness/mcp_server.py"]
+       }
+     }
+   }
+   ```
+
+3. Quit Claude Desktop completely (on a Mac, Claude › Quit, not only closing the window) and reopen
+   it. It reads the file only when it starts.
+4. Ask in a Chat conversation. The first time the assistant calls a knowgov tool, Claude Desktop
+   asks your permission; allow it. Chat in Claude Desktop runs on your computer and reaches the
+   stack there. A Claude Code session running in the cloud (claude.ai/code, or the Code tab when it
+   runs a cloud session) runs on a remote machine and cannot reach a stack on your computer.
+
+If the tools do not appear, the server's own messages are in
+`~/Library/Logs/Claude/mcp-server-knowgov.log` on macOS (`%APPDATA%\Claude\logs\` on Windows). A
+`docker: not found` there means the command is not the full path; `no such service: app` or a
+connection error means the stack is not running.
+
+### Asking from your phone
+
+To ask from the Claude app on your phone, keep the server where it is and reach the computer, not
+the server: start Claude Code on the computer that runs the stack with Remote Control
+(`claude remote-control`, or `/remote-control` inside a session), then open that session from the
+phone. The session runs on your computer, so it starts the server there as above, and nothing is
+published. Never put the server on a public address to reach it from a phone: its tools return your
+documents' text.
+
+### Over HTTP, for an assistant that connects to a URL
+
+Run the server on your computer, from your knowgov checkout:
 
 ```bash
-python harness/mcp_server.py --http            # http://127.0.0.1:8765/mcp
+KG_SUBJECT=subjects/cargo_quote python harness/mcp_server.py --http --as-of record   # http://127.0.0.1:8765/mcp
 ```
 
 It listens on this computer only (`127.0.0.1`), so nothing else on the network can reach it.
@@ -518,11 +594,45 @@ It listens on this computer only (`127.0.0.1`), so nothing else on the network c
 computer's is refused unless `KG_MCP_TOKEN` holds a secret; every request must then carry it as
 `Authorization: Bearer <secret>`. A request sent from a web page on another site is refused
 whatever the address. The tools return your documents' text, so keep the server private: the
-token is a lock, not a reason to put it on the internet.
+token is a lock, not a reason to put it on the internet. `--as-of record` reads reviews on the
+subject's pinned record date; leave it out to read them on today's.
 
 Outside the container, the server needs the same Python packages as the harness and the same
-store settings (`KG_STORE`, and for rdflib `KG_RDFLIB_FILE`, the file a run left). For a store
+store settings (`KG_STORE`, and for rdflib `KG_RDFLIB_FILE`, the file a run left). With the stack
+running, its defaults already reach the stack's Neo4j on `bolt://localhost:7687`. For a store
 with nothing loaded, every tool says so instead of answering.
+
+A client of the current stateless revision sends every request self-contained: the protocol
+version and the client's capabilities in the request's `_meta`, and the same version and method in
+headers. This asks for the gate's verdict on S1 for code generation, and gets back the gate's report
+as `structuredContent`:
+
+```bash
+curl -s http://127.0.0.1:8765/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'MCP-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: tools/call' \
+  -H 'Mcp-Name: gate_verdict' \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+       "params": {"name": "gate_verdict", "arguments": {"scenario": "S1", "task": "codegen"},
+                  "_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                            "io.modelcontextprotocol/clientCapabilities": {}}}}'
+```
+
+Both `_meta` entries are required: a request with the version and no
+`io.modelcontextprotocol/clientCapabilities` (an empty object is enough) is answered with error
+`-32602`, and headers that do not match the body with `-32020`. A client of the older handshake
+sends `initialize` first and needs neither.
+
+### What to ask
+
+Once connected, ask in your own words; the assistant picks the tool. For example:
+
+- "What does the knowgov store hold right now?" (`store_status`)
+- "On scenario S1, may I build the codegen task? Which keys block it, and who owns each?" (`gate_verdict`)
+- "On S1, what is known about `weight_kg|max`, and who verified it?" (`three_valued_answer`)
+- "Give me the evidence bundle for codegen on S1 before you write any code." (`evidence_bundle`)
+- "Read the gate on S1 as of 2027-06-01: which reviews will have lapsed?" (`gate_verdict` with `as_of`)
 
 ## A fail-closed hook for Claude Code
 

@@ -8,6 +8,12 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
+## Unreleased
+
+### Also since 0.4.0
+
+- `instance/README.md` "Letting an AI assistant ask the gate": connecting Claude Code (`claude mcp add -s user`) and Claude Desktop (config file, absolute paths, the full `docker` path, the log) over the container's stdio, the phone through Remote Control, `KG_SUBJECT` as a path, `scenario` in every call, and a stateless HTTP example with `clientCapabilities` that a test runs against the server, with a guard on every flag the section names (task-0117).
+
 ## 0.4.0 — 2026-11-04
 
 The gate becomes something an AI-native delivery pipeline can rely on. A fail-closed Claude Code
