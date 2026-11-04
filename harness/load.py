@@ -210,7 +210,33 @@ def load_captures(st, scenario: str) -> dict:
                                 ent, xid, scenario, ent, u["key"])
             counts["unknown"] += 1
         counts["files"].append(record)
+    inferred = load_inferred_proposals(st)   # route c's candidates (task-0041); none without <capture dir>/inferred/
+    if inferred:
+        counts["inferred"] = inferred
     return counts
+
+
+def load_inferred_proposals(st) -> int:
+    """A model's candidates from a transcript (harness/transcript.py, route c, task-0041), in
+    ``<capture dir>/inferred/``: basis inferred, status proposed, attributed to the model; the
+    transcript itself is never here, only its digest. Never promoted (the verifications touch
+    extracted and authored statements only)."""
+    d = SUBJECT.capture_dir / "inferred"
+    n = 0
+    for p in sorted(d.glob("*.toml")) if d.is_dir() else []:
+        c = tomllib.loads(p.read_text(encoding="utf-8"))
+        inf = c.get("inference", {})
+        on, model, dig = str(inf.get("on", "")), str(inf.get("model", "model")), str(inf.get("transcript_sha256", ""))[:12]
+        for i, x in enumerate(c.get("proposal", []), 1):
+            ent, pred = x["key"].split("|", 1)
+            st.ensure_entity(ent, "inferred", ent)
+            st.create_inferred({"id": f"A:inf:{p.stem}:{i}@transcript", "predicate": pred, "value": x["value"],
+                                "text": f"{model} on {on}, reading a transcript (sha256 {dig}): {x['value']}",
+                                "artefact": f"transcript:{dig}", "key": x["key"], "version": "transcript"},
+                               ent, {"id": f"act:infer:{p.stem}:{i}", "at": on, "tool": model, "note": f"route c, {p.name}"},
+                               LLM["id"], None)
+            n += 1
+    return n
 
 
 def load_reviews(st, scenario: str, now: dt.date | None = None) -> dict:
