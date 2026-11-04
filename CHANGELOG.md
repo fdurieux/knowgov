@@ -21,8 +21,23 @@ names that section with the version.
   walked no further; before, it was left out. CAP-0001's `dependants` walk with children lands
   32 keys, the 32nd `QuoteAPI|on_notification_failure` through the proposed CAP-0005; the
   `realisers` walk still lands 36. The record and the comparator are unchanged.
+- **The trace report carries a hand-written file's `keys`** (task-0124, additive; schema version
+  1): a registered row may name the keys the file was registered on, and `check` has four new
+  finding kinds, `unknown_key` and `malformed_citation` (blocker), `uncited` (major) and
+  `uncitable` (info). A ledger written before still reads. The record and the comparator are
+  unchanged.
 
 ### Also since 0.4.0
+
+- **Hand-written code cites the keys it rests on** (task-0124, doc-0015 §3). A header comment line,
+  `# knowgov-keys: K1, K2` in Python or `// knowgov-keys: K1, K2` in Java, names them.
+  `knowgov-trace register --keys K1,K2`, or `--cited` to read each file's own header, registers
+  the file as a derived output on those keys' current statements. After a change invalidates one,
+  `check` reads the file suspect, as it reads a built one. A key the subject does not know is
+  refused (exit 2) and, in a file's header, a blocker. An instance turns on the missing-citation
+  check with `[citations] require = true` in `code_map.toml`, optionally for some APPs only.
+  Proven after S6's change by `tools/check_trace_walkthrough.py`. Citations rot; a file edited
+  after its registration is drift, as before, and asks for a new one.
 
 - **The connector for a system of record** (task-0063, decision-0006): `tools/connector.py` lands
   an export in an instance's register as `exports/<system>/<date>/`. The folder holds the files,

@@ -1,7 +1,8 @@
 """knowgov-trace (task-0051; doc-0011 point 3): from a code change to the knowledge it rests on.
 
     python harness/trace.py register --instance DIR --commit SHA --file PATH [--file PATH ...]
-                                     --ledger FILE [--repo NAME] [--assertion ID ...] [--task NAME]
+                                     --ledger FILE [--repo NAME] [--task NAME]
+                                     [--assertion ID ... | --keys K1,K2 | --cited]
                                      [--as-of today|record|YYYY-MM-DD] [--subject DIR] [-f text|json] [-o FILE]
     python harness/trace.py check    --instance DIR --ledger FILE [--changed PATH ...] [--commit SHA]
                                      [--task NAME] [--fail-on SEVERITY] [--as-of today|record|YYYY-MM-DD]
@@ -18,21 +19,36 @@ the ones named with --assertion, else every statement the task's gate serves now
 store's register_derived (USED_ASSERTION) and writes the entry to the ledger, replacing an earlier
 entry for the same path. --as-of is the date the task's gate is read on to pick those statements, as
 check's (task-0093): today by default, ``record`` or a YYYY-MM-DD date; each entry and each registered
-row carry it as ``as_of``, with --assertion too (the day the registration read). The ledger is the registration's record: a load wipes the store, so ``check``
+row carry it as ``as_of``, with --assertion too (the day the registration read).
+
+Hand-written code (task-0124; doc-0015 §3) is registered by the keys it rests on: ``--keys K1,K2``
+registers each file on those keys' current statements (every statement on the key not invalidated,
+whatever the task's gate serves), ``--cited`` on the keys each file's own header cites
+(harness/citation.py: ``# knowgov-keys: K1, K2`` in Python, ``// knowgov-keys: ...`` in Java). The
+entry and the registered row carry the keys as ``keys``. A key neither the subject's register map
+nor any task names is an error (exit 2), as is a key with no current statement, a file ``--cited``
+that cites nothing, and a file whose header cites other keys than ``--keys`` names. After a change
+invalidates a cited key's statements the output reads suspect, as a built one does. The ledger is the registration's record: a load wipes the store, so ``check``
 re-registers from it what the store no longer holds. Exit 0 recorded, 2 could not.
 
 ``check`` (on a pull request into the code) reads the ledger against the store and the files:
 
     blocker   suspect: a registered output used a statement now invalidated; it names the output's
               APP, the statements and their successors. The gate's own blockers on the task.
+              unknown_key, malformed_citation: a code file's header cites a key the subject does not
+              know, or a citation line that names none (task-0124).
     major     missing: a registered file no longer exists; unmapped: a changed code path no row of
-              code_map.toml maps. The gate's major findings.
+              code_map.toml maps; uncited: where code_map.toml's [citations] require is true, a code
+              file of a governed APP whose header cites no key. The gate's major findings.
     minor     drift: a registered file's digest differs from its registration; the edit is legitimate,
               the finding lists the statements the registered version used and asks for a new
               registration. The gate's minor findings.
-    info      the gate's information findings.
+    info      uncitable: where citations are required, a governed code file in a language the
+              convention does not cover. The gate's information findings.
 
-With --changed, only registered outputs whose path changed or whose APP a changed path belongs to are
+Citations are read from the mapped code files in scope (with --changed, the changed ones; without,
+every mapped code file); without [citations] require nothing is uncited, but an unknown or malformed
+citation is still a finding. With --changed, only registered outputs whose path changed or whose APP a changed path belongs to are
 in scope; without it, every registered output. The task's gate runs on the store as it is, as
 ``gate_cli.py --no-load`` does; its suspect_derived findings are left out, the ledger's are reported.
 --as-of is the date it reads review currency on, as gate_cli's (decision-0005; task-0089): today by
@@ -55,11 +71,13 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import citation  # noqa: E402
 from code_map import app_of, code_map, is_code, register_apps  # noqa: E402
 
 SCHEMA_VERSION = 1
 SEVERITIES = ["blocker", "critical", "major", "minor", "info"]
 LEDGER_TOOL = "knowgov trace ledger"
+CURRENT = ["proposed", "validated", "verified", "approved", "disputed"]   # a key's statements not invalidated
 
 
 class CannotRun(Exception):
@@ -95,7 +113,8 @@ def read_ledger(path: Path, *, missing_ok: bool) -> dict:
         raise CannotRun(f"the ledger {path} does not parse: {e}") from e
     ok = isinstance(led, dict) and led.get("tool") == LEDGER_TOOL and isinstance(led.get("entries"), list) and all(
         isinstance(e, dict) and all(isinstance(e.get(k), str) for k in ("id", "path", "app", "sha256", "commit"))
-        and isinstance(e.get("assertions"), list) and isinstance(e.get("as_of", ""), str) for e in led["entries"])
+        and isinstance(e.get("assertions"), list) and isinstance(e.get("as_of", ""), str)
+        and isinstance(e.get("keys", []), list) for e in led["entries"])
     if not ok:
         raise CannotRun(f"the ledger {path} is not a {LEDGER_TOOL}")
     return led
@@ -108,18 +127,56 @@ def _gate_ids(st, task: str, resolve=None, as_of: str | None = None) -> list[str
     return [a["id"] for v in res["keys"].values() for a in v["assertions"]]
 
 
+def known_keys() -> set[str]:
+    """The keys the subject knows: its register map's rows and every task's keys."""
+    from subject import SUBJECT
+    from tasks import TASKS
+    return {r["key"] for r in SUBJECT.register_map().get("row", []) if isinstance(r.get("key"), str)} \
+        | {k for t in TASKS.values() for k in t["keys"]}
+
+
+def _key_ids(st, keys: list[str], known: set[str] | None) -> list[str]:
+    """The current statements on the keys, in key order; CannotRun on an unknown key or one with none."""
+    unknown = [k for k in keys if known is not None and k not in known]
+    if unknown:
+        raise CannotRun(f"unknown key(s) {', '.join(unknown)}: neither the subject's register map nor any task names them")
+    ids: list[str] = []
+    for k in keys:
+        cur = sorted(a["id"] for a in st.assertions_on_key(k, CURRENT))
+        if not cur:
+            raise CannotRun(f"{k}: the store holds no current statement on the key; is the instance loaded?")
+        ids += [a for a in cur if a not in ids]
+    return ids
+
+
+def _cited(p: Path, rel: str) -> list[str] | None:
+    try:
+        return citation.read(p)
+    except citation.Malformed as e:
+        raise CannotRun(f"{rel}: its citation does not hold: {e}") from e
+
+
 def register(st, *, instance: Path, ledger: Path, commit: str, files: list[str], repo: str = "code",
              task: str = "codegen", assertions: list[str] | None = None, kind: str = "code", resolve=None,
-             as_of: str | None = None) -> dict:
+             as_of: str | None = None, keys: list[str] | None = None, cited: bool = False,
+             known: set[str] | None = None) -> dict:
     """Register each file as a derived output; write the ledger. Returns the report. ``as_of`` (YYYY-MM-DD)
-    is the date the task's gate is read on; None reads the gate's own default, and the ledger records none."""
+    is the date the task's gate is read on; None reads the gate's own default, and the ledger records none.
+    ``keys`` or ``cited`` (task-0124) register hand-written code on the keys' current statements instead:
+    the keys given, or each file's header citation; ``known`` is the subject's key set (known_keys())."""
     cm, root = read_map(instance)
     led = read_ledger(ledger, missing_ok=True)
     if not files:
         raise CannotRun("no --file: name the built or changed files to register")
-    ids = list(assertions) if assertions else _gate_ids(st, task, resolve, as_of)
-    if not ids:
-        raise CannotRun(f"no statement to register against: the store serves none for {task!r}; is the instance loaded?")
+    if sum(map(bool, (assertions, keys, cited))) > 1:
+        raise CannotRun("--assertion, --keys and --cited are exclusive: name the statements, the keys or neither")
+    ids = []
+    if keys:
+        ids = _key_ids(st, list(keys), known)
+    elif not cited:
+        ids = list(assertions) if assertions else _gate_ids(st, task, resolve, as_of)
+        if not ids:
+            raise CannotRun(f"no statement to register against: the store serves none for {task!r}; is the instance loaded?")
     held = {d["id"] for d in st.all_derived()}
     entries = []
     for rel in files:
@@ -130,12 +187,26 @@ def register(st, *, instance: Path, ledger: Path, commit: str, files: list[str],
         app = app_of(cm, rel)
         if app is None:
             raise CannotRun(f"{rel}: no row of code_map.toml maps it; map it before registering it")
+        on, file_ids = None, ids
+        if keys or cited:
+            head = _cited(p, rel)
+            if cited:
+                if not head:
+                    raise CannotRun(f"{rel}: --cited, but its header cites no key"
+                                    + (f" ({citation.MARK} covers {', '.join(sorted(citation.COMMENT))} files)" if head is None else ""))
+                on, file_ids = head, _key_ids(st, head, known)
+            else:
+                on = list(keys)
+                if head and sorted(head) != sorted(on):
+                    raise CannotRun(f"{rel}: its header cites {', '.join(head)}, --keys names {', '.join(on)}: make them agree")
         e = {"id": f"derived:{repo}@{commit}:{rel}", "path": rel, "app": app, "sha256": _sha(p), "commit": commit,
-             "repo": repo, "kind": kind, "task": task, "assertions": ids}
+             "repo": repo, "kind": kind, "task": task, "assertions": file_ids}
+        if on is not None:
+            e["keys"] = on
         if as_of:
             e["as_of"] = as_of
         if e["id"] not in held:   # the same commit and path registered twice is one output
-            st.register_derived(e["id"], kind, e["sha256"], ids)
+            st.register_derived(e["id"], kind, e["sha256"], file_ids)
         entries.append(e)
     named = {e["path"] for e in entries}
     led["entries"] = [e for e in led["entries"] if e["path"] not in named] + entries
@@ -144,8 +215,9 @@ def register(st, *, instance: Path, ledger: Path, commit: str, files: list[str],
     return {"schema_version": SCHEMA_VERSION, "tool": "knowgov trace", "command": "register", "store": st.name,
             "task": task, "commit": commit, "code_root": cm["root"], "ledger": str(ledger), "changed": [],
             "registered": [{"id": e["id"], "path": e["path"], "app": e["app"], "sha256": e["sha256"], "current_sha256": e["sha256"],
-                            "state": "registered", "used": len(ids), "used_invalidated": [], "successors": [],
-                            **({"as_of": e["as_of"]} if "as_of" in e else {})} for e in entries],
+                            "state": "registered", "used": len(e["assertions"]), "used_invalidated": [], "successors": [],
+                            **({"as_of": e["as_of"]} if "as_of" in e else {}), **({"keys": e["keys"]} if "keys" in e else {})}
+                           for e in entries],
             "gate": None, "findings": [], "counts": {s: 0 for s in SEVERITIES}, "threshold": None, "exit_code": 0}
 
 
@@ -155,8 +227,9 @@ def _finding(severity, kind, message, *, app=None, path=None, ref=None, related=
 
 def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None, commit: str | None = None,
           task: str = "codegen", fail_on: str = "blocker", block_levels: set[str] | None = None, resolve=None,
-          as_of: str | None = None) -> dict:
-    """The check's report; raises CannotRun for what exit 2 covers."""
+          as_of: str | None = None, known: set[str] | None = None) -> dict:
+    """The check's report; raises CannotRun for what exit 2 covers. ``known`` is the subject's key set,
+    which a citation's keys are read against (None: not read)."""
     cm, root = read_map(instance)
     led = read_ledger(ledger, missing_ok=False)
     held = {d["id"] for d in st.all_derived()}
@@ -176,6 +249,7 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
                 fs.append(_finding("major", "unmapped", f"{c} is code no row of code_map.toml maps: the change reaches no knowledge", path=c))
             else:
                 scope_apps.add(app)
+    fs += _citation_findings(cm, root, ch, known)
     rows = []
     for e in led["entries"]:
         if ch is not None and e["path"] not in ch and e["app"] not in scope_apps:
@@ -190,9 +264,11 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
         state = "missing" if cur is None else ("drift" if cur != e["sha256"] else "unchanged")
         rows.append({"id": e["id"], "path": e["path"], "app": e["app"], "sha256": e["sha256"], "current_sha256": cur,
                      "state": state, "used": len(e["assertions"]), "used_invalidated": bad, "successors": succ,
-                     **({"as_of": e["as_of"]} if isinstance(e.get("as_of"), str) else {})})
+                     **({"as_of": e["as_of"]} if isinstance(e.get("as_of"), str) else {}),
+                     **({"keys": e["keys"]} if isinstance(e.get("keys"), list) else {})})
         if bad:
-            fs.append(_finding("blocker", "suspect", f"{e['path']} ({e['app']}), registered as {e['id']}, was built from {len(bad)} statement(s) "
+            on = f", resting on the cited key(s) {', '.join(keys)}," if isinstance(e.get("keys"), list) else ""
+            fs.append(_finding("blocker", "suspect", f"{e['path']} ({e['app']}), registered as {e['id']}{on} was built from {len(bad)} statement(s) "
                                f"now invalidated ({', '.join(bad)}); successors {', '.join(succ) or 'none'}: rebuild it from the current "
                                "statements and register it again", app=e["app"], path=e["path"], ref=e["id"], related=bad))
         if state == "missing":
@@ -221,7 +297,7 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
                 continue
             fs.append(_finding(g["severity"], f"gate:{g['kind']}", f"{task}: {g['message']}",
                                app=", ".join(apps) or None, ref=g.get("ref") or g.get("key"), related=g.get("related") or []))
-    order = ["suspect", "unmapped", "missing", "drift"]
+    order = ["suspect", "unknown_key", "malformed_citation", "unmapped", "uncited", "missing", "drift", "uncitable"]
     fs.sort(key=lambda f: (SEVERITIES.index(f["severity"]), order.index(f["kind"]) if f["kind"] in order else len(order), f["path"] or "", f["ref"] or ""))
     counts = {s: sum(1 for f in fs if f["severity"] == s) for s in SEVERITIES}
     fail = any(SEVERITIES.index(f["severity"]) <= SEVERITIES.index(fail_on) for f in fs)
@@ -230,12 +306,45 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
             "registered": rows, "gate": gate, "findings": fs, "counts": counts, "threshold": fail_on, "exit_code": 1 if fail else 0}
 
 
+def _citation_findings(cm: dict, root: Path, changed: list[str] | None, known: set[str] | None) -> list[dict]:
+    """task-0124: the header citations of the mapped code files in scope, read against the subject's keys."""
+    fs, cit = [], cm.get("citations") or {"require": False, "apps": []}
+    for r in cm["rows"]:
+        for rel in r["files"]:
+            if changed is not None and rel not in changed:
+                continue
+            p = root / rel
+            if not p.is_file():
+                continue
+            governed = cit["require"] and r["app"] in cit["apps"]
+            try:
+                keys = citation.read(p)
+            except citation.Malformed as e:
+                fs.append(_finding("blocker", "malformed_citation", f"{rel} ({r['app']}): its citation does not hold: {e}", app=r["app"], path=rel))
+                continue
+            if keys is None:
+                if governed:
+                    fs.append(_finding("info", "uncitable", f"{rel} ({r['app']}): {citation.MARK} covers {', '.join(sorted(citation.COMMENT))} "
+                                       "files; this one cannot cite its keys", app=r["app"], path=rel))
+                continue
+            unknown = [k for k in keys if known is not None and k not in known]
+            if unknown:
+                fs.append(_finding("blocker", "unknown_key", f"{rel} ({r['app']}) cites {', '.join(unknown)}, which neither the subject's "
+                                   "register map nor any task names: cite the keys it rests on", app=r["app"], path=rel, related=unknown))
+            if not keys and governed:
+                fs.append(_finding("major", "uncited", f"{rel} ({r['app']}) cites no key, and code_map.toml requires {r['app']}'s code to: add a "
+                                   f"'{citation.language(p)} {citation.MARK} K1, K2' header line and register it with --cited",
+                                   app=r["app"], path=rel))
+    return fs
+
+
 def render(rep: dict) -> str:
     out = [f"knowgov trace {rep['command']} ({rep['store']}, task {rep['task']}, code root {rep['code_root']})"]
     for r in rep["registered"]:
         out.append(f"  {r['state']:10s} {r['app']}  {r['path']}  {r['id']}"
                    + (f"  {len(r['used_invalidated'])} of {r['used']} statement(s) invalidated" if r["used_invalidated"] else f"  {r['used']} statement(s)")
-                   + (f", registered as of {r['as_of']}" if r.get("as_of") else ""))
+                   + (f", registered as of {r['as_of']}" if r.get("as_of") else "")
+                   + (f", on key(s) {', '.join(r['keys'])}" if r.get("keys") else ""))
     if rep["gate"]:
         out.append(f"  gate {rep['gate']['task']}: {rep['gate']['verdict']} — {rep['gate']['why']}"
                    + (f" (as of {rep['gate']['as_of']})" if rep["gate"].get("as_of") else ""))
@@ -266,6 +375,9 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--file", action="append", default=[], help="a built or changed file, relative to the code map's root (repeat)")
     r.add_argument("--repo", default="code", help="the code repository's name, in the derived id (default: code)")
     r.add_argument("--assertion", action="append", default=[], help="a statement the build used (repeat; default: every statement the task's gate serves)")
+    r.add_argument("--keys", type=lambda v: [k.strip() for k in v.split(",") if k.strip()], default=None, metavar="K1,K2",
+                   help="hand-written code: register on these keys' current statements (task-0124)")
+    r.add_argument("--cited", action="store_true", help="hand-written code: register each file on the keys its header cites (task-0124)")
     r.add_argument("--as-of", default="today", metavar="DATE",
                    help="the date the task's gate is read on to pick the statements (decision-0005): today (default), record or YYYY-MM-DD")
     c = sub.choices["check"]
@@ -284,6 +396,8 @@ def main(argv: list[str] | None = None) -> int:
             from tasks import TASKS
         except Exception as e:  # noqa: BLE001
             raise CannotRun(f"the subject does not load: {e}") from e
+        if args.command == "register" and args.keys == []:
+            raise CannotRun("--keys names no key")
         if args.task not in TASKS:
             raise CannotRun(f"{SUBJECT.id}: no task {args.task!r}")
         import cadence
@@ -299,10 +413,12 @@ def main(argv: list[str] | None = None) -> int:
         try:
             if args.command == "register":
                 rep = register(st, instance=args.instance, ledger=args.ledger, commit=args.commit, files=args.file,
-                               repo=args.repo, task=args.task, assertions=args.assertion, as_of=on)
+                               repo=args.repo, task=args.task, assertions=args.assertion, as_of=on,
+                               keys=args.keys, cited=args.cited, known=known_keys())
             else:
                 rep = check(st, instance=args.instance, ledger=args.ledger, changed=args.changed, commit=args.commit,
-                            task=args.task, fail_on=args.fail_on, block_levels=set(TASKS[args.task]["block_levels"]), as_of=on)
+                            task=args.task, fail_on=args.fail_on, block_levels=set(TASKS[args.task]["block_levels"]), as_of=on,
+                            known=known_keys())
         except CannotRun:
             raise
         except Exception as e:  # noqa: BLE001
