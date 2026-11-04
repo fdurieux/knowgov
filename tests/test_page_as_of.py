@@ -33,10 +33,15 @@ def _row(key, at="2026-08-06"):
 def test_a_lapse_names_the_day_it_lapsed_its_months_and_the_kind_they_come_from():
     got = cadence.lapse(_row("shipper_id|present"), "shipper_id|present", D("2027-09-01"), CARGO_QUOTE)
     assert got["valid_until"] == "2027-08-06" and got["lapsed_on"] == "2027-08-07", got
-    assert got["months"] == 12 and got["kind"] == "capability", "CAP-0004 is a capability; the register names its months"
+    # CAP-0004 and the entities beneath are named at twelve months; on a tie the first named kind is shown
+    assert got["months"] == 12 and got["kind"] == "business_entity", got
     assert cadence.lapse(_row("shipper_id|present"), "shipper_id|present", D("2027-08-06"), CARGO_QUOTE) is None, "current on its last day"
+    # a key on the API's response rests on a step: six months (register decision 0013, v0.2.7)
+    assert cadence.kind_for("response|statuses", CARGO_QUOTE) == "step" and cadence.months_for("response|statuses", CARGO_QUOTE) == 6
+    got = cadence.lapse(_row("response|statuses"), "response|statuses", D("2027-09-01"), CARGO_QUOTE)
+    assert got["valid_until"] == "2027-02-06" and got["lapsed_on"] == "2027-02-07" and got["months"] == 6, got
     # a key whose nodes are of kinds the register names no months for takes the default, and no kind
-    assert cadence.kind_for("response|statuses", CARGO_QUOTE) is None and cadence.months_for("response|statuses", CARGO_QUOTE) == 12
+    assert cadence.kind_for("no|such key", CARGO_QUOTE) is None and cadence.months_for("no|such key", CARGO_QUOTE) == 12
 
 
 def _lapsed_run(td: Path) -> Path:
@@ -50,6 +55,10 @@ def _lapsed_run(td: Path) -> Path:
     d.mkdir(parents=True)
     (d / "deterministic.json").write_text(json.dumps(j), encoding="utf-8")
     return td / "demo-runs"
+
+
+# (key, lapsed on, months) as of 2027-09-01: twelve months for the entities, six for the step (decision 0013)
+LAPSES = {("shipper_id|present", "2027-08-07", "12"), ("weight_kg|max", "2027-08-07", "12"), ("response|statuses", "2027-02-07", "6")}
 
 
 def _sentences(text):
@@ -68,8 +77,8 @@ def test_the_gate_box_and_panel_name_the_as_of_date_and_list_each_lapsed_review(
     assert sec["heading"] == "Review currency: 4 reviews on 3 keys lapsed by 2027-09-01" and "as of 2027-09-01" in sec["text"]
     t = sec["table"]
     assert t["cols"] == ["assertion", "key", "was", "current until", "lapsed on", "review months", "kind"]
-    assert len(t["rows"]) == 4 and {r[4] for r in t["rows"]} == {"2027-08-07"} and {r[5] for r in t["rows"]} == {"12"}
-    assert {r[1]: r[6] for r in t["rows"]} == {"shipper_id|present": "capability", "weight_kg|max": "capability", "response|statuses": "default"}
+    assert len(t["rows"]) == 4 and {(r[1], r[4], r[5]) for r in t["rows"]} == LAPSES, t["rows"]
+    assert {r[1]: r[6] for r in t["rows"]} == {"shipper_id|present": "business_entity", "weight_kg|max": "business_entity", "response|statuses": "step"}
     text = " ".join(v["narrative"])
     assert "as of 2027-09-01, not the record date 2026-10-30." in text and "By then 4 reviews on 3 keys had lapsed." in text
     assert "so the record is not its measure" in text, "a run read as of another date is not the record's measure"
@@ -132,13 +141,13 @@ def test_the_run_reads_its_date_and_the_stack_job_asserts_the_page_on_s1_after_t
     assert 'ap.add_argument("--as-of", default="record"' in run_py and 'resolve(s, "codegen", as_of)' in run_py
     wf = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     step = wf.split("task-0076", 1)[1].split("- name:", 1)[0]
-    assert '"as_of":"2027-09-01"' in step and 'x["lapsed_on"] == "2027-08-07" and x["months"] == 12' in step
+    assert '"as_of":"2027-09-01"' in step and 'x["lapsed_on"], x["months"]) == lapse(x["key"])' in step
     assert 'v["as_of"]["date"] == "2027-09-01"' in step and '"as of 2027-09-01" in gate["lines"]' in step
 
 
 def _lapsed_s6_run(td: Path) -> Path:
     """A demo run folder of S6 as of 2027-09-01: the record's numbers, each stage-2 gate as the run
-    gives it (the run on either store lists the same ten keys lapsed on 2027-08-07 in both)."""
+    gives it (the run on either store lists the same ten keys lapsed in both: seven on 2027-08-07, three on 2027-02-07)."""
     j = json.loads((RESULTS / "S6" / "deterministic.json").read_text(encoding="utf-8"))
     keys = ["shipper_id|present", "weight_kg|max", "response|statuses"]
     lapsed = [cadence.lapse(_row(k), k, D("2027-09-01"), CARGO_QUOTE) for k in keys]
@@ -169,7 +178,7 @@ def test_s6_stage_2_gate_boxes_and_panels_list_the_lapsed_reviews_as_stage_1_doe
         sec = next(x for x in v["details"][panel]["sections"] if x["heading"].startswith("Review currency"))
         assert sec["heading"] == f"Review currency: {n} reviews on {keys} keys lapsed by 2027-09-01" and "as of 2027-09-01" in sec["text"], sec
         assert sec["table"]["cols"] == stage1["table"]["cols"] and len(sec["table"]["rows"]) == n
-        assert {r[4] for r in sec["table"]["rows"]} == {"2027-08-07"} and {r[5] for r in sec["table"]["rows"]} == {"12"}
+        assert {(r[1], r[4], r[5]) for r in sec["table"]["rows"]} <= LAPSES, sec["table"]["rows"]
     assert "Re-verification renewed none of the 2 lapsed reviews on 2 keys." in " ".join(v["narrative"])
     for item in v["text_registry"]:
         if item["kind"] == "data":
@@ -194,4 +203,4 @@ def test_the_stack_job_asserts_s6_stage_2_gates_after_the_lapse():
     wf = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     step = wf.split("task-0086", 1)[1].split("- name:", 1)[0]
     assert '"scenario":"S6"' in step and '"as_of":"2027-09-01"' in step
-    assert 'for panel in ("gate_before", "gate_after")' in step and 'x["lapsed_on"] == "2027-08-07"' in step
+    assert 'for panel in ("gate_before", "gate_after")' in step and '(x["lapsed_on"], x["months"]) == lapse(x["key"])' in step
