@@ -134,3 +134,64 @@ def test_the_run_reads_its_date_and_the_stack_job_asserts_the_page_on_s1_after_t
     step = wf.split("task-0076", 1)[1].split("- name:", 1)[0]
     assert '"as_of":"2027-09-01"' in step and 'x["lapsed_on"] == "2027-08-07" and x["months"] == 12' in step
     assert 'v["as_of"]["date"] == "2027-09-01"' in step and '"as of 2027-09-01" in gate["lines"]' in step
+
+
+def _lapsed_s6_run(td: Path) -> Path:
+    """A demo run folder of S6 as of 2027-09-01: the record's numbers, each stage-2 gate as the run
+    gives it (the run on either store lists the same ten keys lapsed on 2027-08-07 in both)."""
+    j = json.loads((RESULTS / "S6" / "deterministic.json").read_text(encoding="utf-8"))
+    keys = ["shipper_id|present", "weight_kg|max", "response|statuses"]
+    lapsed = [cadence.lapse(_row(k), k, D("2027-09-01"), CARGO_QUOTE) for k in keys]
+    j["as_of"] = "2027-09-01"
+    j["D6_gate"].update(lapsed=lapsed)
+    j["stage2"]["gate_before_reverification"].update(lapsed=lapsed)
+    j["stage2"]["gate_after_reverification"].update(verdict="BLOCKED", why="10 of 36 required keys (28%) are below verified; the bar is 25%", lapsed=lapsed[:2])
+    d = td / "demo-runs" / "cargo_quote" / "2027-09-01-0000" / "S6"
+    d.mkdir(parents=True)
+    (d / "deterministic.json").write_text(json.dumps(j), encoding="utf-8")
+    return td / "demo-runs"
+
+
+@on_cargo_quote
+def test_s6_stage_2_gate_boxes_and_panels_list_the_lapsed_reviews_as_stage_1_does():
+    """Task-0086: each stage-2 gate, before and after re-verification, names its as-of date and lists
+    its lapsed reviews, in the stage-1 gate's box lines and panel section; its colour is its verdict's."""
+    with tempfile.TemporaryDirectory() as td:
+        runs = _lapsed_s6_run(Path(td))
+        v = views.build("S6", "demo-runs/cargo_quote/2027-09-01-0000", runs)
+    boxes = {s["id"]: s for s in v["stage2"]["stages"]}
+    assert boxes["gate_before"]["lines"][:3] == ["BLOCKED", "as of 2027-09-01", "3 reviews lapsed, on 3 keys"], boxes["gate_before"]["lines"]
+    assert boxes["gate_after"]["lines"][:3] == ["BLOCKED", "as of 2027-09-01", "2 reviews lapsed, on 2 keys"], boxes["gate_after"]["lines"]
+    assert boxes["gate_before"]["colour"] == boxes["gate_after"]["colour"] == "bad", "a BLOCKED gate after re-verification is not shown green"
+    assert v["stage2"]["gate_after"]["lapsed"] == v["stage2"]["gate_after"]["lapsed"][:2]
+    stage1 = next(x for x in v["details"]["gate"]["sections"] if x["heading"].startswith("Review currency"))
+    for panel, n, keys in (("gate_before", 3, 3), ("gate_after", 2, 2)):
+        sec = next(x for x in v["details"][panel]["sections"] if x["heading"].startswith("Review currency"))
+        assert sec["heading"] == f"Review currency: {n} reviews on {keys} keys lapsed by 2027-09-01" and "as of 2027-09-01" in sec["text"], sec
+        assert sec["table"]["cols"] == stage1["table"]["cols"] and len(sec["table"]["rows"]) == n
+        assert {r[4] for r in sec["table"]["rows"]} == {"2027-08-07"} and {r[5] for r in sec["table"]["rows"]} == {"12"}
+    assert "Re-verification renewed none of the 2 lapsed reviews on 2 keys." in " ".join(v["narrative"])
+    for item in v["text_registry"]:
+        if item["kind"] == "data":
+            continue
+        for s in _sentences(item["text"]):
+            assert len(s.split()) <= {"controlled": 20, "reading": 25}[item["kind"]], s
+            assert not [f for f in views.FORBIDDEN if re.search(r"\b" + re.escape(f) + r"\b", s.lower())], s
+
+
+@on_cargo_quote
+def test_the_record_s6_stage_2_gates_name_no_lapse_and_keep_their_colours():
+    v = views.build("S6", "record", NO_RUNS)
+    boxes = {s["id"]: s for s in v["stage2"]["stages"]}
+    assert boxes["gate_before"]["colour"] == "bad" and boxes["gate_after"]["colour"] == "ok"
+    assert boxes["gate_after"]["lines"][:2] == ["PROCEED", "as of " + CARGO_QUOTE.record_as_of]
+    for panel in ("gate_before", "gate_after"):
+        sec = next(x for x in v["details"][panel]["sections"] if x["heading"].startswith("Review currency"))
+        assert sec["heading"] == "Review currency: no review lapsed" and "table" not in sec
+
+
+def test_the_stack_job_asserts_s6_stage_2_gates_after_the_lapse():
+    wf = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
+    step = wf.split("task-0086", 1)[1].split("- name:", 1)[0]
+    assert '"scenario":"S6"' in step and '"as_of":"2027-09-01"' in step
+    assert 'for panel in ("gate_before", "gate_after")' in step and 'x["lapsed_on"] == "2027-08-07"' in step
