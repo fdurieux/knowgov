@@ -1,0 +1,8 @@
+{
+  "allowManagedMcpServersOnly": true,
+  "allowedMcpServers": [
+    {
+      "serverName": "knowgov"
+    }
+  ]
+}

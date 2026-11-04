@@ -197,9 +197,24 @@ def test_the_settings_snippets_fail_closed_and_only_the_managed_one_locks():
                 assert h["timeout"] == 600
                 assert ("--advisory" in h["args"]) == (name == "advisory"), name
                 assert h.get("onFailure") == (None if name == "advisory" else "block"), name
-    assert managed["allowManagedHooksOnly"] is True and managed["allowManagedMcpServersOnly"] is True
-    assert {"serverName": "knowgov"} in managed["allowedMcpServers"]
+    assert managed["allowManagedHooksOnly"] is True
     assert "allowManagedHooksOnly" not in repo and "allowManagedHooksOnly" not in adv
+
+
+def test_the_managed_fragment_carries_the_hook_and_the_mcp_lock_is_its_own_opt_in():
+    # task-0107: the hook is the enforcement; the MCP allowlist is the organisation's tool policy
+    load = lambda n: json.loads((DIR / n).read_text(encoding="utf-8"))  # noqa: E731
+    repo, managed, mcp = load("settings.json"), load("managed-settings.json"), load("managed-mcp-allowlist.json")
+    assert set(managed) == {"allowManagedHooksOnly", "hooks"}, sorted(managed)
+    assert mcp == {"allowManagedMcpServersOnly": True, "allowedMcpServers": [{"serverName": "knowgov"}]}, mcp
+    for s in (repo, managed):
+        assert not {"allowManagedMcpServersOnly", "allowedMcpServers"} & set(s)
+    hooks = lambda s: [h for e in s["hooks"]["PreToolUse"] for h in e["hooks"]]  # noqa: E731
+    (r,), (m,) = hooks(repo), hooks(managed)
+    # the same command; managed settings carry no repository env, so they name the checkout with --knowgov
+    assert m["command"] == r["command"] and m["args"][:len(r["args"])] == r["args"], (m, r)
+    assert m["args"][len(r["args"]):] == ["--knowgov", repo["env"]["KG_HOME"]], m["args"]
+    assert {k: v for k, v in m.items() if k != "args"} == {k: v for k, v in r.items() if k != "args"}
 
 
 def test_the_header_cites_doc_0004_as_superseded_and_the_readme_places_each_file():
@@ -209,7 +224,9 @@ def test_the_header_cites_doc_0004_as_superseded_and_the_readme_places_each_file
     readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
     sec = readme[readme.index("## A fail-closed hook for Claude Code"):]
     for s in ["/etc/claude-code/managed-settings.d/", "/Library/Application Support/ClaudeCode/", ".claude/settings.json",
-              "settings.advisory-fail-open.json", "only the managed", "one store per worktree"]:
+              "settings.advisory-fail-open.json", "only the managed", "one store per worktree",
+              "managed-mcp-allowlist.json", "opt-in", "replace the lists of every lower settings source",
+              "Merge its entries", "hook stays mandatory"]:
         assert s in sec, s
 
 

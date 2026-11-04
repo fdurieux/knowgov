@@ -22,6 +22,10 @@ names that section with the version.
   `as_of` and `as_of_from`. A bad `KG_AS_OF`, or a relative date under `KG_CLOCK=pinned` with no
   `KG_TODAY`, stops the server at start (exit 2).
 
+### Also since 0.3.0
+
+- **The MCP allowlist leaves the managed hook fragment** (task-0107): `instance/ci/claude/managed-settings.json` carries `allowManagedHooksOnly` and the hook only; `allowManagedMcpServersOnly` and `allowedMcpServers` move to `managed-mcp-allowlist.json`, an opt-in whose lists replace lower sources' and must be merged; the hook stays mandatory without it.
+
 ## 0.3.0 — 2026-11-04
 
 A hardening release on top of 0.2.0. The page's writes need a token beyond the local machine. A

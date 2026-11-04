@@ -1,11 +1,5 @@
 {
   "allowManagedHooksOnly": true,
-  "allowManagedMcpServersOnly": true,
-  "allowedMcpServers": [
-    {
-      "serverName": "knowgov"
-    }
-  ],
   "hooks": {
     "PreToolUse": [
       {

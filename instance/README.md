@@ -533,16 +533,24 @@ before anything reaches a pull request. `instance/ci/claude/` holds the recipe f
 | File | Where it goes | Mandatory? |
 |---|---|---|
 | `managed-settings.json` | your organisation's managed settings: as a drop-in file, `/etc/claude-code/managed-settings.d/50-knowgov.json` on Linux and WSL, `/Library/Application Support/ClaudeCode/managed-settings.d/50-knowgov.json` on macOS, `C:\Program Files\ClaudeCode\managed-settings.d\50-knowgov.json` on Windows; or its keys in server-managed settings from the claude.ai console, the only kind a cloud session receives | **yes**: only the managed one is mandatory |
+| `managed-mcp-allowlist.json` | the same managed settings, beside `managed-settings.json`, only if your organisation chooses it: its entries merged into the MCP lists you already hold | no: opt-in, your organisation's own tool policy |
 | `settings.json` | the instance repository's `.claude/settings.json`, committed | no: a team default an engineer can switch off |
 | `settings.advisory-fail-open.json` | the same place, *instead of* `settings.json`, for a team that chooses it | no: advisory, and fail-open |
 | `knowgov_hook.py` | stays in a knowgov checkout at a tag, outside the repository the assistant edits (`/opt/knowgov` in the snippets: change the path to yours) | the script all three call |
 
 In plain English: a hook in the repository's `.claude/settings.json` is one an engineer, or the
 assistant, can edit away. A hook in managed settings is not: `allowManagedHooksOnly` runs only the
-organisation's hooks, and `allowManagedMcpServersOnly` with `allowedMcpServers` lets the assistant
-reach the knowgov MCP server (named `knowgov`, as "Letting an AI assistant ask the gate" registers
-it) and no server the organisation has not listed. Those two lists replace any lower source's, so
-merge the fragment's entries into the lists your managed settings already hold.
+organisation's hooks. That hook is the enforcement that matters, and `managed-settings.json` carries
+nothing else.
+
+**The MCP allowlist, an opt-in.** `managed-mcp-allowlist.json` carries `allowManagedMcpServersOnly`
+with `allowedMcpServers`, which let the assistant reach the knowgov MCP server (named `knowgov`, as
+"Letting an AI assistant ask the gate" registers it) and no server the organisation has not listed.
+Which MCP servers an assistant may use is your organisation's own tool policy, so this fragment is
+yours to adopt or leave. Both lists replace the lists of every lower settings source rather than
+adding to them: copied as is, the fragment would switch off every other MCP server your organisation
+allows. Merge its entries into the lists your managed settings already hold. Without the opt-in the
+hook stays mandatory all the same: the gate still blocks at every stage transition.
 
 **When it fires.** At stage transitions, never on every edit: a gate that loads the store takes
 seconds, and a hook on every edit must be fast and file-scoped. The script decides itself whether a
