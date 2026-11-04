@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T18:33:00Z'
-updated_date: '2026-11-04T20:01:00Z'
+updated_date: '2026-11-04T21:04:00Z'
 labels:
   - register
   - gate
@@ -43,6 +43,8 @@ PR 1 (#204, merged 1f14be0): vendor ieam-register v0.2.9 (decision 0016); the pa
 PR 1 #204 merged (1f14be0): 19 dependants walks lose their start, as 0016's table says; the lands table and edge counts are unchanged.
 
 PR 2: fixture (CAP-0001 deprecated by decision 0099, children moved to CAP-0006, REL-06001 withdrawn) on S1: 32 keys, 81 statements stale, derived:S1:G:run1 suspect, exit 1, Neo4j 5.26 and rdflib equal; the round trip holds rdflib->rdflib and neo4j->rdflib->neo4j. An update with no state change gives a report equal to the gate without the flag. The record and the comparator are unchanged (CQ 7, J-F 6). tests 374/374 on both subjects.
+
+Maintainer's choice (2026-11-04, via the coordinator, option b): a descendant that the new register re-parented away from a withdrawn node, in any state, is skipped along with its subtree; it was moved, not withdrawn. A descendant still under the node is descended as before (register_change.descent). Fixture: CAP-0001 lands nothing (all four children moved); REL-06001 lands the 8 DT-V keys, 15 statements on S1, the same on Neo4j and rdflib; exit 1; derived:S1:G:run1 suspect. Before: 32 keys, 81 statements.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

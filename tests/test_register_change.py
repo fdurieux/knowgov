@@ -49,7 +49,7 @@ def test_an_update_with_no_state_change_withdraws_nothing_and_lands_nothing():
     try:
         ch = rc.diff(VENDORED, fx.same(d / "same"))
         assert ch["nodes"] == [] and ch["links"] == []
-        assert rc.resting(ch, {"row": [{"key": "k", "nodes": ["CAP-0001"]}]}, VENDORED) == []
+        assert rc.resting(ch, {"row": [{"key": "k", "nodes": ["CAP-0001"]}]}, VENDORED, d / "same") == []
         assert rc.apply(None, []) == {"invalidated": []}, "nothing landed: the store is never touched"
         assert rc.diff(VENDORED, VENDORED)["nodes"] == [] and rc.diff(VENDORED, VENDORED)["links"] == []
     finally:
@@ -85,26 +85,59 @@ def test_the_reason_is_the_decision_record_in_the_registers_own_order():
 
 def test_the_keys_resting_on_the_change_follow_the_map_rows_and_the_registers_walk():
     """CAP-0001: the dependants walk with the descent by parent (decision 0014) on the previous
-    register, the start never counted (decision 0016): 32 keys, register_impact's (task-0120), the 32nd
-    through the withdrawn CAP-0005, flagged. REL-06001: the
-    rows naming both its ends and the rows its walk lands only through it: the DT-V rows."""
+    register, the start never counted (decision 0016), less every descendant the new register moved
+    away from it, in any state, with its subtree (the maintainer, 2026-11-04: moved, not withdrawn).
+    The fixture moves all four, CAP-0005 (proposed) too, so CAP-0001 lands nothing. REL-06001: the
+    rows naming both its ends and the rows its walk lands only through it: the eight DT-V rows."""
     SUBJECT = CARGO_QUOTE
     d = _tmp()
     try:
-        landed = rc.resting(rc.diff(VENDORED, fx.changed(d / "reg")), SUBJECT.register_map(), VENDORED)
+        cur = fx.changed(d / "reg")
+        landed = rc.resting(rc.diff(VENDORED, cur), SUBJECT.register_map(), VENDORED, cur)
         keys = {k["key"]: k for k in landed}
-        assert len(keys) == 32 and set(keys) <= {r["key"] for r in SUBJECT.register_map()["row"]}
-        flagged = [k for k, v in keys.items() if any(c.get("withdrawn") for c in v["causes"])]
-        assert flagged == ["QuoteAPI|on_notification_failure"] and keys[flagged[0]]["causes"][0]["via"] == ["CAP-0005"]
-        by_link = {k for k, v in keys.items() if any(c.get("link") == "REL-06001" for c in v["causes"])}
-        assert by_link == DT_V, sorted(by_link)
-        assert all(any(c.get("node") == "CAP-0001" and c["walk"] == "dependants" and c["children"] for c in v["causes"]) for v in keys.values())
+        assert set(keys) == DT_V, sorted(keys)
+        assert all({c.get("link") for c in v["causes"]} == {"REL-06001"} for v in keys.values()), "CAP-0001 lands nothing"
         assert all(v["reasons"] == [REASON] and v["owner"] for v in keys.values())
-        both = [c for c in keys["shipper_id|present"]["causes"] if c.get("link") and c["walk"] is None]
+        both = [c for c in keys["shipper_id|present"]["causes"] if c["walk"] is None]
         assert both and both[0]["via"] == ["APP-0002", "PROC-0002"]
-        lost = [c for c in keys["shipper_id|present"]["causes"] if c.get("link") and c["walk"]]
+        lost = [c for c in keys["shipper_id|present"]["causes"] if c["walk"]]
         assert lost and lost[0]["from"] == "APP-0002" and "PROC-0002" in lost[0]["via"]
-        assert not any("CAP-0001" in c["via"] for v in keys.values() for c in v["causes"]), "no row names CAP-0001; it is never reached"
+    finally:
+        shutil.rmtree(d)
+
+
+def test_a_descendant_left_below_the_withdrawn_node_is_descended_and_a_moved_one_skipped():
+    """The same deprecation with the children left under CAP-0001 descends as register_impact
+    --children does: 32 keys, the 32nd through the proposed CAP-0005, flagged (task-0120). Moving
+    CAP-0003 alone, with whatever lies below it, skips exactly the rows only it carried."""
+    import register_impact as ri
+    SUBJECT = CARGO_QUOTE
+    d = _tmp()
+    try:
+        cur = fx.changed(d / "reg")
+        caps = cur / "capabilities"
+
+        def parent(cap: str, to: str) -> None:
+            p = caps / f"{cap}.toml"
+            p.write_text(re.sub(r'^parent = "[^"]*"', f'parent = "{to}"', p.read_text(encoding="utf-8"), count=1, flags=re.M), encoding="utf-8")
+        for c in ("CAP-0002", "CAP-0003", "CAP-0004", "CAP-0005"):
+            parent(c, "CAP-0001")
+        ch = rc.diff(VENDORED, cur)
+        ch["links"] = []
+        left = {k["key"]: k for k in rc.resting(ch, SUBJECT.register_map(), VENDORED, cur)}
+        w = ri.walk("CAP-0001", "dependants", root=VENDORED, children=True)
+        want = ri.landed_rows(SUBJECT.register_map(), "CAP-0001", w["reached_ids"], [x["id"] for x in w["children"] if x["walked"]],
+                              [x["id"] for x in w["children"] if x["withdrawn"]])
+        assert len(left) == 32 and set(left) == {r["key"] for r in want}, "register_impact's own landing"
+        flagged = [k for k, v in left.items() if any(c.get("withdrawn") for c in v["causes"])]
+        assert flagged == ["QuoteAPI|on_notification_failure"] and left[flagged[0]]["causes"][0]["via"] == ["CAP-0005"]
+        assert all(c["moved"] == [] for v in left.values() for c in v["causes"])
+        parent("CAP-0003", "CAP-0006")
+        part = {k["key"]: k for k in rc.resting(ch, SUBJECT.register_map(), VENDORED, cur)}
+        assert set(part) < set(left) and all(c["moved"] == ["CAP-0003"] for v in part.values() for c in v["causes"])
+        only3 = {r["key"] for r in SUBJECT.register_map()["row"]
+                 if "CAP-0003" in r["nodes"] and not set(r["nodes"]) & ({"CAP-0001", "CAP-0002", "CAP-0004", "CAP-0005"} | set(w["reached_ids"]))}
+        assert only3 and set(left) - set(part) == only3, (sorted(set(left) - set(part)), sorted(only3))
     finally:
         shutil.rmtree(d)
 
