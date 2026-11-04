@@ -5,6 +5,57 @@ One section per release, newest first. The version in `VERSION` is the top secti
 gate command's exit codes or flags, the JSON shapes under `harness/schemas/`, the instance layout,
 the store port, the subject manifest format.
 
+## 0.3.0 — 2026-11-04
+
+A hardening release on top of 0.2.0. The page's writes need a token beyond the local machine. A
+code-change registration reads as of a chosen date. A document made of several files keeps a
+digest for each of them. The lighthouse evidence reaches the gate the way an agent does, through
+the MCP server.
+
+### Contract changes (why this is 0.3.0, decision-0003)
+
+- **The page's write endpoints** (a run, the register projection): when the stack listens beyond
+  127.0.0.1, they require `KG_PAGE_TOKEN` as a bearer token. Every bind refuses a request from a
+  foreign Origin. Reads stay open (task-0096).
+- **`knowgov-trace register --as-of`**: registrations record the date they read. The trace report
+  and its ledger carry `as_of`, an additive change in the schema. `KG_AS_OF` reaches `register`
+  through all three CI wrappers (task-0093).
+- **Store port:** `record_part_digests` / `part_digests`. A directory artefact's Version keeps a
+  digest for each file (`part_sha256`), carried through the Turtle round trip. `register-cites`
+  compares a cited file by its own digest (task-0094).
+
+### Also in this release
+
+- `tools/lighthouse_evidence.py` reads the evidence bundle through the MCP server's
+  `evidence_bundle`, over stdio or `--transport http`. A run fails if the bundle's verdict or date
+  differs from the gate's (task-0095).
+- The demo's compose file names the release image by digest. The image moved from `v0.1.0` to
+  `v0.2.0` after 0.2.0 was published.
+- **Process:**
+  - a release PR comes with the Release's title and description;
+  - a merged PR refreshes the maintainer's two pages.
+
+### What this release carries
+
+| what | version |
+|---|---|
+| pumllint (the sequence-diagram mapper's parser) | 0.33.0, from PyPI |
+| the IEAM register, vendored under `demo/register/` | ieam-register `v0.2.6` |
+| the record's pins | unchanged from 0.2.0 |
+| Python | 3.12 in the image |
+
+The image is `ghcr.io/fdurieux/knowgov:v0.3.0`. The compose file moves to it in a follow-up, once
+the Release has published its digest.
+
+### Known limits
+
+- **The page's reads have no login.** Keep the default localhost bind, or put the page behind your
+  own access control.
+- **The GitLab template** is proven by shell, not yet on a GitLab runner.
+- **The lighthouse pilot** waits on the choice of incumbent.
+- **The register's open decisions** are the realiser walk and the review months for CargoQuote's
+  `response|*` kinds (ieam-register #18 and #19).
+
 ## 0.2.0 — 2026-11-04
 
 The gate now sees change, time and code. A changed document invalidates what rested on it and
