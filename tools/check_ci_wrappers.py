@@ -26,6 +26,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "harness"), str(ROOT / "tools")]
+import cadence  # noqa: E402
 import example_instance  # noqa: E402
 import schema_check  # noqa: E402
 
@@ -60,8 +61,9 @@ def main() -> None:
     git(inst, "add", "-A")
     git(inst, "-c", "user.name=ci", "-c", "user.email=ci@example.invalid", "commit", "-qm", "base")
     base = git(inst, "rev-parse", "HEAD")
-    env = dict(os.environ, CI_PROJECT_DIR=str(out), CI_PROJECT_NAME="cargo-quote", CI_COMMIT_SHA=base,
-               KG_RDFLIB_FILE=str(out / "store.ttl"), KG_LEDGER=str(out / "ledger.json"), PYTHONDONTWRITEBYTECODE="1")
+    # the record's day, the wall clock refused (task-0075): KG_TODAY reaches the gate through the job's environment
+    env = cadence.pin_record(dict(os.environ, CI_PROJECT_DIR=str(out), CI_PROJECT_NAME="cargo-quote", CI_COMMIT_SHA=base,
+                                  KG_RDFLIB_FILE=str(out / "store.ttl"), KG_LEDGER=str(out / "ledger.json"), PYTHONDONTWRITEBYTECODE="1"))
 
     if job(env, "gate", KG_SCENARIO="S6") != 0:
         sys.exit("FAIL: the gate on S6's stage 1, want exit 0")

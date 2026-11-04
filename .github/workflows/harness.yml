@@ -16,6 +16,10 @@ permissions:
 jobs:
   rdflib:
     runs-on: ubuntu-latest
+    env:
+      # task-0075: no step reads the wall clock; a command that asks today's date with no KG_TODAY
+      # fails here (harness/review.py today()), so no outcome moves by the calendar
+      KG_CLOCK: pinned
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@v6
@@ -156,6 +160,7 @@ jobs:
           g() { git -C runs/wrap/instance -c user.name=ci -c user.email=ci@example.invalid "$@"; }
           g init -q -b main && g commit -q --allow-empty -m root && g add -A && g commit -qm instance
           echo "KG_STORE=rdflib" >> "$GITHUB_ENV"; echo "KG_RDFLIB_FILE=$PWD/runs/wrap/store.ttl" >> "$GITHUB_ENV"
+          echo "KG_TODAY=2026-10-30" >> "$GITHUB_ENV"   # the record's day for the action's gate (task-0075; KG_CLOCK=pinned)
       - name: "The action: preload, clean, exit 0"
         uses: ./instance/ci/github
         with: { gate: preload, instance: runs/wrap/instance, base: HEAD~1 }
@@ -191,6 +196,7 @@ jobs:
         run: |
           rm -rf runs/capture && python tools/example_instance.py runs/capture > /dev/null
           export KG_SUBJECT="$PWD/runs/capture/subjects/cargo_quote" KG_REGISTER="$PWD/runs/capture/register" KG_STORE=rdflib
+          export KG_TODAY=2026-11-02   # the answers' day (task-0075): the questionnaire's and the ingest's today
           cd harness
           python capture.py questionnaire --scenario S2 --out ../runs/questionnaires
           python3 - <<'PY'
@@ -207,7 +213,7 @@ jobs:
           Path("../runs/answered.toml").write_text("[[item]]".join(parts))
           PY
           python capture.py ingest ../runs/answered.toml
-          set +e; python gate_cli.py --scenario S2 -f json > ../runs/gate-captured.json; set -e
+          set +e; python gate_cli.py --as-of record --scenario S2 -f json > ../runs/gate-captured.json; set -e
           python3 - <<'PY'
           import json, sys
           sys.path.insert(0, ".")

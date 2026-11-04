@@ -343,7 +343,8 @@ from the review itself, and the command refuses a review that breaks a rule, nam
   ORG-0004 there (a stand-in, its decision 0011), and only `employee-4` of that unit closes it.
 - **An approved answer lapses** six months after it was given: the statement reads *proposed*
   again until someone re-asks and a reviewer approves again. Set `KG_TODAY=YYYY-MM-DD` for a
-  reproducible date.
+  reproducible date, and `KG_CLOCK=pinned` in a pipeline so a command that would read the wall clock
+  fails instead (task-0075).
 
 **When a document's review falls due.** A statement a document's review verified is current for
 the review months of the kind its key concerns, from your register's `metamodel/lifecycle.toml`:
