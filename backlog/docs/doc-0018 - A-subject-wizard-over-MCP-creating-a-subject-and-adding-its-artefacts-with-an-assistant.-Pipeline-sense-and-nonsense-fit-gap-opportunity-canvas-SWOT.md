@@ -5,7 +5,7 @@ title: >-
   assistant. Pipeline, sense and nonsense, fit/gap, opportunity canvas, SWOT
 type: specification
 created_date: '2026-11-04T22:34:00Z'
-updated_date: '2026-11-04T22:34:00Z'
+updated_date: '2026-11-04T22:36:00Z'
 tags:
   - canvas
   - swot
@@ -45,7 +45,7 @@ Park a server-side dry-run gate. Reject write tools on `knowgov`, model-drafted 
 | 3 | Load | nothing | `harness/run.py` stage 1: a document a mapper cannot parse fails the run | assertions enter as `proposed`. Verification by execution (oracle on `[reference]`, its digest kept), by dated review (lapses, decision-0005), as authored, then approval. Rules R-STRUCT, R-CORROBORATE, R-CONFLICT, R-VAGUE, R-REQ; SHACL (D4) |
 | 4 | Gate | nothing | `harness/gate_cli.py`: BLOCKED when a key sits at a `block_levels` level, or when the share below verified exceeds `max_unverified_share`. Exit 0/1/2 | QUALIFIED; stale, suspect and lapsed findings with owner and route; pre-load info |
 | 5 | Capture | the owner's answer (handle, date); then a second person's review file | `capture.py ingest`: a name for a handle, a handle not issued or withdrawn or without `gives`, a future date, an answer together with "nobody knows" | decision-0004: an unreviewed answer does not lower a validated key; a contradicting one disputes it |
-| 6 | Consume | nothing | `instance/ci/claude/knowgov_hook.py` blocks at plan, spec commit and push on exit 1 or 2 | the reader's five tools: `store_status`, `gate_verdict`, `three_valued_answer`, `evidence_bundle`, `register_impact` |
+| 6 | Consume | nothing | `instance/ci/claude/knowgov_hook.py` blocks at plan, spec commit and push on exit 1 or 2 | the reader's five tools at `8f375cc`: `store_status`, `gate_verdict`, `three_valued_answer`, `evidence_bundle`, `register_impact`; #211 adds `proposal_impact` (task-0130) as a sixth |
 | 7 | Code | code, `code_map.toml`, `# knowgov-keys:` | `harness/trace.py check`: suspect (blocker); missing, unmapped, uncited (major) | drift (minor) |
 
 Stage 4 loops back through 5 to 3 when a key is `absent` or a `declared_gap`. A public subject in this repository adds: a `[vendor]` table and `tools/vendor_subject.py` at a pumllint tag with its digest test; `tests/test_subject.py`'s guards; `listed` and `KG_SUBJECTS`; the register slice in ieam-register re-vendored at a tag (TASK-0021.04 for J-F); and a deterministic record held by `compare_deterministic.py`.
@@ -104,7 +104,7 @@ The probes ran on rdflib with `KG_TODAY=2026-11-04` and `--as-of 2026-11-04`. Su
 | Value | Time to the first gate run that exits 0 or 1, not 2. No questionnaire caused by a typo. Every document placed in a kind: read by a mapper or listed ABSENT. Every gap routed to a named owner. And, by F1's fix, no statement approved by nobody |
 | Metrics | Days from an empty instance to the first honest gate. Share of blocker findings that were spelling, not knowledge (target 0). Subjects passing `check_instance.py` that the gate cannot run (target 0). Review rounds per subject pull request. Documents named but ABSENT, by kind, as mapper demand |
 | Channels | Claude Code in the instance checkout (a skill under `instance/ci/claude/`, beside the hook); Claude Desktop through the reader (task-0117), the prompt and `subject_check`; the CLI in the instance's CI through `check_instance.py` |
-| Cost | One check module with a CLI and a report schema; folding it into `check_instance.py`; the F1 change and its decision; one read-only tool (the reader's sixth or seventh, with doc-0016's `scenario_runs` and doc-0017's `proposal_impact`), so `test_five_tools_every_one_marked_read_only` and the allowlist move; one prompt; a skill text; a hook; the adopter docs. The check's refusals and the tool are contract changes, a minor version while 0.x (decision-0003), with lines under `## Unreleased` |
+| Cost | One check module with a CLI and a report schema; folding it into `check_instance.py`; the F1 change and its decision; one read-only tool, beside #211's `proposal_impact` and task-0128's `scenario_runs`, so the test that counts the tools (`test_five_tools_every_one_marked_read_only` at `8f375cc`) and the allowlist move; one prompt; a skill text; a hook; the adopter docs. The check's refusals and the tool are contract changes, a minor version while 0.x (decision-0003), with lines under `## Unreleased` |
 | Risks | The model drafting content: answered by F1's fix, the skill's never-list and candidate 5. The model filling attestations: answered by candidate 5. Keys drawn from the yield: answered by showing the yield as a check, never as a source. The wizard read as approval: it ends in a pull request a person merges. Drift into a modelling tool: the wizard writes only the subject root and moves files people name |
 | Unfair advantage | The wizard has an honest stop condition. An import wizard stops when the files are in. This one stops when every remaining finding is knowledge with an owner and a route, decided by the same gate that later blocks the build |
 
