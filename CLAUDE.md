@@ -28,7 +28,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   mapper in exactly one), checked by `tools/check_instance.py`, with a public example from
   `tools/example_instance.py` that CI mounts read-only and digests before and after (task-0006). Each kind's `lint`
   field is doc-0008 §5's tool and gate column; `tools/preload_check.py` lints an instance's documents
-  with the ones that run here (pumllint), lists every other kind's files as unchecked, exits under the
+  with the ones that run here (pumllint; Spectral for api-contracts, task-0066; `--baseline` fails only on regression, task-0065), lists every other kind's files, and a kind whose linter is not installed, as unchecked, exits under the
   gate contract, JSON under `harness/schemas/preload-report.schema.json`; `instance/ci/` is the
   template an instance copies, its script proven in `harness.yml` (task-0045). Form, not knowledge. `harness/gate_cli.py`
   the gate as a command (exit 0/1/2, `--fail-on`, `--baseline record|FILE`, JSON pinned by
@@ -90,6 +90,13 @@ for the whole matrix, merge on green, never on red or pending. The session that
 opened a PR merges it itself once the whole matrix is green (a skipped `publish`
 counts as green), without asking; a PR the brief says the parent session merges
 is left to it.
+
+GitHub auto-merge is on (2026-11-03): the ruleset on `main` requires `tests` and `rdflib`, not
+`stack` (path-filtered, so a required `stack` would leave a PR pending forever) and not an
+up-to-date branch. So: a PR whose diff touches `stack`'s paths (`demo/`, `harness/`, `subjects/`,
+`tools/`, `demo.yml`) gets auto-merge only once `stack` is green on its head, or is merged by hand
+then; any other PR gets auto-merge when it opens. A PR that must wait (a proposed decision, an
+ordering) gets none. A `stack` red on `main` after a merge is fixed at once.
 
 Releases (decision-0003): SemVer, `VERSION` and `CHANGELOG.md` move together in a release PR
 (a test holds them equal); a contract change raises the minor version while 0.x. A hosted
