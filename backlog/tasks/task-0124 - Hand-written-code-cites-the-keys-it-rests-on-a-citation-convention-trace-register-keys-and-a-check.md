@@ -3,7 +3,7 @@ id: TASK-0124
 title: >-
   Hand-written code cites the keys it rests on: a citation convention, trace
   register --keys and a check
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T19:05:00Z'
@@ -50,3 +50,9 @@ Unknown key: a key neither the subject's register map nor any task names. In reg
 'Current statements' on a key: every status but invalidated (proposed, validated, verified, approved, disputed), read through the port's assertions_on_key, so both adapters serve it.
 Evidence: tests/test_citation.py (5 tests); python tests/run_tests.py 371/371 and with KG_SUBJECT=subjects/jef_data_load 371/371; KG_STORE=rdflib tools/check_trace_walkthrough.py passes (hand/tariff_rules.py --keys P2|surcharge suspect on A:dt:P2|surcharge@v1 after S6 stage 2, hand/Screening.java --cited shipper_id|present clean, an unknown key exit 2); rdflib run.py --deterministic + compare_deterministic: 0 differing leaves over 7 scenarios.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Hand-written code joins the stale and suspect chain. harness/citation.py reads a header line naming the keys a file rests on (# knowgov-keys: in Python, // in Java). trace.py register --keys K1,K2 or --cited registers the file as a derived output on those keys' current statements; the ledger entry and the report row carry keys. trace.py check reports unknown_key and malformed_citation (blocker) always, and uncited (major) / uncitable (info) only where code_map.toml's [citations] require is on, optionally for listed APPs. The trace report's change is additive (registered.keys, four finding kinds; schema version 1); CHANGELOG under both Unreleased headings; instance README documents the convention. Verified: unit tests, both suites 371/371, S6 walkthrough on rdflib (the cited invalidated key turns the file suspect, an unaffected one stays clean), deterministic record identical. Risks: citations rot (drift asks for re-registration); other languages are one COMMENT row each. Proposed follow-ups, not created: an info finding for a cited file that is not registered; reading register-change invalidation (task-0122) through the same keys.
+<!-- SECTION:FINAL_SUMMARY:END -->
