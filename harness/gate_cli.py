@@ -35,6 +35,12 @@ subject's record for the same scenario (its deterministic run; the record's gate
 task); ``--baseline FILE`` is an earlier report of this command or a deterministic.json. The gate
 never writes a baseline: recording one is a separate, deliberate act (``-o``, then commit it).
 
+A capture (harness/capture.py) does not trip the ratchet by agreeing (decision-0004): a person's
+answer nobody has reviewed yet is left out of its key's level when the key holds a validated-or-better
+statement, and the bundle marks it pending review. Alone on a key it sets the level (absent ->
+proposed, no regression); contradicting a document it makes the key disputed (R-CONFLICT), a
+regression, which is what the ratchet is for.
+
 ``--stage 2`` brings in the scenario's later version after stage 1, as ``harness/run.py``'s stage 2
 does (``harness/change.py``, task-0049): the subject's ``[scenario.stage2]`` artefact re-ingested as
 its new version, the statements that rested on its changed fragments invalidated, and the earlier
@@ -224,7 +230,6 @@ def run(args) -> dict:
     if args.stage == 2 and not cfg2:
         raise CannotRun(f"{SUBJECT.id}: {scenario} has no later version (no [scenario.stage2])")
     base = _baseline(args.baseline, SUBJECT, scenario, args.task)
-    from gate import resolve
     from store import open_store
     try:
         st = open_store(instance=SUBJECT.id)
@@ -237,14 +242,15 @@ def run(args) -> dict:
             loaded = acts[0].split(":")[2] if acts else None
             if loaded != scenario:
                 raise CannotRun(f"the store holds {loaded or 'no scenario'}, not {scenario!r}; load it, or drop --no-load")
-            version = acts[-1].split(":")[3]
+            version = held_version(st)
         else:
             _load(st, scenario)
             version = "v1"
             if cfg2:
                 change = _change(st, SUBJECT, scenario, cfg2, args.reverify)
                 version = change["version"]
-        res = resolve(st, args.task)
+        return evaluate(st, subject=SUBJECT.id, scenario=scenario, task=args.task, spec=TASKS[args.task],
+                        threshold=args.fail_on, baseline=base, loaded=not args.no_load, version=version, change=change)
     except CannotRun:
         raise
     except Exception as e:  # noqa: BLE001 — an unreachable store fails here, on the first statement
@@ -254,10 +260,26 @@ def run(args) -> dict:
             st.close()
         except Exception:  # noqa: BLE001
             pass
-    spec = TASKS[args.task]
-    return report(res, subject=SUBJECT.id, scenario=scenario, task=args.task, store=st.name, loaded=not args.no_load,
-                  block_levels=set(spec["block_levels"]), threshold=args.fail_on,
-                  baseline=compare(res, *base) if base else None, version=version, change=change)
+
+
+def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshold: str,
+             baseline: tuple[dict, str] | None, loaded: bool, version: str | None = None,
+             change: dict | None = None) -> dict:
+    """Resolve ``spec`` on the store as it stands and build the report. The command calls this
+    after its load (and stage 2's change, if any); the MCP server (harness/mcp_server.py) calls it
+    on a store it only reads, so one input gives one report whichever way it was asked."""
+    from gate import resolve_spec
+    res = resolve_spec(st, task, spec)
+    return report(res, subject=subject, scenario=scenario, task=task, store=st.name, loaded=loaded,
+                  block_levels=set(spec["block_levels"]), threshold=threshold,
+                  baseline=compare(res, *baseline) if baseline else None, version=version, change=change)
+
+
+def held_version(st) -> str | None:
+    """The version of the last extraction the store holds (act:extract:<scenario>:<version>), as
+    ``--no-load`` reports it."""
+    acts = st.extraction_activities()
+    return acts[-1].split(":")[3] if acts else None
 
 
 def _change(st, subject, scenario: str, cfg2: dict, reverified: bool) -> dict:

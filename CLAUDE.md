@@ -32,7 +32,10 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   gate contract, JSON under `harness/schemas/preload-report.schema.json`; `instance/ci/` is the
   template an instance copies, its script proven in `harness.yml` (task-0045). Form, not knowledge. `harness/gate_cli.py`
   the gate as a command (exit 0/1/2, `--fail-on`, `--baseline record|FILE`, JSON pinned by
-  `harness/schemas/gate-report.schema.json` through `harness/schema_check.py`; task-0007; version 2: stale statements and suspect derived outputs are findings, task-0048, shown after S6's change by `tools/check_gate_after_change.py`). `KG_SUBJECT` selects the root; nothing in `harness/` or
+  `harness/schemas/gate-report.schema.json` through `harness/schema_check.py`; task-0007; version 2: stale statements and suspect derived outputs are findings, task-0048, shown after S6's change by `tools/check_gate_after_change.py`). `harness/mcp_server.py` the gate and the three-valued answer as a read-only MCP server (stdio, or
+  Streamable HTTP on 127.0.0.1 with `KG_MCP_TOKEN` for any wider bind; standard library; the store behind a
+  view that lets the port's reads through and nothing else; `tools/check_mcp_server.py` holds its report equal
+  to `gate_cli.py --no-load`'s on a live store; task-0056). `KG_SUBJECT` selects the root; nothing in `harness/` or
   `demo/` names a subject, a document or a scenario (task-0002). Two public
   subjects: `cargo_quote` (the proof of concept, seven scenarios, the scored
   record) and `jef_data_load` (the recreation experiment's kit, the degradation
@@ -87,6 +90,13 @@ for the whole matrix, merge on green, never on red or pending. The session that
 opened a PR merges it itself once the whole matrix is green (a skipped `publish`
 counts as green), without asking; a PR the brief says the parent session merges
 is left to it.
+
+GitHub auto-merge is on (2026-11-03): the ruleset on `main` requires `tests` and `rdflib`, not
+`stack` (path-filtered, so a required `stack` would leave a PR pending forever) and not an
+up-to-date branch. So: a PR whose diff touches `stack`'s paths (`demo/`, `harness/`, `subjects/`,
+`tools/`, `demo.yml`) gets auto-merge only once `stack` is green on its head, or is merged by hand
+then; any other PR gets auto-merge when it opens. A PR that must wait (a proposed decision, an
+ordering) gets none. A `stack` red on `main` after a merge is fixed at once.
 
 Releases (decision-0003): SemVer, `VERSION` and `CHANGELOG.md` move together in a release PR
 (a test holds them equal); a contract change raises the minor version while 0.x. A hosted
