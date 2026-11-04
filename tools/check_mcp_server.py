@@ -19,6 +19,10 @@ descendant come last, flagged ``withdrawn``, and no withdrawn one is walked from
 task class every landed key, its findings and the gate line are ``gate_verdict --task``'s for that key
 set, no task being codegen's and ``keys`` refused (task-0120); at stage 2, the same from the first stale
 key's node, where the stale findings carry each class's route and the classes must not all agree.
+Then ask ``proposal_impact`` with doc-0017's worked example (``tools/fixtures/proposal_contract_quote.json``)
+and require its gaps (C1 on the two unsupported new steps, C2 on the new capability) and every reused
+node's keys equal to what ``register_impact`` from that node gives for the same task and as_of, with
+every overlay element hypothetical (task-0130).
 The same process also answers ``server/discover`` and a stateless (2026-07-28) ``gate_verdict``,
 which must equal the handshake's (task-0079).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
@@ -332,6 +336,26 @@ def check_task_classes(client: "StdioClient", sc: str, failures: list[str], labe
         failures.append(f"{label}: register_impact took task keys, a key set, not a class")
 
 
+def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: str) -> None:
+    """proposal_impact (task-0130): the worked example's gaps, and each reused node's keys equal to
+    register_impact's for that node on the same scenario, task and as_of."""
+    proposal = json.loads((ROOT / "tools" / "fixtures" / "proposal_contract_quote.json").read_text(encoding="utf-8"))
+    got = client.call("proposal_impact", {"proposal": proposal, "scenario": sc, "as_of": "record"})
+    gaps = sorted((g["rule"], g["id"]) for g in got["coverage"]["new_gaps"])
+    if gaps != [("C1", "JRN-0014"), ("C1", "JRN-0015"), ("C2", "CAP-0009")]:
+        failures.append(f"{label}: proposal_impact's new gaps are {gaps}")
+    if not all(x["hypothetical"] is True for x in got["nodes"] + got["links"]) or got["stored"] is not False:
+        failures.append(f"{label}: proposal_impact reported an overlay element not hypothetical, or a stored read")
+    n = 0
+    for entry in got["keys"]["by_node"]:
+        want = client.call("register_impact", {"node": entry["node"], "scenario": sc, "as_of": "record"})
+        n += len(entry["keys"])
+        if entry["keys"] != want["keys"]:
+            failures.append(f"{label}: proposal_impact's keys on {entry['node']} differ from register_impact's")
+    print(f"{label}: proposal_impact names {len(gaps)} new gap(s); {n} key(s) on {len(got['keys']['by_node'])} reused node(s) "
+          f"equal register_impact's")
+
+
 def census() -> dict:
     sys.path.insert(0, str(HARNESS))
     from store import open_store
@@ -394,6 +418,7 @@ def main(argv: list[str] | None = None) -> int:
                   f"{len(SUBJECT.three_valued)} three-valued key(s) checked")
             check_bundle(client, sc, 1, failures, sc)
             check_impact(client, sc, failures, sc)
+            check_proposal(client, sc, failures, sc)
         finally:
             client.close()
         if census() != before:

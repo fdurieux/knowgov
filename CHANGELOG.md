@@ -19,6 +19,19 @@ names that section with the version.
   (`by`: `page`, or `mcp`, which `POST /api/run` now takes as `by`), never a key, a token or the
   environment. `harness/schemas/run.schema.json` pins it (version 1). `/api/runs` carries it as
   `run` where present and is unchanged for a folder without one.
+- **A proposal read before approval: `proposal_impact`** (task-0130, task-0131, doc-0017; additive):
+  a sixth read-only MCP tool and a command, `harness/proposal_impact.py`, with its report pinned by
+  `harness/schemas/proposal-impact.schema.json` (version 1). A proposed addition (new nodes with
+  provisional ids, links, the reused register nodes `as_is` or `changed`, proposed exceptions) is
+  read by the register's own checker and walks as if approved: placement findings, coverage C1-C3
+  before and after with the new gaps, the reach from every reused node before and after, what each
+  new node rests on, each reused node's keys as `register_impact` reads them, the new nodes listed
+  unmapped, and the approvals per owning unit. Deterministic link candidates D1-D4 carry `authored`
+  or `inferred` and never rise above `proposed`; D5, a forbidden synonym, is a placement error.
+  Every overlay element is `hypothetical`; nothing is written to the register or the store, and no
+  id is minted. Journey reuse shows through shared processes and D3 (decision-0007). The tool-count
+  test is renamed `test_every_tool_listed_and_marked_read_only`. The record and the comparator are
+  unchanged.
 
 ## 0.5.0 — 2026-11-04
 

@@ -720,6 +720,64 @@ holds. `--no-load` reads the store as the page left it instead, and
 refuses when the store holds another scenario. Outside the stack, add
 `KG_STORE=rdflib` to run it without a database.
 
+## A proposal read before approval
+
+A new product often reuses capabilities the register already has, needs
+one it lacks, and comes with a customer journey partly copied from an
+existing one. Before anyone approves it, `harness/proposal_impact.py`
+reads it against the register *as if approved*, without approving it
+(task-0130, task-0131, doc-0017). The proposal is a small JSON (or TOML)
+file: the new nodes, with provisional ids, their kind, name, parent and
+owner; the links that join them to what exists; the register nodes it
+reuses, each `as_is` or `changed`; and any exception it asks for.
+`tools/fixtures/proposal_contract_quote.json` is doc-0017's worked
+example, synthetic: a *Contract freight quote* product that requires
+three existing capabilities and a new one, *Check a shipper's credit*,
+with a three-step journey whose first step copies the instant quote's.
+
+```bash
+docker compose exec -T app python harness/proposal_impact.py tools/fixtures/proposal_contract_quote.json
+```
+
+In plain English: the register's own checker and walks read the
+proposal, and nothing else decides. The report says:
+
+- **Coverage before and after.** C1 goes from 7 of 8 steps supported to
+  8 of 11: the two new steps that nothing supports, *Negotiate the
+  terms* and *Accept the contract*, are new gaps. C2 goes from 5 of 5 to
+  5 of 6: nothing realises the new capability.
+- **Reach before and after.** The walk from *Price a shipment*
+  (CAP-0002) now also reaches the new product and its journey; the walk
+  from the process *Validate the request* (PROC-0002) reaches the copied
+  step too. A reused node marked `changed` is flagged, so its owner sees
+  what the change touches.
+- **What the new product rests on.** Each capability it requires, with
+  the processes and applications that realise it; the new one rests on
+  nothing yet.
+- **Candidates.** D1, the register ids the proposal names (`authored`).
+  D2, an external id such as an ARIS GUID, matched through a node's
+  `[source]` or the newest export the connector landed (`authored`).
+  D3, the same name as an approved node of the same kind: the copied
+  step is "same step as JRN-0002", and that step's support is offered
+  (`inferred`). D4, for a step with nothing, the processes realising the
+  product's capabilities, listed and none chosen. A forbidden synonym in
+  a name (D5) is a placement error. A candidate is only ever `proposed`:
+  it closes no gap until the proposal states the link itself.
+- **Keys.** Each reused node's knowledge keys, as `register_impact`
+  reads them, with their levels when a scenario is loaded. The new
+  nodes have none yet: they are listed *unmapped*, never *unknown*.
+- **Approvals.** Which unit must approve each new node and link. A link
+  that crosses from one owner to another needs both.
+
+Every proposed element is marked `hypothetical`. Nothing is written to
+the register, the store or any file, and knowgov mints no ids: the
+proposal becomes record only through a pull request on the register.
+`-f json` prints the report in the shape
+`harness/schemas/proposal-impact.schema.json` pins. An assistant asks the
+same through the MCP tool `proposal_impact`, with the proposal in its
+call (see `instance/README.md`). Outside the stack, add `KG_STORE=rdflib`,
+or `--no-store` to leave the keys without their levels.
+
 ## Quick start on a Mac, step by step
 
 Six steps. Each block is ready to paste into Terminal (zsh) as a whole;

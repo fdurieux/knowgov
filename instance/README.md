@@ -542,7 +542,7 @@ to pull the published image instead of building it. One stack serves one instanc
 An AI coding assistant can ask knowgov the gate's question itself, before it writes anything:
 *may I build on this?* It does so through MCP, the Model Context Protocol, a standard way for an
 assistant to call tools a local program offers. `harness/mcp_server.py` is that program. It offers
-five tools, and all of them only read:
+six tools, and all of them only read:
 
 | Tool | What the assistant asks | What it gets back |
 |---|---|---|
@@ -551,6 +551,7 @@ five tools, and all of them only read:
 | `three_valued_answer` | What is known about this one key? | asserted, documented absent, or unknown, with where each statement came from and who verified it; and any statement a document change invalidated, with `superseded_by` naming the verified or approved statement that replaced it (none: the old value no longer holds and nothing does yet) |
 | `evidence_bundle` | What exactly may I build on, and on what evidence? | the evidence bundle the governed arm reads, as text: the verdict and the policy, every required key's statements with their evidence, verifications, approvals and gaps, lapsed reviews, invalidated statements and what supersedes them, unchecked or flawed documents behind the keys, suspect derived outputs, and the documents the task names verbatim; for a task or for your own keys |
 | `register_impact` | What does retiring or changing this register node touch? | your register's own impact walk from the node (the register's tag and commit, the node, its children listed but not walked unless the assistant asks with `children`, which walks every approved descendant as the register's decision 0014 does, every edge with whether it was followed, what it reaches with each node's owning unit), and the keys your subject's `register_map.toml` places on the node or on what it reaches, each with its owner, its anchor and the node it came through; with `children`, the keys resting only on a withdrawn descendant are listed last, flagged `withdrawn`; with a scenario loaded, each key's level, stale statements and suspect derived outputs as `gate_verdict` reports them for the task class the assistant names with `task` (`codegen` by default) |
+| `proposal_impact` | What would this proposed product, capability or journey touch, and what does it lack, before anyone approves it? | the proposal (new nodes with provisional ids, links, the register nodes it reuses as they are or changed, proposed exceptions) read by your register's own checker and walks as if approved, every proposed element marked `hypothetical` and nothing stored: placement findings (a forbidden synonym; a node in no tool yet), link candidates D1 to D4 each `authored` or `inferred` and never more than `proposed`, C1 to C3 coverage before and after with the new gaps, what each reused node reaches before and after, what each new node rests on, each reused node's keys as `register_impact` reads them, the new nodes left unmapped, and which unit must approve what. Its walkthrough is in `demo/README.md` |
 
 The server reads the store as the page or a run left it. It never loads a scenario and never
 writes to the store, the register or your instance; a change to the record is still a pull
@@ -559,7 +560,7 @@ request. Load what the assistant should see first, on the page or with a run.
 The server reads review currency on one date for as long as it runs: `KG_AS_OF` (or `--as-of`), a
 date as `YYYY-MM-DD`, `record` (the subject's pinned record date) or `today`, which is the default.
 It reads that date once, when it starts, so a session that runs past midnight never sees two days.
-`gate_verdict`, `evidence_bundle` and `register_impact` use it unless the assistant names another
+`gate_verdict`, `evidence_bundle`, `register_impact` and `proposal_impact` use it unless the assistant names another
 date in its call, and `store_status` reports it.
 
 It speaks both versions of the protocol in use: the current stateless one (2026-07-28), where a
@@ -596,7 +597,7 @@ after `--` is the command that starts it. Here that command runs `harness/mcp_se
 `app` container; `-T` gives it plain input and output rather than a terminal, which the protocol
 needs. `-s user` registers it for you in every folder; without it, Claude Code registers it only for
 the folder you ran the command in, and a session started anywhere else does not see it. `claude mcp
-list` then shows `knowgov` as connected, and inside a session `/mcp` shows its five tools.
+list` then shows `knowgov` as connected, and inside a session `/mcp` shows its six tools.
 
 The compose file publishes the page and Neo4j, not the server's HTTP port (8765), so this stdio
 route is the one that works with the stack as it stands. For a stack started under another project

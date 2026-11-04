@@ -122,10 +122,11 @@ def test_initialize_negotiates_a_version_and_offers_tools_only():
     assert s.handle({"id": 5, "method": "ping"})["error"]["code"] == -32600
 
 
-def test_five_tools_every_one_marked_read_only():
+def test_every_tool_listed_and_marked_read_only():
     s, _ = _server()
     tools = s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]
-    assert [t["name"] for t in tools] == ["store_status", "gate_verdict", "three_valued_answer", "evidence_bundle", "register_impact"]
+    assert [t["name"] for t in tools] == ["store_status", "gate_verdict", "three_valued_answer", "evidence_bundle", "register_impact",
+                                          "proposal_impact"]
     for t in tools:
         a = t["annotations"]
         assert a["readOnlyHint"] is True and a["destructiveHint"] is False and a["openWorldHint"] is False, t["name"]
@@ -219,7 +220,8 @@ def test_a_scenario_of_another_subject_reads_as_none_held_and_every_scenario_too
     assert st["structuredContent"]["held_by_other_subject"] == foreign
     key = TASKS["codegen"]["keys"][-1]
     for name, args in (("gate_verdict", {}), ("three_valued_answer", {"key": key}), ("evidence_bundle", {}),
-                       ("register_impact", {"node": "CAP-0001"})):
+                       ("register_impact", {"node": "CAP-0001"}),
+                       ("proposal_impact", {"proposal": json.loads((ROOT / "tools" / "fixtures" / "proposal_contract_quote.json").read_text(encoding="utf-8"))})):
         for extra in ({}, {"scenario": foreign}, {"scenario": SUBJECT.order[0]}):
             r = _call(s, name, {**args, **extra})["result"]
             assert r["isError"] is True, (name, extra, r)

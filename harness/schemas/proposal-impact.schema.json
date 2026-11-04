@@ -1,0 +1,1006 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/proposal-impact.schema.json",
+ "title": "knowgov proposal impact report",
+ "description": "What `python harness/proposal_impact.py PROPOSAL -f json` prints and the MCP tool proposal_impact returns (task-0130, task-0131): a proposed addition read against the register as if approved, without approving it. Every overlay node, link and exception is hypothetical (const true) and read_as approved; nothing is stored (stored const false). Candidates carry their rule (D1-D4), their basis (authored or inferred) and the status proposed, never more; D5 is a placement finding. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "schema_version",
+  "tool",
+  "register",
+  "overlay",
+  "as_of",
+  "children_walked",
+  "stored",
+  "nodes",
+  "links",
+  "exceptions",
+  "placement",
+  "candidates",
+  "coverage",
+  "reach",
+  "rests_on",
+  "keys",
+  "unmapped",
+  "approvals",
+  "limits"
+ ],
+ "$defs": {
+  "marked": {
+   "type": "object",
+   "required": [
+    "id",
+    "hypothetical"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "hypothetical": {
+     "type": "boolean"
+    }
+   }
+  },
+  "key": {
+   "type": "object",
+   "required": [
+    "key",
+    "owner",
+    "anchor",
+    "via"
+   ],
+   "additionalProperties": true,
+   "description": "A landed register-map row as register_impact reports it: key, owner, anchor, via, withdrawn when it rests only on a withdrawn descendant; with a scenario held also level, stale, suspect and findings, the gate report's",
+   "properties": {
+    "key": {
+     "type": "string"
+    },
+    "owner": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "anchor": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "via": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "withdrawn": {
+     "type": "boolean"
+    },
+    "level": {
+     "type": "string"
+    },
+    "stale": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "suspect": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "findings": {
+     "type": "array",
+     "items": {
+      "type": "object"
+     }
+    }
+   }
+  }
+ },
+ "properties": {
+  "schema_version": {
+   "const": 1
+  },
+  "tool": {
+   "const": "knowgov proposal_impact"
+  },
+  "register": {
+   "type": "object",
+   "required": [
+    "tag",
+    "commit"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "tag": {
+     "type": "string"
+    },
+    "commit": {
+     "type": "string"
+    }
+   }
+  },
+  "overlay": {
+   "type": "object",
+   "required": [
+    "digest",
+    "title",
+    "nodes",
+    "links",
+    "reused",
+    "exceptions"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "digest": {
+     "type": "string"
+    },
+    "title": {
+     "type": "string"
+    },
+    "nodes": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "links": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "reused": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "exceptions": {
+     "type": "integer",
+     "minimum": 0
+    }
+   }
+  },
+  "as_of": {
+   "type": "string"
+  },
+  "children_walked": {
+   "type": "boolean"
+  },
+  "stored": {
+   "const": false
+  },
+  "nodes": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "id",
+     "kind",
+     "taxonomy",
+     "name",
+     "parent",
+     "owner",
+     "read_as",
+     "hypothetical"
+    ],
+    "additionalProperties": false,
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "kind": {
+      "type": "string"
+     },
+     "taxonomy": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "parent": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "owner": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "read_as": {
+      "const": "approved"
+     },
+     "hypothetical": {
+      "const": true
+     }
+    }
+   }
+  },
+  "links": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "id",
+     "type",
+     "source",
+     "target",
+     "rationale",
+     "owner",
+     "read_as",
+     "hypothetical"
+    ],
+    "additionalProperties": false,
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "type": {
+      "type": "string"
+     },
+     "source": {
+      "type": "string"
+     },
+     "target": {
+      "type": "string"
+     },
+     "rationale": {
+      "type": "string"
+     },
+     "owner": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "read_as": {
+      "const": "approved"
+     },
+     "hypothetical": {
+      "const": true
+     }
+    }
+   }
+  },
+  "exceptions": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "id",
+     "rule",
+     "scope",
+     "expires",
+     "read_as",
+     "hypothetical"
+    ],
+    "additionalProperties": false,
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "rule": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "scope": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "expires": {
+      "type": "string"
+     },
+     "read_as": {
+      "const": "approved"
+     },
+     "hypothetical": {
+      "const": true
+     }
+    }
+   }
+  },
+  "placement": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "level",
+     "check",
+     "element",
+     "where",
+     "message",
+     "rule"
+    ],
+    "additionalProperties": false,
+    "properties": {
+     "level": {
+      "enum": [
+       "error",
+       "warning",
+       "info"
+      ]
+     },
+     "check": {
+      "type": "string"
+     },
+     "element": {
+      "type": "string"
+     },
+     "where": {
+      "type": "string"
+     },
+     "message": {
+      "type": "string"
+     },
+     "rule": {
+      "enum": [
+       "D5",
+       null
+      ]
+     }
+    }
+   }
+  },
+  "candidates": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "rule",
+     "basis",
+     "kind",
+     "element",
+     "link",
+     "same_as",
+     "pool",
+     "stated",
+     "status",
+     "reason"
+    ],
+    "additionalProperties": false,
+    "properties": {
+     "rule": {
+      "enum": [
+       "D1",
+       "D2",
+       "D3",
+       "D4"
+      ]
+     },
+     "basis": {
+      "enum": [
+       "authored",
+       "inferred"
+      ]
+     },
+     "kind": {
+      "enum": [
+       "link",
+       "reuse",
+       "same_as",
+       "pool"
+      ]
+     },
+     "element": {
+      "type": "string"
+     },
+     "link": {
+      "type": [
+       "object",
+       "null"
+      ],
+      "required": [
+       "type",
+       "source",
+       "target"
+      ],
+      "additionalProperties": false,
+      "properties": {
+       "type": {
+        "type": "string"
+       },
+       "source": {
+        "type": "string"
+       },
+       "target": {
+        "type": "string"
+       }
+      }
+     },
+     "same_as": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "pool": {
+      "type": [
+       "array",
+       "null"
+      ],
+      "items": {
+       "type": "string"
+      }
+     },
+     "stated": {
+      "type": "boolean"
+     },
+     "status": {
+      "const": "proposed"
+     },
+     "reason": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "coverage": {
+   "type": "object",
+   "required": [
+    "before",
+    "after",
+    "new_gaps"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "before": {
+     "type": "object",
+     "required": [
+      "C1",
+      "C2",
+      "C3"
+     ],
+     "additionalProperties": false,
+     "properties": {
+      "C1": {
+       "type": "object",
+       "required": [
+        "denominator",
+        "covered",
+        "excepted",
+        "uncovered"
+       ],
+       "additionalProperties": false,
+       "properties": {
+        "denominator": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "covered": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "excepted": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "uncovered": {
+         "type": "array",
+         "items": {
+          "$ref": "#/$defs/marked"
+         }
+        }
+       }
+      },
+      "C2": {
+       "type": "object",
+       "required": [
+        "denominator",
+        "covered",
+        "excepted",
+        "uncovered"
+       ],
+       "additionalProperties": false,
+       "properties": {
+        "denominator": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "covered": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "excepted": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "uncovered": {
+         "type": "array",
+         "items": {
+          "$ref": "#/$defs/marked"
+         }
+        }
+       }
+      },
+      "C3": {
+       "type": "object",
+       "required": [
+        "denominator",
+        "covered",
+        "excepted",
+        "uncovered"
+       ],
+       "additionalProperties": false,
+       "properties": {
+        "denominator": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "covered": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "excepted": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "uncovered": {
+         "type": "array",
+         "items": {
+          "$ref": "#/$defs/marked"
+         }
+        }
+       }
+      }
+     }
+    },
+    "after": {
+     "type": "object",
+     "required": [
+      "C1",
+      "C2",
+      "C3"
+     ],
+     "additionalProperties": false,
+     "properties": {
+      "C1": {
+       "type": "object",
+       "required": [
+        "denominator",
+        "covered",
+        "excepted",
+        "uncovered"
+       ],
+       "additionalProperties": false,
+       "properties": {
+        "denominator": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "covered": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "excepted": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "uncovered": {
+         "type": "array",
+         "items": {
+          "$ref": "#/$defs/marked"
+         }
+        }
+       }
+      },
+      "C2": {
+       "type": "object",
+       "required": [
+        "denominator",
+        "covered",
+        "excepted",
+        "uncovered"
+       ],
+       "additionalProperties": false,
+       "properties": {
+        "denominator": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "covered": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "excepted": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "uncovered": {
+         "type": "array",
+         "items": {
+          "$ref": "#/$defs/marked"
+         }
+        }
+       }
+      },
+      "C3": {
+       "type": "object",
+       "required": [
+        "denominator",
+        "covered",
+        "excepted",
+        "uncovered"
+       ],
+       "additionalProperties": false,
+       "properties": {
+        "denominator": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "covered": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "excepted": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "uncovered": {
+         "type": "array",
+         "items": {
+          "$ref": "#/$defs/marked"
+         }
+        }
+       }
+      }
+     }
+    },
+    "new_gaps": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": [
+       "rule",
+       "id",
+       "hypothetical"
+      ],
+      "additionalProperties": false,
+      "properties": {
+       "rule": {
+        "enum": [
+         "C1",
+         "C2",
+         "C3"
+        ]
+       },
+       "id": {
+        "type": "string"
+       },
+       "hypothetical": {
+        "type": "boolean"
+       }
+      }
+     }
+    }
+   }
+  },
+  "reach": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "node",
+     "name",
+     "kind",
+     "state",
+     "owner",
+     "mode",
+     "declared",
+     "changed",
+     "before",
+     "after",
+     "added",
+     "removed",
+     "new_edges"
+    ],
+    "additionalProperties": false,
+    "properties": {
+     "node": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "kind": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "state": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "owner": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "mode": {
+      "enum": [
+       "as_is",
+       "changed"
+      ]
+     },
+     "declared": {
+      "type": "boolean"
+     },
+     "changed": {
+      "type": "boolean"
+     },
+     "before": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "after": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "added": {
+      "type": "array",
+      "items": {
+       "$ref": "#/$defs/marked"
+      }
+     },
+     "removed": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "new_edges": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "required": [
+        "from",
+        "rel",
+        "to",
+        "live",
+        "hypothetical"
+       ],
+       "additionalProperties": false,
+       "properties": {
+        "from": {
+         "type": "string"
+        },
+        "rel": {
+         "type": "string"
+        },
+        "to": {
+         "type": "string"
+        },
+        "live": {
+         "type": "boolean"
+        },
+        "hypothetical": {
+         "type": "boolean"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "rests_on": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "node",
+     "kind",
+     "through",
+     "via",
+     "gap"
+    ],
+    "additionalProperties": false,
+    "properties": {
+     "node": {
+      "type": "string"
+     },
+     "kind": {
+      "type": "string"
+     },
+     "through": {
+      "type": "string"
+     },
+     "via": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "required": [
+        "node",
+        "hypothetical",
+        "realisers"
+       ],
+       "additionalProperties": false,
+       "properties": {
+        "node": {
+         "type": "string"
+        },
+        "hypothetical": {
+         "type": "boolean"
+        },
+        "realisers": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     },
+     "gap": {
+      "type": "boolean"
+     }
+    }
+   }
+  },
+  "keys": {
+   "type": "object",
+   "required": [
+    "task",
+    "scenario",
+    "store",
+    "gate",
+    "by_node"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "task": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "scenario": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "store": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "gate": {
+     "type": [
+      "object",
+      "null"
+     ]
+    },
+    "store_unavailable": {
+     "type": "string"
+    },
+    "by_node": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": [
+       "node",
+       "mode",
+       "keys"
+      ],
+      "additionalProperties": false,
+      "properties": {
+       "node": {
+        "type": "string"
+       },
+       "mode": {
+        "enum": [
+         "as_is",
+         "changed"
+        ]
+       },
+       "keys": {
+        "type": "array",
+        "items": {
+         "$ref": "#/$defs/key"
+        }
+       },
+       "gate": {
+        "type": [
+         "object",
+         "null"
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  "unmapped": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "id",
+     "why"
+    ],
+    "additionalProperties": false,
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "why": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "approvals": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "unit",
+     "name",
+     "approve"
+    ],
+    "additionalProperties": false,
+    "properties": {
+     "unit": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "approve": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "required": [
+        "what",
+        "id",
+        "why",
+        "hypothetical"
+       ],
+       "additionalProperties": false,
+       "properties": {
+        "what": {
+         "enum": [
+          "node",
+          "link",
+          "change",
+          "exception"
+         ]
+        },
+        "id": {
+         "type": "string"
+        },
+        "why": {
+         "type": "string"
+        },
+        "hypothetical": {
+         "type": "boolean"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "limits": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  }
+ }
+}
