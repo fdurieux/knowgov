@@ -214,7 +214,7 @@ def test_the_evidence_bundle_is_the_text_the_governed_arm_reads():
     from subject import SUBJECT
     first = SUBJECT.order[0]   # a scenario of whichever subject runs the suite: the kit is read
     s, stub = _server(Stub(scenario=first))
-    got = _call(s, "evidence_bundle", {"scenario": first})["result"]
+    got = _call(s, "evidence_bundle", {"scenario": first, "as_of": "record"})["result"]   # the arms' date, named
     assert got["isError"] is False
     b = got["structuredContent"]
     res = resolve_spec(stub, "codegen", TASKS["codegen"], "record")
@@ -224,12 +224,52 @@ def test_the_evidence_bundle_is_the_text_the_governed_arm_reads():
     assert b["verbatim"] == sorted(verbatim)
     assert b["assertion_ids"] == sorted({a["id"] for v in res["keys"].values() for a in v["assertions"]})
     keys = TASKS["codegen"]["keys"][1:3]
-    sub = _call(s, "evidence_bundle", {"keys": keys, "verbatim": False})["result"]["structuredContent"]
+    sub = _call(s, "evidence_bundle", {"keys": keys, "verbatim": False, "as_of": "record"})["result"]["structuredContent"]
     assert sub["task"] == "keys" and sub["verbatim"] == [] and sub["verdict"] == "PROCEED"
     assert sub["bundle"] == render_bundle(resolve_spec(stub, "keys", dict(TASKS["codegen"], keys=keys), "record"), arms.policy())
-    for bad in ({"keys": []}, {"task": "nope"}, {"verbatim": "yes"}, {"as_of": "soon"}, {"scenario": "not-held"}):
+    for bad in ({"keys": []}, {"task": "nope"}, {"verbatim": "yes"}, {"as_of": "soon"}, {"as_of": 20261104}, {"scenario": "not-held"}):
         assert _call(s, "evidence_bundle", bad)["result"]["isError"] is True, bad
     assert stub.writes == []
+
+
+def test_one_session_reads_one_as_of():
+    """Task-0100: with no argument, one session's verdict and bundle carry the same date, the one
+    store_status reports, read once: a later KG_TODAY (midnight) does not move it. KG_AS_OF names
+    another; an argument still wins."""
+    import cadence
+    from subject import SUBJECT
+    first = SUBJECT.order[0]
+    s, _ = _server(Stub(scenario=first))
+    status = _call(s, "store_status")["result"]["structuredContent"]
+    assert (status["as_of"], status["as_of_from"]) == (DAY, "today")
+    verdict = _call(s, "gate_verdict", {})["result"]["structuredContent"]
+    old = os.environ.get("KG_TODAY")
+    os.environ["KG_TODAY"] = "2026-11-05"   # the session runs past midnight
+    try:
+        bundle = s.tools.evidence_bundle({"verbatim": False})
+        again = s.tools.gate_verdict({"as_of": "today"})
+    finally:
+        os.environ["KG_TODAY"] = old if old is not None else DAY
+        if old is None:
+            os.environ.pop("KG_TODAY")
+    assert verdict["as_of"] == bundle["as_of"] == again["as_of"] == DAY
+    rec = cadence.as_of("record").isoformat()
+    assert _call(s, "evidence_bundle", {"as_of": "record", "verbatim": False})["result"]["structuredContent"]["as_of"] == rec
+    assert _call(s, "gate_verdict", {"as_of": "2027-01-02"})["result"]["structuredContent"]["as_of"] == "2027-01-02"
+    old = os.environ.get("KG_AS_OF")
+    os.environ["KG_AS_OF"] = "record"
+    try:
+        s, _ = _server(Stub(scenario=first))
+    finally:
+        os.environ.pop("KG_AS_OF")
+        if old is not None:
+            os.environ["KG_AS_OF"] = old
+    assert _call(s, "store_status")["result"]["structuredContent"]["as_of"] == rec
+    assert _call(s, "gate_verdict", {})["result"]["structuredContent"]["as_of"] == rec
+    assert _call(s, "evidence_bundle", {"verbatim": False})["result"]["structuredContent"]["as_of"] == rec
+    s = mcp_server.Server(mcp_server.Tools(opener=lambda: mcp_server.ReadOnlyStore(Stub()), as_of="soon"))
+    assert _call(s, "gate_verdict", {})["result"]["isError"] is True
+    assert mcp_server.main(["--as-of", "soon"]) == 2   # refused at start, before any transport opens
 
 
 def test_stdio_is_one_json_message_a_line():
@@ -239,7 +279,8 @@ def test_stdio_is_one_json_message_a_line():
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
         {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "store_status", "arguments": {}}}]) + "\n")
     out = io.StringIO()
-    mcp_server.serve_stdio(s, inp, out)
+    with _Day():   # store_status reports the session's date (task-0100)
+        mcp_server.serve_stdio(s, inp, out)
     lines = out.getvalue().splitlines()
     assert [json.loads(x)["id"] for x in lines] == [1, 2]
     assert json.loads(lines[1])["result"]["structuredContent"]["scenario"] == "S1"
