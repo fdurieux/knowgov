@@ -108,8 +108,8 @@ jobs:
 
       - name: Project the register into the store beside the run, and read the census
         run: |
-          curl -fsS -X POST localhost:8080/api/register/project -H 'Content-Type: application/json' -d '{}' | python3 -c 'import json,sys; c=json.load(sys.stdin); assert c["nodes"]==57 and c["links"]==65 and c["tag"]=="v0.2.6" and c["relationships"]==c["counts"]["relationships"] and c["relationships"]>=150, c; print("projection:", c["by_label"], c["relationships"], "relationships at", c["tag"])'
-          curl -fsS localhost:8080/api/scenarios | python3 -c 'import json,sys; j=json.load(sys.stdin); s=j["store"]; assert s["register"] and s["register"]["tag"]=="v0.2.6" and s["loaded"]=="S1", s; print("store:", s["loaded"], "and the register at", s["register"]["tag"])'
+          curl -fsS -X POST localhost:8080/api/register/project -H 'Content-Type: application/json' -d '{}' | python3 -c 'import json,sys; c=json.load(sys.stdin); assert c["nodes"]==57 and c["links"]==65 and c["tag"]=="v0.2.7" and c["relationships"]==c["counts"]["relationships"] and c["relationships"]>=150, c; print("projection:", c["by_label"], c["relationships"], "relationships at", c["tag"])'
+          curl -fsS localhost:8080/api/scenarios | python3 -c 'import json,sys; j=json.load(sys.stdin); s=j["store"]; assert s["register"] and s["register"]["tag"]=="v0.2.7" and s["loaded"]=="S1", s; print("store:", s["loaded"], "and the register at", s["register"]["tag"])'
 
       - name: Its numbers match the record
         run: |
@@ -230,15 +230,16 @@ jobs:
           assert v["as_of"]["date"] == "2027-09-01" and not v["as_of"]["is_record"] and "as of 2027-09-01" in gate["lines"], (v["as_of"], gate["lines"])
           assert v["gate"]["verdict"] == "BLOCKED", v["gate"]
           lapsed = v["gate"]["lapsed"]
-          assert len({x["key"] for x in lapsed}) == 10 and all(x["lapsed_on"] == "2027-08-07" and x["months"] == 12 for x in lapsed), lapsed
+          lapse = lambda k: ("2027-02-07", 6) if k.startswith("response|") else ("2027-08-07", 12)   # register decision 0013: the response keys rest on a step
+          assert len({x["key"] for x in lapsed}) == 10 and all((x["lapsed_on"], x["months"]) == lapse(x["key"]) for x in lapsed), lapsed
           sec = [x for x in v["details"]["gate"]["sections"] if x["heading"].startswith("Review currency")][0]
           cols = sec["table"]["cols"]
           assert "as of 2027-09-01" in sec["text"] and len(sec["table"]["rows"]) == len(lapsed), sec
-          assert {r[cols.index("lapsed on")] for r in sec["table"]["rows"]} == {"2027-08-07"} and {r[cols.index("review months")] for r in sec["table"]["rows"]} == {"12"}, sec["table"]
+          assert all((r[cols.index("lapsed on")], int(r[cols.index("review months")])) == lapse(r[cols.index("key")]) for r in sec["table"]["rows"]), sec["table"]
           assert any("as of 2027-09-01, not the record date" in n for n in v["narrative"]), v["narrative"]
           rec = json.load(urllib.request.urlopen("http://localhost:8080/api/results/S1?source=record"))
           assert rec["as_of"]["is_record"] and rec["gate"]["lapsed"] == [] and "as of " + rec["as_of"]["record_date"] in [s for s in rec["stages"] if s["id"] == "gate"][0]["lines"], rec["as_of"]
-          print(f"S1 as of {v['as_of']['date']}: {v['gate']['verdict']}, {len(lapsed)} reviews on 10 keys lapsed on 2027-08-07 at 12 months; the record as of {rec['as_of']['date']}, none")
+          print(f"S1 as of {v['as_of']['date']}: {v['gate']['verdict']}, {len(lapsed)} reviews on 10 keys lapsed, seven on 2027-08-07 at 12 months, three on 2027-02-07 at 6; the record as of {rec['as_of']['date']}, none")
           PY
 
       - name: S6's stage-2 gates list the lapsed reviews as stage 1's does (task-0086), S6 run through the app as of 2027-09-01
@@ -256,19 +257,20 @@ jobs:
           v = json.load(urllib.request.urlopen("http://localhost:8080/api/results/S6?source=" + urllib.parse.quote(src)))
           assert v["as_of"]["date"] == "2027-09-01" and not v["as_of"]["is_record"], v["as_of"]
           boxes = {s["id"]: s for s in v["stage2"]["stages"]}
+          lapse = lambda k: ("2027-02-07", 6) if k.startswith("response|") else ("2027-08-07", 12)   # register decision 0013: the response keys rest on a step
           for panel in ("gate_before", "gate_after"):
               lapsed = v["stage2"][panel]["lapsed"]
-              assert len({x["key"] for x in lapsed}) == 10 and all(x["lapsed_on"] == "2027-08-07" and x["months"] == 12 for x in lapsed), (panel, lapsed)
+              assert len({x["key"] for x in lapsed}) == 10 and all((x["lapsed_on"], x["months"]) == lapse(x["key"]) for x in lapsed), (panel, lapsed)
               lines = boxes[panel]["lines"]
               assert "as of 2027-09-01" in lines and any(l.endswith("lapsed, on 10 keys") for l in lines), (panel, lines)
               sec = [x for x in v["details"][panel]["sections"] if x["heading"].startswith("Review currency")][0]
               cols = sec["table"]["cols"]
               assert "as of 2027-09-01" in sec["text"] and len(sec["table"]["rows"]) == len(lapsed), (panel, sec)
-              assert {r[cols.index("lapsed on")] for r in sec["table"]["rows"]} == {"2027-08-07"} and {r[cols.index("review months")] for r in sec["table"]["rows"]} == {"12"}, (panel, sec["table"])
+              assert all((r[cols.index("lapsed on")], int(r[cols.index("review months")])) == lapse(r[cols.index("key")]) for r in sec["table"]["rows"]), (panel, sec["table"])
           assert v["stage2"]["gate_after"]["verdict"] == "BLOCKED" and boxes["gate_after"]["colour"] == "bad", (v["stage2"]["gate_after"], boxes["gate_after"]["colour"])
           rec = json.load(urllib.request.urlopen("http://localhost:8080/api/results/S6?source=record"))
           assert all(rec["stage2"][p]["lapsed"] == [] for p in ("gate_before", "gate_after")) and rec["stage2"]["gate_after"]["verdict"] == "PROCEED", rec["stage2"]["gate_after"]
-          print(f"S6 as of {v['as_of']['date']}: stage 2 {v['stage2']['gate_before']['verdict']} then {v['stage2']['gate_after']['verdict']}, reviews on 10 keys lapsed on 2027-08-07 in both; the record as of {rec['as_of']['date']}, none")
+          print(f"S6 as of {v['as_of']['date']}: stage 2 {v['stage2']['gate_before']['verdict']} then {v['stage2']['gate_after']['verdict']}, reviews on 10 keys lapsed in both, seven on 2027-08-07, three on 2027-02-07; the record as of {rec['as_of']['date']}, none")
           PY
 
       - name: The pre-load verdict read at the load (task-0064) on the Neo4j store, the example instance with its report

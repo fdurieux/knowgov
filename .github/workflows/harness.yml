@@ -207,8 +207,11 @@ jobs:
           test "$(gate --scenario S6 --stage 2 --no-load)" = 2
           test "$(gate --subject ../subjects/jef_data_load --baseline record)" = 0
           test "$(gate --subject ../subjects/minimal)" = 1
-          # decision-0005: CargoQuote's ten review-only keys, reviewed 2026-08-06, lapse on 2027-08-07; J-F rests on execution
-          test "$(gate --scenario S1 --as-of 2027-08-06 --baseline record)" = 0
+          # decision-0005: CargoQuote's ten review-only keys, reviewed 2026-08-06; the three response keys rest on a step,
+          # six months (register decision 0013), and lapse on 2027-02-07, the other seven on 2027-08-07; J-F rests on execution
+          test "$(gate --scenario S1 --as-of 2027-02-06 --baseline record)" = 0
+          test "$(gate --scenario S1 --as-of 2027-02-07)" = 0
+          test "$(gate --scenario S1 --as-of 2027-02-07 --baseline record)" = 1
           test "$(gate --scenario S1 --as-of 2027-08-07)" = 1
           test "$(gate --scenario S1 --as-of 2027-08-07 --baseline record)" = 1
           test "$(gate --subject ../subjects/jef_data_load --as-of 2030-01-01 --baseline record)" = 0
