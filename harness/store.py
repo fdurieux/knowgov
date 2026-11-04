@@ -80,8 +80,9 @@ class Store:
         """Every fragment MENTIONS the entities its assertions are about."""
         raise NotImplementedError
 
-    def create_inferred(self, props: dict, entity: str, activity: dict, agent_id: str, candidate_for: str) -> None:
-        """A model-proposed assertion with its inference activity, a candidate for a declared gap."""
+    def create_inferred(self, props: dict, entity: str, activity: dict, agent_id: str, candidate_for: str | None) -> None:
+        """A model-proposed assertion with its inference activity, a candidate for a declared gap
+        (``candidate_for``), or for none when it is None (a transcript's candidate, task-0041)."""
         raise NotImplementedError
 
     # ---- verifications and approvals

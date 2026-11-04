@@ -311,8 +311,9 @@ class RdflibStore(Store):
         self.merge_edge(x, "ABOUT", e)
         self.merge_edge(x, "DERIVED_BY", act)
         self.merge_edge(x, "ATTRIBUTED_TO", llm)
-        g = self.merge_node(candidate_for, "Gap")
-        self.merge_edge(x, "CANDIDATE_FOR", g)
+        if candidate_for:   # the open decision it claims to resolve; a transcript's candidate names none
+            g = self.merge_node(candidate_for, "Gap")
+            self.merge_edge(x, "CANDIDATE_FOR", g)
 
     # ---- verifications and approvals ---------------------------------------------------------
     def _live_on_key(self, key, values):
