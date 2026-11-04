@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T12:03:00Z'
-updated_date: '2026-11-04T12:31:00Z'
+updated_date: '2026-11-04T14:56:00Z'
 labels:
   - register
   - vendor
@@ -60,6 +60,8 @@ As of 2027-02-06 and as of the record: S1 PROCEED, S2 BLOCKED, S3 QUALIFIED, S4 
 CI expectations moved with the cadence: harness.yml S1 `--as-of 2027-02-06 --baseline record` = 0, `2027-02-07` = 0, `2027-02-07 --baseline record` = 1 (was 2027-08-06 = 0); demo.yml tag v0.2.7 and the as-of steps take each lapse's day and months by key. Both suites 316/316 (CargoQuote, J-F); harness.yml gate block run locally, exit 0; demo.yml task-0076/0086 snippets run against a local as-of run, pass.
 
 AC #2 was checked as of the record's `as_of`, 2026-10-30 (subjects/cargo_quote/subject.toml `[record] as_of`); the "2026-08-06" in its wording is the kit's review date, an error in the brief the coordinator confirmed.
+
+2026-11-04, the maintainer: keep harness/cadence.py's alphabetical tie-break for the page's kind column when two kinds share the same review months (shipper_id|present shows business_entity). Months, dates and verdicts are unaffected.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

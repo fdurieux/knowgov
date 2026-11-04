@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T09:47:00Z'
-updated_date: '2026-11-04T12:46:00Z'
+updated_date: '2026-11-04T14:56:00Z'
 labels:
   - gate
   - subjects
@@ -51,6 +51,8 @@ Design verdicts, gate_cli.py --task design --as-of 2026-10-30, rdflib (codegen b
 - S6 QUALIFIED exit 0 (codegen PROCEED): as S1. Stage 2, before and after --reverify: QUALIFIED, exit 1 on the subject-wide blocker finding (the suspect derived output); the change touches pricing keys the design class does not name.
 - S7 BLOCKED exit 1 (codegen BLOCKED): 36 of 36 below verified, bar 25%.
 Checks: comparator over S1-S7 identical (rdflib, D1 skipped by kind); vendored record and codegen table untouched; check_round_trip --chain rdflib,rdflib equal with 2 gate reports per scenario; check_mcp_server S1,S2,S6 holds; lighthouse_evidence (CQ full, J-F C,D3) exit 0, both classes shown; run_tests 325/325 for both subjects.
+
+2026-11-04, the maintainer: keep the design class as is. A clean kit reading QUALIFIED for design (the C4 uses keys extracted, never verified) is the wanted signal: the gate saying what the design rests on.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
