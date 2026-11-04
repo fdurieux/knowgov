@@ -181,3 +181,7 @@ jobs:
           KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_mcp_server.py
       - name: A person's statement against the documents' (task-0038), on S2 a contradiction raises a conflict, an agreement corroborates and raises nothing
         run: KG_STORE=rdflib python tools/check_capture_pairing.py runs/pairing
+      - name: The lighthouse protocol's public evidence (task-0069), CargoQuote from the example instance and the J-F kit, every item agreeing with the record
+        run: |
+          rm -rf runs/lighthouse
+          KG_STORE=rdflib python tools/lighthouse_evidence.py runs/lighthouse
