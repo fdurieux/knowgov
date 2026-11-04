@@ -13,8 +13,9 @@ metamodel/sources.toml. Nothing here defaults a system.
 The export lands in <instance>/register/exports/<name>/<date>/: its files byte for byte, a
 MANIFEST.toml (exported_on, source, source_version, tool, tool_version, previous, a sha256 per file,
 the register ids the export carries with their names, the GUIDs of the objects that carry one) and
-a RECONCILE.json in the shape of ieam-register's tools/reconcile.py (files and ids added, updated or
-renamed, deleted against the previous folder; stale_nodes), with two additions: a register node
+a RECONCILE.json written by ieam-register's own tools/reconcile.py, imported from the vendored copy
+(files and ids added, updated or renamed, deleted against the previous folder; stale_nodes), with
+three additions: an id an object's GUID carries counts as carried, a register node
 whose id the previous export carried and this one does not is stale too, and a carried id the
 register does not hold is listed under unknown_ids. A stale node is a finding: the connector never
 deletes or edits a node, never removes or rewrites a folder, and refuses (exit 1) a date that is
@@ -59,16 +60,17 @@ class Refused(Exception):
     """The connector will not land this export (exit 1)."""
 
 
-def _register_tools():
-    """ieam-register's own loader, imported from the vendored copy (import, never copy)."""
-    path = ROOT / "demo" / "register" / "tools" / "register.py"
-    spec = importlib.util.spec_from_file_location("ieam_register_tools", path)
+def _register_tool(name: str):
+    """One of ieam-register's own tools, imported from the vendored copy (import, never copy)."""
+    path = ROOT / "demo" / "register" / "tools" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(f"ieam_register_{name}", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
 
 
-REG = _register_tools()
+REG = _register_tool("register")
+REC = _register_tool("reconcile")   # its comparison, run on the folder as it lands (task-0121)
 
 
 # ---- configuration ----
@@ -236,37 +238,22 @@ def manifest_text(m: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def reconcile(reg_root: Path, folder: str, man: dict, system: str) -> dict:
-    """ieam-register's reconcile.py, its semantics and its keys, against the previous folder; plus
-    the stale ids this export no longer carries and the carried ids the register lacks."""
-    prev_name = man.get("previous") or ""
-    prev = REG.load_toml(reg_root / prev_name / "MANIFEST.toml") if prev_name else {"files": {}, "ids": {}}
-    files, pfiles = man.get("files", {}), prev.get("files", {})
-    ids, pids = man.get("ids", {}), prev.get("ids", {})
-    out = {
-        "folder": folder, "previous": prev_name, "source": man.get("source"),
-        "files": {"added": sorted(set(files) - set(pfiles)),
-                  "updated": sorted(k for k in files if k in pfiles and files[k] != pfiles[k]),
-                  "deleted": sorted(set(pfiles) - set(files))},
-        "ids": {"added": sorted(set(ids) - set(pids)),
-                "renamed": sorted(k for k in ids if k in pids and ids[k] != pids[k]),
-                "deleted": sorted(set(pids) - set(ids))},
-        "stale_nodes": [],
-    }
+def reconcile(reg_root: Path, landing: Path, folder: str, man: dict) -> dict:
+    """ieam-register's reconcile.py on the folder as it lands (its comparison and its stale rule,
+    imported), named as the folder it becomes; plus the connector's additions: an external id the
+    export carries as an object's GUID is carried, a register id the previous export carried and
+    this one does not is stale, and a carried id the register lacks is listed."""
+    out = REC.reconcile(landing, root=reg_root)
+    out["folder"] = folder
+    guids = set(man.get("guids", {}))
+    stale = {n["id"]: n for n in out["stale_nodes"]
+             if not any(v.split("#")[0] in guids for k, v in n.items() if k != "id" and isinstance(v, str))}
     reg = REG.load_register(reg_root)
-    id_field = reg["sources"].get("system", {}).get(system, {}).get("id_field")
-    carried = set(ids) | set(man.get("guids", {}))
-    stale = {}
-    if id_field and carried:   # the register's own rule: a node of this system whose external id is gone
-        for nid, n in reg["nodes"].items():
-            src = n.get("source") or {}
-            if src.get("system") == system and src.get(id_field) and src[id_field].split("#")[0] not in carried:
-                stale[nid] = {"id": nid, id_field: src[id_field]}
     for nid in out["ids"]["deleted"]:   # carried last time, by the register id itself, and gone now
         if nid in reg["nodes"] and nid not in stale:
-            stale[nid] = {"id": nid, "previous": prev_name}
+            stale[nid] = {"id": nid, "previous": out["previous"]}
     out["stale_nodes"] = [stale[k] for k in sorted(stale)]
-    out["unknown_ids"] = sorted(k for k in ids if k not in reg["nodes"])
+    out["unknown_ids"] = sorted(k for k in man.get("ids", {}) if k not in reg["nodes"])
     return out
 
 
@@ -306,7 +293,7 @@ def land(instance: Path, system: str, export: list[Path], exported_on: str | Non
             (tmp / rel).parent.mkdir(parents=True, exist_ok=True)
             (tmp / rel).write_bytes(data)
         (tmp / "MANIFEST.toml").write_text(text, encoding="utf-8")
-        rec = reconcile(reg_root, folder, tomllib.loads(text), system)
+        rec = reconcile(reg_root, tmp, folder, tomllib.loads(text))
         if got["conflicts"]:
             rec["name_conflicts"] = got["conflicts"]
         (tmp / "RECONCILE.json").write_text(json.dumps(rec, indent=2) + "\n", encoding="utf-8")

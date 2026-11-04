@@ -60,7 +60,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   scope); `tools/lighthouse_evidence.py` collects its public evidence on both subjects (task-0069), the bundle by the server's `evidence_bundle`, over stdio or `--transport http` (task-0095).
   `tools/connector.py` lands a system of record's export (AML; BPMN, its own dialect and ARIS's, by URI) in
   `<instance>/register/exports/<system>/<date>/` with MANIFEST.toml and RECONCILE.json in ieam-register's format, the system
-  and the id attribute (`AT_ID` by default) from `<instance>/connectors.toml`; a vanished id stale, never a deletion; the
+  and the id attribute (`AT_ID` by default) from `<instance>/connectors.toml`; the comparison the register's own `tools/reconcile.py`, vendored and imported; `check_instance.py` checks `connectors.toml`'s systems against `metamodel/sources.toml` (task-0121); a vanished id stale, never a deletion; the
   fixtures land only in a temporary example instance; nothing under `harness/` or `demo/app` names the vendor (task-0063).
 - The register the page reads is `KG_REGISTER` (default `demo/register`, the public register
   vendored at a tag): one register per organisation, shared by every subject of it; an

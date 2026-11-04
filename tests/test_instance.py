@@ -205,3 +205,35 @@ def test_glob_semantics():
     assert r("src/**/*.py").match("src/a.py") and r("src/**/*.py").match("src/a/b/c.py")
     assert not r("src/*.py").match("src/a/b.py") and not r("*.py").match("a/b.py")
     assert r("src/**").match("src/a/b") and not r("src/a?.py").match("src/a/.py")
+
+
+def test_connectors_toml_names_the_registers_systems_and_a_string_id_attribute():
+    """task-0121: a [system.<name>] the register's metamodel/sources.toml lacks, or an id_attribute
+    that is not a non-empty string, breaks the layout; a good file and no file both hold."""
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "inst"
+        example_instance.build(out)
+        assert check_instance.check(out)["connectors"] is None, "no connectors.toml: nothing to check"
+        cfg = out / "connectors.toml"
+        cfg.write_text('[system.aris]\nid_attribute = "AT_ID"\n\n[system.archi]\n', encoding="utf-8")
+        rep = check_instance.check(out)
+        assert rep["errors"] == [], rep["errors"]
+        assert rep["connectors"] == {"systems": [{"system": "archi", "id_attribute": "AT_ID", "in_register": True},
+                                                 {"system": "aris", "id_attribute": "AT_ID", "in_register": True}]}
+        assert "connector aris: id attribute 'AT_ID'" in check_instance.render(rep)
+        assert check_instance.main([str(out)]) == 0
+        bad = {
+            '[system.visio]\n': "[system.visio] is not a system of register/metamodel/sources.toml",
+            '[system.aris]\nid_attribute = 7\n': "[system.aris] id_attribute must be a non-empty string, not 7",
+            '[system.aris]\nid_attribute = ""\n': "[system.aris] id_attribute must be a non-empty string, not ''",
+            '[system.aris]\nid_attribute = ["AT_ID"]\n': "id_attribute must be a non-empty string, not ['AT_ID']",
+            'system = "aris"\n': "connectors.toml: no [system.<name>] table",
+            '[other]\n': "connectors.toml: no [system.<name>] table",
+            '[system]\naris = 1\n': "connectors.toml: system.aris is not a table",
+            '[system.aris\n': "connectors.toml: not TOML",
+        }
+        for text, want in bad.items():
+            cfg.write_text(text, encoding="utf-8")
+            errs = check_instance.check(out)["errors"]
+            assert len(errs) == 1 and want in errs[0], (text, errs)
+            assert check_instance.main([str(out)]) == 1, text

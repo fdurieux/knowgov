@@ -140,7 +140,10 @@ AML header, or the one you give with `--exported-on`. Beside the files go two mo
 A stale node is a finding for its owner. The connector never deletes or edits a node. It never
 lands an export over an existing folder, or with a date before the newest one; it refuses (exit 1)
 instead. Exit 0 when the export landed, 2 when it cannot run (for example, no `connectors.toml`).
-Commit the new folder to your register like any other change.
+Commit the new folder to your register like any other change. `tools/check_instance.py` checks
+`connectors.toml` with the rest of the layout. Each `[system.<name>]` must be a system your
+register's `metamodel/sources.toml` names, and `id_attribute`, when you give it, must be a
+non-empty string.
 
 ## Tracing a code change to the knowledge
 
