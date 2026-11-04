@@ -1,6 +1,9 @@
 """Zero-dependency test runner (pytest-compatible test functions)."""
-import importlib, pathlib, sys, traceback
+import importlib, os, pathlib, sys, traceback
 sys.path.insert(0, ".")
+# task-0075: no test reads the wall clock through harness/review.py today(); one that needs a day pins
+# it (KG_TODAY), and one that does not fails here rather than on the day its outcome would move
+os.environ["KG_CLOCK"] = "pinned"
 
 failed = total = 0
 for path in sorted(pathlib.Path(__file__).parent.glob("test_*.py")):

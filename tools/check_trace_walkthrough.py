@@ -27,6 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HARNESS = ROOT / "harness"
 sys.path[:0] = [str(HARNESS), str(ROOT / "tools")]
+import cadence  # noqa: E402
 import example_instance  # noqa: E402
 import schema_check  # noqa: E402
 
@@ -60,8 +61,8 @@ def main() -> None:
         sys.exit(f"FAIL: {out} is not empty")
     out.mkdir(parents=True, exist_ok=True)
     inst = example_instance.build(out / "inst")
-    env = dict(os.environ, KG_SUBJECT=str(inst / "subjects" / "cargo_quote"), KG_RDFLIB_FILE=str(out / "store.ttl"),
-               PYTHONDONTWRITEBYTECODE="1")
+    env = cadence.pin_record(dict(os.environ, KG_SUBJECT=str(inst / "subjects" / "cargo_quote"), KG_RDFLIB_FILE=str(out / "store.ttl"),
+                                    PYTHONDONTWRITEBYTECODE="1"))   # the record's day, the wall clock refused (task-0075)
     code, text = run(env, "gate_cli.py", "--scenario", "S6")
     if code != 0:
         sys.exit(f"FAIL: S6 stage 1 exited {code}, want 0:\n{text}")

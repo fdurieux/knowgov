@@ -216,7 +216,7 @@ jobs:
 
       - name: The pre-load verdict read at the load (task-0064) on the Neo4j store, the example instance with its report
         run: |
-          docker compose exec -T app sh -c 'rm -rf /tmp/verdict /tmp/verdict-runs && python tools/example_instance.py /tmp/verdict > /dev/null && python tools/preload_check.py /tmp/verdict -o /tmp/verdict/preload-report.json > /dev/null; cd harness && KG_SUBJECT=/tmp/verdict/subjects/cargo_quote python run.py --deterministic --scenarios S1 S6 --out /tmp/verdict-runs > /dev/null && KG_SUBJECT=/tmp/verdict/subjects/cargo_quote python gate_cli.py --scenario S1 -f json -o /tmp/verdict-gate.json > /dev/null'
+          docker compose exec -T app sh -c 'rm -rf /tmp/verdict /tmp/verdict-runs && python tools/example_instance.py /tmp/verdict > /dev/null && python tools/preload_check.py /tmp/verdict -o /tmp/verdict/preload-report.json > /dev/null; cd harness && KG_SUBJECT=/tmp/verdict/subjects/cargo_quote python run.py --deterministic --scenarios S1 S6 --out /tmp/verdict-runs > /dev/null && KG_SUBJECT=/tmp/verdict/subjects/cargo_quote python gate_cli.py --as-of record --scenario S1 -f json -o /tmp/verdict-gate.json > /dev/null'
           docker compose exec -T app python3 - /tmp/verdict <<'PY'
           import json, sys
           sys.path[:0] = ["harness"]

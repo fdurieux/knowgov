@@ -37,7 +37,12 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   `instance/ci/github/action.yml` (run for real in `harness.yml`) and `instance/ci/gitlab/knowgov.gitlab-ci.yml`
   (its script lines run by a shell, `tools/check_ci_wrappers.py`; task-0052). The load records the report's verdict per document version (`harness/preload.py`, `KG_PRELOAD_REPORT` or `<instance>/preload-report.json`; unchecked unless the digest matches) and the gate lists the unchecked or flawed documents behind its keys at info (task-0064). Form, not knowledge. `harness/gate_cli.py`
   the gate as a command (exit 0/1/2, `--fail-on`, `--baseline record|FILE`, JSON pinned by
-  `harness/schemas/gate-report.schema.json` through `harness/schema_check.py`; task-0007; version 2: stale statements and suspect derived outputs are findings, task-0048, shown after S6's change by `tools/check_gate_after_change.py`). `--as-of` (decision-0005, task-0068; `harness/cadence.py`): a review verification's `valid_until` is its date plus its key's review months from the register's `lifecycle.toml`, a lapse reads validated and is a `lapsed` finding; today by default, the deterministic run and the comparator as of the subject's `[record] as_of`; `run.py --as-of` and the page's run (`as_of`) name another date, and the page's gate box and panel name the date read and list each lapse with its day and months (task-0076). `harness/mcp_server.py` the gate and the three-valued answer as a read-only MCP server (stdio, or
+  `harness/schemas/gate-report.schema.json` through `harness/schema_check.py`; task-0007; version 2: stale statements and suspect derived outputs are findings, task-0048, shown after S6's change by `tools/check_gate_after_change.py`). `--as-of` (decision-0005, task-0068; `harness/cadence.py`): a review verification's `valid_until` is its date plus its key's review months from the register's `lifecycle.toml`, a lapse reads validated and is a `lapsed` finding; today by default, the deterministic run and the comparator as of the subject's `[record] as_of`; `run.py --as-of` and the page's run (`as_of`) name another date, and the page's gate box and panel name the date read and list each lapse with its day and months (task-0076).
+  The clock (task-0075): `harness/review.py` `today()` is the only wall-clock read that decides an
+  outcome (KG_TODAY, else the wall clock); under `KG_CLOCK=pinned` (the test runner, the rdflib job,
+  every check tool's commands via `review.pinned`/`cadence.pin_record`) it refuses the wall clock.
+  `tests/test_clock.py` names every other read, holds each check tool pinned and each workflow gate
+  command to an `--as-of`. `harness/mcp_server.py` the gate and the three-valued answer as a read-only MCP server (stdio, or
   Streamable HTTP on 127.0.0.1 with `KG_MCP_TOKEN` for any wider bind; standard library; the store behind a
   view that lets the port's reads through and nothing else; `tools/check_mcp_server.py` holds its report equal
   to `gate_cli.py --no-load`'s on a live store; task-0056). `harness/trace.py`
@@ -50,6 +55,8 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   subjects: `cargo_quote` (the proof of concept, seven scenarios, the scored
   record) and `jef_data_load` (the recreation experiment's kit, the degradation
   test's arms as scenarios, a deterministic record, the kit's own suite as oracle; task-0021).
+  `docs/lighthouse-evaluation.md` the evaluation protocol (doc-0013's seven criteria; actions out of
+  scope); `tools/lighthouse_evidence.py` collects its public evidence on both subjects (task-0069).
 - The register the page reads is `KG_REGISTER` (default `demo/register`, the public register
   vendored at a tag): one register per organisation, shared by every subject of it; an
   instance mounts its own checkout read-only (`demo/docker-compose.instance.yml`). A subject

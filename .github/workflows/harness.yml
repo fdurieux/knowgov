@@ -16,6 +16,10 @@ permissions:
 jobs:
   rdflib:
     runs-on: ubuntu-latest
+    env:
+      # task-0075: no step reads the wall clock; a command that asks today's date with no KG_TODAY
+      # fails here (harness/review.py today()), so no outcome moves by the calendar
+      KG_CLOCK: pinned
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@v6
@@ -124,8 +128,8 @@ jobs:
           rm -rf runs/verdict runs/verdict-runs && python tools/example_instance.py runs/verdict > /dev/null
           python tools/preload_check.py runs/verdict -o runs/verdict/preload-report.json > /dev/null
           cd harness && KG_STORE=rdflib KG_SUBJECT=../runs/verdict/subjects/cargo_quote python run.py --deterministic --scenarios S1 S6 --out ../runs/verdict-runs > /dev/null
-          KG_STORE=rdflib KG_SUBJECT=../runs/verdict/subjects/cargo_quote python gate_cli.py --scenario S1 -f json -o ../runs/verdict-gate.json > /dev/null
-          rc=0; KG_STORE=rdflib KG_SUBJECT=../runs/verdict/subjects/cargo_quote python gate_cli.py --scenario S1 --fail-on info > /dev/null || rc=$?; test "$rc" = 1
+          KG_STORE=rdflib KG_SUBJECT=../runs/verdict/subjects/cargo_quote python gate_cli.py --as-of record --scenario S1 -f json -o ../runs/verdict-gate.json > /dev/null
+          rc=0; KG_STORE=rdflib KG_SUBJECT=../runs/verdict/subjects/cargo_quote python gate_cli.py --as-of record --scenario S1 --fail-on info > /dev/null || rc=$?; test "$rc" = 1
           cd ..
           python3 - runs/verdict <<'PY'
           import json, sys
@@ -184,6 +188,7 @@ jobs:
           g() { git -C runs/wrap/instance -c user.name=ci -c user.email=ci@example.invalid "$@"; }
           g init -q -b main && g commit -q --allow-empty -m root && g add -A && g commit -qm instance
           echo "KG_STORE=rdflib" >> "$GITHUB_ENV"; echo "KG_RDFLIB_FILE=$PWD/runs/wrap/store.ttl" >> "$GITHUB_ENV"
+          echo "KG_TODAY=2026-10-30" >> "$GITHUB_ENV"   # the record's day for the action's gate (task-0075; KG_CLOCK=pinned)
       - name: "The action: preload, clean, exit 0"
         uses: ./instance/ci/github
         with: { gate: preload, instance: runs/wrap/instance, base: HEAD~1 }
@@ -215,10 +220,22 @@ jobs:
           test "$STAGE2" = failure && test "$CHECK" = failure
           python3 -c 'import json; g=json.load(open("runs/wrap/gate-stage2.json")); t=json.load(open("runs/wrap/trace-check.json")); assert g["exit_code"]==1 and g["verdict"]=="BLOCKED", g["verdict"]; s=[f for f in t["findings"] if f["kind"]=="suspect"]; assert t["exit_code"]==1 and t["changed"]==["reference_impl.py"] and len(s)==1 and s[0]["app"]=="APP-0001", t; print("action:", g["verdict"], "then suspect on", s[0]["app"])'
           unset KG_RDFLIB_FILE; rm -rf runs/wrap-gitlab && KG_STORE=rdflib python tools/check_ci_wrappers.py runs/wrap-gitlab
+      - name: "The reports as annotations (task-0083): S6's change, from the action's two reports, as GitHub commands, code quality and SARIF"
+        run: |
+          a() { python harness/annotate.py "$@" --instance runs/wrap/instance --subject runs/wrap/instance/subjects/cargo_quote; }
+          a runs/wrap/gate-stage2.json -t github > runs/wrap/gate-stage2.gh
+          a runs/wrap/trace-check.json -t github > runs/wrap/trace-check.gh
+          a runs/wrap/trace-check.json -t gitlab -o runs/wrap/trace-check.cq.json
+          a runs/wrap/gate-stage2.json -t sarif -o runs/wrap/gate-stage2.sarif
+          grep -c '^::error file=runs/wrap/instance/subjects/cargo_quote/subject.toml,line=1,title=knowgov gate suspect_derived derived%3AS1%3AG%3Arun1 (blocker)::' runs/wrap/gate-stage2.gh
+          grep -c '^::warning file=runs/wrap/instance/subjects/cargo_quote/subject.toml,line=1,title=knowgov gate stale ' runs/wrap/gate-stage2.gh
+          grep -c '^::error file=runs/wrap/instance/subjects/cargo_quote/vendor/stack_experiment/cargo_quote/reference_impl.py,line=1,title=knowgov trace suspect APP-0001 (blocker)::' runs/wrap/trace-check.gh
+          python3 -c 'import json; cq=json.load(open("runs/wrap/trace-check.cq.json")); s=json.load(open("runs/wrap/gate-stage2.sarif")); r=s["runs"][0]["results"]; assert any(i["check_name"]=="knowgov-suspect" and i["severity"]=="blocker" and i["location"]["path"].endswith("cargo_quote/reference_impl.py") for i in cq), cq; assert s["version"]=="2.1.0" and {"suspect_derived","stale"} <= {x["ruleId"] for x in r}, r; print("code quality:", len(cq), "issues; SARIF:", len(r), "results")'
       - name: The capture path (task-0009), questionnaire, answers, the gate after, and nothing above proposed
         run: |
           rm -rf runs/capture && python tools/example_instance.py runs/capture > /dev/null
           export KG_SUBJECT="$PWD/runs/capture/subjects/cargo_quote" KG_REGISTER="$PWD/runs/capture/register" KG_STORE=rdflib
+          export KG_TODAY=2026-11-02   # the answers' day (task-0075): the questionnaire's and the ingest's today
           cd harness
           python capture.py questionnaire --scenario S2 --out ../runs/questionnaires
           python3 - <<'PY'
@@ -235,7 +252,7 @@ jobs:
           Path("../runs/answered.toml").write_text("[[item]]".join(parts))
           PY
           python capture.py ingest ../runs/answered.toml
-          set +e; python gate_cli.py --scenario S2 -f json > ../runs/gate-captured.json; set -e
+          set +e; python gate_cli.py --as-of record --scenario S2 -f json > ../runs/gate-captured.json; set -e
           python3 - <<'PY'
           import json, sys
           sys.path.insert(0, ".")
@@ -262,6 +279,10 @@ jobs:
           KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_mcp_server.py
       - name: A person's statement against the documents' (task-0038), on S2 a contradiction raises a conflict, an agreement corroborates and raises nothing
         run: KG_STORE=rdflib python tools/check_capture_pairing.py runs/pairing
+      - name: The lighthouse protocol's public evidence (task-0069), CargoQuote from the example instance and the J-F kit, every item agreeing with the record
+        run: |
+          rm -rf runs/lighthouse
+          KG_STORE=rdflib python tools/lighthouse_evidence.py runs/lighthouse
       - name: Route (c), a transcript read by a stub model (task-0041), gives inferred candidates on S2's empty keys only, listed in the questionnaire; no key, exit 2
         run: KG_STORE=rdflib python tools/check_transcript_route.py runs/transcript
       - name: The store survives a round trip (task-0070), every scenario of both subjects through Turtle into a fresh store, the same gate reports and three-valued answers

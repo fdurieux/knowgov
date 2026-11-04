@@ -11,3 +11,8 @@ description = "An empty subject: nothing to read, so every required key is absen
 keys = ["thing|property", "other|property"]
 block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
 max_unverified_share = 0.25
+
+# no record to replay; the date its runs read review currency on is pinned all the same (task-0075),
+# so a run on it never reads the wall clock (decision-0005)
+[record]
+as_of = 2026-11-04

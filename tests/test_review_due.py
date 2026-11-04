@@ -35,8 +35,13 @@ def _instance(tmp: Path) -> dict:
     subprocess.run([sys.executable, str(ROOT / "tools" / "example_instance.py"), str(tmp / "i")], check=True, capture_output=True)
     env = dict(os.environ, KG_SUBJECT=str(tmp / "i" / "subjects" / "cargo_quote"), KG_REGISTER=str(tmp / "i" / "register"),
                PYTHONDONTWRITEBYTECODE="1")
-    env.pop("KG_TODAY", None)
-    return env
+    return capture_review_env(env)
+
+
+def capture_review_env(env: dict) -> dict:
+    """The day the answers are ingested on, the wall clock refused (task-0075)."""
+    import review
+    return review.pinned(env, "2026-11-04")
 
 
 def _run(env, *args) -> subprocess.CompletedProcess:

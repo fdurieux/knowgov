@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -135,7 +136,9 @@ def main(argv: list[str] | None = None) -> int:
     chain = [k.strip().lower() for k in args.chain.split(",") if k.strip()]
     if len(chain) < 2:
         ap.error("--chain names at least two stores")
+    import cadence
     from subject import SUBJECT
+    os.environ.update(cadence.pin_record({}))   # the record's day, the wall clock refused (task-0075)
     scenarios = args.scenarios.split(",") if args.scenarios else list(SUBJECT.order)
     failures = []
     for sc in scenarios:
