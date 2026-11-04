@@ -10,7 +10,8 @@
 #
 # The job clones knowgov at KNOWGOV_REF; the instance checkout at KG_INSTANCE is the caller's
 # (a submodule or a before_script clone). The store's variables (KG_STORE and its own) come from the
-# project's CI/CD variables. Exit: the core command's, 0 pass, 1 a finding at or above KG_FAIL_ON,
+# project's CI/CD variables. The gate's and the trace's findings reach the merge request's code-quality
+# widget through gl-code-quality-report.json (KG_ANNOTATE; harness/annotate.py; task-0083). Exit: the core command's, 0 pass, 1 a finding at or above KG_FAIL_ON,
 # 2 cannot run; make the job required through the merge request's approval rules.
 .knowgov-gate:
   image: python:3.12
@@ -20,9 +21,14 @@
     KG_GATE: gate              # preload, gate, trace-check or trace-register
     KG_INSTANCE: instance
     GIT_DEPTH: "0"             # the diff against the merge request's base
+    KG_ANNOTATE: "gitlab:gl-code-quality-report.json"   # empty: no code-quality report
   before_script:
     - git clone --depth 1 --branch "$KNOWGOV_REF" https://github.com/fdurieux/knowgov.git /tmp/knowgov
     - pip install $KNOWGOV_PIP
   script:
     - export KG_COMMIT="$CI_COMMIT_SHA" KG_BASE="${KG_BASE:-${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}}" KG_CODE_REPO="${KG_CODE_REPO:-$CI_PROJECT_NAME}"
     - sh /tmp/knowgov/instance/ci/knowgov-gate.sh /tmp/knowgov "$KG_INSTANCE" "$KG_GATE"
+  artifacts:
+    when: always               # a failing gate's findings are the ones to show
+    reports:
+      codequality: gl-code-quality-report.json

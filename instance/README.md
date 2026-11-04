@@ -176,8 +176,18 @@ code is the command's: 0, 1 or 2.
 
 Installing Python, the pins and the store's connection details are your pipeline's own steps,
 taken from its secrets and variables. Make the job a required check: branch protection on GitHub,
-approval rules on GitLab. `KG_REPORT` writes the JSON report, for a step that turns it into your
-platform's annotations or keeps it as an artefact. This repository's CI runs the GitHub action on
+approval rules on GitLab. `KG_REPORT` writes the JSON report, to keep as an artefact.
+
+The findings also reach your platform's own surface (`KG_ANNOTATE`, `harness/annotate.py`). On
+GitHub the action does this by default (input `annotate`): each finding is an annotation on the run
+and the pull request, and the job summary carries a table of them. On GitLab the include writes
+`gl-code-quality-report.json`, which the merge request's code-quality widget shows. Any other
+platform names the formats it reads, for example `KG_ANNOTATE=sarif:knowgov.sarif`. A finding at or
+above the threshold is an error. A finding on code points at the file; a finding on a key or a
+statement points at the subject's `subject.toml`, since the report names statements, not lines in a
+document. Annotations never change the exit code.
+
+This repository's CI runs the GitHub action on
 the example instance, and runs the GitLab job's own script lines in a shell
 (`tools/check_ci_wrappers.py`). Both use S6: the change turns the registered code suspect, and the
 check fails naming `APP-0001`.
