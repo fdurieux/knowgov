@@ -216,8 +216,16 @@ own before it. The load reads only what was merged.
 **What it does not do.** It checks *form*, one file at a time: is this a well-formed document
 of its kind? It does not check *knowledge*. Two well-formed documents that disagree, or a fact
 nobody wrote down, pass it. That is the knowgov gate's question, `harness/gate_cli.py`, after the
-load; neither replaces the other. And both pass documents that are consistently wrong. The check
-does not record its verdict in the store.
+load; neither replaces the other. And both pass documents that are consistently wrong.
+
+**Keeping the verdict with the documents.** Commit the report of the merged tree as
+`preload-report.json` at the root of your instance (or set `KG_PRELOAD_REPORT` to its path).
+Every load then records on each document version what the report said about those exact bytes:
+tool, version, state and digest. A document the report does not cover, or one edited since it
+was checked, is recorded as *unchecked*, never as clean. The page's ingest panel shows the verdict
+per document, and the gate lists the documents behind a task's keys whose form was unchecked or
+had findings, as `info` findings that change the exit only under `--fail-on info`. Without a
+report, nothing is recorded.
 
 **Starting from documents that already have findings.** Run the check once with
 `-o preload-baseline.json`. Committing that report is your decision. From then on,
