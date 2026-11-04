@@ -45,6 +45,10 @@ names that section with the version.
   and decision 0013's review months. CargoQuote's three `response|*` keys now lapse after six
   months; as of 2027-02-07, S1, S3 and S6 read QUALIFIED. The record (as of 2026-10-30) is
   unchanged.
+- **The MCP allowlist leaves the managed hook fragment** (task-0107): `instance/ci/claude/managed-settings.json`
+  carries `allowManagedHooksOnly` and the hook only; `allowManagedMcpServersOnly` and `allowedMcpServers` move to
+  `managed-mcp-allowlist.json`, an opt-in whose lists replace lower sources' and must be merged; the hook stays
+  mandatory without it.
 
 ### Known limits
 
