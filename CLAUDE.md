@@ -91,6 +91,13 @@ opened a PR merges it itself once the whole matrix is green (a skipped `publish`
 counts as green), without asking; a PR the brief says the parent session merges
 is left to it.
 
+GitHub auto-merge is on (2026-11-03): the ruleset on `main` requires `tests` and `rdflib`, not
+`stack` (path-filtered, so a required `stack` would leave a PR pending forever) and not an
+up-to-date branch. So: a PR whose diff touches `stack`'s paths (`demo/`, `harness/`, `subjects/`,
+`tools/`, `demo.yml`) gets auto-merge only once `stack` is green on its head, or is merged by hand
+then; any other PR gets auto-merge when it opens. A PR that must wait (a proposed decision, an
+ordering) gets none. A `stack` red on `main` after a merge is fixed at once.
+
 Releases (decision-0003): SemVer, `VERSION` and `CHANGELOG.md` move together in a release PR
 (a test holds them equal); a contract change raises the minor version while 0.x. A hosted
 session cannot push a tag: the owner publishes the GitHub Release on the release PR's merge
