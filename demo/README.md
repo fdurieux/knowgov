@@ -386,6 +386,12 @@ application.
 The Arms button stays greyed out until the key is set. A re-run of either
 kind writes into a dated folder, `runs/<subject>/<date-time>/`,
 and never into the vendored record under `subjects/cargo_quote/`, which is pumllint's.
+The folder describes itself in `run.json`, written when the run starts and
+again when it ends: the scenario, the mode, the model row, the as-of date,
+who asked (`page`, or `mcp` for a run started through MCP), the start and
+end, the status and the exit code. It never holds a key, a token or the
+run's environment; `harness/schemas/run.schema.json` pins its shape. A
+folder from before it has none, and the page reads it as before.
 The report view lets you switch between the record and any demo run.
 
 ### The three modes, step by step
