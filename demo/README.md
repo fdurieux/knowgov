@@ -692,6 +692,10 @@ register kind its key takes them from. A run reads as of the record
 date unless the menu's *Reviews as of* date names another
 (`POST /api/run` with `"as_of": "YYYY-MM-DD"`, which passes `--as-of`
 to `harness/run.py`); such a run is not measured against the record.
+On S6 the two stage-2 gates, after the change and after re-verification,
+show the same in their boxes and panels (task-0086): re-verification
+renews only the changed keys' reviews, so as of 2027-09-01 both are
+BLOCKED on the same ten lapsed keys.
 
 `-f json` prints the report as data, in the shape
 `harness/schemas/gate-report.schema.json` pins; the command checks it

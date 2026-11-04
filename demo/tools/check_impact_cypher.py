@@ -10,7 +10,10 @@ runnable block must be the form's listed text, the rows form must give the walk'
 relationship, to, link state, owner, evidence, and the far node's owning unit:
 its owner field, that unit's name and the approved owns links to it, task-0047), the paths form the same distinct relationships
 as the rows form's links (a link the walk meets from both ends is two edges and one relationship,
-decision 0010), with the start returned. Exit 0 iff every node agrees. Runs where the harness and the driver are,
+decision 0010), with the start returned. The statements view's link (task-0078) is followed the
+same way: its guide's block must be the listed register-node-statements from the node, and its
+rows those the panel shows from the port's register_node_statements, when a scenario is loaded
+(else it must run). Exit 0 iff every node agrees. Runs where the harness and the driver are,
 with the store's settings from the environment and the page at KG_DEMO_URL
 (http://localhost:8080): in the stack job, ``docker compose exec -T app python
 demo/tools/check_impact_cypher.py`` after the register is projected. Standard library beside
@@ -80,6 +83,12 @@ def path_shape(rows: list[dict]) -> tuple[int, set, set]:
     return len(rels), links, starts
 
 
+def statement_keys(rows: list[dict]) -> list[tuple]:
+    """The statements view's rows, the console's or the port's, with each list sorted as the port sorts it."""
+    return sorted((r["statement"], r["status"], r["document"]) + tuple(tuple(sorted(r[k] or [])) for k in
+                  ("anchors", "links", "versions", "fragments", "derived")) for r in rows)
+
+
 def _get(path: str):
     with urllib.request.urlopen(DEMO + path) as resp:
         return json.load(resp)
@@ -91,7 +100,7 @@ def main() -> int:
     reg = _get("/api/register")
     default = reg["impact_default"]
     nodes = [n["id"] for ns in reg["nodes_by_taxonomy"].values() for n in ns]
-    failures = 0
+    failures = reached = 0
     with open_store() as store:
         for nid in nodes:
             w = _get(f"/api/register/impact/{urllib.parse.quote(nid)}")
@@ -122,13 +131,32 @@ def main() -> int:
                 row_links = {r["link"] for r in rows}
                 if n_rels != len(row_links) or path_links != row_links or starts != {nid}:
                     problems.append(f"paths {n_rels} relationships from {sorted(starts)}, the rows form {len(row_links)} links")
+            sv = (w.get("statements") or {}).get("cypher") or {}
+            n_st = None
+            if not sv.get("browser"):
+                problems.append("no Browser link on the statements view")
+            else:
+                try:
+                    st_text = block_of(fetch_guide(guide_url_of(sv["browser"])))
+                    if st_text != sv["text"] or f"{{reg_id:'{nid}'}}" not in st_text:
+                        problems.append("the statements guide's block is not the listed text from this node")
+                    st_rows = store.console_query(st_text)
+                except Exception as e:   # noqa: BLE001 — the guide, its headers, its block or the driver
+                    problems.append("statements: " + (str(e).strip().splitlines()[0] if str(e).strip() else type(e).__name__))
+                else:
+                    shown = w["statements"]["rows"]
+                    if shown is not None and statement_keys(st_rows) != statement_keys(shown):
+                        problems.append(f"statements {len(st_rows)} rows, the panel {len(shown)}")
+                    n_st = len(st_rows)
+                    reached += bool(n_st)
             tag = " (the register's default start)" if nid == default else ""
             if problems:
                 failures += 1
                 print(f"FAIL {nid:10} {'; '.join(problems)}{tag}")
             else:
-                print(f"ok   {nid:10} {len(expect)} edges in both forms{tag}")
-    print(f"{failures} of {len(nodes)} nodes disagree" if failures else f"every node agrees: {len(nodes)} nodes, both forms")
+                print(f"ok   {nid:10} {len(expect)} edges in both forms, {n_st} statements{tag}")
+    print(f"{failures} of {len(nodes)} nodes disagree" if failures else
+          f"every node agrees: {len(nodes)} nodes, both forms and the statements view ({reached} nodes reach statements)")
     return 1 if failures else 0
 
 
