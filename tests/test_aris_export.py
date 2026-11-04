@@ -4,6 +4,7 @@ less one process and with one function renamed. Standard library only (xml.etree
 import subprocess
 import sys
 import tomllib
+import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -139,25 +140,81 @@ def test_the_later_variant_drops_one_process_and_renames_one_function_guids_stab
     assert aml("later").find("Header-Info").get("CreateDate") == ax.LATER_DATE > ax.FIRST_DATE
 
 
+def _bpmn(v: str, name: str = "quote_process.bpmn") -> ET.Element:
+    return ET.fromstring(gen(v)[name].encode("utf-8"))
+
+
+def _flow(root: ET.Element) -> tuple:
+    """The model with every id dropped: (type, name, register id) per element and
+    (source name, target name, flow name) per sequence flow, as sorted lists."""
+    proc = root.find(f"{BPMN}process")
+    els = {el.get("id"): el for el in proc if el.tag != f"{BPMN}sequenceFlow"}
+    doc = lambda el: (el.findtext(f"{BPMN}documentation") or None)  # noqa: E731
+    nodes = sorted((el.tag, el.get("name"), doc(el)) for el in els.values())
+    flows = sorted((els[f.get("sourceRef")].get("name"), els[f.get("targetRef")].get("name"), f.get("name") or "")
+                   for f in proc.findall(f"{BPMN}sequenceFlow"))
+    return proc.get("id"), proc.get("name"), nodes, flows
+
+
 def test_the_bpmn_files_carry_the_kit_flow_the_register_ids_and_the_aml_guids():
     for v in ax.VARIANTS:
-        root = ET.fromstring(gen(v)["quote_process.bpmn"].encode("utf-8"))
+        root = _bpmn(v)
         proc = root.find(f"{BPMN}process")
-        assert proc.get(f"{KG}registerId") == "PROC-0001"
+        assert proc.get("id") == "PROC-0001", "the process id is the one id ARIS keeps"
+        assert root.find(f"{BPMN}collaboration").get("id") == ax.COLLAB
         guids = set(objdefs(aml(v)))
-        tasks = proc.findall(f"{BPMN}task")
         for el in proc:
             if el.get(f"{KG}guid"):
                 assert el.get(f"{KG}guid") in guids, el.get("id")
-        rid = {t.get("id"): t.get(f"{KG}registerId") for t in tasks if t.get(f"{KG}registerId")}
+        tasks = proc.findall(f"{BPMN}task")
+        rid = {t.get("id"): t.findtext(f"{BPMN}documentation") for t in tasks if t.find(f"{BPMN}documentation") is not None}
         want = {t: p for t, p in ax.TASK_PROC.items() if p != ax.VARIANTS[v]["drop"]}
-        assert rid == want, rid
+        assert rid == want and all(t.get(f"{KG}registerId") == p for t, p in want.items() for t in [proc.find(f"*[@id='{t}']")]), rid
+        assert not [el for el in proc.iter() if (el.get("id") or "").startswith(("PROC-", "CAP-")) and el is not proc]
         assert root.find("{http://www.omg.org/spec/BPMN/20100524/DI}BPMNDiagram") is not None
-    # the bpmnlint the pre-load check runs, when it is installed here (CI: harness.yml's Node step)
+
+
+def test_the_aris_dialect_bpmn_is_the_same_model_with_aris_ids_and_dropped_fields():
+    text = {v: gen(v)["quote_process.aris.bpmn"] for v in ax.VARIANTS}
+    ids = {}
+    for v in ax.VARIANTS:
+        assert "<semantic:definitions " in text[v] and "<bpmn:" not in text[v] and "SYNTHETIC" in text[v]
+        root = _bpmn(v, "quote_process.aris.bpmn")
+        assert root.get("exporter") == "ARIS" and root.get("targetNamespace") == "http://www.softwareag.com/aris/bpmn2"
+        assert root.get("id").startswith("Definitions_ID-") and root.get("{http://www.w3.org/XML/1998/namespace}lang")
+        assert _flow(root) == _flow(_bpmn(v)), "the same elements, names, register ids and flow topology"
+        proc = root.find(f"{BPMN}process")
+        assert proc.get("isExecutable") is None and not any(k.startswith(KG) for el in root.iter() for k in el.attrib)
+        assert root.find(f"{BPMN}collaboration").get("id") == ax.COLLAB
+        collab = root.find(f"{BPMN}collaboration")
+        assert any(k.endswith("}type") and val == "MT_ENTERPRISE_BPMN_COLLABORATION" for k, val in collab.attrib.items())
+        own = set()
+        for el in [*proc, *collab]:
+            i = el.get("id")
+            if el is proc:
+                continue
+            assert i.startswith("ID-") and uuid.UUID(i[3:]).version == 1, i
+            own.add(i)
+        for d in proc.iter(f"{BPMN}documentation"):
+            assert d.get("textFormat") == "text/plain"
+        di = "{http://www.omg.org/spec/BPMN/20100524/DI}"
+        shapes = [s.get("id") for s in root.iter(f"{di}BPMNShape")]
+        edges = [s.get("id") for s in root.iter(f"{di}BPMNEdge")]
+        assert all(s.startswith("Shape_ID-") for s in shapes) and all(s.startswith("Edge_ID-") for s in edges)
+        assert all(s.get("bpmnElement") in own for s in [*root.iter(f"{di}BPMNShape"), *root.iter(f"{di}BPMNEdge")])
+        assert root.find(f".//{di}BPMNLabelStyle") is not None
+        ids[v] = own
+    # ARIS id stability across two exports was not observed, so the fixture assumes none
+    assert not ids["first"] & ids["later"]
+
+
+def test_bpmnlint_finds_nothing_when_installed_here():
+    # the bpmnlint the pre-load check runs (CI: harness.yml's Node step runs it on the fixtures)
     import preload_check
     cmd = preload_check.bpmnlint_cmd()
     if cmd:
-        files = [str(ax.FIXTURES / v / "quote_process.bpmn") for v in ax.VARIANTS]
+        files = [str(p) for v in ax.VARIANTS for p in sorted((ax.FIXTURES / v).glob("*.bpmn"))]
+        assert len(files) == 4
         r = subprocess.run([*cmd, "-c", str(ROOT / "instance" / "ci" / "bpmnlintrc"), *files],
                            capture_output=True, text=True)
         assert r.returncode == 0 and "problem" not in r.stdout, r.stdout + r.stderr

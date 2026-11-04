@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T16:54:00Z'
-updated_date: '2026-11-04T17:00:00Z'
+updated_date: '2026-11-04T17:12:00Z'
 labels:
   - aris
   - connector
@@ -48,10 +48,22 @@ UNVERIFIED: the type, symbol and attribute names (MT_EEPC, OT_*, ST_*, CT_*, AT_
 Counts: first 41 ObjDef / 45 CxnDef / 44 ObjOcc / 43 CxnOcc; later 38/39/38/37 (PROC-0005's function and the two events only it followed are gone).
 bpmnlint 12.0.0 with instance/ci/bpmnlintrc (recommended): 0 problems on both BPMN files (the kit's own BPMN: 105). The tests job has no bpmnlint, so the test runs it only when installed; harness.yml's Node step now runs it on the fixtures.
 python tests/run_tests.py 343/343; KG_SUBJECT=subjects/jef_data_load 343/343. Example instance, its digests and the record untouched.
+
+Revision after the coordinator's evidence (2026-11-04): the maintainer imported a generated BPMN into ARIS 10.0 (exporterVersion 10.0.0.320027101) and exported it again.
+- Observed: process ids, the collaboration id, participant names, element types and names, element <documentation> (verbatim, plus textFormat="text/plain"), flow topology and names, and DI bounds were kept. Every other element, participant, flow and DI id became ID-<time-based uuid>, Shape_ID-... or Edge_ID-.... calledElement, process-level documentation, isExecutable and the multi-instance id were dropped, and timeCycle was emptied. The root became Definitions_ID-..., with targetNamespace http://www.softwareag.com/aris/bpmn2 and exporter ARIS. Elements use the semantic: prefix. ARIS added the aris, arisebpmn, color, deco and i18n namespaces, arisebpmn:type=MT_ENTERPRISE_BPMN_COLLABORATION, colours, aris:port, BPMNLabel with a font style, and xml:lang.
+- This was observed on ARIS 10.0, for BPMN only. Whether ID-... values stay stable across two exports has NOT been observed. The fixture therefore gives each variant different ID-... values, so a reader that matched them across exports would fail.
+- Changes: the BPMN process @id is now PROC-0001. Each activity's register id is its <documentation> text. No register id is an element id, and nothing relies on calledElement, timeCycle or process-level documentation. Both dialects carry a collaboration (collab_cargo_quote) whose participant is named CargoQuote.
+- New per variant: quote_process.aris.bpmn, the same model in ARIS's dialect. Its ID-... values are derived (uuid5 bytes stamped version 1). The aris, arisebpmn, color, deco and i18n namespace URIs are synthetic stand-ins (urn:knowgov:synthetic:aris-dialect:*), because the real ones were not in the evidence; the aris:port value is invented. A test holds the dialect's model (types, names, register ids, flow topology with ids dropped) equal to the knowgov dialect's.
+- bpmnlint 12.0.0 (recommended): 0 problems on all four BPMN files.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-tools/aris_export.py generates a synthetic ARIS export of CargoQuote from the vendored kit BPMN and the vendored register only: one AML (MT_EEPC of PROC-0001, register objects with AT_ID, uuid5 GUIDs on every element) and one BPMN 2.0 file with DI per variant, committed under tools/fixtures/aris_cargo_quote/{first,later}/. later drops PROC-0005 and renames PROC-0004, GUIDs unchanged. tests/test_aris_export.py parses with xml.etree: byte-identical regeneration equal to the fixtures, counts, ids, GUID uniqueness and stability, reference resolution, the variant diff, the BPMN's ids; bpmnlint when installed. harness.yml runs --check and bpmnlint 12.0.0 (0 problems). Risks: ARIS type names unverified; fixtures not placed into the example instance (task-0063 decides).
+tools/aris_export.py generates a synthetic ARIS export of CargoQuote from the vendored kit BPMN and the vendored register only. Per variant it writes one AML file and the same process as BPMN 2.0 with DI in two dialects: knowgov's own and ARIS 10.0's observed export dialect. They are committed under tools/fixtures/aris_cargo_quote/{first,later}/.
+- AML: an MT_EEPC of PROC-0001; register objects carry AT_ID; every element has a uuid5 GUID.
+- BPMN: PROC-0001 is the process @id and each activity's PROC id is its documentation text, which are what survived ARIS's round trip.
+- later drops PROC-0005 and renames PROC-0004; GUIDs are unchanged.
+- tests/test_aris_export.py (xml.etree) checks byte-identical regeneration, counts, ids, GUIDs, reference resolution, the variant diff, that both BPMN dialects hold the same model, and the ARIS dialect's ids and dropped fields. It runs bpmnlint when installed. harness.yml runs --check and bpmnlint 12.0.0, which reports 0 problems.
+- Risks: the AML type names are unverified; the ARIS-dialect namespace URIs are stand-ins; ID-... stability across ARIS exports is unobserved; the fixtures are not placed in the example instance (task-0063 decides).
 <!-- SECTION:FINAL_SUMMARY:END -->
