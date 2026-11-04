@@ -184,10 +184,11 @@ the load reports it as `unmapped` and the store holds no assertion from it, so n
 silently. A file a mapper cannot parse makes the run fail.
 
 Before the load, `tools/preload_check.py` checks each document's form with its kind's linter
-where one runs here: today pumllint, for PlantUML models (see "A check before the load" below).
-For every other kind nothing checks the form yet: a malformed BPMN model, an OpenAPI file with
-broken references or a Gherkin file with a syntax error reaches the mapper as it is, and the check
-lists it as unchecked, naming the tool your instance would add.
+where one runs here: pumllint for PlantUML models, Spectral for API contracts, markdownlint for
+specification prose, gplint for Gherkin, bpmnlint for BPMN and dmnlint for DMN files (see "A check
+before the load" below). For every other kind nothing checks the form yet: a malformed C4 model or
+a schema with a syntax error reaches the mapper as it is, and the check lists it as unchecked,
+naming the tool your instance would add.
 
 ### Which tool checks which kind
 
@@ -204,7 +205,7 @@ means the tool exits non-zero on a finding today.
 | `user-stories` | none | no | none |
 | `specification-prose` | Vale, markdownlint | yes | spec, contracts_markdown |
 | `acceptance-scenarios` | gplint | partly | gherkin, gherkin_tagged |
-| `bpmn-process-models` | bpmnlint (planned) | errors and warnings | bpmn |
+| `bpmn-process-models` | bpmnlint | errors and warnings | bpmn |
 | `decision-tables` | dmnlint, for `.dmn` files | no threshold | decision_table, dmn, dmn_decisions |
 | `cross-artefact-links` | pumllint `trace` (planned) | yes | links |
 | `architecture-decisions` | adr-guard, adrpy-ai (both before 1.0) | yes, young | none |
@@ -219,14 +220,17 @@ means the tool exits non-zero on a finding today.
 | `glossary` | none | no | none |
 | `property-invariants` | the test runner | yes | none |
 
-Read it this way. Five kinds have a working tool and a mapper: PlantUML models, specification
-prose, Gherkin, decision tables and API contracts. A check before the load is worth most there.
-Three have a mapper and only a planned tool: requirements, BPMN and the cross-document links.
+Read it this way. Six kinds have a working tool and a mapper: PlantUML models, specification
+prose, Gherkin, BPMN, decision tables and API contracts. A check before the load is worth most
+there, and the check runs all six. Two have a mapper and only a planned tool: requirements and the
+cross-document links.
 Five have a tool but no mapper, so they are checked and not read. Seven have no tool that can stop
 a build.
 
 Two cautions. A decision table written in Markdown (CargoQuote's `decision_table.md`) is not a DMN
-file, so dmnlint does not read it: markdownlint checks its form and nothing checks its content.
+file, so dmnlint does not read it, and markdownlint does not either (it reads
+`specification-prose`): the check lists it as unchecked. Move such a table to DMN, or accept the
+gap in sight.
 A conceptual or logical data model has no tool at all. In knowgov, its only record is the
 register's information nodes.
 
@@ -240,12 +244,17 @@ python tools/preload_check.py /path/to/your/instance --since origin/main
    `artefacts/<kind>/`.
 2. The instance's CI (copy `instance/ci/preload-check.yml`) runs `tools/preload_check.py` on the
    changed files, then `tools/check_instance.py`. Each file is linted by the tool its kind's
-   `lint` field in `instance/kinds.toml` names, when that tool runs here: pumllint for
-   `plantuml-models` and Spectral for `api-contracts` (the kind's `lint.runs`). A file of any
-   other kind, or of a kind whose linter is not installed, is listed as unchecked, with the tool
-   the programme's table names, so the gap stays visible; it does not fail the check. Spectral's
-   errors count as `major` and its warnings as `minor`; it uses your `.spectral.yaml` at the
-   instance root, or else its own OpenAPI and AsyncAPI rules.
+   `lint` field in `instance/kinds.toml` names, when that tool runs here (the kind's `lint.runs`):
+   pumllint for `plantuml-models`, Spectral for `api-contracts`, markdownlint (markdownlint-cli2)
+   for `specification-prose`, gplint for `acceptance-scenarios`, bpmnlint for
+   `bpmn-process-models`, dmnlint for the `.dmn` files of `decision-tables`. A file of any other
+   kind, a decision table that is not `.dmn`, or a file of a kind whose linter is not installed, is
+   listed as unchecked, with the tool, so the gap stays visible; it does not fail the check. Each
+   linter's errors count as `major` and its warnings as `minor`. Each uses your own configuration
+   at the instance root (`.spectral.yaml`, `.markdownlint.jsonc`, `.gplintrc`, `.bpmnlintrc`,
+   `.dmnlintrc`), or else the one under `instance/ci/`: Spectral's OpenAPI and AsyncAPI rules,
+   markdownlint's defaults less line length and table column style, gplint's structural rules,
+   and the recommended rules of bpmnlint and dmnlint. The template installs each one pinned.
 3. Your branch protection requires that job to pass, and a reviewer who is not the author.
 4. The load reads only what was merged. Nothing loads from a branch.
 
@@ -274,8 +283,12 @@ and its bundle) lists the documents behind the task's keys whose form was unchec
 findings, at `info`: the exit code moves only if you ask with `--fail-on info`. With no report,
 nothing is recorded and every output reads as before.
 
-Not built yet: the other kinds' tools (Vale or markdownlint for specification prose, gplint for
-Gherkin, bpmnlint, dmnlint), which your instance adds as steps of its own.
+Not built: Vale, the table's other tool for specification prose, which ships no rules of its
+own (a style is your organisation's, fetched by `vale sync`), so your instance adds it as a step
+of its own with your styles; and the tools of the kinds with no mapper. The example instance's
+BPMN model fails `bpmnlint:recommended` (no diagram interchange, no `incoming`/`outgoing` on its
+nodes): a first run on documents written without the tool finds such things, which is what the
+baseline is for.
 
 ### Why this is not the knowgov gate
 
@@ -687,8 +700,8 @@ your own instance the register is your checkout, mounted read-only, and none of 
 - The walk starts only from applications, processes and journeys. For a capability or an
   information node, use the saved queries of section 8.
 - A module reaches its code only through whole documents, and a change to code reaches nothing.
-- Before the load, only PlantUML models (pumllint) and API contracts (Spectral) have their form
-  checked. Every other kind is listed as unchecked, naming the tool your instance would add
-  (section 5).
+- Before the load, six kinds have their form checked: PlantUML models, API contracts,
+  specification prose, Gherkin, BPMN and DMN files. Every other kind, and a decision table written
+  in Markdown, is listed as unchecked, naming the tool your instance would add (section 5).
 - QUALIFIED is not safe. A defect present in every document passes the gate (J-F D3 and D5).
 - A person's answer reaches *proposed* at most until the review record is built (section 6).

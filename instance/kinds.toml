@@ -13,7 +13,7 @@
 #          finding today ("yes ..." or "via ..."). tools/preload_check.py runs the ones this
 #          repository's environment can run and reports every other kind's files as unchecked,
 #          naming the tool; never passed silently. runs: the one of those tools
-#          tools/preload_check.py RUNNERS runs for the kind (task-0066), absent where none does
+#          tools/preload_check.py RUNNERS runs for the kind (task-0066, task-0082), absent where none does
 #
 # tests/test_instance.py holds every mapper the harness has to exactly one kind, so a new mapper
 # must say what it reads before it ships, and every lint field to doc-0008 §5's table.
@@ -45,25 +45,25 @@ mappers = []
 [[kind]]
 folder = "specification-prose"
 row = "Specification prose"
-lint = { tool = "Vale, markdownlint", gate = "yes", capable = true }
+lint = { tool = "Vale, markdownlint", gate = "yes", capable = true, runs = "markdownlint" }
 mappers = ["spec", "contracts_markdown"]
 
 [[kind]]
 folder = "acceptance-scenarios"
 row = "Acceptance scenarios (Gherkin)"
-lint = { tool = "gplint", gate = "partial", capable = false }
+lint = { tool = "gplint", gate = "partial", capable = false, runs = "gplint" }
 mappers = ["gherkin", "gherkin_tagged"]
 
 [[kind]]
 folder = "bpmn-process-models"
 row = "BPMN process models"
-lint = { tool = "bpmnlint", gate = "errors vs warnings", capable = false }
+lint = { tool = "bpmnlint", gate = "errors vs warnings", capable = false, runs = "bpmnlint" }
 mappers = ["bpmn"]
 
 [[kind]]
 folder = "decision-tables"
 row = "Decision tables (DMN)"
-lint = { tool = "dmnlint (small rule set)", gate = "no threshold", capable = false }
+lint = { tool = "dmnlint (small rule set)", gate = "no threshold", capable = false, runs = "dmnlint" }
 mappers = ["decision_table", "dmn", "dmn_decisions"]
 
 [[kind]]

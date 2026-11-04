@@ -63,22 +63,99 @@ sys.exit(1 if found else 0)
 '''
 
 
+# markdownlint-cli2's command line, as preload_check calls it: --help (its version line); [--config FILE] :FILE...;
+# its default text report on stderr. A line holding "BROKEN" is an error (MD025); "WARN" a warning (MD009).
+FAKE_MARKDOWNLINT = r"""
+import sys
+a = sys.argv[1:]
+if a == ["--help"]:
+    print("markdownlint-cli2 v0.0-standin (markdownlint v0.0)"); sys.exit(0)
+files = [x[1:] for x in a if x.startswith(":")]
+assert files and len(files) == len([x for x in a if not x.startswith("-")]) - (1 if "--config" in a else 0), a
+out = []
+for f in files:
+    for n, line in enumerate(open(f, encoding="utf-8"), 1):
+        if "BROKEN" in line:
+            out.append(f"{f}:{n} error MD025/single-title/single-h1 Multiple top-level headings in the same document")
+        if "WARN" in line:
+            out.append(f"{f}:{n}:3 warning MD009/no-trailing-spaces Trailing spaces")
+print("markdownlint-cli2 v0.0-standin (markdownlint v0.0)")
+print("\n".join(out), file=sys.stderr)
+sys.exit(1 if out else 0)
+"""
+
+# gplint's: --version; -c CONFIG -f json FILE...; a message naming a file names it absolute, as gplint does.
+FAKE_GPLINT = r"""
+import json, sys
+a = sys.argv[1:]
+if a == ["--version"]:
+    print("0.0-standin"); sys.exit(0)
+assert a[0] == "-c" and a[2:4] == ["-f", "json"], a
+rep = []
+for f in a[4:]:
+    errs = [{"level": 2, "rule": "no-dupe-scenario-names", "line": n, "column": 3, "message": "Scenario name is already used in: " + f + ":1"}
+            for n, line in enumerate(open(f, encoding="utf-8"), 1) if "BROKEN" in line]
+    rep.append({"filePath": f, "errors": errs})
+print(json.dumps(rep))
+sys.exit(1 if any(r["errors"] for r in rep) else 0)
+"""
+
+# bpmnlint's and dmnlint's: --version; -c CONFIG FILE...; their text report on stdout, files with no
+# problem not named. "BROKEN" is an error on element e1; "MANGLED" a parse error (no element, no rule).
+FAKE_BPMN_IO = r"""
+import sys
+a = sys.argv[1:]
+if a == ["--version"]:
+    print("0.0.0"); sys.exit(0)
+assert a[0] == "-c", a
+out, n = [], 0
+for f in a[2:]:
+    text = open(f, encoding="utf-8").read()
+    rows = []
+    if "BROKEN" in text:
+        rows.append("  e1   error    Element is missing label/name  label-required")
+        rows.append("  e2   warning  Sequence flow has superfluous label  superfluous-label")
+    if "MANGLED" in text:
+        rows.append("    error  Parse error: unparsable content </x  ")
+        rows.append("           	line: 0                ")
+    if rows:
+        out += ["", f] + rows
+        n += len(rows)
+if n:
+    out += ["", f"✖ {n} problems"]
+print("\n".join(out))
+sys.exit(1 if n else 0)
+"""
+
+NODE = {"markdownlint_cmd": FAKE_MARKDOWNLINT, "gplint_cmd": FAKE_GPLINT, "bpmnlint_cmd": FAKE_BPMN_IO, "dmnlint_cmd": FAKE_BPMN_IO}
+
+
 class _Standin:
-    """pumllint and Spectral stood in for; present=False: neither is installed."""
-    def __init__(self, td: Path, present: bool = True):
+    """pumllint and Spectral stood in for; present=False: neither is installed. node=True also stands in the
+    Node linters (task-0082); by default they are not installed, so a test never reads the environment's."""
+    def __init__(self, td: Path, present: bool = True, node: bool = False):
         self.script = td / "fake_pumllint.py"
         self.script.write_text(FAKE, encoding="utf-8")
         self.spectral = td / "fake_spectral.py"
         self.spectral.write_text(FAKE_SPECTRAL, encoding="utf-8")
         self.present = present
+        self.nodes = node
+        self.node = {}
+        for name, src in NODE.items():
+            f = td / f"fake_{name}.py"
+            f.write_text(src, encoding="utf-8")
+            self.node[name] = f
 
     def __enter__(self):
-        self.saved = preload_check.pumllint_cmd, preload_check.spectral_cmd
+        self.saved = {n: getattr(preload_check, n) for n in ("pumllint_cmd", "spectral_cmd", *NODE)}
         preload_check.pumllint_cmd = (lambda: [sys.executable, str(self.script)]) if self.present else (lambda: None)
         preload_check.spectral_cmd = (lambda: [sys.executable, str(self.spectral)]) if self.present else (lambda: None)
+        for name, f in self.node.items():
+            setattr(preload_check, name, (lambda f=f: [sys.executable, str(f)]) if self.present and self.nodes else (lambda: None))
 
     def __exit__(self, *exc):
-        preload_check.pumllint_cmd, preload_check.spectral_cmd = self.saved
+        for n, f in self.saved.items():
+            setattr(preload_check, n, f)
 
 
 def _digest(root: Path) -> str:
@@ -107,13 +184,17 @@ def test_the_clean_example_instance_exits_0_and_lists_every_unchecked_kind_by_it
         states = {r["file"]: (r["state"], r["tool"]) for r in rep["files"]}
         assert states["artefacts/plantuml-models/quote_flow.puml"] == ("clean", "pumllint")
         assert states["artefacts/api-contracts/openapi.yaml"] == ("clean", "Spectral")
-        assert states["artefacts/specification-prose/spec.md"] == ("unchecked", "Vale, markdownlint")
+        assert states["artefacts/specification-prose/spec.md"] == ("unchecked", "markdownlint")
+        assert states["artefacts/decision-tables/decision_table.md"] == ("unchecked", "dmnlint (small rule set)")
+        assert states["artefacts/textual-requirements/requirements.md"] == ("unchecked", "StrictDoc, Doorstop, Sphinx-Needs, OpenFastTrace")
         assert rep["counts"] == {"clean": 3, "findings": 0, "held": 0, "unchecked": 7, "cannot_run": 0, "skipped": 0}, rep["counts"]
         lts = {lt["tool"]: (lt["version"], lt["files"], lt["exit"]) for lt in rep["linters"]}
-        assert lts == {"pumllint": ("0.0-standin", 2, 0), "Spectral": ("6.0.0-standin", 1, 0)}, lts
+        assert lts == {"pumllint": ("0.0-standin", 2, 0), "Spectral": ("6.0.0-standin", 1, 0), "markdownlint": (None, 1, 2),
+                       "gplint": (None, 1, 2), "bpmnlint": (None, 1, 2), "dmnlint": (None, 1, 2)}, lts
         assert all(r["state"] in ("clean", "unchecked") for r in rep["files"])
         text = preload_check.render(rep)
-        assert "UNCHECKED  artefacts/bpmn-process-models/quote_process.bpmn [bpmn-process-models]: form unchecked: the table names bpmnlint" in text
+        assert "UNCHECKED  artefacts/bpmn-process-models/quote_process.bpmn [bpmn-process-models]: form unchecked: bpmnlint is not installed here" in text
+        assert "UNCHECKED  artefacts/textual-requirements/requirements.md [textual-requirements]: form unchecked: the table names StrictDoc" in text
         assert "not the knowledge in it (harness/gate_cli.py)" in text
         assert _digest(out) == before, "the check wrote into the instance"
 
@@ -178,8 +259,8 @@ def test_every_runner_names_the_tool_its_kind_names_and_the_ci_template_runs_the
     table = check_instance.kinds()
     runs = {kind: k["lint"]["runs"] for kind, k in table.items() if "runs" in k["lint"]}
     assert runs == {kind: tool for kind, (tool, _) in preload_check.RUNNERS.items()}, "kinds.toml runs and RUNNERS differ"
-    for kind, tool in runs.items():
-        assert tool in [x.strip() for x in table[kind]["lint"]["tool"].split(",")] and table[kind]["lint"]["capable"], kind
+    for kind, tool in runs.items():   # "dmnlint (small rule set)" names dmnlint; capable stays doc-0008 §5's column, the runner gives the threshold
+        assert tool in [x.strip().split()[0] for x in table[kind]["lint"]["tool"].split(",")], kind
     ci = ROOT / "instance" / "ci"
     script = (ci / "preload-check.sh").read_text(encoding="utf-8")
     assert "tools/preload_check.py" in script and "tools/check_instance.py" in script and "--since" in script
@@ -191,6 +272,15 @@ def test_every_runner_names_the_tool_its_kind_names_and_the_ci_template_runs_the
     spectral = re.search(r'SPECTRAL: "([\d.]+)"', wf).group(1)
     assert f'npm install -g "@stoplight/spectral-cli@{spectral}"' in harness, "the template's Spectral pin is not the harness's"
     assert 'npm install -g "@stoplight/spectral-cli@${SPECTRAL}"' in wf, "the template does not install the Spectral it runs"
+    # task-0082: each Node linter's pin is the harness's, and the template installs what it runs
+    for var, pkg in (("MARKDOWNLINT", "markdownlint-cli2"), ("GPLINT", "gplint"), ("BPMNLINT", "bpmnlint"), ("DMNLINT", "dmnlint")):
+        pin = re.search(rf'{var}: "([\d.]+)"', wf).group(1)
+        assert f'"{pkg}@{pin}"' in harness, f"the template's {pkg} pin is not the harness's"
+        assert f'"{pkg}@${{{var}}}"' in wf, f"the template does not install the {pkg} it runs"
+    assert "tools/check_preload_linters.py" in harness, "harness.yml does not prove the Node linters"
+    assert wf.count('node-version: "24"') == 1 and harness.count('node-version: "24"') == 1, "bpmnlint 12 and dmnlint 2 need Node 24"
+    for name in ("markdownlint.jsonc", "gplintrc", "bpmnlintrc", "dmnlintrc"):
+        assert (ci / name).is_file(), name
     assert "instance/ci/preload-check.sh" in harness, "harness.yml does not prove the template's script"
     readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
     guide = (ROOT / "docs" / "guide.md").read_text(encoding="utf-8")
@@ -277,3 +367,67 @@ def test_api_contracts_run_spectral_under_the_same_contract():
         assert row["findings"][0] == {"rule": "invalid-ref", "severity": "major", "line": 2, "message": "does not exist"}, row["findings"]
     ruleset = (ROOT / "instance" / "ci" / "spectral.yaml").read_text(encoding="utf-8")
     assert ruleset.strip().endswith('extends: ["spectral:oas", "spectral:asyncapi"]')
+
+
+def test_the_node_linters_run_under_the_same_contract():
+    """task-0082: markdownlint, gplint, bpmnlint and dmnlint, stood in by scripts that speak their command lines
+    and reports: an error is major (fails at the default threshold), a warning minor; a decision table that is
+    not .dmn stays unchecked; gplint's messages name files relative to the instance, so a baseline holds anywhere;
+    a linter that is not installed leaves its kind unchecked, naming it."""
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "inst"
+        example_instance.build(out)
+        a = out / "artefacts"
+        plant = {"specification-prose/broken.md": "# One\n\nBROKEN\n", "specification-prose/warn.md": "# One\n\nWARN\n",
+                 "acceptance-scenarios/broken.feature": "Feature: x\n  Scenario: BROKEN\n",
+                 "bpmn-process-models/broken.bpmn": "<x>BROKEN</x>\n", "bpmn-process-models/mangled.bpmn": "<x>MANGLED\n",
+                 "decision-tables/broken.dmn": "<x>BROKEN</x>\n", "decision-tables/table.csv": "a,b\n"}
+        for rel, text in plant.items():
+            (a / rel).write_text(text, encoding="utf-8")
+        changed = [f"artefacts/{rel}" for rel in plant]
+        with _Standin(Path(td), node=True):
+            clean = preload_check.check(out)
+            rep = preload_check.check(out, changed)
+            assert preload_check.main([str(out), "--changed", *changed]) == 1
+            assert preload_check.main([str(out), "--changed", "artefacts/specification-prose/warn.md"]) == 0
+            assert preload_check.main([str(out), "--changed", "artefacts/specification-prose/warn.md", "--fail-on", "minor"]) == 1
+            assert preload_check.main([str(out), "--changed", *changed, "--fail-on", "critical"]) == 0
+            base = Path(td) / "base.json"
+            assert preload_check.main([str(out), "--changed", *changed, "-o", str(base)]) == 1
+            assert preload_check.main([str(out), "--changed", *changed, "--baseline", str(base)]) == 0
+        _valid(clean)
+        _valid(rep)
+        # nothing planted yet in the first run: the example's own files of the four kinds are clean under the stand-ins
+        cs = {r["file"]: (r["state"], r["tool"]) for r in clean["files"] if r["file"] not in changed}
+        assert cs["artefacts/specification-prose/spec.md"] == ("clean", "markdownlint")
+        assert cs["artefacts/acceptance-scenarios/acceptance.feature"] == ("clean", "gplint")
+        assert cs["artefacts/bpmn-process-models/quote_process.bpmn"] == ("clean", "bpmnlint")
+        assert cs["artefacts/decision-tables/screening_decision.dmn"] == ("clean", "dmnlint")
+        assert cs["artefacts/decision-tables/decision_table.md"] == ("unchecked", "dmnlint (small rule set)")
+        rows = {r["file"].removeprefix("artefacts/"): r for r in rep["files"]}
+        md = rows["specification-prose/broken.md"]
+        assert md["state"] == "findings" and md["tool"] == "markdownlint"
+        assert md["findings"] == [{"rule": "MD025", "severity": "major", "line": 3,
+                                   "message": "MD025/single-title/single-h1 Multiple top-level headings in the same document"}], md
+        assert rows["specification-prose/warn.md"]["state"] == "clean" and rows["specification-prose/warn.md"]["findings"][0]["severity"] == "minor"
+        g = rows["acceptance-scenarios/broken.feature"]
+        assert g["state"] == "findings" and g["findings"] == [{"rule": "no-dupe-scenario-names", "severity": "major", "line": 2,
+                                                               "message": "Scenario name is already used in: artefacts/acceptance-scenarios/broken.feature:1"}], g
+        b = rows["bpmn-process-models/broken.bpmn"]
+        assert b["tool"] == "bpmnlint" and [(f["rule"], f["severity"], f["message"]) for f in b["findings"]] == [
+            ("label-required", "major", "e1: Element is missing label/name"), ("superfluous-label", "minor", "e2: Sequence flow has superfluous label")], b
+        m = rows["bpmn-process-models/mangled.bpmn"]
+        assert m["state"] == "findings" and m["findings"][0]["rule"] == "parse-error" and m["findings"][0]["message"] == "Parse error: unparsable content </x", m
+        assert rows["decision-tables/broken.dmn"]["tool"] == "dmnlint" and rows["decision-tables/broken.dmn"]["state"] == "findings"
+        csv = rows["decision-tables/table.csv"]
+        assert csv["state"] == "unchecked" and "dmnlint reads .dmn files only" in csv["why"], csv
+        lts = {lt["tool"]: lt["version"] for lt in rep["linters"]}
+        assert lts == {"markdownlint": "0.0-standin", "gplint": "0.0-standin", "bpmnlint": "0.0.0", "dmnlint": "0.0.0"}, lts
+        with _Standin(Path(td)):   # the Node linters not installed: each kind unchecked, naming its tool
+            rep = preload_check.check(out, changed)
+        assert rep["exit_code"] == 0 and {r["state"] for r in rep["files"]} == {"unchecked"}
+        for r in rep["files"]:
+            if not r["file"].endswith(".csv"):
+                assert f"{r['tool']} is not installed here" in r["why"], r
+    for name, (cfg, key) in {"bpmnlintrc": ("bpmnlint:recommended", "extends"), "dmnlintrc": ("dmnlint:recommended", "extends")}.items():
+        assert json.loads((ROOT / "instance" / "ci" / name).read_text(encoding="utf-8"))[key] == cfg

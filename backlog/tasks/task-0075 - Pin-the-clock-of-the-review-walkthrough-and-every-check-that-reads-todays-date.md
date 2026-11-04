@@ -3,11 +3,11 @@ id: TASK-0075
 title: >-
   Pin the clock of the review walkthrough and every check that reads today's
   date
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T00:44:00Z'
-updated_date: '2026-11-04T01:16:00Z'
+updated_date: '2026-11-04T01:48:00Z'
 labels:
   - capture
   - ci
@@ -25,9 +25,9 @@ Found by task-0068: tools/check_review_walkthrough.py reads the wall clock for c
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Every CI check that reads the date reads a pinned one (KG_TODAY or the subject's record date), found by a search of harness/ and tools/
-- [ ] #2 A test fails if a check reads the wall clock where a pinned date exists
-- [ ] #3 The walkthrough passes unchanged with the date pinned, on rdflib and Neo4j
+- [x] #1 Every CI check that reads the date reads a pinned one (KG_TODAY or the subject's record date), found by a search of harness/ and tools/
+- [x] #2 A test fails if a check reads the wall clock where a pinned date exists
+- [x] #3 The walkthrough passes unchanged with the date pinned, on rdflib and Neo4j
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -40,3 +40,15 @@ Found by task-0068: tools/check_review_walkthrough.py reads the wall clock for c
 5. tests/test_clock.py: the named reads, the refusal, every check tool pinned, every workflow gate command dated.
 6. Prove: walkthrough on rdflib and Neo4j 5.26; a faked wall clock past 2027-05-03 reddens main's walkthrough and not this branch's.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Found and pinned beyond the walkthrough: capture.py questionnaire read dt.date.today() directly; check_mcp_server's stage 2 and the MCP default read today; the transcript route (#122), the CI wrappers (#123, including the composite action's steps) and the pre-load verdict step (#118) read today, each caught by tests/test_clock.py as it merged. The datetime monkeypatch used to fake a wall clock segfaults inside the Neo4j driver, so on Neo4j the proof is KG_CLOCK=pinned (any unpinned read raises) rather than a faked date.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+today() in harness/review.py stays the one clock (KG_TODAY, else the wall clock). Under KG_CLOCK=pinned it raises WallClock instead of reading the wall clock. review.pinned and cadence.pin_record build a check's environment. The review walkthrough runs on its reviews' day (2026-11-03), with the lapse day derived from it. The other check tools run on the record date, or on the transcript route's own day. The test runner and the rdflib job set KG_CLOCK=pinned, and every workflow gate command names --as-of. tests/test_clock.py holds it: every other wall-clock read is named, the refusal is checked, every check tool must pin and every gate command must carry a date. Proof: a wall clock faked to 2027-06-01 turns main's walkthrough red (QUALIFIED where PROCEED is wanted) but not this branch's. 224/224 tests, plain and on J-F. The rdflib job was replayed in full and the Neo4j 5.26 checks all pass under KG_CLOCK=pinned. PR #128 merged on a green matrix.
+<!-- SECTION:FINAL_SUMMARY:END -->

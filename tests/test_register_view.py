@@ -736,13 +736,43 @@ def test_node_statements_query_is_the_ports_cypher_at_anchor_grain():
     assert ";" not in raw, "the console checker splits on ';'"
     # approved links only; an anchor narrows to the fragments whose locator holds it as a path segment,
     # a citation with none reaches the whole document; every version, so an invalidated statement still shows its code
-    assert "RegLink {state:'approved'}" in raw and "anchor IS NULL OR anchor IN split(f.locator, '/')" in raw
+    assert "RegLink {state:'approved'}" in raw and "anchor IS NULL OR anchor IN split(substring(f.locator, size(file)), '/')" in raw
+    # a document is a file artefact, or a file of a directory artefact read after its "<name>:" (task-0077)
+    join = "MATCH (a:Artefact) WHERE a.id = d.path OR (a.id ENDS WITH '/' AND d.path STARTS WITH a.id)"
+    assert join in raw and join in sn.MODULE_STORE and "Artefact {id:d.path}" not in raw + sn.MODULE_STORE
+    assert "f.locator STARTS WITH file" in raw and "substring(d.path, size(a.id)) + ':'" in raw
     assert "[:HAS_VERSION]->(v:Version)" in raw and ":CURRENT" not in raw and "USED_ASSERTION" in raw
     for k in ("statement", "status", "document", "anchors", "links", "versions", "fragments", "derived"):
         assert f" AS {k}" in raw, k
     src = (ROOT / "harness" / "store_rdflib.py").read_text(encoding="utf-8")
     body = src[src.index("def register_node_statements("):src.index("# ---- what the page shows")]
-    assert 'anchor not in loc.split("/")' in body and '"HAS_VERSION"' in body and 'self.prop(l, "state") != "approved"' in body
+    assert 'anchor not in loc[len(file):].split("/")' in body and '"HAS_VERSION"' in body and 'self.prop(l, "state") != "approved"' in body
+    assert 'aid.endswith("/") and path.startswith(aid)' in body and 'file = path[len(aid):] + ":"' in body and "not loc.startswith(file)" in body
+
+
+# ---- task-0077: the projection cites by the subject's own source-system prefix, never a literal kit:
+def test_projection_cites_every_evidence_anchor_of_the_subjects_system():
+    import register_project as rp
+    ps = register_view._ps()
+    reg = register_view._load_tools()["register"].load_register(register_view.REGISTER)
+    files = register_view._load_tools()["register"].load_toml(register_view.REGISTER / ps.export_manifest).get("files", {})
+    want = sorted((ln["id"], ev) for rel in reg["relationships"].values() for ln in rel["links"] for ev in ln.get("evidence", [])
+                  if ev.startswith(ps.sys) and rp._doc_key(ev, files, ps.sys))
+    got = sorted((c["reg_id"], c["anchor"]) for c in rp.rows(loaded_at="2026-11-04T00:00:00+00:00")["cites"])
+    assert want and got == want, (ps.sys, len(want), len(got))
+    assert all(c["path"] in files for c in rp.rows(loaded_at="2026-11-04T00:00:00+00:00")["cites"])
+    assert rp._doc_key("jef_kit:contracts/chain.md", {"contracts/chain.md": "x"}, "jef_kit:") == "contracts/chain.md"
+    assert rp._doc_key("kit:contract/decision_table.md#DT-P", {"contract/decision_table.md": "x"}) == "contract/decision_table.md"
+    assert 'startswith("kit:")' not in (DEMO / "app" / "register_project.py").read_text(encoding="utf-8")
+
+
+def test_node_statements_are_checked_per_subject_on_both_stores():
+    harness = (ROOT / ".github" / "workflows" / "harness.yml").read_text(encoding="utf-8")
+    demo = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
+    assert "python tools/check_node_statements.py --node ENT-0004 --expect 13 --total 392" in harness
+    assert "KG_SUBJECT=subjects/jef_data_load KG_RDFLIB_FILE=runs/anchor-jef/store.ttl python tools/check_node_statements.py --node ENT-0009 --expect 28 --total 707" in harness
+    assert "python tools/check_node_statements.py --node ENT-0004 --expect 13 --total 392" in demo
+    assert "-e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_node_statements.py --node ENT-0009 --expect 28 --total 707" in demo
 
 
 # ---- task-0047: the impact panel names the owning unit of each reached node, and who to inform

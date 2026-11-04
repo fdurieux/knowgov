@@ -264,8 +264,11 @@ class Store:
         """From register node ``start`` to the statements its approved links cite, at the grain of the
         cited anchor (a citation ``path#DT-P`` reaches only fragments whose locator holds ``DT-P`` as a
         path segment; one with no anchor, the whole document), across every version, and the derived
-        outputs that used each (task-0046). One dict per statement: statement, status, document, and
-        sorted lists anchors, links, versions, fragments, derived ("<id>" or "<id> (suspect)")."""
+        outputs that used each (task-0046). A document is a file artefact of the cited path or that file's
+        fragments in a directory artefact (task-0077). One dict per statement and cited document (a
+        statement two cited documents support is two rows), ordered by document then statement:
+        statement, status, document, and sorted lists anchors, links, versions, fragments, derived
+        ("<id>" or "<id> (suspect)")."""
         raise NotImplementedError
 
     # ---- portability: the graph as Turtle (task-0070)

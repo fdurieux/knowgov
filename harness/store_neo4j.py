@@ -137,12 +137,15 @@ DEPENDANTS_INFORMATION = (
     "}\n" + _DEP_RETURN)
 # From a register node to the knowledge store: the documents its approved links cite, the assertions
 # the current version of each supports, and the derived code that used them. The one join the two
-# namespaces share is the document's path, so it reaches a whole document, not the cited anchor.
+# namespaces share is the document's path, so it reaches a whole document, not the cited anchor:
+# the file artefact of that path, or that file's fragments in a directory artefact (task-0077).
 MODULE_STORE = (
     "// from a node to the store: the documents its approved links cite, the assertions they support now,\n"
     "// and the derived code built on them, at the grain of a whole document\n"
     f"MATCH (n:RegNode {{reg_id:'{IMPACT_START}'}})<-[:REG_LINK_OF]-(l:RegLink {{state:'approved'}})-[:REG_CITES]->(d:RegDocument)\n"
-    "MATCH (:Artefact {id:d.path})-[:CURRENT]->(:Version)-[:HAS_FRAGMENT]->(:Fragment)<-[:SUPPORTED_BY]-(x:Assertion)\n"
+    "MATCH (a:Artefact) WHERE a.id = d.path OR (a.id ENDS WITH '/' AND d.path STARTS WITH a.id)\n"
+    "MATCH (a)-[:CURRENT]->(:Version)-[:HAS_FRAGMENT]->(f:Fragment)<-[:SUPPORTED_BY]-(x:Assertion)\n"
+    "WHERE a.id = d.path OR f.locator STARTS WITH substring(d.path, size(a.id)) + ':'\n"
     "OPTIONAL MATCH (dv:Derived)-[:USED_ASSERTION]->(x)\n"
     "RETURN l.reg_id AS link, d.path AS document, count(DISTINCT x) AS assertions,\n"
     "       collect(DISTINCT x.status) AS statuses, collect(DISTINCT dv.id + CASE WHEN dv.suspect THEN ' (suspect)' ELSE '' END) AS derived\n"
@@ -150,16 +153,20 @@ MODULE_STORE = (
 # The same join at the grain of the cited anchor (task-0046; doc-0011 point 1): a citation with an
 # anchor (kit:contract/decision_table.md#DT-P) reaches only the fragments whose locator holds the
 # anchor as a path segment (DT-P/row/P1, row/REQ-05); one without an anchor cites the whole
-# document. Every version is read, so a statement a change invalidated still shows the derived code
-# that used it. One row per statement. Parameterised ($start) for the port's register_node_statements;
+# document. A document is a file artefact (Artefact.id = path) or a file of a directory artefact
+# (task-0077: J-F's contracts/ holds chain.md, whose fragments are chain.md:row/15), the segments
+# then read after the file's "<name>:". Every version is read, so a statement a change invalidated
+# still shows the derived code that used it. One row per statement. Parameterised ($start) for the port's register_node_statements;
 # the saved query is the same text with the literal start the page replaces.
 _NODE_STATEMENTS = (
     "// from a node to the statements its approved links cite, at the grain of the cited anchor where the citation\n"
     "// names one (#DT-P reaches DT-P/row/P1, not the whole table), and on to the derived code that used them\n"
     "MATCH (n:RegNode {reg_id:$start})<-[:REG_LINK_OF]-(l:RegLink {state:'approved'})-[c:REG_CITES]->(d:RegDocument)\n"
     "WITH l, d, CASE WHEN c.anchor CONTAINS '#' THEN split(c.anchor, '#')[1] ELSE null END AS anchor\n"
-    "MATCH (:Artefact {id:d.path})-[:HAS_VERSION]->(v:Version)-[:HAS_FRAGMENT]->(f:Fragment)<-[:SUPPORTED_BY]-(x:Assertion)\n"
-    "WHERE anchor IS NULL OR anchor IN split(f.locator, '/')\n"
+    "MATCH (a:Artefact) WHERE a.id = d.path OR (a.id ENDS WITH '/' AND d.path STARTS WITH a.id)\n"
+    "WITH l, d, anchor, a, CASE WHEN a.id = d.path THEN '' ELSE substring(d.path, size(a.id)) + ':' END AS file\n"
+    "MATCH (a)-[:HAS_VERSION]->(v:Version)-[:HAS_FRAGMENT]->(f:Fragment)<-[:SUPPORTED_BY]-(x:Assertion)\n"
+    "WHERE f.locator STARTS WITH file AND (anchor IS NULL OR anchor IN split(substring(f.locator, size(file)), '/'))\n"
     "OPTIONAL MATCH (dv:Derived)-[:USED_ASSERTION]->(x)\n"
     "RETURN x.id AS statement, x.status AS status, d.path AS document,\n"
     "       collect(DISTINCT coalesce(anchor, '(whole document)')) AS anchors, collect(DISTINCT l.reg_id) AS links,\n"

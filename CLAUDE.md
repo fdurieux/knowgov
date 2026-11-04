@@ -30,7 +30,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   mapper in exactly one), checked by `tools/check_instance.py`, with a public example from
   `tools/example_instance.py` that CI mounts read-only and digests before and after (task-0006). Each kind's `lint`
   field is doc-0008 §5's tool and gate column; `tools/preload_check.py` lints an instance's documents
-  with the ones that run here (pumllint; Spectral for api-contracts, task-0066; `--baseline` fails only on regression, task-0065), lists every other kind's files, and a kind whose linter is not installed, as unchecked, exits under the
+  with the ones that run here (pumllint; Spectral for api-contracts, task-0066; markdownlint, gplint, bpmnlint, dmnlint for prose, Gherkin, BPMN, .dmn, task-0082, proven by `tools/check_preload_linters.py`; `--baseline` fails only on regression, task-0065), lists every other kind's files, and a kind whose linter is not installed, as unchecked, exits under the
   gate contract, JSON under `harness/schemas/preload-report.schema.json`; `instance/ci/` is the
   template an instance copies, its script proven in `harness.yml` (task-0045); `instance/ci/knowgov-gate.sh`
   the three gates as one platform-neutral call (KG_* variables to the core flags), wrapped by
@@ -115,6 +115,13 @@ up-to-date branch. So: a PR whose diff touches `stack`'s paths (`demo/`, `harnes
 `tools/`, `demo.yml`) gets auto-merge only once `stack` is green on its head, or is merged by hand
 then; any other PR gets auto-merge when it opens. A PR that must wait (a proposed decision, an
 ordering) gets none. A `stack` red on `main` after a merge is fixed at once.
+
+CI budget (task-0084): a pull request's `rdflib` and `stack` each within 12 minutes. On a pull
+request the J-F round trip, MCP and lighthouse steps run the named subset `KG_JF_SCENARIOS=C,D3` (the kit as
+committed and every layer consistently wrong); the full J-F set runs on every push to `main`,
+nightly at 03:17 UTC and on a `workflow_dispatch` of `harness.yml` or `demo.yml`, so a red full run
+on `main` is fixed like any other. The J-F record comparison and its oracle always run in full.
+`tests/test_ci_subset.py` holds the subset the same in both workflows and here.
 
 Releases (decision-0003): SemVer, `VERSION` and `CHANGELOG.md` move together in a release PR
 (a test holds them equal); a contract change raises the minor version while 0.x. A hosted
