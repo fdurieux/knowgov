@@ -9,6 +9,12 @@ key for key. Then ask ``three_valued_answer`` for every key the subject names an
 answer the record's deterministic run gives (D5), with provenance on every asserted statement.
 Finally, prove the server wrote nothing: the store reads the same census before and after.
 
+A scenario with a later version (``[scenario.stage2]``, S6) is asked a second time after
+``gate_cli.py --stage 2 --reverify`` has loaded the change and its re-verification (task-0071): the
+reports must again be equal, ``superseded_by`` must name for each stale statement the verified or
+approved successors the record's ``gate_after_reverification`` lists, and ``three_valued_answer``
+must name the same successors under ``invalidated`` for every stale key.
+
 ``KG_STORE`` picks the store as everywhere: ``rdflib`` needs ``KG_RDFLIB_FILE`` (the script sets
 one in a temporary directory when it is unset), ``neo4j`` the stack's database. Exit 0 when every
 check holds, 1 when one does not.
@@ -64,6 +70,54 @@ class StdioClient:
     def close(self) -> None:
         self.p.stdin.close()
         self.p.wait(timeout=30)
+
+
+def settled(stale: list[dict]) -> dict[str, list[str]]:
+    """The record's stale statements and their verified or approved successors (task-0071)."""
+    out = {x["id"]: sorted({t["id"] for t in x.get("successors") or [] if t.get("id") and t.get("status") in ("verified", "approved")})
+           for x in stale}
+    return {k: v for k, v in out.items() if v}
+
+
+def check_stage2(sc: str, subject, failures: list[str]) -> None:
+    """S6 after its change and re-verification: the server and the command agree, and both name
+    what supersedes each invalidated statement as the record does."""
+    load = gate_cli("--scenario", sc, "--stage", "2", "--reverify", "-f", "json")
+    if load.returncode == 2:
+        failures.append(f"{sc} stage 2: gate_cli could not load: {load.stderr.strip()}")
+        return
+    cli = gate_cli("--scenario", sc, "--no-load", "-f", "json")
+    if cli.returncode == 2:
+        failures.append(f"{sc} stage 2: gate_cli --no-load could not run: {cli.stderr.strip()}")
+        return
+    expected = json.loads(cli.stdout)
+    rel = subject.scenario(sc).get("deterministic_record") or sc
+    rec = json.loads((subject.record_dir / rel / "deterministic.json").read_text(encoding="utf-8"))["stage2"]
+    want = settled(rec["gate_after_reverification"]["stale"])
+    before = census()
+    client = StdioClient()
+    try:
+        got = client.call("gate_verdict", {"scenario": sc})
+        if got != expected:
+            diff = sorted(k for k in set(got) | set(expected) if got.get(k) != expected.get(k))
+            failures.append(f"{sc} stage 2: gate_verdict differs from gate_cli --no-load on {diff}")
+        if got.get("version") == "v1":
+            failures.append(f"{sc} stage 2: the store holds v1, not the change")
+        if not want or got.get("superseded_by") != want:
+            failures.append(f"{sc} stage 2: superseded_by {got.get('superseded_by')}, the record's successors {want}")
+        by_key = {x["key"]: x["id"] for x in rec["gate_after_reverification"]["stale"]}
+        for key, sid in sorted(by_key.items()):
+            ans = client.call("three_valued_answer", {"key": key, "scenario": sc})
+            named = {x["id"]: x["superseded_by"] for x in ans.get("invalidated") or []}
+            if named.get(sid) != want.get(sid, []):
+                failures.append(f"{sc} stage 2 {key}: three_valued_answer names {sid} superseded_by {named.get(sid)}, the record {want.get(sid, [])}")
+        print(f"{sc} stage 2 --reverify: gate_verdict {got['verdict']} (exit_code {got['exit_code']}, version {got.get('version')}) "
+              f"equals gate_cli --no-load; superseded_by names {len(want)} statement(s) as the record does, "
+              f"in the gate and in {len(by_key)} three-valued answer(s)")
+    finally:
+        client.close()
+    if census() != before:
+        failures.append(f"{sc} stage 2: the store changed while the server read it")
 
 
 def census() -> dict:
@@ -124,6 +178,8 @@ def main(argv: list[str] | None = None) -> int:
             client.close()
         if census() != before:
             failures.append(f"{sc}: the store changed while the server read it")
+        if SUBJECT.scenario(sc).get("stage2"):
+            check_stage2(sc, SUBJECT, failures)
     for f in failures:
         print("FAIL " + f, file=sys.stderr)
     print("MCP server: " + ("every check holds" if not failures else f"{len(failures)} failure(s)"))

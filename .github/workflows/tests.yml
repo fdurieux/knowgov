@@ -20,3 +20,5 @@ jobs:
         with:
           python-version: "3.13"
       - run: python tests/run_tests.py
+      - name: The same suite under the second public subject
+        run: KG_SUBJECT=subjects/jef_data_load python tests/run_tests.py

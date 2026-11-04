@@ -105,6 +105,46 @@ instance carries one: CargoQuote's reference code, mapped to `APP-0001`. A later
 (`implemented_by`) may carry the same fact in the register itself; that is the register's
 decision, and the file would then yield to it.
 
+## Tracing a code change to the knowledge
+
+```bash
+python harness/trace.py register --instance /path/to/your/instance --ledger trace/ledger.json \
+    --commit "$SHA" --file quote/api.py --subject /path/to/your/instance/subjects/<id>
+python harness/trace.py check --instance /path/to/your/instance --ledger trace/ledger.json \
+    --changed quote/api.py --subject /path/to/your/instance/subjects/<id>
+```
+
+In plain English: `register` runs in your code's pipeline after a merge and a build. It records each
+file you name (relative to `code_map.toml`'s root) as an output built from the statements the
+task's gate serves now, or the ones you name with `--assertion`. It also records the file's digest and
+the application `code_map.toml` gives it. The record goes into the store and into the *ledger*, a JSON
+file you keep with your code. A load wipes the store, so the ledger is what survives the next one.
+`check` runs on every pull request into the code. It reads the ledger against the store as your
+instance's last load left it, and against your files:
+
+- **suspect** (blocker): a registered file was built from a statement that has since been
+  invalidated, because a document changed. The finding names the application, the statements and
+  their successors. Rebuild the file from the current statements and register it again.
+- **missing** (major): a registered file no longer exists. **unmapped** (major): a changed code file
+  that no row of `code_map.toml` maps.
+- **drift** (minor): a registered file changed since its registration. The edit is legitimate, so
+  the finding lists what the registered version rested on and asks for a new registration.
+- the task's gate on the store as it is: its blockers and other findings, as `harness/gate_cli.py`
+  reports them.
+
+With `--changed`, it looks only at the registered files that changed and the applications a
+changed file belongs to. Without it, it looks at every registered file. It exits 0, 1 or 2 like the
+gate: 1 on a finding at or above `--fail-on` (default `blocker`), 2 when it cannot run (no
+`code_map.toml`, one that does not hold, no ledger, an unreachable store). `-f json` prints the
+report under `harness/schemas/trace-report.schema.json`. Every input is a flag. Nothing reads a CI
+platform's variables, so a wrapper for your platform maps its commit and changed files to the
+flags. `tools/check_trace_walkthrough.py` runs it on the example instance: S6's change to the decision
+table turns the registered reference code suspect, and `check` exits 1 naming `APP-0001`.
+
+What it does not do: it does not read code. It cannot tell whether a file does what its statements
+say (that is your tests' job), and hand-written code that cites nothing maps to an application,
+not to statements.
+
 ## Checking a document before the load
 
 ```bash
@@ -182,7 +222,10 @@ no register row covers goes to a questionnaire named `unassigned`, so nothing is
 The owner fills it in: a value in `answer`, or `nobody_knows = true` when no one can say. They
 add their *handle* and the date under `[answered]`. A handle is a short lower-case label such
 as `employee-1`, never a name or an e-mail address, and one your register has issued (its
-`people/handles.toml`, ieam-register decision 0009). Then:
+`people/handles.toml`, ieam-register decision 0009). A `note` must not identify them either: no
+name, no role only they hold, nothing like "as the author of the 2025 memo". The note travels with
+the answer into everything that reads it, and no check can tell an identifying note from a harmless
+one; only the reviewer reads it (below). Then:
 
 ```bash
 python harness/capture.py ingest questionnaires/questionnaire-cargo_quote-S2-ORG-0002.toml
@@ -219,6 +262,23 @@ scenario = "S2"
 assertion = "A:cap:2026-11-02-ORG-0002-employee-1:1@capture"   # the id the gate's bundle shows
 outcome = "approved"
 ```
+
+```bash
+python harness/capture.py review review.toml
+```
+
+Before ruling, read what you rule on:
+
+```bash
+python harness/capture.py review review.toml --show
+```
+
+In plain English: this prints each answer the review rules on, with the note that came with it,
+and writes nothing. Check that no note names or points at the person who gave it. If one does,
+reject that statement and ask for the answer again without the note: a capture is never edited,
+so the corrected answer is a new capture. Nothing else looks at a note.
+
+Then rule:
 
 ```bash
 python harness/capture.py review review.toml
@@ -282,7 +342,7 @@ three tools, and all of them only read:
 |---|---|---|
 | `store_status` | What does the store hold? | the subject, the scenario loaded, the task classes and their required keys |
 | `gate_verdict` | May I build on the knowledge this task needs, or on these keys? | PROCEED, QUALIFIED or BLOCKED with the findings: the same report `gate_cli.py --no-load -f json` prints |
-| `three_valued_answer` | What is known about this one key? | asserted, documented absent, or unknown, with where each statement came from and who verified it |
+| `three_valued_answer` | What is known about this one key? | asserted, documented absent, or unknown, with where each statement came from and who verified it; and any statement a document change invalidated, with `superseded_by` naming the verified or approved statement that replaced it (none: the old value no longer holds and nothing does yet) |
 
 The server reads the store as the page or a run left it. It never loads a scenario and never
 writes to the store, the register or your instance; a change to the record is still a pull

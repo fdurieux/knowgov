@@ -111,6 +111,29 @@ def test_a_name_a_future_date_a_contradiction_or_nothing_answered_is_refused():
     assert "no item is answered" in capture.check_answers(doc, pattern, keys, TODAY)[0]
 
 
+def test_the_questionnaire_warns_that_a_note_must_not_identify_the_person():
+    """task-0042, doc-0007 F6: a warning, not a check; no pattern can tell an identifying note."""
+    qs = capture.questionnaires(_s2(), CARGO_QUOTE, "S2", "codegen", capture.register_nodes(ROOT / "demo" / "register"), TODAY)
+    for text in qs.values():
+        head = "\n".join(line for line in text.splitlines() if line.startswith("#"))
+        assert "A note must not identify you" in head and "nothing checks it but the person who reviews it" in head, head
+    readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
+    assert "A `note` must not identify them" in readme and "capture.py review review.toml --show" in readme
+
+
+def test_the_reviewer_sees_each_ruled_answers_note_before_ruling():
+    caps = {"A:cap:2026-11-02-ORG-0002-employee-1:1@capture": {"from": "employee-1", "on": dt.date(2026, 11, 2),
+                                                               "value": "present when status is review_hold",
+                                                               "note": "as the author of the 2025 memo"},
+            "A:cap:2026-11-02-ORG-0002-employee-1:2@capture": {"from": "employee-1", "on": dt.date(2026, 11, 2),
+                                                               "value": "x", "note": ""}}
+    doc = {"ruling": [{"assertion": a, "outcome": "approved"} for a in (*caps, "A:doc:1")]}
+    out = capture.show_rulings(doc, caps)
+    assert "note: 'as the author of the 2025 memo'" in out and "note: none" in out
+    assert "ruling 3 (A:doc:1): not a captured answer" in out and "reject the statement if it does" in out
+    assert "reject" not in capture.show_rulings({"ruling": doc["ruling"][1:]}, caps), "no note, no prompt"
+
+
 def test_ingest_refuses_a_handle_the_register_has_not_issued_by_the_answers_date():
     """task-0055: decision 0009's issued list, as review.check reads it; each refusal names the rule."""
     import review

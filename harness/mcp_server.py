@@ -11,7 +11,8 @@ The question an agent asks is "may I build on this?". Three tools answer it, all
                           as ``gate_cli.py --no-load -f json`` prints it for the same store
     three_valued_answer   asserted, documented absent or unknown for one key, with each statement's
                           provenance: its source document and fragments, who made it, its
-                          verifications, approvals and gaps
+                          verifications, approvals and gaps; and the key's invalidated statements,
+                          each naming what supersedes it (``superseded_by``, task-0071)
 
 The server never loads, wipes or writes: it reads the store the page or a run left (``KG_STORE``;
 for rdflib the Turtle file ``KG_RDFLIB_FILE``, read and never written back), through a view that
@@ -77,7 +78,9 @@ TOOLS = [
     {"name": "three_valued_answer", "title": "Is it asserted, documented absent, or unknown?",
      "description": "For one key: 'asserted' with its values, 'documented_absent' when the documents say there is none, "
                     "or 'unknown' when no statement exists (not the same as absent). Each statement comes with its "
-                    "provenance: status, basis, source document, fragments, author, verifications, approvals and gaps.",
+                    "provenance: status, basis, source document, fragments, author, verifications, approvals and gaps. "
+                    "'invalidated' lists the key's statements a source change ended, each with superseded_by: the "
+                    "verified or approved statements that replace it, or none, when the old value no longer holds and nothing does.",
      "inputSchema": {"type": "object", "additionalProperties": False, "required": ["key"], "properties": {
          "key": {"type": "string", "description": "an entity|attribute key, as store_status lists them"},
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold (default: whatever it holds)"}}},
@@ -200,7 +203,7 @@ class Tools:
         return self._with_store(go)
 
     def three_valued_answer(self, args: dict) -> dict:
-        from gate import THREE_VALUED_STATUSES, three_valued
+        from gate import THREE_VALUED_STATUSES, invalidated_on_key, three_valued
         from subject import SUBJECT
         key = args.get("key")
         if not isinstance(key, str) or not key:
@@ -212,7 +215,7 @@ class Tools:
             prov = {r["id"]: r for r in st.key_evidence(key, THREE_VALUED_STATUSES)}
             statements = [prov.get(r["id"], r) for r in ans.get("assertions", [])]
             out = {"subject": SUBJECT.id, "store": st.name, "scenario": scenario, "key": key, "answer": ans["answer"],
-                   "statements": statements}
+                   "statements": statements, "invalidated": invalidated_on_key(st, key)}
             if "why" in ans:
                 out["why"] = ans["why"]
             return out
