@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-05T17:21:00Z'
-updated_date: '2026-11-05T20:21:00Z'
+updated_date: '2026-11-05T20:37:00Z'
 labels:
   - arms
   - lighthouse
@@ -56,4 +56,6 @@ H1 (M1 unchanged): no compact run returns code where the gate is BLOCKED, and th
 H2 (M4, M5): the compact form's median M4 (suite passed) and median M5 (resolved share of refs) each lie within the full form's [min, max] over its five runs.
 H3 (tokens): the compact form's mean prompt tokens are at most 40 % of the full form's.
 The hypothesis holds if H1-H3 hold on all seven scenarios; a miss is reported per scenario, not averaged away. Known before the run from doc-0019 §2's character count: S7's compact bundle is 51 % of its full bundle, so H3 is at risk on S7. Decision rule for AC #4: offer compact as an evidence_bundle option only if the hypothesis holds; otherwise record why and leave the option out.
+
+AMENDMENT to the run design, 2026-11-05, before any scored reply (the five S1 calls at the API's default effort all failed, no reply): the session proxy answers 502 'upstream request failed' when the upstream sends no byte for 30 s, and gpt-5.5 at its default effort sends none for longer on a 58 kB prompt (two probes, 30.3 s and 30.4 s). Probes at effort none and low streamed at once (first byte 1.3 s and 2.5 s; 17,466 prompt tokens either way). The run uses gpt-5.5 at effort low for both forms. H1-H3 and the decision rule are unchanged.
 <!-- SECTION:NOTES:END -->
