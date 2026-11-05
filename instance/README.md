@@ -721,8 +721,7 @@ with the keys it lands on. Up, from a code file to the business: `code_path`, `k
 key, `register_impact` with `walk: dependants` from the application (with `children` when its modules
 carry the links), then `register_nodes` with `node` for the capability's ancestors. From a document,
 `document_links` names the register links that cite it. The server's own instructions tell the
-assistant the same. Every tool is offered over stdio and HTTP alike, and the managed allowlist under
-`instance/ci/claude/` admits the server by its name, `knowgov`, so a new tool needs no client change.
+assistant the same.
 
 The server reads review currency on one date for as long as it runs: `KG_AS_OF` (or `--as-of`), a
 date as `YYYY-MM-DD`, `record` (the subject's pinned record date) or `today`, which is the default.
