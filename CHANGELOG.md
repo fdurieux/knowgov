@@ -56,6 +56,15 @@ names that section with the version.
   reader of the run folders: the page's `/api/runs` and source lists read through it, unchanged.
   `review.now()` is the reader's clock (`KG_NOW`; refused under `KG_CLOCK=pinned` without it). The
   record and the comparator are unchanged.
+- **`knowgov-runs`: an assistant starts and polls a scenario run** (task-0133, decision-0008;
+  additive). A second stdio MCP server, `harness/mcp_runs.py`, a client of the page's
+  `POST /api/run` and `GET /api/run` (`KG_PAGE_URL`, `KG_PAGE_TOKEN`, sent and never echoed). Tools:
+  `run_options` (read-only), `start_run {scenario, mode, row?, effort?, as_of?}` (n fixed at 1,
+  `by: mcp`, refused while a run is under way with the page's message; not read-only, destructive,
+  not idempotent) and `run_status {run?}`. `KG_MCP_RUN_MODES` is `deterministic` by default; arms
+  only when the operator names it. The reader, `knowgov`, is unchanged and stays read-only; the
+  shipped allowlist admits it only. `mcp_server.Server` takes a tool table, server info and
+  instructions. The page's banner says when a run was started over MCP.
 
 ## 0.5.0 — 2026-11-04
 

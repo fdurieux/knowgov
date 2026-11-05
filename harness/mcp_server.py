@@ -697,8 +697,14 @@ class Server:
     """MCP's JSON-RPC methods; ``handle`` takes one decoded message and returns the response, or
     None for a notification or a response."""
 
-    def __init__(self, tools: Tools | None = None):
+    def __init__(self, tools=None, table: list[dict] | None = None, info: dict | None = None,
+                 instructions: str | None = None):
+        """``tools`` answers each tool by name; ``table``, ``info`` and ``instructions`` are what the
+        server lists and announces (this module's by default; knowgov-runs passes its own, task-0133)."""
         self.tools = tools or Tools()
+        self.table = TOOLS if table is None else table
+        self.info = SERVER if info is None else info
+        self.instructions = INSTRUCTIONS if instructions is None else instructions
 
     def handle(self, msg) -> dict | None:
         if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0":
@@ -719,7 +725,7 @@ class Server:
             asked = params.get("protocolVersion")
             version = asked if asked in PROTOCOL_VERSIONS else PROTOCOL_VERSIONS[0]
             return _result(id_, {"protocolVersion": version, "capabilities": CAPABILITIES,
-                                 "serverInfo": SERVER, "instructions": INSTRUCTIONS})
+                                 "serverInfo": self.info, "instructions": self.instructions})
         if method == "ping":
             return _result(id_, {})
         if method in ("tools/list", "tools/call"):
@@ -730,9 +736,9 @@ class Server:
         """tools/list and tools/call, either era; ``stamp`` is what a modern result adds."""
         stamp = stamp or {}
         if method == "tools/list":
-            return _result(id_, {"tools": TOOLS, **stamp, **(CACHE if stamp else {})})
+            return _result(id_, {"tools": self.table, **stamp, **(CACHE if stamp else {})})
         name, args = params.get("name"), params.get("arguments") or {}
-        if name not in {t["name"] for t in TOOLS}:
+        if name not in {t["name"] for t in self.table}:
             return _error(id_, -32602, f"unknown tool {name!r}")
         if not isinstance(args, dict):
             return _error(id_, -32602, "arguments must be an object")
@@ -755,10 +761,10 @@ class Server:
                           {"supported": SUPPORTED_VERSIONS, "requested": version})
         if not isinstance(meta.get(META_CAPABILITIES), dict):
             return _error(id_, -32602, f"_meta[{META_CAPABILITIES!r}] is required on every request")
-        stamp = {"resultType": "complete", "_meta": {META_SERVER: {"name": SERVER["name"], "version": SERVER["version"]}}}
+        stamp = {"resultType": "complete", "_meta": {META_SERVER: {"name": self.info["name"], "version": self.info["version"]}}}
         if method == "server/discover":
             return _result(id_, {"supportedVersions": SUPPORTED_VERSIONS, "capabilities": CAPABILITIES,
-                                 "instructions": INSTRUCTIONS, **stamp, **CACHE})
+                                 "instructions": self.instructions, **stamp, **CACHE})
         if method in ("tools/list", "tools/call"):
             return self._tools(id_, method, params, stamp)
         return _error(id_, -32601, f"method not found: {method}")   # ping and initialize are not methods of this era

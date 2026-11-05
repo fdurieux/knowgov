@@ -780,6 +780,50 @@ Once connected, ask in your own words; the assistant picks the tool. For example
 - "On S1, what is known about `weight_kg|max`, and who verified it?" (`three_valued_answer`)
 - "Give me the evidence bundle for codegen on S1 before you write any code." (`evidence_bundle`)
 - "Read the gate on S1 as of 2027-06-01: which reviews will have lapsed?" (`gate_verdict` with `as_of`)
+- "Which scenarios have been run, and what did the last run of S6 show?" (`scenario_runs`)
+
+### Letting an assistant run a scenario: knowgov-runs
+
+The server above only reads. If you want an assistant to load a scenario itself, without a person
+clicking on the page, add a second server, `knowgov-runs` (`harness/mcp_runs.py`). It starts runs
+through the page's own run button, so it needs the page running; it starts no process of its own.
+It offers three tools:
+
+| Tool | What the assistant asks | What it does |
+|---|---|---|
+| `run_options` | What may I run? | lists the modes you allow, whether the page can run each now, the model rows with their availability (never a key), the subject's scenarios and the run under way; it changes nothing |
+| `start_run` | Run this scenario | starts one run through the page, always once (`n = 1`), marked as started over MCP; refused while another run is under way, with the page's own message |
+| `run_status` | How is the run going? | the run's status, elapsed time and the end of its log; once it has ended, its exit code and where its results are read |
+
+A run is never one long call: the assistant starts it, then asks for its status until it is done
+or failed.
+
+**The modes.** `KG_MCP_RUN_MODES` names what `start_run` accepts. It is `deterministic` unless you
+say otherwise: the load, the rules and the gate, in seconds, with no model call. Name
+`deterministic,arms` to allow the Arms run as well; it then runs only on a model row whose key
+variable is set, as on the page.
+
+**The spend.** A deterministic run costs nothing. An Arms run calls a model twice, on your
+provider's bill, and takes minutes. Allow it only where you mean to pay for it.
+
+**The shared store.** There is one store. A run wipes it and loads the scenario again, so every
+viewer of the page sees the assistant's run: the page's banner says it was started over MCP. While
+the run loads, the read-only server's gate refuses and names the run. The record is never written.
+
+**Where the page is.** `KG_PAGE_URL` names the page (default `http://localhost:8080`, the page inside
+the stack's container). If the page asks for a token, `KG_PAGE_TOKEN` holds it; the server sends it
+with every request and never repeats it in a reply. Anyone who can use this server can start runs,
+so keep it as private as the token.
+
+Inside the stack's container, Claude Code connects it as it does the reader:
+
+```bash
+claude mcp add knowgov-runs -s user -- docker compose -f /path/to/knowgov/demo/docker-compose.yml exec -T app python harness/mcp_runs.py
+```
+
+The shipped `managed-mcp-allowlist.json` admits the read-only server only. An organisation that
+wants assistants to start runs adds `{"serverName": "knowgov-runs"}` to its own list. A tool that
+wipes the store should be approved call by call, not once for good.
 
 ## A fail-closed hook for Claude Code
 

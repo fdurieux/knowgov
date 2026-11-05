@@ -1,0 +1,250 @@
+"""knowgov-runs: start and poll a scenario run through the page's run API, over MCP (task-0133).
+
+    python harness/mcp_runs.py          # stdio only, for an agent that starts the server itself
+
+decision-0008: the reader, ``harness/mcp_server.py`` (``knowgov``), stays read-only; runs go
+through this second server, a client of the page's own ``POST /api/run`` and ``GET /api/run``. It
+starts no process of its own: the page's one runner, its lock, its token rule (task-0096) and its
+run folder (``run.json``, with ``by: mcp``) serve every run, and the page's banner shows it. Three
+tools:
+
+    run_options   what may be run: the modes this server allows, whether the page can run each, the
+                  model rows with their availability (never a key), the subject's scenarios and the
+                  run under way, if any (read-only)
+    start_run     start one run of a scenario: deterministic, or arms when the operator allows it,
+                  always at n = 1; refused while another run is under way, with the page's message.
+                  It wipes and reloads the store the page and the reader share (never the record)
+    run_status    a run's status, its elapsed time and the log's tail; when it has ended, its exit
+                  code, the source id its results are read by and where to read them
+
+Start and poll, never one blocking call: an arms run takes minutes. The environment says where the
+page is and what may be run, and nothing in a call can widen it:
+
+    KG_PAGE_URL       the page (default http://localhost:8080, the page inside the stack's container)
+    KG_PAGE_TOKEN     the page's token, sent as Authorization: Bearer when set; never echoed
+    KG_MCP_RUN_MODES  the modes start_run accepts, comma-separated (default deterministic); arms
+                      only when the operator names it, and then only on a row whose key is set
+    KG_SUBJECT        the subject the runs are for, as for the reader
+
+Standard library only; the protocol layer is ``mcp_server.Server`` with this module's tool table.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import mcp_server  # noqa: E402
+from mcp_server import READ_ONLY, ToolError  # noqa: E402
+
+SERVER = {"name": "knowgov-runs", "title": "knowgov scenario runs (through the page)", "version": "1"}
+MODES = ("deterministic", "arms")
+DEFAULT_PAGE = "http://localhost:8080"
+LOG_TAIL = 4000          # characters of the log run_status returns
+TIMEOUT = 30             # seconds a call to the page may take; a run is polled, never waited on
+
+INSTRUCTIONS = ("knowgov-runs starts a scenario run of the subject through the knowgov page, and reports on it. "
+                "Call run_options first: it names the modes you may start and the model rows. Then start_run, "
+                "and poll run_status until the status is done or failed; a run never answers in one call. A run "
+                "wipes and reloads the one store the page, its viewers and the knowgov reader share, so every viewer "
+                "sees your run, and the reader refuses its gate while the run loads. It never writes the record. "
+                "After a run, ask the knowgov server (gate_verdict, scenario_runs) what it shows. A deterministic run "
+                "costs nothing; an arms run calls a model on the operator's bill, and runs only where the operator "
+                "allows it.")
+
+START = {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}
+
+
+def allowed_modes() -> list[str]:
+    """KG_MCP_RUN_MODES, read at each call: unknown names are dropped, deterministic by default."""
+    raw = os.environ.get("KG_MCP_RUN_MODES")
+    names = [m.strip() for m in (raw if raw is not None else "deterministic").split(",") if m.strip()]
+    return [m for m in MODES if m in names]
+
+
+def tools_table() -> list[dict]:
+    """The tool table, its open-world hint on start_run true only when arms are allowed (a model call
+    leaves this machine)."""
+    start = dict(START, openWorldHint="arms" in allowed_modes())
+    return [
+        {"name": "run_options", "title": "What may I run?",
+         "description": "The modes this server lets you start (allowed_modes, from the operator's KG_MCP_RUN_MODES), whether "
+                        "the page can run each now (deterministic_enabled: the store is reachable; arms_enabled: the subject has "
+                        "an oracle and a model row's key is set), the model rows with their availability and efforts (never a "
+                        "key), the subject's scenarios, whether the page asks for a token, and the run under way, if any.",
+         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+         "annotations": READ_ONLY},
+        {"name": "start_run", "title": "Run this scenario (wipes and reloads the shared store)",
+         "description": "Start one run of a scenario through the page, at n = 1: deterministic (the load, the rules and the "
+                        "gate, seconds, no model call) or arms (the two assistants once each, graded by the oracle; minutes, "
+                        "a model call on the operator's bill) where the operator allows it. It wipes and reloads the store "
+                        "the page, its viewers and the knowgov reader share; the record is never written. Refused while "
+                        "another run is under way, with the page's message. Returns the run's id: poll run_status.",
+         "inputSchema": {"type": "object", "additionalProperties": False, "required": ["scenario", "mode"], "properties": {
+             "scenario": {"type": "string", "description": "one of the subject's scenarios, as run_options lists them"},
+             "mode": {"type": "string", "enum": list(MODES), "description": "deterministic, or arms where run_options allows it"},
+             "row": {"type": "string", "description": "arms: the model row, as run_options lists it (default: the first available)"},
+             "effort": {"type": "string", "description": "arms: an effort the row lists (default: the row's first)"},
+             "as_of": {"type": "string", "description": "YYYY-MM-DD: the date the run's gate reads review currency on (default: the record date)"}}},
+         "annotations": start},
+        {"name": "run_status", "title": "How is the run going?",
+         "description": "A run's status (running, done or failed), its elapsed seconds and the tail of its log; once it has "
+                        "ended, its exit code, the source id its results are read by on the page, and the knowgov reader's "
+                        "tools to ask next. With no run named, the page's latest run.",
+         "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
+             "run": {"type": "string", "description": "the id start_run returned (default: the page's latest run)"}}},
+         "annotations": READ_ONLY},
+    ]
+
+
+class Page:
+    """The page's run API over HTTP: the URL and the token from the environment, never from a call."""
+
+    def __init__(self, url: str | None = None, token: str | None = None, opener=None):
+        self.url = (url or os.environ.get("KG_PAGE_URL") or DEFAULT_PAGE).rstrip("/")
+        self._token = token if token is not None else (os.environ.get("KG_PAGE_TOKEN") or None)
+        self._open = opener or urllib.request.urlopen
+
+    def _redact(self, text: str) -> str:
+        return text.replace(self._token, "<token>") if self._token else text
+
+    def request(self, method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
+        """(status, JSON body). A refusal from the page comes back as its status and message; a page that
+        cannot be reached is a ToolError naming the URL, never the token."""
+        headers = {"Accept": "application/json"}
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
+        req = urllib.request.Request(self.url + path, data=data, method=method, headers=headers)
+        try:
+            with self._open(req, timeout=TIMEOUT) as resp:
+                return resp.status, json.loads(resp.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            try:
+                j = json.loads(e.read() or b"{}")
+            except ValueError:
+                j = {"error": e.reason}
+            return e.code, j
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            raise ToolError(self._redact(f"the page at {self.url} did not answer: {e}")) from None
+
+
+def _subject_id() -> str:
+    from subject import SUBJECT
+    return SUBJECT.id
+
+
+def _error_text(page: Page, code: int, j: dict) -> str:
+    return page._redact(f"the page refused ({code}): {j.get('error') or j}")
+
+
+_KEEP = ("id", "subject", "scenario", "mode", "n", "row", "model", "effort", "model_deviation", "as_of", "by",
+         "started", "finished", "status", "exit_code", "elapsed_s", "source")
+
+
+def _run_view(r: dict, tail: bool, page: "Page | None" = None) -> dict:
+    out = {k: r.get(k) for k in _KEEP}
+    if tail:
+        text = (r.get("log_text") or "")[-LOG_TAIL:]
+        out["log_tail"] = page._redact(text) if page else text
+    return out
+
+
+class RunTools:
+    def __init__(self, page: Page | None = None):
+        self.page = page or Page()
+
+    def run_options(self, args: dict) -> dict:
+        sid = _subject_id()
+        code, j = self.page.request("GET", "/api/scenarios?subject=" + urllib.parse.quote(sid))
+        if code != 200:
+            raise ToolError(_error_text(self.page, code, j))
+        modes = allowed_modes()
+        return {"subject": sid, "page": self.page.url, "allowed_modes": modes,
+                "deterministic_enabled": bool(j.get("deterministic_enabled")),
+                "arms_enabled": bool(j.get("arms_enabled")) and "arms" in modes,
+                "arms_on_page": bool(j.get("arms_enabled")),
+                "model_rows": [{k: r.get(k) for k in ("id", "label", "provider", "host", "model", "efforts", "key_var",
+                                                       "key_set", "available", "why")} for r in j.get("model_rows") or []],
+                "record_model": j.get("record_model"), "record_effort": j.get("record_effort"),
+                "scenarios": [s["id"] for s in j.get("scenarios") or []],
+                "token_required": bool((j.get("writes") or {}).get("token_required")),
+                "writes_refused": (j.get("writes") or {}).get("refused"),
+                "run": _run_view(j["run"], tail=False) if j.get("run") else None}
+
+    def start_run(self, args: dict) -> dict:
+        scenario, mode = args.get("scenario"), args.get("mode")
+        if not isinstance(scenario, str) or not scenario:
+            raise ToolError("scenario is required, as run_options lists them")
+        modes = allowed_modes()
+        if mode not in modes:
+            raise ToolError(f"mode {mode!r} is not allowed here: this server starts {modes or 'nothing'} "
+                            "(the operator's KG_MCP_RUN_MODES)")
+        body = {"subject": _subject_id(), "scenario": scenario, "mode": mode, "n": 1, "by": "mcp"}
+        for k in ("row", "effort", "as_of"):
+            v = args.get(k)
+            if v is not None:
+                if not isinstance(v, str):
+                    raise ToolError(f"{k} must be a string")
+                if k == "as_of" and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
+                    raise ToolError("as_of must be YYYY-MM-DD")
+                if mode == "deterministic" and k in ("row", "effort"):
+                    raise ToolError(f"{k} is for an arms run; a deterministic run calls no model")
+                body[k] = v
+        code, j = self.page.request("POST", "/api/run", body)
+        if code != 202:
+            raise ToolError(_error_text(self.page, code, j))
+        return {"started": True, **_run_view(j, tail=False),
+                "next": "poll run_status with this run's id until its status is done or failed"}
+
+    def run_status(self, args: dict) -> dict:
+        want = args.get("run")
+        if want is not None and not isinstance(want, str):
+            raise ToolError("run must be a string, the id start_run returned")
+        sid = _subject_id()
+        code, cur = self.page.request("GET", "/api/run?subject=" + urllib.parse.quote(sid))
+        if code != 200:
+            raise ToolError(_error_text(self.page, code, cur))
+        if cur.get("status") == "idle" and want is None:
+            return {"status": "idle", "note": "the page has started no run since it began"}
+        if want is None or cur.get("id") == want:
+            r = _run_view(cur, tail=True, page=self.page)
+        else:   # an earlier run: the page's list carries its run.json
+            code, lst = self.page.request("GET", "/api/runs?subject=" + urllib.parse.quote(sid))
+            if code != 200:
+                raise ToolError(_error_text(self.page, code, lst))
+            hit = next((x for x in lst.get("runs") or [] if x["id"].split("/")[-1] == want and x.get("run")), None)
+            if hit is None:
+                raise ToolError(f"no run {want!r} of {sid} on the page (a run with no results and not the latest is not listed)")
+            r = _run_view(hit["run"], tail=False)
+        if r.get("status") in ("done", "failed"):
+            r["next"] = (f"ask the knowgov reader: scenario_runs {{\"scenario\": \"{r.get('scenario')}\"}} for this run's verdict, "
+                         f"gate_verdict {{\"scenario\": \"{r.get('scenario')}\"}} on the store it loaded")
+        return r
+
+
+def make_server(page: Page | None = None) -> mcp_server.Server:
+    return mcp_server.Server(RunTools(page), table=tools_table(), info=SERVER, instructions=INSTRUCTIONS)
+
+
+def main(argv: list[str] | None = None) -> int:
+    if argv:
+        print("mcp_runs.py takes no arguments: stdio only; KG_PAGE_URL, KG_PAGE_TOKEN, KG_MCP_RUN_MODES configure it",
+              file=sys.stderr)
+        return 2
+    mcp_server.serve_stdio(make_server())
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

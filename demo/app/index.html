@@ -278,7 +278,7 @@ function renderBanner(r) {
   const box = $('#runbox'); box.style.display = ''; box.className = 'banner ' + r.status;
   const secs = (r.elapsed_s !== undefined && r.elapsed_s !== null) ? r.elapsed_s : null;  // the server's clock, not the browser's
   const label = {running: '<span class="spin"></span>running', done: '✓ finished', failed: '✗ failed'}[r.status] || r.status;
-  $('#run-title').innerHTML = `${esc(r.scenario)} · ${esc(r.mode)}${r.model ? ` · ${esc(r.model)}${r.effort ? ' at effort ' + esc(r.effort) : ''}${r.model_deviation ? ' <span style="color:var(--red)">(not the record\'s model or effort)</span>' : ''}` : ''}${r.as_of ? ` · reviews as of ${esc(r.as_of)}` : ''} · ${label}${secs !== null ? ` · ${secs} s` : ''}`;
+  $('#run-title').innerHTML = `${esc(r.scenario)} · ${esc(r.mode)}${r.model ? ` · ${esc(r.model)}${r.effort ? ' at effort ' + esc(r.effort) : ''}${r.model_deviation ? ' <span style="color:var(--red)">(not the record\'s model or effort)</span>' : ''}` : ''}${r.as_of ? ` · reviews as of ${esc(r.as_of)}` : ''}${r.by === 'mcp' ? ' · started over MCP' : ''} · ${label}${secs !== null ? ` · ${secs} s` : ''}`;
   $('#run-meta').innerHTML = (r.status === 'done' ? `showing its results below (source <code>${esc(r.source)}</code>); pick <em>the record</em> in the report's source dropdown to compare` :
                               r.status === 'running' ? `writing <code>${esc(r.source)}</code>; the report switches to it when the run ends` :
                               `exit ${r.exit_code ?? '—'}; the log is below`) + (r.cmd ? ` · <code>${esc(r.cmd)}</code>` : '');
