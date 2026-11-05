@@ -5,7 +5,7 @@ title: >-
   opportunity canvas, SWOT, candidates
 type: specification
 created_date: '2026-11-05T17:21:00Z'
-updated_date: '2026-11-05T20:42:00Z'
+updated_date: '2026-11-05T21:09:00Z'
 tags:
   - canvas
   - swot
@@ -110,7 +110,7 @@ The paper's own statement of the trade-off: a graph is "either hand-crafted (ext
 ## 6. What would reopen this
 
 - A pilot whose documents are mostly prose kinds: C1 ahead of m-6.
-- A buyer at the lighthouse raising the token cost: C3 urgent.
+- A buyer at the lighthouse raising the token cost: C3 urgent. [2026-11-05, measured in §7: a two-thirds prompt saving where the gate blocks, no decision moved; a planted defect lost in 3 of 5 runs where the arm builds on qualified knowledge; S7 at 52.6 %.]
 - C1 meeting its bar: C2 unparked.
 - A GraphRAG graph already running at the pilot: C6 unparked.
 
