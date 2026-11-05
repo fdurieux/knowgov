@@ -109,6 +109,30 @@ def test_a_renamed_object_is_an_update_not_a_delete_and_an_add():
     assert man["guids"][guid] == "PROC-0004", "the same object, its GUID unchanged"
 
 
+def test_reconcile_carries_the_registers_unregistered_beside_unknown_ids_and_they_differ():
+    # task-0138, the register's decision 0017 (v0.2.10): RECONCILE.json carries `unregistered` as the
+    # vendored reconcile.py computes it: the MANIFEST's [ids] keys that no node's [source] carries for
+    # the system, keyed by its id_field. The connector keys [ids] by register id, and no node of the
+    # example register has an aris [source], so every carried id is listed: 14, then 13. unknown_ids,
+    # carried register ids the register does not hold, is empty on both. Two questions, two answers.
+    s = _landed()
+    reg = connector.REG.load_register(s["dir"] / "register")
+    for day, r, n in (("2026-11-04", s["first"], 14), ("2026-11-18", s["later"], 13)):
+        rec = json.loads((s["dir"] / "register" / "exports" / "aris" / day / "RECONCILE.json").read_text(encoding="utf-8"))
+        assert rec["unregistered"] == r["unregistered"] == connector.REC.unregistered(reg, r["manifest"])
+        assert [e["aris_guid"] for e in rec["unregistered"]] == sorted(r["manifest"]["ids"]) and len(rec["unregistered"]) == n
+        assert all(e["name"] == r["manifest"]["ids"][e["aris_guid"]] for e in rec["unregistered"])
+        assert rec["unknown_ids"] == []
+    assert {"aris_guid": "PROC-0004", "name": "Calculate the quote price"} in s["later"]["unregistered"]
+    assert "PROC-0005" not in {e["aris_guid"] for e in s["later"]["unregistered"]}, "a vanished id is stale, not unregistered"
+    # a node the register drops: its carried id becomes unknown, and stays unregistered
+    d = _mini()
+    (d / "register" / "processes" / "PROC-0005.toml").unlink()
+    r = connector.land(d, "aris", [FIX / "first"])
+    assert r["unknown_ids"] == ["PROC-0005"] and len(r["unregistered"]) == 14
+    shutil.rmtree(d)
+
+
 def test_the_instance_still_holds_its_layout_and_the_register_its_checks():
     import contextlib
     import io

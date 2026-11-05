@@ -201,7 +201,17 @@ AML header, or the one you give with `--exported-on`. Beside the files go two mo
   a sha256 per file, and the register ids carried, with their names.
 - `RECONCILE.json`: what changed since the previous folder. That means files and ids added,
   updated or renamed, and deleted. It also lists the *stale* register nodes: those whose id the
-  previous export carried and this one does not.
+  previous export carried and this one does not. Two more lists answer two different questions:
+  - `unknown_ids`: register ids your modellers typed in the tool that your register does not
+    hold, such as a mistyped id or a node removed from the register. Each one is either a typo
+    to fix in the tool or a node to register.
+  - `unregistered`: the register's own list (its decision 0017). It holds the ids the export
+    carries that no register node names as coming from this system, in its `[source]` table.
+    The register compares the ids in `MANIFEST.toml` with the system's `id_field` in each node's
+    `[source]`. The connector records register ids there, not the tool's object GUIDs, so a node
+    is listed even when its id is correct. That holds when it names another system as its source,
+    or none, or when it names this system with the object's GUID. Read the list as a finding to
+    triage, never as an error.
 
 A stale node is a finding for its owner. The connector never deletes or edits a node. It never
 lands an export over an existing folder, or with a date before the newest one; it refuses (exit 1)

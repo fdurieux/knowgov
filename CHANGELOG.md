@@ -8,6 +8,17 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
+## Unreleased
+
+- **The register at ieam-register v0.2.10** (task-0138; the register's decision 0017): the
+  connector's `RECONCILE.json` now carries the register's own `unregistered` list, computed by the
+  vendored `reconcile.py`, beside the connector's `unknown_ids`. The two differ: `unknown_ids` lists
+  carried register ids the register does not hold (none on the synthetic ARIS exports);
+  `unregistered` lists carried ids no node's `[source]` names for the system (all 14, then 13,
+  since no example node names ARIS as its source). Both are kept; `instance/README.md` gives each
+  meaning. The register's `check_register.py --report` gains a per-system export count. The record
+  is unchanged on both subjects.
+
 ## 0.6.0 — 2026-11-05
 
 An AI assistant can now see what has been run for its subject, read any run's result, and start a

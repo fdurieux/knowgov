@@ -17,7 +17,10 @@ a RECONCILE.json written by ieam-register's own tools/reconcile.py, imported fro
 (files and ids added, updated or renamed, deleted against the previous folder; stale_nodes), with
 three additions: an id an object's GUID carries counts as carried, a register node
 whose id the previous export carried and this one does not is stale too, and a carried id the
-register does not hold is listed under unknown_ids. A stale node is a finding: the connector never
+register does not hold is listed under unknown_ids. The register's own `unregistered` (its decision
+0017, v0.2.10) is carried as its reconcile.py computes it: the MANIFEST's [ids] keys that no node's
+[source] carries for the system. The connector keys [ids] by register id, so the two lists answer
+different questions and both stay (task-0138). A stale node is a finding: the connector never
 deletes or edits a node, never removes or rewrites a folder, and refuses (exit 1) a date that is
 not after the newest folder already there. Exit 0 landed, 1 refused, 2 cannot run.
 
@@ -311,7 +314,8 @@ def summary(r: dict) -> str:
     return (f"{r['folder']}: files +{len(f['added'])} ~{len(f['updated'])} -{len(f['deleted'])}; "
             f"ids +{len(i['added'])} ~{len(i['renamed'])} -{len(i['deleted'])}; stale nodes {len(r['stale_nodes'])}"
             + (f" ({', '.join(n['id'] for n in r['stale_nodes'])})" if r["stale_nodes"] else "")
-            + (f"; unknown ids {len(r['unknown_ids'])}" if r["unknown_ids"] else ""))
+            + (f"; unknown ids {len(r['unknown_ids'])}" if r["unknown_ids"] else "")
+            + (f"; unregistered {len(r['unregistered'])}" if r.get("unregistered") else ""))
 
 
 def main(argv: list[str] | None = None) -> int:
