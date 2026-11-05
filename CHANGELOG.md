@@ -33,6 +33,12 @@ names that section with the version.
 
 ### Changes
 
+- **The page finds a new subject without a restart** (task-0150, doc-0021 G3). The page re-reads
+  its subject folders (`KG_SUBJECTS`) when a `subject.toml` is added, edited or removed, on the
+  next request. A merged subject is listed and served at once, and a removed one is no longer
+  listed. A manifest that does not load is left out and logged; the others stay served. Before, the
+  list was read once, at start.
+
 - **The CI scripts check their interpreter first** (task-0141.01). `knowgov-gate.sh`,
   `preload-check.sh` and `proposal-impact.sh` run every step with the interpreter `PYTHON` names
   (default `python3`), by its absolute path. An interpreter that is missing or older than Python
