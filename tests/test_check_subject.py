@@ -162,3 +162,54 @@ def test_the_yield_opens_no_store():
     assert json.loads(cp.stdout.strip().splitlines()[-1]) == [], cp.stdout
     src = (ROOT / "tools" / "check_subject.py").read_text(encoding="utf-8")
     assert "import store" not in src and "open_store" not in src
+
+
+def _renewal(rows: str, keys: list[str], short: bool = True) -> Path:
+    """doc-0021's probe subject `renewal`: one requirements file, one task, S0."""
+    root = Path(tempfile.mkdtemp(prefix="kg-renewal-")) / "renewal"
+    root.mkdir()
+    (root / "renewal.md").write_text("# Renewal\n\n" + rows, encoding="utf-8")
+    (root / "scenarios.toml").write_text((ROOT / "subjects" / "minimal" / "scenarios.toml").read_text(encoding="utf-8"), encoding="utf-8")
+    (root / "subject.toml").write_text(
+        '[subject]\nid = "renewal"\n\n[[artefact]]\nkey = "renewal.md"\n' + ('short = "renewal"\n' if short else "")
+        + 'family = "requirements"\nformat = "markdown"\npath = "renewal.md"\nmapper = "requirements"\n\n'
+        + f"[tasks.codegen]\nkeys = {json.dumps(keys)}\nblock_levels = [\"absent\"]\nmax_unverified_share = 0.25\n", encoding="utf-8")
+    return root
+
+
+def test_a_document_its_mapper_yields_nothing_from_is_named_the_wrong_convention():
+    """task-0149 (doc-0021 G1): RNW-nn ids read by `requirements` yield nothing; a WARNING names the
+    mapper's convention and the kind's other mapper, never 'no knowledge'."""
+    rep = check_subject.check(_renewal("| RNW-01 | A renewal keeps the quote's price. |\n", ["RNW-01|text"]), REGISTER)
+    if rep["yield"]["state"] != "checked":
+        return
+    [w] = _rules(rep, "warning")["zero-yield"]
+    assert w["where"] == "[[artefact]] renewal.md" and "| REQ-nn | text |" in w["message"], w
+    assert "requirements_json" in w["fix"] and "ABSENT" in w["fix"] and "never rewrite" in w["fix"], w
+    assert schema_check.validate(rep, schema_check.load("subject-check")) == []
+    assert set(check_subject.conventions()) == set(check_subject.kinds_mappers()), "instance/mappers.toml covers every mapper"
+
+
+def test_an_artefact_with_a_mapper_and_no_short_is_refused_with_its_fix_not_blamed_on_the_document():
+    """task-0149 (doc-0021 G5)."""
+    rep = check_subject.check(_renewal("| REQ-01 | A renewal keeps the price. |\n", ["REQ-01|text"], short=False), REGISTER)
+    [e] = _rules(rep)["required"]
+    assert "no 'short'" in e["message"] and 'short = "renewal"' in e["fix"], e
+    assert "mapper-failed" not in _rules(rep) and rep["exit_code"] == 1, rep["findings"]
+
+
+def test_a_yielded_key_is_offered_once_and_another_entitys_key_is_no_typo():
+    """task-0149 (doc-0021 G2): REQ-03|text goes to REQ-03|txt only; REQ-04|text, a requirement nobody
+    wrote, is a NOTE, never offered REQ-03|text."""
+    rows = "| REQ-01 | One. |\n| REQ-02 | Two. |\n| REQ-03 | Three. |\n"
+    rep = check_subject.check(_renewal(rows, ["REQ-01|text", "REQ-02|text", "REQ-03|txt", "REQ-04|text"]), REGISTER)
+    if rep["yield"]["state"] != "checked":
+        return
+    ws = _rules(rep, "warning").get("yield", [])
+    assert [w["message"].split(":")[0] for w in ws] == ["REQ-03|txt"] and "REQ-03|text" in ws[0]["fix"], ws
+    assert any(n["rule"] == "unyielded" and n["message"].startswith("REQ-04|text:") for n in rep["notes"]), rep["notes"]
+    # alone, REQ-04|text's nearest yielded key is another entity's: a note that says so, no did-you-mean
+    rep = check_subject.check(_renewal(rows, ["REQ-01|text", "REQ-02|text", "REQ-04|text"]), REGISTER)
+    assert "yield" not in _rules(rep, "warning"), rep["findings"]
+    [n] = [n for n in rep["notes"] if n["rule"] == "unyielded"]
+    assert "REQ-03|text, is another entity's" in n["message"] and "not a misspelling" in n["message"], n

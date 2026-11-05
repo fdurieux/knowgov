@@ -20,14 +20,19 @@ documents say. It reads and never writes; it opens no store.
   a child process (the harness binds its subject at import), and every task's required key is
   looked up in what they yield. A key no document yields, with a near match the documents do
   yield, is a warning naming that match: a misspelt key otherwise reads as `absent` at the gate and
-  goes to an owner as a question. A key with no near match is a note: the gate will read it absent
+  goes to an owner as a question. Each yielded key is offered once, to the required key it matches
+  best; a match on another entity (``REQ-04|text`` beside ``REQ-03|text``) is a note, not a typo
+  (task-0149, doc-0021 G2). A document its mapper reads and yields nothing from is a warning naming
+  the mapper's convention (``instance/mappers.toml``) and the kind's other mappers: the wrong
+  convention, not an empty document (G1). An artefact with a mapper and no ``short`` is refused,
+  the fix its file's stem, since the mappers index by it (G5). A key with no near match is a note: the gate will read it absent
   unless a person's answer supplies it. A document whose statements are authored, in a subject that
   declares no `[verification] authored`, is a note too: they load proposed until a person attests
   them (decision-0009). The mappers need PyYAML; without it the yield is unchecked, and the report
   says so.
 
 Exit 0 when nothing is refused (warnings and notes are for reading), 1 when the manifest is refused
-(an unknown table or field, a missing required field, no scenario for a task, a key that is not
+(an unknown table or field, a missing required field or a mapped artefact's ``short``, no scenario for a task, a key that is not
 `<entity>|<predicate>`, a map row naming a node the register does not hold or an owner of none of
 its nodes, a mapper that cannot read its document), 2 when the check cannot run (no such directory,
 no subject.toml). The report as JSON (`--json`) is pinned by harness/schemas/subject-check.schema.json.
@@ -47,6 +52,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 KINDS_TABLE = ROOT / "instance" / "kinds.toml"
+MAPPERS_TABLE = ROOT / "instance" / "mappers.toml"   # what each mapper reads, in an adopter's words (task-0149)
 DEFAULT_REGISTER = ROOT / "demo" / "register"
 SCHEMA_VERSION = 1
 
@@ -76,6 +82,19 @@ def _toml(p: Path) -> dict:
 
 def kinds_mappers(path: Path = KINDS_TABLE) -> set[str]:
     return {m for k in _toml(path).get("kind", []) for m in k.get("mappers", [])}
+
+
+def conventions(path: Path = MAPPERS_TABLE) -> dict[str, str]:
+    """mapper -> what it reads (instance/mappers.toml)."""
+    return {m: row.get("reads", "") for m, row in _toml(path).get("mapper", {}).items()}
+
+
+def siblings(mapper: str, path: Path = KINDS_TABLE) -> list[str]:
+    """The other mappers of the kind that holds ``mapper``."""
+    for k in _toml(path).get("kind", []):
+        if mapper in k.get("mappers", []):
+            return [m for m in k["mappers"] if m != mapper]
+    return []
 
 
 def register_nodes(root: Path) -> dict[str, str] | None:
@@ -158,6 +177,11 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
                 rep.error("duplicate", where, f"key {key!r} is declared twice", "give each artefact its own key")
             seen.add(key)
         mapper = a.get("mapper")
+        if mapper and not a.get("short"):   # G5: extract.short() indexes it; without it the load is a KeyError
+            stem = Path(str(a.get("path") or key or "doc")).name.split(".")[0] or "doc"
+            rep.error("required", where, "no 'short': the mappers name every statement by it, and without it the load fails "
+                      "on a KeyError that reads as the document's fault",
+                      f"add short = \"{stem}\" (the file's stem, unique in the subject)")
         if mapper and mapper not in mappers:
             near = _near(mapper, mappers)
             rep.error("mapper", where, f"mapper {mapper!r} is not a mapper the harness has",
@@ -265,7 +289,7 @@ def yield_only(root: Path) -> dict:
     arts, failed, authored, missing_mod = {}, {}, [], None
     for key, p in SUBJECT.kit_files:
         mapper = SUBJECT.mappers.get(key)
-        if not mapper or not p.exists():
+        if not mapper or not p.exists() or key not in SUBJECT.shorts:   # no short: refused by the manifest check (G5)
             continue
         try:
             text = SUBJECT.artefact_text(key)
@@ -285,6 +309,21 @@ def yield_only(root: Path) -> dict:
     return out
 
 
+def _offers(wanted: list[str], yielded: set[str]) -> dict[str, str]:
+    """Each yielded key offered once, to the required key it matches best (G2): a pair at NEAR or above,
+    the closest first, neither side reused."""
+    pairs = sorted(((difflib.SequenceMatcher(None, k, y).ratio(), k, y) for k in wanted for y in yielded), reverse=True)
+    out: dict[str, str] = {}
+    used: set[str] = set()
+    for r, k, y in pairs:
+        if r < NEAR:
+            break
+        if k not in out and y not in used:
+            out[k] = y
+            used.add(y)
+    return out
+
+
 def check_yield(rep: Report, m: dict, root: Path) -> dict:
     y = _yield_child(root)
     if y.get("state") != "checked":
@@ -298,6 +337,19 @@ def check_yield(rep: Report, m: dict, root: Path) -> dict:
         rep.error("mapper-failed", f"[[artefact]] {key}", f"its mapper cannot read it: {why}; the load fails on it",
                   "fix the document, or give the artefact the mapper of its convention (instance/kinds.toml)")
     yielded = set().union(*arts.values()) if arts else set()
+    mapper_of = {a.get("key"): a.get("mapper") for a in m.get("artefact", []) if isinstance(a, dict)}
+    conv = conventions()
+    for key, got in sorted(arts.items()):   # G1: a document its mapper reads and yields nothing from
+        mapper = mapper_of.get(key)
+        if got or not mapper:
+            continue
+        others = siblings(mapper)
+        rep.warning("zero-yield", f"[[artefact]] {key}",
+                    f"mapper {mapper!r} read it and yielded no key: the document is most likely not in the convention "
+                    f"{mapper} reads ({conv.get(mapper) or 'see harness/extract.py'}), not empty of knowledge",
+                    (f"try the kind's other mapper(s), {', '.join(others)}, and keep the one that yields; " if others else "")
+                    + "if none does, leave mapper out so the document is reported ABSENT (a mapper request), "
+                      "and never rewrite the document's ids or wording to suit a mapper")
     ver = m.get("verification") if isinstance(m.get("verification"), dict) else {}
     if y.get("authored") and not ver.get("authored"):   # decision-0009 (a): no attestation, no review by construction
         rep.note("attestation", "[verification]",
@@ -305,14 +357,19 @@ def check_yield(rep: Report, m: dict, root: Path) -> dict:
                  "they load proposed until a person attests them (decision-0009)")
     tasks = m.get("tasks", {}) if isinstance(m.get("tasks"), dict) else {}
     required = {k for t in tasks.values() if isinstance(t, dict) for k in (t.get("keys") or []) if isinstance(k, str)}
+    best = {} if partial else _offers(sorted(k for k in required if KEY_RE.fullmatch(k) and k not in yielded), yielded - required)
     for name, t in sorted(tasks.items()):
         if not isinstance(t, dict) or partial:
             continue
         for k in t.get("keys") or []:
             if not isinstance(k, str) or not KEY_RE.fullmatch(k) or k in yielded:
                 continue
-            near = _near(k, yielded - required, NEAR)
-            if near:
+            near = best.get(k)
+            if near and near.split("|", 1)[0] != k.split("|", 1)[0]:   # G2: another entity's key is not a typo
+                rep.note("unyielded", f"[tasks.{name}] keys",
+                         f"{k}: no document states it; the nearest key the documents yield, {near}, is another entity's, "
+                         "so it is not a misspelling: the gate reads the key absent and asks its owner")
+            elif near:
                 rep.warning("yield", f"[tasks.{name}] keys",
                             f"{k}: no document yields this key, and the gate will read it absent and ask an owner for it",
                             f"did you mean {near}? the documents yield it")
