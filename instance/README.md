@@ -696,7 +696,7 @@ be read is left out of the list, and the page's log says why, while the others s
 An AI coding assistant can ask knowgov the gate's question itself, before it writes anything:
 *may I build on this?* It does so through MCP, the Model Context Protocol, a standard way for an
 assistant to call tools a local program offers. `harness/mcp_server.py` is that program. It offers
-twelve tools, and all of them only read:
+thirteen tools, and all of them only read:
 
 | Tool | What the assistant asks | What it gets back |
 |---|---|---|
@@ -712,6 +712,7 @@ twelve tools, and all of them only read:
 | `document_links` | Which register links cite this document? | the links of your register whose evidence cites the document (a path of your export manifest), each with the evidence anchor, the link's type, state and owner, and the nodes at both ends with their owning units: what the Browser's `register-cites` query shows, read from the register's files, no store |
 | `scenario_runs` | Which scenarios have been run, in which mode, and what did they show? | every scenario of your subject with its title and card line; what the record holds for it (deterministic results and the gate's verdict, the arms with how many runs and which model, the extra sources the subject declares); its runs newest first, each as its folder's `run.json` describes it (mode, model, as-of date, who started it, `page` or `mcp`, start, end, status, and the verdict of its results), or inferred, flagged `inferred`, for a folder from before `run.json`; the scenario the store holds and when it was loaded; and the run loading the store now, if any. Replay is not a run: it is the record shown, and nothing records it |
 | `scenario_result` | What did this record or this run show? | what the page's Replay shows for one source that `scenario_runs` lists (the record, an extra source, or a run): the gate's verdict and why, the date it read reviews on, every required key's level, and each arm's runs with its decision and oracle result. It reads that source's files, never the store, and says so: it is not what the store holds now |
+| `subject_check` | Would this subject I am scaffolding load, and do its keys match what its documents say? | the report `tools/check_subject.py` prints for the same files, made by that tool's own functions against your register: unknown tables and fields, a task with no scenario, a key that is not `entity\|predicate`, a `register_map.toml` row naming a node your register does not hold or an owner of none of its nodes, and what each document yields, with a *did you mean* for a required key no document yields. The assistant passes the proposed `subject.toml`, `register_map.toml`, `scenarios.toml` and the text of every document the manifest names (by the path the manifest gives, at most `../../` up from the subject folder). The files exist only for the call, in a temporary folder removed afterwards; nothing is stored. A call carries at most 64 documents and 1 MB of text. It is for an assistant with no shell, such as Claude Desktop; in Claude Code, `tools/check_subject.py` on the branch does the same |
 
 While a run of your subject is loading the store (its `run.json` reads `running` and the page has
 rewritten it in the last 120 seconds; it does so every 30), `gate_verdict`, `three_valued_answer` and

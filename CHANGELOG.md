@@ -41,6 +41,14 @@ names that section with the version.
   lineage, every ancestor by `parent` to the root and its children with their states, an annotation
   and never a walk. Also `python harness/register_nodes.py`. Report pinned by
   `harness/schemas/register-nodes.schema.json`, version 1.
+- **`subject_check` on the MCP reader** (task-0146, doc-0018 candidate 3). A thirteenth read-only tool:
+  the call carries a proposed `subject.toml`, `register_map.toml`, `scenarios.toml` and the
+  documents' text, and gets back `tools/check_subject.py`'s report (schema `subject-check`), made
+  by that tool's own functions against the served register. The files live in a temporary folder
+  removed after the call, the documents' yield runs in a child process, and nothing is stored. A
+  call carries at most 64 documents and 1 MB of text; a document path may climb at most `../../`
+  from the subject folder.
+
 - **The connector's MANIFEST follows ieam-register's export format** (decision-0010, task-0138).
   `[ids]` now lists every object of the AML, keyed by its GUID (the system's `id_field`,
   `aris_guid` for ARIS), with its name, including objects that carry no register id. Before, it
