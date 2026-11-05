@@ -114,7 +114,8 @@ def test_env_01_every_step_runs_the_selected_interpreter_though_an_older_python3
         log = td / "py.log"
         (td / "sel").mkdir()
         (td / "sel" / "python3").symlink_to(sys.executable)   # named relative to the caller's directory, as a venv often is
-        for python, identity in ((sys.executable, sys.executable), ("sel/python3", str(td / "sel" / "python3"))):
+        here = os.path.abspath(sys.executable)   # as a child reports it: an interpreter named through ".." comes back normalised
+        for python, identity in ((here, here), ("sel/python3", str(td / "sel" / "python3"))):
             env = {"PATH": f"{oldbin}:/usr/bin:/bin", "PYTHON": python, "PYTHONPATH": str(site), "KG_PY_LOG": str(log),
                    "KG_CLOCK": "pinned", "KG_SUBJECT": str(inst)}
             for name, (script, *args) in SCRIPTS.items():
