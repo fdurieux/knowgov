@@ -35,6 +35,8 @@ Then ask ``scenario_runs`` and require the subject's scenarios in order, the hel
 and ``scenario_result`` on the record with that verdict, read from files (task-0129).
 The same process also answers ``server/discover`` and a stateless (2026-07-28) ``gate_verdict``,
 which must equal the handshake's (task-0079).
+Once, after the scenarios: ``subject_check`` listed over stdio and Streamable HTTP, and on doc-0018's probe
+(``tools/fixtures/subject_probe``) its report equal to ``tools/check_subject.py --json``'s, over stdio in both eras (task-0146).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
 
 A scenario with a later version (``[scenario.stage2]``, S6) is asked a second time after
@@ -423,6 +425,39 @@ def check_nodes(client: "StdioClient", failures: list[str], label: str) -> None:
     if [a["id"] for a in lin["ancestors"]] != chain or [c["id"] for c in lin["children"]] != kids:
         failures.append(f"{label}: register_nodes lineage of {start} is {lin}, the register's parent chain {chain}, children {kids}")
     print(f"{label}: register_nodes lists {got['total']} node(s); {start} sits under {chain or 'nothing'} with {len(kids)} child(ren)")
+PROBE = ROOT / "tools" / "fixtures" / "subject_probe"
+
+
+def check_subject_tool(failures: list[str]) -> None:
+    """subject_check (task-0146): listed over stdio and over Streamable HTTP, and on doc-0018's probe the
+    report equal to ``tools/check_subject.py --json``'s on the same files, the store never read."""
+    rel = PROBE.relative_to(ROOT).as_posix()
+    args = {"root": rel, "subject_toml": (PROBE / "subject.toml").read_text(encoding="utf-8"),
+            "register_map_toml": (PROBE / "register_map.toml").read_text(encoding="utf-8"),
+            "documents": {"requirements.md": (PROBE / "requirements.md").read_text(encoding="utf-8")}}
+    cp = subprocess.run([sys.executable, str(ROOT / "tools" / "check_subject.py"), rel, "--json"],
+                        capture_output=True, text=True, cwd=str(ROOT), env=os.environ.copy())
+    cli = json.loads(cp.stdout)
+    for kind in (StdioClient, HttpClient):
+        client = kind()
+        try:
+            listed = [t["name"] for t in client.request("tools/list", {})["result"]["tools"]]
+            if "subject_check" not in listed:
+                failures.append(f"subject_check over {kind.__name__}: not listed ({listed})")
+                continue
+            got = client.call("subject_check", args)
+            if got != cli:
+                diff = sorted(k for k in set(got) | set(cli) if got.get(k) != cli.get(k))
+                failures.append(f"subject_check over {kind.__name__}: differs from check_subject.py --json on {diff}")
+            if kind is HttpClient:   # the stateless era over HTTP needs its headers; stdio carries it here
+                continue
+            stateless = client.modern("tools/call", {"name": "subject_check", "arguments": args})["result"]
+            if stateless.get("structuredContent") != cli:
+                failures.append(f"subject_check over {kind.__name__}: the stateless revision's report differs")
+        finally:
+            client.close()
+    print(f"subject_check on {rel}: exit_code {cli['exit_code']}, {len(cli['findings'])} finding(s), yield "
+          f"{cli['yield']['state']}; equal to check_subject.py --json over stdio (both eras) and HTTP")
 
 
 def example_trace(failures: list[str]) -> dict | None:
@@ -607,6 +642,10 @@ def main(argv: list[str] | None = None) -> int:
         if SUBJECT.scenario(sc).get("stage2"):
             check_stage2(sc, SUBJECT, failures)
     check_transports(failures, ex)
+    before = census()
+    check_subject_tool(failures)
+    if census() != before:
+        failures.append("subject_check: the store changed while the server checked a proposed subject")
     for f in failures:
         print("FAIL " + f, file=sys.stderr)
     print("MCP server: " + ("every check holds" if not failures else f"{len(failures)} failure(s)"))

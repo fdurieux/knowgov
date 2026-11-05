@@ -41,6 +41,8 @@ A *kind* is one row of the programme's table *Artefact by artefact* on
 turns one kind of document into statements the store holds. A kind with no mapper can still be
 in your instance; the platform then says, for each such file, that it holds **no statement**
 from it, instead of skipping it quietly. `instance/kinds.toml` is the same table in machine form.
+`instance/mappers.toml` says, for each mapper, what a document must look like for it to read anything
+(most follow the public demo's own conventions, such as requirement rows `| REQ-nn | text |`).
 
 | folder under `artefacts/` | the table's row | mappers that read it |
 |---|---|---|
@@ -96,7 +98,18 @@ show you later, or not at all:
 - a required key that no document yields when a document yields one very close to it. For
   example, the task asks for `REQ-02|txt` and your requirements give `REQ-02|text`. This shows as
   a *WARNING* with the key the documents do yield. Without it, the gate would report the key absent
-  and send its owner a question that a spelling fix answers.
+  and send its owner a question that a spelling fix answers. A document's yield is offered once, to the
+  required key it is closest to; and when that key is about another entity (`REQ-04|text` beside a
+  yielded `REQ-03|text`), it is not a misspelling but a requirement no document states, so the
+  check lists it as a *NOTE* for its owner, with no suggestion;
+- a document its mapper reads and yields nothing from. That almost always means the document is not
+  in the convention the mapper reads (a requirements file whose ids start `RNW-` rather than `REQ-`,
+  say), not that it holds no knowledge. The *WARNING* says what the mapper reads and names the kind's
+  other mappers; if none fits, leave the mapper out and the document is reported ABSENT. Never
+  rewrite your documents' ids to suit a mapper;
+- an artefact with a mapper and no `short`. The mappers name every statement after it, so the load
+  would fail with an error that seems to blame the document. The check asks for `short`, from the
+  file's name.
 
 To read what your documents yield, the check runs the same mappers the load runs, on your files.
 It needs the same Python packages the load needs: PyYAML, and pumllint for PlantUML. Where they are
@@ -673,12 +686,17 @@ The page reads your register (`/instance/register`) and lists your subjects
 (`/instance/subjects`), and none of the public ones. Leave `-f docker-compose.override.yml` out
 to pull the published image instead of building it. One stack serves one instance.
 
+The page keeps its list of subjects current while it runs. A subject merged into your instance's
+`subjects/` folder appears in the page's subject menu the next time anyone opens or uses the page,
+with no restart; a subject you delete disappears the same way. A subject whose `subject.toml` cannot
+be read is left out of the list, and the page's log says why, while the others stay available.
+
 ## Letting an AI assistant ask the gate
 
 An AI coding assistant can ask knowgov the gate's question itself, before it writes anything:
 *may I build on this?* It does so through MCP, the Model Context Protocol, a standard way for an
 assistant to call tools a local program offers. `harness/mcp_server.py` is that program. It offers
-twelve tools, and all of them only read:
+thirteen tools, and all of them only read:
 
 | Tool | What the assistant asks | What it gets back |
 |---|---|---|
@@ -694,6 +712,7 @@ twelve tools, and all of them only read:
 | `document_links` | Which register links cite this document? | the links of your register whose evidence cites the document (a path of your export manifest), each with the evidence anchor, the link's type, state and owner, and the nodes at both ends with their owning units: what the Browser's `register-cites` query shows, read from the register's files, no store |
 | `scenario_runs` | Which scenarios have been run, in which mode, and what did they show? | every scenario of your subject with its title and card line; what the record holds for it (deterministic results and the gate's verdict, the arms with how many runs and which model, the extra sources the subject declares); its runs newest first, each as its folder's `run.json` describes it (mode, model, as-of date, who started it, `page` or `mcp`, start, end, status, and the verdict of its results), or inferred, flagged `inferred`, for a folder from before `run.json`; the scenario the store holds and when it was loaded; and the run loading the store now, if any. Replay is not a run: it is the record shown, and nothing records it |
 | `scenario_result` | What did this record or this run show? | what the page's Replay shows for one source that `scenario_runs` lists (the record, an extra source, or a run): the gate's verdict and why, the date it read reviews on, every required key's level, and each arm's runs with its decision and oracle result. It reads that source's files, never the store, and says so: it is not what the store holds now |
+| `subject_check` | Would this subject I am scaffolding load, and do its keys match what its documents say? | the report `tools/check_subject.py` prints for the same files, made by that tool's own functions against your register: unknown tables and fields, a task with no scenario, a key that is not `entity\|predicate`, a `register_map.toml` row naming a node your register does not hold or an owner of none of its nodes, and what each document yields, with a *did you mean* for a required key no document yields. The assistant passes the proposed `subject.toml`, `register_map.toml`, `scenarios.toml` and the text of every document the manifest names (by the path the manifest gives, at most `../../` up from the subject folder). The files exist only for the call, in a temporary folder removed afterwards; nothing is stored. A call carries at most 64 documents and 1 MB of text. It is for an assistant with no shell, such as Claude Desktop; in Claude Code, `tools/check_subject.py` on the branch does the same |
 
 While a run of your subject is loading the store (its `run.json` reads `running` and the page has
 rewritten it in the last 120 seconds; it does so every 30), `gate_verdict`, `three_valued_answer` and

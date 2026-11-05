@@ -26,6 +26,14 @@ names that section with the version.
   `code_path`, `key_nodes`, `register_impact walk=dependants` and `register_nodes`. Also
   `python harness/upward.py key|code|doc`; reports pinned by `harness/schemas/key-nodes.schema.json`,
   `code-path.schema.json` and `document-links.schema.json`, version 1.
+- **The subject check reads a document's yield more honestly** (task-0149, doc-0021 G1, G2, G5).
+  `tools/check_subject.py` (and `check_instance.py`, which runs it) now refuses an artefact with a
+  mapper and no `short`, naming the file's stem as the fix, where the load failed on a `KeyError`
+  blamed on the document. It warns (new rule `zero-yield`) when a mapper reads a document and
+  yields nothing, naming what the mapper reads (the new `instance/mappers.toml`) and the kind's
+  other mappers. It offers each yielded key once, to its best match, and a match on another entity
+  is now a note, not a did-you-mean. The report's shape is unchanged (schema version 1; the rule
+  `zero-yield` is added).
 - **`register_nodes`, a new read-only MCP tool** (task-0142, doc-0020 C1, additive): the register
   listed from its files, no store, every node by id with its taxonomy, kind, name, state, owner and
   parent, filtered by taxonomy, kind, state, owning unit (the owner field or an approved `owns` link)
@@ -33,6 +41,14 @@ names that section with the version.
   lineage, every ancestor by `parent` to the root and its children with their states, an annotation
   and never a walk. Also `python harness/register_nodes.py`. Report pinned by
   `harness/schemas/register-nodes.schema.json`, version 1.
+- **`subject_check` on the MCP reader** (task-0146, doc-0018 candidate 3). A thirteenth read-only tool:
+  the call carries a proposed `subject.toml`, `register_map.toml`, `scenarios.toml` and the
+  documents' text, and gets back `tools/check_subject.py`'s report (schema `subject-check`), made
+  by that tool's own functions against the served register. The files live in a temporary folder
+  removed after the call, the documents' yield runs in a child process, and nothing is stored. A
+  call carries at most 64 documents and 1 MB of text; a document path may climb at most `../../`
+  from the subject folder.
+
 - **The connector's MANIFEST follows ieam-register's export format** (decision-0010, task-0138).
   `[ids]` now lists every object of the AML, keyed by its GUID (the system's `id_field`,
   `aris_guid` for ARIS), with its name, including objects that carry no register id. Before, it
@@ -46,6 +62,12 @@ names that section with the version.
   and `[guids]` in an older folder.
 
 ### Changes
+
+- **The page finds a new subject without a restart** (task-0150, doc-0021 G3). The page re-reads
+  its subject folders (`KG_SUBJECTS`) when a `subject.toml` is added, edited or removed, on the
+  next request. A merged subject is listed and served at once, and a removed one is no longer
+  listed. A manifest that does not load is left out and logged; the others stay served. Before, the
+  list was read once, at start.
 
 - **The CI scripts check their interpreter first** (task-0141.01). `knowgov-gate.sh`,
   `preload-check.sh` and `proposal-impact.sh` run every step with the interpreter `PYTHON` names
