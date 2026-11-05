@@ -20,8 +20,8 @@ What "the claim's value" is (the spike's definition):
   valued when some statement of the store defines it (``ACCEPT_MAX = 41``), else unvalued.
 * The claim's value: the values of the statement's type in the claim's text; a text with none is
   unvalued, never matched.
-* The code's value: for a key, the literal the code binds to a symbol the key's statements or the
-  citing texts name (``ACCEPT_MAX = 41``, ``self.ACCEPT_MAX = Decimal("41")``); failing a symbol, for a
+* The code's value: for a key, the literal the code binds to a symbol that is the value of one of
+  the key's statements (``ACCEPT_MAX = 41``, ``self.ACCEPT_MAX = Decimal("41")``); failing a symbol, for a
   numeric or enumerated key, whether the value occurs among the code's literals at all.
 
 Normalisation:
@@ -31,10 +31,11 @@ Normalisation:
   as decimals (``316.00`` = ``316``). A unit after it (``kg``, ``km``, ``%``, a currency) is dropped and
   not converted: ``19 %`` is 19, never 0.19 or 1.19, a known limit. In code, int and float constants and
   the string argument of ``Decimal(...)``.
-* booleans: the whole words yes/no/true/false (any case); in code, never (a boolean key is behaviour,
-  not a literal), so a boolean key is read in the text only.
-* enumerations: a statement value of at most three words, no digit, not a boolean, after its backticks
-  and quotes are stripped, lowercased. A text holds it when it occurs there as a whole phrase; a text
+* booleans: a statement value yes/no/true/false; never decided, in the text (``no`` in prose names no
+  key) nor in the code (a boolean key is behaviour, not a literal): a boolean key is unvalued.
+* enumerations: a statement value that is one token (``quoted``, ``review_hold``), no digit, not a
+  boolean, after its backticks and quotes are stripped, lowercased; a phrase (``quote document``,
+  ``anything higher``) is prose. A text holds it when it occurs there as a whole phrase; a text
   mismatches it only when it names another member of the key family's closed set (the values the
   store holds for every key with the same attribute, ``*|status``) and not this one. In code, the
   string constants.
@@ -50,6 +51,11 @@ Verdicts per cited key, worst first:
   nowhere (no statement's value, text or evidence holds it);
 * ``matched``: the key is valued and the text or the code holds its value;
 * ``unvalued``: nothing to compare (prose against prose, or a valued key the text and code leave open).
+
+Three corrections were made after the first reading of the record (task-0145's notes, doc-0019 §8):
+(a) a symbol binds a key only as one of the key's statement values, not when a statement's text or the
+reply mentions it; (b) an enumeration is one token; (c) booleans are never decided. The definition
+recorded before measurement is the commit before them.
 
 A run is flagged on a key with any of the first three. The bar (task-0145 AC #1) reads the flags on
 the keys of each planted value target (``TARGET_KEYS``) for recall and on every key for precision.
@@ -136,7 +142,7 @@ def classify(value: str, defs: dict[str, Decimal]) -> tuple[str, object]:
     rest = NUM.sub(" ", s)
     if len(nums) == 1 and re.fullmatch(r"[\s\w<>=≤≥.,%€$()|-]*", rest) and len(rest.split()) <= 4:
         return "number", next(iter(nums))
-    if s and not re.search(r"\d", s) and len(s.split()) <= 3 and re.fullmatch(r"[\w :()-]+", s):
+    if s and not re.search(r"\d", s) and re.fullmatch(r"[a-z][\w:-]*", s):
         return "enum", s
     return "prose", None
 
@@ -183,10 +189,9 @@ class Store:
         return "prose", set()
 
     def symbols(self, key: str) -> set[str]:
-        out = set()
-        for a in self.keys.get(key, {}).get("assertions", []):
-            out |= set(SYMBOL.findall(" ".join([a.get("value") or "", a.get("text") or ""])))
-        return out
+        """The symbols that stand for the key's value: a statement of the key whose value is one."""
+        return {(a.get("value") or "").strip() for a in self.keys.get(key, {}).get("assertions", [])
+                if SYMBOL.fullmatch((a.get("value") or "").strip())}
 
 
 class Code:
@@ -241,7 +246,7 @@ def text_verdict(store: Store, t: str, vals: set, attr: str, text: str) -> str:
     if t == "number":
         got = numbers(text)
     elif t == "boolean":
-        got = booleans(text)
+        return "unvalued"   # yes/no words in prose say nothing reliable about the key (task-0145, correction c)
     else:
         low = (text or "").lower()
         if any(re.search(rf"(?<![\w]){re.escape(v)}(?![\w])", low) for v in vals):
@@ -256,7 +261,7 @@ def text_verdict(store: Store, t: str, vals: set, attr: str, text: str) -> str:
 def code_verdict(store: Store, code: Code, key: str, t: str, vals: set, texts: list[str]) -> tuple[str, dict]:
     if not code.present:
         return "unvalued", {}
-    names = store.symbols(key) | {s for x in texts for s in SYMBOL.findall(x)}
+    names = store.symbols(key)
     bound = {n: sorted(str(v) for v in code.binds[n]) for n in sorted(names) if n in code.binds}
     bound_vals = {v for n in names if n in code.binds for v in code.binds[n] if v is not None}
     if t == "prose":
