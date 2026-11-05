@@ -11,13 +11,19 @@ metamodel/sources.toml. Nothing here defaults a system.
     id_attribute = "AT_ID"   # the AML attribute that carries the register id (the default)
 
 The export lands in <instance>/register/exports/<name>/<date>/: its files byte for byte, a
-MANIFEST.toml (exported_on, source, source_version, tool, tool_version, previous, a sha256 per file,
-the register ids the export carries with their names, the GUIDs of the objects that carry one) and
-a RECONCILE.json written by ieam-register's own tools/reconcile.py, imported from the vendored copy
-(files and ids added, updated or renamed, deleted against the previous folder; stale_nodes), with
-three additions: an id an object's GUID carries counts as carried, a register node
-whose id the previous export carried and this one does not is stale too, and a carried id the
-register does not hold is listed under unknown_ids. A stale node is a finding: the connector never
+MANIFEST.toml in ieam-register's format (decision-0010, task-0138): exported_on, source,
+source_version, tool, tool_version, previous, a sha256 per file, and [ids], every AML object the
+export holds keyed by its GUID (the system's id_field, aris_guid for ARIS) with its name, whether or
+not it carries a register id; beside them, knowgov's own tables, never mixed into [ids]:
+[register_ids], GUID -> register id for the objects that carry one, and [bpmn_ids], register id ->
+name for the ids a BPMN file carries (a BPMN part has no GUID, so it adds nothing to [ids]).
+A RECONCILE.json is written by ieam-register's own tools/reconcile.py, imported from the vendored
+copy: files and ids (by GUID) added, updated or renamed, deleted against the previous folder;
+stale_nodes, the nodes whose [source] GUID the export no longer carries; unregistered (its decision
+0017, v0.2.10), the objects no node's [source] carries. Two additions read the register-id tables:
+a register node whose id the previous export carried and this one does not is stale too (redundant
+once the instance's nodes carry [source] aris_guid, when the register's own rule finds it), and a
+carried register id the register does not hold is listed under unknown_ids. A stale node is a finding: the connector never
 deletes or edits a node, never removes or rewrites a folder, and refuses (exit 1) a date that is
 not after the newest folder already there. Exit 0 landed, 1 refused, 2 cannot run.
 
@@ -94,26 +100,31 @@ def _text(el) -> str:
 
 
 def read_aml(data: bytes, id_attribute: str) -> dict:
-    """{ids: {register id: name}, guids: {GUID: register id}, version, exported}. The AML file has no
-    namespace (its DTD is ARIS-Export.dtd); every ObjDef is read wherever its group nests it."""
+    """{ids: {register id: name}, guids: {GUID: register id}, objects: {GUID: name}, version,
+    exported}. objects is every ObjDef with a GUID, register id or not (decision-0010). The AML file
+    has no namespace (its DTD is ARIS-Export.dtd); every ObjDef is read wherever its group nests it."""
     root = ET.fromstring(data)
     if root.tag != "AML":
         raise ValueError("not an AML file")
-    ids, guids = {}, {}
+    ids, guids, objects = {}, {}, {}
     for o in root.iter("ObjDef"):
         attrs = {}
         for a in o.findall("AttrDef"):
             vals = [_text(v) for v in a.findall("AttrValue") if _text(v)]
             if vals:
                 attrs.setdefault(a.get("AttrDef.Type"), vals[0])
+        name = attrs.get("AT_NAME", "")
+        g = _text(o.find("GUID"))
+        if g:
+            if g in objects:
+                raise Refused(f"{g}: two objects carry this GUID")
+            objects[g] = name
         rid = attrs.get(id_attribute, "")
         if not REGISTER_ID.fullmatch(rid):
             continue
-        name = attrs.get("AT_NAME", "")
         if rid in ids and ids[rid] != name:
             raise Refused(f"{rid}: two objects carry it, named {ids[rid]!r} and {name!r}")
         ids[rid] = name
-        g = _text(o.find("GUID"))
         if g:
             guids[g] = rid
     h = root.find("Header-Info")
@@ -121,7 +132,7 @@ def read_aml(data: bytes, id_attribute: str) -> dict:
     if h is not None and h.get("CreateDate"):
         exported = f"{h.get('CreateDate')}T{h.get('CreateTime') or '00:00:00'}Z"
     version = h.get("ArisExeVersion", "") if h is not None else ""
-    return {"ids": ids, "guids": guids, "version": version, "exported": exported}
+    return {"ids": ids, "guids": guids, "objects": objects, "version": version, "exported": exported}
 
 
 def read_bpmn(data: bytes) -> dict:
@@ -149,7 +160,7 @@ def read_bpmn(data: bytes) -> dict:
                     carry(_text(d), el.get("name", ""), "an element")
     dialect = "aris" if uris & set(ARIS_DIALECT) else "bpmn"
     version = " ".join(x for x in (root.get("exporter", ""), root.get("exporterVersion", "")) if x)
-    return {"ids": ids, "guids": {}, "version": version, "dialect": dialect, "exported": None}
+    return {"ids": ids, "guids": {}, "objects": {}, "version": version, "dialect": dialect, "exported": None}
 
 
 def read_file(data: bytes, id_attribute: str) -> tuple[str, dict]:
@@ -184,10 +195,13 @@ def _files(export: list[Path]) -> dict[str, Path]:
 
 
 def read_export(export: list[Path], id_attribute: str) -> dict:
-    """What an export carries: files (relative path -> bytes, sha256), ids, guids, versions,
-    the AML's export time; AML names win over BPMN names for one id (an id's name is the AML's)."""
+    """What an export carries: files (relative path -> bytes, sha256), ids (register id -> name),
+    guids (GUID -> register id), objects (GUID -> name, every AML object), bpmn_ids (register id ->
+    name, as the BPMN files carry them), versions, the AML's export time; AML names win over BPMN
+    names for one id (an id's name is the AML's)."""
     files = _files(export)
-    out = {"files": {}, "digests": {}, "ids": {}, "guids": {}, "versions": [], "exported": None, "conflicts": []}
+    out = {"files": {}, "digests": {}, "ids": {}, "guids": {}, "objects": {}, "bpmn_ids": {},
+           "versions": [], "exported": None, "conflicts": []}
     readings = []
     for rel, p in files.items():
         data = p.read_bytes()
@@ -197,7 +211,14 @@ def read_export(export: list[Path], id_attribute: str) -> dict:
             raise Refused(f"{rel}: {e}") from None
         out["files"][rel], out["digests"][rel] = data, hashlib.sha256(data).hexdigest()
         readings.append((0 if fmt == "aml" else 1, rel, r))
-    for _, rel, r in sorted(readings, key=lambda t: (t[0], t[1])):
+    for fmt, rel, r in sorted(readings, key=lambda t: (t[0], t[1])):
+        if fmt == 1:
+            for rid, name in r["ids"].items():
+                out["bpmn_ids"].setdefault(rid, name)
+        for g, name in r["objects"].items():
+            if g in out["objects"] and out["objects"][g] != name:
+                raise Refused(f"{rel}: {g}: two objects carry this GUID")
+            out["objects"][g] = name
         for rid, name in r["ids"].items():
             if rid in out["ids"] and out["ids"][rid] != name:
                 out["conflicts"].append({"id": rid, "kept": out["ids"][rid], "file": rel, "name": name})
@@ -230,30 +251,43 @@ def manifest_text(m: dict) -> str:
     lines = [f"exported_on = {m['exported_on']}", f"source = {_q(m['source'])}",
              f"source_version = {_q(m['source_version'])}", f"tool = {_q(m['tool'])}",
              f"tool_version = {_q(m['tool_version'])}", f"previous = {_q(m['previous'])}",
-             "# Written by the connector (task-0063). [ids] is each register id the export carries, with its",
-             "# name there; [guids] the GUID of each object that carries one. Never edited by hand.", "", "[files]"]
+             "# Written by the connector (task-0063, decision-0010). [ids] is every object the export holds,",
+             "# keyed by its GUID, with its name (ieam-register's format); [register_ids] the register id of",
+             "# each object that carries one; [bpmn_ids] each register id a BPMN file carries, with its name.",
+             "# Never edited by hand.", "", "[files]"]
     lines += [f"{_q(k)} = {_q(v)}" for k, v in sorted(m["files"].items())]
     lines += ["", "[ids]"] + [f"{_q(k)} = {_q(v)}" for k, v in sorted(m["ids"].items())]
-    lines += ["", "[guids]"] + [f"{_q(k)} = {_q(v)}" for k, v in sorted(m["guids"].items())]
+    lines += ["", "[register_ids]"] + [f"{_q(k)} = {_q(v)}" for k, v in sorted(m["register_ids"].items())]
+    lines += ["", "[bpmn_ids]"] + [f"{_q(k)} = {_q(v)}" for k, v in sorted(m["bpmn_ids"].items())]
     return "\n".join(lines) + "\n"
 
 
+def carried_register_ids(man: dict) -> set[str]:
+    """The register ids a MANIFEST says its export carries: [register_ids] values and [bpmn_ids]
+    keys; a folder landed before decision-0010 (a [guids] table, [ids] keyed by register id), its
+    [ids] keys."""
+    if "guids" in man and "register_ids" not in man:
+        return set(man.get("ids", {}))
+    return set(man.get("register_ids", {}).values()) | set(man.get("bpmn_ids", {}))
+
+
 def reconcile(reg_root: Path, landing: Path, folder: str, man: dict) -> dict:
-    """ieam-register's reconcile.py on the folder as it lands (its comparison and its stale rule,
-    imported), named as the folder it becomes; plus the connector's additions: an external id the
-    export carries as an object's GUID is carried, a register id the previous export carried and
-    this one does not is stale, and a carried id the register lacks is listed."""
+    """ieam-register's reconcile.py on the folder as it lands (its comparison by GUID, its stale
+    rule, its unregistered list, imported), named as the folder it becomes; plus the connector's
+    additions, read from the register-id tables: a register id the previous export carried and this
+    one does not is stale, and a carried register id the register lacks is listed."""
     out = REC.reconcile(landing, root=reg_root)
     out["folder"] = folder
-    guids = set(man.get("guids", {}))
-    stale = {n["id"]: n for n in out["stale_nodes"]
-             if not any(v.split("#")[0] in guids for k, v in n.items() if k != "id" and isinstance(v, str))}
+    stale = {n["id"]: n for n in out["stale_nodes"]}
     reg = REG.load_register(reg_root)
-    for nid in out["ids"]["deleted"]:   # carried last time, by the register id itself, and gone now
-        if nid in reg["nodes"] and nid not in stale:
-            stale[nid] = {"id": nid, "previous": out["previous"]}
+    now = carried_register_ids(man)
+    if out["previous"]:
+        before = carried_register_ids(REG.load_toml(reg_root / out["previous"] / "MANIFEST.toml"))
+        for nid in sorted(before - now):   # carried last time, by the register id itself, and gone now
+            if nid in reg["nodes"] and nid not in stale:
+                stale[nid] = {"id": nid, "previous": out["previous"]}
     out["stale_nodes"] = [stale[k] for k in sorted(stale)]
-    out["unknown_ids"] = sorted(k for k in man.get("ids", {}) if k not in reg["nodes"])
+    out["unknown_ids"] = sorted(k for k in now if k not in reg["nodes"])
     return out
 
 
@@ -281,9 +315,9 @@ def land(instance: Path, system: str, export: list[Path], exported_on: str | Non
            "tool": "knowgov tools/connector.py (AML, BPMN 2.0); digests by hashlib",
            "tool_version": (ROOT / "VERSION").read_text(encoding="utf-8").strip(),
            "previous": f"exports/{system}/{older[-1]}" if older else "",
-           "files": got["digests"], "ids": got["ids"], "guids": got["guids"]}
+           "files": got["digests"], "ids": got["objects"], "register_ids": got["guids"], "bpmn_ids": got["bpmn_ids"]}
     text = manifest_text(man)
-    assert tomllib.loads(text)["ids"] == got["ids"]
+    assert tomllib.loads(text)["ids"] == got["objects"]
     base.mkdir(parents=True, exist_ok=True)
     tmp = base / f".{day}.partial-{os.getpid()}"
     if tmp.exists():
@@ -311,7 +345,8 @@ def summary(r: dict) -> str:
     return (f"{r['folder']}: files +{len(f['added'])} ~{len(f['updated'])} -{len(f['deleted'])}; "
             f"ids +{len(i['added'])} ~{len(i['renamed'])} -{len(i['deleted'])}; stale nodes {len(r['stale_nodes'])}"
             + (f" ({', '.join(n['id'] for n in r['stale_nodes'])})" if r["stale_nodes"] else "")
-            + (f"; unknown ids {len(r['unknown_ids'])}" if r["unknown_ids"] else ""))
+            + (f"; unknown ids {len(r['unknown_ids'])}" if r["unknown_ids"] else "")
+            + (f"; unregistered {len(r['unregistered'])}" if r.get("unregistered") else ""))
 
 
 def main(argv: list[str] | None = None) -> int:

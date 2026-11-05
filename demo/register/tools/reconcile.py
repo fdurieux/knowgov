@@ -1,6 +1,7 @@
 """Reconcile an export folder against the previous one, by file digest and by external id, and
 name the register nodes whose external id the new export no longer carries (stale findings,
-never deletions). Writes RECONCILE.json beside the MANIFEST.
+never deletions), and the export's ids no node carries (unregistered, a finding to triage, never a
+node created; decision 0017). Writes RECONCILE.json beside the MANIFEST.
 
     python tools/reconcile.py exports/kit/2026-11-15
 """
@@ -12,6 +13,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from register import ROOT, load_register, load_toml  # noqa: E402
+
+
+def unregistered(reg: dict, man: dict) -> list[dict]:
+    """The export's ids that no node's [source] carries for its system, compared before '#' (decision 0017)."""
+    sysname = man.get("source")
+    id_field = reg["sources"]["system"].get(sysname, {}).get("id_field")
+    ids = man.get("ids", {})
+    if not id_field or not ids:
+        return []
+    held = {src[id_field].split("#")[0] for n in reg["nodes"].values()
+            if (src := n.get("source") or {}).get("system") == sysname and src.get(id_field)}
+    return [{id_field: k, "name": ids[k]} for k in sorted(ids) if k not in held]
 
 
 def reconcile(folder: Path, root: Path = ROOT) -> dict:
@@ -34,6 +47,7 @@ def reconcile(folder: Path, root: Path = ROOT) -> dict:
             src = n.get("source") or {}
             if src.get("system") == sysname and src.get(id_field) and src[id_field].split("#")[0] not in ids:
                 out["stale_nodes"].append({"id": nid, id_field: src[id_field]})
+    out["unregistered"] = unregistered(reg, man)
     (folder / "RECONCILE.json").write_text(json.dumps(out, indent=2) + "\n")
     return out
 
@@ -44,4 +58,4 @@ if __name__ == "__main__":
         sys.exit(2)
     r = reconcile(Path(sys.argv[1]).resolve())
     print(f"{r['folder']}: files +{len(r['files']['added'])} ~{len(r['files']['updated'])} -{len(r['files']['deleted'])}; "
-          f"ids +{len(r['ids']['added'])} ~{len(r['ids']['renamed'])} -{len(r['ids']['deleted'])}; stale nodes {len(r['stale_nodes'])}")
+          f"ids +{len(r['ids']['added'])} ~{len(r['ids']['renamed'])} -{len(r['ids']['deleted'])}; stale nodes {len(r['stale_nodes'])}; unregistered {len(r['unregistered'])}")

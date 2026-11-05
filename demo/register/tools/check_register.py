@@ -18,7 +18,8 @@ import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from register import ROOT, TAXONOMIES, kind_taxonomy, load_register  # noqa: E402
+from register import ROOT, TAXONOMIES, kind_taxonomy, load_register, load_toml  # noqa: E402
+from reconcile import unregistered  # noqa: E402
 
 ID_RE = re.compile(r"^(CAP|PRD|JRN|PROC|APP|ENT|ORG|EXC|REL)-\d{4,}$")
 COVERAGE_RULES = {
@@ -405,6 +406,21 @@ def check_coverage(reg: dict, f: Findings, today: dt.date) -> dict:
     return summary
 
 
+def export_counts(reg: dict) -> dict:
+    """Per system, the latest export's ids with their denominator: held by a node, or unregistered
+    (decision 0017). Reported only; not a coverage rule."""
+    out = {}
+    for sysname in sorted(reg["sources"]["system"]):
+        folders = sorted(p.parent for p in (reg["root"] / "exports" / sysname).glob("*/MANIFEST.toml"))
+        if not folders:
+            continue
+        man = load_toml(folders[-1] / "MANIFEST.toml")
+        n = len(man.get("ids", {}))
+        u = len(unregistered(reg, man))
+        out[sysname] = {"export": folders[-1].relative_to(reg["root"]).as_posix(), "denominator": n, "registered": n - u, "unregistered": u}
+    return out
+
+
 def check_transitions(reg: dict, f: Findings, previous: str):
     """Diff every node's and link's state against a git ref; a transition the lifecycle table does not allow is an error."""
     allowed = reg["lifecycle"]["transitions"]
@@ -456,6 +472,7 @@ def run(root: Path = ROOT, previous: str | None = None, today: dt.date | None = 
     summary = check_coverage(reg, f, today)
     if previous:
         check_transitions(reg, f, previous)
+    summary["exports"] = export_counts(reg)
     summary["nodes"] = len(reg["nodes"])
     summary["links"] = sum(len(r["links"]) for r in reg["relationships"].values())
     return f, summary
@@ -475,6 +492,8 @@ def main(argv=None) -> int:
     for rule in ("C1", "C2", "C3"):
         s = summary[rule]
         print(f"{rule}: {s['covered']}/{s['denominator']} covered, {s['excepted']} excepted, {len(s['uncovered'])} uncovered")
+    for sysname, s in summary["exports"].items():
+        print(f"{sysname}: {s['registered']}/{s['denominator']} export ids held by a node, {s['unregistered']} unregistered ({s['export']})")
     print(f"{summary['nodes']} nodes, {summary['links']} links, {len(f.errors)} error(s), {len(f.items) - len(f.errors)} warning(s)")
     if a.report:
         a.report.parent.mkdir(parents=True, exist_ok=True)

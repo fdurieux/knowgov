@@ -197,11 +197,34 @@ the attribute you configured, a BPMN process's `id`, and an element's `<document
 Element ids and diagram positions are never identity, because a tool may rewrite them on import.
 It copies the files, byte for byte, into a new dated folder. The folder name is the date in the
 AML header, or the one you give with `--exported-on`. Beside the files go two more:
-- `MANIFEST.toml`: the export time, the source and its version, the tool, the previous folder,
-  a sha256 per file, and the register ids carried, with their names.
-- `RECONCILE.json`: what changed since the previous folder. That means files and ids added,
-  updated or renamed, and deleted. It also lists the *stale* register nodes: those whose id the
-  previous export carried and this one does not.
+- `MANIFEST.toml`, in your register's own export format: the export time, the source and its
+  version, the tool, the previous folder, and a sha256 per file. Its `[ids]` lists every object
+  in the AML, keyed by the object's GUID (the `id_field` your register's `sources.toml` gives the
+  system, `aris_guid` for ARIS), with its name. That includes objects that carry no register id.
+  Two more tables hold the register ids, kept apart so that `[ids]` has only one kind of key:
+  - `[register_ids]` gives, for each object that carries a register id, that id, by GUID.
+  - `[bpmn_ids]` gives each register id a BPMN file carries, with its name. A BPMN file has no
+    GUID, so it adds nothing to `[ids]`.
+- `RECONCILE.json`, written by your register's own `tools/reconcile.py`: what changed since the
+  previous folder. Files are added, updated or deleted. Objects, compared by GUID, are added,
+  renamed (same GUID, new name) or deleted. It also lists these:
+  - `stale_nodes`: the register nodes whose object is gone. The register finds a node whose
+    `[source]` names this system and a GUID the export no longer holds. The connector adds a
+    node whose register id the previous export carried and this one does not. Once your nodes
+    record their object's GUID in `[source]`, the register's rule finds them all and the
+    connector's addition finds nothing more.
+  - `unknown_ids`: register ids your modellers typed in the tool that your register does not
+    hold, such as a mistyped id or a node removed from the register. Fix each one in the tool,
+    or register the node.
+  - `unregistered`: the register's own list (its decision 0017). It holds the objects no node
+    names in its `[source]`. Until your nodes record their GUID, every object is listed. Events,
+    rules and step functions that no node stands for are listed too. Leave them, or register
+    them; the register has not yet decided how to excuse such an object (decision 0017, "Not
+    decided here"). Read the list as a finding to triage, never as an error.
+
+A folder landed by an earlier version keeps its bytes. The first export landed after an upgrade
+reads every object as added and every earlier id as deleted in `ids`. Its `stale_nodes` and
+`unknown_ids` read the register ids of both folders, so they are not affected.
 
 A stale node is a finding for its owner. The connector never deletes or edits a node. It never
 lands an export over an existing folder, or with a date before the newest one; it refuses (exit 1)

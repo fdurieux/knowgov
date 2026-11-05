@@ -78,17 +78,41 @@ def test_an_export_lands_dated_with_its_manifest_and_reconcile_and_the_second_be
     assert _digests(base / "2026-11-04") == s["first_bytes"]
 
 
-def test_the_first_export_adds_every_id_and_finds_nothing_stale():
+def _man(day: str) -> dict:
+    return tomllib.loads((_landed()["dir"] / "register" / "exports" / "aris" / day / "MANIFEST.toml").read_text(encoding="utf-8"))
+
+
+def _guid(rid: str) -> str:
+    return {v: k for k, v in _man("2026-11-04")["register_ids"].items()}[rid]
+
+
+def test_the_manifest_follows_the_registers_format_ids_by_guid_register_ids_apart():
+    # decision-0010: [ids] is every AML object by GUID (the aris_guid id_field) with its name; the
+    # register ids sit in their own tables, never in [ids]
+    for day, objects, carrying, bpmn in (("2026-11-04", 41, 14, 5), ("2026-11-18", 38, 13, 4)):
+        man = _man(day)
+        assert len(man["ids"]) == objects and all(re.fullmatch(r"[0-9a-f-]{36}", g) for g in man["ids"])
+        assert len(man["register_ids"]) == carrying and set(man["register_ids"]) <= set(man["ids"])
+        assert len(man["bpmn_ids"]) == bpmn and set(man["bpmn_ids"]) <= set(man["register_ids"].values())
+        assert "guids" not in man and not any(connector.REGISTER_ID.fullmatch(k) for k in man["ids"])
+    assert _man("2026-11-04")["ids"][_guid("PROC-0004")] == "Price the quote"
+    assert _man("2026-11-18")["ids"][_guid("PROC-0004")] == "Calculate the quote price"
+
+
+def test_the_first_export_adds_every_object_and_finds_nothing_stale():
     r = _landed()["first"]
     assert r["files"]["added"] == ["cargo_quote.aml", "quote_process.aris.bpmn", "quote_process.bpmn"]
-    assert {"PROC-0001", "PROC-0004", "PROC-0005", "CAP-0001", "APP-0002", "ORG-0001"} <= set(r["ids"]["added"])
+    assert r["ids"]["added"] == sorted(_man("2026-11-04")["ids"]) and len(r["ids"]["added"]) == 41
     assert r["stale_nodes"] == [] and r["unknown_ids"] == [] and r["ids"]["deleted"] == []
 
 
 def test_a_vanished_id_is_stale_and_deletes_nothing():
     s = _landed()
     r = s["later"]
-    assert r["ids"]["deleted"] == ["PROC-0005"]
+    # the register's own diff, by GUID: PROC-0005's object and the two events that went with it
+    assert _guid("PROC-0005") in r["ids"]["deleted"] and len(r["ids"]["deleted"]) == 3
+    assert not set(r["ids"]["deleted"]) & set(_man("2026-11-18")["register_ids"])
+    # no node of the example carries [source] aris_guid: the connector's stale-by-register-id finds it
     assert r["stale_nodes"] == [{"id": "PROC-0005", "previous": "exports/aris/2026-11-04"}]
     reg = s["dir"] / "register"
     after = {k: v for k, v in _digests(reg).items() if not k.startswith("exports/")}
@@ -98,15 +122,55 @@ def test_a_vanished_id_is_stale_and_deletes_nothing():
 
 def test_a_renamed_object_is_an_update_not_a_delete_and_an_add():
     r = _landed()["later"]
-    assert r["ids"]["renamed"] == ["PROC-0004"]
-    assert "PROC-0004" not in r["ids"]["added"] and "PROC-0004" not in r["ids"]["deleted"]
+    g = _guid("PROC-0004")
+    assert r["ids"]["renamed"] == [g], "the same object, its GUID unchanged, its name changed"
+    assert g not in r["ids"]["added"] and g not in r["ids"]["deleted"]
     assert r["ids"]["added"] == []
     assert sorted(r["files"]["updated"]) == ["cargo_quote.aml", "quote_process.aris.bpmn", "quote_process.bpmn"]
-    man = tomllib.loads((_landed()["dir"] / "register" / "exports" / "aris" / "2026-11-18" / "MANIFEST.toml").read_text(encoding="utf-8"))
-    assert man["ids"]["PROC-0004"] == "Calculate the quote price"
-    first = tomllib.loads((_landed()["dir"] / "register" / "exports" / "aris" / "2026-11-04" / "MANIFEST.toml").read_text(encoding="utf-8"))
-    guid = {v: k for k, v in first["guids"].items()}["PROC-0004"]
-    assert man["guids"][guid] == "PROC-0004", "the same object, its GUID unchanged"
+    assert _man("2026-11-18")["register_ids"][g] == "PROC-0004"
+
+
+def test_unregistered_is_every_object_no_node_carries_and_unknown_ids_the_register_ids_it_lacks():
+    # the register's decision 0017 (v0.2.10), computed by the vendored reconcile.py on the GUID-keyed
+    # [ids]: no node of the example carries [source] aris_guid, so every object reads unregistered,
+    # 41 then 38 (27 and 25 of them events, rules and steps no register id names). unknown_ids reads
+    # the register-id tables and is empty: every carried register id is a node.
+    s = _landed()
+    reg = connector.REG.load_register(s["dir"] / "register")
+    for day, r, n in (("2026-11-04", s["first"], 41), ("2026-11-18", s["later"], 38)):
+        rec = json.loads((s["dir"] / "register" / "exports" / "aris" / day / "RECONCILE.json").read_text(encoding="utf-8"))
+        assert rec["unregistered"] == r["unregistered"] == connector.REC.unregistered(reg, _man(day))
+        assert [e["aris_guid"] for e in rec["unregistered"]] == sorted(_man(day)["ids"]) and len(rec["unregistered"]) == n
+        assert all(e["name"] == _man(day)["ids"][e["aris_guid"]] for e in rec["unregistered"])
+        assert rec["unknown_ids"] == []
+    # a node the register drops: its carried id becomes unknown
+    d = _mini()
+    (d / "register" / "processes" / "PROC-0005.toml").unlink()
+    r = connector.land(d, "aris", [FIX / "first"])
+    assert r["unknown_ids"] == ["PROC-0005"] and len(r["unregistered"]) == 41
+    shutil.rmtree(d)
+
+
+def test_nodes_that_carry_their_aris_guid_are_registered_and_the_registers_own_rule_finds_the_stale():
+    # decision-0010's point: once the nodes name ARIS as their source, with their object's GUID, the
+    # register's reconcile.py does the work: the 14 objects with a node leave unregistered (41-14,
+    # 38-13), and its own stale_nodes finds PROC-0005 by its GUID; the connector's stale-by-register-id
+    # adds nothing then
+    d = _mini()
+    first = connector.read_aml((FIX / "first" / "cargo_quote.aml").read_bytes(), "AT_ID")["guids"]
+    for g, rid in first.items():
+        p = next((d / "register").glob(f"*/{rid}.toml"))
+        text = p.read_text(encoding="utf-8")
+        head, rest = text.split("[source]\n", 1)
+        tail = rest[rest.index("\n[") :] if "\n[" in rest else "\n"
+        p.write_text(f'{head}[source]\nsystem = "aris"\naris_guid = "{g}"\n{tail}', encoding="utf-8")
+    a = connector.land(d, "aris", [FIX / "first"])
+    b = connector.land(d, "aris", [FIX / "later"])
+    assert len(a["unregistered"]) == 41 - 14 and len(b["unregistered"]) == 38 - 13
+    assert not {e["aris_guid"] for e in a["unregistered"]} & set(first)
+    gone = {v: k for k, v in first.items()}["PROC-0005"]
+    assert a["stale_nodes"] == [] and b["stale_nodes"] == [{"id": "PROC-0005", "aris_guid": gone}]
+    shutil.rmtree(d)
 
 
 def test_the_instance_still_holds_its_layout_and_the_register_its_checks():
@@ -211,3 +275,11 @@ def test_nothing_under_harness_or_demo_app_names_the_vendor():
                 if vendor.search(line) and not any(rel == a and frag in line for a, frag in allowed):
                     found.append(f"{rel}:{n}: {line.strip()[:100]}")
     assert not found, found
+
+
+def test_a_folder_landed_before_decision_0010_still_gives_its_register_ids():
+    # an instance's older folders keep their bytes (append-only): [ids] by register id beside [guids]
+    old = {"ids": {"PROC-0001": "Quote process"}, "guids": {"g-1": "PROC-0001"}}
+    new = {"ids": {"g-1": "Quote process", "g-2": "an event"}, "register_ids": {"g-1": "PROC-0001"}, "bpmn_ids": {"PROC-0002": "x"}}
+    assert connector.carried_register_ids(old) == {"PROC-0001"}
+    assert connector.carried_register_ids(new) == {"PROC-0001", "PROC-0002"}
