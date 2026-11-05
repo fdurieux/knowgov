@@ -52,3 +52,46 @@ def test_proposal_impact_refuses_mid_run_where_it_reads_levels_and_answers_from_
     with tempfile.TemporaryDirectory() as td, _Env(KG_NOW=NOW):
         _live_and_stale(Path(td), STALE)
         assert not _call(_tools(Path(td)), "proposal_impact", {"proposal": _proposal()})["isError"]
+
+
+def test_another_subjects_live_run_refuses_neither_tool():
+    from subject import SUBJECT
+    start = _start()
+    if start is None:
+        return
+    other = "jef_data_load" if SUBJECT.id != "jef_data_load" else "cargo_quote"
+    with tempfile.TemporaryDirectory() as td, _Env(KG_NOW=NOW):
+        from test_scenario_runs import _run_json
+        _run_json(Path(td) / other / "2026-11-04-2159", heartbeat_at=LIVE)
+        assert not _call(_tools(Path(td)), "register_impact", {"node": start})["isError"]
+        assert not _call(_tools(Path(td)), "proposal_impact", {"proposal": _proposal()})["isError"]
+
+
+def test_on_an_rdflib_store_both_tools_refuse_live_and_answer_stale():
+    """The same rule over a real rdflib store holding the subject's first scenario (the rdflib job runs it)."""
+    try:
+        from store_rdflib import RdflibStore
+    except ModuleNotFoundError:
+        return
+    import mcp_server
+    from subject import SUBJECT
+    start = _start()
+    if start is None:
+        return
+    with tempfile.TemporaryDirectory() as td, _Env(KG_NOW=NOW, KG_TODAY="2026-11-04"):
+        path = str(Path(td) / "store.ttl")
+        st = RdflibStore(path=path)
+        st.create_node("agent:t", "Agent", {})
+        st.create_activity(f"act:extract:{SUBJECT.order[0]}:v1", "extract", "2026-11-04T21:00:00+00:00", "t", "", "agent:t")
+        st.close()
+
+        def tools():
+            return mcp_server.Tools(opener=lambda: mcp_server.open_read_only(lambda **kw: RdflibStore(path=path, **kw)), runs=Path(td))
+        _live_and_stale(Path(td), LIVE)
+        for name, args in (("register_impact", {"node": start}), ("proposal_impact", {"proposal": _proposal()})):
+            r = _call(tools(), name, args)
+            assert r["isError"] and "a run is loading the store" in r["content"][0]["text"], (name, r)
+        _live_and_stale(Path(td), STALE)
+        for name, args in (("register_impact", {"node": start}), ("proposal_impact", {"proposal": _proposal()})):
+            r = _call(tools(), name, args)
+            assert not r["isError"], (name, r["content"][0]["text"])

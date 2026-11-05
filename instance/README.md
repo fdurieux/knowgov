@@ -395,6 +395,37 @@ plus CargoQuote's documents, sorted into their kinds. It then runs the check on 
 only into the folder you name. The demo's CI mounts that folder read-only, replays a scenario,
 runs one deterministically, and confirms afterwards that not one byte of the folder changed.
 
+## Who vouches for a document
+
+Each statement knowgov holds has a *status*: proposed, then validated, verified and approved, the
+last being the highest. For a statement taken from a document, the status says who has vouched
+for it, and the gate relies on it to decide whether an assistant may build.
+
+Today, a document that a mapper reads as *authored* (requirement text, the links between
+documents, a decision table's rules) loads as reviewed and approved by the subject's human agent.
+That happens whether or not anyone reviewed it. If `subject.toml` declares no `[verification]` and
+no `[provenance]`, the agent is the default one, `agent:maintainer`, and the approval's record is
+the word `approval`. So a requirements file drafted with an assistant and read by nobody reaches
+the gate as approved (doc-0018 F1).
+
+Until that changes, declare who vouches, in the manifest:
+
+```toml
+[provenance]
+human = { id = "agent:employee-2", name = "employee-2" }   # who attests: an issued handle, never a name
+
+[verification]
+authored = { at = "2026-11-04", scope = "reviewed by employee-2 against the process owner's notes" }
+approval = { at = "2026-11-04", record = "minutes/2026-11-04-requirements.md" }
+```
+
+In plain English: `[provenance] human` says who attests, `authored` says when they reviewed the
+documents and what they read them against, and `approval` says where the approval is recorded.
+Declare them only for documents that person has in fact read. Put them in a pull request that
+someone other than its author reviews. knowgov's decision-0009, accepted on 2026-11-04, makes the
+declaration required; task-0136 builds it. From then on, without it, authored statements stay
+*proposed*, and a new subject stays blocked until a person vouches for its documents.
+
 ## Capturing what people know
 
 Some knowledge is in nobody's documents, only in people's heads. The gate then reports a key as
@@ -586,8 +617,8 @@ eight tools, and all of them only read:
 | `gate_verdict` | May I build on the knowledge this task needs, or on these keys? | PROCEED, QUALIFIED or BLOCKED with the findings: the same report `gate_cli.py --no-load -f json` prints |
 | `three_valued_answer` | What is known about this one key? | asserted, documented absent, or unknown, with where each statement came from and who verified it; and any statement a document change invalidated, with `superseded_by` naming the verified or approved statement that replaced it (none: the old value no longer holds and nothing does yet) |
 | `evidence_bundle` | What exactly may I build on, and on what evidence? | the evidence bundle the governed arm reads, as text: the verdict and the policy, every required key's statements with their evidence, verifications, approvals and gaps, lapsed reviews, invalidated statements and what supersedes them, unchecked or flawed documents behind the keys, suspect derived outputs, and the documents the task names verbatim; for a task or for your own keys |
-| `register_impact` | What does retiring or changing this register node touch? | your register's own impact walk from the node (the register's tag and commit, the node, its children listed but not walked unless the assistant asks with `children`, which walks every approved descendant as the register's decision 0014 does, every edge with whether it was followed, what it reaches with each node's owning unit), and the keys your subject's `register_map.toml` places on the node or on what it reaches, each with its owner, its anchor and the node it came through; with `children`, the keys resting only on a withdrawn descendant are listed last, flagged `withdrawn`; with a scenario loaded, each key's level, stale statements and suspect derived outputs as `gate_verdict` reports them for the task class the assistant names with `task` (`codegen` by default) |
-| `proposal_impact` | What would this proposed product, capability or journey touch, and what does it lack, before anyone approves it? | the proposal (new nodes with provisional ids, links, the register nodes it reuses as they are or changed, proposed exceptions) read by your register's own checker and walks as if approved, every proposed element marked `hypothetical` and nothing stored: placement findings (a forbidden synonym; a node in no tool yet), link candidates D1 to D4 each `authored` or `inferred` and never more than `proposed`, C1 to C3 coverage before and after with the new gaps, what each reused node reaches before and after, what each new node rests on, each reused node's keys as `register_impact` reads them, the new nodes left unmapped, and which unit must approve what. Its walkthrough is in `demo/README.md` |
+| `register_impact` | What does retiring or changing this register node touch? | your register's own impact walk from the node (the register's tag and commit, the node, its children listed but not walked unless the assistant asks with `children`, which walks every approved descendant as the register's decision 0014 does, every edge with whether it was followed, what it reaches with each node's owning unit), and the keys your subject's `register_map.toml` places on the node or on what it reaches, each with its owner, its anchor and the node it came through; with `children`, the keys resting only on a withdrawn descendant are listed last, flagged `withdrawn`; with a scenario loaded, each key's level, stale statements and suspect derived outputs as `gate_verdict` reports them for the task class the assistant names with `task` (`codegen` by default); while a run loads the store, refused where it would read those levels |
+| `proposal_impact` | What would this proposed product, capability or journey touch, and what does it lack, before anyone approves it? | the proposal (new nodes with provisional ids, links, the register nodes it reuses as they are or changed, proposed exceptions) read by your register's own checker and walks as if approved, every proposed element marked `hypothetical` and nothing stored: placement findings (a forbidden synonym; a node in no tool yet), link candidates D1 to D4 each `authored` or `inferred` and never more than `proposed`, C1 to C3 coverage before and after with the new gaps, what each reused node reaches before and after, what each new node rests on, each reused node's keys as `register_impact` reads them, the new nodes left unmapped, and which unit must approve what; while a run loads the store, refused where it would read the reused nodes' levels. Its walkthrough is in `demo/README.md` |
 | `scenario_runs` | Which scenarios have been run, in which mode, and what did they show? | every scenario of your subject with its title and card line; what the record holds for it (deterministic results and the gate's verdict, the arms with how many runs and which model, the extra sources the subject declares); its runs newest first, each as its folder's `run.json` describes it (mode, model, as-of date, who started it, `page` or `mcp`, start, end, status, and the verdict of its results), or inferred, flagged `inferred`, for a folder from before `run.json`; the scenario the store holds and when it was loaded; and the run loading the store now, if any. Replay is not a run: it is the record shown, and nothing records it |
 | `scenario_result` | What did this record or this run show? | what the page's Replay shows for one source that `scenario_runs` lists (the record, an extra source, or a run): the gate's verdict and why, the date it read reviews on, every required key's level, and each arm's runs with its decision and oracle result. It reads that source's files, never the store, and says so: it is not what the store holds now |
 
