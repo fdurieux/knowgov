@@ -13,6 +13,8 @@ import tempfile
 import urllib.error
 from pathlib import Path
 
+from tests._skip import need_rdflib  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "harness"), str(Path(__file__).resolve().parent)]
 import mcp_runs  # noqa: E402
@@ -200,10 +202,7 @@ def test_the_reader_stays_a_reader_and_the_allowlist_admits_it_only():
 def test_the_reader_reads_a_runs_new_load_on_its_next_call():
     """doc-0016 F6: the reader opens the store per call (task-0097 has not cached a handle), so a gate
     call after an agent's run reads the new load; a run.json recording the run's end changes nothing."""
-    try:
-        from store_rdflib import RdflibStore
-    except ModuleNotFoundError:
-        return   # the tests job has no rdflib; the rdflib job runs it
+    RdflibStore = need_rdflib().RdflibStore   # the tests job has no rdflib; the rdflib job runs it
     from subject import SUBJECT
     first, second = SUBJECT.order[0], SUBJECT.order[-1]
     with tempfile.TemporaryDirectory() as td, _Env(KG_TODAY="2026-11-04"):

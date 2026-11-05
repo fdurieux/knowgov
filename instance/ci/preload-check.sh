@@ -13,7 +13,14 @@ set -u
 KG=${1:?knowgov checkout}
 INST=${2:?instance checkout}
 BASE=${3:-}
-PY=${PYTHON:-python3}
+# The interpreter (task-0141.01): PYTHON names it (default python3 as PATH finds it), probed once here
+# and passed on as its absolute path (sys.executable) to every nested call, so another python3 earlier
+# on PATH never runs a step; one that is missing or older than 3.12 cannot run: exit 2, nothing written.
+PY=$("${PYTHON:-python3}" -c 'import sys; sys.exit(1) if sys.version_info < (3, 12) else print(sys.executable)' 2>/dev/null) && [ -n "$PY" ] || {
+    echo "preload-check: the interpreter '${PYTHON:-python3}' is missing or older than Python 3.12 ($("${PYTHON:-python3}" -V 2>&1 | head -n 1)); set PYTHON to a Python 3.12 or later" >&2
+    exit 2
+}
+export PYTHON="$PY"
 
 # KG_PRELOAD_BASELINE: a report the instance's owner committed (preload_check.py -o), relative to the
 # instance; findings it holds do not fail. The check never writes it; moving it on is a commit.
