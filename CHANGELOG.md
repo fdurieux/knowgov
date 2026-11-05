@@ -108,6 +108,12 @@ names that section with the version.
   id names. A node that carries `[source] aris_guid` leaves the list, and the register's own
   `stale_nodes` then finds a vanished object. `check_register.py --report` gains a per-system
   export count. The record is unchanged on both subjects.
+- **The register at ieam-register v0.2.11** (the register's decision 0018). The vendored
+  `impact.py` gains a third named walk, `--walk thread`, from a journey step down to the data it
+  uses. The checker gains A1, a warning when a product's `requires` links and the capabilities its
+  journeys' steps reach disagree. The register view lists 10 warnings, 7 before plus A1's three
+  (PRD-0002, PRD-0004, PRD-0005), with no coverage line for A1, which is not a coverage rule.
+  Nothing in `harness/` reads the thread walk yet: task-0152's slice map will.
 
 ## 0.6.0 — 2026-11-05
 

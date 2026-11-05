@@ -1,6 +1,7 @@
 """The register's checks: types, directions, required metadata, hierarchy cycles, duplicate
 identities, cardinalities, dangling links, lifecycle consistency, approvals, knowledge a person
-gave and the handles it is given under (decisions 0008, 0009), glossary, and the coverage rules C1 to C3 with expiring exceptions. Exit 1 on any error; warnings exit 0.
+gave and the handles it is given under (decisions 0008, 0009), glossary, the coverage rules C1 to C3 with expiring exceptions, and the product–journey alignment
+rule A1 at warning level (decision 0018). Exit 1 on any error; warnings exit 0.
 
     python tools/check_register.py                 # check the working tree
     python tools/check_register.py --previous HEAD # also diff lifecycle states against a commit
@@ -20,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from register import ROOT, TAXONOMIES, kind_taxonomy, load_register, load_toml  # noqa: E402
 from reconcile import unregistered  # noqa: E402
+from impact import THREAD, WITHDRAWN, walk_children  # noqa: E402
 
 ID_RE = re.compile(r"^(CAP|PRD|JRN|PROC|APP|ENT|ORG|EXC|REL)-\d{4,}$")
 COVERAGE_RULES = {
@@ -27,6 +29,8 @@ COVERAGE_RULES = {
     "C2": "a capability that an approved product requires has at least one realizes link, or an unexpired exception",
     "C3": "a process with an approved realizes link names a diagram of record in its source, or an unexpired exception",
 }
+ALIGNMENT_RULE = ("an approved product is concerned by an approved journey, and the capabilities it requires are the ones "
+                  "that journey's steps reach by the thread walk; a warning, never an error")
 
 
 class Findings:
@@ -406,6 +410,41 @@ def check_coverage(reg: dict, f: Findings, today: dt.date) -> dict:
     return summary
 
 
+def check_alignment(reg: dict, f: Findings) -> dict:
+    """A1 (decision 0018): per approved product, the capabilities it requires (approved requires links)
+    against the capabilities its journeys reach by the thread walk with parent descent (approved
+    concerns links from a journey element neither deprecated nor retired). A product no journey
+    concerns is one finding; otherwise each capability required and not reached, and each reached and
+    not required, is one. Warnings only; reported with its denominator."""
+    nodes = reg["nodes"]
+    def approved_links(name):
+        return [ln for ln in reg["relationships"].get(name, {}).get("links", []) if ln.get("state") == "approved"]
+    products = sorted(nid for nid, n in nodes.items() if n.get("kind") in ("product", "variant") and n.get("state") == "approved")
+    out = {"denominator": len(products), "aligned": [], "no_journey": [], "required_not_reached": [], "reached_not_required": []}
+    for pid in products:
+        where = f"products/{pid}.toml"
+        journeys = sorted({ln["source"] for ln in approved_links("concerns") if ln.get("target") == pid
+                           and nodes.get(ln["source"], {}).get("state") not in WITHDRAWN})
+        if not journeys:
+            out["no_journey"].append(pid)
+            f.warn("A1", where, "no approved journey concerns this product")
+            continue
+        required = {ln["target"] for ln in approved_links("requires") if ln["source"] == pid}
+        reached = set()
+        for j in journeys:
+            reached |= {x for x in walk_children(reg, j, THREAD)["reached"] if nodes.get(x, {}).get("_taxonomy") == "capabilities"}
+        missing, extra = sorted(required - reached), sorted(reached - required)
+        for c in missing:
+            out["required_not_reached"].append([pid, c])
+            f.warn("A1", where, f"requires {c}, which no step of {', '.join(journeys)} reaches by the thread walk")
+        for c in extra:
+            out["reached_not_required"].append([pid, c])
+            f.warn("A1", where, f"a step of {', '.join(journeys)} reaches {c} by the thread walk; the product does not require it")
+        if not missing and not extra:
+            out["aligned"].append(pid)
+    return out
+
+
 def export_counts(reg: dict) -> dict:
     """Per system, the latest export's ids with their denominator: held by a node, or unregistered
     (decision 0017). Reported only; not a coverage rule."""
@@ -470,6 +509,7 @@ def run(root: Path = ROOT, previous: str | None = None, today: dt.date | None = 
     check_handles(reg, f)
     check_glossary(reg, f)
     summary = check_coverage(reg, f, today)
+    summary["A1"] = check_alignment(reg, f)
     if previous:
         check_transitions(reg, f, previous)
     summary["exports"] = export_counts(reg)
@@ -492,6 +532,9 @@ def main(argv=None) -> int:
     for rule in ("C1", "C2", "C3"):
         s = summary[rule]
         print(f"{rule}: {s['covered']}/{s['denominator']} covered, {s['excepted']} excepted, {len(s['uncovered'])} uncovered")
+    a1 = summary["A1"]
+    print(f"A1: {len(a1['aligned'])}/{a1['denominator']} products aligned, {len(a1['no_journey'])} with no journey, "
+          f"{len(a1['required_not_reached'])} required not reached, {len(a1['reached_not_required'])} reached not required")
     for sysname, s in summary["exports"].items():
         print(f"{sysname}: {s['registered']}/{s['denominator']} export ids held by a node, {s['unregistered']} unregistered ({s['export']})")
     print(f"{summary['nodes']} nodes, {summary['links']} links, {len(f.errors)} error(s), {len(f.items) - len(f.errors)} warning(s)")

@@ -15,8 +15,13 @@ marked withdrawn, and not walked from. `parent` adds starts, never steps; off by
 The start is never counted among what a walk reaches (decision 0016): an edge back to it is reported
 and marked ``to_start``, not counted; below a withdrawn descendant the descent continues to approved ones.
 
+A third, named walk (decision 0018), `thread`, answers what a journey step uses, down to the
+data: the process that supports it, the capability that process realises, the application that
+supports it and the information the process and the application read, write or manage.
+
     python tools/impact.py --from APP-0002
     python tools/impact.py --from CAP-0002 --walk realisers
+    python tools/impact.py --from JRN-0002 --walk thread
     python tools/impact.py --from CAP-0001 --children
 """
 from __future__ import annotations
@@ -52,7 +57,19 @@ REALISERS = {
     "processes": [("supports", False)],
 }
 
-WALKS = {"dependants": FORWARD, "realisers": REALISERS}
+# what a journey step uses, down to the data (decision 0018): the step to the process that supports it
+# (is_supported_by forward); the process to the capability it realises (realizes forward), the
+# application that supports it (supports inverse) and the information it reads or writes (crud
+# forward); the application to the information it manages (manages forward). Every step points away
+# from the journey; capabilities and information have no row, so the walk ends there and never turns
+# back towards the product. owns and maps_to are never walked; parent adds starts, never steps.
+THREAD = {
+    "journeys": [("is_supported_by", True)],
+    "processes": [("realizes", True), ("supports", False), ("crud", True)],
+    "applications": [("manages", True)],
+}
+
+WALKS = {"dependants": FORWARD, "realisers": REALISERS, "thread": THREAD}
 
 WITHDRAWN = ("deprecated", "retired")
 
@@ -123,7 +140,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--from", dest="start", required=True)
     ap.add_argument("--walk", choices=sorted(WALKS), default="dependants",
-                    help="dependants: what rests on the node (decision 0010, the default); realisers: what implements a capability (decision 0012)")
+                    help="dependants: what rests on the node (decision 0010, the default); realisers: what implements a capability (decision 0012); "
+                         "thread: what a journey step uses, down to the data (decision 0018)")
     ap.add_argument("--children", action="store_true",
                     help="also walk from every approved descendant by parent, recursively (decision 0014); off by default")
     ap.add_argument("--root", type=Path, default=ROOT)
@@ -154,6 +172,11 @@ def main(argv=None) -> int:
         procs = sorted(x for x in live if x.startswith("PROC-"))
         apps = sorted(x for x in live if x.startswith("APP-"))
         print(f"\n{a.start}: {len(edges)} edges walked, {withdrawn} withdrawn; processes reached {procs or 'none'}; applications reached {apps or 'none'}")
+        return 0
+    if a.walk == "thread":
+        got = {p: sorted(x for x in live if x.startswith(p)) for p in ("PROC-", "CAP-", "APP-", "ENT-")}
+        print(f"\n{a.start}: {len(edges)} edges walked, {withdrawn} withdrawn; processes reached {got['PROC-'] or 'none'}; "
+              f"capabilities reached {got['CAP-'] or 'none'}; applications reached {got['APP-'] or 'none'}; information reached {got['ENT-'] or 'none'}")
         return 0
     prods = sorted(x for x in live if x.startswith("PRD-"))
     jrns = sorted(x for x in live if x.startswith("JRN-"))

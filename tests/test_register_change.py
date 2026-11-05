@@ -32,7 +32,7 @@ def test_the_fixture_change_withdraws_cap_0001_and_rel_06001_for_the_fixture_dec
     d = _tmp()
     try:
         ch = rc.diff(VENDORED, fx.changed(d / "reg"))
-        assert ch["from"]["tag"] == "v0.2.10" and ch["to"]["tag"] == fx.TAG
+        assert ch["from"]["tag"] == "v0.2.11" and ch["to"]["tag"] == fx.TAG
         assert ch["nodes"] == [{"id": "CAP-0001", "from": "approved", "to": "deprecated", "reason": REASON}]
         assert ch["links"] == [{"id": "REL-06001", "rel": "supports", "source": "APP-0002", "target": "PROC-0002",
                                 "from": "approved", "to": "deprecated", "reason": REASON}]
@@ -160,7 +160,7 @@ def test_the_gate_refuses_the_flag_on_a_held_store_and_the_schema_takes_the_sect
     assert p.returncode == 2 and "--register-previous" in p.stderr, (p.returncode, p.stderr)
     import schema_check
     schema = schema_check.load("gate-report")
-    src = {"tag": "v0.2.10", "commit": "4149e0677f09b329ee0d4c9e4b6c85e14d0bb424"}
+    src = {"tag": "v0.2.11", "commit": "7f1680c496be7f3238c30c4dccc22acc29f42774"}
     section = {"from": src, "to": src, "nodes": [{"id": "CAP-0001", "from": "approved", "to": "deprecated", "reason": REASON}],
                "links": [], "keys": [{"key": "P1|formula", "owner": "ORG-0001", "reasons": [REASON], "causes": ["CAP-0001"]}],
                "invalidated": ["A:dt:P1|formula@v1"], "derived": "derived:S1:G:run1"}
