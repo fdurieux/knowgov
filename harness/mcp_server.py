@@ -3,7 +3,7 @@
     python harness/mcp_server.py                      # stdio, for an agent that starts the server itself
     python harness/mcp_server.py --http [--host H] [--port P]   # Streamable HTTP at http://H:P/mcp
 
-The question an agent asks is "may I build on this?". Eleven tools answer it, all read-only:
+The question an agent asks is "may I build on this?". Twelve tools answer it, all read-only:
 
     store_status          what the store holds: the subject, the scenario loaded, the tasks and the
                           keys the subject asks the three-valued question of
@@ -48,6 +48,8 @@ The question an agent asks is "may I build on this?". Eleven tools answer it, al
                           nodes, owner, anchor and note; files only (task-0143)
     code_path             a code path's application from the instance's code_map.toml, the keys its header
                           cites and its trace ledger entry, each leg read or unchecked; files only (task-0143)
+    document_links        the register links whose evidence cites a document, with the nodes at both ends and
+                          their owners, as the Browser's register-cites joins them; files only (task-0143)
 
 While a run folder of the server's subject reads running with a live heartbeat (run.json, within
 ``runs_index.STALE_S`` of ``review.now()``), gate_verdict, three_valued_answer and evidence_bundle
@@ -132,7 +134,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
-                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. code_path and key_nodes read files only; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it. This server only reads.")
+                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. code_path, key_nodes and document_links read files only; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it. This server only reads.")
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -309,6 +311,19 @@ TOOLS.append(
                     "climbs to the processes and capabilities.",
      "inputSchema": {"type": "object", "additionalProperties": False, "required": ["path"], "properties": {
          "path": {"type": "string", "description": "a '/'-separated path relative to the code map's root, as trace.py names a file"}}},
+     "annotations": READ_ONLY})
+
+
+TOOLS.append(
+    {"name": "document_links", "title": "Which register links cite this document?",
+     "description": "The register links whose evidence cites a document of the subject's export manifest, read from the "
+                    "register's files and never from the store: each link's id, type, state and owner, the evidence string "
+                    "and its #anchor, and the nodes at both ends with their owning units (target null for a link to an "
+                    "external id); the document's digest in the manifest. What the Browser's register-cites query joins. A "
+                    "document the manifest does not hold is refused. One hop, document to register: from the nodes, "
+                    "register_impact climbs or descends.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "required": ["document"], "properties": {
+         "document": {"type": "string", "description": "a document path as the subject's export manifest names it under [files]; the subject's evidence prefix and an #anchor may be given"}}},
      "annotations": READ_ONLY})
 
 
@@ -636,6 +651,14 @@ class Tools:
         import upward
         try:
             return upward.key_nodes(args.get("key"))
+        except upward.UpwardError as e:
+            raise ToolError(str(e)) from e
+
+    def document_links(self, args: dict) -> dict:
+        """The register links citing a document (``upward.document_links``, task-0143); the register's files only."""
+        import upward
+        try:
+            return upward.document_links(args.get("document"))
         except upward.UpwardError as e:
             raise ToolError(str(e)) from e
 

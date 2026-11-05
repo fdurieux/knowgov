@@ -3,6 +3,7 @@ concerns, and a code path to its application, the keys its header cites and its 
 
     python harness/upward.py key KEY
     python harness/upward.py code PATH [--instance DIR] [--ledger FILE]
+    python harness/upward.py doc DOCUMENT
 
 Two single hops, each read from files, never a walk and never the store:
 
@@ -20,6 +21,12 @@ Two single hops, each read from files, never a walk and never the store:
                empty: ``app``, ``keys`` and ``entry`` are null then, and an empty list or a null entry
                under ``read`` means the file cites nothing or the ledger holds no entry for it.
 
+``document_links``  the register links whose evidence cites DOCUMENT (a path of the subject's export
+               manifest; the subject's prefix, ``kit:``, and an ``#anchor`` may be given), each with the
+               evidence anchor, the link's type, state and owner, and the nodes at both ends with their
+               owning units: what the Browser's ``register-cites`` query joins, from the register's
+               files. A document the manifest does not hold is refused.
+
 Configuration (the MCP server's, read once at its start): the instance is ``--instance`` or
 ``KG_INSTANCE``, the ledger ``--ledger`` or ``KG_LEDGER``, the same variables the CI wrappers map
 (``instance/ci/knowgov-gate.sh``). PATH must stay inside the code map's root: an absolute path, a
@@ -28,7 +35,8 @@ Configuration (the MCP server's, read once at its start): the instance is ``--in
 Then the chain up composes: ``code_path`` names the application; ``register_impact walk=dependants``
 from it (with ``children`` for an application whose modules carry its links) reaches the processes and
 capabilities; ``register_nodes node=`` names a capability's ancestors. Standard library only; reads,
-never writes. Reports pinned by ``harness/schemas/key-nodes.schema.json`` and ``code-path.schema.json``.
+never writes. Reports pinned by ``harness/schemas/key-nodes.schema.json``, ``code-path.schema.json`` and
+``document-links.schema.json``.
 """
 from __future__ import annotations
 
@@ -90,6 +98,60 @@ def key_nodes(key, root: Path | None = None) -> dict:
     return {"schema_version": SCHEMA_VERSION, "tool": "key_nodes", "subject": SUBJECT.id, "key": key,
             "register": ri.source(root), "mapped": bool(rows), "rows": rows,
             "nodes": sorted({n["id"] for r in rows for n in r["nodes"]})}
+
+
+def _system() -> tuple[str, str]:
+    """The prefix the subject's evidence anchors carry (``kit:``, ``jef_kit:``) and its export manifest:
+    the subject's ``[register]`` table, read as the page's projection reads it (``page_subject``)."""
+    from subject import SUBJECT
+    anchor = SUBJECT.register.get("requirement_anchor", "")
+    return (anchor.split(":", 1)[0] if ":" in anchor else "kit") + ":", SUBJECT.register.get("export_manifest", "")
+
+
+def doc_key(anchor: str, files: dict, system: str) -> str | None:
+    """The manifest key an evidence anchor names: the prefix and the #anchor dropped, then the path as
+    written or under ``kit/`` (``demo/app/register_project._doc_key``'s rule; a test holds them equal)."""
+    a = anchor[len(system):] if anchor.startswith(system) else anchor
+    a = a.split("#", 1)[0]
+    for key in (a, "kit/" + a):
+        if key in files:
+            return key
+    return None
+
+
+def document_links(document, root: Path | None = None) -> dict:
+    """The register links whose evidence cites ``document`` (a path of the subject's export manifest, with
+    or without the subject's prefix or an #anchor), each with its anchor and the nodes at both ends and
+    their owners; UpwardError on a document neither the manifest holds nor a link cites."""
+    from subject import SUBJECT
+    if not isinstance(document, str) or not document.strip():
+        raise UpwardError(f"document {document!r}: a document path, as the subject's export manifest names it")
+    root = (root or ri.register_root()).resolve()
+    T = ri.load_tools(root)
+    reg = T["register"].load_register(root)
+    system, manifest_rel = _system()
+    manifest = T["register"].load_toml(root / manifest_rel) if manifest_rel and (root / manifest_rel).is_file() else {}
+    files = manifest.get("files", {})
+    key = doc_key(document if document.startswith(system) else system + document, files, system)
+    links = []
+    for rname, rel in reg["relationships"].items():
+        for ln in rel["links"]:
+            for ev in ln.get("evidence", []):
+                if not ev.startswith(system) or doc_key(ev, files, system) != key or key is None:
+                    continue
+                tgt = ln.get("target")
+                links.append({"id": ln["id"], "type": rname, "state": ln.get("state", ""), "owner": ln.get("owner"),
+                              "evidence": ev, "anchor": ev.split("#", 1)[1] if "#" in ev else None,
+                              "source": {**_node(reg, ln["source"]), "owning_unit": ri.owning_unit(reg, ln["source"])},
+                              "target": None if not tgt else {**_node(reg, tgt), "owning_unit": ri.owning_unit(reg, tgt)},
+                              "target_external": ln.get("target_external")})
+    if key is None:
+        raise UpwardError(f"{document}: no document of {SUBJECT.id}'s export manifest ({manifest_rel or 'none named'}) "
+                          f"under the prefix {system}")
+    links.sort(key=lambda x: (x["id"], x["evidence"]))
+    return {"schema_version": SCHEMA_VERSION, "tool": "document_links", "subject": SUBJECT.id, "document": key,
+            "system": system, "export_manifest": manifest_rel, "digest": files.get(key, ""), "register": ri.source(root),
+            "links": links, "nodes": sorted({x["id"] for ln in links for x in (ln["source"], ln["target"]) if x})}
 
 
 def _rel(path) -> str:
@@ -182,9 +244,12 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("path")
     c.add_argument("--instance", help="the instance (default: KG_INSTANCE)")
     c.add_argument("--ledger", help="the trace ledger (default: KG_LEDGER)")
+    d = sub.add_parser("doc", help="the register links whose evidence cites a document")
+    d.add_argument("document")
     a = ap.parse_args(argv)
     try:
-        rep = key_nodes(a.key) if a.cmd == "key" else code_path(a.path, config(a.instance, a.ledger))
+        rep = (key_nodes(a.key) if a.cmd == "key" else document_links(a.document) if a.cmd == "doc"
+               else code_path(a.path, config(a.instance, a.ledger)))
     except UpwardError as e:
         print(f"upward: {e}", file=sys.stderr)
         return 2

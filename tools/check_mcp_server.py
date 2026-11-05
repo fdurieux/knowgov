@@ -27,7 +27,9 @@ Then ask ``register_nodes`` for the whole register, each taxonomy, and the linea
 the subject's first map row: every node by id, the parent chain to the root and the children (task-0142).
 Then ask ``key_nodes`` for every key of the subject's register map, and, on the example instance (``KG_INSTANCE``,
 ``KG_LEDGER`` set before the server starts, the reference code registered by ``trace.py register``), ``code_path``
-for the reference code and the climb to a capability's ancestors (task-0143).
+for the reference code and the climb to a capability's ancestors, and ``document_links`` for the first row's
+anchored document (task-0143). Once, store-free: the file-only tools listed and answering alike over stdio and
+HTTP, and the shipped managed allowlist admitting the server by name (task-0142, task-0143).
 Then ask ``scenario_runs`` and require the subject's scenarios in order, the held scenario this one with
 ``store_status``'s ``loaded_at``, the record's D6 verdict for it, and no run in progress (task-0128);
 and ``scenario_result`` on the record with that verdict, read from files (task-0129).
@@ -476,11 +478,58 @@ def check_upward(client: "StdioClient", ex: dict | None, failures: list[str], la
     up = client.call("register_impact", {"node": ex["app"], "walk": "dependants", "children": True})
     caps = [x["id"] for x in up["reached"].get("CAP", [])]
     lineage = client.call("register_nodes", {"node": caps[0]})["lineage"] if caps else None
+    import schema_check
+    import upward
+    import register_impact as ri
+    system, man = upward._system()
+    reg = ri.load_tools()["register"].load_register(ri.register_root())
+    files = reg and ri.load_tools()["register"].load_toml(ri.register_root() / man).get("files", {}) if man else {}
+    cited = sorted({upward.doc_key(ev, files, system) for rel in reg["relationships"].values() for ln in rel["links"]
+                    for ev in ln.get("evidence", []) if ev.startswith(system)} - {None})
+    for doc in cited[:3]:
+        got_doc = client.call("document_links", {"document": doc})
+        if not got_doc["links"] or schema_check.validate(got_doc, schema_check.load("document-links")):
+            failures.append(f"{label}: document_links {doc} names no link, or a report off its schema")
     if not lineage or not lineage["ancestors"]:
         failures.append(f"{label}: the climb from {ex['file']} through {ex['app']} reached {caps}, lineage {lineage}")
         return
     print(f"{label}: key_nodes names every map key's rows; code_path {ex['file']} -> {ex['app']} (ledger {entry['id']}) "
           f"-> {caps} -> {caps[0]} under {[a['id'] for a in lineage['ancestors']]}, in 3 calls")
+
+
+FILE_TOOLS = ("register_nodes", "key_nodes", "code_path", "document_links")   # doc-0020's hops: files only, no store
+ALLOWLIST = ROOT / "instance" / "ci" / "claude" / "managed-mcp-allowlist.json"
+
+
+def check_transports(failures: list[str], ex: dict | None = None) -> None:
+    """doc-0020's tools served by the knowgov server on both transports (task-0142, task-0143): tools/list over
+    stdio and Streamable HTTP lists each, the same call answers the same on both, and the shipped managed
+    allowlist admits the server by its name, so no client changes to reach them."""
+    from subject import SUBJECT
+    key = next((r["key"] for r in SUBJECT.register_map().get("row", [])), None)
+    calls = [("register_nodes", {"taxonomy": "capabilities"}), ("register_nodes", {"node": "CAP-0002"})]
+    calls += [("key_nodes", {"key": key})] if key else []
+    calls += [("code_path", {"path": ex["file"] if ex else "reference_impl.py"})]
+    answers = {}
+    for name, cls in (("stdio", StdioClient), ("http", HttpClient)):
+        client = cls()
+        try:
+            listed = {t["name"] for t in client.request("tools/list", {})["result"]["tools"]}
+            missing = [t for t in FILE_TOOLS if t not in listed]
+            if missing:
+                failures.append(f"{name}: tools/list lacks {missing}")
+            answers[name] = [client.call(t, a) for t, a in calls]
+        finally:
+            client.close()
+    if answers.get("stdio") != answers.get("http"):
+        failures.append("the file-only tools answer differently over stdio and HTTP")
+    allowed = {x.get("serverName") for x in json.loads(ALLOWLIST.read_text(encoding="utf-8")).get("allowedMcpServers", [])}
+    sys.path.insert(0, str(HARNESS))
+    import mcp_server
+    if mcp_server.SERVER["name"] not in allowed:
+        failures.append(f"{ALLOWLIST.name} admits {sorted(allowed)}, not the server {mcp_server.SERVER['name']}")
+    print(f"transports: {', '.join(FILE_TOOLS)} listed over stdio and HTTP, {len(calls)} call(s) equal on both; "
+          f"{ALLOWLIST.name} admits {mcp_server.SERVER['name']}")
 
 
 def census() -> dict:
@@ -557,6 +606,7 @@ def main(argv: list[str] | None = None) -> int:
             failures.append(f"{sc}: the store changed while the server read it")
         if SUBJECT.scenario(sc).get("stage2"):
             check_stage2(sc, SUBJECT, failures)
+    check_transports(failures, ex)
     for f in failures:
         print("FAIL " + f, file=sys.stderr)
     print("MCP server: " + ("every check holds" if not failures else f"{len(failures)} failure(s)"))

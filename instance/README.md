@@ -678,7 +678,7 @@ to pull the published image instead of building it. One stack serves one instanc
 An AI coding assistant can ask knowgov the gate's question itself, before it writes anything:
 *may I build on this?* It does so through MCP, the Model Context Protocol, a standard way for an
 assistant to call tools a local program offers. `harness/mcp_server.py` is that program. It offers
-eleven tools, and all of them only read:
+twelve tools, and all of them only read:
 
 | Tool | What the assistant asks | What it gets back |
 |---|---|---|
@@ -691,6 +691,7 @@ eleven tools, and all of them only read:
 | `register_nodes` | Which register nodes are there, and what does this one sit under? | your register listed from its files, with no store: every node with its kind, name, state, owner and parent, filtered by taxonomy, kind, state, owning unit or parent (`null` for the top-level nodes), with the total and a limit; "what does ORG-x own" is this listing, since ownership is shown and never walked. With `node`, that node's lineage: every ancestor up to the root and its children with their states, named and never walked; for what rests on or implements a node, `register_impact` |
 | `key_nodes` | Which register nodes does this knowledge key concern? | the rows of your subject's `register_map.toml` on the key, each with the register nodes it names (kind, name, state, owner), the row's owner, anchor and note; a key your subject knows with no row reads `mapped: false`, one it does not know is refused. Read from files, no store |
 | `code_path` | Which application is this code file, which keys does it cite, and what was it built from? | for a path under your `code_map.toml` root: the application or module the map assigns, the keys the file's `knowgov-keys:` header cites (an unknown one flagged), and the trace ledger's entry for it (derived id, keys, statements, commit, digest, and whether the file has drifted since). Each part says `read` or `unchecked` with why: unchecked means not read, never empty. Read from files, no store |
+| `document_links` | Which register links cite this document? | the links of your register whose evidence cites the document (a path of your export manifest), each with the evidence anchor, the link's type, state and owner, and the nodes at both ends with their owning units: what the Browser's `register-cites` query shows, read from the register's files, no store |
 | `scenario_runs` | Which scenarios have been run, in which mode, and what did they show? | every scenario of your subject with its title and card line; what the record holds for it (deterministic results and the gate's verdict, the arms with how many runs and which model, the extra sources the subject declares); its runs newest first, each as its folder's `run.json` describes it (mode, model, as-of date, who started it, `page` or `mcp`, start, end, status, and the verdict of its results), or inferred, flagged `inferred`, for a folder from before `run.json`; the scenario the store holds and when it was loaded; and the run loading the store now, if any. Replay is not a run: it is the record shown, and nothing records it |
 | `scenario_result` | What did this record or this run show? | what the page's Replay shows for one source that `scenario_runs` lists (the record, an extra source, or a run): the gate's verdict and why, the date it read reviews on, every required key's level, and each arm's runs with its decision and oracle result. It reads that source's files, never the store, and says so: it is not what the store holds now |
 
@@ -718,8 +719,10 @@ The tools compose into the whole chain, one named step at a time and never one w
 from a capability to what it rests on: `register_impact` with `walk: realisers`, then `evidence_bundle`
 with the keys it lands on. Up, from a code file to the business: `code_path`, `key_nodes` for a cited
 key, `register_impact` with `walk: dependants` from the application (with `children` when its modules
-carry the links), then `register_nodes` with `node` for the capability's ancestors. The server's own
-instructions tell the assistant the same.
+carry the links), then `register_nodes` with `node` for the capability's ancestors. From a document,
+`document_links` names the register links that cite it. The server's own instructions tell the
+assistant the same. Every tool is offered over stdio and HTTP alike, and the managed allowlist under
+`instance/ci/claude/` admits the server by its name, `knowgov`, so a new tool needs no client change.
 
 The server reads review currency on one date for as long as it runs: `KG_AS_OF` (or `--as-of`), a
 date as `YYYY-MM-DD`, `record` (the subject's pinned record date) or `today`, which is the default.

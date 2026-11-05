@@ -222,3 +222,53 @@ def test_the_command_prints_the_same_reports():
     bad = subprocess.run([sys.executable, str(ROOT / "harness" / "upward.py"), "code", "../x"],
                          capture_output=True, text=True, timeout=60)
     assert bad.returncode == 2 and bad.stdout == ""
+
+
+DOCS = schema_check.load("document-links")
+
+
+def test_document_links_are_the_projections_cites_for_every_document():
+    """Each document's links equal what the page's projection (demo/app/register_project) cites it with: the
+    same evidence rule, read from the register's files, never the store; no document cited, none refused."""
+    sys.path.insert(0, str(ROOT / "demo" / "app"))
+    import register_project as rp
+    cites = rp.rows(loaded_at="2026-10-31T00:00:00+00:00")["cites"]
+    by_doc: dict[str, set] = {}
+    for c in cites:
+        by_doc.setdefault(c["path"], set()).add((c["reg_id"], c["anchor"]))
+    assert by_doc, "the subject's register cites no document"
+    for doc, want in by_doc.items():
+        rep = _valid(upward.document_links(doc), DOCS)
+        assert rep["document"] == doc and {(ln["id"], ln["evidence"]) for ln in rep["links"]} == want, doc
+        for ln in rep["links"]:
+            assert ln["source"]["owning_unit"]["unit"] and (ln["target"] is None or ln["target"]["owning_unit"]["unit"])
+            assert ln["anchor"] == (ln["evidence"].split("#", 1)[1] if "#" in ln["evidence"] else None)
+        assert rep["nodes"] == sorted({x["id"] for ln in rep["links"] for x in (ln["source"], ln["target"]) if x})
+    system, _ = upward._system()
+    doc = sorted(by_doc)[0]
+    tail = doc[len("kit/"):] if doc.startswith("kit/") else doc
+    assert upward.document_links(system + tail + "#anything")["document"] == doc   # prefix and anchor accepted
+    for bad in ("nope.md", "", 7, None):
+        try:
+            upward.document_links(bad)
+        except upward.UpwardError:
+            continue
+        raise AssertionError(bad)
+
+
+def test_the_file_only_tools_are_listed_and_answer_alike_on_both_transports_and_the_allowlist_admits_them():
+    """task-0142 and task-0143, served over MCP: the server process lists every doc-0020 tool over stdio and
+    Streamable HTTP and answers each the same; the managed allowlist admits the server by name."""
+    import check_mcp_server
+    failures: list[str] = []
+    old = {k: os.environ.get(k) for k in ("KG_INSTANCE", "KG_LEDGER", "KG_STORE", "KG_RDFLIB_FILE", "KG_AS_OF")}
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            os.environ.update(KG_STORE="rdflib", KG_RDFLIB_FILE=str(Path(d) / "absent.ttl"), KG_AS_OF="2026-11-04")   # the clock is pinned
+            if SAME:
+                os.environ.update(KG_INSTANCE=str(_instance()), KG_LEDGER=str(Path(d) / "ledger.json"))
+            check_mcp_server.check_transports(failures)
+    finally:
+        for k, v in old.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+    assert failures == [], failures
