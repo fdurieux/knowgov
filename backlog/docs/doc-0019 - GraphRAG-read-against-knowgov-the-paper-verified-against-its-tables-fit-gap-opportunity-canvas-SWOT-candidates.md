@@ -5,7 +5,7 @@ title: >-
   opportunity canvas, SWOT, candidates
 type: specification
 created_date: '2026-11-05T17:21:00Z'
-updated_date: '2026-11-05T17:22:00Z'
+updated_date: '2026-11-05T21:10:00Z'
 tags:
   - canvas
   - swot
@@ -115,3 +115,38 @@ The paper's own statement of the trade-off: a graph is "either hand-crafted (ext
 - A GraphRAG graph already running at the pilot: C6 unparked.
 
 Unchanged: the gate's verdict stays deterministic and no model output moves it; the record stays frozen; the store port stays as it is; no bank-related data, ever.
+
+## 7. C1 measured, 2026-11-05: parked
+
+*task-0139, on the maintainer's go of this date. The bar was committed before the first measured run (`ce686c3`), and how each check is read was committed with the measurement (`0cf5dcf`). Model `gpt-5.5-2026-04-23` through `arms.endpoint()`, reasoning effort medium, the key injected by the session proxy, prompt in English and saying so. Public subjects only: CargoQuote S1–S3 (tasks `codegen` and `design`) and J-F C (`codegen`). Raw replies stay in the session's scratch directory. Nothing was ingested and no capture folder was written. Tool: `tools/route_c_documents.py`.*
+
+**Method.** For each mapped document, the measurement withholds that document's mapper (`single`, the brief's shape) or every mapper (`all`, an instance of unmapped kinds only). It asks for the task's required keys at `absent`/`declared_gap` and scores each proposal through `rules.compatible` against the withheld mapper's value or raw symbol: *match*, *wrong* (the mapper states the key with another value) or *invention* (the mapper states nothing on it). Value forms are given by shape only. 98 calls in all, about 0.44 M tokens. Four calls returned 502 twice: the J-F `contracts/dmn/` and `uml/` documents in `all`, and CargoQuote S2's and S3's `acceptance.feature` in `all`. They are reported, not scored.
+
+| Bar (AC #1) | Read as | Result |
+|---|---|---|
+| No value for S2's declared gap | no proposal on a `declared_gap` key, either mode | **Held**: 0 in `single` (20 documents) and `all` (19) |
+| No silent resolution of S3's vague wording | `all`, the only mode that asks the vague thresholds | **Held**: 0. The decision table's bands came back as written ("below the low forties", "up to the mid-sixties"); the sequence diagram's came back as its symbols (`ACCEPT_MAX`), never as a number |
+| Precision ≥ 0.9 on S1 | `single`, pooled over S1's documents and both classes | **Missed: 0.56** (19 of 34; recall 0.56; 0 inventions) |
+
+| Pooled | Proposed | Match | Wrong | Invented | Precision | Recall |
+|---|---|---|---|---|---|---|
+| CargoQuote S1 single | 34 | 19 | 15 | 0 | 0.56 | 0.56 |
+| CargoQuote S2 single | 39 | 19 | 14 | 6 | 0.49 | 0.58 |
+| CargoQuote S3 single | 34 | 19 | 15 | 0 | 0.56 | 0.56 |
+| CargoQuote S1 all | 244 | 81 | 69 | 94 | 0.33 | 0.53 |
+| CargoQuote S2 all | 213 | 80 | 59 | 74 | 0.38 | 0.56 |
+| CargoQuote S3 all | 206 | 61 | 69 | 76 | 0.30 | 0.47 |
+| J-F C single (`requirements.json`) | 163 | 163 | 0 | 0 | 1.00 | 1.00 |
+| J-F C all | 419 | 163 | 0 | 256 | 0.39 | 1.00 |
+
+**What the misses are.** S1's 15 wrong answers are of two kinds.
+- Eight are the requirement texts. The model copied each `REQ-0n` statement and left out the bracketed reference that the mapper keeps in the value.
+- Seven are value forms. On behaviour keys the model used its own field names and words ("stored=never changes" against `stored=unchanged`). It wrote `flow|order` as prose against `validate>store>…`, and kept a prefix the mapper strips ("base = …", "applied after P2").
+
+Allowing the eight citation misses would still give 27 of 34 (0.79), under the bar. A prose kind has no mapper to set the form, so this is the gap the route would have to close. In S2, six documents each proposed `review_hold` (or a variant) for `response|hold_presence`. That key is absent because the plant deleted the outage rule. These six proposals are not fills of the declared gap, but each is a wrong value on a key next to it. In `all` mode, a document asked about keys it does not state still answers: 74–94 inventions per CargoQuote scenario, and 256 statements proposed from J-F documents that hold none. On J-F, reading the requirements back from the document that states them is verbatim copying, and it scores 1.0.
+
+**Decision: park the document route** (fragment-named proposals into `<capture dir>/inferred/`). Both safety checks held: the model filled no declared gap and resolved no vagueness. It is not accurate enough to propose: under half of what it proposes on S1 is the value the mapper holds. With every mapper withheld, it also proposes on keys a document does not state. Proposals at this precision would reach the owner as work, not as confirmations. Unchanged: route (c) over transcripts, decision-0002, and the gate. C2 stays parked (§6: "C1 meeting its bar: C2 unparked").
+
+**What would reopen it.**
+- A pilot whose prose kinds come with a key vocabulary per predicate (the forms as values, not shapes), which would remove the form misses.
+- A model or prompt that clears 0.9 on S1 `single` with S2 and S3 still held, measured with this tool unchanged. The bar does not move.
