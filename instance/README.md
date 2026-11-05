@@ -994,9 +994,12 @@ the page so it lists the subject; relaunch or re-register both servers with
 `-e KG_SUBJECT=/instance/subjects/<id>` and reconnect the client; then load `S0` (on the page, or
 `start_run` on `knowgov-runs`), knowing the load replaces what everyone else viewing that store sees.
 
-Claude Desktop lists a server's prompts in its attach menu, as far as we know; this has not been
-tried here, and Desktop's assistant cannot write files without a file extension. There, the
-procedure is "check and ask": `subject_check` on what you paste, no dry run.
+**Claude Desktop's role, for now: asking the gate, not onboarding.** In Claude Desktop, use the
+server to ask `gate_verdict`, `evidence_bundle`, `three_valued_answer`, `register_impact` and
+`proposal_impact`. Creating a subject is Claude Code's job: it writes files on a branch, runs the
+checks and the dry run, and opens the pull request. Whether Desktop lists these prompts and runs
+`subject_check` has not been tried yet. Until that test shows both, treat Desktop's assistant,
+which writes no files without a file extension and has no shell, as unfit to onboard a subject.
 
 ## A fail-closed hook for Claude Code
 
