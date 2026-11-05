@@ -91,11 +91,14 @@ def test_the_never_list_and_the_stop_condition_say_what_they_must():
         assert s in stop, s
     allp = "\n".join(wizard.parts().values())
     # doc-0021 §8: the workarounds, the order and the manual steps after the merge
-    for s in ("yield.artefacts", "is the wrong convention", "always write `short`", "different entity is not a typo",
-              "| REQ-nn | text |", "proposal_impact", "commented out", "spelling, then mapper fit, then attestation",
-              "restart the page", "KG_SUBJECT=/instance/subjects/<id>", "start_run", "replaces what everyone",
+    for s in ("zero-yield", "not in that mapper's convention", "refuses a mapped artefact without", "is not a typo",
+              "| REQ-nn | text |", "register_nodes", "proposal_impact", "commented out", "spelling, then mapper fit, then attestation",
+              "no restart", "KG_SUBJECT=/instance/subjects/<id>", "start_run", "replaces what everyone",
               "subject_check", "readiness card"):
         assert s in allp, s
+    # B1 and B2 (task-0149, task-0150) retired these workarounds: the check and the page do it now
+    for gone in ("always write `short`", "restart the page", "yield.artefacts"):
+        assert gone not in allp, gone
 
 
 def test_only_tools_that_exist_are_named():
@@ -108,7 +111,7 @@ def test_only_tools_that_exist_are_named():
                  "dmn_decisions", "gherkin_tagged", "decision_table", "code_unit", "decision_table"}
     unknown = named - tools - not_tools - set(wizard.MAPPERS)
     assert not unknown, unknown
-    for t in ("subject_check", "register_impact", "proposal_impact", "gate_verdict", "start_run"):
+    for t in ("subject_check", "register_nodes", "register_impact", "proposal_impact", "gate_verdict", "start_run"):
         assert t in tools and t in allp, t
 
 

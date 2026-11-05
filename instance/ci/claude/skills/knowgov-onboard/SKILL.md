@@ -70,31 +70,33 @@ Ask at most five questions, only what only a person knows:
 
 Derive and show everything else; do not ask for it. Work in this order, and show before writing:
 
-1. **The register.** Ask `register_impact` from the nodes the person names (a capability, a
-   process, an application) for what the task touches and who owns it. For a subject about a new
+1. **The register.** Find the nodes the task touches with `register_nodes` (the register listed by
+   taxonomy, kind, owning unit or parent; with `node`, one node's lineage), then ask
+   `register_impact` from them for what rests on them and who owns it. For a subject about a new
    product, capability or journey, ask `proposal_impact` first: its reused nodes' keys seed the
    task's keys, and its unmapped new nodes are the questionnaire's first page. A node the register
    lacks is a register pull request the owners approve, in the register's own repository; not
    here.
 2. **The documents into their kinds.** Each document goes to `artefacts/<kind>/` (the kinds table
-   below). Pick its mapper by trial: propose the kind's mappers in turn and read the check's
-   `yield.artefacts` for that document. **A document at 0 is the wrong convention, never "no
-   knowledge here"**: try the kind's other mappers before concluding, then report it ABSENT. Say
-   so when a requirements file's ids are not `REQ-nn`: the `requirements` mapper reads only
-   `| REQ-nn | text |` rows, and the person decides what to do; never rewrite their ids. Run the
+   below). Pick its mapper by trial: propose the kind's mappers in turn and read the check. A
+   `zero-yield` WARNING means the document is not in that mapper's convention, never that it holds
+   no knowledge: it names what the mapper reads and the kind's other mappers; try them, and if
+   none yields, leave `mapper` out so the document is reported ABSENT. Say so when a requirements
+   file's ids are not `REQ-nn`: the `requirements` mapper reads only `| REQ-nn | text |` rows, and
+   the person decides what to do; never rewrite their ids. Run the
    pre-load check on its form where a linter exists (`tools/preload_check.py`).
 3. **The manifest.** Write `subjects/<id>/subject.toml` from `subjects/minimal/subject.toml`:
    `[subject]` (id, name, a one-line description, `listed = false` until the person says), one
    `[[artefact]]` per document, and `[tasks.<class>]`. An artefact needs `key` and `short` (both
-   from the file's stem, unique in the subject: **always write `short`**, the mappers index by
-   it), `path` (`../../artefacts/<kind>/<file>`), `mapper`, and `family`, `format`, `label`,
+   from the file's stem, unique in the subject; the check refuses a mapped artefact without
+   `short`), `path` (`../../artefacts/<kind>/<file>`), `mapper`, and `family`, `format`, `label`,
    `format_label` from the kind and the mapper. Copy `scenarios.toml` with its pristine `S0` from
    `subjects/minimal/`: the gate runs on a scenario and refuses a subject with none.
 4. **The keys.** Write `[tasks.<class>] keys` from the task's own sources, with `block_levels`
    and `max_unverified_share` as `subjects/minimal/` has them unless the person says otherwise.
-   Then read the check's yield beside them. A WARNING whose did-you-mean names the same entity
-   (`REQ-03|txt`, did you mean `REQ-03|text`) is a typo: fix it. **A did-you-mean that names a
-   different entity is not a typo**: say "no document states `<key>`", and leave it for its owner.
+   Then read the check's yield beside them. A WARNING with a did-you-mean (`REQ-03|txt`, did you
+   mean `REQ-03|text`) is a typo: fix it. A NOTE that no document states a key, the nearest being
+   another entity's, is not a typo: leave the key as it is, for its owner.
    Write `register_map.toml` rows placing each key on the register nodes it rests on; a row's
    `owner` must be one of those nodes' owners.
 5. **The attestation stanza.** Write it commented out, with a placeholder handle, and say what
@@ -121,8 +123,8 @@ The person names the subject and the document. Then:
 
 1. Place the document in its kind's folder, `artefacts/<kind>/` (the kinds table below); never
    edit its content.
-2. Pick its mapper by trial, as for a new subject: the check's `yield.artefacts` for the document
-   must not be 0. Run its form check where a linter exists.
+2. Pick its mapper by trial, as for a new subject: the check must show no `zero-yield` WARNING
+   for the document. Run its form check where a linter exists.
 3. Add one `[[artefact]]` to the subject's `subject.toml`: `key` and `short` from the file's stem,
    unique in the subject; `path`, `mapper`, and `family`, `format`, `label`, `format_label` from
    the kind and the mapper. Touch no other table: `[verification]` and `[provenance]` are a
@@ -144,16 +146,16 @@ Open one pull request per subject, from the branch, with a readiness card in its
 - per key: yielded or not, the did-you-mean if any, its owner, its level at the dry run;
 - the stop condition's three answers, and the owners' questionnaires attached.
 
-A person reviews and merges it; you do not. After the merge, until knowgov reads a new subject
-without reconfiguration, these steps are manual; name them with their commands:
+A person reviews and merges it; you do not. After the merge, the page lists the new subject on
+its next request, with no restart. Until the MCP servers answer for any subject, these steps are
+manual; name them with their commands:
 
-1. restart the page, so it lists the subject (`docker compose restart app` in the stack's folder);
-2. relaunch or re-register both MCP servers for the subject, with
+1. relaunch or re-register both MCP servers for the subject, with
    `-e KG_SUBJECT=/instance/subjects/<id>` in their `exec` command, and reconnect the client
    (`/mcp` in Claude Code; quit and reopen Claude Desktop);
-3. load `S0` with `start_run` on `knowgov-runs`, saying first that the load replaces what everyone
+2. load `S0` with `start_run` on `knowgov-runs`, saying first that the load replaces what everyone
    else viewing that store sees;
-4. ask `gate_verdict` with `scenario` `S0` for the task class.
+3. ask `gate_verdict` with `scenario` `S0` for the task class.
 <!-- /part -->
 
 <!-- part:reference -->

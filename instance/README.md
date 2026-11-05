@@ -975,10 +975,11 @@ Code *skill*, a procedure the assistant loads by name, for a session without the
 skill and the prompts are one text (`harness/wizard.py` builds the prompts from the skill), and it
 carries the kinds table and what each mapper reads (`instance/mappers.toml`), so the assistant need not look them up.
 
-**What happens, in order.** The register first (`register_impact` for the nodes the task touches;
-`proposal_impact` first for a new product); then each document into its kind's folder, its mapper
+**What happens, in order.** The register first (`register_nodes` to find the nodes the task
+touches, `register_impact` for what rests on them and who owns it; `proposal_impact` first for a
+new product); then each document into its kind's folder, its mapper
 picked by what the check reports it yields (a document that yields nothing is the wrong mapper, not
-an empty document); then the manifest, with the pristine scenario `S0` from `subjects/minimal/`;
+an empty document, and the check's *zero-yield* warning says so); then the manifest, with the pristine scenario `S0` from `subjects/minimal/`;
 then the task's keys and the register map rows; then the attestation lines, written commented out
 with what their absence costs; and last, for a key still missing, the owners' questionnaires. After
 every write it checks (`subject_check`, or `tools/check_subject.py` and `tools/check_instance.py`
@@ -989,8 +990,8 @@ branch exits 0 or 1 (never 2, cannot run), and every remaining finding is knowle
 and a route. Then it opens the pull request, with a readiness card (per document: kind, mapper,
 yield, form; per key: yielded or not, owner, level) and the questionnaires.
 
-**After the merge,** until knowgov picks up a new subject by itself, three steps are yours: restart
-the page so it lists the subject; relaunch or re-register both servers with
+**After the merge,** the page lists the new subject on its next request, with no restart. Until
+the servers answer for any subject, two steps are yours: relaunch or re-register both servers with
 `-e KG_SUBJECT=/instance/subjects/<id>` and reconnect the client; then load `S0` (on the page, or
 `start_run` on `knowgov-runs`), knowing the load replaces what everyone else viewing that store sees.
 
