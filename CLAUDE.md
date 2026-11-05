@@ -115,7 +115,9 @@ fast-forwarded from the session branch on the owner's say-so. Open a PR, wait
 for the whole matrix, merge on green, never on red or pending. The session that
 opened a PR merges it itself once the whole matrix is green (a skipped `publish`
 counts as green), without asking; a PR the brief says the parent session merges
-is left to it.
+is left to it. With a coordinating session, the coordinator merges every sub-session's PR
+itself as soon as its whole matrix is green, and the sub-sessions neither merge nor enable
+auto-merge (maintainer, 2026-11-05: "perform the merge yourself, whenever possible").
 
 GitHub auto-merge is on (2026-11-03): the ruleset on `main` requires `tests` and `rdflib`, not
 `stack` (path-filtered, so a required `stack` would leave a PR pending forever) and not an
