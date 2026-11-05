@@ -592,7 +592,9 @@ seven tools, and all of them only read:
 
 While a run of your subject is loading the store (its `run.json` reads `running` and the page has
 rewritten it in the last 120 seconds; it does so every 30), `gate_verdict`, `three_valued_answer` and
-`evidence_bundle` refuse and name the run, since a read then sees part of a graph. Ask again when it
+`evidence_bundle` refuse and name the run, since a read then sees part of a graph; so do
+`register_impact` and `proposal_impact` when they would read key levels from the store (with no
+scenario loaded they answer from the register alone, as before). Ask again when it
 has ended. A page that stops mid-run leaves a `running` file whose heartbeat goes stale; it no longer
 blocks, and the page closes it as failed (`page restarted`) when it starts again.
 
