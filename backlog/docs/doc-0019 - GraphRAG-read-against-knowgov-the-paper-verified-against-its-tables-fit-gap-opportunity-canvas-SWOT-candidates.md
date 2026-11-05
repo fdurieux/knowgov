@@ -5,7 +5,7 @@ title: >-
   opportunity canvas, SWOT, candidates
 type: specification
 created_date: '2026-11-05T17:21:00Z'
-updated_date: '2026-11-05T17:22:00Z'
+updated_date: '2026-11-05T20:42:00Z'
 tags:
   - canvas
   - swot
@@ -99,7 +99,7 @@ The paper's own statement of the trade-off: a graph is "either hand-crafted (ext
 | # | Candidate | Disposition |
 |---|---|---|
 | C1 | Route (c) over a document: key-constrained proposals from prose kinds, each naming its fragment and digest so a change invalidates it, listed in the questionnaire, never promoted. Scored first on the public subjects' mapped documents with the mapper withheld, the mapper's assertions the truth (`rules.compatible`). Bar set before the run: no value for S2's declared gap, no silent resolution on S3, precision ≥ 0.9 on S1; missed, it parks. Structured kinds get a mapper instead | **Spike**, task-0139, m-6, behind m-8's prerequisites unless the pilot asks |
-| C3 | A compact bundle form (verdict, policy, key headers, assertion lines, the conflict, stale, lapsed and suspect sections; no text, evidence, verification or approval lines), measured on CargoQuote S1–S7, 5 runs per form, one current model, as a deviation never written into `results/`. Hypothesis: M1 unchanged, M4 and M5 within the full form's range, prompt tokens ≤ 40 % of the full form's | **Spike**, task-0140, m-8; an `evidence_bundle` option only if it holds |
+| C3 | A compact bundle form (verdict, policy, key headers, assertion lines, the conflict, stale, lapsed and suspect sections; no text, evidence, verification or approval lines), measured on CargoQuote S1–S7, 5 runs per form, one current model, as a deviation never written into `results/`. Hypothesis: M1 unchanged, M4 and M5 within the full form's range, prompt tokens ≤ 40 % of the full form's | **Spike**, task-0140, m-8; an `evidence_bundle` option only if it holds. Measured 2026-11-05 (§7): it did not hold, no option |
 | C4 | GraphRAG as the adjacent category in doc-0012 §4, and the line *GraphRAG makes an answer faithful to its graph; knowgov says whether the graph may be built on* | **Document**, done: dated entry in doc-0012 §4 |
 | C2 | Contradiction candidates across prose fragments, blocked by a shared entity, register node or glossary term; one model call per pair; info findings in the pre-load report or the questionnaire, never a gate input (decision-0002 gives a model no ruling) | **Park** until C1 has run; ground truth S4, D1/D2, negative control D3/D5 |
 | C5 | M5 extended: the claim's value against the cited assertion's, mechanically | **Park**; useful if C3 loosens the inline evidence |
@@ -115,3 +115,55 @@ The paper's own statement of the trade-off: a graph is "either hand-crafted (ext
 - A GraphRAG graph already running at the pilot: C6 unparked.
 
 Unchanged: the gate's verdict stays deterministic and no model output moves it; the record stays frozen; the store port stays as it is; no bank-related data, ever.
+
+## 7. C3 measured, 2026-11-05 (task-0140)
+
+**A deviation run, not the record.**
+- Model: `gpt-5.5-2026-04-23` at effort `low`; the record's model is `gpt-5.1-2025-11-13`.
+- Run: the governed arm only, CargoQuote S1–S7, 5 runs per form, on the rdflib store, as of the record's date.
+- Driver: a scratch script that binds `gate.render_bundle` to a form inside `harness/run.py`'s `deterministic`, `stage2` and `arm_runs`.
+- Storage: raw outputs in the session's scratch directory, never in `results/` or `runs/`.
+- Cost: 70 calls, 891,819 tokens (full 637,402, compact 254,417).
+
+The hypothesis was committed before any call, in task-0140 and on PR #235:
+- H1: no code under BLOCKED, and the same modal M1.
+- H2: compact's median M4 and median M5 within the full form's [min, max].
+- H3: compact's mean prompt tokens ≤ 40 % of full's.
+
+One amendment to the run design was made before any scored reply. At the API's default effort the model sent no byte for 30 s, and the session proxy answers that with a 502, so both forms ran at effort `low`.
+
+| Scenario | Gate | Prompt tokens full / compact | Ratio | M1 full / compact | Code under BLOCKED | M4 full (per run) | M4 compact (per run) | M5 full | M5 compact | H1 | H2 | H3 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| S1 | PROCEED | 17,827 / 5,161 | 29.0 % | generate 5/5 / generate 5/5 | – | 11,11,11,11,11 | 11,11,11,11,11 | 1.0 ×5 | 1.0 ×5 | ✓ | ✓ | ✓ |
+| S2 | BLOCKED | 16,516 / 4,968 | 30.1 % | abstain 5/5 / abstain 5/5 | 0 / 0 | 0 ×5 | 0 ×5 | no refs | no refs | ✓ | ✓ | ✓ |
+| S3 | QUALIFIED | 15,210 / 5,327 | 35.0 % | gwa 5/5 / gwa 5/5 | – | 11,11,11,11,11 | 10,11,10,11,10 | 1.0 ×5 | 1.0 ×5 | ✓ | **✗** M4 | ✓ |
+| S4 | BLOCKED | 18,531 / 6,002 | 32.4 % | abstain 5/5 / abstain 5/5 | 0 / 0 | 0 ×5 | 0 ×5 | no refs 4, 3/3 1 | no refs ×5 | ✓ | ✓ | ✓ |
+| S5 | BLOCKED | 16,615 / 5,038 | 30.3 % | abstain 5/5 / abstain 5/5 | 0 / 0 | 0 ×5 | 0 ×5 | no refs | no refs | ✓ | ✓ | ✓ |
+| S6 | PROCEED | 18,438 / 5,697 | 30.9 % | generate 5/5 / generate 5/5 | – | 11,11,11,11,11 | 11,11,11,11,10 | 1.0 ×5 | 1.0 ×5 | ✓ | ✓ | ✓ |
+| S7 | BLOCKED | 13,431 / 7,058 | **52.6 %** | abstain 5/5 / abstain 5/5 | 0 / 0 | 0 ×5 | 0 ×5 | no refs | no refs | ✓ | ✓ | **✗** |
+
+Reading the table:
+- gwa is `generate_with_assumptions`.
+- Prompt tokens are the API's `usage`, identical across the five runs of a form.
+- M5 is the resolved share of the reply's refs; "no refs" means an abstention with no claims, for which M5 is undefined.
+- On S4, compact's median and full's median are both "no refs", so H2 is read as met.
+- M6 (non-compliance) is 0 in all 70 runs.
+
+**Outcome: the hypothesis does not hold.**
+
+- **H1 holds on all seven scenarios.** No code under BLOCKED in 20 of 20 compact runs, and every decision equals the full form's in all 70 runs. Abstention does not rest on the inline evidence.
+- **H2 misses on S3, M4.** S3 plants an ambiguous boundary. The compact form fails its target `accept_boundary_41` in 3 of 5 runs, against 0 of 5 in full form. Each failing run still flags the boundary keys as assumptions with the right refs (`A:dt:S-accept|max@v1` …), so M5 stays 1.0 while the value chosen is wrong.
+  - The quoted evidence is what disambiguated the boundary. That is M5's blind spot, which C5 names: a ref that resolves is not a value that matches.
+  - On S6, one compact run fails `price_exact_heavy`; the median stays at 11.
+- **H3 misses on S7 (52.6 %),** as §2's character count foresaw; the other six scenarios range from 29.0 % to 35.0 %. S7's bundle carries no verification or approval lines to drop. Its share is set by the conflict, stale and gap lines the compact form keeps.
+
+**Decision: no compact `evidence_bundle` option.**
+- `evidence_bundle` keeps the full form only.
+- The render option stays in `gate.py`, where it costs nothing and lets the run be repeated.
+- The compact form saves about two thirds of the prompt where the gate stops the build, without moving a decision. Where the arm builds on qualified knowledge, it costs a planted defect the full form catches.
+- Two possible answers to a buyer's token question, neither measured here:
+  - compact under BLOCKED and full otherwise, a per-verdict form;
+  - compact with the evidence of qualified keys kept.
+
+  Either would be a new hypothesis and a new run. C5 (claim value against the cited assertion) is what would have caught S3's miss mechanically.
+- Unchanged: the record, the comparator, the default form, and the MCP server's contract.
