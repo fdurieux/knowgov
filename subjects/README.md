@@ -12,7 +12,7 @@ change to the harness or the page.
 | file | holds | required |
 |---|---|---|
 | `subject.toml` | the manifest: the artefacts, the reference code, the oracle, the provenance and verification constants, the task classes, the three-valued keys, the rules' subject constants, the register view's constants, the record | yes |
-| `scenarios.toml` | the recorded scenarios: the card and the Planted line, the harness's switches per scenario, the measures' keyword sets and targets, the page's extra sentences, the placement on the systemic model | no: a subject with none offers no scenario to replay or re-run |
+| `scenarios.toml` | the recorded scenarios: the card and the Planted line, the harness's switches per scenario, the measures' keyword sets and targets, the page's extra sentences, the placement on the systemic model | for the gate: `gate_cli.py` runs on a scenario and exits 2 on a subject with a task and none (doc-0018 F3); one with none offers no scenario to replay or re-run |
 | `plants.toml` | the mechanical patches a scenario applies to the pristine kit, a stage-2 change, and a model-proposed assertion | no |
 | `queries.toml` | saved Cypher that names the subject's keys or scenarios; the page lists them after its generic ones | no |
 | `register_map.toml` | the approved map from required keys to register nodes, for the footprint; a row's optional `owner`, one of its nodes' owners, is the one unit the key's questionnaire goes to (task-0043) | no |
@@ -131,6 +131,25 @@ numbers = { planted = 15, reached_code = 6 }
 ```
 
 ## `scenarios.toml`
+
+A subject that declares a task declares at least one scenario: the gate loads one, and with none
+`gate_cli.py` exits 2 ("no scenario ''; the subject declares none"), and `check_instance.py` does
+not catch it yet (doc-0018 F3; task-0135 adds the check). The smallest is a pristine scenario, the
+pattern `subjects/minimal/scenarios.toml` follows: the kit as committed, nothing planted.
+
+```toml
+[[scenario]]
+id = "S0"
+title = "pristine"
+represented = "The documents as committed."
+gate = "BLOCKED"              # what the page's card shows as the record's verdict; the gate computes its own
+defect = "None planted."
+plant = "Nothing was planted: the subject's documents as committed."
+plain = "The subject's documents as they are, with nothing planted."
+extraction = "pristine"
+```
+
+The full set of fields, as CargoQuote's S6 uses them:
 
 ```toml
 [[scenario]]

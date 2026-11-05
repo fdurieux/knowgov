@@ -395,6 +395,37 @@ plus CargoQuote's documents, sorted into their kinds. It then runs the check on 
 only into the folder you name. The demo's CI mounts that folder read-only, replays a scenario,
 runs one deterministically, and confirms afterwards that not one byte of the folder changed.
 
+## Who vouches for a document
+
+Each statement knowgov holds has a *status*: proposed, then validated, verified and approved, the
+last being the highest. For a statement taken from a document, the status says who has vouched
+for it, and the gate relies on it to decide whether an assistant may build.
+
+Today, a document that a mapper reads as *authored* (requirement text, the links between
+documents, a decision table's rules) loads as reviewed and approved by the subject's human agent.
+That happens whether or not anyone reviewed it. If `subject.toml` declares no `[verification]` and
+no `[provenance]`, the agent is the default one, `agent:maintainer`, and the approval's record is
+the word `approval`. So a requirements file drafted with an assistant and read by nobody reaches
+the gate as approved (doc-0018 F1).
+
+Until that changes, declare who vouches, in the manifest:
+
+```toml
+[provenance]
+human = { id = "agent:employee-2", name = "employee-2" }   # who attests: an issued handle, never a name
+
+[verification]
+authored = { at = "2026-11-04", scope = "reviewed by employee-2 against the process owner's notes" }
+approval = { at = "2026-11-04", record = "minutes/2026-11-04-requirements.md" }
+```
+
+In plain English: `[provenance] human` says who attests, `authored` says when they reviewed the
+documents and what they read them against, and `approval` says where the approval is recorded.
+Declare them only for documents that person has in fact read. Put them in a pull request that
+someone other than its author reviews. knowgov's decision-0009, accepted on 2026-11-04, makes the
+declaration required; task-0136 builds it. From then on, without it, authored statements stay
+*proposed*, and a new subject stays blocked until a person vouches for its documents.
+
 ## Capturing what people know
 
 Some knowledge is in nobody's documents, only in people's heads. The gate then reports a key as
