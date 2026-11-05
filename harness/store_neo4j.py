@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 
-from store import Store, part_list, part_rows
+from store import Store, by_content, by_id, part_list, part_rows
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
 
@@ -697,12 +697,12 @@ class Neo4jStore(Store):
                    collect(DISTINCT {id:ap.id, at:ap.at, record:ap.record}) AS approvals,
                    collect(DISTINCT {id:g.id, kind:g.kind, declared:g.declared, text:g.text}) AS gaps
             ORDER BY x.id""", key=key, live=live))
-        for r in rows:
-            r["fragments"] = [f for f in r["fragments"] if f["locator"]]
-            r["verifications"] = [v for v in r["verifications"] if v["id"]]
-            r["approvals"] = [a for a in r["approvals"] if a["id"]]
-            r["gaps"] = [g for g in r["gaps"] if g["id"]]
-        return rows
+        for r in rows:   # each collect in one order, as the rdflib adapter gives it: collect() is store order
+            r["fragments"] = by_content([f for f in r["fragments"] if f["locator"]])
+            r["verifications"] = by_id([v for v in r["verifications"] if v["id"]])
+            r["approvals"] = by_id([a for a in r["approvals"] if a["id"]])
+            r["gaps"] = by_id([g for g in r["gaps"] if g["id"]])
+        return by_id(rows)
 
     def declared_gaps_for_key(self, key) -> list[dict]:
         return _rows(self.run("""
@@ -746,19 +746,21 @@ class Neo4jStore(Store):
             MATCH (g:Gap {kind:'conflict'})-[:CONCERNS]->(x:Assertion {key:$key})
             WITH DISTINCT g SET g.kind='settled', g.settled_in=$rid RETURN count(g) AS n""", key=key, rid=review_id).single()["n"]
 
-    def stale_on_keys(self, keys) -> list[dict]:
-        return _rows(self.run("""
+    def stale_on_keys(self, keys) -> list[dict]:   # rows, verifications and successors by id
+        rows = _rows(self.run("""
             MATCH (x:Assertion {status:'invalidated'}) WHERE x.key IN $keys
             OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x)
             OPTIONAL MATCH (succ:Assertion {key:x.key, artefact:x.artefact}) WHERE succ.status IN ['proposed','validated','verified','approved']
             RETURN x.id AS id, x.key AS key, x.value AS value, x.invalidated_by AS invalidated_by,
                    collect(DISTINCT {id:v.id, valid_until:v.valid_until}) AS verifications,
                    collect(DISTINCT {id:succ.id, value:succ.value, status:succ.status}) AS successors""", keys=keys))
+        return by_id([{**r, "verifications": by_id(r["verifications"]), "successors": by_id(r["successors"])} for r in rows])
 
-    def suspect_derived(self) -> list[dict]:
-        return _rows(self.run("""
+    def suspect_derived(self) -> list[dict]:   # rows and used_invalidated by id: collect() is store order
+        rows = _rows(self.run("""
             MATCH (d:Derived {suspect:true})-[:USED_ASSERTION]->(x:Assertion {status:'invalidated'})
             RETURN d.id AS id, d.kind AS kind, d.sha256 AS sha256, collect(x.id) AS used_invalidated"""))
+        return by_id([{**r, "used_invalidated": sorted(r["used_invalidated"])} for r in rows])
 
     def all_derived(self) -> list[dict]:
         return _rows(self.run("MATCH (dv:Derived) RETURN dv.id AS id, dv.suspect AS suspect"))

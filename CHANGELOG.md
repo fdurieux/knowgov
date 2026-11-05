@@ -47,6 +47,13 @@ names that section with the version.
 
 ### Changes
 
+- **The store's reads answer in one order on both adapters.** Neo4j's `collect()` answers in its
+  traversal order, which a reload can move, so the evidence bundle's suspect line and the gate
+  report's stale statements could list the same items differently on two reads of one store. Now
+  `suspect_derived` (and its `used_invalidated`), `stale_on_keys` (and its verifications and
+  successors) and `key_evidence`'s lists are by id on both adapters, fragments by their fields
+  (`store.by_id`, `store.by_content`). The record compares lists as sets: 0 differing leaves on
+  both subjects.
 - **The CI scripts check their interpreter first** (task-0141.01). `knowgov-gate.sh`,
   `preload-check.sh` and `proposal-impact.sh` run every step with the interpreter `PYTHON` names
   (default `python3`), by its absolute path. An interpreter that is missing or older than Python
