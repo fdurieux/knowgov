@@ -5,7 +5,7 @@ title: >-
   hops, opportunity canvas, fit with the backlog, priority
 type: specification
 created_date: '2026-11-05T20:44:00Z'
-updated_date: '2026-11-05T20:44:00Z'
+updated_date: '2026-11-05T20:53:00Z'
 tags:
   - brief
   - mcp
@@ -100,3 +100,11 @@ Taken by the coordinating session on the maintainer's ask to "decide on a priori
 - **C3: MEDIUM, after task-0141.02 (S1) merges.** Recorded as a dependency.
 - **C5 (one bidirectional walk): rejected** on doc-0011's measurement.
 - Each new tool adds its line under CHANGELOG's `## Unreleased`. Together they set the next minor version (0.7.0) at the release.
+
+**2026-11-05, the maintainer: "make these functionalities available via the MCP".** All three tasks are tools on the read-only `knowgov` server. The shipped `managed-mcp-allowlist.json` admits that server by name, so a new tool reaches every configured client with no client change. Each task now says so in an acceptance criterion. One hop in the table above had no task: a document up to its keys and register links. It is added in two halves:
+- **task-0143:** the register links whose evidence cites a document, from the register's files;
+- **task-0144:** the statements a document yields in the held scenario, and the outputs that used them.
+
+With the three tasks built, every hop in the table is reachable over MCP. Two features stay outside it by design:
+- `trace.py check`, the CI hook over a change's files. Its lookup half is task-0143's; the check itself runs on a diff in CI.
+- The page's own panels, which these tools answer read for read.

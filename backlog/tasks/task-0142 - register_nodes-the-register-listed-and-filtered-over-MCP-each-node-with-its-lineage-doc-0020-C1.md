@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-05T20:44:00Z'
+updated_date: '2026-11-05T20:53:00Z'
 labels: []
 dependencies: []
 documentation:
@@ -26,4 +27,5 @@ An assistant has nowhere to start without an id, and cannot climb the register's
 - [ ] #1 A new read-only MCP tool lists the nodes of the register the server reads (KG_REGISTER), each with id, kind, name, state, owner and parent, filterable by kind, state, owner and parent, with a limit and the total; read with the register's own loader, no store
 - [ ] #2 For one node it returns the lineage: every ancestor by parent up to the root, and the children with their states; on the vendored register CAP-0002 reads CAP-0001 and the listing holds the 8 capabilities
 - [ ] #3 Its report is pinned by a schema, it is listed in the server's instructions, check_mcp_server.py exercises it, and CHANGELOG Unreleased carries its line
+- [ ] #4 Served by the read-only knowgov MCP server over stdio and Streamable HTTP, listed by tools/list, admitted by the shipped managed-mcp-allowlist.json by server name with no client change, and named in instance/README.md's MCP section (maintainer, 2026-11-05: "make these functionalities available via the MCP")
 <!-- AC:END -->
