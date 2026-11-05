@@ -10,6 +10,8 @@ import hashlib
 import sys
 from pathlib import Path
 
+from tests._skip import need_rdflib  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "harness"), str(ROOT / "tools")]
 
@@ -52,10 +54,7 @@ def test_the_load_records_each_file_of_a_directory_artefact_and_no_other():
 
 
 def test_the_rdflib_store_keeps_them_through_turtle():
-    try:
-        from store_rdflib import RdflibStore
-    except ImportError:   # the tests job has no rdflib; harness.yml runs the round trip itself
-        return
+    RdflibStore = need_rdflib().RdflibStore   # the tests job has no rdflib; the rdflib job runs it
     st = RdflibStore(path="")
     st.create_activity("act:extract:C:v1", "extraction", "2026-11-04T00:00:00+00:00", "harness", "", "agent:harness")
     st.upsert_artefact_version("contracts/", "contracts", "bundle", "V:contracts/:v1", "0" * 64, 10, "2026-11-04T00:00:00+00:00", "v1", "act:extract:C:v1")

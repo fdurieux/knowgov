@@ -8,6 +8,47 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
+## Unreleased
+
+### Contract changes
+
+- **`register_nodes`, a new read-only MCP tool** (task-0142, doc-0020 C1, additive): the register
+  listed from its files, no store, every node by id with its taxonomy, kind, name, state, owner and
+  parent, filtered by taxonomy, kind, state, owning unit (the owner field or an approved `owns` link)
+  and parent (`null`: the roots), with the total, a limit and an offset; with `node`, that node's
+  lineage, every ancestor by `parent` to the root and its children with their states, an annotation
+  and never a walk. Also `python harness/register_nodes.py`. Report pinned by
+  `harness/schemas/register-nodes.schema.json`, version 1.
+- **The connector's MANIFEST follows ieam-register's export format** (decision-0010, task-0138).
+  `[ids]` now lists every object of the AML, keyed by its GUID (the system's `id_field`,
+  `aris_guid` for ARIS), with its name, including objects that carry no register id. Before, it
+  was keyed by register id. The register ids move to their own tables: `[register_ids]` (GUID to
+  register id, replacing `[guids]`) and `[bpmn_ids]` (the register ids a BPMN file carries).
+  `RECONCILE.json`'s `ids` section is now the register's own comparison by GUID: a renamed object
+  is its GUID under `renamed`. The connector no longer treats an id carried by a GUID as carried;
+  that extension is redundant now. It keeps `unknown_ids` and its stale rule by register id, both
+  read from the new tables. A folder landed before keeps its bytes; the first export landed after
+  the upgrade reads every object as added in `ids`. `proposal_impact`'s D2 reads `[register_ids]`,
+  and `[guids]` in an older folder.
+
+### Changes
+
+- **The CI scripts check their interpreter first** (task-0141.01). `knowgov-gate.sh`,
+  `preload-check.sh` and `proposal-impact.sh` run every step with the interpreter `PYTHON` names
+  (default `python3`), by its absolute path. An interpreter that is missing or older than Python
+  3.12 now exits 2 (cannot run) with the reason. Before, a step could exit 1, read as a finding,
+  or 127. A relative `PYTHON` now works for the gate's core commands. The Claude Code hook passes its
+  own interpreter to the gate unless `PYTHON` is set. The test runner counts a test whose
+  prerequisite is absent as skipped, never passed, and `KG_TEST_REQUIRE` turns a skip into a
+  failure.
+- **The register at ieam-register v0.2.10** (the register's decision 0017): `RECONCILE.json`
+  carries the register's `unregistered` list, the objects no node's `[source]` names. On the
+  synthetic ARIS exports, no example node names ARIS as its source, so the list holds 41 objects
+  for `first` and 38 for `later`. 27 and 25 of them are events, rules and steps that no register
+  id names. A node that carries `[source] aris_guid` leaves the list, and the register's own
+  `stale_nodes` then finds a vanished object. `check_register.py --report` gains a per-system
+  export count. The record is unchanged on both subjects.
+
 ## 0.6.0 — 2026-11-05
 
 An AI assistant can now see what has been run for its subject, read any run's result, and start a

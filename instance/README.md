@@ -197,11 +197,34 @@ the attribute you configured, a BPMN process's `id`, and an element's `<document
 Element ids and diagram positions are never identity, because a tool may rewrite them on import.
 It copies the files, byte for byte, into a new dated folder. The folder name is the date in the
 AML header, or the one you give with `--exported-on`. Beside the files go two more:
-- `MANIFEST.toml`: the export time, the source and its version, the tool, the previous folder,
-  a sha256 per file, and the register ids carried, with their names.
-- `RECONCILE.json`: what changed since the previous folder. That means files and ids added,
-  updated or renamed, and deleted. It also lists the *stale* register nodes: those whose id the
-  previous export carried and this one does not.
+- `MANIFEST.toml`, in your register's own export format: the export time, the source and its
+  version, the tool, the previous folder, and a sha256 per file. Its `[ids]` lists every object
+  in the AML, keyed by the object's GUID (the `id_field` your register's `sources.toml` gives the
+  system, `aris_guid` for ARIS), with its name. That includes objects that carry no register id.
+  Two more tables hold the register ids, kept apart so that `[ids]` has only one kind of key:
+  - `[register_ids]` gives, for each object that carries a register id, that id, by GUID.
+  - `[bpmn_ids]` gives each register id a BPMN file carries, with its name. A BPMN file has no
+    GUID, so it adds nothing to `[ids]`.
+- `RECONCILE.json`, written by your register's own `tools/reconcile.py`: what changed since the
+  previous folder. Files are added, updated or deleted. Objects, compared by GUID, are added,
+  renamed (same GUID, new name) or deleted. It also lists these:
+  - `stale_nodes`: the register nodes whose object is gone. The register finds a node whose
+    `[source]` names this system and a GUID the export no longer holds. The connector adds a
+    node whose register id the previous export carried and this one does not. Once your nodes
+    record their object's GUID in `[source]`, the register's rule finds them all and the
+    connector's addition finds nothing more.
+  - `unknown_ids`: register ids your modellers typed in the tool that your register does not
+    hold, such as a mistyped id or a node removed from the register. Fix each one in the tool,
+    or register the node.
+  - `unregistered`: the register's own list (its decision 0017). It holds the objects no node
+    names in its `[source]`. Until your nodes record their GUID, every object is listed. Events,
+    rules and step functions that no node stands for are listed too. Leave them, or register
+    them; the register has not yet decided how to excuse such an object (decision 0017, "Not
+    decided here"). Read the list as a finding to triage, never as an error.
+
+A folder landed by an earlier version keeps its bytes. The first export landed after an upgrade
+reads every object as added and every earlier id as deleted in `ids`. Its `stale_nodes` and
+`unknown_ids` read the register ids of both folders, so they are not affected.
 
 A stale node is a finding for its owner. The connector never deletes or edits a node. It never
 lands an export over an existing folder, or with a date before the newest one; it refuses (exit 1)
@@ -268,6 +291,13 @@ In plain English: the script reads `KG_*` variables (the list is at its top: `KG
 `KG_FAIL_ON`, `KG_SCENARIO`, `KG_AS_OF`, `KG_LEDGER`, `KG_FILES`, `KG_REPORT`...). It works out the changed code
 from git against `KG_BASE`, in the folder `code_map.toml` names, and calls the core command. Its exit
 code is the command's: 0, 1 or 2.
+
+`PYTHON` names the interpreter (default `python3` as `PATH` finds it). The script checks it once, before
+anything else, and runs every step, the pre-load check's included, with that interpreter's absolute
+path, so another `python3` earlier on `PATH` never runs a step. An interpreter that is missing or older
+than Python 3.12 cannot run: exit 2 with the reason, and no report is written or annotated. The same holds
+for `preload-check.sh` and `proposal-impact.sh`; the Claude Code hook passes its own interpreter unless
+`PYTHON` is set (task-0141.01).
 
 `KG_AS_OF` is the date the gate, `trace-check` and `trace-register` read review currency on (`--as-of`, decision-0005):
 a `YYYY-MM-DD` date, `record` (the subject's pinned record date) or `today`, the default. Set it to
@@ -648,7 +678,7 @@ to pull the published image instead of building it. One stack serves one instanc
 An AI coding assistant can ask knowgov the gate's question itself, before it writes anything:
 *may I build on this?* It does so through MCP, the Model Context Protocol, a standard way for an
 assistant to call tools a local program offers. `harness/mcp_server.py` is that program. It offers
-eight tools, and all of them only read:
+nine tools, and all of them only read:
 
 | Tool | What the assistant asks | What it gets back |
 |---|---|---|
@@ -658,6 +688,7 @@ eight tools, and all of them only read:
 | `evidence_bundle` | What exactly may I build on, and on what evidence? | the evidence bundle the governed arm reads, as text: the verdict and the policy, every required key's statements with their evidence, verifications, approvals and gaps, lapsed reviews, invalidated statements and what supersedes them, unchecked or flawed documents behind the keys, suspect derived outputs, and the documents the task names verbatim; for a task or for your own keys |
 | `register_impact` | What does retiring or changing this register node touch? | your register's own impact walk from the node (the register's tag and commit, the node, its children listed but not walked unless the assistant asks with `children`, which walks every approved descendant as the register's decision 0014 does, every edge with whether it was followed, what it reaches with each node's owning unit), and the keys your subject's `register_map.toml` places on the node or on what it reaches, each with its owner, its anchor and the node it came through; with `children`, the keys resting only on a withdrawn descendant are listed last, flagged `withdrawn`; with a scenario loaded, each key's level, stale statements and suspect derived outputs as `gate_verdict` reports them for the task class the assistant names with `task` (`codegen` by default); while a run loads the store, refused where it would read those levels |
 | `proposal_impact` | What would this proposed product, capability or journey touch, and what does it lack, before anyone approves it? | the proposal (new nodes with provisional ids, links, the register nodes it reuses as they are or changed, proposed exceptions) read by your register's own checker and walks as if approved, every proposed element marked `hypothetical` and nothing stored: placement findings (a forbidden synonym; a node in no tool yet), link candidates D1 to D4 each `authored` or `inferred` and never more than `proposed`, C1 to C3 coverage before and after with the new gaps, what each reused node reaches before and after, what each new node rests on, each reused node's keys as `register_impact` reads them, the new nodes left unmapped, and which unit must approve what; while a run loads the store, refused where it would read the reused nodes' levels. Its walkthrough is in `demo/README.md` |
+| `register_nodes` | Which register nodes are there, and what does this one sit under? | your register listed from its files, with no store: every node with its kind, name, state, owner and parent, filtered by taxonomy, kind, state, owning unit or parent (`null` for the top-level nodes), with the total and a limit; "what does ORG-x own" is this listing, since ownership is shown and never walked. With `node`, that node's lineage: every ancestor up to the root and its children with their states, named and never walked; for what rests on or implements a node, `register_impact` |
 | `scenario_runs` | Which scenarios have been run, in which mode, and what did they show? | every scenario of your subject with its title and card line; what the record holds for it (deterministic results and the gate's verdict, the arms with how many runs and which model, the extra sources the subject declares); its runs newest first, each as its folder's `run.json` describes it (mode, model, as-of date, who started it, `page` or `mcp`, start, end, status, and the verdict of its results), or inferred, flagged `inferred`, for a folder from before `run.json`; the scenario the store holds and when it was loaded; and the run loading the store now, if any. Replay is not a run: it is the record shown, and nothing records it |
 | `scenario_result` | What did this record or this run show? | what the page's Replay shows for one source that `scenario_runs` lists (the record, an extra source, or a run): the gate's verdict and why, the date it read reviews on, every required key's level, and each arm's runs with its decision and oracle result. It reads that source's files, never the store, and says so: it is not what the store holds now |
 
@@ -672,6 +703,9 @@ blocks, and the page closes it as failed (`page restarted`) when it starts again
 The server reads the store as the page or a run left it. It never loads a scenario and never
 writes to the store, the register or your instance; a change to the record is still a pull
 request. Load what the assistant should see first, on the page or with a run.
+
+Every tool is offered over stdio and HTTP alike, and the managed allowlist under
+`instance/ci/claude/` admits the server by its name, `knowgov`, so a new tool needs no client change.
 
 The server reads review currency on one date for as long as it runs: `KG_AS_OF` (or `--as-of`), a
 date as `YYYY-MM-DD`, `record` (the subject's pinned record date) or `today`, which is the default.

@@ -149,9 +149,17 @@ def three_valued(s, key: str) -> dict:
     return {"answer": "asserted", "assertions": rows}
 
 
-def render_key(key: str, v: dict) -> list[str]:
+BUNDLE_FORMS = ("full", "compact")   # task-0140: full is the default and the record's form
+
+
+def render_key(key: str, v: dict, form: str = "full") -> list[str]:
     """One key's section of the bundle: its level and flags, its declared gaps, every live assertion
-    with evidence, verification, approval and gaps. The pull context serves it on read_knowledge."""
+    with evidence, verification, approval and gaps. The pull context serves it on read_knowledge.
+    ``compact`` (task-0140, doc-0019 C3) keeps the header, the declared gaps, each assertion line and
+    its gaps, and drops the text, evidence, verification and approval lines."""
+    if form not in BUNDLE_FORMS:
+        raise ValueError(f"bundle form {form!r}: one of {', '.join(BUNDLE_FORMS)}")
+    full = form == "full"
     out = [f"\n## {key}  level={v['level']}  flags={','.join(v['flags']) or '-'}"]
     for g in v["declared_gaps"]:
         out.append(f"  DECLARED GAP {g['id']}: {g['text']}")
@@ -161,13 +169,14 @@ def render_key(key: str, v: dict) -> list[str]:
         out.append(f"  [{a['id']}] value={a['value']!r} basis={a['basis']} status={a['status']} source={a['artefact']} by={a['agent']}"
                    + ("  PENDING REVIEW: not counted in the level (decision-0004)" if a["id"] in v.get("pending_review", ()) else "")
                    + (f"  REVIEW LAPSED: {a['lapsed']['from']} until {a['lapsed']['valid_until']}, now validated (decision-0005)" if a.get("lapsed") else ""))
-        out.append(f"      text: {a['text'][:300]}")
-        for f in a["fragments"][:2]:
-            out.append(f"      evidence: {f['artefact']} @ {f['locator']}: {f['text'][:200]!r}")
-        for ver in a["verifications"]:
-            out.append(f"      verification: {ver['method']} ({ver['scope']}) at {ver['at']}" + (f" VALID UNTIL {ver['valid_until']}" if ver['valid_until'] else ""))
-        for ap in a["approvals"]:
-            out.append(f"      approval: {ap['record']} at {ap['at']}")
+        if full:
+            out.append(f"      text: {a['text'][:300]}")
+            for f in a["fragments"][:2]:
+                out.append(f"      evidence: {f['artefact']} @ {f['locator']}: {f['text'][:200]!r}")
+            for ver in a["verifications"]:
+                out.append(f"      verification: {ver['method']} ({ver['scope']}) at {ver['at']}" + (f" VALID UNTIL {ver['valid_until']}" if ver['valid_until'] else ""))
+            for ap in a["approvals"]:
+                out.append(f"      approval: {ap['record']} at {ap['at']}")
         for g in a["gaps"]:
             out.append(f"      GAP {g['kind']}{' (declared)' if g['declared'] else ''}: {g['text']}")
     return out
@@ -215,11 +224,18 @@ def knowledge_reader(res: dict):
     return read, ids
 
 
-def render_bundle(res: dict, policy: str, verbatim: dict[str, str] | None = None) -> str:
-    out = [f"GATE VERDICT: {res['verdict']} — {res['why']}", "", "POLICY:", policy, "",
-           "REQUIRED KNOWLEDGE, key by key (status is the knowledge repository's, not yours to upgrade):"]
+def render_bundle(res: dict, policy: str, verbatim: dict[str, str] | None = None, form: str = "full") -> str:
+    """The governed arm's bundle. ``full`` (the default, the record's form) carries every assertion's
+    text, evidence, verifications and approvals; ``compact`` (task-0140, doc-0019 C3) only each key's
+    header, declared gaps and assertion lines with their gaps, the sections after them unchanged."""
+    if form not in BUNDLE_FORMS:
+        raise ValueError(f"bundle form {form!r}: one of {', '.join(BUNDLE_FORMS)}")
+    intro = ("REQUIRED KNOWLEDGE, key by key (status is the knowledge repository's, not yours to upgrade):" if form == "full" else
+             "REQUIRED KNOWLEDGE, key by key, compact: one line per assertion, its text, evidence, verifications and approvals left out "
+             "(status is the knowledge repository's, not yours to upgrade):")
+    out = [f"GATE VERDICT: {res['verdict']} — {res['why']}", "", "POLICY:", policy, "", intro]
     for key, v in res["keys"].items():
-        out.extend(render_key(key, v))
+        out.extend(render_key(key, v, form))
     if res["conflicts"]:
         out.append("\nCONFLICTS:")
         for c in res["conflicts"]:

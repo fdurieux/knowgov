@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VENDORED = ROOT / "demo" / "register"
-TAG = "v0.2.9+fixture"
+TAG = "v0.2.10+fixture"
 DECISION = "decisions/0099-fixture-freight-quoting-deprecated.md"
 
 

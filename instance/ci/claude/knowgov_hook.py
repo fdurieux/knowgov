@@ -183,6 +183,7 @@ def run_gate(stage: str, task: str, kg: Path, inst: Path, *, advisory: bool, tim
         report.unlink(missing_ok=True)
         env = {**os.environ, "KG_TASK": task, "KG_REPORT": str(report)}
         env.pop("KG_ANNOTATE", None)
+        env.setdefault("PYTHON", sys.executable)   # the gate runs the hook's interpreter unless PYTHON names one (task-0141.01)
         cmd = ["sh", str(kg / "instance" / "ci" / "knowgov-gate.sh"), str(kg), str(inst), "gate"]
         try:
             p = subprocess.run(cmd, cwd=str(inst), env=env, capture_output=True, text=True, timeout=timeout)

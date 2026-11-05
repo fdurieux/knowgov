@@ -15,6 +15,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from tests._skip import skip  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "harness")]
 import gate_cli  # noqa: E402
@@ -129,7 +131,7 @@ def test_every_tool_listed_and_marked_read_only():
     s, _ = _server()
     tools = s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]
     assert [t["name"] for t in tools] == ["store_status", "gate_verdict", "three_valued_answer", "evidence_bundle", "register_impact",
-                                          "proposal_impact", "scenario_runs", "scenario_result"]
+                                          "proposal_impact", "scenario_runs", "scenario_result", "register_nodes"]
     for t in tools:
         a = t["annotations"]
         assert a["readOnlyHint"] is True and a["destructiveHint"] is False and a["openWorldHint"] is False, t["name"]
@@ -553,7 +555,7 @@ def test_register_impact_reads_levels_as_gate_verdict_and_writes_nothing():
     from subject import SUBJECT
     rows = SUBJECT.register_map().get("row") or []
     if not rows:
-        return
+        skip("register-rows", "the subject's register_map.toml has no rows")
     writes = []
     s, _ = _server(Stub(writes=writes))
     start = rows[0]["nodes"][0]
@@ -678,7 +680,7 @@ def test_register_impact_reads_the_keys_under_the_task_class_named_and_refuses_k
     from subject import SUBJECT
     rows = SUBJECT.register_map().get("row") or []
     if not rows:
-        return
+        skip("register-rows", "the subject's register_map.toml has no rows")
     s, _ = _server()
     start, which = next(iter(CHILDREN_LANDS[SUBJECT.id]))
     args = {"node": start, "walk": which, "children": True, "as_of": DAY}

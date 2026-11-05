@@ -13,6 +13,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from tests._skip import skip  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 DIR = ROOT / "instance" / "ci" / "claude"
 SCRIPT = DIR / "knowgov_hook.py"
@@ -166,7 +168,7 @@ def test_the_real_gate_with_an_unreachable_store_blocks_and_the_advisory_profile
 
 def test_live_proceed_and_blocked_on_an_rdflib_store():
     if os.environ.get("KG_HOOK_LIVE") != "1":
-        return   # harness.yml's rdflib job sets it, with the pins installed
+        skip("hook-live", "KG_HOOK_LIVE is not 1; harness.yml's rdflib job sets it, with the pins installed")
     kw = dict(KG_SUBJECT=str(ROOT / "subjects" / "cargo_quote"), KG_STORE="rdflib")
     p = _real(PLAN, **kw)
     assert p.returncode == 0 and not p.stderr, (p.returncode, p.stderr)
