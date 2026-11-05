@@ -51,6 +51,9 @@ class Stub:
     def extraction_activities(self):
         return [f"act:extract:{self.scenario}:v1"] if self.scenario else []
 
+    def extraction_times(self):
+        return [{"id": a, "at": "2026-11-04T19:45:00+00:00"} for a in self.extraction_activities()]
+
     def key_evidence(self, key, live):
         return [r for r in self.rows.get(key, []) if r["status"] in live]
 
@@ -126,7 +129,7 @@ def test_every_tool_listed_and_marked_read_only():
     s, _ = _server()
     tools = s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]
     assert [t["name"] for t in tools] == ["store_status", "gate_verdict", "three_valued_answer", "evidence_bundle", "register_impact",
-                                          "proposal_impact"]
+                                          "proposal_impact", "scenario_runs"]
     for t in tools:
         a = t["annotations"]
         assert a["readOnlyHint"] is True and a["destructiveHint"] is False and a["openWorldHint"] is False, t["name"]

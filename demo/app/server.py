@@ -54,6 +54,7 @@ ROOT = HERE.parent.parent
 HARNESS = ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
 import page_subject  # noqa: E402  (the subject as a value: task-0032.01)
+import runs_index  # noqa: E402  (the one reader of the run folders, shared with the MCP server: task-0128)
 from subject import Subject  # noqa: E402
 _ps = page_subject.current   # the subject of the call in progress; the environment's when no call names one
 
@@ -347,8 +348,8 @@ RUN_BY = ("page", "mcp")   # who asked for a run: the page's buttons, or knowgov
 # what run.json keeps of a run's record (task-0127): no environment, no log text, no absolute path,
 # so nothing secret and nothing of the host; the record itself never holds a key or the page's token
 RUN_JSON_FIELDS = ("id", "subject", "scenario", "mode", "n", "row", "model", "effort", "host", "model_deviation",
-                   "as_of", "by", "started", "finished", "status", "exit_code", "error", "source")
-RUN_JSON_VERSION = 1
+                   "as_of", "by", "started", "heartbeat_at", "finished", "status", "exit_code", "error", "source")
+RUN_JSON_VERSION = runs_index.RUN_JSON_VERSION   # 2: heartbeat_at, rewritten every HEARTBEAT_S while running
 
 
 def run_json(rec: dict) -> dict:
@@ -358,21 +359,39 @@ def run_json(rec: dict) -> dict:
     return out
 
 
-def write_run_json(rec: dict) -> None:
-    """Write <out_dir>/run.json whole or not at all: a reader never sees half a file."""
-    target = Path(rec["out_dir"]) / "run.json"
+_RUN_JSON_LOCK = threading.Lock()   # the heartbeat and the end write never interleave
+
+
+def _write_json(folder: Path, j: dict) -> None:
+    """Write <folder>/run.json whole or not at all: a reader never sees half a file."""
+    target = folder / "run.json"
     tmp = target.with_name("run.json.tmp")
-    tmp.write_text(json.dumps(run_json(rec), indent=2) + "\n", encoding="utf-8")
+    tmp.write_text(json.dumps(j, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, target)
 
 
-def read_run_json(folder: Path) -> dict | None:
-    """A run folder's run.json, or None when it has none (a run from before task-0127) or it is unreadable."""
-    try:
-        j = json.loads((folder / "run.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    return j if isinstance(j, dict) else None
+def write_run_json(rec: dict) -> None:
+    with _RUN_JSON_LOCK:
+        _write_json(Path(rec["out_dir"]), run_json(rec))
+
+
+def beat(rec: dict) -> bool:
+    """Rewrite a running run.json with a fresh heartbeat_at; False once the run has ended (nothing written)."""
+    with _RUN_JSON_LOCK:
+        if rec.get("status") != "running":
+            return False
+        rec["heartbeat_at"] = _now()
+        _write_json(Path(rec["out_dir"]), run_json(rec))
+        return True
+
+
+read_run_json = runs_index.read_run_json
+
+
+def close_stale_runs() -> list[str]:
+    """At start: a running run.json whose heartbeat is stale belongs to a page that stopped mid-run; it is
+    closed as failed ("page restarted"), so no reader waits on it."""
+    return runs_index.close_stale(RUNS_DIR, dt.datetime.fromisoformat(_now()), _write_json)
 
 
 class Runner:
@@ -446,8 +465,9 @@ class Runner:
                    "model": chosen["model"] if chosen else None, "effort": model_env.get("KG_ARMS_EFFORT") if chosen else None,
                    "row": chosen["id"] if chosen else None, "host": chosen["host"] if chosen else None,
                    "model_deviation": deviation, "as_of": as_of, "by": by,
-                   "started": _now(), "finished": None, "exit_code": None,
+                   "started": _now(), "heartbeat_at": None, "finished": None, "exit_code": None,
                    "out_dir": str(out_dir), "log": str(log), "source": f"demo-runs/{ps.id}/{out_dir.name}", "cmd": " ".join(cmd)}
+            rec["heartbeat_at"] = rec["started"]
             write_run_json(rec)
             fh = None
             try:
@@ -468,11 +488,24 @@ class Runner:
             return self.describe(rec)
 
     def _wait(self, proc, fh, rec) -> None:
-        code = proc.wait()
-        fh.close()
-        rec.update(status="done" if code == 0 else "failed", exit_code=code, finished=_now())
-        write_run_json(rec)
+        ended = threading.Event()
+        threading.Thread(target=self._heartbeat, args=(rec, ended), daemon=True).start()
+        try:
+            code = proc.wait()
+        finally:
+            fh.close()
+        with _RUN_JSON_LOCK:   # the end, then no beat after it
+            rec.update(status="done" if code == 0 else "failed", exit_code=code, finished=_now())
+            _write_json(Path(rec["out_dir"]), run_json(rec))
+        ended.set()
         self.history.append(rec)
+
+    @staticmethod
+    def _heartbeat(rec: dict, ended: threading.Event, every: float = runs_index.HEARTBEAT_S) -> None:
+        """While the run is under way, run.json says so again every ``every`` seconds (task-0128)."""
+        while not ended.wait(every):
+            if not beat(rec):
+                return
 
     def join(self, timeout: float = 30.0) -> None:
         """Wait until every started run's waiter has written its end: the page never calls it; a test
@@ -504,26 +537,8 @@ RUNNER = Runner()
 
 def list_runs() -> list[dict]:
     """The current subject's runs, runs/<subject id>/<stamp>/, then any from before that layout at
-    runs/<stamp>/ holding one of its scenarios; the id is the path under runs/."""
-    ps, out = _ps(), []
-    for base, prefix in ((RUNS_DIR / ps.id, f"{ps.id}/"), (RUNS_DIR, "")):
-        if not base.exists():
-            continue
-        for d in sorted(base.iterdir(), reverse=True):
-            if not d.is_dir():
-                continue
-            scenarios = sorted(p.name for p in d.iterdir() if p.is_dir() and p.name in ps.scenarios and (p / "deterministic.json").exists())
-            if not scenarios:
-                continue
-            modes = sorted({("arms" if list((d / s).glob("run*_G.json")) else "deterministic") for s in scenarios})
-            entry = {"id": prefix + d.name, "scenarios": scenarios, "modes": modes, "logs": sorted(p.name for p in d.glob("*.log"))}
-            run = read_run_json(d)
-            if run is not None:
-                # the folder says what it was: its mode, status, dates and initiator (task-0127)
-                entry["modes"] = [run["mode"]] if run.get("mode") in ("deterministic", "arms") else modes
-                entry["run"] = run
-            out.append(entry)
-    return out
+    runs/<stamp>/ holding one of its scenarios; the id is the path under runs/ (harness/runs_index.py)."""
+    return runs_index.list_runs(_ps().subject, RUNS_DIR)
 
 
 # ------------------------------------------------------------------ who may change state (task-0096)
@@ -774,6 +789,8 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    for rid in close_stale_runs():
+        print(f"closed {rid}: its run.json read running with a stale heartbeat ({runs_index.RESTARTED})", flush=True)
     host = listen_host()
     httpd = ThreadingHTTPServer((host, PORT), Handler)
     writes = "token required" if page_token() else (write_refusal() or "open on this machine")

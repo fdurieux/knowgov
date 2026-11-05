@@ -40,12 +40,16 @@ def _run(td: Path, code=0, popen=None, **kw):
     keep = server.subprocess.Popen, server.RUNS_DIR, server.threading.Thread
     server.subprocess.Popen, server.RUNS_DIR = popen or default, td
 
-    class _Inline:   # the waiter runs at once, so the end is written before start returns
+    class _Inline:   # the waiter runs at once, so the end is written before start returns; no heartbeat thread
         def __init__(self, target, args, daemon):
             self.target, self.args = target, args
 
         def start(self):
-            self.target(*self.args)
+            if getattr(self.target, "__name__", "") != "_heartbeat":
+                self.target(*self.args)
+
+        def is_alive(self):
+            return False
     server.threading.Thread = _Inline
     try:
         runner = server.Runner()

@@ -19,6 +19,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent                     # the repository
 sys.path.insert(0, str(ROOT / "harness"))
 import page_subject  # noqa: E402  (the subject as a value: every table this module derives from it, task-0032.01)
+import runs_index  # noqa: E402  (the run folders, read as the MCP server reads them: task-0128)
 from page_subject import takes_subject  # noqa: E402
 _ps = page_subject.current   # the subject of the call in progress; the environment's when no call names one
 sys.path.insert(0, str(HERE.parent / "tools"))
@@ -38,24 +39,9 @@ def _word(n: int) -> str:
 @takes_subject
 def sources_for(scenario: str, runs_dir: Path) -> list[dict]:
     """The result folders that hold this scenario: the record, the extra sources the subject
-    declares for it (a re-run, a deterministic check), and every demo run that contains it."""
-    out = [{"id": "record", "label": "the record (results/)", "dir": str(_ps().record_dir / scenario)}]
-    for s in _ps().subject.scenarios.get(scenario, {}).get("sources", []):
-        out.append({"id": s["id"], "label": s["label"], "dir": str(_ps().record_dir / s["dir"])})
-    # runs land under runs/<subject id>/<stamp>/ (task-0032.01); a run from before then sits at runs/<stamp>/
-    # and is still read: scenario ids are the subject's own, so its folder can only be this subject's
-    own = runs_dir / _ps().id
-    for base, prefix in ((own, f"demo-runs/{_ps().id}/"), (runs_dir, "demo-runs/")):
-        if not base.exists():
-            continue
-        for d in sorted(base.iterdir(), reverse=True):
-            if (d / scenario / "deterministic.json").exists():
-                arm_files = sorted((d / scenario).glob("run*_[GB].json"))
-                mode = "arms" if arm_files else "deterministic"
-                models = sorted({m for m in (_model_of(_read_json(f)) for f in arm_files) if m})
-                tag = mode + (", " + ", ".join(models) if models else "")
-                out.append({"id": f"{prefix}{d.name}", "label": f"demo run {d.name} ({tag})", "dir": str(d / scenario)})
-    return out
+    declares for it (a re-run, a deterministic check), and every demo run that contains it
+    (harness/runs_index.py, the one reader of the run folders, task-0128)."""
+    return runs_index.sources_for(_ps().subject, scenario, runs_dir)
 
 
 @takes_subject

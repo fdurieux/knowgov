@@ -108,6 +108,38 @@ jobs:
           # task-0127: the folder describes itself, and /api/runs carries it
           docker compose exec -T app cat "runs/$(cat run_id)/run.json" | python3 -c 'import json,sys; r=json.load(sys.stdin); assert (r["status"], r["exit_code"], r["by"], r["mode"], r["scenario"]) == ("done", 0, "page", "deterministic", "S1"), r; print("run.json:", r["id"], r["status"], r["finished"])'
           curl -fsS localhost:8080/api/runs | python3 -c 'import json,sys; rid=open("run_id").read(); e=[x for x in json.load(sys.stdin)["runs"] if x["id"]==rid]; assert e and e[0]["run"]["status"]=="done", e'
+          # task-0128: the MCP server's scenario_runs shows the page's run, by page, with its results' verdict
+          docker compose exec -T app python - "$(cat run_id)" <<'PY'
+          import json, sys
+          from pathlib import Path
+          sys.path[:0] = ["harness"]
+          import mcp_server
+          rid = sys.argv[1]
+          j = mcp_server.Tools().scenario_runs({"scenario": "S1"})
+          run = next(r for r in j["scenarios"][0]["runs"] if r["id"] == rid)
+          det = json.loads((Path("runs") / rid / "S1" / "deterministic.json").read_text(encoding="utf-8"))
+          assert (run["mode"], run["by"], run["status"], run["gate"]) == ("deterministic", "page", "done", det["D6_gate"]["verdict"]), run
+          print("scenario_runs:", run["id"], run["mode"], run["by"], run["gate"])
+          PY
+          # and the page's /api/runs and /api/scenarios read the same folders as before runs_index: the test's
+          # oracles (tests/ is not in the image) on a copy of the run folders, here on the runner
+          curl -fsS localhost:8080/api/runs > api_runs.json
+          curl -fsS localhost:8080/api/scenarios > api_scenarios.json
+          rm -rf runs_copy && docker compose cp app:/repo/runs ./runs_copy
+          (cd .. && python3 - demo/runs_copy demo/api_runs.json demo/api_scenarios.json <<'PY'
+          import json, sys
+          from pathlib import Path
+          sys.path[:0] = ["tests", "harness", "demo/app"]
+          import page_subject
+          import test_scenario_runs as t
+          runs, api_runs, api_sc = Path(sys.argv[1]), json.loads(Path(sys.argv[2]).read_text()), json.loads(Path(sys.argv[3]).read_text())
+          with page_subject.using(t.CARGO_QUOTE):
+              ps = page_subject.current()
+              assert api_runs["runs"] == json.loads(json.dumps(t._old_list_runs(ps, runs))), "/api/runs moved"
+              assert [s["sources"] for s in api_sc["scenarios"]] == [[x["id"] for x in t._old_sources_for(ps, s["id"], runs)] for s in api_sc["scenarios"]], "/api/scenarios moved"
+          print("/api/runs and /api/scenarios as the readers before runs_index give them, on", len(api_runs["runs"]), "run folder(s)")
+          PY
+          )
 
       - name: Project the register into the store beside the run, and read the census
         run: |

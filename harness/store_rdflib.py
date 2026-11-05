@@ -772,6 +772,10 @@ class RdflibStore(Store):
         acts = [a for a in self.nodes("Activity") if self.nid(a).startswith("act:extract:")]
         return [self.nid(a) for a in sorted(acts, key=lambda a: (self.prop(a, "at") or "", self.nid(a)))]   # as the Neo4j adapter orders them
 
+    def extraction_times(self) -> list[dict]:
+        acts = [a for a in self.nodes("Activity") if self.nid(a).startswith("act:extract:")]
+        return [{"id": self.nid(a), "at": self.prop(a, "at")} for a in sorted(acts, key=lambda a: (self.prop(a, "at") or "", self.nid(a)))]
+
     def gaps_with_concerns(self) -> list[dict]:
         out = []
         for g in sorted(self.nodes("Gap"), key=lambda g: (self.prop(g, "kind") or "", self.nid(g))):

@@ -261,6 +261,10 @@ class Store:
         """The extraction activity ids, oldest first: which scenario is loaded."""
         raise NotImplementedError
 
+    def extraction_times(self) -> list[dict]:
+        """{id, at} for every extraction activity, in extraction_activities' order: when it was loaded (task-0128)."""
+        raise NotImplementedError
+
     def gaps_with_concerns(self) -> list[dict]:
         raise NotImplementedError
 
