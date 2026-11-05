@@ -3,7 +3,7 @@
     python harness/mcp_server.py                      # stdio, for an agent that starts the server itself
     python harness/mcp_server.py --http [--host H] [--port P]   # Streamable HTTP at http://H:P/mcp
 
-The question an agent asks is "may I build on this?". Ten tools answer it, all read-only:
+The question an agent asks is "may I build on this?". Thirteen tools answer it, all read-only:
 
     store_status          what the store holds: the subject, the scenario loaded, the tasks and the
                           keys the subject asks the three-valued question of
@@ -44,6 +44,12 @@ The question an agent asks is "may I build on this?". Ten tools answer it, all r
     register_nodes        the register listed, filtered by taxonomy, kind, state, owning unit and parent, with
                           the total; or one node with its lineage, its ancestors by parent to the root and its
                           children, an annotation and never a walk; the register's files, no store (task-0142)
+    key_nodes             the register nodes a knowledge key concerns: its register_map.toml rows with their
+                          nodes, owner, anchor and note; files only (task-0143)
+    code_path             a code path's application from the instance's code_map.toml, the keys its header
+                          cites and its trace ledger entry, each leg read or unchecked; files only (task-0143)
+    document_links        the register links whose evidence cites a document, with the nodes at both ends and
+                          their owners, as the Browser's register-cites joins them; files only (task-0143)
     subject_check         a proposed subject (subject.toml, register_map.toml, scenarios.toml, the documents'
                           text) checked by tools/check_subject.py's own functions against the served register,
                           in a temporary directory removed after the call: its subject-check report; nothing
@@ -59,6 +65,10 @@ The server never loads, wipes or writes: it reads the store the page or a run le
 for rdflib the Turtle file ``KG_RDFLIB_FILE``, read and never written back), through a view that
 refuses every operation of the store port that is not a read. Writes to the record stay pull
 requests. A baseline is ``none`` or ``record`` only: a path would let a client read files.
+
+The code leg's files are configuration, read once at start (task-0143): ``--instance`` or ``KG_INSTANCE``, the
+instance whose ``code_map.toml`` and code ``code_path`` reads, and ``--ledger`` or ``KG_LEDGER``, the trace ledger
+(``trace.py register`` writes it); unset, that leg reads unchecked.
 
 One ``as_of`` per process (task-0100, doc-0014 C2). ``KG_AS_OF`` (or ``--as-of``: YYYY-MM-DD, ``record`` or
 ``today``, default ``today``) is read once, at start, and resolved once: ``gate_verdict`` and
@@ -128,7 +138,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
-                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. A status is the repository's; you may not upgrade it. This server only reads.")
+                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. code_path, key_nodes and document_links read files only; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it. This server only reads.")
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -276,6 +286,48 @@ TOOLS.append(
          "parent": {"type": ["string", "null"], "description": "the nodes whose parent is this id; null for the nodes with no parent"},
          "limit": {"type": "integer", "minimum": 1, "description": "at most this many nodes (default 100, at most 1000); total counts them all"},
          "offset": {"type": "integer", "minimum": 0, "description": "skip this many matching nodes first (default 0)"}}},
+     "annotations": READ_ONLY})
+
+
+TOOLS.append(
+    {"name": "key_nodes", "title": "Which register nodes does this knowledge key concern?",
+     "description": "The rows of the subject's register_map.toml whose key is this one, read from files and never from the "
+                    "store: each with the register nodes it names (taxonomy, kind, name, state, owner), the row's owner, "
+                    "anchor and note, and every node named. A key the subject knows with no row reads mapped false; a key "
+                    "it does not know is refused. One hop, node to key read backwards: from the nodes, register_impact "
+                    "walk=dependants climbs to what rests on them.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "required": ["key"], "properties": {
+         "key": {"type": "string", "description": "an entity|attribute key, as store_status, register_impact and code_path name them"}}},
+     "annotations": READ_ONLY})
+
+
+TOOLS.append(
+    {"name": "code_path", "title": "Which application is this code file, which keys does it cite, and what built it?",
+     "description": "For a code path relative to the root of the instance's code_map.toml (the server's KG_INSTANCE or "
+                    "--instance), read from files and never from the store: the application or module the map assigns "
+                    "and that register node; the keys the file's header cites (knowgov-keys:), each flagged unknown when "
+                    "the subject does not know it; and the trace ledger's entry for the path (the server's KG_LEDGER or "
+                    "--ledger: derived id, keys used, statements, commit, digest, and the file's digest now, with drift). "
+                    "Each leg is read or unchecked with its reason (no instance or ledger configured, no code map, one "
+                    "that does not hold, a missing or malformed ledger, a language the citation does not cover); "
+                    "unchecked is never empty. A path outside the code map's root is refused. From the application, "
+                    "register_impact walk=dependants (children true for an application whose modules carry the links) "
+                    "climbs to the processes and capabilities.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "required": ["path"], "properties": {
+         "path": {"type": "string", "description": "a '/'-separated path relative to the code map's root, as trace.py names a file"}}},
+     "annotations": READ_ONLY})
+
+
+TOOLS.append(
+    {"name": "document_links", "title": "Which register links cite this document?",
+     "description": "The register links whose evidence cites a document of the subject's export manifest, read from the "
+                    "register's files and never from the store: each link's id, type, state and owner, the evidence string "
+                    "and its #anchor, and the nodes at both ends with their owning units (target null for a link to an "
+                    "external id); the document's digest in the manifest. What the Browser's register-cites query joins. A "
+                    "document the manifest does not hold is refused. One hop, document to register: from the nodes, "
+                    "register_impact climbs or descends.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "required": ["document"], "properties": {
+         "document": {"type": "string", "description": "a document path as the subject's export manifest names it under [files]; the subject's evidence prefix and an #anchor may be given"}}},
      "annotations": READ_ONLY})
 
 
@@ -617,6 +669,35 @@ class Tools:
         try:
             return rn.report(args)
         except rn.NodesError as e:
+            raise ToolError(str(e)) from e
+
+    trace_cfg: dict | None = None   # the code leg's instance and ledger (upward.config), set once at start by main
+
+    def key_nodes(self, args: dict) -> dict:
+        """The register-map rows on a key with their register nodes (``upward.key_nodes``, task-0143); no store."""
+        import upward
+        try:
+            return upward.key_nodes(args.get("key"))
+        except upward.UpwardError as e:
+            raise ToolError(str(e)) from e
+
+    def document_links(self, args: dict) -> dict:
+        """The register links citing a document (``upward.document_links``, task-0143); the register's files only."""
+        import upward
+        try:
+            return upward.document_links(args.get("document"))
+        except upward.UpwardError as e:
+            raise ToolError(str(e)) from e
+
+    def code_path(self, args: dict) -> dict:
+        """A code path's application, cited keys and ledger entry (``upward.code_path``, task-0143); files only."""
+        import upward
+        with self._lock:
+            if self.trace_cfg is None:
+                self.trace_cfg = upward.config()
+        try:
+            return upward.code_path(args.get("path"), self.trace_cfg)
+        except upward.UpwardError as e:
             raise ToolError(str(e)) from e
 
     def proposal_impact(self, args: dict) -> dict:
@@ -998,8 +1079,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--port", type=int, default=int(os.environ.get("KG_MCP_PORT", DEFAULT_PORT)), help=f"HTTP port (default: KG_MCP_PORT, else {DEFAULT_PORT})")
     ap.add_argument("--as-of", default=None, help="the date every call that names none reads on: YYYY-MM-DD, record or today "
                                                   "(default: KG_AS_OF, else today), read once at start (task-0100)")
+    ap.add_argument("--instance", default=None, help="the instance code_path reads code_map.toml and the code from "
+                                                      "(default: KG_INSTANCE; none: its code leg reads unchecked)")
+    ap.add_argument("--ledger", default=None, help="the trace ledger code_path reads (default: KG_LEDGER; none: unchecked)")
     args = ap.parse_args(argv)
     server = Server(Tools(as_of=args.as_of))
+    import upward
+    server.tools.trace_cfg = upward.config(args.instance, args.ledger)   # read once, at start, as as_of is
     try:
         on = server.tools.session_as_of()
     except Exception as e:  # noqa: BLE001 - a bad date or a pinned clock with no KG_TODAY: refuse at start, not per call
