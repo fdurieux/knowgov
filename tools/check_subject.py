@@ -1,0 +1,374 @@
+"""Check a subject root before it is loaded (task-0135; doc-0018 F2 to F5).
+
+    python tools/check_subject.py <subject root> [--register DIR] [--json]
+
+The layout check (tools/check_instance.py) confirms a subject loads and its documents exist. This
+checks what loading does not: the manifest's own content, and the task's keys against what the
+documents say. It reads and never writes; it opens no store.
+
+- **The manifest** (F5). Every top-level table, and every field of `[subject]`, `[[artefact]]`,
+  `[tasks.<class>]` and `[record]`, is one the loader reads; an unknown one is named with the
+  nearest known name (`[task.codegen]`: did you mean `[tasks]`?). An artefact has `key`, `family`
+  and `format`, keys are unique, and an artefact without a `path` is one a plant adds. A task has
+  `keys` (a non-empty list), `block_levels` (gate levels) and `max_unverified_share` (0 to 1).
+  A key, in a task, in `[three_valued]` or in a map row, is `<entity>|<predicate>`.
+- **A scenario** (F3). A subject that declares a task declares at least one scenario: the gate
+  runs on one and exits 2 on a subject that has none. `subjects/minimal/` declares the pristine `S0`.
+- **The register map** (F4). Every node a row of `register_map.toml` names is in the register, and
+  a row's `owner` is one of the owners of its nodes. Without a readable register, unchecked.
+- **The documents' yield** (F2). Each artefact's mapper is run on the subject's own documents, in
+  a child process (the harness binds its subject at import), and every task's required key is
+  looked up in what they yield. A key no document yields, with a near match the documents do
+  yield, is a warning naming that match: a misspelt key otherwise reads as `absent` at the gate and
+  goes to an owner as a question. A key with no near match is a note: the gate will read it absent
+  unless a person's answer supplies it. The mappers need PyYAML; without it the yield is unchecked,
+  and the report says so.
+
+Exit 0 when nothing is refused (warnings and notes are for reading), 1 when the manifest is refused
+(an unknown table or field, a missing required field, no scenario for a task, a key that is not
+`<entity>|<predicate>`, a map row naming a node the register does not hold or an owner of none of
+its nodes, a mapper that cannot read its document), 2 when the check cannot run (no such directory,
+no subject.toml). The report as JSON (`--json`) is pinned by harness/schemas/subject-check.schema.json.
+Standard library only; the yield's child process needs what the harness's mappers need.
+"""
+from __future__ import annotations
+
+import argparse
+import difflib
+import json
+import os
+import re
+import subprocess
+import sys
+import tomllib
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+KINDS_TABLE = ROOT / "instance" / "kinds.toml"
+DEFAULT_REGISTER = ROOT / "demo" / "register"
+SCHEMA_VERSION = 1
+
+# What the loader reads (harness/subject.py Subject, harness/gate.py, tools/vendor_subject.py)
+TABLES = {"subject", "artefact", "reference", "oracle", "provenance", "verification", "arms", "tasks",
+          "three_valued", "rules", "register", "page", "record", "capture", "vendor"}
+SUBJECT_FIELDS = {"id", "name", "description", "record_model", "record_effort", "listed"}
+ARTEFACT_FIELDS = {"key", "short", "family", "format", "label", "format_label", "path", "include", "mapper", "store"}
+ARTEFACT_REQUIRED = ("key", "family", "format")
+TASK_FIELDS = {"keys", "block_levels", "max_unverified_share", "verbatim", "rationale"}
+TASK_REQUIRED = ("keys", "block_levels", "max_unverified_share")
+RECORD_FIELDS = {"dir", "as_of"}
+LEVELS = ("absent", "declared_gap", "disputed", "invalidated", "proposed", "validated", "verified", "approved")   # harness/gate.py ORDER
+KEY_RE = re.compile(r"[^|\s]+\|[^|\s]+")
+NEAR = 0.8   # difflib ratio for a did-you-mean
+YIELD_TIMEOUT = 300
+
+
+def _near(word: str, known, cutoff: float = 0.6) -> str | None:
+    m = difflib.get_close_matches(word, sorted(known), n=1, cutoff=cutoff)
+    return m[0] if m else None
+
+
+def _toml(p: Path) -> dict:
+    return tomllib.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+
+
+def kinds_mappers(path: Path = KINDS_TABLE) -> set[str]:
+    return {m for k in _toml(path).get("kind", []) for m in k.get("mappers", [])}
+
+
+def register_nodes(root: Path) -> dict[str, str] | None:
+    """id -> owner for every node of the register's taxonomies, as the capture module's
+    register_nodes reads them; None when the register cannot be read."""
+    try:
+        types = _toml(root / "metamodel" / "types.toml")
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    if not types.get("taxonomy"):
+        return None
+    out = {}
+    for tax in types["taxonomy"]:
+        for p in sorted((root / tax).glob("*.toml")):
+            try:
+                n = tomllib.loads(p.read_text(encoding="utf-8"))
+            except (OSError, tomllib.TOMLDecodeError):
+                continue
+            if "id" in n:
+                out[n["id"]] = n.get("owner", "")
+    return out
+
+
+class Report:
+    def __init__(self, root: Path):
+        self.root = root
+        self.findings: list[dict] = []
+        self.notes: list[dict] = []
+
+    def error(self, rule: str, where: str, message: str, fix: str) -> None:
+        self.findings.append({"level": "error", "rule": rule, "where": where, "message": message, "fix": fix})
+
+    def warning(self, rule: str, where: str, message: str, fix: str) -> None:
+        self.findings.append({"level": "warning", "rule": rule, "where": where, "message": message, "fix": fix})
+
+    def note(self, rule: str, where: str, message: str) -> None:
+        self.notes.append({"rule": rule, "where": where, "message": message})
+
+
+def _fields(rep: Report, where: str, table: dict, known: set[str]) -> None:
+    for f in table:
+        if f not in known:
+            near = _near(f, known)
+            rep.error("field", where, f"{f!r} is not a field the loader reads; it is ignored",
+                      f"rename it to {near!r}" if near else f"remove it; the fields are {', '.join(sorted(known))}")
+
+
+def _key(rep: Report, where: str, key) -> bool:
+    if isinstance(key, str) and KEY_RE.fullmatch(key):
+        return True
+    rep.error("key-syntax", where, f"{key!r} is not a key: a key is <entity>|<predicate>, one '|' and no spaces",
+              "write it as entity|predicate, as the mappers name it (REQ-01|text, QuoteAPI|notified)")
+    return False
+
+
+def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
+    for t in m:
+        if t not in TABLES:
+            near = _near(t, TABLES)
+            rep.error("table", f"[{t}]", f"[{t}] is not a table the loader reads; everything under it is ignored",
+                      f"rename it to [{near}]" if near else f"remove it; the tables are {', '.join(sorted(TABLES))}")
+    if isinstance(m.get("subject"), dict):
+        _fields(rep, "[subject]", m["subject"], SUBJECT_FIELDS)
+    if isinstance(m.get("record"), dict):
+        _fields(rep, "[record]", m["record"], RECORD_FIELDS)
+
+    plants = _toml(root / "plants.toml")
+    added = {p.get("path") for stage in ("plant", "stage2") for ps in plants.get(stage, {}).values()
+             for p in ps if p.get("op") == "add"}
+    seen: set[str] = set()
+    for i, a in enumerate(m.get("artefact", [])):
+        where = f"[[artefact]] #{i + 1}" + (f" {a['key']}" if isinstance(a.get("key"), str) else "")
+        _fields(rep, where, a, ARTEFACT_FIELDS)
+        for f in ARTEFACT_REQUIRED:
+            if f not in a:
+                rep.error("required", where, f"no {f!r}: the loader needs it", f"add {f} = \"...\" (subjects/README.md)")
+        key = a.get("key")
+        if isinstance(key, str):
+            if key in seen:
+                rep.error("duplicate", where, f"key {key!r} is declared twice", "give each artefact its own key")
+            seen.add(key)
+        mapper = a.get("mapper")
+        if mapper and mapper not in mappers:
+            near = _near(mapper, mappers)
+            rep.error("mapper", where, f"mapper {mapper!r} is not a mapper the harness has",
+                      f"use {near!r}" if near else f"use one of {', '.join(sorted(mappers))}, or none for a document the store does not read")
+        if not a.get("path"):
+            if key not in added:
+                rep.error("required", where, "no 'path', and no plant adds the artefact", "add path = \"...\", relative to the subject root")
+        elif not (root / a["path"]).exists():
+            rep.error("path", where, f"{a['path']} does not exist", "fix the path; it is relative to the subject root")
+
+    tasks = m.get("tasks", {})
+    for name, t in (tasks.items() if isinstance(tasks, dict) else []):
+        where = f"[tasks.{name}]"
+        if not isinstance(t, dict):
+            rep.error("required", where, "not a table", f"write [tasks.{name}] with keys, block_levels and max_unverified_share")
+            continue
+        _fields(rep, where, t, TASK_FIELDS)
+        for f in TASK_REQUIRED:
+            if f not in t:
+                rep.error("required", where, f"no {f!r}: the gate needs it", "copy it from subjects/minimal/subject.toml and adjust")
+        keys = t.get("keys")
+        if "keys" in t and (not isinstance(keys, list) or not keys):
+            rep.error("required", where, "keys is not a non-empty list", "list the keys the task needs")
+        for k in keys if isinstance(keys, list) else []:
+            _key(rep, f"{where} keys", k)
+        bl = t.get("block_levels")
+        for lv in bl if isinstance(bl, list) else []:
+            if lv not in LEVELS:
+                near = _near(str(lv), LEVELS)
+                rep.error("block-level", where, f"block level {lv!r} is not a gate level",
+                          f"use {near!r}" if near else f"use one of {', '.join(LEVELS)}")
+        share = t.get("max_unverified_share")
+        if "max_unverified_share" in t and (isinstance(share, bool) or not isinstance(share, (int, float)) or not 0 <= share <= 1):
+            rep.error("share", where, f"max_unverified_share {share!r} is not a number from 0 to 1", "write a share such as 0.25")
+    tv = m.get("three_valued", {})
+    for k in tv.get("keys", []) if isinstance(tv, dict) else []:
+        _key(rep, "[three_valued] keys", k)
+
+    if tasks and not _toml(root / "scenarios.toml").get("scenario"):
+        rep.error("scenario", "scenarios.toml",
+                  f"the subject declares task(s) {', '.join(sorted(tasks))} and no scenario: the gate runs on a scenario and exits 2 on this subject",
+                  "add scenarios.toml with the pristine scenario subjects/minimal/scenarios.toml declares (S0, extraction = \"pristine\")")
+
+
+def check_map(rep: Report, m: dict, root: Path, register: Path | None) -> None:
+    rel = (m.get("register") or {}).get("map", "register_map.toml") if isinstance(m.get("register"), dict) else "register_map.toml"
+    p = root / rel
+    if not p.is_file():
+        return
+    rows = _toml(p).get("row", [])
+    nodes = register_nodes(register) if register else None
+    if nodes is None:
+        rep.note("map", rel, f"{len(rows)} row(s) unchecked against the register: no readable register"
+                 + (f" at {register.as_posix()}" if register else ""))
+    for i, row in enumerate(rows):
+        where = f"{rel} row #{i + 1}" + (f" {row['key']}" if isinstance(row.get("key"), str) else "")
+        if "key" not in row:
+            rep.error("required", where, "no 'key'", "add key = \"entity|predicate\"")
+        else:
+            _key(rep, where, row["key"])
+        if nodes is None:
+            continue
+        named = [n for n in row.get("nodes", []) if isinstance(n, str)]
+        for n in named:
+            if n not in nodes:
+                near = _near(n, nodes, 0.8)
+                rep.error("map-node", where, f"node {n} is not in the register: the key's owners and walk skip it silently",
+                          f"name a node the register holds{f' (did you mean {near}?)' if near else ''}, or add the node to the register first")
+        owner = row.get("owner")
+        if owner:
+            owners = sorted({nodes[n] for n in named if n in nodes and nodes[n]})
+            if owner not in owners:
+                rep.error("map-owner", where,
+                          f"owner {owner} owns none of the row's nodes ({', '.join(owners) or 'no owner found'}): the questionnaire ignores it and goes to every owner",
+                          f"name one of {', '.join(owners)}" if owners else "name the owner of one of the row's nodes")
+
+
+def _yield_child(root: Path) -> dict:
+    """In a child process with KG_SUBJECT set: each artefact's yield, as the load's mappers make it."""
+    env = dict(os.environ, KG_SUBJECT=str(root), PYTHONDONTWRITEBYTECODE="1")
+    try:
+        cp = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--yield-only", str(root)],
+                            capture_output=True, text=True, env=env, timeout=YIELD_TIMEOUT, cwd=str(ROOT))
+    except subprocess.TimeoutExpired:
+        return {"state": "unchecked", "why": f"the mappers did not finish within {YIELD_TIMEOUT} s"}
+    try:
+        return json.loads(cp.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError):
+        tail = (cp.stderr.strip().splitlines() or ["no output"])[-1]
+        return {"state": "unchecked", "why": f"the mappers could not run here: {tail}"}
+
+
+def yield_only(root: Path) -> dict:
+    """The child's side: run each artefact's mapper on the subject's own documents. No store."""
+    sys.path.insert(0, str(ROOT / "harness"))
+    try:
+        import extract  # noqa: PLC0415  binds KG_SUBJECT, which the parent set
+        from subject import SUBJECT  # noqa: PLC0415
+    except ModuleNotFoundError as e:
+        return {"state": "unchecked", "why": f"the mappers need {e.name}, which is not installed here"}
+    try:
+        code = SUBJECT.reference_code()
+    except (OSError, StopIteration, KeyError):
+        code = ""
+    arts, failed, missing_mod = {}, {}, None
+    for key, p in SUBJECT.kit_files:
+        mapper = SUBJECT.mappers.get(key)
+        if not mapper or not p.exists():
+            continue
+        try:
+            text = SUBJECT.artefact_text(key)
+            bag = extract.extract_links(key, text, code) if mapper == "links" else extract.EXTRACTORS[mapper](key, text)
+        except ModuleNotFoundError as e:
+            missing_mod = e.name
+            continue
+        except Exception as e:  # noqa: BLE001 — a mapper that cannot read its document is the finding
+            failed[key] = f"{type(e).__name__}: {e}"
+            continue
+        arts[key] = sorted({f"{a['entity']}|{a['predicate']}" for a in bag.assertions})
+    out = {"state": "checked", "why": None, "artefacts": arts, "failed": failed}
+    if missing_mod:
+        out["why"] = f"some mappers need {missing_mod}, which is not installed here; their artefacts are unchecked"
+    return out
+
+
+def check_yield(rep: Report, m: dict, root: Path) -> dict:
+    y = _yield_child(root)
+    if y.get("state") != "checked":
+        rep.note("yield", "documents", f"yield unchecked: {y.get('why')}")
+        return {"state": "unchecked", "why": y.get("why"), "keys": 0, "artefacts": {}}
+    arts: dict[str, list[str]] = y.get("artefacts", {})
+    partial = bool(y.get("why"))
+    if partial:   # a key an unchecked artefact would yield must not read as a misspelling
+        rep.note("yield", "documents", f"{y['why']}; the task keys are not compared with a partial yield")
+    for key, why in sorted(y.get("failed", {}).items()):
+        rep.error("mapper-failed", f"[[artefact]] {key}", f"its mapper cannot read it: {why}; the load fails on it",
+                  "fix the document, or give the artefact the mapper of its convention (instance/kinds.toml)")
+    yielded = set().union(*arts.values()) if arts else set()
+    tasks = m.get("tasks", {}) if isinstance(m.get("tasks"), dict) else {}
+    required = {k for t in tasks.values() if isinstance(t, dict) for k in (t.get("keys") or []) if isinstance(k, str)}
+    for name, t in sorted(tasks.items()):
+        if not isinstance(t, dict) or partial:
+            continue
+        for k in t.get("keys") or []:
+            if not isinstance(k, str) or not KEY_RE.fullmatch(k) or k in yielded:
+                continue
+            near = _near(k, yielded - required, NEAR)
+            if near:
+                rep.warning("yield", f"[tasks.{name}] keys",
+                            f"{k}: no document yields this key, and the gate will read it absent and ask an owner for it",
+                            f"did you mean {near}? the documents yield it")
+            else:
+                rep.note("unyielded", f"[tasks.{name}] keys",
+                         f"{k}: no document yields it; the gate reads it absent unless a person's answer supplies it")
+    return {"state": "checked", "why": y.get("why"), "keys": len(yielded), "artefacts": {k: len(v) for k, v in arts.items()}}
+
+
+def check(root: Path, register: Path | None = None, mappers: set[str] | None = None, run_yield: bool = True) -> dict:
+    """The report for one subject root. Reads only; opens no store; writes nothing."""
+    root = Path(root)
+    rep = Report(root)
+    out = {"schema_version": SCHEMA_VERSION, "tool": "check_subject", "subject": root.name, "root": root.as_posix(),
+           "findings": rep.findings, "notes": rep.notes,
+           "yield": {"state": "unchecked", "why": "not run", "keys": 0, "artefacts": {}}, "exit_code": 0}
+    try:
+        m = tomllib.loads((root / "subject.toml").read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as e:
+        rep.error("manifest", "subject.toml", f"not valid TOML: {e}", "fix the syntax the message names")
+        out["exit_code"] = 1
+        return out
+    sub = m.get("subject") if isinstance(m.get("subject"), dict) else {}
+    out["subject"] = sub.get("id", root.name)
+    check_manifest(rep, m, root, mappers if mappers is not None else kinds_mappers())
+    check_map(rep, m, root, register)
+    if run_yield:
+        out["yield"] = check_yield(rep, m, root)
+    out["exit_code"] = 1 if any(f["level"] == "error" for f in rep.findings) else 0
+    return out
+
+
+def render(rep: dict) -> str:
+    out = [f"subject {rep['subject']} ({rep['root']})"]
+    y = rep["yield"]
+    out.append(f"yield: {y['keys']} key(s) from {len(y['artefacts'])} artefact(s)" if y["state"] == "checked"
+               else f"yield: unchecked ({y['why']})")
+    for f in rep["findings"]:
+        out.append(f"{f['level'].upper()} {f['where']}: {f['message']}. Fix: {f['fix']}")
+    for n in rep["notes"]:
+        out.append(f"NOTE {n['where']}: {n['message']}")
+    errs = sum(f["level"] == "error" for f in rep["findings"])
+    out.append("manifest holds" if not errs else f"manifest refused: {errs} error(s)")
+    return "\n".join(out)
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Check a subject root before it is loaded.")
+    ap.add_argument("root", type=Path)
+    ap.add_argument("--register", type=Path, default=None,
+                    help="the register the map rows are checked against (default: KG_REGISTER, else demo/register)")
+    ap.add_argument("--json", action="store_true", help="print the report as JSON")
+    ap.add_argument("--yield-only", action="store_true", help=argparse.SUPPRESS)
+    args = ap.parse_args(argv)
+    if args.yield_only:
+        print(json.dumps(yield_only(args.root)))
+        return 0
+    if not (args.root / "subject.toml").is_file():
+        print(f"cannot run: {args.root} holds no subject.toml", file=sys.stderr)
+        return 2
+    register = args.register or Path(os.environ.get("KG_REGISTER") or DEFAULT_REGISTER)
+    rep = check(args.root, register)
+    print(json.dumps(rep, indent=1) if args.json else render(rep))
+    return rep["exit_code"]
+
+
+if __name__ == "__main__":
+    sys.exit(main())

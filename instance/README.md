@@ -80,6 +80,41 @@ layout holds and 1 when it does not, for example with no register, a folder that
 or a subject that does not load. It exits 2 when it cannot run at all. Add `--json` for the
 report as data.
 
+It also reads each subject's own files, the way the gate would, and says what the gate would only
+show you later, or not at all:
+
+- a table or field in `subject.toml` that knowgov does not read, such as `[task.codegen]` for
+  `[tasks.codegen]`. It would otherwise be ignored without a word. The check names the nearest
+  real name;
+- a task's missing or malformed settings: its `keys`, its `block_levels` and its
+  `max_unverified_share`. A key is written `<entity>|<predicate>`, for example `REQ-01|text`;
+- a subject with a task and no scenario. The gate runs on a scenario, so it cannot run on such a
+  subject. Copy the pristine scenario `S0` from `subjects/minimal/scenarios.toml`;
+- a row of `register_map.toml` that names a node your register does not hold, or whose `owner`
+  owns none of the row's nodes. Without the check, the questionnaire would quietly go to someone
+  else;
+- a required key that no document yields when a document yields one very close to it. For
+  example, the task asks for `REQ-02|txt` and your requirements give `REQ-02|text`. This shows as
+  a *WARNING* with the key the documents do yield. Without it, the gate would report the key absent
+  and send its owner a question that a spelling fix answers.
+
+To read what your documents yield, the check runs the same mappers the load runs, on your files.
+It needs the same Python packages the load needs: PyYAML, and pumllint for PlantUML. Where they are
+not installed, the check says the yield was not checked; it never passes it quietly. A key that no
+document yields, and that has no close match, is a *NOTE*. The gate will report it absent unless a
+person's answer supplies it, which can be right. The first four problems in the list are layout
+errors: the check exits 1, as it does for a missing document. Warnings and notes do not change the
+exit code. The check opens no store and writes nothing.
+
+To check one subject on its own:
+
+```bash
+python tools/check_subject.py /path/to/your/instance/subjects/<id> --register /path/to/your/instance/register
+```
+
+It prints the same findings, each with its fix, and exits 0, 1 or 2 like the layout check. Add
+`--json` for the report as data, pinned by `harness/schemas/subject-check.schema.json`.
+
 ## Mapping code to the register
 
 Your register lists applications and their modules (`APP-` ids under `register/applications/`);

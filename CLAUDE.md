@@ -27,7 +27,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   `vendor/` the bytes vendored from pumllint in its relative layout; `runs/`
   re-runs, gitignored. `instance/` an organisation's instance layout (`README.md`, adopter register;
   `kinds.toml`, one kind per row of the site's artefact table and the mappers that read it, every
-  mapper in exactly one), checked by `tools/check_instance.py`, with a public example from
+  mapper in exactly one), checked by `tools/check_instance.py` (each subject's manifest, scenario, register map and keys against the documents' yield by `tools/check_subject.py`, pure, the yield in a child process, no store; schema `subject-check`; fixture `tools/fixtures/subject_probe`; task-0135, doc-0018), with a public example from
   `tools/example_instance.py` that CI mounts read-only and digests before and after (task-0006). Each kind's `lint`
   field is doc-0008 §5's tool and gate column; `tools/preload_check.py` lints an instance's documents
   with the ones that run here (pumllint; Spectral for api-contracts, task-0066; markdownlint, gplint, bpmnlint, dmnlint for prose, Gherkin, BPMN, .dmn, task-0082, proven by `tools/check_preload_linters.py`; `--baseline` fails only on regression, task-0065), lists every other kind's files, and a kind whose linter is not installed, as unchecked, exits under the

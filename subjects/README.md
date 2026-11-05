@@ -133,9 +133,10 @@ numbers = { planted = 15, reached_code = 6 }
 ## `scenarios.toml`
 
 A subject that declares a task declares at least one scenario: the gate loads one, and with none
-`gate_cli.py` exits 2 ("no scenario ''; the subject declares none"), and `check_instance.py` does
-not catch it yet (doc-0018 F3; task-0135 adds the check). The smallest is a pristine scenario, the
-pattern `subjects/minimal/scenarios.toml` follows: the kit as committed, nothing planted.
+`gate_cli.py` exits 2 ("no scenario ''; the subject declares none"); `tools/check_subject.py`, which
+`check_instance.py` runs on every subject, refuses such a subject (doc-0018 F3, task-0135). The
+smallest is a pristine scenario, the pattern `subjects/minimal/scenarios.toml` follows: the kit as
+committed, nothing planted.
 
 ```toml
 [[scenario]]
@@ -240,6 +241,18 @@ needs_text = "S6 loaded deterministically"
 title = "..."
 text = "MATCH ..."
 ```
+
+## Checking a subject
+
+`tools/check_subject.py <subject root> [--register DIR] [--json]` reads a root before it is loaded,
+and `tools/check_instance.py` runs it on every subject of an instance (task-0135, doc-0018 F2 to
+F5). It refuses (exit 1) a table or field this file does not document, a task without `keys`,
+`block_levels` or `max_unverified_share`, a key that is not `<entity>|<predicate>`, a task with no
+scenario, a `register_map.toml` node the register does not hold or an `owner` of none of its row's
+nodes, and a mapper that cannot read its document. It warns on a required key no document yields
+when they yield a near one, the documents' yield taken from the load's own mappers in a child
+process, with no store. `tools/fixtures/subject_probe` carries every refusal on purpose; the report
+is pinned by `harness/schemas/subject-check.schema.json`.
 
 ## Vendoring
 

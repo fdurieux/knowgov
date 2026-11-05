@@ -55,6 +55,18 @@ names that section with the version.
   file as `failed` (`error: "page restarted"`) when it starts. `harness/runs_index.py` is the one
   reader of the run folders: the page's `/api/runs` and source lists read through it, unchanged.
   `review.now()` is the reader's clock (`KG_NOW`; refused under `KG_CLOCK=pinned` without it). The
+- **The layout check reads each subject's manifest and keys** (task-0135, doc-0018 F2 to F5; a layout
+  refusal): `tools/check_instance.py` runs the new `tools/check_subject.py` on every subject. It now
+  exits 1 on any of these: a table or field `subject.toml` holds that the loader does not read; a
+  task missing `keys`, `block_levels` or `max_unverified_share`, or holding a bad value in one; a
+  key that is not `<entity>|<predicate>`; a subject with a task and no scenario, which the gate
+  exits 2 on; a `register_map.toml` node the register does not hold, or an `owner` that owns none
+  of its row's nodes; a mapper that cannot read its document. A required key that no document
+  yields, when a document yields one very close to it, is a warning naming that key, so a typo no
+  longer reads as absent knowledge. The documents' yield comes from the load's own mappers, run in a
+  child process with no store, and is reported unchecked where they cannot run. Its report is pinned
+  by `harness/schemas/subject-check.schema.json` (version 1) and carried as each subject's `check`
+  in `check_instance.py --json`. Both public subjects and the example instance pass unchanged; the
   record and the comparator are unchanged.
 - **`knowgov-runs`: an assistant starts and polls a scenario run** (task-0133, decision-0008;
   additive). A second stdio MCP server, `harness/mcp_runs.py`, a client of the page's
