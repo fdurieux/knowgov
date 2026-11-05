@@ -21,8 +21,10 @@ documents say. It reads and never writes; it opens no store.
   looked up in what they yield. A key no document yields, with a near match the documents do
   yield, is a warning naming that match: a misspelt key otherwise reads as `absent` at the gate and
   goes to an owner as a question. A key with no near match is a note: the gate will read it absent
-  unless a person's answer supplies it. The mappers need PyYAML; without it the yield is unchecked,
-  and the report says so.
+  unless a person's answer supplies it. A document whose statements are authored, in a subject that
+  declares no `[verification] authored`, is a note too: they load proposed until a person attests
+  them (decision-0009). The mappers need PyYAML; without it the yield is unchecked, and the report
+  says so.
 
 Exit 0 when nothing is refused (warnings and notes are for reading), 1 when the manifest is refused
 (an unknown table or field, a missing required field, no scenario for a task, a key that is not
@@ -260,7 +262,7 @@ def yield_only(root: Path) -> dict:
         code = SUBJECT.reference_code()
     except (OSError, StopIteration, KeyError):
         code = ""
-    arts, failed, missing_mod = {}, {}, None
+    arts, failed, authored, missing_mod = {}, {}, [], None
     for key, p in SUBJECT.kit_files:
         mapper = SUBJECT.mappers.get(key)
         if not mapper or not p.exists():
@@ -275,7 +277,9 @@ def yield_only(root: Path) -> dict:
             failed[key] = f"{type(e).__name__}: {e}"
             continue
         arts[key] = sorted({f"{a['entity']}|{a['predicate']}" for a in bag.assertions})
-    out = {"state": "checked", "why": None, "artefacts": arts, "failed": failed}
+        if any(a.get("basis") == "authored" for a in bag.assertions):
+            authored.append(key)
+    out = {"state": "checked", "why": None, "artefacts": arts, "failed": failed, "authored": authored}
     if missing_mod:
         out["why"] = f"some mappers need {missing_mod}, which is not installed here; their artefacts are unchecked"
     return out
@@ -294,6 +298,11 @@ def check_yield(rep: Report, m: dict, root: Path) -> dict:
         rep.error("mapper-failed", f"[[artefact]] {key}", f"its mapper cannot read it: {why}; the load fails on it",
                   "fix the document, or give the artefact the mapper of its convention (instance/kinds.toml)")
     yielded = set().union(*arts.values()) if arts else set()
+    ver = m.get("verification") if isinstance(m.get("verification"), dict) else {}
+    if y.get("authored") and not ver.get("authored"):   # decision-0009 (a): no attestation, no review by construction
+        rep.note("attestation", "[verification]",
+                 f"{', '.join(y['authored'])} hold authored statements and the manifest declares no [verification] authored: "
+                 "they load proposed until a person attests them (decision-0009)")
     tasks = m.get("tasks", {}) if isinstance(m.get("tasks"), dict) else {}
     required = {k for t in tasks.values() if isinstance(t, dict) for k in (t.get("keys") or []) if isinstance(k, str)}
     for name, t in sorted(tasks.items()):

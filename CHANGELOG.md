@@ -12,6 +12,14 @@ names that section with the version.
 
 ### Contract changes since 0.5.0
 
+- **A load attests only what the subject declares** (decision-0009 (a), task-0136, doc-0018 F1):
+  the authored-by-construction review runs only when `subject.toml` declares `[verification]
+  authored`, and the approval of verified statements only when it declares `approval`. Before, both
+  ran with the loader's defaults (`agent:maintainer`, record `approval`), so an authored document
+  nobody had read loaded approved. A subject without the declarations now loads its authored
+  statements `proposed` and approves nothing, and the gate reads them below verified. Both public
+  subjects declare both tables: the record, the comparator and the example instance are unchanged.
+  `tools/check_subject.py` notes a subject with authored documents and no `authored` declaration.
 - **A run folder describes itself** (task-0127, additive): the page's Runner writes
   `runs/<subject>/<stamp>/run.json` when a run starts (status `running`) and again when it ends
   (`finished`, `done` or `failed`, `exit_code`); a run whose process cannot start leaves it

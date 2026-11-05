@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/subject-check.schema.json",
  "title": "knowgov subject check report",
- "description": "What tools/check_subject.py --json prints for one subject root (task-0135; doc-0018 F2 to F5), and what tools/check_instance.py --json carries per subject as check. findings are errors (the manifest is refused: exit 1, and a layout error in check_instance.py) and warnings (a required key no document yields, with the near key the documents do yield); each names its rule, where it is, what is wrong and the fix. notes are for reading: a key no document yields with no near match, a register map left unchecked, a yield left unchecked and why. yield is unchecked when the mappers cannot run where the check runs (they need PyYAML, and the sequence and container mappers pumllint); keys is the number of distinct keys the documents yield. Version 1; a change is additive or a new version.",
+ "description": "What tools/check_subject.py --json prints for one subject root (task-0135; doc-0018 F2 to F5), and what tools/check_instance.py --json carries per subject as check. findings are errors (the manifest is refused: exit 1, and a layout error in check_instance.py) and warnings (a required key no document yields, with the near key the documents do yield); each names its rule, where it is, what is wrong and the fix. notes are for reading: a key no document yields with no near match, a register map left unchecked, a yield left unchecked and why, authored documents in a subject that declares no [verification] authored (decision-0009). yield is unchecked when the mappers cannot run where the check runs (they need PyYAML, and the sequence and container mappers pumllint); keys is the number of distinct keys the documents yield. Version 1; a change is additive or a new version.",
  "type": "object",
  "required": ["schema_version", "tool", "subject", "root", "findings", "notes", "yield", "exit_code"],
  "additionalProperties": false,
@@ -45,7 +45,7 @@
    "required": ["rule", "where", "message"],
    "additionalProperties": false,
    "properties": {
-    "rule": {"enum": ["map", "yield", "unyielded"]},
+    "rule": {"enum": ["map", "yield", "unyielded", "attestation"]},
     "where": {"type": "string"},
     "message": {"type": "string"}
    }

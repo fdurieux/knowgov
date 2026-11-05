@@ -436,14 +436,10 @@ Each statement knowgov holds has a *status*: proposed, then validated, verified 
 last being the highest. For a statement taken from a document, the status says who has vouched
 for it, and the gate relies on it to decide whether an assistant may build.
 
-Today, a document that a mapper reads as *authored* (requirement text, the links between
-documents, a decision table's rules) loads as reviewed and approved by the subject's human agent.
-That happens whether or not anyone reviewed it. If `subject.toml` declares no `[verification]` and
-no `[provenance]`, the agent is the default one, `agent:maintainer`, and the approval's record is
-the word `approval`. So a requirements file drafted with an assistant and read by nobody reaches
-the gate as approved (doc-0018 F1).
-
-Until that changes, declare who vouches, in the manifest:
+Some documents hold statements a person wrote down as fact: requirement text, the links between
+documents, a decision table's rules. A mapper reads them as *authored*. knowgov treats them as
+reviewed and approved only when your subject says who vouches for them (decision-0009). The
+declaration goes in `subject.toml`:
 
 ```toml
 [provenance]
@@ -457,9 +453,17 @@ approval = { at = "2026-11-04", record = "minutes/2026-11-04-requirements.md" }
 In plain English: `[provenance] human` says who attests, `authored` says when they reviewed the
 documents and what they read them against, and `approval` says where the approval is recorded.
 Declare them only for documents that person has in fact read. Put them in a pull request that
-someone other than its author reviews. knowgov's decision-0009, accepted on 2026-11-04, makes the
-declaration required; task-0136 builds it. From then on, without it, authored statements stay
-*proposed*, and a new subject stays blocked until a person vouches for its documents.
+someone other than its author reviews.
+
+Without `authored`, those statements load as *proposed*, and the gate lists them below verified.
+Without `approval`, nothing is approved, not even statements a test has verified. A new subject
+whose documents nobody has vouched for is therefore blocked, or at best qualified, until a person
+does. That is on purpose: a requirements file drafted with an assistant and read by nobody must not
+reach the gate as approved. The layout check notes such a subject (*NOTE [verification]*), naming
+its documents with authored statements. One limit remains. A declaration covers the documents as
+they are at each load, so after an edit, re-read the documents before the next load, or remove the
+declaration until someone has. A later decision may bind each attestation to the version of the
+document it covers.
 
 ## Capturing what people know
 
