@@ -5,7 +5,7 @@ title: >-
   opportunity canvas, SWOT, candidates
 type: specification
 created_date: '2026-11-05T17:21:00Z'
-updated_date: '2026-11-05T21:09:00Z'
+updated_date: '2026-11-05T21:53:00Z'
 tags:
   - canvas
   - swot
@@ -102,7 +102,7 @@ The paper's own statement of the trade-off: a graph is "either hand-crafted (ext
 | C3 | A compact bundle form (verdict, policy, key headers, assertion lines, the conflict, stale, lapsed and suspect sections; no text, evidence, verification or approval lines), measured on CargoQuote S1–S7, 5 runs per form, one current model, as a deviation never written into `results/`. Hypothesis: M1 unchanged, M4 and M5 within the full form's range, prompt tokens ≤ 40 % of the full form's | **Spike**, task-0140, m-8; an `evidence_bundle` option only if it holds. Measured 2026-11-05 (§7): it did not hold, no option |
 | C4 | GraphRAG as the adjacent category in doc-0012 §4, and the line *GraphRAG makes an answer faithful to its graph; knowgov says whether the graph may be built on* | **Document**, done: dated entry in doc-0012 §4 |
 | C2 | Contradiction candidates across prose fragments, blocked by a shared entity, register node or glossary term; one model call per pair; info findings in the pre-load report or the questionnaire, never a gate input (decision-0002 gives a model no ruling) | **Park** until C1 has run; ground truth S4, D1/D2, negative control D3/D5 |
-| C5 | M5 extended: the claim's value against the cited assertion's, mechanically | **Park**; useful if C3 loosens the inline evidence |
+| C5 | M5 extended: the claim's value against the cited assertion's, mechanically | **Park**; useful if C3 loosens the inline evidence. Unparked and measured 2026-11-05 (§8): parked again |
 | C6 | A third party's GraphRAG graph (llm-graph-builder output) read as `inferred` | **Park**: not a system of record; only if a pilot runs one |
 | C7 | Text-to-Cypher; a vector index in the store port; an LLM judge (DeepEval) in the record | **Reject**: the port (task-0003), decision-0008's typed read-only surface, the deterministic comparator; embeddings are not reproducible across model versions |
 | C8 | DORA/FFIEC, or any finance-regulation corpus, as a public subject | **Reject**: the no-bank boundary; external law is not an organisation's design knowledge. Re-opening is the maintainer's |
@@ -167,3 +167,89 @@ Reading the table:
 
   Either would be a new hypothesis and a new run. C5 (claim value against the cited assertion) is what would have caught S3's miss mechanically.
 - Unchanged: the record, the comparator, the default form, and the MCP server's contract.
+
+## 8. C5 measured, 2026-11-05 (task-0145)
+
+**A spike, measured outside the record.**
+- Check: `tools/claim_values.py`. It reads each governed reply's claims and assumptions, the generated code and the store's statements. The statements are loaded per scenario as the run loads them, on rdflib, as of the record's date. It writes nothing to the results and adds no field to a run file.
+- Sets:
+  - the record's 35 governed replies, as vendored;
+  - a deviation run: CargoQuote S3, governed arm only, `gpt-5.5-2026-04-23` at effort `low`, n = 5 with `render_bundle` bound to `compact` as in §7, and n = 5 in full form as a control. Raw outputs are in the session's scratch directory, never in `results/` or `runs/`.
+- Cost: 10 calls, 133,067 tokens (compact 42,895, full 90,172). Prompt tokens were 5,327 compact and 15,210 full, the same as §7.
+
+**Before any measurement**, task-0145 recorded the hypothesis and AC #1's bar, unchanged.
+- A fact was established from the store first: S3's plant removed every exact boundary. No statement of the S3 store holds 41, 42, 66 or 67, and nor does the prompt.
+  - `A:dt:S-accept|max@v1` holds `risk index clearly low — below the low forties`.
+  - `A:seq:S-accept|max@v1` holds the undefined symbol `ACCEPT_MAX`.
+- Predictions:
+  - **P1:** the mismatch tier alone flags no S3 target.
+  - **P2:** the unsupported tier flags passing and failing S3 runs alike, so the record's S3 run 4 breaks precision.
+  - **P3:** the passing S1 and S6 runs carry no mismatch or absent flag on the keys the store values.
+
+What the check calls "the claim's value", per cited key (the normalisation is in the tool's docstring):
+- **Key value:** the cited statement's value, else the values of the key's other statements.
+- **Claim value:** the values of that type in the claim's text.
+- **Code value:** the literal bound to a symbol that is one of the key's statement values. Failing that, whether the value occurs among the code's literals at all.
+
+Verdicts, worst first. A flag is any of the first three.
+- `mismatch`: another value is stated or bound.
+- `absent`: the key is valued, code was written, and the value is nowhere in it.
+- `unsupported`: the key is unvalued, and the claim or code commits to a number the store states nowhere.
+- `matched`.
+- `unvalued`: a claim that states no value is unvalued, never matched.
+
+**Three corrections after the first reading of the record.** All three were defects in the check, not value disagreements:
+- (a) A symbol was bound to a key whenever a statement's text mentioned it, so S-accept|status was compared with ACCEPT_MAX = 41. Now a symbol binds a key only when it is one of the key's statement values.
+- (b) Phrases such as `quote document` and `anything higher` were read as enumerations. Now an enumeration is one token.
+- (c) A "no" in prose was read as a boolean. Now booleans are never decided.
+
+Both readings are reported. The corrected one is not an independent test on the record; the deviation runs, measured after the corrections, are.
+
+Table key:
+- Tiers are counts of keys, mismatch/absent/unsupported.
+- Targets: S3's are `accept_boundary_41`, `review_boundary_42`, `refuse_boundary_67`; S6's are `price_exact_heavy`, `price_exact_both`.
+- S2, S4, S5 and S7 are abstentions with no code: no flag under either reading, except S4 run 2, with one boolean mismatch as registered and none corrected.
+
+| Run | M4 targets | M5 | Tiers as registered | Tiers corrected | The boundary or price keys (corrected) |
+|---|---|---|---|---|---|
+| record S1 run1–4 | none | 1.0 | 8/2/0, 8/2/0, 0/8/0, 8/2/0 | 0/3/0, 0/3/0, 0/4/0, 0/3/0 | – |
+| record S1 run5 | none | 1.0 | 4/1/0 | 0/0/0 | – |
+| record S3 run1 | ✗ ✓ ✓ | 1.0 | 6/1/2 | 0/1/3 | all three unsupported; ACCEPT_MAX = 41; the run fails on `NotImplementedError` stubs |
+| record S3 run2 | ✗ ✗ ✗ | 1.0 | 8/8/2 | 0/9/2 | accept and review unsupported; refuse not cited; stubs |
+| record S3 run3 | ✗ ✗ ✗ | 1.0 | 0/2/0 | 0/0/0 | unvalued: no constant bound; stubs |
+| record S3 run4 | ✓ ✓ ✓ | 1.0 | 8/1/3 | 0/2/4 | all three unsupported; ACCEPT_MAX = 41 |
+| record S3 run5 | ✗ ✓ ✓ | 1.0 | 4/1/2 | 0/0/3 | all three unsupported; ACCEPT_MAX = 40 |
+| record S6 run1–5 | ✓ ✓ ×5 | 1.0 | 0/7/0, 8/2/0, 8/2/0, 0/8/0, 8/2/0 | 0/3/0 ×3, 0/4/0, 0/3/0 | P2 and P3 values matched in every run (341.00 after the change); P1 and P3 order unvalued |
+| compact S3 run1, 2, 4, 5 | ✓ ✓ ✓ | 1.0 | – | 0/3/4, 0/3/4, 0/4/4, 0/3/4 | all three unsupported; run1 ACCEPT_MAX = 41 with `<=`, run5 ACCEPT_MAX = 42.0 with `<` |
+| compact S3 run3 | ✗ ✓ ✓ | 1.0 | – | 0/0/4 | all three unsupported; `ASSUMED_ACCEPT_MAX_EXCLUSIVE = 40` with `<`, the only wrong boundary value in the three sets |
+| full S3 run1–5 | ✓ ✓ ✓ ×5 | 1.0 | – | 0/0/4, 0/0/4, 0/3/4, 0/3/4, 0/3/4 | all three unsupported; ACCEPT_MAX = 41 in four runs |
+
+**Against the bar: not met, under either reading or any tier.**
+- **Recall.** Seven run-target pairs fail while citing the target's key: six in the record, one in compact.
+  - The composite flag catches 5 of 7, all through `unsupported`. It misses the record's S3 run 3, which binds no constant.
+  - The mismatch tier catches 0 of 7, as P1 predicted.
+  - Of the seven, only compact run 3 holds a wrong value. The record's S3 target failures are stubs that raise `NotImplementedError` (runs 1 and 4 both bind 41), not wrong values.
+- **Precision.** The population is the 31 record replies whose targets pass. Flagged runs:
+  - as registered: 12 of 31;
+  - corrected: 10 of 31, made up of S1 runs 1–4, S3 run 4 and S6 runs 1–5.
+  - S3 run 4 is flagged `unsupported`, as P2 predicted. In the control, all five full-form runs are flagged too, and every one passes.
+  - Corrected, the mismatch tier flags 0 of 31.
+- **P3 does not hold as registered.**
+  - Before the corrections, 12 passing runs carried mismatch or absent flags, every one a normalisation defect.
+  - After the corrections, `absent` still flags passing runs on equivalent encodings: `> 66` for the stated 67 (S1 run 3, S6 run 4), and the extractor's `NONE` marker for a row that is not priced or not notified, read as an enumeration.
+
+**Why it cannot be met here.**
+- Where S3 plants an ambiguity, the store states no value. A right guess and a wrong one are then the same verdict: compact run 3's exclusive 40 and run 5's exclusive 42.0 are both `unsupported`. Only the oracle, which knows 41, separates them.
+- A bare number does not fix a boundary without its operator, so even a valued key needs code semantics, not a literal comparison.
+- Where the store does value a key (DT-P, the validation limits, the statuses), the mismatch tier is clean on all 31 passing runs. But no run in any set got a valued key wrong, so it has no recall evidence.
+- S6's stale code, the case where a valued key changed under derived code, is already caught by D3 and `trace.py check` through the store's invalidation, not by value.
+
+**Correction to §7.** §7 says C5 "is what would have caught S3's miss mechanically" and that the quoted evidence disambiguated the boundary. No statement in either form holds the boundary, so neither form can disambiguate it from the evidence. In this re-run, compact missed it in 1 of 5 against §7's 3 of 5; the miss rate at n = 5 is unstable. That compact misses and full does not (0 of 5 here and in §7) stands as observed, without a mechanism.
+
+**Decision: park C5.**
+- Do not fold it into M5, a new measure, or `trace.py check`.
+- `tools/claim_values.py` stays as the spike's instrument, outside the record, so the measurement can be repeated.
+- The `unsupported` tier says only what the gate's QUALIFIED verdict and the arm's own assumptions already say: the value was guessed.
+- The `mismatch` tier is precise on the record but has caught nothing.
+- **What would reopen it:** a scenario whose store values a key and whose arm writes another value for it in fresh code, not in derived code that D3 already invalidates. The mismatch tier would then have a recall population.
+- Unchanged: the record, the comparator, the deterministic results, M5 and the measures.
