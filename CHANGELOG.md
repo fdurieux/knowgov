@@ -8,9 +8,22 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
-## Unreleased
+## 0.6.0 — 2026-11-05
 
-### Contract changes since 0.5.0
+An AI assistant can now see what has been run for its subject, read any run's result, and start a
+run of its own, while the server it asks for knowledge stays read-only. `scenario_runs` lists each
+scenario with what the record holds and its runs, newest first; `scenario_result` returns what the
+page's Replay shows for any of them, from files and never the store; and a second server,
+`knowgov-runs`, starts and polls a run through the page, deterministic by default, one at a time.
+While a run is loading the store, the tools that read knowledge from it refuse and name the run. A proposed
+addition (a new product, capability or journey) can be read before approval as if approved, with
+the register's own checker and walks, held in the call or taken from a register branch:
+`proposal_impact`. The layout check now reads each subject's manifest and keys, so a typo, a
+missing scenario or a register-map row the register does not hold is refused before a load. And a
+load attests only what the subject declares: an authored document nobody declared reviewed no
+longer loads as approved (decision-0009).
+
+### Contract changes (why this is 0.6.0, decision-0003)
 
 - **A load attests only what the subject declares** (decision-0009 (a), task-0136, doc-0018 F1):
   the authored-by-construction review runs only when `subject.toml` declares `[verification]
@@ -62,7 +75,7 @@ names that section with the version.
   version 1 is still read, its start standing for the heartbeat. The page closes a stale `running`
   file as `failed` (`error: "page restarted"`) when it starts. `harness/runs_index.py` is the one
   reader of the run folders: the page's `/api/runs` and source lists read through it, unchanged.
-  `review.now()` is the reader's clock (`KG_NOW`; refused under `KG_CLOCK=pinned` without it). The
+  `review.now()` is the reader's clock (`KG_NOW`; refused under `KG_CLOCK=pinned` without it).
 - **The layout check reads each subject's manifest and keys** (task-0135, doc-0018 F2 to F5; a layout
   refusal): `tools/check_instance.py` runs the new `tools/check_subject.py` on every subject. It now
   exits 1 on any of these: a table or field `subject.toml` holds that the loader does not read; a
@@ -95,6 +108,35 @@ names that section with the version.
   level, each arm's runs (decision, code, flagged, suite, model) and the stage-2 verdicts. It reads
   the source's files through `harness/runs_index.py`, never the store, and its reply says so. A
   source not listed is refused; no path is taken.
+
+### What this release carries
+
+| what | version |
+|---|---|
+| pumllint (the sequence-diagram mapper's parser) | 0.33.0, from PyPI |
+| the IEAM register, vendored under `demo/register/` | ieam-register `v0.2.9` |
+| the record's pins | unchanged from 0.5.0 |
+| Python | 3.12 in the image |
+
+The image is `ghcr.io/fdurieux/knowgov:v0.6.0`. The compose file moves to it in a follow-up, once
+the Release has published its digest.
+
+### Known limits
+
+- The register stays at `v0.2.9`: its `v0.2.10` (decision 0017, `unregistered` in
+  `RECONCILE.json`) comes with a later re-vendor, once that tag is published.
+- An attestation is the manifest's declaration and is not bound to a document's version: a later
+  edit to a declared document keeps its attestation until decision-0009's follow-up (c) is decided.
+- A run folder from before `run.json` is inferred: its status, start and initiator are unknown.
+- `proposal_impact`'s branch mode reads a branch's additions only; a deleted node or a link
+  changed in place is listed under `branch.not_read`.
+- The subject check compares keys with the documents' yield only where the mappers run; elsewhere
+  the yield reads unchecked.
+- The connector has run only on the synthetic CargoQuote export, not on a real installation.
+- A register change is read only when the gate is given the previous register
+  (`--register-previous`); the page's register panel does not show what a change withdrew yet.
+- The GitLab include is proven by shell, not yet on a GitLab runner (task-0108).
+- The hooks see Edit and Write, not a shell command writing the same file.
 
 ## 0.5.0 — 2026-11-04
 
