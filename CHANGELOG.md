@@ -12,6 +12,17 @@ names that section with the version.
 
 ### Contract changes
 
+- **`key_nodes` and `code_path`, two new read-only MCP tools** (task-0143, doc-0020 C2, additive): the
+  upward joins, from files and with no store. `key_nodes` names the register nodes a knowledge key's
+  `register_map.toml` rows name, with each row's owner, anchor and note; an unknown key is refused.
+  `code_path` takes a path under the instance's `code_map.toml` root and names its application, the
+  keys its header cites and its trace ledger entry (derived id, keys, statements, commit, digest,
+  drift). Each leg reads `read` or `unchecked` with its reason, never empty. The server takes
+  `--instance`/`KG_INSTANCE` and `--ledger`/`KG_LEDGER`, read once at start. Its instructions name the
+  chain's two sequences: down by `register_impact walk=realisers` then `evidence_bundle`, up by
+  `code_path`, `key_nodes`, `register_impact walk=dependants` and `register_nodes`. Also
+  `python harness/upward.py key|code`; reports pinned by `harness/schemas/key-nodes.schema.json` and
+  `code-path.schema.json`, version 1.
 - **`register_nodes`, a new read-only MCP tool** (task-0142, doc-0020 C1, additive): the register
   listed from its files, no store, every node by id with its taxonomy, kind, name, state, owner and
   parent, filtered by taxonomy, kind, state, owning unit (the owner field or an approved `owns` link)
