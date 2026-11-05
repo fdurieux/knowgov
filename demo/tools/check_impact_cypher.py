@@ -106,7 +106,7 @@ def main() -> int:
     default = reg["impact_default"]
     nodes = [n["id"] for ns in reg["nodes_by_taxonomy"].values() for n in ns]
     failures = reached = 0
-    with open_store() as store:
+    with open_store(access="write") as store:   # console_query runs any text, so not a read handle (task-0141.02)
         for nid in nodes:
             problems, counts, w = [], [], None
             for walk, children in VARIANTS:

@@ -13,19 +13,52 @@ Where Cypher has no ORDER BY, Neo4j answers in store order; here that is inserti
 kept as a sequence number on every node and edge. The comparator treats lists of scalars
 as unordered, so collect() order never decides a verdict.
 
-``KG_RDFLIB_FILE`` names a Turtle file the graph is read from when the store opens and
-written to when it closes, so the page can read what a run left; unset, the graph lives in
-the process only.
+``KG_RDFLIB_FILE`` names a Turtle file the graph is read from when the store opens and published
+to when a writer commits, so the page can read what a run left; unset, the graph lives in the
+process only. The file's lifecycle (task-0141.02):
+
+- A read handle parses the published file once into memory and keeps that snapshot; it takes no
+  lock and never writes. An absent file is an empty store (nothing has been published yet); a file
+  that does not parse raises StoreCorrupt and is left as it is.
+- A writer first takes an exclusive lock on ``<file>.lock``, a stable file beside the store that is
+  never replaced, then loads the snapshot it starts from, so a second writer waits (up to
+  ``KG_RDFLIB_LOCK_TIMEOUT`` seconds, default 60, then StoreBusy) and starts from the first one's
+  publication: no update is lost. It keeps the lock until it is closed.
+- ``commit()`` serialises the graph to a private temporary file in the store's directory, flushes
+  and fsyncs it, replaces the store with it (``os.replace``, atomic on one filesystem) and fsyncs the
+  directory. A reader sees the whole old file or the whole new one. Any failure leaves the previous
+  file in place, removes the temporary file and propagates; nothing reports a commit that did not
+  happen. ``close()`` releases the lock and publishes nothing; a writer killed before it commits
+  leaves the last publication, and its lock dies with it.
+- Supported: POSIX filesystems with ``fcntl.flock`` (Linux, macOS), the store and its lock on a local
+  disk. On a platform without ``fcntl`` a writer on a file refuses to open rather than run unlocked.
+  Crash durability: a commit that returned has its file and directory entry fsynced; a crash before
+  it returns leaves the previous publication.
 """
 from __future__ import annotations
 
 import json
 import os
+import tempfile
+import time
 from urllib.parse import quote, unquote
 
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
 
-from store import Store, part_list, part_rows
+from store import Store, StoreBusy, StoreCorrupt, StoreReadOnly, part_list, part_rows
+
+try:
+    import fcntl
+except ImportError:   # not POSIX: a writer on a file refuses to open (task-0141.02)
+    fcntl = None
+
+LOCK_TIMEOUT = 60.0     # seconds a writer waits for another to finish, unless KG_RDFLIB_LOCK_TIMEOUT says
+TMP_PREFIX = ".kg-publish-"   # the temporary files a commit writes beside the store
+
+# The publication's steps, module attributes so a test can make each one fail (ST-06) or pause (ST-05)
+_fsync = os.fsync
+_replace = os.replace
+_on_lock_wait = None    # called once when a writer finds the lock held, before it waits (ST-04)
 
 N = Namespace("urn:kg:n:")        # nodes
 L = Namespace("urn:kg:label:")    # labels
@@ -64,17 +97,128 @@ def _py(lit):
 class RdflibStore(Store):
     name = "rdflib"
 
-    def __init__(self, path: str | None = None, instance: str = "", **_ignored):
-        self.instance = instance
+    def __init__(self, path: str | None = None, instance: str = "", access: str = "write",
+                 lock_timeout: float | None = None, connection_timeout: float | None = None, **_ignored):
+        if access not in ("read", "write"):
+            raise ValueError(f"access is read or write, not {access!r}")
+        self.instance, self.access = instance, access
         self.path = path if path is not None else os.environ.get("KG_RDFLIB_FILE")
         self.g = Graph()
         self._seq = 0
         self._nodes: dict[str, URIRef] = {}        # id -> node, insertion order
         self._out: dict[URIRef, list[URIRef]] = {}  # node -> its outgoing edge nodes
         self._in: dict[URIRef, list[URIRef]] = {}
-        if self.path and os.path.exists(self.path):
-            self.g.parse(self.path, format="turtle")
-            self._reindex()
+        self._lock = None                           # the writer's lock file, held from before the load to close
+        self.absent = False                         # True when the file did not exist: nothing published yet
+        self.lock_waited = False                    # True when another writer held the lock first
+        if not self.path:
+            return
+        if access == "write":
+            if lock_timeout is None:
+                lock_timeout = float(os.environ.get("KG_RDFLIB_LOCK_TIMEOUT") or connection_timeout or LOCK_TIMEOUT)
+            self._acquire(lock_timeout)
+            try:
+                self._sweep()
+                self._load()
+            except BaseException:
+                self._release()
+                raise
+        else:
+            self._load()
+
+    # ---- the file: lock, load, publish (task-0141.02) ------------------------------------------
+    def _acquire(self, timeout: float) -> None:
+        if fcntl is None:
+            raise StoreBusy(f"{self.path}: a writer needs fcntl.flock, which this platform lacks; "
+                            "the file-backed store is supported on POSIX only (unset KG_RDFLIB_FILE for an in-memory store)")
+        directory = os.path.dirname(os.path.abspath(self.path))
+        os.makedirs(directory, exist_ok=True)
+        fd = os.open(self.path + ".lock", os.O_RDWR | os.O_CREAT, 0o644)
+        deadline = time.monotonic() + max(0.0, timeout)
+        try:
+            while True:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if not self.lock_waited:
+                        self.lock_waited = True
+                        if _on_lock_wait is not None:
+                            _on_lock_wait(self)
+                    if time.monotonic() >= deadline:
+                        raise StoreBusy(f"{self.path}: another writer holds the store (waited {timeout:g} s; "
+                                        "KG_RDFLIB_LOCK_TIMEOUT sets how long)") from None
+                    time.sleep(0.02)
+        except BaseException:
+            os.close(fd)
+            raise
+        self._lock = fd
+
+    def _release(self) -> None:
+        if self._lock is not None:
+            fd, self._lock = self._lock, None
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            finally:
+                os.close(fd)
+
+    def _sweep(self) -> None:
+        """Remove what an earlier writer's interrupted commit left: only the lock holder writes these."""
+        directory = os.path.dirname(os.path.abspath(self.path))
+        stem = TMP_PREFIX + os.path.basename(self.path) + "."
+        for name in os.listdir(directory):
+            if name.startswith(stem):
+                try:
+                    os.unlink(os.path.join(directory, name))
+                except FileNotFoundError:
+                    pass
+
+    def _load(self) -> None:
+        try:
+            with open(self.path, "rb") as fh:
+                data = fh.read()
+        except FileNotFoundError:
+            self.absent = True
+            return
+        try:
+            self.g.parse(data=data, format="turtle")
+        except Exception as e:  # noqa: BLE001 — rdflib raises several classes for a bad file
+            raise StoreCorrupt(f"{self.path}: the store's file does not parse as Turtle ({type(e).__name__}); "
+                               "it is left as it is: move it aside to start an empty store") from e
+        self._reindex()
+
+    def commit(self) -> None:
+        """Publish the graph atomically (see the module's docstring); a store in memory has nothing to publish."""
+        if self.access != "write":
+            raise StoreReadOnly(f"{self.path}: a read handle publishes nothing")
+        if not self.path:
+            return
+        if self._lock is None:
+            raise StoreBusy(f"{self.path}: this writer was closed; it no longer holds the lock and cannot publish")
+        directory = os.path.dirname(os.path.abspath(self.path))
+        fd, tmp = tempfile.mkstemp(prefix=TMP_PREFIX + os.path.basename(self.path) + ".", dir=directory)
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                self.g.serialize(destination=fh, format="turtle")
+                fh.flush()
+                _fsync(fh.fileno())
+            os.chmod(tmp, 0o644)
+            _replace(tmp, self.path)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except FileNotFoundError:
+                pass
+            raise
+        self.absent = False
+        _fsync_dir(directory)
+
+    def abort(self) -> None:
+        """Nothing was published; the next open reads the last publication."""
+
+    def close(self) -> None:
+        """Release the writer's lock. Publishes nothing (task-0141.02): commit() does."""
+        self._release()
 
     # ---- the property-graph layer --------------------------------------------------------
     def _reindex(self) -> None:
@@ -208,11 +352,6 @@ class RdflibStore(Store):
         return sum(len(v) for v in self._out.values())
 
     # ---- lifecycle ---------------------------------------------------------------------------
-    def close(self) -> None:
-        if self.path:
-            os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
-            self.g.serialize(destination=self.path, format="turtle")
-
     def wipe(self) -> None:
         self.g = Graph()
         self._nodes, self._out, self._in, self._seq = {}, {}, {}, 0
@@ -916,6 +1055,20 @@ class RdflibStore(Store):
     # ---- what the page shows -----------------------------------------------------------------
     def describe(self) -> dict:
         return {"store": self.name, "uri": self.path or "memory", "browser": None}
+
+
+def _fsync_dir(directory: str) -> None:
+    """Make the replacement's directory entry durable where the platform allows opening a directory."""
+    try:
+        dfd = os.open(directory, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(dfd)
+    except OSError:
+        pass
+    finally:
+        os.close(dfd)
 
 
 def _distinct(rows: list[dict]) -> list[dict]:

@@ -115,8 +115,8 @@ def node_statements(starts: list[str]) -> dict:
     sys.path[:0] = [str(HARNESS), str(ROOT / "demo" / "app")]
     from store import open_store
     import register_project
-    register_project.project(open_store())   # projects the register and releases the store it is given
-    st = open_store()
+    register_project.project(open_store(access="write"))   # projects the register, published, and releases the store it is given
+    st = open_store(access="read")
     try:
         out = {}
         for nid in starts:

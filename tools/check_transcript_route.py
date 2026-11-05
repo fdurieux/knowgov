@@ -56,7 +56,7 @@ def inside(transcript: Path, qdir: Path) -> dict:
         asked.append(user)
         return STUB
     code = tr.run(argparse.Namespace(transcript=transcript, scenario="S2", task="codegen", into=None), call=stub)
-    st = open_store()
+    st = open_store(access="write")   # loads S2, published once the reads below are made (task-0141.02)
     try:
         gate_cli._load(st, "S2")
         res = resolve(st, "codegen")
@@ -67,6 +67,7 @@ def inside(transcript: Path, qdir: Path) -> dict:
         if hasattr(st, "g"):
             dump += st.g.serialize(format="nt")
         qs = capture.questionnaires(res, SUBJECT, "S2", "codegen", capture.register_nodes(capture.register_root()), capture.dt.date(2026, 11, 2))
+        st.commit()
     finally:
         st.close()
     qdir.mkdir(parents=True, exist_ok=True)

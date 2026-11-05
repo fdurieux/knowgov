@@ -58,6 +58,25 @@ to anyone else.
 | The transcript route keeps the transcript's SHA-256, the model and the date, never the transcript | the instance's capture folder, `inferred/` | `harness/transcript.py` | `tests/test_transcript.py::test_the_file_keeps_the_digest_and_never_the_transcript` |
 | knowgov-trace keeps a JSON ledger of the files it registered as derived outputs, beside the store | the path the caller names | `harness/trace.py` (`register`) | `tests/test_trace.py::test_register_records_the_file_its_app_and_the_statements_and_supersedes_by_path` |
 
+The file-backed store's integrity (task-0141.02): every caller opens the store for `read` or
+`write`. A read handle refuses every change and never publishes, so the page and the MCP server
+cannot write a stale snapshot back over a newer one. A writer takes an exclusive lock on
+`KG_RDFLIB_FILE.lock` before it loads the snapshot it starts from, so a second writer waits (at most
+`KG_RDFLIB_LOCK_TIMEOUT` seconds, default 60, then cannot run) and starts from the first one's
+publication. It publishes only on commit, through a synced temporary file in the same directory and
+an atomic replacement. A failure or an exception publishes nothing and releases the lock. A file that
+does not parse is reported and left as it is, never read as an empty store. Supported on POSIX
+filesystems with `flock` (Linux, macOS), on a local disk; a platform without it refuses a writer.
+Neo4j writes each statement as it runs; a load published whole on both stores is task-0141.06.
+
+| Property | Evidence |
+|---|---|
+| A reader's close never publishes, so a newer write survives it | `tests/test_store_persistence.py::test_st_01_closing_a_stale_reader_cannot_restore_its_snapshot_over_a_newer_write`, `tests/test_store_persistence.py::test_st_02_the_page_and_the_mcp_server_read_and_never_publish` |
+| A read handle refuses every change | `tests/test_store_persistence.py::test_st_03_a_read_handle_refuses_every_change_and_the_file_is_untouched` |
+| Writers are serialised from load to publication; no update is lost | `tests/test_store_persistence.py::test_st_04_a_second_writer_waits_for_the_first_and_starts_from_its_publication` |
+| A reader sees the whole old file or the whole new one; a failure keeps the old file | `tests/test_store_persistence.py::test_st_05_a_reader_during_a_publication_gets_the_whole_old_file_or_the_whole_new_one`, `tests/test_store_persistence.py::test_st_06_a_failed_serialisation_sync_or_replacement_keeps_the_previous_file_and_releases_the_lock`, `tests/test_store_persistence.py::test_st_07_a_writer_that_raises_publishes_nothing` |
+| A killed writer leaves the last publication and a recoverable lock; a corrupt file fails explicitly | `tests/test_store_persistence.py::test_st_08_a_writer_killed_before_publication_leaves_the_last_snapshot_and_a_recoverable_lock`, `tests/test_store_persistence.py::test_st_09_a_corrupt_file_fails_explicitly_and_is_never_replaced` |
+
 Because the store holds excerpts, treat it, its volume, `KG_RDFLIB_FILE` and `runs/` as being
 as sensitive as the documents they came from. **Practice:** keep them on the instance's
 machines, under the same access controls as the documents, and delete them when the pilot ends.
@@ -172,7 +191,7 @@ Evidence per row:
 |---|---|
 | The model proposes only, as `inferred`, only on empty keys | `tests/test_transcript.py::test_only_empty_keys_are_proposed_so_a_guess_never_lowers_what_the_documents_state`, `tests/test_transcript.py::test_both_adapters_take_a_candidate_for_nothing_and_ci_runs_the_route` |
 | The model never verifies, approves or closes: a ruling needs an issued handle, and no verification reaches a model's statement | `tests/test_review.py::test_refused_the_giver_a_handle_without_approves_a_name_and_a_future_date`, `tests/test_capture.py::test_no_verification_reaches_a_captured_or_a_model_statement` |
-| An agent over MCP reads only the port's reads and can write nothing | `tests/test_mcp_server.py::test_the_store_view_lets_through_reads_of_the_port_and_nothing_else`, `tests/test_mcp_server.py::test_an_rdflib_file_is_read_and_never_written_back`, `tests/test_mcp_server.py::test_every_tool_listed_and_marked_read_only`, `tests/test_mcp_server.py::test_the_scenario_must_be_the_one_the_store_holds_and_nothing_is_ever_loaded` |
+| An agent over MCP reads only the port's reads and can write nothing | `tests/test_mcp_server.py::test_the_store_view_lets_through_reads_of_the_port_and_nothing_else`, `tests/test_mcp_server.py::test_the_server_opens_the_ports_read_handle_which_never_publishes`, `tests/test_mcp_server.py::test_every_tool_listed_and_marked_read_only`, `tests/test_mcp_server.py::test_the_scenario_must_be_the_one_the_store_holds_and_nothing_is_ever_loaded` |
 | The pipeline proposes only; its gate never rules | `tests/test_gate_cli.py::test_every_record_scenario_gives_a_valid_report_and_the_contracts_exit_codes`, `tests/test_trace.py::test_register_refuses_an_unmapped_file_a_missing_map_and_no_statement` |
 | `approves`: an issued, unwithdrawn handle of the owning unit, never the giver | `tests/test_review.py::test_another_handle_with_approves_of_an_owning_unit_approves_what_a_person_gave`, `tests/test_review.py::test_refused_the_giver_a_handle_without_approves_a_name_and_a_future_date`, `tests/test_review.py::test_a_withdrawn_handle_or_one_issued_after_the_review_is_refused`, `tests/test_review.py::test_a_unit_that_does_not_own_the_key_is_refused` |
 | Overruling a document or settling a dispute needs `closes`, and a dispute is settled whole | `tests/test_review.py::test_overruling_a_document_needs_closes`, `tests/test_review.py::test_a_dispute_is_settled_only_whole_and_on_one_value` |

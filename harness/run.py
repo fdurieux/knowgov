@@ -242,7 +242,7 @@ def main() -> None:
         ap.error(str(e))
     out_root = Path(args.out)
     pv = pristine_values()
-    d = open_store(instance=SUBJECT.id)
+    d = open_store(instance=SUBJECT.id, access="write")
     summary = {}
     for sc in args.scenarios:
         out_dir = out_root / sc
@@ -273,6 +273,7 @@ def main() -> None:
                       f"suite {[r['M4_suite']['passed'] for r in runs[arm]]}; flagged {[r['M3_flagged']['flagged'] for r in runs[arm]]}", flush=True)
         summary[sc] = {"gate": det["D6_gate"]["verdict"],
                        "runs": {arm: [{k: r[k] for k in ("run", "M1_decision", "M2_code", "M3_flagged", "M4_targets", "outage_status", "M5_refs", "M6_noncompliance")} | {"suite": f"{r['M4_suite']['passed']}/{r['M4_suite']['total']}"} for r in rs] for arm, rs in runs.items()}}
+    d.commit()   # task-0141.02: published once every scenario ran; an exception above publishes nothing
     d.close()
     dump(out_root / "summary.json", summary)
     prev_usage = json.loads((out_root / "usage.json").read_text()) if (out_root / "usage.json").exists() else None

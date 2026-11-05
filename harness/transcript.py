@@ -108,12 +108,9 @@ def run(args, call=None) -> int:
     import gate_cli
     from gate import resolve
     from store import open_store
-    st = open_store(instance=SUBJECT.id)
-    try:
+    with open_store(instance=SUBJECT.id, access="write") as st:   # the load, published when it completes (task-0141.02)
         gate_cli._load(st, scenario)
         keys = open_keys(resolve(st, args.task))
-    finally:
-        st.close()
     if call is None:
         def call(system, user):
             r = arms.call(system, user, tag="transcript")

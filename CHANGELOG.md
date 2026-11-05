@@ -12,6 +12,18 @@ names that section with the version.
 
 ### Contract changes
 
+- **The store port names its access; a read never publishes** (task-0141.02). `open_store()` takes
+  `access="read"` or `access="write"`. A read handle lets through the port's reads (`store.READS`)
+  and refuses any other operation with `StoreReadOnly`. A write handle publishes on `commit()`,
+  which the context manager calls when its block ends cleanly, and never on `close()`, which now
+  only releases it. With `KG_RDFLIB_FILE`, a writer locks `<file>.lock` before it loads, waits at most
+  `KG_RDFLIB_LOCK_TIMEOUT` seconds (default 60) for another writer, then fails with `StoreBusy`. It
+  publishes through a synced temporary file and an atomic replacement. A file that does not parse
+  fails with `StoreCorrupt` and is left as it is. Before, closing any handle, a read included,
+  serialised its snapshot over the file. A page or MCP read could restore an older store over a
+  newer run, and two writers could lose an update. Neo4j read handles run in read access mode.
+  Supported for a file-backed writer: POSIX with `flock`.
+
 - **The connector's MANIFEST follows ieam-register's export format** (decision-0010, task-0138).
   `[ids]` now lists every object of the AML, keyed by its GUID (the system's `id_field`,
   `aris_guid` for ARIS), with its name, including objects that carry no register id. Before, it
