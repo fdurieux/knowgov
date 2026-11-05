@@ -116,9 +116,13 @@ def test_only_tools_that_exist_are_named():
 
 
 def test_every_mapper_has_its_convention_and_every_kind_is_listed():
-    sys.path.insert(0, str(ROOT / "harness"))
-    import extract
-    assert set(wizard.MAPPERS) == set(extract.EXTRACTORS) | {"links"}
+    import ast   # read harness/extract.py's EXTRACTORS literal from source: the stdlib job cannot import it (PyYAML)
+    tree = ast.parse((ROOT / "harness" / "extract.py").read_text(encoding="utf-8"))
+    (lit,) = [n.value for n in tree.body if isinstance(n, ast.Assign)
+              and any(isinstance(t, ast.Name) and t.id == "EXTRACTORS" for t in n.targets)]
+    extractors = {k.value for k in lit.keys}
+    assert len(extractors) >= 14, extractors   # a literal the ast read found, not an empty one
+    assert set(wizard.MAPPERS) == extractors | {"links"}
     ref = wizard.parts()["reference"]
     for k in wizard.kinds():
         assert f"`{k['folder']}`" in ref, k["folder"]
