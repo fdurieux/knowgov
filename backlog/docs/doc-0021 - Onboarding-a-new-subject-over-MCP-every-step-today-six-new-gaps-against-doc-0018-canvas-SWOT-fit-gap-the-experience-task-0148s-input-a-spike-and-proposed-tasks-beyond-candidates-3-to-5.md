@@ -2,11 +2,11 @@
 id: doc-0021
 title: >-
   Onboarding a new subject over MCP: every step today, six new gaps against
-  doc-0018, opportunity canvas, SWOT, fit/gap, the experience, a spike and
-  proposed tasks
+  doc-0018, canvas, SWOT, fit/gap, the experience; task-0148's input; a spike
+  and proposed tasks beyond candidates 3 to 5
 type: specification
 created_date: '2026-11-05T21:26:00Z'
-updated_date: '2026-11-05T21:26:00Z'
+updated_date: '2026-11-05T21:30:00Z'
 tags:
   - canvas
   - swot
@@ -16,7 +16,7 @@ tags:
   - subject
   - spike
 ---
-*2026-11-05. Maintainer register. A study read against doc-0018: nothing is built, and the plan below is proposed tasks with no ids. The coordinating session mints them on the maintainer's go. Trigger: the maintainer's ask of this date: "investigate what it would take to onboard a new subject via the MCP, i.e. every single step"; an opportunity canvas, a SWOT and a fit/gap first; then the optimal user experience (frictionless, lean, clear); a plan (spike?) if the case is positive. The session's view: Subject Onboarding over MCP (https://claude.ai/artifact/RJkD5PNdC6uhTdhprriZsU). Evidence: knowgov `main` at `4bc8cfc`, and `5a0037c` checked for drift (task-0140 only). Probes ran in the session on rdflib with the record's pins (rdflib 7.6.0, pyshacl 0.40.2, PyYAML 6.0.3, pumllint 0.33.0): an example instance from `tools/example_instance.py`, a new subject `renewal` added to it, the page started on it (`KG_SUBJECTS`, port 8091), and both MCP servers driven over stdio. All of it lived in the session's scratch space and was committed nowhere. Read beside doc-0018 (its candidates 1, 2 and 9 built: task-0135, decision-0009 with task-0136, task-0134), decision-0008, decision-0009, doc-0016, doc-0017, and the work in flight: task-0141 (H1, H2 change the servers' HTTP handling; X1 contains code execution), task-0142 `register_nodes` (#238) and task-0143's upward joins, both from doc-0020 (#236).*
+*2026-11-05. Maintainer register. A study read against doc-0018: nothing is built, and the plan below is proposed tasks with no ids. The coordinating session mints them on the maintainer's go. Trigger: the maintainer's ask of this date: "investigate what it would take to onboard a new subject via the MCP, i.e. every single step"; an opportunity canvas, a SWOT and a fit/gap first; then the optimal user experience (frictionless, lean, clear); a plan (spike?) if the case is positive. The session's view: Subject Onboarding over MCP (https://claude.ai/artifact/RJkD5PNdC6uhTdhprriZsU). Evidence: knowgov `main` at `4bc8cfc`, and `5a0037c` checked for drift (task-0140 only). Probes ran in the session on rdflib with the record's pins (rdflib 7.6.0, pyshacl 0.40.2, PyYAML 6.0.3, pumllint 0.33.0): an example instance from `tools/example_instance.py`, a new subject `renewal` added to it, the page started on it (`KG_SUBJECTS`, port 8091), and both MCP servers driven over stdio. All of it lived in the session's scratch space and was committed nowhere. Read beside doc-0018 (its candidates 1, 2 and 9 built: task-0135, decision-0009 with task-0136, task-0134), decision-0008, decision-0009, doc-0016, doc-0017, and the work in flight: task-0141 (H1, H2 change the servers' HTTP handling; X1 contains code execution), task-0142 `register_nodes` (#238) and task-0143's upward joins, both from doc-0020 (#236). Updated the same evening, on the coordinating session's word that the maintainer said go on doc-0018's candidates 3 to 5: task-0146 (`subject_check`), task-0147 (the instance hook) and task-0148 (the `new_subject` and `add_artefact` prompts with a Claude Code skill), in build. This doc is task-0148's user-experience input (§8), and its plan is aimed past those three (§9).*
 
 ## Verdict
 
@@ -39,7 +39,7 @@ tags:
 - G4's design is decided by a decision record before it is built: it changes every tool's input schema and the "one subject per process" contract instance/README.md documents.
 - The Claude Desktop route is verified, or stated as a limit ("check and ask, no dry run").
 
-**A spike first** (§7), then ten proposed tasks. Three are independent of the spike: B1, B2 and B5.
+**Three of the ten proposals are now in build:** B6 is task-0146, B8 is task-0148 and B9 is task-0147, and B10 is folded into task-0148 (§7). §8 lists what the study changes in task-0148: the leanest flow, MRTR elicitation and the Claude Desktop test. §9 is what lies beyond: a spike and six proposed tasks, two of them (B1, B2) independent of everything.
 
 **Unchanged from doc-0018:**
 - **Rejected:** write tools on `knowgov` or a second writing server (decision-0008); model-drafted documents and mappers (decision-0009, task-0041's rule); keys from the yield.
@@ -152,8 +152,8 @@ Three public subjects exist, one of them a fixture.
 | Solution | One prompt carries the procedure. Resources carry the conventions: kinds, each mapper's input with an example, the manifest's fields. `subject_check` reads the live mount. A `subject` argument goes on every tool, and the page rescans its subjects. Defaults keep the scaffold to two fields per document. The assistant's own file tools write onto a branch, and a pull request carries the readiness card, the dry-run report and the questionnaires |
 | Value | The first honest gate (exit 0 or 1, never 2) the same day. No silent zero yield and no typo sent to an owner. No reconfiguration after the merge. Every gap names an owner and a route |
 | Metrics (today → target) | Person actions per subject: 27 steps → 10 or fewer. Steps the MCP reaches: 4 → 15 or more. Restarts: 3 → 0. Silent outcomes on the probe: 3 → 0. Fields per artefact: up to 10 → 2. Spelling blockers: 0. Time to the first honest gate: measured in S6 |
-| Channels | Claude Code: `/mcp__knowgov__onboard_subject`, `@knowgov:` resources, the CLI dry run. A skill with the same text for clients without prompts. Claude Desktop through the reader (S1). The instance's CI through `check_instance.py` |
-| Cost | Ten small-to-medium proposed tasks; B7 (G4) medium-to-large, behind a decision. Contract changes: one layout refusal, one tool, the `subject` argument, prompts and resources in the capabilities. Each additive or minor while 0.x (decision-0003), under `## Unreleased` |
+| Channels | Claude Code: `/mcp__knowgov__new_subject`, `@knowgov:` resources, the CLI dry run. A skill with the same text for clients without prompts. Claude Desktop through the reader (S1). The instance's CI through `check_instance.py` |
+| Cost | Ten small-to-medium proposals, three now in build (task-0146 to task-0148) and one folded in; B7 (G4) medium-to-large, behind a decision. Contract changes: one layout refusal, one tool, the `subject` argument, prompts and resources in the capabilities. Each additive or minor while 0.x (decision-0003), under `## Unreleased` |
 | Risks | The model drafting content: decision-0009, the never-list, the hook. A `subject` argument as a confused deputy: ids resolved under `KG_SUBJECTS` only, never a path, as `baseline` already refuses one. The shared store: a load displaces what others read, so the dry run stays on private rdflib. Spec churn: in 2026-07-28, elicitation moved to multi-round-trip results |
 | Unfair advantage | An honest stop condition, decided by the same gate that blocks the build later, and the yield shown before anything is loaded |
 
@@ -188,28 +188,28 @@ Three public subjects exist, one of them a fixture.
 | Steps | Fit/gap | Target | Proposed |
 |---|---|---|---|
 | Phase 0 registrations | gap G4 | registered once; `list_subjects`, and `subject` on every tool | B7 |
-| 1–2 | fit | the prompt calls `register_nodes` (task-0142), `register_impact` and `proposal_impact` first; unmapped nodes seed the map | B8 |
-| 4 | gap | the folder proposed from the kinds resource, confirmed by the person | B3, B8 |
+| 1–2 | fit | the prompt calls `register_nodes` (task-0142), `register_impact` and `proposal_impact` first; unmapped nodes seed the map | task-0148 |
+| 4 | gap | the folder proposed from the kinds table in the prompt, confirmed by the person | B3, task-0148 |
 | 5 | gap G1 | each mapper of the kind tried deterministically, each yield shown, one above zero chosen; a zero yield a WARNING naming the convention | B1, B3, B5 |
 | 6 | fit | the assistant runs it; the baseline stays the owner's commit | |
 | 7–8 | gap G5 | scaffolded; `path` and `mapper` only, the rest defaulted | B1, B4 |
-| 9 | gap G2 | keys proposed from the task's sources, the yield shown beside, never as the list | B1, B8 |
+| 9 | gap G2 | keys proposed from the task's sources, the yield shown beside, never as the list | B1, task-0148 |
 | 10 | gap G1 | set from the document's ids; the mapper honours it | B5 |
-| 11–14 | gap | `S0`, `as_of` and map rows scaffolded (map rows through task-0143's join); optional tables named, left out | B8 |
-| 15 | fit | person only; the stanza written commented out, with what its absence costs; the hook refuses an assistant edit | B9 |
-| 16–17 | gap | after every write: `subject_check` (MCP) or the CLI | B6 |
+| 11–14 | gap | `S0`, `as_of` and map rows scaffolded (map rows through task-0143's join); optional tables named, left out | task-0148 |
+| 15 | fit | person only; the stanza written commented out, with what its absence costs; the hook refuses an assistant edit | task-0147 |
+| 16–17 | gap | after every write: `subject_check` (MCP, held in the call) or the CLI | task-0146 |
 | 18 | gap F7 | Claude Code on private rdflib; Desktop stated as a limit | parked |
-| 19 | fit | the PR body carries the readiness card | B8 |
+| 19 | fit | the PR body carries the readiness card | task-0148 |
 | 20 | gap G3 | the page rescans | B2 |
 | 21, 23 | gap G4 | the `subject` argument | B7 |
 | 22, 24, 27 | fit | the prompt's last step, saying the load displaces the shared store | |
-| 25 | gap G6 | after spelling, mapper fit and attestation | B8 |
+| 25 | gap G6 | after spelling, mapper fit and attestation | task-0148 |
 | 26 | fit | people only | |
 
 ## 6. The experience
 
 1. **One way in.**
-   - In Claude Code: `/mcp__knowgov__onboard_subject <id> <task>` (positional arguments, split on whitespace).
+   - In Claude Code: `/mcp__knowgov__new_subject <id> <task>` (positional arguments, split on whitespace).
    - Elsewhere: the same text as a skill (`.claude/skills/knowgov-onboard/SKILL.md` in the instance, or in a plugin), or in plain words, since the server's instructions name the prompt.
 2. **At most five questions, only what only a person knows:**
    - what the subject is for;
@@ -253,25 +253,80 @@ Writes stay with the client and git. The MCP side reads, except the announced lo
 | Client | Writes files | Prompt, resources | Check | Dry run | After the merge |
 |---|---|---|---|---|---|
 | Claude Code with the stack | own tools, git | documented | tool or CLI | CLI, rdflib | runs, reader |
-| Claude Desktop, chat | only with a file extension; not verified | unconfirmed (S1) | tool on the live mount | none (F7) | runs, reader |
+| Claude Desktop, chat | only with a file extension; not verified | unconfirmed (the Desktop test, §8) | `subject_check`, held in the call | none (F7) | runs, reader |
 | Cloud session | own tools, git | no local stack | CLI | CLI, rdflib | stack unreachable |
 
-## 7. Plan: a spike, then proposed tasks
+## 7. What task-0146, task-0147 and task-0148 cover
 
-**Spike.** One working session, plus the maintainer's Claude Desktop test (about 15 minutes, macOS). The prototype code stays on a spike branch and is never merged. The spike's outputs:
+The maintainer's go of 2026-11-05 on doc-0018's candidates 3 to 5 put three of this study's proposals in build. The rest of the plan is aimed past them.
+
+| Proposed here | In build | Departure |
+|---|---|---|
+| B6: `subject_check` reading a subject by id from the live mount | task-0146: the proposed files and the documents' text held in the call, checked in a temporary directory, the call's size bounded | none to record. Held in the call works in every client, mount or not. Reading by id (S2) is an optional later mode once `subject` exists (B7): it spares the client sending documents' text |
+| B8: prompts and resources on the reader, the same text as a skill | task-0148: `new_subject` and `add_artefact` prompts, a Claude Code skill; no resources | resources optional; §8 item 12 carries what they would hold inside `prompts/get` |
+| B9: the instance hook | task-0147 | none |
+| B10: the adopter walkthrough | task-0148 AC #3 | folded in; B10 is withdrawn |
+
+Still proposed, with no ids: B1, B2, B3, B4, B5 and B7 (§9).
+
+## 8. For task-0148: what the study changes
+
+The leanest flow, as the prompt's and the skill's text. Every item applies today, without waiting for B1 to B7:
+
+1. **Two arguments, each one token: `new_subject <id> <task>`.** Claude Code splits a prompt's arguments on whitespace, so no free-text argument (a description, a path with spaces). The rest is asked in chat.
+2. **At most five questions** (§6 rule 2). Everything else is derived and shown, never asked.
+3. **Order:**
+   1. the register: `register_nodes` (task-0142) and `register_impact`; `proposal_impact` first for a new product;
+   2. the documents into their kinds;
+   3. the manifest;
+   4. the keys;
+   5. the attestation stanza;
+   6. the questionnaires, last (G6).
+4. **Mapper fit by the check's own numbers.** Read `yield.artefacts` in the report. A document at 0 is the wrong convention, never "no knowledge here" (G1, until B1). Try the kind's other mappers before concluding.
+5. **`requirements` reads only `| REQ-nn | text |` rows** (G1, until B5). Say so when a document's ids have another prefix. Never rewrite the organisation's ids: the person decides.
+6. **Always write `short`** for a mapped artefact, derived from the file stem (G5, until B1 or B4).
+7. **A did-you-mean whose entity differs from the required key's is not a typo** (G2, until B1). Present it as "no document states `<key>`": a question for its owner.
+8. **The attestation stanza commented out**, with what its absence costs. task-0147's hook backs it.
+9. **The stop condition verbatim** (§6 rule 7), as the last check, with the readiness card in the pull request's body:
+   - per document: kind, mapper, yield, form;
+   - per key: yielded or not, did-you-mean, owner, level at the dry run.
+10. **After the merge, the manual steps named with their commands**, until B2 and B7 land:
+    - restart the page;
+    - relaunch or re-register both servers with `-e KG_SUBJECT=/instance/subjects/<id>`;
+    - reconnect the client;
+    - then `start_run S0`, saying the load replaces what others view.
+11. **One text, two carriers.** The prompt's messages and the skill come from one source, held equal by a test (task-0148 AC #1 already pins the text).
+12. **Embed what resources would carry inside `prompts/get`'s messages:** the kinds table and each mapper's input convention. A client that shows prompts but not resources then has it.
+
+**Multi-round-trip (MRTR) elicitation should not drive the wizard's questions in task-0148.**
+- **Open questions.** The questions are open (what the subject is for, which documents). Chat answers them, and the model needs the answers to propose anything. Elicitation's forms suit closed answers.
+- **The one closed candidate.** It is the readiness card's confirmation. The write it would confirm is the client's own, and the client already asks the person: the permission prompt, then the pull request's review.
+- **Support.** Claude Code documents elicitation in form and URL modes, with `Elicitation` and `ElicitationResult` hooks. Its documentation does not say it serves 2026-07-28's `input_required` result on `prompts/get`, and Claude Desktop is unconfirmed. A wizard built on it would need a chat fallback, and that fallback is the whole wizard.
+- **S7 stays for later:** one closed question, measured against chat.
+
+**The Claude Desktop test.** The maintainer runs it on macOS, about 15 minutes, on task-0148's branch or after its merge:
+1. Register the reader as instance/README.md's "Connecting Claude Desktop" says; quit and reopen.
+2. In a Chat conversation, open the attach menu. Is knowgov's `new_subject` listed? Record yes or no, with a screenshot.
+3. If listed, choose it. Does it ask for `id` and `task`, and does the conversation open with the prompt's text?
+4. Ask the assistant to check a small subject held in the call. Does `subject_check` (task-0146) run, behind the permission prompt?
+5. Record the three answers (prompt, arguments, tool). Desktop's role in onboarding follows (§10, decision 2).
+
+## 9. Beyond candidates 3 to 5: the spike and the proposed tasks
+
+**Spike.** One working session, run once task-0146 to task-0148 have merged. The prototype code stays on a spike branch and is never merged. The spike's outputs:
 - its note, as a backlog doc with the numbers;
 - one proposed decision: the `subject` argument;
 - these tasks, minted on the maintainer's go.
 
 | # | Question | Method | Passes when |
 |---|---|---|---|
-| S1 | Which surfaces do the clients show? | Throwaway `prompts/list`, `prompts/get` (`onboard_subject`, `add_artefact`) and `resources/list`, `resources/read` (kinds, mapper cards, fields) on the reader, both eras. Claude Code by the session; Desktop by the maintainer | The prompt runs as a slash command with arguments, and a resource resolves by mention, in Claude Code; Desktop's result recorded either way |
-| S2 | Does `subject_check` read the working tree live? | The reader on the host against an instance folder (no Docker daemon in a hosted session). Edit, call again | The edit shows with no restart; an id outside `KG_SUBJECTS` is refused |
+| S1 | Does Claude Desktop show the prompts and run the tool? | The Desktop test above, by the maintainer | The answers are recorded; Desktop's role decided |
+| S2 | Is a by-id mode of `subject_check` worth having? | The reader on the host against an instance folder (no Docker daemon in a hosted session): an edit, then a call by id, beside the held-in-call payload size for CargoQuote's ten artefacts | The edit shows with no restart, an id outside `KG_SUBJECTS` is refused, and the size saved is stated |
 | S3 | Which design for G4? | (a) a child process per call, the page's pattern; (b) a lazy pool, one child per subject; (c) the subject as a value through the harness (F6, as TASK-0032.01 did for the page). Latency on rdflib and Neo4j for `cargo_quote`, lines touched, tests moved | One option chosen with its numbers. The proposed decision: `subject` resolved by id under `KG_SUBJECTS`, never a path, defaulting to `KG_SUBJECT` so today's clients see no change |
 | S4 | Which artefact fields can default? | Strip `key`, `short`, `family`, `format` and the labels from both public subjects in a scratch copy, derive them, run the comparator | 0 differing leaves over CargoQuote's 7 scenarios and J-F's 6, or the field that moves named and kept |
 | S5 | Can `requirements` honour the id pattern? | Read `[rules] requirement_id_pattern` (default `[A-Z]{2,}-\d{2,}`); comparator; the probe with `RNW-` ids | Records unchanged; `renewal.md` yields 3 |
-| S6 | Does it meet the targets? | Onboard a fresh subject with S1 to S5's prototypes: task-0008's aris2puml pilot corpus if that repository is attached, else a synthetic subject on the example instance | 10 or fewer person actions, 0 restarts, 0 silent outcomes, the stop condition reached, time to the first honest gate recorded |
-| S7 | Optional: is elicitation worth it? | The five questions as an `input_required` result from `prompts/get`, against the same questions in chat | Kept only if it removes a step or a model guess; expected: not in the first build |
+| S6 | Does the built wizard meet the targets? | Onboard a fresh subject with task-0146 to task-0148, plus B1 and B2 if merged: task-0008's aris2puml pilot corpus if that repository is attached, else a synthetic subject on the example instance | 10 or fewer person actions, 0 silent outcomes, the stop condition reached, the restarts counted (0 once B2 and B7 land), time to the first honest gate recorded |
+| S7 | Optional: is elicitation worth it for one closed question? | The readiness card's confirmation as an `input_required` result, against chat | Kept only if it removes a step or a model guess |
 
 **Proposed tasks (no ids).** Each goes in its own PR on m-8.
 
@@ -279,27 +334,24 @@ Writes stay with the client and git. The MCP side reads, except the announced lo
 |---|---|---|---|---|---|
 | B1 | `check_subject`: a zero yield is a WARNING naming the mapper's convention; `short` refused or defaulted when a mapper is set, with the right fix; a yielded key offered once, to its best match; a different-entity match a NOTE | G1, G2, G5 | S | none | one layout refusal (minor) |
 | B2 | The page rescans `KG_SUBJECTS` on an unknown id, or by modification time | G3 | S | none | none |
-| B3 | Mapper cards: each mapper's input convention with a minimal example, each example held to a yield above zero by a test | G1 | S–M | none | none |
+| B3 | Mapper cards: each mapper's input convention with a minimal example, each example held to a yield above zero by a test; task-0148's prompt text quotes them | G1 | S–M | none | none |
 | B4 | `[[artefact]]` defaults from the kind's row, the mapper and the path | G5 | S–M | S4 | additive |
 | B5 | `requirements` honours `requirement_id_pattern` | G1 | S | S5 | more statements for non-`REQ` ids |
-| B6 | `subject_check` as a read-only reader tool on the live mount, by id (doc-0018 candidate 3) | steps 16–17 in Desktop | S–M | B1; after task-0142, task-0143 | a new tool |
-| B7 | `subject` on every reader and `knowgov-runs` tool, and `list_subjects`, per the proposed decision | G4 | M–L | S3, the decision; after task-0141's H1, H2 | tool schemas (minor) |
-| B8 | Prompts and resources on the reader (`onboard_subject`, `add_artefact`; kinds, mapper cards, fields), and the same text as a skill under `instance/ci/claude/` (doc-0018 candidate 4) | F8, G6 | M | B3, B6; B7 optional | capabilities (additive) |
-| B9 | The instance hook: fail-closed on assistant writes to `[provenance]`, `[verification]`, `captures/`, review files, the pre-load baseline and `register/` (doc-0018 candidate 5) | rule 5 | S | with B8 | none |
-| B10 | Adopter docs: "Onboarding a subject with an assistant" in instance/README.md, with a plain-English walkthrough beside the commands, held by a docs-flags guard | all | S | last | none |
+| B7 | `subject` on every reader and `knowgov-runs` tool, and `list_subjects`, per the proposed decision; optionally `subject_check` by id (S2) | G4 | M–L | S3, the decision; after task-0141's H1, H2 and 0.7.0 | tool schemas (minor) |
 
 **Order:**
-1. B1, B2 and B5 (after S5) need no other answer and can run beside the spike.
-2. Then S1 to S6.
-3. Then B3 and B4.
-4. Then, once knowgov 0.7.0 has shipped with task-0141.01–.04, 0142 and 0143 (task-0141's note), the server changes B6, B7 and B8 together with B9.
-5. B10 last.
+1. B1 and B2 now: each misleads a person working by hand today, and each removes a workaround from task-0148's text (§8 items 4, 6, 7, 10).
+2. B5 after S5, and B3 beside task-0148.
+3. S1 when task-0148 is on a branch.
+4. S3 to S6 once task-0146 to task-0148 have merged.
+5. B4 after S4.
+6. B7 last, behind its decision and after knowgov 0.7.0 (task-0141's note), so the reader is not changed under that release's H1 and H2.
 
-The server changes wait so that the reader is not changed under that release's H1 and H2.
+When a B-task lands, the matching §8 workaround leaves the prompt's text in the same pull request.
 
-## 8. For the maintainer to decide
+## 10. For the maintainer to decide
 
-1. **Whether to run the spike**, or to start with B1 and B2 alone. Recommended: B1 and B2 now, as each misleads a person working by hand today, and the spike beside them.
-2. **Whether Claude Desktop is a target for onboarding**, or only for asking the gate. Recommended: asking only, until S1 shows prompts and resources there. Onboarding is Claude Code's job, with a shell, git and the dry run.
-3. **G4's direction**, to be set by the proposed decision after S3. Recommended: (a), a child process per call, if S3 measures under a second per call on Neo4j for CargoQuote; (c) only if not.
-4. **Elicitation.** Recommended: no in the first build (S7 optional).
+1. **B1 and B2 now**, beside task-0146 to task-0148. Recommended: yes. Both are small, independent and remove workarounds from task-0148's text.
+2. **Claude Desktop's role:** onboarding, or asking the gate only. Recommended: asking only, until the Desktop test shows prompts listed and `subject_check` running there. Onboarding is Claude Code's job, with a shell, git and the dry run.
+3. **G4's direction**, set by the proposed decision after S3. Recommended: (a), a child process per call, if S3 measures under a second per call on Neo4j for CargoQuote; (c) only if not.
+4. **Elicitation.** Recommended: not in task-0148; S7 later, for one closed question at most.
