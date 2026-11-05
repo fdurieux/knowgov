@@ -673,6 +673,11 @@ The page reads your register (`/instance/register`) and lists your subjects
 (`/instance/subjects`), and none of the public ones. Leave `-f docker-compose.override.yml` out
 to pull the published image instead of building it. One stack serves one instance.
 
+The page keeps its list of subjects current while it runs. A subject merged into your instance's
+`subjects/` folder appears in the page's subject menu the next time anyone opens or uses the page,
+with no restart; a subject you delete disappears the same way. A subject whose `subject.toml` cannot
+be read is left out of the list, and the page's log says why, while the others stay available.
+
 ## Letting an AI assistant ask the gate
 
 An AI coding assistant can ask knowgov the gate's question itself, before it writes anything:
