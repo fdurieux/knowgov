@@ -215,3 +215,41 @@ def test_the_page_names_its_subject_on_every_call_and_keeps_the_arms_choice_per_
     instance = (ROOT / "demo" / "docker-compose.instance.yml").read_text(encoding="utf-8")
     assert "KG_SUBJECTS: ${KG_SUBJECTS:-/repo/subjects}" in compose and "KG_SUBJECTS: /instance/subjects" in instance
     assert views.glossary()["subject"].startswith("One kit with its documents")
+
+
+def test_a_subject_added_after_start_is_served_without_a_restart_and_a_removed_one_is_not():
+    """task-0150 (doc-0021 G3): the page rescans its subject folders when a manifest is added, edited or
+    removed; no restart. A manifest that does not load is left out, the others still served."""
+    import shutil
+    import tempfile
+    tmp = Path(tempfile.mkdtemp(prefix="kg-rescan-"))
+
+    def add(sid: str, text: str | None = None):
+        d = tmp / sid
+        d.mkdir()
+        m = (ROOT / "subjects" / "minimal" / "subject.toml").read_text(encoding="utf-8")
+        (d / "subject.toml").write_text(text if text is not None else
+                                        m.replace('id = "minimal"', f'id = "{sid}"').replace("listed = false", "listed = true"), encoding="utf-8")
+        shutil.copy(ROOT / "subjects" / "minimal" / "scenarios.toml", d / "scenarios.toml")
+
+    add("alpha")
+    saved = _env(KG_SUBJECTS=str(tmp))
+    httpd, base = _serve()
+    try:
+        ids = lambda: [s["id"] for s in json.loads(_get(base + "/api/subjects")[1])["subjects"]]  # noqa: E731
+        assert ids() == ["alpha"]
+        add("beta")
+        assert ids() == ["alpha", "beta"]
+        code, body = _get(base + "/api/scenarios?subject=beta")
+        assert code == 200 and [s["id"] for s in json.loads(body)["scenarios"]] == ["S0"], body
+        add("broken", "[subject\n")
+        assert ids() == ["alpha", "beta"], "a manifest that does not load is left out"
+        shutil.rmtree(tmp / "beta")
+        assert ids() == ["alpha"]
+        assert _get(base + "/api/scenarios?subject=beta")[0] == 404
+        assert _get(base + "/api/scenarios?subject=alpha")[0] == 200
+    finally:
+        httpd.shutdown()
+        _restore(saved)
+        server.refresh_subjects()
+        shutil.rmtree(tmp, ignore_errors=True)

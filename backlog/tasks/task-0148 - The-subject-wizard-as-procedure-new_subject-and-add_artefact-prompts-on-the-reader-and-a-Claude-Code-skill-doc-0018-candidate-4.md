@@ -3,10 +3,11 @@ id: TASK-0148
 title: >-
   The subject wizard as procedure: new_subject and add_artefact prompts on the
   reader and a Claude Code skill (doc-0018 candidate 4)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-05T21:24:00Z'
-updated_date: '2026-11-05T21:46:00Z'
+updated_date: '2026-11-05T22:56:00Z'
 labels: []
 dependencies:
   - TASK-0146
@@ -34,3 +35,17 @@ Onboarding a subject is the lighthouse's first hour. doc-0018 §4 lists the step
 - [ ] #4 Prompt and skill carry the never-list (no content drafted, no attestation written, no key drawn from the yield) and the stop condition, and name only tools that exist; task-0147's hook backs the never-list
 - [ ] #5 instance/README.md states Claude Desktop's role: asking the gate (gate_verdict, evidence_bundle, the impact tools) until the maintainer's Desktop test on this task's branch shows the prompts listed and subject_check running; onboarding is Claude Code's (maintainer, 2026-11-05, doc-0021 §10.2). MRTR elicitation is not in this task (doc-0021 §10.4)
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. One source: instance/ci/claude/skills/knowgov-onboard/SKILL.md in parts; harness/wizard.py serves new_subject <id> <task> and add_artefact <subject> [file] verbatim; reference part generated from kinds.toml and instance/mappers.toml. 2. Server: prompts capability, prompts/list and prompts/get in both eras, Mcp-Name on stateless prompts/get; knowgov-runs none. 3. doc-0021 §8 applied; no elicitation, no resources. 4. README walkthrough and Desktop's role. 5. After #242 and #248 merge: rebase, drop the workarounds B1/B2 retire, add register_nodes.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Draft PR fdurieux/knowgov#245; branch claude/task-0148-wizard offered for the maintainer's Desktop test.
+
+Rebased onto main after #242, #248, #249; B1/B2 workarounds removed, register_nodes first; marked ready. run_tests 501/502 (1 skipped), check_mcp_server.py --scenarios S1 every check holds.
+<!-- SECTION:NOTES:END -->

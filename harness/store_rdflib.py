@@ -45,7 +45,7 @@ from urllib.parse import quote, unquote
 
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
 
-from store import Store, StoreBusy, StoreCorrupt, StoreReadOnly, part_list, part_rows
+from store import Store, StoreBusy, StoreCorrupt, StoreReadOnly, by_content, by_id, part_list, part_rows
 
 try:
     import fcntl
@@ -798,8 +798,8 @@ class RdflibStore(Store):
             aps = [{"id": self.nid(a), "at": self.prop(a, "at"), "record": self.prop(a, "record")} for a in self.inn(x, "APPROVES") if self.has_label(a, "Approval")]
             gaps = [{"id": self.nid(g), "kind": self.prop(g, "kind"), "declared": self.prop(g, "declared"), "text": self.prop(g, "text")} for g in self.inn(x, "CONCERNS") if self.has_label(g, "Gap")]
             rows.append({"id": self.nid(x), "value": self.prop(x, "value"), "text": self.prop(x, "text"), "basis": self.prop(x, "basis"), "status": self.prop(x, "status"),
-                         "artefact": self.prop(x, "artefact"), "agent": agent, "fragments": _distinct(frags), "verifications": _distinct(vers),
-                         "approvals": _distinct(aps), "gaps": _distinct(gaps)})
+                         "artefact": self.prop(x, "artefact"), "agent": agent, "fragments": by_content(_distinct(frags)),
+                         "verifications": by_id(_distinct(vers)), "approvals": by_id(_distinct(aps)), "gaps": by_id(_distinct(gaps))})
         return rows
 
     def declared_gaps_for_key(self, key) -> list[dict]:
@@ -866,17 +866,17 @@ class RdflibStore(Store):
                     for s in self.nodes("Assertion", key=self.prop(x, "key"), artefact=self.prop(x, "artefact"))
                     if self.prop(s, "status") in ("proposed", "validated", "verified", "approved")]
             out.append({"id": self.nid(x), "key": self.prop(x, "key"), "value": self.prop(x, "value"), "invalidated_by": self.prop(x, "invalidated_by"),
-                        "verifications": _distinct(vers) or [{"id": None, "valid_until": None}],
-                        "successors": _distinct(succ) or [{"id": None, "value": None, "status": None}]})
-        return out
+                        "verifications": by_id(_distinct(vers)) or [{"id": None, "valid_until": None}],
+                        "successors": by_id(_distinct(succ)) or [{"id": None, "value": None, "status": None}]})
+        return by_id(out)
 
     def suspect_derived(self) -> list[dict]:
         out = []
         for d in self.nodes("Derived", suspect=True):
             used = [self.nid(x) for x in self.out(d, "USED_ASSERTION") if self.has_label(x, "Assertion") and self.prop(x, "status") == "invalidated"]
             if used:
-                out.append({"id": self.nid(d), "kind": self.prop(d, "kind"), "sha256": self.prop(d, "sha256"), "used_invalidated": used})
-        return out
+                out.append({"id": self.nid(d), "kind": self.prop(d, "kind"), "sha256": self.prop(d, "sha256"), "used_invalidated": sorted(used)})
+        return by_id(out)
 
     def all_derived(self) -> list[dict]:
         return [{"id": self.nid(d), "suspect": self.prop(d, "suspect")} for d in self.nodes("Derived")]

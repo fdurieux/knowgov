@@ -3,10 +3,11 @@ id: TASK-0146
 title: >-
   subject_check on the reader: a proposed subject checked in the call, never
   stored (doc-0018 candidate 3)
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-11-05T21:24:00Z'
-updated_date: '2026-11-05T21:25:00Z'
+updated_date: '2026-11-05T22:56:00Z'
 labels: []
 dependencies: []
 documentation:
@@ -26,8 +27,28 @@ tools/check_subject.py (task-0135) checks a subject root before anything is load
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A read-only MCP tool takes a proposed subject.toml, register_map.toml, scenarios.toml and the documents' text in the call, and returns check_subject.py's report (schema subject-check), checked against the served register and the instance's kinds by check_subject's own functions
-- [ ] #2 Nothing is stored or written outside a temporary directory removed after the call; the mappers' yield runs in a child process as check_subject does; the call's size is bounded and an oversized call is refused
-- [ ] #3 On tools/fixtures/subject_probe the tool's report equals check_subject.py's on the same files; check_mcp_server.py exercises it
-- [ ] #4 Served by the read-only knowgov server over stdio and Streamable HTTP and admitted by the shipped allowlist by name; the server's instructions, instance/README.md's tool table, CLAUDE.md and CHANGELOG Unreleased carry it
+- [x] #1 A read-only MCP tool takes a proposed subject.toml, register_map.toml, scenarios.toml and the documents' text in the call, and returns check_subject.py's report (schema subject-check), checked against the served register and the instance's kinds by check_subject's own functions
+- [x] #2 Nothing is stored or written outside a temporary directory removed after the call; the mappers' yield runs in a child process as check_subject does; the call's size is bounded and an oversized call is refused
+- [x] #3 On tools/fixtures/subject_probe the tool's report equals check_subject.py's on the same files; check_mcp_server.py exercises it
+- [x] #4 Served by the read-only knowgov server over stdio and Streamable HTTP and admitted by the shipped allowlist by name; the server's instructions, instance/README.md's tool table, CLAUDE.md and CHANGELOG Unreleased carry it
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. harness/subject_check.py: the call's files to a temporary instance-shaped root, check_subject.check against KG_REGISTER and kinds.toml, removed in finally; bounded. 2. One TOOLS entry and one Tools method. 3. tests/test_subject_check_tool.py; check_mcp_server.py over stdio and HTTP. 4. README tool table, CLAUDE.md, CHANGELOG.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+PR fdurieux/knowgov#242, rebased onto 506b9a5 after #238 (register_nodes); ten tools. run_tests 476/477 (1 skipped); check_mcp_server.py --scenarios S1 (rdflib) every check holds, subject_check equal to the CLI on subject_probe over stdio (both eras) and HTTP.
+
+Merged as fdurieux/knowgov#242 on a fully green matrix (tests, rdflib, stack). Evidence: tests/test_subject_check_tool.py (parity with check_subject.py --json on subject_probe and minimal, schema, path and size bounds, no temporary root left, the store opener never called); check_mcp_server.py --scenarios S1 (rdflib) equal over stdio (both eras) and HTTP; run_tests 489/490 (1 skipped) on the merged head.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+`subject_check`, a read-only tool on the knowgov reader: the call carries a proposed `subject.toml`, `register_map.toml`, `scenarios.toml` and the documents' text; `harness/subject_check.py` writes them to a temporary instance-shaped root, runs `tools/check_subject.py`'s own `check` against `KG_REGISTER` and the platform's kinds (the yield in its child process), returns the `subject-check` report and removes the root. Bounded: 64 documents, 1 MB, paths at most `../../` up; nothing stored. Listed beside task-0142/0143's tools (thirteen), in the instructions, the README tool table, CLAUDE.md and CHANGELOG. Merged as #242.
+<!-- SECTION:FINAL_SUMMARY:END -->

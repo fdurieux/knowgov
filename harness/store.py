@@ -65,6 +65,19 @@ READS = frozenset({
     "export_turtle", "describe", "saved_queries"})
 
 
+def by_id(rows: list[dict]) -> list[dict]:
+    """``rows`` in one order on every adapter: by ``id``, a row without one (an OPTIONAL MATCH that met
+    nothing) last. A store's collect() answers in its own traversal order, which a reload can move;
+    what the gate prints and compares (the bundle, its report) must not."""
+    return sorted(rows, key=lambda r: (r.get("id") is None, str(r.get("id"))))
+
+
+def by_content(rows: list[dict]) -> list[dict]:
+    """``rows`` without an id (a fragment) in one order on every adapter: by their fields."""
+    import json
+    return sorted(rows, key=lambda r: json.dumps(r, sort_keys=True, default=str))
+
+
 class Store:
     """The port. An adapter subclasses it and implements every method; the base raises."""
 
