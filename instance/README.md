@@ -936,6 +936,68 @@ The shipped `managed-mcp-allowlist.json` admits the read-only server only. An or
 wants assistants to start runs adds `{"serverName": "knowgov-runs"}` to its own list. A tool that
 wipes the store should be approved call by call, not once for good.
 
+## Creating a subject with an assistant
+
+Writing a subject by hand means a manifest of up to sixteen tables, a register map and a scenario
+file, and its mistakes either pass every check or surface late, dressed as missing knowledge. An
+assistant can guide you through it instead: a *wizard*, in the sense of a step-by-step procedure,
+that proposes, checks after each step and explains the findings. Its steps and its stops are
+deterministic: the checks decide, never the assistant.
+
+Two things to know first. The assistant writes the files with its own tools, in your instance
+checkout, on a new branch, and ends in a pull request that someone other than its author reviews;
+knowgov's server only reads, and checks what is proposed without storing it (`subject_check`). And
+there are three things the assistant must never do, which the procedure says in so many words:
+
+- **draft a document's content.** It places, names and checks documents people of record wrote.
+  A missing document is a question for its owner, never a draft;
+- **write an attestation.** `[verification]` and `[provenance]` in `subject.toml`, `captures/`,
+  review files, `preload-baseline.json` and `register/` are a person's act. The attestation hook
+  ("Guarding what people attest", below) blocks these writes;
+- **take the task's keys from what the documents say.** The keys are what the task needs; what the
+  documents yield is shown beside them as a check (a misspelt key gets a *did you mean*), never as
+  their source.
+
+**Starting it.** The knowgov server offers two *prompts*, ready-made opening messages a client shows
+as commands. In Claude Code, with the server registered as `knowgov` (above):
+
+```
+/mcp__knowgov__new_subject renewal codegen
+/mcp__knowgov__add_artefact renewal artefacts/textual-requirements/renewal.md
+```
+
+In plain English: the first starts a new subject `renewal` whose task class is `codegen`; the second
+adds one document to it. Each argument is one word, because Claude Code splits them on spaces;
+everything else the assistant asks in the conversation, at most five questions (what the subject is
+for, the task, which documents, which owning units, who attests). The same text ships as a Claude
+Code *skill*, a procedure the assistant loads by name, for a session without the server: copy
+`instance/ci/claude/skills/knowgov-onboard/` into your instance repository's `.claude/skills/`. The
+skill and the prompts are one text (`harness/wizard.py` builds the prompts from the skill), and it
+carries the kinds table and what each mapper reads (`instance/mappers.toml`), so the assistant need not look them up.
+
+**What happens, in order.** The register first (`register_impact` for the nodes the task touches;
+`proposal_impact` first for a new product); then each document into its kind's folder, its mapper
+picked by what the check reports it yields (a document that yields nothing is the wrong mapper, not
+an empty document); then the manifest, with the pristine scenario `S0` from `subjects/minimal/`;
+then the task's keys and the register map rows; then the attestation lines, written commented out
+with what their absence costs; and last, for a key still missing, the owners' questionnaires. After
+every write it checks (`subject_check`, or `tools/check_subject.py` and `tools/check_instance.py`
+where it has a shell).
+
+**When it stops.** Only when the subject check exits 0 with no warning, the gate's dry run on the
+branch exits 0 or 1 (never 2, cannot run), and every remaining finding is knowledge with an owner
+and a route. Then it opens the pull request, with a readiness card (per document: kind, mapper,
+yield, form; per key: yielded or not, owner, level) and the questionnaires.
+
+**After the merge,** until knowgov picks up a new subject by itself, three steps are yours: restart
+the page so it lists the subject; relaunch or re-register both servers with
+`-e KG_SUBJECT=/instance/subjects/<id>` and reconnect the client; then load `S0` (on the page, or
+`start_run` on `knowgov-runs`), knowing the load replaces what everyone else viewing that store sees.
+
+Claude Desktop lists a server's prompts in its attach menu, as far as we know; this has not been
+tried here, and Desktop's assistant cannot write files without a file extension. There, the
+procedure is "check and ask": `subject_check` on what you paste, no dry run.
+
 ## A fail-closed hook for Claude Code
 
 The CI route above fails closed: a pull request whose gate exits 1 or 2 does not merge. The same
