@@ -3,9 +3,11 @@ id: TASK-0139
 title: >-
   Route (c) over a document: key-constrained proposals from prose kinds, scored
   against the mappers before any use
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-05T17:21:00Z'
+updated_date: '2026-11-05T20:13:00Z'
 labels:
   - capture
   - arms
@@ -32,8 +34,14 @@ doc-0019 C1. Twelve of the twenty kinds in `instance/kinds.toml` have no mapper,
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The bar is committed before the first measured run: no value proposed for S2's declared gap, no silent resolution of S3's vague wording, precision at least 0.9 on S1 (the maintainer may change it before the run, never after)
+- [x] #1 The bar is committed before the first measured run: no value proposed for S2's declared gap, no silent resolution of S3's vague wording, precision at least 0.9 on S1 (the maintainer may change it before the run, never after)
 - [ ] #2 The measurement runs the model over the public subjects' mapped documents with the mapper withheld, constrained to the task's required keys the gate holds nothing on, and reports per document the proposals, the matches against the mapper's assertions (`rules.compatible`), precision, recall and inventions, with the model, effort and date; it writes nothing into a subject's capture folder
 - [ ] #3 It is off until the key variable (`KG_MODEL_API_KEY_VAR`) holds a value, reads public content only, and its prompt states the language it reads
 - [ ] #4 The outcome, either way, is a dated entry in doc-0019 with the decision: build the document route (fragment-named proposals into `<capture dir>/inferred/`, listed in the questionnaire, invalidated on a fragment change) or park it
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-05, before any measured run: the bar, confirmed by the maintainer this date and fixed from here on (AC #1). (1) No value proposed for S2's declared gap. (2) No silent resolution of S3's vague wording: a proposal on a key whose mapped text carries S3's vague wording must keep the vagueness (or propose nothing); a definite value read into it is a fail. (3) Precision at least 0.9 on S1 (matches through rules.compatible over proposals, S1's mapped documents, mapper withheld). Missed on any one, the document route parks.
+<!-- SECTION:NOTES:END -->
