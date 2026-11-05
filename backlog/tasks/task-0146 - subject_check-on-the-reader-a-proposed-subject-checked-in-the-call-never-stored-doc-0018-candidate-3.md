@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-05T21:24:00Z'
+updated_date: '2026-11-05T21:25:00Z'
 labels: []
 dependencies: []
 documentation:
@@ -20,7 +21,7 @@ ordinal: 152000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-tools/check_subject.py (task-0135) checks a subject root before anything is loaded, from the command line. In Claude Desktop, or any client without a shell, an assistant scaffolding a subject cannot run it. The same check as a read-only tool lets the wizard (task-0147) check after every write without a store and without writing anything. Approved by the maintainer on 2026-11-05 ("go on candidates 3, 4 and 5").
+tools/check_subject.py (task-0135) checks a subject root before anything is loaded, from the command line. In Claude Desktop, or any client without a shell, an assistant scaffolding a subject cannot run it. The same check as a read-only tool lets the wizard (task-0148) check after every write without a store and without writing anything. Approved by the maintainer on 2026-11-05 ("go on candidates 3, 4 and 5").
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
