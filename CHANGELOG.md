@@ -63,6 +63,14 @@ names that section with the version.
 
 ### Changes
 
+- **The store's reads answer in one order on both adapters.** Neo4j's `collect()` answers in its
+  traversal order, which a reload can move, so the evidence bundle's suspect line and the gate
+  report's stale statements could list the same items differently on two reads of one store. Now
+  `suspect_derived` (and its `used_invalidated`), `stale_on_keys` (and its verifications and
+  successors) and `key_evidence`'s lists are by id on both adapters, fragments by their fields
+  (`store.by_id`, `store.by_content`). The record compares lists as sets: 0 differing leaves on
+  both subjects.
+
 - **The page finds a new subject without a restart** (task-0150, doc-0021 G3). The page re-reads
   its subject folders (`KG_SUBJECTS`) when a `subject.toml` is added, edited or removed, on the
   next request. A merged subject is listed and served at once, and a removed one is no longer
