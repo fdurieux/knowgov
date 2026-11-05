@@ -4,6 +4,7 @@ title: MCP server keeps one read-only store handle per process
 status: To Do
 assignee: []
 created_date: '2026-11-04T08:46:00Z'
+updated_date: '2026-11-05T20:44:00Z'
 labels:
   - mcp
   - ci
@@ -25,3 +26,9 @@ Found by task-0095: the MCP server reopens the store on every call, about 4 s pe
 - [ ] #1 The server opens the store once per process behind the same read-only view and serves every call from it
 - [ ] #2 check_mcp_server and the lighthouse step pass unchanged and the step timings in the task notes show the saving
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-05 (coordinator, doc-0020): task-0141.02 (S1) introduces read-only store handles for page and MCP reads; re-read this task when S1 merges, it may be satisfied or reduced. task-0144 does not depend on it.
+<!-- SECTION:NOTES:END -->
