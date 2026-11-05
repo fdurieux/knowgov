@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-05T21:24:00Z'
-updated_date: '2026-11-05T22:10:00Z'
+updated_date: '2026-11-05T22:56:00Z'
 labels: []
 dependencies:
   - TASK-0146
@@ -46,4 +46,6 @@ Onboarding a subject is the lighthouse's first hour. doc-0018 §4 lists the step
 
 <!-- SECTION:NOTES:BEGIN -->
 Draft PR fdurieux/knowgov#245; branch claude/task-0148-wizard offered for the maintainer's Desktop test.
+
+Rebased onto main after #242, #248, #249; B1/B2 workarounds removed, register_nodes first; marked ready. run_tests 501/502 (1 skipped), check_mcp_server.py --scenarios S1 every check holds.
 <!-- SECTION:NOTES:END -->
