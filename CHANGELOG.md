@@ -24,6 +24,20 @@ names that section with the version.
   newer run, and two writers could lose an update. Neo4j read handles run in read access mode.
   Supported for a file-backed writer: POSIX with `flock`.
 
+- **`key_nodes`, `code_path` and `document_links`, three new read-only MCP tools** (task-0143, doc-0020
+  C2, additive): the upward joins, from files and with no store, listed on stdio and Streamable HTTP
+  alike and admitted by the shipped managed allowlist by server name. `key_nodes` names the register nodes a knowledge key's
+  `register_map.toml` rows name, with each row's owner, anchor and note; an unknown key is refused.
+  `code_path` takes a path under the instance's `code_map.toml` root and names its application, the
+  keys its header cites and its trace ledger entry (derived id, keys, statements, commit, digest,
+  drift). `document_links` names the register links whose evidence cites a document of the export
+  manifest, with the anchor and the nodes at both ends and their owners, as the Browser's
+  `register-cites` joins them. Each `code_path` leg reads `read` or `unchecked` with its reason, never empty. The server takes
+  `--instance`/`KG_INSTANCE` and `--ledger`/`KG_LEDGER`, read once at start. Its instructions name the
+  chain's two sequences: down by `register_impact walk=realisers` then `evidence_bundle`, up by
+  `code_path`, `key_nodes`, `register_impact walk=dependants` and `register_nodes`. Also
+  `python harness/upward.py key|code|doc`; reports pinned by `harness/schemas/key-nodes.schema.json`,
+  `code-path.schema.json` and `document-links.schema.json`, version 1.
 - **`register_nodes`, a new read-only MCP tool** (task-0142, doc-0020 C1, additive): the register
   listed from its files, no store, every node by id with its taxonomy, kind, name, state, owner and
   parent, filtered by taxonomy, kind, state, owning unit (the owner field or an approved `owns` link)
@@ -54,6 +68,12 @@ names that section with the version.
   own interpreter to the gate unless `PYTHON` is set. The test runner counts a test whose
   prerequisite is absent as skipped, never passed, and `KG_TEST_REQUIRE` turns a skip into a
   failure.
+- **A second Claude Code hook guards what people attest** (task-0147, doc-0018 candidate 5).
+  `instance/ci/claude/attestation_paths.py`, wired by `settings.attestations.json`, blocks an
+  assistant's Edit, Write, MultiEdit or NotebookEdit that adds or changes `subject.toml`'s
+  `[verification]` or `[provenance]`, or writes under `captures/`, a review file, the verification
+  map, `preload-baseline.json` or `register/`. Fail-closed through task-0099's `decide`; it does not
+  see a shell command writing the same file.
 - **The register at ieam-register v0.2.10** (the register's decision 0017): `RECONCILE.json`
   carries the register's `unregistered` list, the objects no node's `[source]` names. On the
   synthetic ARIS exports, no example node names ARIS as its source, so the list holds 41 objects

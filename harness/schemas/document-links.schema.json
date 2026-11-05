@@ -1,0 +1,202 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/document-links.schema.json",
+ "title": "knowgov document links report",
+ "description": "What `python harness/upward.py doc DOCUMENT` prints and the MCP tool document_links returns (task-0143, doc-0020 C2, the document hop): the register links whose evidence cites DOCUMENT, a path of the subject's export manifest under the subject's prefix (kit:, jef_kit:), each with the evidence string and its #anchor, the link's type, state and owner, and the nodes at both ends with their owning units (target null for a link to an external id, named in target_external). What the Browser's register-cites query joins, read from the register's files; no store. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "schema_version",
+  "tool",
+  "subject",
+  "document",
+  "system",
+  "export_manifest",
+  "digest",
+  "register",
+  "links",
+  "nodes"
+ ],
+ "$defs": {
+  "node": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "taxonomy",
+    "kind",
+    "name",
+    "state",
+    "owner",
+    "owning_unit"
+   ],
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "taxonomy": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "kind": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "name": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "state": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "owner": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "missing": {
+     "const": true
+    },
+    "owning_unit": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "unit",
+      "name",
+      "owns"
+     ],
+     "properties": {
+      "unit": {
+       "type": "string"
+      },
+      "name": {
+       "type": "string"
+      },
+      "owns": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "properties": {
+  "schema_version": {
+   "const": 1
+  },
+  "tool": {
+   "const": "document_links"
+  },
+  "subject": {
+   "type": "string"
+  },
+  "document": {
+   "type": "string",
+   "description": "the manifest key the document resolves to"
+  },
+  "system": {
+   "type": "string"
+  },
+  "export_manifest": {
+   "type": "string"
+  },
+  "digest": {
+   "type": "string",
+   "description": "the manifest's sha256 for it"
+  },
+  "register": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "tag",
+    "commit"
+   ],
+   "properties": {
+    "tag": {
+     "type": "string"
+    },
+    "commit": {
+     "type": "string"
+    }
+   }
+  },
+  "links": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "id",
+     "type",
+     "state",
+     "owner",
+     "evidence",
+     "anchor",
+     "source",
+     "target",
+     "target_external"
+    ],
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "type": {
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     },
+     "owner": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "evidence": {
+      "type": "string"
+     },
+     "anchor": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "source": {
+      "$ref": "#/$defs/node"
+     },
+     "target": {
+      "$ref": "#/$defs/node"
+     },
+     "target_external": {
+      "type": [
+       "string",
+       "null"
+      ]
+     }
+    }
+   }
+  },
+  "nodes": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  }
+ }
+}

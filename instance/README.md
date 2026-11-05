@@ -678,7 +678,7 @@ to pull the published image instead of building it. One stack serves one instanc
 An AI coding assistant can ask knowgov the gate's question itself, before it writes anything:
 *may I build on this?* It does so through MCP, the Model Context Protocol, a standard way for an
 assistant to call tools a local program offers. `harness/mcp_server.py` is that program. It offers
-nine tools, and all of them only read:
+twelve tools, and all of them only read:
 
 | Tool | What the assistant asks | What it gets back |
 |---|---|---|
@@ -689,6 +689,9 @@ nine tools, and all of them only read:
 | `register_impact` | What does retiring or changing this register node touch? | your register's own impact walk from the node (the register's tag and commit, the node, its children listed but not walked unless the assistant asks with `children`, which walks every approved descendant as the register's decision 0014 does, every edge with whether it was followed, what it reaches with each node's owning unit), and the keys your subject's `register_map.toml` places on the node or on what it reaches, each with its owner, its anchor and the node it came through; with `children`, the keys resting only on a withdrawn descendant are listed last, flagged `withdrawn`; with a scenario loaded, each key's level, stale statements and suspect derived outputs as `gate_verdict` reports them for the task class the assistant names with `task` (`codegen` by default); while a run loads the store, refused where it would read those levels |
 | `proposal_impact` | What would this proposed product, capability or journey touch, and what does it lack, before anyone approves it? | the proposal (new nodes with provisional ids, links, the register nodes it reuses as they are or changed, proposed exceptions) read by your register's own checker and walks as if approved, every proposed element marked `hypothetical` and nothing stored: placement findings (a forbidden synonym; a node in no tool yet), link candidates D1 to D4 each `authored` or `inferred` and never more than `proposed`, C1 to C3 coverage before and after with the new gaps, what each reused node reaches before and after, what each new node rests on, each reused node's keys as `register_impact` reads them, the new nodes left unmapped, and which unit must approve what; while a run loads the store, refused where it would read the reused nodes' levels. Its walkthrough is in `demo/README.md` |
 | `register_nodes` | Which register nodes are there, and what does this one sit under? | your register listed from its files, with no store: every node with its kind, name, state, owner and parent, filtered by taxonomy, kind, state, owning unit or parent (`null` for the top-level nodes), with the total and a limit; "what does ORG-x own" is this listing, since ownership is shown and never walked. With `node`, that node's lineage: every ancestor up to the root and its children with their states, named and never walked; for what rests on or implements a node, `register_impact` |
+| `key_nodes` | Which register nodes does this knowledge key concern? | the rows of your subject's `register_map.toml` on the key, each with the register nodes it names (kind, name, state, owner), the row's owner, anchor and note; a key your subject knows with no row reads `mapped: false`, one it does not know is refused. Read from files, no store |
+| `code_path` | Which application is this code file, which keys does it cite, and what was it built from? | for a path under your `code_map.toml` root: the application or module the map assigns, the keys the file's `knowgov-keys:` header cites (an unknown one flagged), and the trace ledger's entry for it (derived id, keys, statements, commit, digest, and whether the file has drifted since). Each part says `read` or `unchecked` with why: unchecked means not read, never empty. Read from files, no store |
+| `document_links` | Which register links cite this document? | the links of your register whose evidence cites the document (a path of your export manifest), each with the evidence anchor, the link's type, state and owner, and the nodes at both ends with their owning units: what the Browser's `register-cites` query shows, read from the register's files, no store |
 | `scenario_runs` | Which scenarios have been run, in which mode, and what did they show? | every scenario of your subject with its title and card line; what the record holds for it (deterministic results and the gate's verdict, the arms with how many runs and which model, the extra sources the subject declares); its runs newest first, each as its folder's `run.json` describes it (mode, model, as-of date, who started it, `page` or `mcp`, start, end, status, and the verdict of its results), or inferred, flagged `inferred`, for a folder from before `run.json`; the scenario the store holds and when it was loaded; and the run loading the store now, if any. Replay is not a run: it is the record shown, and nothing records it |
 | `scenario_result` | What did this record or this run show? | what the page's Replay shows for one source that `scenario_runs` lists (the record, an extra source, or a run): the gate's verdict and why, the date it read reviews on, every required key's level, and each arm's runs with its decision and oracle result. It reads that source's files, never the store, and says so: it is not what the store holds now |
 
@@ -706,6 +709,19 @@ request. Load what the assistant should see first, on the page or with a run.
 
 Every tool is offered over stdio and HTTP alike, and the managed allowlist under
 `instance/ci/claude/` admits the server by its name, `knowgov`, so a new tool needs no client change.
+
+`code_path` reads two files the server is told about when it starts: your instance, with
+`--instance` or `KG_INSTANCE` (its `code_map.toml` and the code under its root), and the trace ledger
+`trace.py register` writes, with `--ledger` or `KG_LEDGER`, the same variables the CI wrappers take.
+Without one, that part of the answer reads `unchecked`. A path outside the code map's root is refused.
+
+The tools compose into the whole chain, one named step at a time and never one walk both ways. Down,
+from a capability to what it rests on: `register_impact` with `walk: realisers`, then `evidence_bundle`
+with the keys it lands on. Up, from a code file to the business: `code_path`, `key_nodes` for a cited
+key, `register_impact` with `walk: dependants` from the application (with `children` when its modules
+carry the links), then `register_nodes` with `node` for the capability's ancestors. From a document,
+`document_links` names the register links that cite it. The server's own instructions tell the
+assistant the same.
 
 The server reads review currency on one date for as long as it runs: `KG_AS_OF` (or `--as-of`), a
 date as `YYYY-MM-DD`, `record` (the subject's pinned record date) or `today`, which is the default.
@@ -968,3 +984,41 @@ tools' `scenario` argument, so a read of another session's load is refused.
 and `decide()` is the mapping for a script that imports it. This repository's tests run the script
 against PROCEED, BLOCKED, an unreachable store and a missing subject; only PROCEED lets the action
 through (`tests/test_claude_hook.py`, live on rdflib in CI).
+
+### Guarding what people attest
+
+Some files in your instance record what a *person* vouched for, and an assistant must never write
+them for that person. They are:
+
+- in a `subject.toml`, the `[verification]` table (when the documents were reviewed, what they were
+  read against, where the approval is recorded) and the `[provenance]` table (who attests): see
+  "Who vouches for a document";
+- a subject's `captures/` folder (answers people gave, and `captures/reviews/`, the rulings on them),
+  or the folder its `[capture] dir` names;
+- the file its `[verification] map` names, which says which keys a test or a dated review covers;
+- a review file anywhere (a TOML file with a `[review]` table or a `[[ruling]]`);
+- `preload-baseline.json`, the pre-load findings an owner accepted (see "Checking a document before the load");
+- everything under `register/`, which changes by its own pull request and checks.
+
+`attestation_paths.py`, beside `knowgov_hook.py`, is a second hook that blocks an assistant's Edit,
+Write, MultiEdit or NotebookEdit on any of these. In plain English: the assistant may add an artefact
+or a task class to `subject.toml`, and may remove the attestation tables outright (that attests
+nothing), but the moment a write would add or change `[verification]` or `[provenance]`, or touch one
+of the files above, Claude Code stops it and tells the assistant to leave it to the person of record.
+It compares the two tables as parsed TOML before and after the write, so moving a comment or adding
+an artefact is not mistaken for an attestation.
+
+It fails closed, like the gate's hook: an event it cannot read, an edit whose text is not in the
+file, or a `subject.toml` that does not parse after the write blocks too, and says so. It maps its
+answer through the same `decide` as `knowgov_hook.py`, and calls nothing else.
+
+`settings.attestations.json` wires it. Add its `PreToolUse` entry to the instance repository's
+`.claude/settings.json` beside the gate's, or, for the mandatory version, drop it into managed
+settings as a second file next to the gate's, for example
+`/etc/claude-code/managed-settings.d/51-knowgov-attestations.json` on Linux (the same folders as the
+table above). Change `/opt/knowgov` to your checkout's path.
+
+What it does not see: a shell command that writes the same file (`harness/capture.py ingest` and
+`review` are such commands, run by the person whose act they record), and anything written outside
+the assistant. The hook guards the assistant's file tools; the pull request, reviewed by someone
+other than its author, guards the rest.
