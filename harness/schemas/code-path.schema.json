@@ -1,0 +1,290 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/code-path.schema.json",
+ "title": "knowgov code path report",
+ "description": "What `python harness/upward.py code PATH` prints and the MCP tool code_path returns (task-0143, doc-0020 C2): for a path relative to the root of the instance's code_map.toml, three legs, each read or unchecked with its reason: code_map (the application or module the map assigns and that register node), citation (the keys the file's header cites, those the subject does not know under unknown) and ledger (the trace ledger's entry for the path, with the file's digest now). Unchecked is never empty: app, keys and entry are null then; under read, an empty keys list cites nothing and a null entry is a path the ledger does not hold. Read from files; no store. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "schema_version",
+  "tool",
+  "path",
+  "instance",
+  "ledger_file",
+  "code_map",
+  "citation",
+  "ledger"
+ ],
+ "$defs": {
+  "node": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "taxonomy",
+    "kind",
+    "name",
+    "state",
+    "owner"
+   ],
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "taxonomy": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "kind": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "name": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "state": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "owner": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "missing": {
+     "const": true
+    }
+   }
+  }
+ },
+ "properties": {
+  "schema_version": {
+   "const": 1
+  },
+  "tool": {
+   "const": "code_path"
+  },
+  "path": {
+   "type": "string"
+  },
+  "instance": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "ledger_file": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "code_map": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "status",
+    "app",
+    "node"
+   ],
+   "properties": {
+    "status": {
+     "enum": [
+      "read",
+      "unchecked"
+     ]
+    },
+    "reason": {
+     "type": "string"
+    },
+    "root": {
+     "type": "string"
+    },
+    "is_code": {
+     "type": "boolean"
+    },
+    "app": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "null under read: no single row maps the path"
+    },
+    "node": {
+     "$ref": "#/$defs/node",
+     "description": "the register node app names; null when app is null"
+    },
+    "rows": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "glob",
+       "app",
+       "note"
+      ],
+      "properties": {
+       "glob": {
+        "type": "string"
+       },
+       "app": {
+        "type": "string"
+       },
+       "note": {
+        "type": "string"
+       }
+      }
+     }
+    },
+    "citations_required": {
+     "type": "boolean"
+    }
+   }
+  },
+  "citation": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "status",
+    "keys"
+   ],
+   "properties": {
+    "status": {
+     "enum": [
+      "read",
+      "unchecked"
+     ]
+    },
+    "reason": {
+     "type": "string"
+    },
+    "keys": {
+     "type": [
+      "array",
+      "null"
+     ],
+     "items": {
+      "type": "string"
+     }
+    },
+    "unknown": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "malformed": {
+     "const": true
+    }
+   }
+  },
+  "ledger": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "status",
+    "entry"
+   ],
+   "properties": {
+    "status": {
+     "enum": [
+      "read",
+      "unchecked"
+     ]
+    },
+    "reason": {
+     "type": "string"
+    },
+    "entries": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "entry": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "additionalProperties": false,
+     "required": [
+      "id",
+      "path",
+      "app",
+      "sha256",
+      "commit",
+      "assertions",
+      "current_sha256",
+      "drift",
+      "file_present"
+     ],
+     "properties": {
+      "id": {
+       "type": "string"
+      },
+      "path": {
+       "type": "string"
+      },
+      "app": {
+       "type": "string"
+      },
+      "sha256": {
+       "type": "string"
+      },
+      "commit": {
+       "type": "string"
+      },
+      "repo": {
+       "type": "string"
+      },
+      "kind": {
+       "type": "string"
+      },
+      "task": {
+       "type": "string"
+      },
+      "assertions": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      "keys": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      "as_of": {
+       "type": "string"
+      },
+      "current_sha256": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "drift": {
+       "type": "boolean"
+      },
+      "file_present": {
+       "type": "boolean"
+      }
+     }
+    }
+   }
+  }
+ }
+}

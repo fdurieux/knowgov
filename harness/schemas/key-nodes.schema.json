@@ -1,0 +1,43 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/key-nodes.schema.json",
+ "title": "knowgov key nodes report",
+ "description": "What `python harness/upward.py key KEY` prints and the MCP tool key_nodes returns (task-0143, doc-0020 C2): the rows of the subject's register_map.toml whose key is KEY, each with the register nodes it names as the register holds them (missing true for an id it does not hold), the row's owner, anchor and note; mapped false for a key the subject knows with no row. Read from files; no store, no walk. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": ["schema_version", "tool", "subject", "key", "register", "mapped", "rows", "nodes"],
+ "$defs": {
+  "node": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["id", "taxonomy", "kind", "name", "state", "owner"],
+   "properties": {
+    "id": {"type": "string"},
+    "taxonomy": {"type": ["string", "null"]},
+    "kind": {"type": ["string", "null"]},
+    "name": {"type": ["string", "null"]},
+    "state": {"type": ["string", "null"]},
+    "owner": {"type": ["string", "null"]},
+    "missing": {"const": true}
+   }
+  }
+ },
+ "properties": {
+  "schema_version": {"const": 1},
+  "tool": {"const": "key_nodes"},
+  "subject": {"type": "string"},
+  "key": {"type": "string"},
+  "register": {"type": "object", "additionalProperties": false, "required": ["tag", "commit"],
+               "properties": {"tag": {"type": "string"}, "commit": {"type": "string"}}},
+  "mapped": {"type": "boolean"},
+  "rows": {"type": "array", "items": {
+   "type": "object", "additionalProperties": false, "required": ["nodes", "owner", "anchor", "note"],
+   "properties": {
+    "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+    "owner": {"type": ["string", "null"]},
+    "anchor": {"type": ["string", "null"]},
+    "note": {"type": "string"}
+   }}},
+  "nodes": {"type": "array", "items": {"type": "string"}, "description": "every node id the rows name, sorted"}
+ }
+}
