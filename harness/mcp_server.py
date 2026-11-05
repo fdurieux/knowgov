@@ -3,7 +3,7 @@
     python harness/mcp_server.py                      # stdio, for an agent that starts the server itself
     python harness/mcp_server.py --http [--host H] [--port P]   # Streamable HTTP at http://H:P/mcp
 
-The question an agent asks is "may I build on this?". Seven tools answer it, all read-only:
+The question an agent asks is "may I build on this?". Eight tools answer it, all read-only:
 
     store_status          what the store holds: the subject, the scenario loaded, the tasks and the
                           keys the subject asks the three-valued question of
@@ -38,6 +38,9 @@ The question an agent asks is "may I build on this?". Seven tools answer it, all
                           run folder's run.json or inferred; the scenario the store holds and when it was
                           loaded; the run under way, if any. Replay is the record shown, never a run
                           (task-0128, doc-0016 item 1)
+    scenario_result       what the page's Replay shows for one source scenario_runs lists (the record, an
+                          extra source, a run): the D6 gate, the keys' levels, the arms' decisions and
+                          suite, read from its files, never from the store (task-0129)
 
 While a run folder of the server's subject reads running with a live heartbeat (run.json, within
 ``runs_index.STALE_S`` of ``review.now()``), gate_verdict, three_valued_answer and evidence_bundle
@@ -118,7 +121,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
-                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. A status is the repository's; you may not upgrade it. This server only reads.")
+                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. A status is the repository's; you may not upgrade it. This server only reads.")
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -231,6 +234,20 @@ TOOLS.append(
      "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
          "scenario": {"type": "string", "description": "one of the subject's scenarios (default: every one, in the subject's order)"},
          "limit": {"type": "integer", "minimum": 1, "description": "at most this many runs per scenario, newest first (default: all)"}}},
+     "annotations": READ_ONLY})
+
+
+TOOLS.append(
+    {"name": "scenario_result", "title": "What did this record or run show?",
+     "description": "What the page's Replay shows for one source of a scenario, as data, read from that source's files and "
+                    "never from the store, so it is not what the store holds now: the D6 gate (verdict, why, blocked, below "
+                    "verified, flagged, conflicts, stale, suspect derived, lapsed), the date it read reviews on, every "
+                    "required key's level, each arm's runs (decision, code, flagged, suite, model) and, for a scenario "
+                    "with a change, the verdicts before and after it. The source is an id scenario_runs lists: record, an "
+                    "extra source, or a run's source.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "required": ["scenario", "source"], "properties": {
+         "scenario": {"type": "string", "description": "one of the subject's scenarios"},
+         "source": {"type": "string", "description": "a source id as scenario_runs lists it: record, an extra source's id, or a run's source (demo-runs/...)"}}},
      "annotations": READ_ONLY})
 
 
@@ -613,6 +630,22 @@ class Tools:
         except ToolError as e:   # the record and the runs answer without a store
             out["store_unavailable"] = str(e)
             return out
+
+    def scenario_result(self, args: dict) -> dict:
+        """``runs_index.result`` for a source ``scenario_runs`` lists; the store is never opened (task-0129)."""
+        import runs_index
+        from subject import SUBJECT
+        scenario, source = args.get("scenario"), args.get("source")
+        if scenario not in SUBJECT.scenarios:
+            raise ToolError(f"{SUBJECT.id}: no scenario {scenario!r}; the subject declares {SUBJECT.order}")
+        if not isinstance(source, str) or not source:
+            raise ToolError("source is required: an id scenario_runs lists (record, an extra source, a run's source)")
+        out = runs_index.result(SUBJECT, self.runs, scenario, source)
+        if out is None:
+            listed = [s["id"] for s in runs_index.sources_for(SUBJECT, scenario, self.runs)]
+            raise ToolError(f"{scenario}: no source {source!r} with results; scenario_runs lists {listed}")
+        return {"subject": SUBJECT.id, "reads": "files: this source's results as they were written, not the store; "
+                                                 "store_status and gate_verdict read what the store holds now", **out}
 
     def three_valued_answer(self, args: dict) -> dict:
         from gate import THREE_VALUED_STATUSES, invalidated_on_key, three_valued
