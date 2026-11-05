@@ -113,11 +113,11 @@ def _port_methods() -> set[str]:
     return {n.name for n in cls.body if isinstance(n, ast.FunctionDef) and not n.name.startswith("__")}
 
 
-def test_initialize_negotiates_a_version_and_offers_tools_only():
+def test_initialize_negotiates_a_version_and_offers_tools_and_prompts_only():
     s, _ = _server()
     r = s.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}})["result"]
     assert r["protocolVersion"] == "2025-06-18" and r["serverInfo"]["name"] == "knowgov"
-    assert set(r["capabilities"]) == {"tools"}
+    assert set(r["capabilities"]) == {"tools", "prompts"}   # prompts: task-0148; never resources
     r = s.handle({"jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {"protocolVersion": "1999-01-01"}})["result"]
     assert r["protocolVersion"] == mcp_server.PROTOCOL_VERSIONS[0]
     assert s.handle({"jsonrpc": "2.0", "method": "notifications/initialized"}) is None
@@ -434,7 +434,7 @@ def test_server_discover_answers_per_the_revision_without_a_handshake():
     r = s.handle(_modern("server/discover"))["result"]
     assert r["resultType"] == "complete" and r["supportedVersions"][0] == MODERN
     assert set(mcp_server.PROTOCOL_VERSIONS) <= set(r["supportedVersions"]), "the handshake era is still served"
-    assert r["capabilities"] == {"tools": {"listChanged": False}} and r["instructions"] == mcp_server.INSTRUCTIONS
+    assert r["capabilities"] == {"tools": {"listChanged": False}, "prompts": {"listChanged": False}} and r["instructions"] == mcp_server.INSTRUCTIONS
     assert r["_meta"][mcp_server.META_SERVER]["name"] == "knowgov"
     assert isinstance(r["ttlMs"], int) and r["ttlMs"] >= 0 and r["cacheScope"] in ("public", "private")
     tl = s.handle(_modern("tools/list", 2))["result"]

@@ -36,7 +36,8 @@ and ``scenario_result`` on the record with that verdict, read from files (task-0
 The same process also answers ``server/discover`` and a stateless (2026-07-28) ``gate_verdict``,
 which must equal the handshake's (task-0079).
 Once, after the scenarios: ``subject_check`` listed over stdio and Streamable HTTP, and on doc-0018's probe
-(``tools/fixtures/subject_probe``) its report equal to ``tools/check_subject.py --json``'s, over stdio in both eras (task-0146).
+(``tools/fixtures/subject_probe``) its report equal to ``tools/check_subject.py --json``'s, over stdio in both eras (task-0146); and the prompts
+``new_subject`` and ``add_artefact`` listed and given over both transports (task-0148).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
 
 A scenario with a later version (``[scenario.stage2]``, S6) is asked a second time after
@@ -440,6 +441,10 @@ def check_subject_tool(failures: list[str]) -> None:
             if "subject_check" not in listed:
                 failures.append(f"subject_check over {kind.__name__}: not listed ({listed})")
                 continue
+            prompts = [p["name"] for p in client.request("prompts/list", {})["result"]["prompts"]]
+            given = client.request("prompts/get", {"name": "new_subject", "arguments": {"id": "probe", "task": "codegen"}})["result"]
+            if prompts != ["new_subject", "add_artefact"] or "When to stop" not in given["messages"][0]["content"]["text"]:
+                failures.append(f"prompts over {kind.__name__}: listed {prompts}, or new_subject without its stop condition (task-0148)")
             got = client.call("subject_check", args)
             if got != cli:
                 diff = sorted(k for k in set(got) | set(cli) if got.get(k) != cli.get(k))
@@ -452,7 +457,8 @@ def check_subject_tool(failures: list[str]) -> None:
         finally:
             client.close()
     print(f"subject_check on {rel}: exit_code {cli['exit_code']}, {len(cli['findings'])} finding(s), yield "
-          f"{cli['yield']['state']}; equal to check_subject.py --json over stdio (both eras) and HTTP")
+          f"{cli['yield']['state']}; equal to check_subject.py --json over stdio (both eras) and HTTP; "
+          "the prompts new_subject and add_artefact over both")
 
 
 def example_trace(failures: list[str]) -> dict | None:

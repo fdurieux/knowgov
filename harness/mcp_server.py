@@ -55,6 +55,12 @@ The question an agent asks is "may I build on this?". Thirteen tools answer it, 
                           in a temporary directory removed after the call: its subject-check report; nothing
                           stored, the yield in a child process, the call bounded (task-0146, doc-0018)
 
+Two prompts, text only (task-0148, ``harness/wizard.py``): ``new_subject <id> <task>`` and ``add_artefact
+<subject> [file]``, the subject wizard of doc-0018 as a procedure the client runs with its own file tools on
+a branch, ending in a pull request; each is the instance skill's text verbatim, with the never-list and the
+stop condition. ``prompts/list`` and ``prompts/get`` in both eras; the prompts capability is the reader's
+only (knowgov-runs declares none).
+
 While a run folder of the server's subject reads running with a live heartbeat (run.json, within
 ``runs_index.STALE_S`` of ``review.now()``), gate_verdict, three_valued_answer and evidence_bundle
 refuse and name the run: on Neo4j a run wipes the store and loads it in steps (doc-0016 F2);
@@ -138,7 +144,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
-                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. code_path, key_nodes and document_links read files only; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it. This server only reads.")
+                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The prompts new_subject and add_artefact walk an assistant through scaffolding a subject on a branch; nothing is written through this server. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. code_path, key_nodes and document_links read files only; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it. This server only reads.")
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -871,12 +877,12 @@ def header_mismatch(msg: dict, headers) -> str | None:
         return f"MCP-Protocol-Version header {got!r} does not match the body's {version!r}"
     if headers.get("Mcp-Method") != msg.get("method"):
         return f"Mcp-Method header {headers.get('Mcp-Method')!r} does not match the body's {msg.get('method')!r}"
-    if msg.get("method") == "tools/call":
+    if msg.get("method") in ("tools/call", "prompts/get"):   # the revision names the tool or the prompt
         name = headers.get("Mcp-Name")
         if name is None:
             return "the Mcp-Name header is missing"
         if decode_header(name) != (msg.get("params") or {}).get("name"):
-            return f"Mcp-Name header {name!r} does not match the body's tool name"
+            return f"Mcp-Name header {name!r} does not match the body's {'tool' if msg.get('method') == 'tools/call' else 'prompt'} name"
     return None
 
 
@@ -885,13 +891,20 @@ class Server:
     None for a notification or a response."""
 
     def __init__(self, tools=None, table: list[dict] | None = None, info: dict | None = None,
-                 instructions: str | None = None):
+                 instructions: str | None = None, prompts=None):
         """``tools`` answers each tool by name; ``table``, ``info`` and ``instructions`` are what the
-        server lists and announces (this module's by default; knowgov-runs passes its own, task-0133)."""
+        server lists and announces (this module's by default; knowgov-runs passes its own, task-0133).
+        ``prompts`` lists and gives the prompts (``harness/wizard.py``'s, task-0148, for the reader's own
+        table; none for a server that passes its own table unless it names them)."""
         self.tools = tools or Tools()
         self.table = TOOLS if table is None else table
         self.info = SERVER if info is None else info
         self.instructions = INSTRUCTIONS if instructions is None else instructions
+        if prompts is None and table is None:
+            import wizard
+            prompts = wizard
+        self.prompts = prompts
+        self.capabilities = {**CAPABILITIES, **({"prompts": {"listChanged": False}} if prompts else {})}
 
     def handle(self, msg) -> dict | None:
         if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0":
@@ -911,13 +924,26 @@ class Server:
         if method == "initialize":
             asked = params.get("protocolVersion")
             version = asked if asked in PROTOCOL_VERSIONS else PROTOCOL_VERSIONS[0]
-            return _result(id_, {"protocolVersion": version, "capabilities": CAPABILITIES,
+            return _result(id_, {"protocolVersion": version, "capabilities": self.capabilities,
                                  "serverInfo": self.info, "instructions": self.instructions})
         if method == "ping":
             return _result(id_, {})
         if method in ("tools/list", "tools/call"):
             return self._tools(id_, method, params)
+        if method in ("prompts/list", "prompts/get") and self.prompts:
+            return self._prompts(id_, method, params)
         return _error(id_, -32601, f"method not found: {method}")
+
+    def _prompts(self, id_, method: str, params: dict, stamp: dict | None = None) -> dict:
+        """prompts/list and prompts/get, either era (task-0148): text only, read-only by nature."""
+        stamp = stamp or {}
+        if method == "prompts/list":
+            return _result(id_, {"prompts": self.prompts.listing(), **stamp, **(CACHE if stamp else {})})
+        try:
+            got = self.prompts.get(params.get("name"), params.get("arguments"))
+        except self.prompts.PromptError as e:
+            return _error(id_, -32602, str(e))
+        return _result(id_, {**got, **stamp})
 
     def _tools(self, id_, method: str, params: dict, stamp: dict | None = None) -> dict:
         """tools/list and tools/call, either era; ``stamp`` is what a modern result adds."""
@@ -950,10 +976,12 @@ class Server:
             return _error(id_, -32602, f"_meta[{META_CAPABILITIES!r}] is required on every request")
         stamp = {"resultType": "complete", "_meta": {META_SERVER: {"name": self.info["name"], "version": self.info["version"]}}}
         if method == "server/discover":
-            return _result(id_, {"supportedVersions": SUPPORTED_VERSIONS, "capabilities": CAPABILITIES,
+            return _result(id_, {"supportedVersions": SUPPORTED_VERSIONS, "capabilities": self.capabilities,
                                  "instructions": self.instructions, **stamp, **CACHE})
         if method in ("tools/list", "tools/call"):
             return self._tools(id_, method, params, stamp)
+        if method in ("prompts/list", "prompts/get") and self.prompts:
+            return self._prompts(id_, method, params, stamp)
         return _error(id_, -32601, f"method not found: {method}")   # ping and initialize are not methods of this era
 
     def handle_text(self, text: str) -> dict | None:

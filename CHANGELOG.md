@@ -24,6 +24,16 @@ names that section with the version.
   newer run, and two writers could lose an update. Neo4j read handles run in read access mode.
   Supported for a file-backed writer: POSIX with `flock`.
 
+- **The reader serves prompts: the subject wizard** (task-0148, doc-0018 candidate 4, doc-0021 §8).
+  `knowgov` declares the `prompts` capability and serves `new_subject <id> <task>` and
+  `add_artefact <subject> [file]` through `prompts/list` and `prompts/get`, in both protocol eras;
+  over HTTP a stateless `prompts/get` carries its `Mcp-Name`. Each prompt is the text of the
+  Claude Code skill `instance/ci/claude/skills/knowgov-onboard/`, verbatim (`harness/wizard.py`):
+  the procedure an assistant follows to scaffold a subject on a branch with its own file tools,
+  checked after every write, ending in a pull request; with the never-list (no content drafted, no
+  attestation written, no key drawn from the yield), the stop condition, and the kinds table with
+  what each mapper reads. `knowgov-runs` declares no prompts.
+
 - **`key_nodes`, `code_path` and `document_links`, three new read-only MCP tools** (task-0143, doc-0020
   C2, additive): the upward joins, from files and with no store, listed on stdio and Streamable HTTP
   alike and admitted by the shipped managed allowlist by server name. `key_nodes` names the register nodes a knowledge key's
