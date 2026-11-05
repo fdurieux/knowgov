@@ -10,14 +10,29 @@ names that section with the version.
 
 ## Unreleased
 
-- **The register at ieam-register v0.2.10** (task-0138; the register's decision 0017): the
-  connector's `RECONCILE.json` now carries the register's own `unregistered` list, computed by the
-  vendored `reconcile.py`, beside the connector's `unknown_ids`. The two differ: `unknown_ids` lists
-  carried register ids the register does not hold (none on the synthetic ARIS exports);
-  `unregistered` lists carried ids no node's `[source]` names for the system (all 14, then 13,
-  since no example node names ARIS as its source). Both are kept; `instance/README.md` gives each
-  meaning. The register's `check_register.py --report` gains a per-system export count. The record
-  is unchanged on both subjects.
+### Contract changes
+
+- **The connector's MANIFEST follows ieam-register's export format** (decision-0010, task-0138).
+  `[ids]` now lists every object of the AML, keyed by its GUID (the system's `id_field`,
+  `aris_guid` for ARIS), with its name, including objects that carry no register id. Before, it
+  was keyed by register id. The register ids move to their own tables: `[register_ids]` (GUID to
+  register id, replacing `[guids]`) and `[bpmn_ids]` (the register ids a BPMN file carries).
+  `RECONCILE.json`'s `ids` section is now the register's own comparison by GUID: a renamed object
+  is its GUID under `renamed`. The connector no longer treats an id carried by a GUID as carried;
+  that extension is redundant now. It keeps `unknown_ids` and its stale rule by register id, both
+  read from the new tables. A folder landed before keeps its bytes; the first export landed after
+  the upgrade reads every object as added in `ids`. `proposal_impact`'s D2 reads `[register_ids]`,
+  and `[guids]` in an older folder.
+
+### Changes
+
+- **The register at ieam-register v0.2.10** (the register's decision 0017): `RECONCILE.json`
+  carries the register's `unregistered` list, the objects no node's `[source]` names. On the
+  synthetic ARIS exports, no example node names ARIS as its source, so the list holds 41 objects
+  for `first` and 38 for `later`. 27 and 25 of them are events, rules and steps that no register
+  id names. A node that carries `[source] aris_guid` leaves the list, and the register's own
+  `stale_nodes` then finds a vanished object. `check_register.py --report` gains a per-system
+  export count. The record is unchanged on both subjects.
 
 ## 0.6.0 — 2026-11-05
 

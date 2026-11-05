@@ -30,7 +30,7 @@ second walk semantics here.
   A new node has no row in any map and no statement: it is listed ``unmapped``, never ``unknown``.
 - Candidates, in order: D1 a register id the input names (``authored``); D2 an external id
   (``aris_guid``, ``archi_id``, ``edm_id``, the systems' ``id_field``) matched through a register
-  node's ``[source]``, or through the newest landed export's MANIFEST ``[guids]`` (``authored``); D3 an
+  node's ``[source]``, or through the newest landed export's MANIFEST ``[register_ids]`` (``authored``); D3 an
   exact normalised name match with an approved node of the same kind, its live links offered to the
   new node (``inferred``; decision-0007: "same step as JRN-..."); D4 for a step or touchpoint with no
   support and no D3 support, the realisers of its product's required capabilities as a pool, listed
@@ -409,15 +409,17 @@ def _id_fields(reg: dict) -> dict[str, str]:
     return {name: spec["id_field"] for name, spec in reg["sources"].get("system", {}).items()}
 
 
-def _newest_guids(root: Path, system: str) -> tuple[str, dict]:
-    """The newest landed export of ``system`` under the register (``exports/<system>/<date>/``) and its
-    MANIFEST's ``[guids]`` (GUID -> register id), as the connector writes it (task-0063)."""
+def _newest_guids(root: Path, system: str) -> tuple[str, str, dict]:
+    """The newest landed export of ``system`` under the register (``exports/<system>/<date>/``), the
+    MANIFEST table it read and that table (GUID -> register id): ``[register_ids]`` as the connector
+    writes it (task-0063, decision-0010), or ``[guids]`` in a folder landed before decision-0010."""
     d = root / "exports" / system
     folders = sorted(p for p in d.iterdir() if p.is_dir() and (p / "MANIFEST.toml").is_file()) if d.is_dir() else []
     if not folders:
-        return "", {}
+        return "", "", {}
     man = tomllib.loads((folders[-1] / "MANIFEST.toml").read_text(encoding="utf-8"))
-    return f"exports/{system}/{folders[-1].name}", man.get("guids") or {}
+    table = "register_ids" if "register_ids" in man else "guids"
+    return f"exports/{system}/{folders[-1].name}", table, man.get(table) or {}
 
 
 def candidates(T, root: Path, base: dict, read: dict, ov: Overlay) -> list[dict]:
@@ -453,9 +455,9 @@ def candidates(T, root: Path, base: dict, read: dict, ov: Overlay) -> list[dict]
             hit = sorted(nid for nid, x in base["nodes"].items() if (x.get("source") or {}).get(field) == val)
             where = "a register node's [source]"
             if not hit:
-                folder, guids = _newest_guids(root, system)
+                folder, table, guids = _newest_guids(root, system)
                 if val in guids and guids[val] in base["nodes"]:
-                    hit, where = [guids[val]], f"{folder}/MANIFEST.toml [guids]"
+                    hit, where = [guids[val]], f"{folder}/MANIFEST.toml [{table}]"
             for h in hit:
                 out.append({"rule": "D2", "basis": "authored", "kind": "same_as", "element": n["_provisional"], "link": None,
                             "same_as": h, "pool": None, "stated": False, "status": "proposed",

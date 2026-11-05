@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-05T10:41:00Z'
-updated_date: '2026-11-05T10:53:00Z'
+updated_date: '2026-11-05T20:12:00Z'
 labels:
   - register
   - connector
@@ -39,6 +39,8 @@ On the maintainer's go of 2026-11-05. ieam-register v0.2.10 (4149e06, decision 0
 2. connector RECONCILE.json: unregistered flows from the vendored reconcile.py; a test holds it on first and later.
 3. Compare unknown_ids with unregistered on both fixtures; keep or drop by the evidence; document in instance/README.md.
 4. Suite, deterministic rdflib run and comparator on both subjects, check_instance on the example instance; CHANGELOG under Unreleased.
+
+5. (Maintainer's (a), decision-0010, 2026-11-05) The connector's MANIFEST in the register's format: [ids] every AML object by GUID, [register_ids] GUID -> register id, [bpmn_ids]; carried-by-GUID dropped; unknown_ids and stale-by-register-id read the register-id tables; proposal_impact's D2 reads [register_ids].
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -51,16 +53,12 @@ Comparison (synthetic ARIS fixtures, example instance, connector.land):
 - PROC-0004's [source] set to system=aris, aris_guid=<its object GUID ac939acd-...>: still unregistered (14). Set to aris_guid="PROC-0004": dropped (13).
 Verdict: different sets, different questions. unknown_ids = carried register ids the register lacks (typo or missing node). unregistered = MANIFEST [ids] keys that no node's [source] carries under the system's id_field. The connector keys [ids] by register id, while the register reads them as id_field values (aris_guid), so unregistered lists every carried id unless a node records its register id as its aris_guid. Both kept; instance/README.md gives each meaning. Not a contract change.
 Checks: tests 439/439; rdflib deterministic CargoQuote 0 differ over 7 scenarios, J-F 0 differ over 6; check_instance on the example instance: layout holds; check_subject cargo_quote: 93 keys, manifest holds.
+
+Option (a) measured, then chosen as (a3) (decision-0010; table there). first/later: 41/38 AML objects, every one with a GUID; 14/13 carry AT_ID; the BPMN carries 5/4 register ids, all also in the AML. Nodes as in the example (none carry aris_guid): ids diff by GUID (later: renamed PROC-0004's GUID; deleted PROC-0005's and two events'); register stale 0, connector stale PROC-0005; unregistered 41/38. With the 14 nodes given [source] aris_guid: unregistered 27/25, and the register's own stale_nodes is PROC-0005. Implemented: connector, proposal_impact D2 ([register_ids], [guids] in an older folder), tests (tests 442/442), instance/README.md, CLAUDE.md, CHANGELOG contract change. Record unchanged: CargoQuote 0 differences over 7 scenarios, J-F 0 over 6 (rdflib). check_instance: layout holds. aris_export --check: rc 0. check_proposal_branch: holds.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Re-vendored the register at ieam-register v0.2.10 (4149e06, decision 0017) with tools/vendor_register.py from a clean checkout. Tags moved from v0.2.9 to v0.2.10 in the tests, demo.yml and register_fixture. The connector's RECONCILE.json now carries the register's unregistered, computed by the vendored reconcile.py. tests/test_connector.py holds it on both ARIS fixtures, and connector.summary prints its count.
-
-unknown_ids and unregistered are different sets: 0 against 14 on first, 0 against 13 on later. Removing a node gives unknown_ids [PROC-0005] while unregistered stays at 14. The cause is a keying mismatch: the connector keys MANIFEST [ids] by register id, while the register reads those keys as [source] aris_guid values, so a node that carries its ARIS GUID is still listed. Both lists are kept and instance/README.md gives each meaning. This is not a contract change. CHANGELOG has a line under Unreleased.
-
-Checks: tests 439/439. On the rdflib deterministic run the comparator found 0 differences on CargoQuote (7 scenarios) and on J-F (6). check_instance on the example instance: layout holds.
-
-Follow-up for decision: the connector could key [ids] by the system's id_field (the GUID) so that unregistered becomes meaningful, or the register could match on register ids.
+Re-vendored the register at ieam-register v0.2.10 (4149e06, decision 0017), and moved tags v0.2.9 -> v0.2.10 in the tests, demo.yml and register_fixture. Comparing unknown_ids with the register's unregistered on the ARIS fixtures (0 vs 14 and 0 vs 13) showed that the connector keyed MANIFEST [ids] by register id, while the register reads them by the system's id_field (aris_guid). The maintainer chose (a) (decision-0010). The MANIFEST now follows the register's format: [ids] holds every AML object by GUID (41/38), [register_ids] maps GUID to register id, and [bpmn_ids] holds the BPMN files' register ids. The register's own ids diff, stale_nodes and unregistered now read it correctly. The carried-by-GUID extension is dropped. unknown_ids and stale-by-register-id stay, read from the register-id tables; the latter is redundant once nodes carry [source] aris_guid, as a test shows. proposal_impact's D2 reads [register_ids] (and [guids] in older folders). This is a contract change (CHANGELOG). The record is unchanged on both subjects, and the tests pass 442/442. Follow-up: decision 0017's open question, how to excuse an object that is not a node (the 27/25 events and rules).
 <!-- SECTION:FINAL_SUMMARY:END -->

@@ -316,7 +316,7 @@ def test_d2_matches_an_external_id_through_the_landed_synthetic_aris_export():
     s = test_connector._landed()
     reg = s["dir"] / "register"
     newest = sorted(p for p in (reg / "exports" / "aris").iterdir() if p.is_dir())[-1]
-    guids = tomllib.loads((newest / "MANIFEST.toml").read_text(encoding="utf-8"))["guids"]
+    guids = tomllib.loads((newest / "MANIFEST.toml").read_text(encoding="utf-8"))["register_ids"]   # decision-0010
     guid = next(g for g, rid in sorted(guids.items()) if rid == "PROC-0002")
     p = _proposal()
     p["nodes"].append({"id": "PROC-new", "kind": "subprocess", "name": "Validate a contract request", "parent": "PROC-0001",
@@ -330,7 +330,7 @@ def test_d2_matches_an_external_id_through_the_landed_synthetic_aris_export():
     _valid(r)
     d2 = _cands(r, "D2")
     assert [(c["element"], c["same_as"], c["basis"]) for c in d2] == [("PROC-new", "PROC-0002", "authored")]
-    assert f"exports/aris/{newest.name}/MANIFEST.toml" in d2[0]["reason"]
+    assert f"exports/aris/{newest.name}/MANIFEST.toml [register_ids]" in d2[0]["reason"]
     assert "PROC-new" not in [x["element"] for x in r["placement"] if x["check"] == "source"]   # it names a tool
     # without a landed export, the public register carries no GUID: no D2
     assert not _cands(_report(p), "D2")
