@@ -26,6 +26,14 @@ names that section with the version.
   `code_path`, `key_nodes`, `register_impact walk=dependants` and `register_nodes`. Also
   `python harness/upward.py key|code|doc`; reports pinned by `harness/schemas/key-nodes.schema.json`,
   `code-path.schema.json` and `document-links.schema.json`, version 1.
+- **The subject check reads a document's yield more honestly** (task-0149, doc-0021 G1, G2, G5).
+  `tools/check_subject.py` (and `check_instance.py`, which runs it) now refuses an artefact with a
+  mapper and no `short`, naming the file's stem as the fix, where the load failed on a `KeyError`
+  blamed on the document. It warns (new rule `zero-yield`) when a mapper reads a document and
+  yields nothing, naming what the mapper reads (the new `instance/mappers.toml`) and the kind's
+  other mappers. It offers each yielded key once, to its best match, and a match on another entity
+  is now a note, not a did-you-mean. The report's shape is unchanged (schema version 1; the rule
+  `zero-yield` is added).
 - **`register_nodes`, a new read-only MCP tool** (task-0142, doc-0020 C1, additive): the register
   listed from its files, no store, every node by id with its taxonomy, kind, name, state, owner and
   parent, filtered by taxonomy, kind, state, owning unit (the owner field or an approved `owns` link)

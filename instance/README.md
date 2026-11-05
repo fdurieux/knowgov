@@ -41,6 +41,8 @@ A *kind* is one row of the programme's table *Artefact by artefact* on
 turns one kind of document into statements the store holds. A kind with no mapper can still be
 in your instance; the platform then says, for each such file, that it holds **no statement**
 from it, instead of skipping it quietly. `instance/kinds.toml` is the same table in machine form.
+`instance/mappers.toml` says, for each mapper, what a document must look like for it to read anything
+(most follow the public demo's own conventions, such as requirement rows `| REQ-nn | text |`).
 
 | folder under `artefacts/` | the table's row | mappers that read it |
 |---|---|---|
@@ -96,7 +98,18 @@ show you later, or not at all:
 - a required key that no document yields when a document yields one very close to it. For
   example, the task asks for `REQ-02|txt` and your requirements give `REQ-02|text`. This shows as
   a *WARNING* with the key the documents do yield. Without it, the gate would report the key absent
-  and send its owner a question that a spelling fix answers.
+  and send its owner a question that a spelling fix answers. A document's yield is offered once, to the
+  required key it is closest to; and when that key is about another entity (`REQ-04|text` beside a
+  yielded `REQ-03|text`), it is not a misspelling but a requirement no document states, so the
+  check lists it as a *NOTE* for its owner, with no suggestion;
+- a document its mapper reads and yields nothing from. That almost always means the document is not
+  in the convention the mapper reads (a requirements file whose ids start `RNW-` rather than `REQ-`,
+  say), not that it holds no knowledge. The *WARNING* says what the mapper reads and names the kind's
+  other mappers; if none fits, leave the mapper out and the document is reported ABSENT. Never
+  rewrite your documents' ids to suit a mapper;
+- an artefact with a mapper and no `short`. The mappers name every statement after it, so the load
+  would fail with an error that seems to blame the document. The check asks for `short`, from the
+  file's name.
 
 To read what your documents yield, the check runs the same mappers the load runs, on your files.
 It needs the same Python packages the load needs: PyYAML, and pumllint for PlantUML. Where they are
