@@ -5,7 +5,7 @@ title: >-
   opportunity canvas, SWOT, candidates
 type: specification
 created_date: '2026-11-05T17:21:00Z'
-updated_date: '2026-11-05T21:53:00Z'
+updated_date: '2026-11-05T22:10:00Z'
 tags:
   - canvas
   - swot
@@ -202,6 +202,9 @@ Allowing the eight citation misses would still give 27 of 34 (0.79), under the b
 **What would reopen it.**
 - A pilot whose prose kinds come with a key vocabulary per predicate (the forms as values, not shapes), which would remove the form misses.
 - A model or prompt that clears 0.9 on S1 `single` with S2 and S3 still held, measured with this tool unchanged. The bar does not move.
+
+*2026-11-05, the maintainer: leave it parked; no reopening before m-8. `tools/route_c_documents.py` stays as the reopening instrument (the coordinating session's call on task-0139's DECIDE 1).*
+
 ## 9. C5 measured, 2026-11-05 (task-0145)
 
 **A spike, measured outside the record.**
