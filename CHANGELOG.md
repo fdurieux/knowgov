@@ -26,6 +26,14 @@ names that section with the version.
 
 ### Changes
 
+- **The CI scripts check their interpreter first** (task-0141.01). `knowgov-gate.sh`,
+  `preload-check.sh` and `proposal-impact.sh` run every step with the interpreter `PYTHON` names
+  (default `python3`), by its absolute path. An interpreter that is missing or older than Python
+  3.12 now exits 2 (cannot run) with the reason. Before, a step could exit 1, read as a finding,
+  or 127. A relative `PYTHON` now works for the gate's core commands. The Claude Code hook passes its
+  own interpreter to the gate unless `PYTHON` is set. The test runner counts a test whose
+  prerequisite is absent as skipped, never passed, and `KG_TEST_REQUIRE` turns a skip into a
+  failure.
 - **The register at ieam-register v0.2.10** (the register's decision 0017): `RECONCILE.json`
   carries the register's `unregistered` list, the objects no node's `[source]` names. On the
   synthetic ARIS exports, no example node names ARIS as its source, so the list holds 41 objects

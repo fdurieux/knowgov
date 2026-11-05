@@ -292,6 +292,13 @@ In plain English: the script reads `KG_*` variables (the list is at its top: `KG
 from git against `KG_BASE`, in the folder `code_map.toml` names, and calls the core command. Its exit
 code is the command's: 0, 1 or 2.
 
+`PYTHON` names the interpreter (default `python3` as `PATH` finds it). The script checks it once, before
+anything else, and runs every step, the pre-load check's included, with that interpreter's absolute
+path, so another `python3` earlier on `PATH` never runs a step. An interpreter that is missing or older
+than Python 3.12 cannot run: exit 2 with the reason, and no report is written or annotated. The same holds
+for `preload-check.sh` and `proposal-impact.sh`; the Claude Code hook passes its own interpreter unless
+`PYTHON` is set (task-0141.01).
+
 `KG_AS_OF` is the date the gate, `trace-check` and `trace-register` read review currency on (`--as-of`, decision-0005):
 a `YYYY-MM-DD` date, `record` (the subject's pinned record date) or `today`, the default. Set it to
 check a release as of its cut date, or to rehearse a lapse before it falls due: S1 as of 2027-08-08

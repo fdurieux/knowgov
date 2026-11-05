@@ -28,6 +28,7 @@
 #                   summary appends to its FILE, the others overwrite theirs. Paths in them are relative to
 #                   the working directory the script was called from; a run that exits 2 writes none
 #   KG_STORE, KG_RDFLIB_FILE, KG_NEO4J_*   the store, as the harness reads them
+#   PYTHON          the interpreter, 3.12 or later (default python3 on PATH); every step runs it
 #
 # trace-check and trace-register take the changed paths from git, in the code map's root
 # (git diff --relative KG_BASE), so the paths are the ones code_map.toml's globs name.
@@ -37,7 +38,14 @@ set -u
 KG=${1:?knowgov checkout}
 INST=${2:?instance checkout}
 GATE=${3:?preload, gate, trace-check or trace-register}
-PY=${PYTHON:-python3}
+# The interpreter (task-0141.01): PYTHON names it (default python3 as PATH finds it), probed once here
+# and passed on as its absolute path (sys.executable) to every nested call, so another python3 earlier
+# on PATH never runs a step; one that is missing or older than 3.12 cannot run: exit 2, nothing written.
+PY=$("${PYTHON:-python3}" -c 'import sys; sys.exit(1) if sys.version_info < (3, 12) else print(sys.executable)' 2>/dev/null) && [ -n "$PY" ] || {
+    echo "knowgov-gate: the interpreter '${PYTHON:-python3}' is missing or older than Python 3.12 ($("${PYTHON:-python3}" -V 2>&1 | head -n 1)); set PYTHON to a Python 3.12 or later" >&2
+    exit 2
+}
+export PYTHON="$PY"
 HERE=$(pwd)
 KG=$(cd "$KG" && pwd)
 INST=$(cd "$INST" && pwd)

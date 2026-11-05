@@ -14,7 +14,14 @@ set -u
 KG=${1:?knowgov checkout}
 REG=${2:?register checkout}
 BASE=${3:?base ref}
-PY=${PYTHON:-python3}
+# The interpreter (task-0141.01): PYTHON names it (default python3 as PATH finds it), probed once here
+# and passed on as its absolute path (sys.executable) to every nested call, so another python3 earlier
+# on PATH never runs a step; one that is missing or older than 3.12 cannot run: exit 2, nothing written.
+PY=$("${PYTHON:-python3}" -c 'import sys; sys.exit(1) if sys.version_info < (3, 12) else print(sys.executable)' 2>/dev/null) && [ -n "$PY" ] || {
+    echo "proposal-impact: the interpreter '${PYTHON:-python3}' is missing or older than Python 3.12 ($("${PYTHON:-python3}" -V 2>&1 | head -n 1)); set PYTHON to a Python 3.12 or later" >&2
+    exit 2
+}
+export PYTHON="$PY"
 
 set -- --register-branch "$REG" --base "$BASE" --no-store
 if [ -n "${KG_AS_OF:-}" ]; then set -- "$@" --as-of "$KG_AS_OF"; fi

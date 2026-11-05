@@ -8,6 +8,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from tests._skip import need_rdflib, skip  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "harness"), str(Path(__file__).resolve().parent)]
 from test_mcp_server import Stub  # noqa: E402
@@ -26,7 +28,7 @@ def _start():
 def test_register_impact_refuses_mid_run_where_it_reads_levels_and_answers_from_the_register_alone():
     start = _start()
     if start is None:
-        return
+        skip("register-rows", "the subject's register_map.toml has no rows")
     with tempfile.TemporaryDirectory() as td, _Env(KG_NOW=NOW):
         run = _live_and_stale(Path(td), LIVE)
         r = _call(_tools(Path(td)), "register_impact", {"node": start})
@@ -42,7 +44,7 @@ def test_register_impact_refuses_mid_run_where_it_reads_levels_and_answers_from_
 
 def test_proposal_impact_refuses_mid_run_where_it_reads_levels_and_answers_from_the_register_alone():
     if _start() is None:
-        return
+        skip("register-rows", "the subject's register_map.toml has no rows")
     with tempfile.TemporaryDirectory() as td, _Env(KG_NOW=NOW):
         _live_and_stale(Path(td), LIVE)
         r = _call(_tools(Path(td)), "proposal_impact", {"proposal": _proposal()})
@@ -58,7 +60,7 @@ def test_another_subjects_live_run_refuses_neither_tool():
     from subject import SUBJECT
     start = _start()
     if start is None:
-        return
+        skip("register-rows", "the subject's register_map.toml has no rows")
     other = "jef_data_load" if SUBJECT.id != "jef_data_load" else "cargo_quote"
     with tempfile.TemporaryDirectory() as td, _Env(KG_NOW=NOW):
         from test_scenario_runs import _run_json
@@ -69,15 +71,12 @@ def test_another_subjects_live_run_refuses_neither_tool():
 
 def test_on_an_rdflib_store_both_tools_refuse_live_and_answer_stale():
     """The same rule over a real rdflib store holding the subject's first scenario (the rdflib job runs it)."""
-    try:
-        from store_rdflib import RdflibStore
-    except ModuleNotFoundError:
-        return
+    RdflibStore = need_rdflib().RdflibStore
     import mcp_server
     from subject import SUBJECT
     start = _start()
     if start is None:
-        return
+        skip("register-rows", "the subject's register_map.toml has no rows")
     with tempfile.TemporaryDirectory() as td, _Env(KG_NOW=NOW, KG_TODAY="2026-11-04"):
         path = str(Path(td) / "store.ttl")
         st = RdflibStore(path=path)
