@@ -123,6 +123,100 @@ def test_bundle_carries_the_documents_the_task_names_verbatim_after_the_knowledg
         pass
 
 
+def _rich_result() -> dict:
+    """A gate result with every line the bundle renders: declared gap, gaps, text, evidence,
+    verification with and without a term, approval, conflict, stale, lapsed and suspect sections."""
+    a1 = {"id": "A:x", "value": "1", "basis": "authored", "status": "verified", "artefact": "doc", "agent": "a", "text": "one",
+          "fragments": [{"artefact": "doc", "locator": "L1", "text": "x = 1"}],
+          "verifications": [{"method": "review", "scope": "R", "at": "2026-08-06", "valid_until": "2027-08-06"},
+                            {"method": "execution", "scope": "suite", "at": "2026-08-07", "valid_until": None}],
+          "approvals": [{"record": "README", "at": "2026-08-06"}], "gaps": [{"kind": "vague", "declared": False, "text": "soon"}]}
+    a2 = dict(a1, id="A:y", value="2", status="validated", text="two", gaps=[],
+              lapsed={"from": "verified", "valid_until": "2026-01-01"})
+    return {"verdict": "QUALIFIED", "why": "one key below verified", "as_of": "2026-11-05",
+            "conflicts": [{"id": "C:1", "text": "A:x against A:y"}],
+            "stale": [{"id": "A:old", "key": "k|v", "value": "0", "invalidated_by": "doc@2",
+                       "successors": [{"id": "A:x", "value": "1", "status": "verified"}], "verifications": [{"id": "V:1", "valid_until": "2026-12-01"}]}],
+            "lapsed": [{"id": "A:y", "key": "k|w", "from": "verified", "valid_until": "2026-01-01", "verifications": ["V:2"]}],
+            "suspect_derived": [{"id": "derived:S1", "kind": "code", "sha256": "ab" * 32, "used_invalidated": ["A:old"]}],
+            "keys": {"k|v": {"level": "verified", "flags": [], "declared_gaps": [], "assertions": [a1]},
+                     "k|w": {"level": "validated", "flags": ["lapsed"], "declared_gaps": [{"id": "G:1", "text": "unknown yet"}], "assertions": [a2]},
+                     "k|z": {"level": "absent", "flags": [], "declared_gaps": [], "assertions": []}}}
+
+
+DROPPED = ("      text: ", "      evidence: ", "      verification: ", "      approval: ")
+
+
+def test_compact_bundle_drops_exactly_the_text_evidence_verification_and_approval_lines():
+    """Task-0140 (doc-0019 C3): the compact form keeps the verdict, the policy, each key's header, its
+    declared gaps, each assertion line and its gaps, and the conflict, stale, lapsed and suspect
+    sections, and drops the text, evidence, verification and approval lines; nothing else moves."""
+    import gate
+    res = _rich_result()
+    full = gate.render_bundle(res, "POLICY TEXT")
+    compact = gate.render_bundle(res, "POLICY TEXT", form="compact")
+    fl, cl = full.split("\n"), compact.split("\n")
+    intro = [i for i, line in enumerate(fl) if line.startswith("REQUIRED KNOWLEDGE")]
+    assert len(intro) == 1 and cl[intro[0]].startswith("REQUIRED KNOWLEDGE, key by key, compact:")
+    kept = [line for i, line in enumerate(fl) if i != intro[0] and not line.startswith(DROPPED)]
+    assert [line for i, line in enumerate(cl) if i != intro[0]] == kept, "compact is the full form less the four line kinds"
+    assert not any(line.startswith(DROPPED) for line in cl)
+    for must in ("GATE VERDICT: QUALIFIED", "POLICY TEXT", "## k|v  level=verified", "[A:x] value='1' basis=authored status=verified",
+                 "DECLARED GAP G:1", "GAP vague", "REVIEW LAPSED: verified until 2026-01-01", "UNKNOWN — not a documented absence",
+                 "\nCONFLICTS:", "\nINVALIDATED BY A SOURCE CHANGE", "\nREVIEW LAPSED as of 2026-11-05", "\nDERIVED OUTPUTS MARKED SUSPECT"):
+        assert must in compact, must
+    assert len(compact) < len(full)
+    v = {"contracts/cli.md": "# cli\n"}
+    assert gate.render_bundle(res, "P", v, form="compact").endswith(gate.render_bundle(res, "P", v).split("\nVERBATIM DOCUMENTS", 1)[1]), \
+        "the verbatim documents are the task's, whatever the form"
+    assert gate.render_key("k|v", res["keys"]["k|v"], "compact") == [x for x in gate.render_key("k|v", res["keys"]["k|v"]) if not x.startswith(DROPPED)]
+    for bad in ("", "short", "FULL"):
+        try:
+            gate.render_bundle(res, "P", form=bad); raise AssertionError(f"form {bad!r} must be refused")
+        except ValueError:
+            pass
+
+
+def test_full_bundle_is_the_default_and_renders_as_it_did():
+    """Task-0140: the full form stays the default and its bytes do not move, so the record's bundles,
+    run.py's, the MCP server's evidence_bundle and the pull context's read_knowledge render as they
+    did before the compact form existed. Pinned on a result with every line kind."""
+    import gate
+    res = _rich_result()
+    full = gate.render_bundle(res, "P")
+    assert full == gate.render_bundle(res, "P", None, "full") == gate.render_bundle(res, "P", form="full")
+    assert full == "\n".join([
+        "GATE VERDICT: QUALIFIED — one key below verified", "", "POLICY:", "P", "",
+        "REQUIRED KNOWLEDGE, key by key (status is the knowledge repository's, not yours to upgrade):",
+        "", "## k|v  level=verified  flags=-",
+        "  [A:x] value='1' basis=authored status=verified source=doc by=a",
+        "      text: one",
+        "      evidence: doc @ L1: 'x = 1'",
+        "      verification: review (R) at 2026-08-06 VALID UNTIL 2027-08-06",
+        "      verification: execution (suite) at 2026-08-07",
+        "      approval: README at 2026-08-06",
+        "      GAP vague: soon",
+        "", "## k|w  level=validated  flags=lapsed",
+        "  DECLARED GAP G:1: unknown yet",
+        "  [A:y] value='2' basis=authored status=validated source=doc by=a  REVIEW LAPSED: verified until 2026-01-01, now validated (decision-0005)",
+        "      text: two",
+        "      evidence: doc @ L1: 'x = 1'",
+        "      verification: review (R) at 2026-08-06 VALID UNTIL 2027-08-06",
+        "      verification: execution (suite) at 2026-08-07",
+        "      approval: README at 2026-08-06",
+        "", "## k|z  level=absent  flags=-",
+        "  (no assertion in the repository: UNKNOWN — not a documented absence)",
+        "", "CONFLICTS:", "  C:1: A:x against A:y",
+        "", "INVALIDATED BY A SOURCE CHANGE (their verifications ended; a successor, if any, is listed with its own status):",
+        "  [A:old] key=k|v old value='0' invalidated_by=doc@2; verifications: V:1 valid_until=2026-12-01; successor: A:x value='1' status=verified; superseded_by: A:x",
+        "", "REVIEW LAPSED as of 2026-11-05 (decision-0005: a review falls due after its key's review months; each reads validated until a new review):",
+        "  [A:y] key=k|w was verified, review current until 2026-01-01; verifications: V:2",
+        "", "DERIVED OUTPUTS MARKED SUSPECT (they used assertions that are now invalidated; they may not be reused as they are):",
+        "  derived:S1 (code, sha256 abababababab...) used: A:old"])
+    read, _ids = gate.knowledge_reader(res)
+    assert read("k|v") == "\n".join(gate.render_key("k|v", res["keys"]["k|v"])), "the pull context reads the full section"
+
+
 def test_effort_is_sent_only_when_set_recorded_and_compared_with_the_record():
     """Task-0028: KG_ARMS_EFFORT reaches a call as reasoning_effort and is recorded; unset, no parameter
     is sent. An effort other than the record's is a deviation, as another model is; the record effort
