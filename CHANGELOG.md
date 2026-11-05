@@ -65,6 +65,10 @@ names that section with the version.
   only when the operator names it. The reader, `knowgov`, is unchanged and stays read-only; the
   shipped allowlist admits it only. `mcp_server.Server` takes a tool table, server info and
   instructions. The page's banner says when a run was started over MCP.
+- **`register_impact` and `proposal_impact` refuse mid-run** (task-0137, additive): while a
+  `run.json` of the server's subject reads `running` with a live heartbeat, both refuse and name the
+  run on the path where they read key levels from the store, as `gate_verdict` does (task-0128).
+  Their register-only answers, with no scenario held or no store, are unchanged.
 
 ## 0.5.0 — 2026-11-04
 

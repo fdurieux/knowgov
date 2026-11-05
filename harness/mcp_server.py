@@ -41,7 +41,9 @@ The question an agent asks is "may I build on this?". Seven tools answer it, all
 
 While a run folder of the server's subject reads running with a live heartbeat (run.json, within
 ``runs_index.STALE_S`` of ``review.now()``), gate_verdict, three_valued_answer and evidence_bundle
-refuse and name the run: on Neo4j a run wipes the store and loads it in steps (doc-0016 F2).
+refuse and name the run: on Neo4j a run wipes the store and loads it in steps (doc-0016 F2);
+register_impact and proposal_impact refuse too where they read key levels from the store, and answer
+from the register alone as before (task-0137).
 
 The server never loads, wipes or writes: it reads the store the page or a run left (``KG_STORE``;
 for rdflib the Turtle file ``KG_RDFLIB_FILE``, read and never written back), through a view that
@@ -525,6 +527,7 @@ class Tools:
             head.update(scenario=scenario, as_of=on)
             if not keys or task is None:
                 return {**head, **out, "keys": keys, "gate": None}
+            self._not_mid_run()   # the levels are the store's: refused while a run loads it (task-0137)
             spec = dict(TASKS[task], keys=[k["key"] for k in keys])
             rep = gate_cli.evaluate(st, subject=SUBJECT.id, scenario=scenario, task="keys", spec=spec, threshold="blocker",
                                     baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=on, route_task=task)
@@ -564,6 +567,7 @@ class Tools:
             _check_scenario(st, args.get("scenario"))   # another subject's scenario is refused (task-0126)
             if task is None:
                 return out
+            self._not_mid_run()   # the reused nodes' levels are the store's: refused while a run loads it (task-0137)
             try:
                 return pi.with_levels(out, st, task=task, as_of=on, scenario=args.get("scenario"))
             except pi.ProposalError as e:
