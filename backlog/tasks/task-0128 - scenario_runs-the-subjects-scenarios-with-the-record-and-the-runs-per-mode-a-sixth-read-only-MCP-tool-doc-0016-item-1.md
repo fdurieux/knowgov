@@ -3,11 +3,11 @@ id: TASK-0128
 title: >-
   scenario_runs: the subject's scenarios with the record and the runs per mode,
   a sixth read-only MCP tool (doc-0016 item 1)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T20:09:00Z'
-updated_date: '2026-11-04T23:18:00Z'
+updated_date: '2026-11-04T23:43:00Z'
 labels:
   - mcp
   - runs
@@ -30,7 +30,7 @@ doc-0016 §3. One harness module, `harness/runs_index.py`, reads the record's so
 <!-- AC:BEGIN -->
 - [x] #1 scenario_runs on CargoQuote lists S1-S7 with the record's arms at n = 5 and S6's three sources; on J-F, C and D1-D5 deterministic only
 - [x] #2 After a page run, the run appears with mode, as_of, by and a gate verdict equal to its deterministic.json
-- [ ] #3 The page's /api/scenarios and /api/runs are unchanged byte for byte for the same folders (a test, and the stack job)
+- [x] #3 The page's /api/scenarios and /api/runs are unchanged byte for byte for the same folders (a test, and the stack job)
 - [x] #4 While a run.json reads running for the server's subject, gate_verdict, three_valued_answer and evidence_bundle refuse naming the run
 - [x] #5 Every tool still carries readOnlyHint; tools/check_mcp_server.py covers the new tool; instance/README.md's tool table and CHANGELOG updated
 <!-- AC:END -->
@@ -50,4 +50,12 @@ doc-0016 §3. One harness module, `harness/runs_index.py`, reads the record's so
 
 <!-- SECTION:NOTES:BEGIN -->
 Heartbeat rule per the coordinator (2026-11-04), not a pid: a reader in another container shares only the runs volume. run.json v2 adds heartbeat_at (schema version enum 1|2, since the schema refuses unknown fields); the Runner's _heartbeat thread rewrites it every 30 s under a lock the end write shares, so no beat lands after the end. runs_index.is_live: running and heartbeat (else started, v1) within 120 s of review.now(); now() is read only when a running run.json exists, so a pinned reader with none never asks the clock. close_stale at page start: failed, error 'page restarted'. The refusal covers gate_verdict, three_valued_answer, evidence_bundle (the AC); register_impact and proposal_impact still read levels mid-run (NEXT). scenario_runs during a live run skips the store (store_skipped). Evidence: tests/test_scenario_runs.py (11 tests); tools/check_mcp_server.py check_runs on rdflib (CargoQuote S1, S6; J-F C) every check holds; both suites 417/417; rdflib comparator 0 differing.
+
+The stack step first imported tests/ inside the container, which the image lacks; it now checks scenario_runs inside and the old readers on the runner against a copy of the run folders. PR #222 green at 2ba6170: tests, rdflib, stack (publish skipped).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+scenario_runs, a seventh read-only MCP tool, lists per scenario the record's sources (deterministic, arms with n and models, extra sources), the runs newest first from run.json or inferred, the held scenario with loaded_at and the run in progress; replay is the record, never a run. harness/runs_index.py is the one reader of the run folders; the page's /api/runs and source lists read through it unchanged (test oracles and a stack step). store_status gains loaded_at via a new port read, extraction_times. run.json v2 carries heartbeat_at, rewritten every 30 s; a running file is live within 120 s of review.now() (KG_NOW, pinned-safe); gate_verdict, three_valued_answer and evidence_bundle refuse during a live run, naming it; the page closes a stale one at start as failed, page restarted. Verified: tests/test_scenario_runs.py, both suites, the rdflib comparator, tools/check_mcp_server.py check_runs, the stack job. Follow-up: register_impact and proposal_impact still read levels mid-run.
+<!-- SECTION:FINAL_SUMMARY:END -->
