@@ -24,6 +24,14 @@ names that section with the version.
   newer run, and two writers could lose an update. Neo4j read handles run in read access mode.
   Supported for a file-backed writer: POSIX with `flock`.
 
+- **`register_nodes`, a new read-only MCP tool** (task-0142, doc-0020 C1, additive): the register
+  listed from its files, no store, every node by id with its taxonomy, kind, name, state, owner and
+  parent, filtered by taxonomy, kind, state, owning unit (the owner field or an approved `owns` link)
+  and parent (`null`: the roots), with the total, a limit and an offset; with `node`, that node's
+  lineage, every ancestor by `parent` to the root and its children with their states, an annotation
+  and never a walk. Also `python harness/register_nodes.py`. Report pinned by
+  `harness/schemas/register-nodes.schema.json`, version 1.
+
 - **The connector's MANIFEST follows ieam-register's export format** (decision-0010, task-0138).
   `[ids]` now lists every object of the AML, keyed by its GUID (the system's `id_field`,
   `aris_guid` for ARIS), with its name, including objects that carry no register id. Before, it

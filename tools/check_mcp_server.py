@@ -23,6 +23,8 @@ Then ask ``proposal_impact`` with doc-0017's worked example (``tools/fixtures/pr
 and require its gaps (C1 on the two unsupported new steps, C2 on the new capability) and every reused
 node's keys equal to what ``register_impact`` from that node gives for the same task and as_of, with
 every overlay element hypothetical (task-0130).
+Then ask ``register_nodes`` for the whole register, each taxonomy, and the lineage of the first node of
+the subject's first map row: every node by id, the parent chain to the root and the children (task-0142).
 Then ask ``scenario_runs`` and require the subject's scenarios in order, the held scenario this one with
 ``store_status``'s ``loaded_at``, the record's D6 verdict for it, and no run in progress (task-0128);
 and ``scenario_result`` on the record with that verdict, read from files (task-0129).
@@ -380,6 +382,39 @@ def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: s
           f"equal register_impact's")
 
 
+def check_nodes(client: "StdioClient", failures: list[str], label: str) -> None:
+    """register_nodes (task-0142): the listing is every node of the register, by id, under the report's
+    schema; each taxonomy's filter its nodes; and from the first node of the subject's first map row the
+    lineage is its parent chain to the root and its children the nodes naming it parent, never a walk."""
+    import register_impact as ri
+    import schema_check
+    from subject import SUBJECT
+    schema = schema_check.load("register-nodes")
+    reg = ri.load_tools()["register"].load_register(ri.register_root())
+    got = client.call("register_nodes", {"limit": 1000})
+    errors = schema_check.validate(got, schema)
+    if errors or [n["id"] for n in got["nodes"]] != sorted(reg["nodes"]) or got["total"] != len(reg["nodes"]):
+        failures.append(f"{label}: register_nodes lists {got['total']} node(s), the register holds {len(reg['nodes'])}; {errors[:3]}")
+    for tax in sorted({n["_taxonomy"] for n in reg["nodes"].values()}):
+        ids = [n["id"] for n in client.call("register_nodes", {"taxonomy": tax, "limit": 1000})["nodes"]]
+        if ids != sorted(nid for nid, n in reg["nodes"].items() if n["_taxonomy"] == tax):
+            failures.append(f"{label}: register_nodes taxonomy={tax} lists {ids}")
+    rows = SUBJECT.register_map().get("row", [])
+    start = next((x for r in rows for x in r.get("nodes") or [] if x in reg["nodes"]), None)
+    if start is None:
+        print(f"{label}: register_nodes lists {got['total']} node(s); no map row names a register node")
+        return
+    lin = client.call("register_nodes", {"node": start})["lineage"]
+    chain, at = [], reg["nodes"][start].get("parent")
+    while at is not None and at in reg["nodes"] and at not in chain:
+        chain.append(at)
+        at = reg["nodes"][at].get("parent")
+    kids = sorted(nid for nid, n in reg["nodes"].items() if n.get("parent") == start)
+    if [a["id"] for a in lin["ancestors"]] != chain or [c["id"] for c in lin["children"]] != kids:
+        failures.append(f"{label}: register_nodes lineage of {start} is {lin}, the register's parent chain {chain}, children {kids}")
+    print(f"{label}: register_nodes lists {got['total']} node(s); {start} sits under {chain or 'nothing'} with {len(kids)} child(ren)")
+
+
 def census() -> dict:
     sys.path.insert(0, str(HARNESS))
     from store import open_store
@@ -439,6 +474,7 @@ def main(argv: list[str] | None = None) -> int:
             check_impact(client, sc, failures, sc)
             check_proposal(client, sc, failures, sc)
             check_runs(client, sc, status, failures, sc)
+            check_nodes(client, failures, sc)
         finally:
             client.close()
         if census() != before:

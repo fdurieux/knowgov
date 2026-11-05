@@ -3,7 +3,7 @@
     python harness/mcp_server.py                      # stdio, for an agent that starts the server itself
     python harness/mcp_server.py --http [--host H] [--port P]   # Streamable HTTP at http://H:P/mcp
 
-The question an agent asks is "may I build on this?". Eight tools answer it, all read-only:
+The question an agent asks is "may I build on this?". Nine tools answer it, all read-only:
 
     store_status          what the store holds: the subject, the scenario loaded, the tasks and the
                           keys the subject asks the three-valued question of
@@ -41,6 +41,9 @@ The question an agent asks is "may I build on this?". Eight tools answer it, all
     scenario_result       what the page's Replay shows for one source scenario_runs lists (the record, an
                           extra source, a run): the D6 gate, the keys' levels, the arms' decisions and
                           suite, read from its files, never from the store (task-0129)
+    register_nodes        the register listed, filtered by taxonomy, kind, state, owning unit and parent, with
+                          the total; or one node with its lineage, its ancestors by parent to the root and its
+                          children, an annotation and never a walk; the register's files, no store (task-0142)
 
 While a run folder of the server's subject reads running with a live heartbeat (run.json, within
 ``runs_index.STALE_S`` of ``review.now()``), gate_verdict, three_valued_answer and evidence_bundle
@@ -121,7 +124,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
-                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. A status is the repository's; you may not upgrade it. This server only reads.")
+                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. A status is the repository's; you may not upgrade it. This server only reads.")
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -248,6 +251,27 @@ TOOLS.append(
      "inputSchema": {"type": "object", "additionalProperties": False, "required": ["scenario", "source"], "properties": {
          "scenario": {"type": "string", "description": "one of the subject's scenarios"},
          "source": {"type": "string", "description": "a source id as scenario_runs lists it: record, an extra source's id, or a run's source (demo-runs/...)"}}},
+     "annotations": READ_ONLY})
+
+
+TOOLS.append(
+    {"name": "register_nodes", "title": "Which register nodes are there, and what does this one sit under?",
+     "description": "The organisation's register listed, read from its files and never from the store: every node sorted by "
+                    "id with its taxonomy, kind, name, state, owner and parent, filtered by taxonomy, kind, state, owner (a unit "
+                    "owns a node by its owner field or an approved owns link: 'what does ORG-x own' is this listing, since owns "
+                    "is never walked) and parent (null: the nodes with no parent), with the total, a limit and an offset. With "
+                    "node, that node with its owning unit and its lineage: every ancestor by parent, nearest first, up to the "
+                    "root, and its children with their states. Lineage is an annotation, never a reached node: no relationship "
+                    "is walked; for what rests on or implements a node, call register_impact.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
+         "node": {"type": "string", "pattern": r"^[A-Z]+-\d{4,}$", "description": "one register id: that node and its lineage; no filter applies"},
+         "taxonomy": {"type": "string", "description": "a taxonomy of the register's metamodel, such as capabilities or applications"},
+         "kind": {"type": "string", "description": "a kind of the register's metamodel, such as capability or module"},
+         "state": {"type": "string", "description": "a lifecycle state, such as approved or proposed"},
+         "owner": {"type": "string", "pattern": r"^[A-Z]+-\d{4,}$", "description": "a unit of the register's organisation, such as ORG-0001"},
+         "parent": {"type": ["string", "null"], "description": "the nodes whose parent is this id; null for the nodes with no parent"},
+         "limit": {"type": "integer", "minimum": 1, "description": "at most this many nodes (default 100, at most 1000); total counts them all"},
+         "offset": {"type": "integer", "minimum": 0, "description": "skip this many matching nodes first (default 0)"}}},
      "annotations": READ_ONLY})
 
 
@@ -558,6 +582,15 @@ class Tools:
                     raise
                 return {**head, **out, "keys": keys, "gate": None, "store_unavailable": str(e)}
         return self._with_store(go)
+
+    def register_nodes(self, args: dict) -> dict:
+        """The register listed under filters, or one node's lineage (``register_nodes.report``, task-0142):
+        the register's files only, read from ``KG_REGISTER``; no store is opened."""
+        import register_nodes as rn
+        try:
+            return rn.report(args)
+        except rn.NodesError as e:
+            raise ToolError(str(e)) from e
 
     def proposal_impact(self, args: dict) -> dict:
         """A proposal read as if approved (``proposal_impact.evaluate``, task-0130), and with a scenario

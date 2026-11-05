@@ -1,0 +1,87 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/register-nodes.schema.json",
+ "title": "knowgov register nodes report",
+ "description": "What `python harness/register_nodes.py` prints and the MCP tool register_nodes returns (task-0142, doc-0020 C1): the register's nodes, sorted by id, under the filters named (taxonomy, kind, state, owner: a unit owning by the owner field or an approved owns link, parent: null for the nodes with no parent), with the total before the limit; or, with a node, that node and its lineage, every ancestor by parent nearest first to the root and the children with their states. Lineage is an annotation, never a reached node: no relationship is walked. Read from the register's files; no store. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": ["schema_version", "tool", "register", "filters", "total", "limit", "offset", "truncated", "nodes", "lineage"],
+ "$defs": {
+  "brief": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["id", "kind", "name", "state"],
+   "properties": {
+    "id": {"type": "string"},
+    "kind": {"type": ["string", "null"]},
+    "name": {"type": ["string", "null"]},
+    "state": {"type": ["string", "null"]},
+    "missing": {"const": true, "description": "a parent the register names and does not hold; the climb ends there"}
+   }
+  },
+  "owning_unit": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["unit", "name", "owns"],
+   "properties": {
+    "unit": {"type": "string"},
+    "name": {"type": "string"},
+    "owns": {"type": "array", "items": {"type": "string"}}
+   }
+  },
+  "node": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["id", "taxonomy", "kind", "name", "state", "owner", "parent"],
+   "properties": {
+    "id": {"type": "string"},
+    "taxonomy": {"type": "string"},
+    "kind": {"type": ["string", "null"]},
+    "name": {"type": "string"},
+    "state": {"type": "string"},
+    "owner": {"type": ["string", "null"]},
+    "parent": {"type": ["string", "null"]},
+    "owning_unit": {"$ref": "#/$defs/owning_unit", "description": "with node only: the unit, its name and the approved owns links, as register_impact names them"}
+   }
+  }
+ },
+ "properties": {
+  "schema_version": {"const": 1},
+  "tool": {"const": "register_nodes"},
+  "register": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["tag", "commit"],
+   "properties": {"tag": {"type": "string"}, "commit": {"type": "string"}}
+  },
+  "filters": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "taxonomy": {"type": "string"},
+    "kind": {"type": "string"},
+    "state": {"type": "string"},
+    "owner": {"type": "string"},
+    "parent": {"type": ["string", "null"]}
+   }
+  },
+  "total": {"type": "integer", "minimum": 0, "description": "the nodes under the filters, before limit and offset"},
+  "limit": {"type": "integer", "minimum": 1},
+  "offset": {"type": "integer", "minimum": 0},
+  "truncated": {"type": "boolean", "description": "true when nodes past this page match"},
+  "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+  "lineage": {
+   "type": ["object", "null"],
+   "additionalProperties": false,
+   "required": ["node", "ancestors", "root", "depth", "children", "cycle"],
+   "properties": {
+    "node": {"type": "string"},
+    "ancestors": {"type": "array", "items": {"$ref": "#/$defs/brief"}, "description": "by parent, nearest first, the root last"},
+    "root": {"type": "string", "description": "the last ancestor, or the node itself when it has no parent"},
+    "depth": {"type": "integer", "minimum": 0},
+    "children": {"type": "array", "items": {"$ref": "#/$defs/brief"}, "description": "the nodes whose parent is this one, by id; listed, never walked"},
+    "cycle": {"type": ["string", "null"], "description": "a parent met twice, which ends the climb; null on a register its checker accepts"}
+   }
+  }
+ }
+}
