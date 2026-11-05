@@ -112,3 +112,9 @@ def test_nothing_is_ingested_or_written_into_a_capture_folder():
     assert "capture_dir" not in text and "inferred/" not in text.replace("``inferred``/``proposed``", "")
     assert 'os.environ.pop("KG_RDFLIB_FILE", None)' in text and "from rules import VAGUE, compatible" in text
     assert "review.pinned(" in text, "the run's date is --on; the loads read no clock (task-0075)"
+
+
+def test_a_failed_call_is_reported_and_never_scored():
+    text = (ROOT / "tools" / "route_c_documents.py").read_text(encoding="utf-8")
+    assert '"error": f"{type(e).__name__}' in text and 'if r.get("error"):\n            continue' in text
+    assert '"errors": [{**_head(r), "error": r["error"]} for r in results if r.get("error")]' in text

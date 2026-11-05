@@ -273,7 +273,11 @@ def run(args, call=None) -> dict:
     def one(job):
         if not job["keys"]:
             return {**_head(job), "asked": 0, **score([], {}, compatible), "called": False}
-        r = call(system, user_prompt(job["document"], job["text"], job["keys"], form_of))
+        try:
+            r = call(system, user_prompt(job["document"], job["text"], job["keys"], form_of))
+        except Exception as e:  # noqa: BLE001 — a call that failed after arms' retries is reported, never scored
+            return {**_head(job), "asked": len(job["keys"]), **score([], {}, compatible), "called": True,
+                    "error": f"{type(e).__name__}: {str(e)[:200]}"}
         name = f"{SUBJECT.id}-{job['scenario']}-{job['task']}-{job['mode']}-{_short(job['document'])}.json"
         (raw_dir / name).write_text(json.dumps({"raw": r.get("raw"), "usage": r.get("usage"), "parse_error": r.get("parse_error")},
                                                ensure_ascii=False, indent=1), encoding="utf-8")
@@ -286,6 +290,8 @@ def run(args, call=None) -> dict:
         results = list(ex.map(one, jobs))
     pooled = {}
     for r in results:
+        if r.get("error"):
+            continue
         pooled.setdefault(f"{r['scenario']}/{r['mode']}", []).append(r)
     pooled = {k: pool(v) for k, v in pooled.items()}
     report = {"schema": "route-c-documents", "task": "task-0139", "subject": SUBJECT.id, "on": args.on,
@@ -294,6 +300,7 @@ def run(args, call=None) -> dict:
               "served_models": sorted({(r.get("usage") or {}).get("model") for r in results if r.get("usage")} - {None}),
               "tokens": sum(arms.tokens_of(r["usage"]) for r in results if r.get("usage")),
               "calls": sum(1 for r in results if r["called"]),
+              "errors": [{**_head(r), "error": r["error"]} for r in results if r.get("error")],
               "pooled": pooled, "bar": bar(pooled), "results": results}
     (out / f"{SUBJECT.id}.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     return report
@@ -324,6 +331,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"route_c_documents: cannot run: {e}", file=sys.stderr)
         return 2
     print(json.dumps({"subject": rep["subject"], "model": rep["model"], "effort": rep["effort"], "calls": rep["calls"],
+                      "errors": rep["errors"],
                       "tokens": rep["tokens"], "pooled": rep["pooled"], "bar": rep["bar"]}, indent=1))
     return 0
 
