@@ -697,6 +697,9 @@ The server reads the store as the page or a run left it. It never loads a scenar
 writes to the store, the register or your instance; a change to the record is still a pull
 request. Load what the assistant should see first, on the page or with a run.
 
+Every tool is offered over stdio and HTTP alike, and the managed allowlist under
+`instance/ci/claude/` admits the server by its name, `knowgov`, so a new tool needs no client change.
+
 The server reads review currency on one date for as long as it runs: `KG_AS_OF` (or `--as-of`), a
 date as `YYYY-MM-DD`, `record` (the subject's pinned record date) or `today`, which is the default.
 It reads that date once, when it starts, so a session that runs past midnight never sees two days.

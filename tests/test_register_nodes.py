@@ -120,3 +120,29 @@ def test_the_command_prints_the_same_report():
     bad = subprocess.run([sys.executable, str(ROOT / "harness" / "register_nodes.py"), "--kind", "nope"],
                          capture_output=True, text=True, timeout=60)
     assert bad.returncode == 2 and bad.stdout == ""
+
+
+def test_served_by_the_knowgov_server_on_both_transports_and_admitted_by_the_allowlist():
+    """The server process lists register_nodes over stdio and Streamable HTTP and answers it alike; the
+    shipped managed allowlist admits the server by name, so a client needs no change to reach it."""
+    import os
+    sys.path.insert(0, str(ROOT / "tools"))
+    import check_mcp_server as c
+    old = {k: os.environ.get(k) for k in ("KG_AS_OF",)}
+    os.environ["KG_AS_OF"] = "2026-11-04"   # the runner pins the clock: the server needs a date to start
+    try:
+        got = {}
+        for name, cls in (("stdio", c.StdioClient), ("http", c.HttpClient)):
+            client = cls()
+            try:
+                assert "register_nodes" in {t["name"] for t in client.request("tools/list", {})["result"]["tools"]}, name
+                got[name] = client.call("register_nodes", {"node": "CAP-0002"})
+            finally:
+                client.close()
+        assert got["stdio"] == got["http"] and got["stdio"]["lineage"]["root"] == "CAP-0001"
+    finally:
+        for k, v in old.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+    allowed = {x["serverName"] for x in json.loads((ROOT / "instance" / "ci" / "claude" / "managed-mcp-allowlist.json")
+                                                  .read_text(encoding="utf-8"))["allowedMcpServers"]}
+    assert mcp_server.SERVER["name"] in allowed
