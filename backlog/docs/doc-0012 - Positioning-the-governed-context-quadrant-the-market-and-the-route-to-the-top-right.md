@@ -5,7 +5,7 @@ title: >-
   top-right
 type: specification
 created_date: '2026-11-03T22:44:00Z'
-updated_date: '2026-11-03T23:08:00Z'
+updated_date: '2026-11-05T17:22:00Z'
 tags:
   - brief
   - positioning
@@ -64,6 +64,8 @@ The note's criterion scores for the stack: V 3/5/5/3, E 1/0/1/1. Both blind revi
 No analyst sizes the category. Adjacent, scopes incompatible, context only: EA tools $1.2–1.7 bn (2025, about 6–7 % a year); DTO $2.5–3.5 bn (2026, secondary estimate); knowledge graphs $1.1–2.5 bn (2024–25, 23–37 % a year); AI TRiSM $2.3–3.1 bn (2026, 18–30 % a year). Demand signals: AI coding tools at 97 % of large enterprises with about a third fully governed (Black Duck); 55 % name reliability and hallucination as the top agentic challenge (Futurum, n = 820, H1 2026); "context layer" a product category in 2026 (Atlan, Fabric), data-side only; Spec Kit past 115k stars; SAP LeanIX MCP server GA, 200+ customers querying.
 
 **Serviceable, own arithmetic:** 7,500–15,000 EA-tool customers × 25–35 % regulated with AI delivery at scale × €40–120k a year ≈ €0.1–0.5 bn; at Gemini's 5 % attach rate €15–90 m. Read as €15 m to €0.5 bn. **Obtainable, three years:** 3–8 instances × €60–150k ≈ €0.2–1.2 m a year, services-led through an integrator or design partner only (both reviewers).
+
+*2026-11-05, from doc-0019 (C4).* Adjacent category, not scored and not added to §1's field: GraphRAG, an LLM answering from a knowledge graph built out of documents (Neo4j's llm-graph-builder; Barry et al., GenAIK 2025, BNP Paribas IT Group with Lingua Custodia and Neo4j, FinanceBench and DORA against FFIEC). Demand signal: a regulated organisation's IT group publishing GraphRAG on Neo4j, the buyer m-8 targets. It scores whether an answer is faithful to its retrieved context, by an LLM judge; it has no statement status and no score for an abstention. Line beside the Verdict's: *GraphRAG makes an answer faithful to its graph; knowgov says whether the graph may be built on.* No score moves.
 
 ## 5. External review
 
