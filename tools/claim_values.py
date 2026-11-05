@@ -52,7 +52,7 @@ Verdicts per cited key, worst first:
 * ``matched``: the key is valued and the text or the code holds its value;
 * ``unvalued``: nothing to compare (prose against prose, or a valued key the text and code leave open).
 
-Three corrections were made after the first reading of the record (task-0145's notes, doc-0019 §8):
+Three corrections were made after the first reading of the record (task-0145's notes, doc-0019 §9):
 (a) a symbol binds a key only as one of the key's statement values, not when a statement's text or the
 reply mentions it; (b) an enumeration is one token; (c) booleans are never decided. The definition
 recorded before measurement is the commit before them.

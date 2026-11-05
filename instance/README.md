@@ -968,3 +968,41 @@ tools' `scenario` argument, so a read of another session's load is refused.
 and `decide()` is the mapping for a script that imports it. This repository's tests run the script
 against PROCEED, BLOCKED, an unreachable store and a missing subject; only PROCEED lets the action
 through (`tests/test_claude_hook.py`, live on rdflib in CI).
+
+### Guarding what people attest
+
+Some files in your instance record what a *person* vouched for, and an assistant must never write
+them for that person. They are:
+
+- in a `subject.toml`, the `[verification]` table (when the documents were reviewed, what they were
+  read against, where the approval is recorded) and the `[provenance]` table (who attests): see
+  "Who vouches for a document";
+- a subject's `captures/` folder (answers people gave, and `captures/reviews/`, the rulings on them),
+  or the folder its `[capture] dir` names;
+- the file its `[verification] map` names, which says which keys a test or a dated review covers;
+- a review file anywhere (a TOML file with a `[review]` table or a `[[ruling]]`);
+- `preload-baseline.json`, the pre-load findings an owner accepted (see "Checking a document before the load");
+- everything under `register/`, which changes by its own pull request and checks.
+
+`attestation_paths.py`, beside `knowgov_hook.py`, is a second hook that blocks an assistant's Edit,
+Write, MultiEdit or NotebookEdit on any of these. In plain English: the assistant may add an artefact
+or a task class to `subject.toml`, and may remove the attestation tables outright (that attests
+nothing), but the moment a write would add or change `[verification]` or `[provenance]`, or touch one
+of the files above, Claude Code stops it and tells the assistant to leave it to the person of record.
+It compares the two tables as parsed TOML before and after the write, so moving a comment or adding
+an artefact is not mistaken for an attestation.
+
+It fails closed, like the gate's hook: an event it cannot read, an edit whose text is not in the
+file, or a `subject.toml` that does not parse after the write blocks too, and says so. It maps its
+answer through the same `decide` as `knowgov_hook.py`, and calls nothing else.
+
+`settings.attestations.json` wires it. Add its `PreToolUse` entry to the instance repository's
+`.claude/settings.json` beside the gate's, or, for the mandatory version, drop it into managed
+settings as a second file next to the gate's, for example
+`/etc/claude-code/managed-settings.d/51-knowgov-attestations.json` on Linux (the same folders as the
+table above). Change `/opt/knowgov` to your checkout's path.
+
+What it does not see: a shell command that writes the same file (`harness/capture.py ingest` and
+`review` are such commands, run by the person whose act they record), and anything written outside
+the assistant. The hook guards the assistant's file tools; the pull request, reviewed by someone
+other than its author, guards the rest.
