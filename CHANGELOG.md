@@ -34,6 +34,12 @@ names that section with the version.
   own interpreter to the gate unless `PYTHON` is set. The test runner counts a test whose
   prerequisite is absent as skipped, never passed, and `KG_TEST_REQUIRE` turns a skip into a
   failure.
+- **A second Claude Code hook guards what people attest** (task-0147, doc-0018 candidate 5).
+  `instance/ci/claude/attestation_paths.py`, wired by `settings.attestations.json`, blocks an
+  assistant's Edit, Write, MultiEdit or NotebookEdit that adds or changes `subject.toml`'s
+  `[verification]` or `[provenance]`, or writes under `captures/`, a review file, the verification
+  map, `preload-baseline.json` or `register/`. Fail-closed through task-0099's `decide`; it does not
+  see a shell command writing the same file.
 - **The register at ieam-register v0.2.10** (the register's decision 0017): `RECONCILE.json`
   carries the register's `unregistered` list, the objects no node's `[source]` names. On the
   synthetic ARIS exports, no example node names ARIS as its source, so the list holds 41 objects
