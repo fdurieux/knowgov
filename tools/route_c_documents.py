@@ -245,7 +245,7 @@ def run(args, call=None) -> dict:
                 levels_full = full[task]
                 declared = {k for k, v in levels_full.items() if v["level"] == "declared_gap"}
                 vague_keys = {k for k, v in levels_full.items()
-                              if any(any(w in (a.get("value") or "").lower() for w in VAGUE) or SYMBOL_RE.match(a.get("value") or "")
+                              if any(any(w in (a.get("value") or "").lower() for w in VAGUE) or _symbol(a.get("value") or "", SYMBOL_RE)
                                      for a in v.get("assertions", []))}
                 for mode, levels in (("single", single), ("all", all_open)):
                     if levels is None:
@@ -273,18 +273,24 @@ def run(args, call=None) -> dict:
     def one(job):
         if not job["keys"]:
             return {**_head(job), "asked": 0, **score([], {}, compatible), "called": False}
+        name = f"{SUBJECT.id}-{job['scenario']}-{job['task']}-{job['mode']}-{_short(job['document'])}.json"
+        kept = raw_dir / name
         try:
-            r = call(system, user_prompt(job["document"], job["text"], job["keys"], form_of))
+            if getattr(args, "resume", False) and kept.exists():   # a reply already received: scored again, never asked again
+                r = json.loads(kept.read_text(encoding="utf-8"))
+                r["parsed"] = _parse(r.get("raw"))
+                r["resumed"] = True
+            else:
+                r = call(system, user_prompt(job["document"], job["text"], job["keys"], form_of))
         except Exception as e:  # noqa: BLE001 — a call that failed after arms' retries is reported, never scored
             return {**_head(job), "asked": len(job["keys"]), **score([], {}, compatible), "called": True,
                     "error": f"{type(e).__name__}: {str(e)[:200]}"}
-        name = f"{SUBJECT.id}-{job['scenario']}-{job['task']}-{job['mode']}-{_short(job['document'])}.json"
-        (raw_dir / name).write_text(json.dumps({"raw": r.get("raw"), "usage": r.get("usage"), "parse_error": r.get("parse_error")},
+        kept.write_text(json.dumps({"raw": r.get("raw"), "usage": r.get("usage"), "parse_error": r.get("parse_error")},
                                                ensure_ascii=False, indent=1), encoding="utf-8")
         props = parse_proposals(r.get("parsed"), job["keys"])
         s = score(props, job["truth"], compatible, declared=job["declared"], vague_keys=job["vague_keys"], vague_words=VAGUE)
         return {**_head(job), "asked": len(job["keys"]), **s, "called": True, "usage": r.get("usage"),
-                "parse_error": r.get("parse_error")}
+                "parse_error": r.get("parse_error"), **({"resumed": True} if r.get("resumed") else {})}
 
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
         results = list(ex.map(one, jobs))
@@ -306,6 +312,18 @@ def run(args, call=None) -> dict:
     return report
 
 
+def _symbol(value: str, symbol_re) -> bool:
+    """An unresolved symbol as the load reads one: the symbol pattern, NONE excepted (load.resolve_symbols)."""
+    return bool(symbol_re.match(value)) and value != "NONE"
+
+
+def _parse(raw):
+    try:
+        return json.loads(raw) if raw else None
+    except json.JSONDecodeError:
+        return None
+
+
 def _short(path: str) -> str:
     from extract import short
     return short(path)
@@ -324,6 +342,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--language", default=LANGUAGE)
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--out", type=Path, required=True, help="a directory outside the repository")
+    ap.add_argument("--resume", action="store_true", help="score the replies already under --out/raw; call only for the rest")
     args = ap.parse_args(argv)
     try:
         rep = run(args)

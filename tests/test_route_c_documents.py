@@ -118,3 +118,10 @@ def test_a_failed_call_is_reported_and_never_scored():
     text = (ROOT / "tools" / "route_c_documents.py").read_text(encoding="utf-8")
     assert '"error": f"{type(e).__name__}' in text and 'if r.get("error"):\n            continue' in text
     assert '"errors": [{**_head(r), "error": r["error"]} for r in results if r.get("error")]' in text
+
+
+def test_none_is_no_symbol_as_the_load_reads_it():
+    import re
+    sym = re.compile(r"^[A-Z][A-Z_]+$")   # load.SYMBOL_RE
+    assert rc._symbol("ACCEPT_MAX", sym) and not rc._symbol("NONE", sym) and not rc._symbol("41", sym)
+    assert rc._parse('{"proposals": []}') == {"proposals": []} and rc._parse("not json") is None and rc._parse(None) is None
