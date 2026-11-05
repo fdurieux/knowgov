@@ -3,7 +3,7 @@
     python harness/mcp_server.py                      # stdio, for an agent that starts the server itself
     python harness/mcp_server.py --http [--host H] [--port P]   # Streamable HTTP at http://H:P/mcp
 
-The question an agent asks is "may I build on this?". Nine tools answer it, all read-only:
+The question an agent asks is "may I build on this?". Ten tools answer it, all read-only:
 
     store_status          what the store holds: the subject, the scenario loaded, the tasks and the
                           keys the subject asks the three-valued question of
@@ -44,6 +44,10 @@ The question an agent asks is "may I build on this?". Nine tools answer it, all 
     register_nodes        the register listed, filtered by taxonomy, kind, state, owning unit and parent, with
                           the total; or one node with its lineage, its ancestors by parent to the root and its
                           children, an annotation and never a walk; the register's files, no store (task-0142)
+    subject_check         a proposed subject (subject.toml, register_map.toml, scenarios.toml, the documents'
+                          text) checked by tools/check_subject.py's own functions against the served register,
+                          in a temporary directory removed after the call: its subject-check report; nothing
+                          stored, the yield in a child process, the call bounded (task-0146, doc-0018)
 
 While a run folder of the server's subject reads running with a live heartbeat (run.json, within
 ``runs_index.STALE_S`` of ``review.now()``), gate_verdict, three_valued_answer and evidence_bundle
@@ -124,7 +128,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
-                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. A status is the repository's; you may not upgrade it. This server only reads.")
+                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. A status is the repository's; you may not upgrade it. This server only reads.")
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -272,6 +276,29 @@ TOOLS.append(
          "parent": {"type": ["string", "null"], "description": "the nodes whose parent is this id; null for the nodes with no parent"},
          "limit": {"type": "integer", "minimum": 1, "description": "at most this many nodes (default 100, at most 1000); total counts them all"},
          "offset": {"type": "integer", "minimum": 0, "description": "skip this many matching nodes first (default 0)"}}},
+     "annotations": READ_ONLY})
+
+
+TOOLS.append(
+    {"name": "subject_check", "title": "Would this proposed subject load, and do its keys match its documents?",
+     "description": "A proposed subject checked before anything is written or loaded (doc-0018 candidate 3): the call "
+                    "carries subject.toml, register_map.toml, scenarios.toml and the documents' text, and the answer is "
+                    "tools/check_subject.py's report (schema subject-check): the manifest's tables and fields against what "
+                    "the loader reads, a scenario for every task, key syntax, the register map's nodes in the served "
+                    "register and each row's owner among their owners, and what each document yields with a did-you-mean "
+                    "for a required key no document yields. exit_code 1 is a refused manifest; warnings and notes are for "
+                    "reading. The yield is shown beside the keys, never as their source. The files live in a temporary "
+                    "directory for the call and are removed; nothing is stored or written. A document is named by its path "
+                    "relative to the subject root, exactly as the manifest's [[artefact]] path names it (../../artefacts/"
+                    "<kind>/<file> at most two levels up); a document the call does not carry reads as missing.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "required": ["subject_toml"], "properties": {
+         "subject_toml": {"type": "string", "description": "the proposed subject.toml's text"},
+         "register_map_toml": {"type": "string", "description": "the proposed register_map.toml's text (written where the manifest's [register] map names, register_map.toml by default)"},
+         "scenarios_toml": {"type": "string", "description": "the proposed scenarios.toml's text; a subject with a task needs one scenario"},
+         "plants_toml": {"type": "string", "description": "plants.toml's text, if the subject's scenarios add artefacts"},
+         "documents": {"type": "object", "additionalProperties": {"type": "string"},
+                       "description": "{path relative to the subject root: the document's text}, every document the manifest names"},
+         "root": {"type": "string", "description": "the label the report's root carries, such as the subject root's path in your checkout (default: proposed)"}}},
      "annotations": READ_ONLY})
 
 
@@ -679,6 +706,15 @@ class Tools:
             raise ToolError(f"{scenario}: no source {source!r} with results; scenario_runs lists {listed}")
         return {"subject": SUBJECT.id, "reads": "files: this source's results as they were written, not the store; "
                                                  "store_status and gate_verdict read what the store holds now", **out}
+
+    def subject_check(self, args: dict) -> dict:
+        """``check_subject.check`` on the files the call carries, in a temporary root removed after the call
+        (``subject_check.evaluate``, task-0146); the register is ``KG_REGISTER``'s, the store never opened."""
+        import subject_check
+        try:
+            return subject_check.evaluate(args)
+        except subject_check.SubjectCheckError as e:
+            raise ToolError(f"the proposed subject cannot be checked: {e}") from e
 
     def three_valued_answer(self, args: dict) -> dict:
         from gate import THREE_VALUED_STATUSES, invalidated_on_key, three_valued
