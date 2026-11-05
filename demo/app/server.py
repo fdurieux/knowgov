@@ -73,8 +73,69 @@ def _subject_roots() -> list[Path]:
             out.append(root)   # a subject named directly is listed, whatever its manifest says
         else:
             out += sorted(d for d in root.iterdir() if (d / "subject.toml").exists()
-                          and page_subject.of(Subject(d)).listed)   # a fixture (listed = false) is skipped in a scan
+                          and _listed(d))   # a fixture (listed = false) is skipped in a scan
     return out
+
+
+# task-0150 (doc-0021 G3): the list follows the folders while the page runs. A subject is built once per
+# manifest version (its subject.toml's path and mtime) and reused while that is unchanged, so a rescan
+# rebuilds only what was added or edited; a manifest that does not load is left out and logged, not a 500.
+_BUILT: dict[str, tuple[int, object]] = {}
+_SCAN_LOCK = threading.Lock()
+_SIGNATURE = None
+
+
+def _of(root: Path):
+    m = (root / "subject.toml").resolve()
+    mtime = m.stat().st_mtime_ns
+    hit = _BUILT.get(str(m))
+    if hit and hit[0] == mtime:
+        return hit[1]
+    ps = page_subject.of(Subject(root))
+    _BUILT[str(m)] = (mtime, ps)
+    return ps
+
+
+def _listed(root: Path) -> bool:
+    try:
+        return _of(root).listed
+    except Exception as e:  # noqa: BLE001 - one manifest that does not load leaves the others served
+        print(f"subjects: {root} left out: {type(e).__name__}: {e}", file=sys.stderr)
+        return False
+
+
+def _signature() -> tuple:
+    """Every manifest the listing could read, with its mtime: a change in it is a change in the list."""
+    raw = os.environ.get("KG_SUBJECTS") or str(ROOT / "subjects")
+    found = []
+    for part in [*re.split(r"[,%s]" % re.escape(os.pathsep), raw), os.environ.get("KG_SUBJECT") or ""]:
+        root = Path(part.strip())
+        if not part.strip() or not root.is_dir():
+            continue
+        for m in [root / "subject.toml"] if (root / "subject.toml").exists() else sorted(root.glob("*/subject.toml")):
+            try:
+                found.append((str(m), m.stat().st_mtime_ns))
+            except OSError:
+                continue
+    return tuple(found)
+
+
+def refresh_subjects() -> None:
+    """Rebuild SUBJECTS and SUBJECT_BY_ID when a manifest was added, edited or removed since the last
+    look: a new subject is served, and a removed one no longer listed, without a restart."""
+    global SUBJECTS, SUBJECT_BY_ID, _SIGNATURE
+    sig = _signature()
+    if sig == _SIGNATURE:
+        return
+    with _SCAN_LOCK:
+        if sig == _SIGNATURE:
+            return
+        try:
+            listed = _load_subjects()
+        except Exception as e:  # noqa: BLE001 - a manifest that does not load: keep serving the others
+            print(f"subjects: rescan kept the previous list: {type(e).__name__}: {e}", file=sys.stderr)
+            listed = SUBJECTS
+        SUBJECTS, SUBJECT_BY_ID, _SIGNATURE = listed, {ps.id: ps for ps in listed}, sig
 
 
 def _load_subjects() -> list:
@@ -88,7 +149,11 @@ def _load_subjects() -> list:
         roots = [Path(named)] + roots
     listed, seen = [], set()
     for root in roots:
-        ps = page_subject.of(Subject(root))
+        try:
+            ps = _of(root)
+        except Exception as e:  # noqa: BLE001 - one manifest that does not load leaves the others served
+            print(f"subjects: {root} left out: {type(e).__name__}: {e}", file=sys.stderr)
+            continue
         if ps.id not in seen:
             seen.add(ps.id)
             listed.append(ps)
@@ -100,10 +165,12 @@ def _load_subjects() -> list:
 
 SUBJECTS = _load_subjects()
 SUBJECT_BY_ID = {ps.id: ps for ps in SUBJECTS}
+_SIGNATURE = _signature()
 
 
 def subjects_view() -> list[dict]:
     """What the header drop-down lists: id, name and the page title of each subject, the default first."""
+    refresh_subjects()
     return [{"id": ps.id, "name": ps.subject.name, "title": ps.subject.page.get("title", ""), "default": i == 0}
             for i, ps in enumerate(SUBJECTS)]
 
@@ -112,6 +179,7 @@ def subject_of_request(q: dict, body: dict | None = None):
     """The subject a request names (?subject=, or "subject" in a POST body), the default when it
     names none; None for an id the page does not serve, which every route answers with 404."""
     sid = (q.get("subject") or [None])[0] or ((body or {}).get("subject") if isinstance(body, dict) else None)
+    refresh_subjects()
     if not sid:
         return SUBJECTS[0]
     return SUBJECT_BY_ID.get(str(sid))

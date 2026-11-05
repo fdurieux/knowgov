@@ -3,10 +3,11 @@ id: TASK-0146
 title: >-
   subject_check on the reader: a proposed subject checked in the call, never
   stored (doc-0018 candidate 3)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-05T21:24:00Z'
-updated_date: '2026-11-05T21:25:00Z'
+updated_date: '2026-11-05T22:10:00Z'
 labels: []
 dependencies: []
 documentation:
@@ -31,3 +32,15 @@ tools/check_subject.py (task-0135) checks a subject root before anything is load
 - [ ] #3 On tools/fixtures/subject_probe the tool's report equals check_subject.py's on the same files; check_mcp_server.py exercises it
 - [ ] #4 Served by the read-only knowgov server over stdio and Streamable HTTP and admitted by the shipped allowlist by name; the server's instructions, instance/README.md's tool table, CLAUDE.md and CHANGELOG Unreleased carry it
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. harness/subject_check.py: the call's files to a temporary instance-shaped root, check_subject.check against KG_REGISTER and kinds.toml, removed in finally; bounded. 2. One TOOLS entry and one Tools method. 3. tests/test_subject_check_tool.py; check_mcp_server.py over stdio and HTTP. 4. README tool table, CLAUDE.md, CHANGELOG.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+PR fdurieux/knowgov#242, rebased onto 506b9a5 after #238 (register_nodes); ten tools. run_tests 476/477 (1 skipped); check_mcp_server.py --scenarios S1 (rdflib) every check holds, subject_check equal to the CLI on subject_probe over stdio (both eras) and HTTP.
+<!-- SECTION:NOTES:END -->
