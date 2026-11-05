@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-05T17:21:00Z'
-updated_date: '2026-11-05T21:10:00Z'
+updated_date: '2026-11-05T21:41:00Z'
 labels:
   - capture
   - arms
@@ -61,5 +61,5 @@ doc-0019 C1. Twelve of the twenty kinds in `instance/kinds.toml` have no mapper,
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-tools/route_c_documents.py measures route (c) over a document: per mapped document of the public subjects, the mapper withheld (single) or all mappers withheld (all), the model asked for the task's required keys the gate then holds nothing on, proposals scored against the withheld mapper through rules.compatible (match, wrong, invention; precision, recall; fills of a declared gap; silent resolutions of vague wording). Off without KG_MODEL_API_KEY_VAR; prompt states English; outputs refused inside the repository; nothing ingested. tests/test_route_c_documents.py covers the pure half. Run 2026-11-05 on gpt-5.5-2026-04-23 at medium: S2 and S3 held, S1 precision 0.56 against 0.9, so the document route parks; doc-0019 §7 records the numbers, the miss analysis (citation suffixes and value forms; inventions when asked keys a document does not state) and what would reopen it.
+tools/route_c_documents.py measures route (c) over a document: per mapped document of the public subjects, the mapper withheld (single) or all mappers withheld (all), the model asked for the task's required keys the gate then holds nothing on, proposals scored against the withheld mapper through rules.compatible (match, wrong, invention; precision, recall; fills of a declared gap; silent resolutions of vague wording). Off without KG_MODEL_API_KEY_VAR; prompt states English; outputs refused inside the repository; nothing ingested. tests/test_route_c_documents.py covers the pure half. Run 2026-11-05 on gpt-5.5-2026-04-23 at medium: S2 and S3 held, S1 precision 0.56 against 0.9, so the document route parks; doc-0019 §8 records the numbers, the miss analysis (citation suffixes and value forms; inventions when asked keys a document does not state) and what would reopen it; §5's C1 row and §6 point at it.
 <!-- SECTION:FINAL_SUMMARY:END -->
