@@ -1,9 +1,11 @@
 ---
 id: TASK-0150
 title: The page finds a new subject without a restart (doc-0021 B2)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-05T21:46:00Z'
+updated_date: '2026-11-05T22:10:00Z'
 labels: []
 dependencies: []
 priority: medium
@@ -23,3 +25,9 @@ demo/app/server.py lists the subjects under KG_SUBJECTS once, at import (doc-002
 - [ ] #2 A test adds a subject to a temporary instance after the server starts and reads it without a restart; the stack job's page checks hold
 - [ ] #3 task-0148's prompt drops its restart step in the same PR if 0148 has landed; instance/README.md says so
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+PR fdurieux/knowgov#249: refresh_subjects() by the manifests' paths and mtimes, inside the subject listing only. AC #3: task-0148 has not landed; its restart step drops in #245.
+<!-- SECTION:NOTES:END -->
