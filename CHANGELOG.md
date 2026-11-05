@@ -69,6 +69,12 @@ names that section with the version.
   `run.json` of the server's subject reads `running` with a live heartbeat, both refuse and name the
   run on the path where they read key levels from the store, as `gate_verdict` does (task-0128).
   Their register-only answers, with no scenario held or no store, are unchanged.
+- **`scenario_result`** (task-0129, doc-0016 item 1 step 3; additive): an eighth read-only MCP tool.
+  For a source `scenario_runs` lists (the record, an extra source, a run), what the page's Replay
+  shows, as data: the D6 gate as the page's gate view has it, the date read, every required key's
+  level, each arm's runs (decision, code, flagged, suite, model) and the stage-2 verdicts. It reads
+  the source's files through `harness/runs_index.py`, never the store, and its reply says so. A
+  source not listed is refused; no path is taken.
 
 ## 0.5.0 — 2026-11-04
 

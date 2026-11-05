@@ -24,7 +24,8 @@ and require its gaps (C1 on the two unsupported new steps, C2 on the new capabil
 node's keys equal to what ``register_impact`` from that node gives for the same task and as_of, with
 every overlay element hypothetical (task-0130).
 Then ask ``scenario_runs`` and require the subject's scenarios in order, the held scenario this one with
-``store_status``'s ``loaded_at``, the record's D6 verdict for it, and no run in progress (task-0128).
+``store_status``'s ``loaded_at``, the record's D6 verdict for it, and no run in progress (task-0128);
+and ``scenario_result`` on the record with that verdict, read from files (task-0129).
 The same process also answers ``server/discover`` and a stateless (2026-07-28) ``gate_verdict``,
 which must equal the handshake's (task-0079).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
@@ -357,6 +358,9 @@ def check_runs(client: "StdioClient", sc: str, status: dict, failures: list[str]
     want = json.loads(det.read_text(encoding="utf-8"))["D6_gate"]["verdict"] if det.exists() else None
     if entry["gate"] != want:
         failures.append(f"{label}: scenario_runs gives the record's gate as {entry['gate']}, its deterministic.json {want}")
+    res = client.call("scenario_result", {"scenario": sc, "source": "record"})
+    if res["gate"]["verdict"] != want or "not the store" not in res["reads"]:
+        failures.append(f"{label}: scenario_result on the record gives {res['gate']['verdict']}, its deterministic.json {want}")
     print(f"{label}: scenario_runs lists {len(got['scenarios'])} scenario(s), holds {held.get('scenario')} loaded at "
           f"{held.get('loaded_at')}, the record's gate {entry['gate']}")
 

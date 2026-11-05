@@ -242,3 +242,49 @@ def scenario_runs(subject, runs: Path, scenario: str | None = None, limit: int |
                     "line": " ".join(x for x in (cfg.get("represented", ""), cfg.get("defect", "")) if x),
                     "record": record, "runs": rows[:limit] if limit else rows, "runs_total": len(rows)})
     return out
+
+
+# ------------------------------------------------------------------ what Replay shows, as data (task-0129)
+
+GATE_FIELDS = ("verdict", "why", "blocked_keys", "below_verified", "flagged", "conflicts", "stale", "suspect_derived", "lapsed")
+
+
+def _run_no(p: Path) -> int:
+    return int(re.search(r"run(\d+)_", p.name).group(1))
+
+
+def result(subject, runs: Path, scenario: str, source: str) -> dict | None:
+    """What the page's Replay shows for ``source`` of ``scenario`` (an id ``sources_for`` lists), read from
+    its files and never from the store: the D6 gate as the page's gate view has it, the date it read, the
+    keys' levels, the arms' runs (decision, code, flagged, suite, model) and, for a stage-2 scenario, the
+    verdicts before and after the change. None for a source not listed or holding no deterministic.json."""
+    hit = next((s for s in sources_for(subject, scenario, runs) if s["id"] == source), None)
+    if hit is None:
+        return None
+    d = Path(hit["dir"])
+    det = read_json(d / "deterministic.json")
+    if not isinstance(det, dict):
+        return None
+    gate = det.get("D6_gate") or {}
+    arms = {}
+    for arm in ("G", "B"):
+        rows = []
+        for f in sorted(d.glob(f"run*_{arm}.json"), key=_run_no):
+            r = read_json(f) or {}
+            suite = r.get("M4_suite") or {}
+            rows.append({"run": r.get("run"), "decision": r.get("M1_decision"), "code": bool(r.get("M2_code")),
+                         "flagged": bool((r.get("M3_flagged") or {}).get("flagged")),
+                         "suite": f"{suite.get('passed')}/{suite.get('total')}" if suite.get("ran") else None,
+                         "model": model_of(r), "api_error": bool(r.get("api_error"))})
+        arms[arm] = rows
+    out = {"scenario": scenario, "source": source, "label": hit["label"],
+           "gate": {"verdict": gate.get("verdict"), "why": gate.get("why"),
+                    **{k: gate.get(k, []) for k in GATE_FIELDS if k not in ("verdict", "why")}},
+           "as_of": det.get("as_of") or subject.record_as_of, "as_of_from_run": bool(det.get("as_of")),
+           "levels": {k: v.get("level") for k, v in (det.get("gate_keys") or {}).items()},
+           "arms": arms}
+    st2 = det.get("stage2")
+    if isinstance(st2, dict):
+        out["stage2"] = {k: (st2.get(k) or {}).get("verdict") for k in ("gate_before_reverification", "gate_after_reverification")
+                         if isinstance(st2.get(k), dict)}
+    return out
