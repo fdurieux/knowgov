@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-05T20:33:00Z'
+updated_date: '2026-11-05T20:50:00Z'
 labels:
   - security
 dependencies: []
@@ -27,3 +28,9 @@ An external review of knowgov at 98fc796 (2026-11-05) found defects that lose or
 - [ ] #3 The record, vendored bytes, deterministic results, schema versions and exit codes are unchanged, or the change is a recorded contract change with its CHANGELOG line
 - [ ] #4 The final summary carries the work-package matrix: regression ids and results, integration evidence, compatibility changes, remaining blockers
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-05, release timing (maintainer, "agreed, hold 0.7.0 until then"): knowgov 0.7.0 is held until task-0141.01-.04 (E0, S1, H1, H2) and tasks 0142 and 0143 have merged, so it ships with the connector MANIFEST change of #233 (decision-0010) as one release. X1 and S2 follow in a later release unless they land first.
+<!-- SECTION:NOTES:END -->
