@@ -1084,6 +1084,7 @@ class Server:
         # a call naming another subject (task-0157): the reader's own table routes it to a child; a server with
         # its own table (knowgov-runs) or a child (route=None) answers it itself or not at all
         self.route = (route_to_child if table is None else None) if route == "default" else route
+        self.max_response = max_response()   # task-0177: one tools/call result at most, refused whole above it
 
     def handle(self, msg) -> dict | None:
         if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0":
@@ -1142,7 +1143,7 @@ class Server:
                 return _result(id_, {"content": [{"type": "text", "text": str(e)}], "isError": True, **stamp})
             args = {k: v for k, v in args.items() if k != "subject"}
             if not subject_ids.is_own(entry):
-                return _result(id_, {**self.route(self.tools, entry, name, args), **stamp})
+                return _result(id_, {**self._capped(name, self.route(self.tools, entry, name, args)), **stamp})
         try:
             data = getattr(self.tools, name)(args)
         except (ToolError, PermissionError) as e:
@@ -1150,8 +1151,21 @@ class Server:
         except Exception as e:  # noqa: BLE001 - a tool that cannot answer is an error result, never a dropped connection
             return _result(id_, {"content": [{"type": "text", "text": f"{name} could not answer: {type(e).__name__}: {e}"}],
                                  "isError": True, **stamp})
-        return _result(id_, {"content": [{"type": "text", "text": json.dumps(data, indent=1, ensure_ascii=False, default=str)}],
-                             "structuredContent": data, "isError": False, **stamp})
+        return _result(id_, {**self._capped(name, {"content": [{"type": "text", "text": json.dumps(data, indent=1, ensure_ascii=False, default=str)}],
+                                                   "structuredContent": data, "isError": False}), **stamp})
+
+    def _capped(self, name: str, result: dict) -> dict:
+        """``result`` when its JSON fits KG_MCP_MAX_RESPONSE, else an error result naming the setting
+        (task-0177): never truncated, never a partial answer; the error result carries no structuredContent,
+        as every error result does, so no output schema is bent to admit it."""
+        size = len(json.dumps(result, ensure_ascii=False, default=str).encode("utf-8"))
+        if size <= self.max_response:
+            return result
+        import http_boundary
+        why = http_boundary.over_cap("KG_MCP_MAX_RESPONSE", size, self.max_response)
+        sys.stderr.write(f"mcp: {name}: {why}\n")
+        return {"content": [{"type": "text", "text": f"{name}: {why} (a limit, a narrower key set or verbatim false "
+                                                     "narrows most calls)"}], "isError": True}
 
     def _modern(self, id_, method: str, params: dict) -> dict:
         """A self-contained 2026-07-28 request: nothing is read from an earlier one."""
@@ -1265,13 +1279,23 @@ def bind_check(host: str, token: str | None) -> str | None:
     return None
 
 
+MCP_MAX_RESPONSE = 16 << 20   # task-0177: 25x the largest answer measured, evidence_bundle on J-F D4 (653 KB)
+
+
+def max_response() -> int:
+    """KG_MCP_MAX_RESPONSE: the largest tools/call result, in bytes of its JSON, on either transport and on
+    knowgov-runs too (task-0177); refused at start outside 4 KiB to 1 GiB."""
+    import http_boundary
+    return http_boundary.response_cap("KG_MCP_MAX_RESPONSE", MCP_MAX_RESPONSE)
+
+
 def mcp_limits():
     """The HTTP transport's bounds (task-0141.04): KG_MCP_MAX_BODY bytes (default 4 MiB: subject_check
     admits 1 MB of documents' text, more once escaped in JSON), KG_MCP_READ_TIMEOUT seconds for a
     request to arrive whole (10), KG_MCP_IDLE_TIMEOUT for one silent wait (5), KG_MCP_MAX_CONNECTIONS
-    at once (32; more get 503)."""
+    at once (32; more get 503), KG_MCP_MAX_RESPONSE bytes in one tools/call result (16 MiB, task-0177)."""
     import http_boundary
-    return http_boundary.Limits.from_env("KG_MCP", max_body=4 << 20)
+    return http_boundary.Limits.from_env("KG_MCP", max_body=4 << 20, max_response=MCP_MAX_RESPONSE)
 
 
 def make_handler(server: Server, token: str | None):
@@ -1361,7 +1385,11 @@ def main(argv: list[str] | None = None) -> int:
                                                       "(default: KG_INSTANCE; none: its code leg reads unchecked)")
     ap.add_argument("--ledger", default=None, help="the trace ledger code_path reads (default: KG_LEDGER; none: unchecked)")
     args = ap.parse_args(argv)
-    server = Server(Tools(as_of=args.as_of))
+    try:
+        server = Server(Tools(as_of=args.as_of))
+    except ValueError as e:   # a setting out of its bounds (KG_MCP_MAX_RESPONSE, task-0177): refused at start, named
+        print(f"mcp_server: {e}", file=sys.stderr)
+        return 2
     import upward
     server.tools.trace_cfg = upward.config(args.instance, args.ledger)   # read once, at start, as as_of is
     try:

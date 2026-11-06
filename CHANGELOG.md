@@ -12,6 +12,18 @@ names that section with the version.
 
 ### Contract changes
 
+- **Both servers cap a response's size** (task-0177). This lifts the 0.7.0 and 0.8.0 known limit
+  "Response sizes are not capped".
+  - **The page:** a response over `KG_PAGE_MAX_RESPONSE` bytes (default 8 MiB) is refused with a 500
+    and a JSON error that names the setting, its limit and the response's size.
+  - **The MCP reader and knowgov-runs:** a `tools/call` result over `KG_MCP_MAX_RESPONSE` (default
+    16 MiB), on stdio or HTTP, is an error result that names the setting, with no
+    `structuredContent`.
+  - **Nothing is truncated.** Each default is about twenty times the largest response measured on
+    both public subjects: 392 KB for the page (`/api/results/S6`) and 653 KB for MCP
+    (`evidence_bundle` on J-F D4). A cap outside 4 KiB to 1 GiB, or one that is not an integer, is
+    refused with the variable's name, and the MCP servers then exit 2 at start.
+
 - **A file document's Version digest is over its raw bytes** (task-0160). The SHA-256 a Version
   records for a file artefact is now taken over the file's bytes on disk, as the register's digest of
   a cited file is. Before, it was taken over the text as read, which turns CRLF line ends into LF, so register-cites

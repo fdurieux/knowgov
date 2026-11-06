@@ -1,5 +1,6 @@
 """Task-0141.04 (H2): bounded HTTP input, connections and admitted work, on a disposable loopback page
-and MCP server with small injected limits (LIMIT-01..LIMIT-07 of the review's plan). Raw sockets, so a
+and MCP server with small injected limits (LIMIT-01..LIMIT-07 of the review's plan; LIMIT-08, the response cap,
+task-0177). Raw sockets, so a
 test sends exactly the framing it means; every wait is bounded, and a deadline is measured on the
 monotonic clock against the injected limit plus a tolerance."""
 from __future__ import annotations
@@ -297,7 +298,7 @@ def test_limit_07_the_ordinary_requests_answer_as_before():
 def test_the_limits_are_finite_configurable_and_refuse_nonsense():
     import mcp_server
     import server
-    assert server.page_limits() == hb.Limits(65536, 10.0, 5.0, 32)
+    assert server.page_limits() == hb.Limits(65536, 10.0, 5.0, 32, 8 << 20)
     assert mcp_server.mcp_limits().max_body == 4 << 20
     with _env(KG_PAGE_MAX_BODY="0"):
         try:
@@ -332,3 +333,96 @@ def test_limit_04_a_request_cut_at_its_deadline_is_never_dispatched():
                 data += chunk
             s.close()
             assert b" 202 " not in data and calls["start"] == 0, (head[-30:], data[:80], calls)
+
+
+def _body(data: bytes) -> dict:
+    return json.loads(data.split(b"\r\n\r\n", 1)[1])
+
+
+def test_limit_08_a_response_over_the_cap_is_refused_whole_naming_the_setting():
+    """Task-0177: each server caps one response. Over it the page answers 500 with a JSON error naming
+    KG_PAGE_MAX_RESPONSE, the MCP reader (either transport) and knowgov-runs an error result naming
+    KG_MCP_MAX_RESPONSE, with no structuredContent; nothing of the answer is sent, truncated or not. Under
+    it, the same servers answer as before."""
+    import mcp_runs
+    import mcp_server
+    small = hb.Limits(max_body=1024, read_timeout=5.0, idle_timeout=5.0, max_connections=3, max_response=4096)
+    with _page(small) as (httpd, _calls, log):
+        port = httpd.server_address[1]
+        head = b" HTTP/1.1\r\nHost: 127.0.0.1:" + str(port).encode() + b"\r\nConnection: close\r\n\r\n"
+        got, data = _send(port, b"GET /api/register" + head)   # the register's view: 150 KB and more
+        body = _body(data)
+        assert got == 500 and body["setting"] == "KG_PAGE_MAX_RESPONSE" and body["limit"] == 4096, data[:300]
+        assert body["size"] > 4096 and "KG_PAGE_MAX_RESPONSE" in body["error"] and len(data) < 4096
+        assert b"taxonomies" not in data and b"nodes" not in data.split(b"\r\n\r\n", 1)[1]   # none of the view went out
+        got, data = _send(port, b"GET /health" + head)
+        assert got == 200 and _body(data) == {"ok": True}
+    with _env(KG_MCP_MAX_RESPONSE="4096", KG_MCP_AUTHORITIES=None, KG_MCP_ORIGINS=None, KG_MCP_MAX_BODY=None,
+              KG_MCP_READ_TIMEOUT=None, KG_MCP_IDLE_TIMEOUT=None, KG_MCP_MAX_CONNECTIONS=None):
+        reader = mcp_server.Server(mcp_server.Tools())
+        assert reader.max_response == 4096 and mcp_server.mcp_limits().max_response == 4096
+        httpd = mcp_server.serve_http(reader, "127.0.0.1", 0, None)
+        httpd.RequestHandlerClass.log_message = lambda self, *a: None
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            port = httpd.server_address[1]
+            calls = {"big": ("register_nodes", {"limit": 1000}), "small": ("register_nodes", {"limit": 1, "taxonomy": "capabilities"})}
+            out = {}
+            for k, (name, args) in calls.items():
+                msg = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": args}}).encode()
+                got, data = _send(port, _post(port, "/mcp", msg, b"Accept: application/json, text/event-stream\r\n"))
+                assert got == 200, data[:300]
+                out[k] = _body(data)["result"]
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+        big, ok = out["big"], out["small"]
+        assert big["isError"] is True and "structuredContent" not in big and "KG_MCP_MAX_RESPONSE" in big["content"][0]["text"], big
+        assert ok["isError"] is False and ok["structuredContent"]["nodes"], ok
+        # stdio: the same Server, the same cap
+        r = reader.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "register_nodes", "arguments": {"limit": 1000}}})
+        assert r["result"]["isError"] is True and "KG_MCP_MAX_RESPONSE" in r["result"]["content"][0]["text"]
+        # knowgov-runs is an MCP server too, built on the same Server: the same cap
+        from tests.test_mcp_runs import StubPage
+
+        class Wide(StubPage):   # a page listing many model rows: run_options grows past the cap
+            def __call__(self, req, timeout=None):
+                resp = super().__call__(req, timeout)
+                body = json.loads(resp.read())
+                if "model_rows" in body:
+                    body["model_rows"] = body["model_rows"] * 60
+                return type(resp)(resp.status, body)
+        runs = mcp_runs.make_server(mcp_runs.Page("http://localhost:8080", token="t", opener=Wide()))
+        assert runs.max_response == 4096
+        r = runs.handle({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "run_options", "arguments": {}}})["result"]
+        assert r["isError"] is True and "KG_MCP_MAX_RESPONSE" in r["content"][0]["text"] and "structuredContent" not in r
+        r = runs.handle({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "run_status", "arguments": {}}})["result"]
+        assert r["isError"] is False and r["structuredContent"]["status"] == "idle"
+
+
+def test_the_response_caps_are_bounded_settings_and_measured_defaults():
+    """Task-0177: the defaults sit far above the largest response measured on both public subjects (the
+    page's /api/results/S6 on CargoQuote, 392 KB; the reader's evidence_bundle on J-F D4, 653 KB), and a cap
+    outside 4 KiB..1 GiB, or not an integer, is refused with the variable's name; the MCP servers refuse it
+    at start."""
+    import subprocess
+    import mcp_server
+    import server
+    assert server.page_limits().max_response == 8 << 20 >= 20 * 392_000
+    assert mcp_server.max_response() == mcp_server.mcp_limits().max_response == 16 << 20 >= 25 * 653_000
+    for var, read in (("KG_PAGE_MAX_RESPONSE", server.page_limits), ("KG_MCP_MAX_RESPONSE", mcp_server.max_response)):
+        for bad in ("0", "4095", str((1 << 30) + 1), "8MiB", "-1"):
+            with _env(**{var: bad}):
+                try:
+                    read()
+                except ValueError as e:
+                    assert var in str(e), (var, bad, e)
+                else:
+                    raise AssertionError(f"{var}={bad} accepted")
+        with _env(**{var: "4096"}):
+            got = read()
+            assert (got.max_response if isinstance(got, hb.Limits) else got) == 4096
+    for script in ("mcp_server.py", "mcp_runs.py"):
+        p = subprocess.run([sys.executable, str(ROOT / "harness" / script)], input="", capture_output=True, text=True, timeout=60,
+                           env={**os.environ, "KG_MCP_MAX_RESPONSE": "1"})
+        assert p.returncode == 2 and "KG_MCP_MAX_RESPONSE" in p.stderr, (script, p.returncode, p.stderr[-300:])
