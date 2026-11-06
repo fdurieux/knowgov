@@ -1,10 +1,10 @@
 ---
 id: TASK-0162
 title: 'Arms on macOS: test an engine whose VM kernel enables Landlock'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-06T07:22:00Z'
-updated_date: '2026-11-06T08:25:00Z'
+updated_date: '2026-11-06T11:31:00Z'
 labels:
   - worker
   - security
@@ -25,9 +25,18 @@ Docker Desktop for Mac 4.48.0 (kernel 6.10.14-linuxkit) gives a container no Lan
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 On a named macOS engine and version, the worker service started with --profile arms attests every check true, or the attestation that fails is recorded with the engine's version and kernel
+- [x] #1 On a named macOS engine and version, the worker service started with --profile arms attests every check true, or the attestation that fails is recorded with the engine's version and kernel
 - [ ] #2 docs/security.md and demo/README.md name only engines whose attestation was recorded on a real machine
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Record Docker Desktop for Mac 4.48.0's self-check (AC #1's first evidence).
+2. Maintainer tries Colima (Lima, vz) on the Intel Mac; record its self-check JSON, engine version, uname -r in the VM, verdict.
+3. If Colima fails write_confined, try EC2 Ubuntu 24.04 with docker.io; record the same.
+4. Name in demo/README.md and docs/security.md only hosts whose attestation was recorded on a real machine (AC #2); CHANGELOG line under Unreleased if the README route is added.
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
@@ -35,4 +44,6 @@ Docker Desktop for Mac 4.48.0 (kernel 6.10.14-linuxkit) gives a container no Lan
 2026-11-06, the maintainer's Mac: Docker Desktop 4.48.0's kernel 6.10.14-linuxkit is built without Landlock: /proc/config.gz reads '# CONFIG_SECURITY_LANDLOCK is not set', CONFIG_LSM="yama,loadpin,safesetid,integrity,bpf"; landlock_create_ruleset answers ENOSYS (38) with Docker's seccomp profile and with seccomp=unconfined. No setting on that engine enables it; another engine's VM kernel is what this task tests.
 
 The X1 session's view (session_01HTAA1UsSVF25SBM7XfjnqP, 2026-11-06), advice only. Separate uids for the worker (A) and the job (B) is the one alternative it would call equivalent to Landlock for the forging threat, and only with all of: (i) the worker keeps CAP_SETUID/SETGID and drops every capability before exec, with no-new-privs, so B holds none; (ii) /jobs not writable by B at all: mode 0770 with a group shared by the app and A only, not 1777 (the sticky bit stops replacing A's files, not creating new entries); (iii) B's only writable path is its own job folder; (iv) write_confined attested by trying, as B, to create, rename and replace a file in /jobs and a job folder, all failing; (v) the forging tests (tests/test_execution.py, result.json and attest.json) pass under that mode. Costs: cap_drop ALL becomes cap_drop ALL plus cap_add SETUID, SETGID; uid_65534 becomes a pair; the worker gains privilege, so the attestation also checks the job's CapEff empty after the drop. A per-job read-only mount needs mount privileges and a container per job the engine socket; decision-0012 rejected both. Its advice: Landlock where the kernel has it; separate uids only if built to (i)-(v); otherwise unsupported without Landlock. Not built.
+
+2026-11-06, the maintainer's Mac (Intel MacBook Pro), Docker Desktop for Mac 4.48.0, kernel 6.10.14-linuxkit: `docker compose --profile arms run --rm --no-deps worker python harness/worker.py --attest-only` gave "ok": false. Every check true except write_confined: false (no Landlock). loopback_only true with the tunnel devices down; AF_VSOCK and AF_PACKET refused EPERM; outside ENETUNREACH; read_only_root, uid_65534, no_docker_socket, no_secret_variables true. Verdict: refused; arms runs are refused on this engine (decision-0015).
 <!-- SECTION:NOTES:END -->
