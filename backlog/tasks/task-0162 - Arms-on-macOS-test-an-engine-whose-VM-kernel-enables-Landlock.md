@@ -4,7 +4,7 @@ title: 'Arms on macOS: test an engine whose VM kernel enables Landlock'
 status: In Progress
 assignee: []
 created_date: '2026-11-06T07:22:00Z'
-updated_date: '2026-11-06T11:59:00Z'
+updated_date: '2026-11-06T12:01:00Z'
 labels:
   - worker
   - security
@@ -48,4 +48,6 @@ The X1 session's view (session_01HTAA1UsSVF25SBM7XfjnqP, 2026-11-06), advice onl
 2026-11-06, the maintainer's Mac (Intel MacBook Pro), Docker Desktop for Mac 4.48.0, kernel 6.10.14-linuxkit: `docker compose --profile arms run --rm --no-deps worker python harness/worker.py --attest-only` gave "ok": false. Every check true except write_confined: false (no Landlock). loopback_only true with the tunnel devices down; AF_VSOCK and AF_PACKET refused EPERM; outside ENETUNREACH; read_only_root, uid_65534, no_docker_socket, no_secret_variables true. Verdict: refused; arms runs are refused on this engine (decision-0015).
 
 2026-11-06, the maintainer's EC2 instance in eu-west-1 (t3.large, 2 vCPU, 8 GiB; Ubuntu Server 24.04 LTS x86_64 AMI, /etc/os-release 'Ubuntu 24.04.5 LTS'), docker.io 29.1.3-0ubuntu3~24.04.2 with docker-compose-v2 2.40.3, kernel 7.0.0-1014-aws, /sys/kernel/security/lsm 'lockdown,capability,landlock,yama,apparmor,ima,evm'; knowgov main cloned that day. `docker compose --profile arms run --rm --no-deps worker python harness/worker.py --attest-only` gave "ok": true, every check true: loopback_only (interfaces lo up only, no routes, cap_net_admin false), no_secret_variables (secret_names empty), read_only_root, uid_65534, no_docker_socket, write_confined, no_socket_escape (AF_VSOCK and AF_PACKET refused EPERM, outside ENETUNREACH). Verdict: attested; the first real machine on which the worker serves outside CI. Compose's 'buildx isn't installed' warning is harmless (the classic builder built the image).
+
+The EC2 attestation was taken at knowgov main 5ce8262 (PR #301's merge).
 <!-- SECTION:NOTES:END -->
