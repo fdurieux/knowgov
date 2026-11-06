@@ -258,7 +258,7 @@ def test_the_schema_catches_a_report_that_drops_hypothetical_or_raises_a_candida
 
 def test_the_changelog_and_the_demo_readme_carry_it():
     log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    # the line sits in a section newer than 0.5.0: Unreleased until the release PR names it, then 0.6.0
+    # the line sits in a section newer than 0.5.0: Unreleased until a release PR names it
     assert "proposal_impact" in log.split("\n## 0.5.0 ")[0].split("\n## ", 1)[1]
     readme = (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
     assert "proposal_impact" in readme and "tools/fixtures/proposal_contract_quote.json" in readme

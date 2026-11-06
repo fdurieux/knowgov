@@ -8,9 +8,24 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
-## Unreleased
+## 0.7.0 — 2026-11-06
 
-### Contract changes
+The store, the HTTP boundary and code execution are hardened for an organisation's own instance,
+and an assistant can now travel the whole chain from strategy to code and back. A read handle never
+writes the store back, and a writer publishes atomically under a lock, so a stale reader can no
+longer overwrite a newer run and two writers no longer lose an update. Both servers check every
+request's authority and origin, on reads as well as writes, and bound what a request may send and
+how long it may take. Until code a model writes runs contained, it is refused beside a mounted
+instance. On the reading side, the MCP server lists the register (`register_nodes`), climbs from a
+key, a code file or a document back to the register (`key_nodes`, `code_path`, `document_links`),
+reads what the store holds and what was built on it (`held_keys`, `derived_outputs`,
+`document_statements`), and names the down, up, store and intake sequences in its instructions.
+`proposal_impact` groups a proposed addition into slices along the register's own thread walk. A
+subject wizard (two prompts and a Claude Code skill), `subject_check` in the call and a franker
+subject check make onboarding a subject an assistant's procedure, ending in a pull request a person
+reviews.
+
+### Contract changes (why this is 0.7.0, decision-0003)
 
 - **Both servers bound what a request may cost** (task-0141.04). The framing is checked before any
   of the body is read:
@@ -199,7 +214,44 @@ names that section with the version.
   uses. The checker gains A1, a warning when a product's `requires` links and the capabilities its
   journeys' steps reach disagree. The register view lists 10 warnings, 7 before plus A1's three
   (PRD-0002, PRD-0004, PRD-0005), with no coverage line for A1, which is not a coverage rule.
-  Nothing in `harness/` reads the thread walk yet: task-0152's slice map will.
+  `proposal_impact`'s `slices` (task-0152) reads it; knowgov composes no walk of its own.
+
+### What this release carries
+
+| what | version |
+|---|---|
+| pumllint (the sequence-diagram mapper's parser) | 0.33.0, from PyPI |
+| the IEAM register, vendored under `demo/register/` | ieam-register `v0.2.11` |
+| the record's pins | unchanged from 0.6.0 |
+| Python | 3.12 in the image |
+
+The image is `ghcr.io/fdurieux/knowgov:v0.7.0`. The compose file moves to it in a follow-up, once
+the Release has published its digest.
+
+### Known limits
+
+- Code a model writes is not yet contained (task-0141.05, decision-0012). The guard refuses it beside
+  a mounted instance or register; with `KG_ALLOW_UNCONTAINED_EXECUTION=1`, or on the public demo, it
+  still runs with the process's environment and files.
+- A load is not yet published whole on Neo4j (task-0141.06): the adapter writes each statement as it
+  runs, so a reader can see a store part-way through a rebuild. The MCP tools that read knowledge
+  refuse while a run is loading.
+- A file-backed store supports its writers on POSIX with `flock`, on a local disk.
+- Response sizes are not capped by the HTTP limits; request framing, bodies, deadlines and
+  connections are.
+- Claude Desktop's role is asking the gate until the maintainer's own test shows the prompts listed
+  there and `subject_check` running; onboarding is Claude Code's.
+- A proposal's slices are as fine as the register's links: steps supported only by one end-to-end
+  process share one thread.
+- An attestation is the manifest's declaration and is not bound to a document's version.
+- A run folder from before `run.json` is inferred: its status, start and initiator are unknown.
+- `proposal_impact`'s branch mode reads a branch's additions only.
+- The subject check compares keys with the documents' yield only where the mappers run.
+- The connector has run only on the synthetic CargoQuote export, not on a real installation.
+- A register change is read only when the gate is given the previous register; the page's register
+  panel does not show what a change withdrew yet.
+- The GitLab include is proven by shell, not yet on a GitLab runner (task-0108).
+- The hooks see Edit and Write, not a shell command writing the same file.
 
 ## 0.6.0 — 2026-11-05
 
