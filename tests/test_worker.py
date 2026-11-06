@@ -24,8 +24,12 @@ NET_ADMIN = f"{1 << worker.CAP_NET_ADMIN:016x}"
 def _view(ifaces: dict, routes: list[str] = (), v6: list[str] | None = (V6_LO,), eff=NO_CAPS, bnd=NO_CAPS) -> dict:
     with tempfile.TemporaryDirectory() as td:
         sysfs, proc = Path(td) / "sys", Path(td) / "proc"
+        (sysfs / "class" / "net").mkdir(parents=True)
         for name, flags in ifaces.items():
-            (sysfs / "class" / "net" / name).mkdir(parents=True)
+            if flags == "file":
+                (sysfs / "class" / "net" / name).write_text("\n")
+                continue
+            (sysfs / "class" / "net" / name).mkdir()
             if flags is not None:
                 (sysfs / "class" / "net" / name / "flags").write_text(flags + "\n")
         (proc / "net").mkdir(parents=True)
@@ -47,6 +51,13 @@ def test_down_tunnel_devices_beside_lo_pass_as_docker_desktop_creates_them():
     v = _view({"lo": LO, "tunl0": DOWN, "gre0": DOWN, "sit0": DOWN, "ip6tnl0": DOWN, "ip_vti0": DOWN})
     assert v["ok"], v
     assert v["interfaces"]["tunl0"] == "down" and v["interfaces"]["lo"] == "up", v
+
+
+def test_docker_desktop_4_48s_network_none_view_passes():
+    # /sys/class/net in a network_mode none container on Docker Desktop 4.48.0, kernel 6.10.14-linuxkit
+    seen = {n: DOWN for n in ("erspan0", "gre0", "gretap0", "ip6_vti0", "ip6gre0", "ip6tnl0", "ip_vti0", "sit0", "tunl0")}
+    v = _view({**seen, "lo": LO, "bonding_masters": "file"})
+    assert v["ok"] and "bonding_masters" not in v["interfaces"] and len(v["interfaces"]) == 10, v
 
 
 def test_an_interface_up_fails():

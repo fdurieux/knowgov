@@ -112,10 +112,11 @@ def network(sys_root: str = "/sys", proc_root: str = "/proc") -> dict:
     and whether this process holds CAP_NET_ADMIN, effective or in its bounding set. It holds when no
     interface but lo is up, no route leaves lo, and nothing here can bring a device up. A down device is
     allowed: Docker Desktop's kernel puts tunl0, gre0, sit0, ip6tnl0 and the like, down, in every
-    network namespace, ``network_mode: none`` included. Whatever cannot be read fails the check."""
+    network namespace, ``network_mode: none`` included, with the bonding driver's bonding_masters file
+    beside them. Whatever cannot be read fails the check."""
     net = Path(sys_root) / "class" / "net"
-    try:
-        names = sorted(os.listdir(net))
+    try:   # a regular file there is no interface: the bonding driver's bonding_masters
+        names = sorted(n for n in os.listdir(net) if not (net / n).is_file())
     except OSError:
         names = None
     states = {}
