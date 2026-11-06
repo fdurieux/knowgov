@@ -805,7 +805,10 @@ the model writes. It starts only when you add `--profile arms` to the
 kernel feature that stops that code writing outside its own folder (kernel
 5.13 or later, enabled). Docker Desktop for Mac 4.48.0 has no Landlock, so
 there the worker refuses to start and every Arms run is refused; the rest of
-the demo works as usual.
+the demo works as usual. To run the Arms mode from a Mac, start the stack on a
+Linux machine whose kernel has Landlock and open the page through an SSH
+tunnel: *The Arms mode on an EC2 instance* under *Start it elsewhere* walks
+through the one such machine recorded so far.
 
 The page tells you which case you are in. With a key set and no worker, the
 Arms chip reads **arms: no contained worker** and the Arms buttons stay
@@ -1037,11 +1040,233 @@ login (only its runs ask for the token), and port 7474 is a live database consol
 only by the password you set. Do not leave the instance reachable from the
 internet; stop or terminate it after the session.
 
+**The Arms mode on an EC2 instance.** This is the route to use when your own
+machine cannot run the worker, a Mac with Docker Desktop for instance. The
+stack keeps its default bind, `127.0.0.1`, so nothing but SSH is open, and you
+reach the page through a tunnel. It was recorded on a real machine on
+2026-11-06 (task-0162): a `t3.large` (two vCPUs, 8 GiB) on Ubuntu Server
+24.04 LTS, x86_64, with Ubuntu's own `docker.io` 29.1.3 and
+`docker-compose-v2` 2.40.3, kernel `7.0.0-1014-aws`, where the worker's
+self-check came back with every check true. Another image or engine may
+differ; the self-check in step 3 is what decides.
+
+1. *Launch.* In the EC2 console, launch an instance from **Ubuntu Server
+   24.04 LTS**, 64-bit (x86); the console may offer a newer release first,
+   which has not been recorded. Choose `t3.large`, create a key pair and keep
+   its `.pem` file on your own machine (`chmod 400` it), raise the root
+   volume to 30 GiB gp3 (the default 8 GiB fills with the images, and Neo4j
+   then exits at start with an out-of-disk error in its log), and let the security group allow **SSH from My IP
+   only**. Open no other port.
+
+2. *Install and clone.* Connect with
+   `ssh -i ~/.ssh/<key>.pem ubuntu@<public address>`, then:
+
+   ```bash
+   sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 git
+   sudo usermod -aG docker ubuntu
+   git clone https://github.com/fdurieux/knowgov ~/knowgov
+   ```
+
+   Log out and back in, so that `docker` works without `sudo`.
+
+3. *Check the worker can serve.* This needs no key. Every check must read
+   `true`, `write_confined` (Landlock) among them; if one does not, the Arms
+   mode is refused on this machine, and nothing weakens that.
+
+   ```bash
+   cat /sys/kernel/security/lsm    # should list landlock
+   cd ~/knowgov/demo && docker compose --profile arms run --rm --no-deps worker python harness/worker.py --attest-only
+   ```
+
+4. *Start the stack.* Set only the keys you use. `read -rs` takes each from
+   a silent prompt, so it stays in this shell, out of the history and off
+   the disk:
+
+   ```bash
+   read -rs OPENAI_API_KEY && export OPENAI_API_KEY
+   docker compose --profile arms up -d --build --wait
+   ```
+
+   For the Claude row, set `KG_ANTHROPIC_KEY` and `LITELLM_MASTER_KEY` the
+   same way and add `--profile claude`.
+
+5. *Open the page.* On your own machine, in a terminal you leave open:
+
+   ```bash
+   ssh -i ~/.ssh/<key>.pem -N -L 8080:localhost:8080 ubuntu@<public address>
+   ```
+
+   and browse to `http://localhost:8080`. Neo4j Browser comes the same way,
+   with `-L 7474:localhost:7474 -L 7687:localhost:7687` added.
+
+6. *Stop.* On the instance, `docker compose --profile claude --profile arms
+   down`, then stop the instance in the console; a stopped instance costs
+   only its disk.
+
+**Looking after the stack on the instance.** Every command below runs in
+`~/knowgov/demo` on the instance and names the same profiles you started
+with, so that it reaches the worker and the gateway too. Shorten the typing
+once per shell with `export COMPOSE_PROFILES=claude,arms`; then a plain
+`docker compose …` means both.
+
+- *See what runs.* `docker compose ps` lists each service and its health:
+  `app`, `neo4j` and `worker` read *healthy*; `litellm` has no health check
+  and reads *Up*. A service that keeps restarting or is missing:
+  `docker compose logs --tail 40 <service>`.
+- *Check the worker again.* `docker compose exec worker python
+  harness/worker.py --attest-only` prints the running worker's self-check;
+  every check must read `true`.
+- *After you reconnect.* A new SSH session has forgotten the keys. The
+  running containers keep theirs, so the page goes on working; set the
+  keys again (`read -rs …`, as in step 4) only before a command that
+  creates containers, such as `up` after a `down`, or they start without
+  them.
+- *Change a key.* Containers read the keys when they are created, so set
+  the new value and recreate the one that uses it: `docker compose up -d
+  --force-recreate --wait app` for `OPENAI_API_KEY` or `GEMINI_API_KEY`,
+  `litellm` for `KG_ANTHROPIC_KEY` or `LITELLM_MASTER_KEY` (a new master
+  key needs `app` recreated too). Before a paid run, the OpenAI key can be
+  tried for nothing: `curl -s -o /dev/null -w '%{http_code}\n'
+  https://api.openai.com/v1/models -H "Authorization: Bearer
+  $OPENAI_API_KEY"` answers 200 when OpenAI accepts it and 401 when not.
+  OpenAI's dashboard shows a secret key in full only once, when it is
+  created; its list shows a name and a shortened form, which do not work as
+  the key.
+- *Update to the latest knowgov.* `git -C ~/knowgov pull --ff-only`, then
+  `docker compose up -d --build --wait`, with the keys set. Run the
+  self-check again after an update.
+- *Stop and start again.* `docker compose down` removes the containers and
+  keeps the Neo4j data and the demo runs; `up -d --wait` brings them back.
+  `down -v` deletes those volumes as well. The stack has no restart policy,
+  so after the instance is stopped and started, it is down until you run
+  `up` again.
+- *Disk.* `df -h /` shows what is left; `docker system df` what the images
+  and the build cache take; `docker builder prune` frees the build cache.
+  When the disk fills, Neo4j exits at start with an out-of-disk error in
+  its log: grow the volume in the console (Storage, the volume, *Modify
+  volume*), then `sudo growpart /dev/nvme0n1 1 && sudo resize2fs
+  /dev/nvme0n1p1` (check the disk's name with `lsblk` first), remove the
+  half-made store with `docker compose down && docker volume rm
+  knowgov_neo4j-data`, and `up` again.
+- *The instance's address.* A stopped and started instance gets a new
+  public address: take it from the console for `ssh` and the tunnel. When
+  SSH hangs, your own address has probably changed (another network, a
+  VPN): set the security group's SSH rule to *My IP* again.
+- *The tunnel on your own machine.* `bind [127.0.0.1]:8080: Address already
+  in use` means something on your machine holds port 8080, often your local
+  stack: `lsof -nP -iTCP:8080 -sTCP:LISTEN` names it; stop it
+  (`docker compose -p knowgov down` from any folder for the local stack)
+  and stop any earlier `ssh` that half-bound the port, then open the tunnel
+  again. Do not tunnel another local port to the instance's 8080: the page
+  answers only for the address it is published on, and would show but
+  refuse runs. To use another port, start the instance's stack with
+  `KG_PORT_APP=<port>` and tunnel that port to the same one.
+
 **The OpenAI key.** It is read from the environment of the shell that
 starts the stack and passed into the application container only. It is
 never written to disk, never baked into the image, and never sent
 anywhere but to the OpenAI API by the harness's own calls. Without it the
 Arms mode is simply disabled; everything else works.
+
+## API keys: questions and answers
+
+**Which keys does the page use?** One per model row in the Arms call
+drop-down (`demo/models.toml`). Set only the ones for the rows you want; a
+row without its key is not offered, and the header chip counts the rows
+that are ("arms enabled (4 of 5 model rows)").
+
+| row | variable | where the key comes from |
+|---|---|---|
+| OpenAI (the record's model and `gpt-5.5`) | `OPENAI_API_KEY` | your OpenAI account |
+| Google Gemini | `GEMINI_API_KEY` | Google AI Studio |
+| Anthropic Claude, through the gateway | `KG_ANTHROPIC_KEY` | your Anthropic account |
+| (the same row) | `LITELLM_MASTER_KEY` | none: a string you make up |
+| a row of your own (`KG_MODEL_BASE_URL`, `KG_ARMS_MODEL`) | the variable `KG_MODEL_API_KEY_VAR` names | that endpoint's provider |
+
+**How do I set a key without leaving it lying around?** Type it at a silent
+prompt in the shell that starts the stack:
+
+```bash
+read -rs OPENAI_API_KEY && export OPENAI_API_KEY
+```
+
+Paste the key, press Enter; nothing is shown, and the key stays out of the
+shell's history and off the disk. It lives in that shell only: a new
+terminal or SSH session has forgotten it. Never put a key in a file you
+might commit, in a `.env` beside the checkout, or in a chat. To see which
+key a shell holds without showing it, print its first characters only:
+`echo "${OPENAI_API_KEY:0:8}"`.
+
+**I changed a key and nothing changed.** Containers read the keys when they
+are created. Recreate the one that uses the key: `app` for OpenAI and
+Gemini, `litellm` for Anthropic (and `app` too for a new master key):
+
+```bash
+docker compose --profile claude --profile arms up -d --force-recreate --wait app litellm
+```
+
+**How do I know a key works before a run?** Ask the provider for its list
+of models. It costs no tokens and answers 200 for a key it accepts, 401 or
+403 for one it refuses:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY"
+curl -s -o /dev/null -w '%{http_code}\n' https://api.anthropic.com/v1/models -H "x-api-key: $KG_ANTHROPIC_KEY" -H "anthropic-version: 2023-06-01"
+curl -s -o /dev/null -w '%{http_code}\n' https://generativelanguage.googleapis.com/v1beta/models -H "x-goog-api-key: $GEMINI_API_KEY"
+```
+
+**A run failed with "401 Incorrect API key".** The provider refused the
+value it was sent. The error shows the key's first characters, masked:
+`sk-ant-…` in an OpenAI error means an Anthropic key went into
+`OPENAI_API_KEY`; a value that does not start as the table below says is
+probably not a secret key at all, often a key's name or id copied from a dashboard.
+Set the right value, try it with the check above, and recreate the
+container.
+
+| provider | a secret key usually starts with |
+|---|---|
+| OpenAI | `sk-proj-` (project keys), or `sk-` |
+| Anthropic | `sk-ant-` |
+| Google Gemini | `AIza` |
+
+A prefix is a hint, not a test: providers change their keys' shapes, and only
+the provider's answer to the check above says whether a key works.
+
+**How do I get and manage a key?**
+
+- *OpenAI.* At platform.openai.com, *API keys*, choose the project and
+  *Create new secret key*. The full key is shown once, in that dialog: copy
+  it then, into your password manager. The list afterwards shows only the
+  key's name and a shortened form, which do not work as the key; a lost key
+  cannot be shown again, so create a new one and revoke the old. Set a
+  monthly budget under the organisation's or the project's *Limits*, and
+  give the demo its own project and key so that revoking it touches
+  nothing else.
+- *Anthropic.* In the Claude Console (console.anthropic.com), *Settings*,
+  *API Keys*, *Create Key*, in a workspace of its own for the demo. As with
+  OpenAI, the key is shown once; copy it then. Set the workspace's spend
+  limit under its *Limits*. Put it in `KG_ANTHROPIC_KEY`, not
+  `ANTHROPIC_API_KEY`, which Claude Code itself reads.
+- *Google Gemini.* In Google AI Studio (aistudio.google.com), *Get API
+  key*, *Create API key*, in a Google Cloud project of its own for the
+  demo. Restrict the key to the Generative Language API in the Cloud
+  console's *Credentials*, and set a budget alert on the project's billing.
+- *The gateway's master key.* Nobody issues it; make one up each time if
+  you like: `export LITELLM_MASTER_KEY="sk-$(openssl rand -hex 24)"`. The
+  page presents it to the gateway, which refuses any caller without it.
+
+**What does a run cost, and how do I keep it bounded?** An S1 arms run on
+the record's model makes two calls, about 33,000 tokens in all, a few
+cents. Bound what a leaked or misused key could spend with the provider's
+own limits above, one key per purpose, and revoke a key you no longer
+use. On a shared or public machine, set `KG_PAGE_TOKEN` too, so that only
+people who have it can start a run.
+
+**Where does the key go?** From the shell's environment into the container
+that calls the provider (`app`, or `litellm` for Anthropic) and from there
+only to that provider. It is never written to disk or baked into an image,
+and the worker that runs the model's code has no key and no network: its
+self-check fails if a key-shaped variable reaches it.
 
 ## Files
 
