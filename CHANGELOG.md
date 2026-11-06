@@ -66,6 +66,13 @@ names that section with the version.
 
 ### Changes
 
+- **A directory artefact's file digests are the file's bytes** (task-0098, a fix to task-0094). `part_sha256`
+  hashed each part as bundled, and the bundle adds a newline to a file that lacks one and reads CRLF as LF,
+  so such a file's digest disagreed with the register's, which `register-cites` compares it with. The load now
+  hashes each file's raw bytes; a part a scenario's plant changed keeps its text's digest. Every file of the
+  public subjects' directory artefacts (J-F's 47) already ends in a newline with LF line ends, so no recorded
+  digest moves; an instance's file without one now matches its register.
+
 - **The hook's settings snippets read the spec commit under `design`** (task-0114, after task-0101).
   The three snippets under `instance/ci/claude/` (repository, managed, advisory) add
   `--task-for spec=design`, as the pilot protocol does; the plan and the push stay `codegen`. Keep it
