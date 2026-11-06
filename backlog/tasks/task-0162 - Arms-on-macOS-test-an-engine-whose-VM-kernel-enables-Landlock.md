@@ -4,7 +4,7 @@ title: 'Arms on macOS: test an engine whose VM kernel enables Landlock'
 status: In Progress
 assignee: []
 created_date: '2026-11-06T07:22:00Z'
-updated_date: '2026-11-06T11:31:00Z'
+updated_date: '2026-11-06T11:59:00Z'
 labels:
   - worker
   - security
@@ -46,4 +46,6 @@ Docker Desktop for Mac 4.48.0 (kernel 6.10.14-linuxkit) gives a container no Lan
 The X1 session's view (session_01HTAA1UsSVF25SBM7XfjnqP, 2026-11-06), advice only. Separate uids for the worker (A) and the job (B) is the one alternative it would call equivalent to Landlock for the forging threat, and only with all of: (i) the worker keeps CAP_SETUID/SETGID and drops every capability before exec, with no-new-privs, so B holds none; (ii) /jobs not writable by B at all: mode 0770 with a group shared by the app and A only, not 1777 (the sticky bit stops replacing A's files, not creating new entries); (iii) B's only writable path is its own job folder; (iv) write_confined attested by trying, as B, to create, rename and replace a file in /jobs and a job folder, all failing; (v) the forging tests (tests/test_execution.py, result.json and attest.json) pass under that mode. Costs: cap_drop ALL becomes cap_drop ALL plus cap_add SETUID, SETGID; uid_65534 becomes a pair; the worker gains privilege, so the attestation also checks the job's CapEff empty after the drop. A per-job read-only mount needs mount privileges and a container per job the engine socket; decision-0012 rejected both. Its advice: Landlock where the kernel has it; separate uids only if built to (i)-(v); otherwise unsupported without Landlock. Not built.
 
 2026-11-06, the maintainer's Mac (Intel MacBook Pro), Docker Desktop for Mac 4.48.0, kernel 6.10.14-linuxkit: `docker compose --profile arms run --rm --no-deps worker python harness/worker.py --attest-only` gave "ok": false. Every check true except write_confined: false (no Landlock). loopback_only true with the tunnel devices down; AF_VSOCK and AF_PACKET refused EPERM; outside ENETUNREACH; read_only_root, uid_65534, no_docker_socket, no_secret_variables true. Verdict: refused; arms runs are refused on this engine (decision-0015).
+
+2026-11-06, the maintainer's EC2 instance in eu-west-1 (t3.large, 2 vCPU, 8 GiB; Ubuntu Server 24.04 LTS x86_64 AMI, /etc/os-release 'Ubuntu 24.04.5 LTS'), docker.io 29.1.3-0ubuntu3~24.04.2 with docker-compose-v2 2.40.3, kernel 7.0.0-1014-aws, /sys/kernel/security/lsm 'lockdown,capability,landlock,yama,apparmor,ima,evm'; knowgov main cloned that day. `docker compose --profile arms run --rm --no-deps worker python harness/worker.py --attest-only` gave "ok": true, every check true: loopback_only (interfaces lo up only, no routes, cap_net_admin false), no_secret_variables (secret_names empty), read_only_root, uid_65534, no_docker_socket, write_confined, no_socket_escape (AF_VSOCK and AF_PACKET refused EPERM, outside ENETUNREACH). Verdict: attested; the first real machine on which the worker serves outside CI. Compose's 'buildx isn't installed' warning is harmless (the classic builder built the image).
 <!-- SECTION:NOTES:END -->
