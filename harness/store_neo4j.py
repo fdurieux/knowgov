@@ -608,6 +608,8 @@ class Neo4jStore(Store):
 
     # ---- lifecycle
     def wipe(self) -> None:
+        import load_memory
+        load_memory.wiped(self)   # task-0176: what this wipe deletes counts towards the unit's transaction memory
         if self.access == "write" and self._pub.tx is None:
             self._pub.wipe_pending = True   # run first in the unit's transaction, so a constraint can be applied before it
             return
@@ -663,6 +665,27 @@ class Neo4jStore(Store):
             self.run(f"UNWIND $rows AS r MATCH (a:_KgImport {{_kg:r.a}}), (b:_KgImport {{_kg:r.b}}) CREATE (a)-[e:{q(t)}]->(b) SET e = r.props",
                      rows=rows).consume()
         self.run("MATCH (n:_KgImport) REMOVE n:_KgImport, n._kg").consume()
+
+    def transaction_memory(self) -> dict | None:
+        """The smallest transaction memory limit the server sets (the per-transaction, the per-database and
+        the server-wide total; 0 is unset) and the published generation's statements (assertions and
+        fragments), read once per handle in a session of its own, outside the unit (task-0176)."""
+        if getattr(self, "_tx_memory", None) is not None:
+            return self._tx_memory
+        import load_memory
+        names = ("db.memory.transaction.max", "db.memory.transaction.total.max", "dbms.memory.transaction.total.max")
+        rows, published = {}, 0
+        with self._pub.driver.session(default_access_mode=self._pub.read_mode) as s:
+            try:
+                rows = {r["name"]: r["value"] for r in s.run("SHOW SETTINGS YIELD name, value WHERE name IN $n RETURN name, value", n=list(names))}
+            except Exception:  # noqa: BLE001 — a role or edition that cannot list settings: no limit to forecast against
+                rows = {}
+            published = s.run("CALL { MATCH (a:Assertion) RETURN count(a) AS a } CALL { MATCH (f:Fragment) RETURN count(f) AS f } "
+                              "RETURN a + f AS n").single()["n"]
+        limits = sorted((load_memory.parse_size(rows.get(n)), n, rows.get(n)) for n in names if load_memory.parse_size(rows.get(n)) > 0)
+        self._tx_memory = {"limit": {"bytes": limits[0][0], "setting": limits[0][1], "value": limits[0][2]} if limits else None,
+                           "published": int(published)}
+        return self._tx_memory
 
     def apply_constraints(self) -> list[dict]:
         """Each constraint family in a schema statement of its own, before the unit's transaction (Neo4j

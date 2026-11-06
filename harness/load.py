@@ -12,6 +12,7 @@ import re
 import tomllib
 
 from kitio import FAMILY, sha256, pristine
+import load_memory
 from subject import SUBJECT
 from extract import extract_all, short, NONE
 
@@ -65,6 +66,7 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
     provenance activity. Returns counts and the unresolved symbols."""
     code = SUBJECT.reference_code()
     bags = extract_all(kit, code)
+    load_memory.note(st, load_memory.statements(bags))   # task-0176: refused here, before the first write, when it would not fit
     unresolved = resolve_symbols(bags, symbol_table(kit))
     ts = now()
     aid = f"act:extract:{scenario}:{version_tag}"

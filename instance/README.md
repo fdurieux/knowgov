@@ -698,6 +698,66 @@ adds to the register for a link that rests on what a person said, with a review 
 months. The register's other required capture fields were there before: a link's `rationale`,
 an exception's `rationale` and expiry, and the decision record every approval names.
 
+## Sizing the Neo4j heap
+
+On Neo4j, a load runs as one transaction: everything it writes, and everything it deletes when it
+clears the previous load, stays in the server's memory until it commits. So the server's
+*transaction memory* has to hold your largest load. The platform checks this before it loads.
+
+**What a load needs.** Measured on Neo4j 5.26 (`docs/load-memory.json`), each statement a load writes
+costs about 9.4 KiB, and each one it deletes about the same. A *statement* here is an assertion
+or a fragment, the units the documents are read into. With a 25% margin, the transaction memory
+a load needs is about
+
+    1.25 × (24.4 MiB + 9.4 KiB × statements written + 9.4 KiB × statements deleted)
+
+- A gate load replaces the previous load, so for a scenario of *N* statements it writes *N* and
+  deletes about *N*: roughly 30.5 MiB + 23.4 KiB × *N*.
+- A full run (`harness/run.py --deterministic`, or the page's Deterministic and Arms buttons) loads
+  every scenario in one transaction, so it needs the sum over the scenarios.
+
+To get your subject's figures, run this from your knowgov checkout:
+
+```bash
+KG_SUBJECT=/path/to/your/instance/subjects/<id> python harness/load_memory.py
+```
+
+It prints each scenario's statement count, what a gate load and a full run need, and the heap that
+holds them. It reads only the documents; it needs no database.
+
+**Which settings.** Neo4j limits transaction memory three ways, and the smallest one that is set wins:
+
+| Setting | Default | What it bounds |
+|---|---|---|
+| `dbms.memory.transaction.total.max` | 70% of the heap | all transactions on the server |
+| `db.memory.transaction.total.max` | unset (`0B`) | all transactions on one database |
+| `db.memory.transaction.max` | unset (`0B`) | one transaction |
+
+With the defaults, only the first applies, so the heap is what you size: at least the transaction
+memory your largest load needs, divided by 0.7. In the stack that is `NEO4J_server_memory_heap_max__size`
+in `demo/docker-compose.yml` (1 GiB, so about 717 MiB of transaction memory). Some examples:
+
+| Statements in your largest scenario | A gate load needs | Heap (defaults) |
+|---|---|---|
+| 1,500 (the public J-F subject) | 65 MiB | 1 GiB is ample |
+| 10,000 | 260 MiB | 512 MiB |
+| 50,000 | 1.2 GiB | 2 GiB |
+| 100,000 | 2.3 GiB | 4 GiB |
+
+A full run of several scenarios needs more, as `harness/load_memory.py` prints.
+
+**When a load would not fit.** It is refused before it writes anything, so the store keeps what it
+held. The gate command and a run exit 2, and the message names the setting and both figures, for
+example: *the server allows 717.0 MiB (dbms.memory.transaction.total.max = 717.00MiB)*. Raise the
+heap, or the setting it names.
+
+- The forecast is deliberately on the high side. A full run in particular can be forecast at up
+  to about twice what it uses.
+- If a load is refused that you believe fits, set `KG_LOAD_MEMORY_CHECK=off` to load anyway. A
+  load that then does not fit fails inside its transaction, and the store still keeps what it held.
+- `KG_LOAD_MEMORY_MARGIN` (0 to 4, default 0.25) sets the margin.
+- The rdflib store has no transaction memory, and is never refused.
+
 ## Starting the demo on your instance
 
 ```bash

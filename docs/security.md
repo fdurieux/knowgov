@@ -116,14 +116,29 @@ publishes it whole, and a read answers from one published generation or refuses.
   - `KG_NEO4J_READ_WAIT`: 0 to 600.
 - **Transaction memory bounds a Neo4j unit.** A writer's whole unit is one transaction, so the
   server's transaction memory limits a load.
-  - The bounds: `db.memory.transaction.max` per transaction (unset, so unlimited on its own) and
-    `db.memory.transaction.total.max` (by default 70% of the heap; the compose heap is 1 GiB).
-  - Measured peaks of the estimated heap: CargoQuote's whole seven-scenario deterministic run about
-    41 MiB; J-F's whole run about 64 MiB.
-  - A unit over the limit fails with `MemoryPoolOutOfMemoryError` and publishes nothing; the previous
-    generation is read whole. `tools/check_snapshots.py --memory-limited` checks this on a server
-    started with a small `db.memory.transaction.max`, and passed with 2 MiB.
-  - **Practice:** size the heap for an instance whose documents are much larger.
+  - **The bounds.** The smallest of the following that is set:
+    - `db.memory.transaction.max`, per transaction (unset by default);
+    - `db.memory.transaction.total.max`, per database (unset by default);
+    - `dbms.memory.transaction.total.max`, server-wide (by default 70% of the heap: about 717 MiB on
+      the compose file's 1 GiB heap).
+  - **Measured** (task-0176, `docs/load-memory.json`): about 9.4 KiB per statement the unit writes and
+    the same per statement its wipes delete, above about 24 MiB.
+    - Public subjects: a CargoQuote gate load peaks at 4 to 10 MiB, J-F's at 26 to 52 MiB, and their
+      whole runs at 17 and 98 MiB.
+    - Synthetic scale-up: up to 48,288 statements, 470 MiB.
+  - **Checked before the load** (task-0176, `harness/load_memory.py`). A load whose forecast exceeds
+    the limit is refused before it writes anything:
+    - the forecast is that measurement, raised to cover every measured peak, plus
+      `KG_LOAD_MEMORY_MARGIN` (default 25%);
+    - `LoadTooLarge`; `gate_cli` and `run.py` exit 2, naming the setting and both figures;
+    - `run.py` checks its whole run before its first load and its first model call;
+    - `KG_LOAD_MEMORY_CHECK=off` loads anyway.
+  - **A unit over the limit with the check off** fails with `MemoryPoolOutOfMemoryError` and publishes
+    nothing; the previous generation is read whole. `tools/check_snapshots.py --memory-limited` checks
+    both, the refusal and the in-transaction failure, on a server started with
+    `db.memory.transaction.max=2m`.
+  - **Practice:** `instance/README.md` ("Sizing the Neo4j heap") states the heap as a function of the
+    statement count; `python harness/load_memory.py` prints a subject's.
 - **The server-side fence.** It was seen working on Neo4j 5.26 Community: right after a takeover, the
   former owner's unit transaction reads `Terminated` in `SHOW TRANSACTIONS`, and its commit raises
   `StoreFenced` (SNAP-05).

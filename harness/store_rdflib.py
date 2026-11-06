@@ -425,6 +425,10 @@ class RdflibStore(Store):
         self.g.parse(data=text, format="turtle")
         self._reindex()
 
+    def transaction_memory(self) -> dict | None:
+        """Nothing bounds this store's unit in server transaction memory (task-0176): never refused."""
+        return None
+
     def apply_constraints(self) -> list[dict]:
         return [{"type": kind, "cypher": name, "accepted": ok, "message": msg} for kind, name, ok, msg in CONSTRAINTS]
 
