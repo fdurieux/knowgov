@@ -176,6 +176,17 @@ class Subject:
             return {}
         return {rel: hashlib.sha256(f.read_bytes()).hexdigest() for rel, f in bundle_files(p, a.get("include"))}
 
+    def part_digests(self, key: str, text: str) -> dict[str, str]:
+        """Each file of a directory artefact as a scenario's kit holds it (``text``, its bundle), by
+        relative path (task-0094): the SHA-256 of the file's raw bytes on disk when the kit's part is the
+        file as bundled, unplanted (task-0098: the bundle adds a newline a file lacks and reads text, so
+        its part is not the bytes the register digests); a part a plant changed has no bytes on disk, so
+        its digest is its text's (UTF-8)."""
+        raw = self.raw_part_digests(key)
+        on_disk = dict(bundle_parts(self.artefact_text(key))) if raw else {}
+        return {rel: raw[rel] if rel in raw and on_disk.get(rel) == part else hashlib.sha256(part.encode("utf-8")).hexdigest()
+                for rel, part in bundle_parts(text) if rel}
+
     def pristine(self) -> dict[str, str]:
         return {key: self.artefact_text(key) for key, _p in self.kit_files}
 

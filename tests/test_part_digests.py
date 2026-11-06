@@ -46,7 +46,7 @@ def test_the_entries_are_sha256sums_form_sorted_by_path_and_read_back():
 def test_the_load_records_each_file_of_a_directory_artefact_and_no_other():
     src = (ROOT / "harness" / "load.py").read_text(encoding="utf-8")
     assert 'if path.endswith("/"):' in src
-    assert 'st.record_part_digests(f"V:{path}:{version_tag}", part_digests(path, text))' in src
+    assert 'st.record_part_digests(f"V:{path}:{version_tag}", SUBJECT.part_digests(path, text))' in src
     from subject import bundle_parts
     text = "==> a.md <==\nalpha\n==> dmn/b.dmn <==\n<b/>\n"
     assert {rel: hashlib.sha256(p.encode()).hexdigest() for rel, p in bundle_parts(text) if rel} == {
@@ -102,8 +102,7 @@ def test_a_file_without_a_final_newline_keeps_the_digest_of_its_raw_bytes():
     with CRLF line ends and an ordinary one each keep sha256 of their bytes on disk, which is not the
     digest of their bundled part for the first two; a part a plant changed keeps its text's digest."""
     import tempfile
-    import load
-    from subject import bundle_parts
+    from subject import bundle_parts   # stdlib only: the tests job has no yaml, so never harness/load.py
     files = {"no_eol.md": b"last line, no newline", "crlf.md": b"one\r\ntwo\r\n", "sub/plain.md": b"plain\n"}
     with tempfile.TemporaryDirectory() as d:
         s = _dir_subject(Path(d), files)
@@ -113,9 +112,9 @@ def test_a_file_without_a_final_newline_keeps_the_digest_of_its_raw_bytes():
         bundled = {rel: hashlib.sha256(p.encode()).hexdigest() for rel, p in bundle_parts(text) if rel}
         assert bundled["no_eol.md"] != raw["no_eol.md"] and bundled["crlf.md"] != raw["crlf.md"]
         assert bundled["sub/plain.md"] == raw["sub/plain.md"]
-        assert load.part_digests("docs/", text, s) == raw
+        assert s.part_digests("docs/", text) == raw
         planted = text.replace("last line, no newline", "a planted line")
-        got = load.part_digests("docs/", planted, s)
+        got = s.part_digests("docs/", planted)
         assert got["no_eol.md"] == hashlib.sha256(b"a planted line\n").hexdigest() != raw["no_eol.md"]
         assert {k: v for k, v in got.items() if k != "no_eol.md"} == {k: v for k, v in raw.items() if k != "no_eol.md"}
         assert s.raw_part_digests("docs/") and _file_subject_has_none(Path(d))
