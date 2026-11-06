@@ -1210,15 +1210,18 @@ curl -s -o /dev/null -w '%{http_code}\n' https://generativelanguage.googleapis.c
 value it was sent. The error shows the key's first characters, masked:
 `sk-ant-…` in an OpenAI error means an Anthropic key went into
 `OPENAI_API_KEY`; a value that does not start as the table below says is
-not a secret key at all, often a key's name or id copied from a dashboard.
+probably not a secret key at all, often a key's name or id copied from a dashboard.
 Set the right value, try it with the check above, and recreate the
 container.
 
-| provider | a secret key starts with |
+| provider | a secret key usually starts with |
 |---|---|
 | OpenAI | `sk-proj-` (project keys), or `sk-` |
 | Anthropic | `sk-ant-` |
 | Google Gemini | `AIza` |
+
+A prefix is a hint, not a test: providers change their keys' shapes, and only
+the provider's answer to the check above says whether a key works.
 
 **How do I get and manage a key?**
 
