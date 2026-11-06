@@ -44,6 +44,22 @@ def _env(**kw):
             os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
 
 
+class Counting(hb.BoundedServer):
+    """The bounded server, counting every connection it has taken from the listen backlog, admitted
+    or refused, so a test can wait until the server has seen what it sent: ``active() == 0`` is also
+    true before a connection is accepted at all (the race that made LIMIT-06 flaky under load)."""
+
+    def __init__(self, *a, **k):
+        self.accepted = 0
+        self._count = threading.Lock()
+        super().__init__(*a, **k)
+
+    def process_request(self, request, client_address):
+        with self._count:
+            self.accepted += 1
+        super().process_request(request, client_address)
+
+
 @contextlib.contextmanager
 def _page(limits=SMALL, start=None):
     import server
@@ -68,7 +84,7 @@ def _page(limits=SMALL, start=None):
     with _env(KG_BIND=None, KG_PAGE_LISTEN=None, KG_PAGE_TOKEN=None, KG_PAGE_AUTHORITIES=None, KG_PAGE_ORIGINS=None,
               KG_PUBLIC_PORT=None, KG_DEMO_HOST=None, KG_PAGE_MAX_RUNS=None):
         server.RUNNER = Runner()
-        httpd = hb.BoundedServer(("127.0.0.1", 0), Quiet, limits)
+        httpd = Counting(("127.0.0.1", 0), Quiet, limits)
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         try:
             yield httpd, calls, log
@@ -247,8 +263,11 @@ def test_limit_06_a_disconnect_or_a_failing_operation_leaks_nothing():
         raise RuntimeError("a run is already in progress")
     with _page(start=boom) as (httpd, calls, log):
         port = httpd.server_address[1]
-        for _ in range(SMALL.max_connections + 2):   # each leaves mid-body; a leaked slot would fill the server
+        sent = SMALL.max_connections + 2
+        for _ in range(sent):   # each leaves mid-body; a leaked slot would fill the server
             _send(port, _post(port, "/api/run", b'{"sc', length=b"40"), read=False)
+        # every one taken from the backlog first: before that, active() is 0 with nothing yet served
+        assert _wait(lambda: httpd.accepted >= sent, SMALL.read_timeout + TOLERANCE + 5), (httpd.accepted, sent)
         assert _wait(lambda: httpd.active() == 0, SMALL.read_timeout + TOLERANCE + 5), httpd.active()
         got, data = _send(port, _post(port, "/api/run", json.dumps({"scenario": "S1", "mode": "deterministic"}).encode()))
         assert got == 409 and b"Traceback" not in data and calls["start"] == 1
