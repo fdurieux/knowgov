@@ -3,11 +3,11 @@ id: TASK-0182
 title: >-
   Docs: the MCP servers over SSH stdio when the stack runs on another machine
   (EC2)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-06T17:01:00Z'
-updated_date: '2026-11-06T17:34:00Z'
+updated_date: '2026-11-06T17:48:00Z'
 labels:
   - docs
   - mcp
@@ -44,7 +44,7 @@ The route: stdio over SSH. The client starts `ssh -T <alias> docker compose -f k
 - [x] #2 demo/README.md's EC2 section links the new section
 - [x] #3 tests/test_mcp_server.py holds the section: its commands' flags, its Desktop JSON and the check's JSON-RPC lines; python tests/run_tests.py passes
 - [x] #4 CHANGELOG.md has a line under Unreleased > Changes (docs)
-- [ ] #5 Verified from the maintainer's Mac against the EC2 instance: store_status answers and list_subjects lists both subjects, in Claude Desktop and in Claude Code
+- [x] #5 Verified from the maintainer's Mac against the EC2 instance: store_status answers and list_subjects lists both subjects, in Claude Desktop and in Claude Code
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -61,6 +61,8 @@ Section at the end of instance/README.md's 'Letting an AI assistant ask the gate
 Verified 2026-11-06 from the maintainer's Mac against the EC2 instance (t3.large, Ubuntu 24.04, stack bound to 127.0.0.1). Claude Code: claude mcp list shows knowgov and knowgov-runs Connected over ssh -T knowgov-ec2. Claude Desktop: after its own config was replaced (it still ran the local /usr/local/bin/docker entry, log: service "app" is not running), the log shows /usr/bin/ssh, initialize, tools/list and prompts/list answered. store_status answered from the live Neo4j store: cargo_quote, S4, loaded 12:55 UTC, jef_data_load with nothing loaded. list_subjects listed cargo_quote (S1-S7) and jef_data_load (C, D1-D5). The tool answers were shown in one client's transcript; Claude Code connected through the same command. The one difference from the first draft, Claude Desktop's config being separate from claude mcp add, went into the troubleshooting list (f96e689).
 
 Correction: the Claude Code half of AC5 is not yet shown. The maintainer's Claude Code test ran in a cloud session, which cannot see the Mac's claude mcp add or reach the instance; the README now says so. AC5 waits on a local Claude Code session on the Mac.
+
+Claude Code half verified 2026-11-06 18:48 local, in a terminal session on the Mac (Claude Code 2.1.281): /mcp shows knowgov 17 tools and knowgov-runs 3 tools, both connected over ssh; asked what the store holds, it called knowgov twice and answered: Neo4j, cargo_quote S4 loaded 12:55 UTC, as-of 2026-11-06; subjects cargo_quote (S1-S7, S4 loaded) and jef_data_load (C, D1-D5, none loaded). Both clients now verified.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
