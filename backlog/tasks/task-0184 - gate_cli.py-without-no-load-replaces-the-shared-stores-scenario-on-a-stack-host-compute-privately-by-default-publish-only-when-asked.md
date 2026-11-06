@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-06T18:33:00Z'
-updated_date: '2026-11-06T18:34:00Z'
+updated_date: '2026-11-06T18:39:00Z'
 labels:
   - gate
   - store
@@ -52,9 +52,15 @@ In-process callers of `gate_cli._load` (`tools/check_round_trip.py`, `tools/chec
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The maintainer's choice among A, B and C is recorded with its four parts before any code (in this task's notes, or a decision record if it changes the gate's contract), and its release follows decision-0016
+- [x] #1 The maintainer's choice among A, B and C is recorded with its four parts before any code (in this task's notes, or a decision record if it changes the gate's contract), and its release follows decision-0016
 - [ ] #2 Run as the adopter docs show on a store holding another scenario, the gate command leaves that store's held scenario and generation unchanged unless an explicit flag asks to replace it; a test proves it on both adapters
 - [ ] #3 For each subject, scenario, task and as_of the report (JSON and exit code) equals the one the loading command gives today
 - [ ] #4 Every caller listed in the description still passes, with the explicit flag where it needs the publish: demo.yml's stack steps, tools/check_mcp_server.py, instance/ci/knowgov-gate.sh and its wrappers, harness.yml
 - [ ] #5 demo/README.md, docs/guide.md and instance/README.md say which store the command writes, in the adopter register; the module docstring and CHANGELOG.md (under its contract heading if the contract changes) follow
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-06: the maintainer chose option B ("go for option B on task-0184"). Recorded as decision-0017, accepted, with its four parts: the default computes on store.scratch_store(); --publish loads into and publishes to the configured store, as today; --publish with --no-load exits 2; --no-load is unchanged; the callers that read after the load pass --publish (knowgov-gate.sh: KG_PUBLISH=1 beside KG_NO_LOAD). A contract change after 0.8.0: it gathers for 0.9.0 under decision-0016. A's doc lines land with the build.
+<!-- SECTION:NOTES:END -->
