@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-06T07:42:00Z'
-updated_date: '2026-11-06T10:43:00Z'
+updated_date: '2026-11-06T15:57:00Z'
 labels:
   - ci
 dependencies:
@@ -50,6 +50,8 @@ AC #1: CI green; tests/test_rdflib_split.py holds every old step in exactly one 
 The third run, this closing PR's own, follows.
 
 Third run, this closing PR #299 at 5ad6322: rdflib 14.8 min, rdflib-readers 16.8 min, 13 other runs overlapping. In all three runs rdflib-readers is over 12 min (12.5, 13.9, 16.8) and rdflib in two of three (8.4, 13.2, 14.8). None of the three was uncontended. AC #2 stays open: no uncontended figure, and every contended one for rdflib-readers is over the budget. The task closes on the coordinating session's order (2026-11-06: 'Leave AC #2 open if the figure misses 12 min, with the numbers'). Whether the budget is met is left to a quiet-slot workflow_dispatch measurement.
+
+Quiet-slot measurement (coordinator, 2026-11-06 15:38-15:56 UTC, under doc-0029): a re-run of #318's harness run (42241939066, attempt 2, PR subset) with 4 other runs active, all main's: rdflib 17.2 min, rdflib-readers 10.1 min. Readers are now under the 12-min budget (the split plus task-0097's cache). The record half is over and grew from 8.4-14.8 to 17.2, because today's checks landed in it (SNAP-08 by task-0175, task-0172's schema tests on rdflib stores); contention does not explain it. AC #2 stays open. The next lever, a third parallel job for the Turtle round trip (about 6.35 min of rdflib), is task-0180, minted unstarted: it adds a job to the ruleset's required checks, which is the maintainer's.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

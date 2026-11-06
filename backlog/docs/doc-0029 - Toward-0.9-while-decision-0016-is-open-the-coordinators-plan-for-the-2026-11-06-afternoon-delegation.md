@@ -5,7 +5,7 @@ title: >-
   2026-11-06 afternoon delegation
 type: other
 created_date: '2026-11-06T13:02:00Z'
-updated_date: '2026-11-06T14:43:00Z'
+updated_date: '2026-11-06T15:57:00Z'
 ---
 *2026-11-06. Maintainer register. A choice taken under the maintainer's delegation of ~13:00 UTC: "I'll be off again for a few hours; continue unsupervised; use the swot, opportunity canvas, fit/gap, and derive an advise which you then document and execute." Drafted and executed by the coordinating session. It decides no record question: decision-0016 and decision-0011 stay the maintainer's, and nothing here accepts either.*
 
@@ -132,3 +132,40 @@ The second tranche merged: task-0175 (#314) and task-0177 (#315). Of the four li
 - dispatch task-0176, with a switch-off setting for the pre-check;
 - dispatch task-0178;
 - task-0163's AC #2 still waits for a quiet slot.
+
+## Close of the window, 2026-11-06 16:00 UTC
+
+**The three tranches are done.** All merged, on whole green matrices:
+- **First tranche:**
+  - task-0172, the MCP output schemas (#311);
+  - task-0160, the raw-byte file digest (#310);
+  - task-0173, the Known limits pass (#312);
+  - task-0174's plan, filed (#312).
+- **Second tranche:** task-0175, an abandoned Neo4j publication recovered (#314), and task-0177, response sizes bounded (#315).
+- **Third tranche:** task-0176, the heap a load needs (#318), and task-0178, the register panel shows what an update withdrew (#317).
+
+All four limits that task-0173 minted are closed. The limits left are the thirteen doc-0028 §10 proposes as 1.0 limits, and naming them is the maintainer's word.
+
+**task-0163's budget, measured.** The measurement was a re-run of #318's PR harness, with 4 other runs active:
+- `rdflib-readers` took 10.1 min, under the 12-minute budget;
+- `rdflib` took 17.2 min, over it, because today's checks landed in the record half.
+
+AC #2 stays open. task-0180 is minted, not started: the round trip as a third parallel job.
+
+**What next: nothing more is dispatched in this window.**
+
+| Box | Content |
+|---|---|
+| Problem | What to start in the time left, with the delegation ending at ~17:00. |
+| Today | The open To Do tasks are the maintainer's to decide, gated on the pilot, or parked:<br>- the maintainer's: task-0058, the licence; task-0060, the entity; task-0061, the name; task-0174, the format scheme; task-0179, the Claude row's upstream key; task-0180, which adds a required check;<br>- at the pilot: task-0057, task-0103, task-0108 and task-0125;<br>- parked: task-0073, task-0104, task-0153, task-0154 and task-0164;<br>- spikes: task-0008 and task-0053;<br>- task-0074 and task-0123 propose changes to ieam-register and to the source tool. |
+| Solution | Start nothing new. Merge what is open, record, and hand over. |
+| Cost | Idle sessions for the rest of the window. |
+| Risk | None of note: every candidate needs the maintainer's word or the pilot. |
+
+- **Fit/gap.** The delegation says to derive advice and execute it. Here the honest advice is to stop: starting a maintainer-held or pilot-gated task would exceed it. task-0180 needs a ruleset change.
+- **SWOT.**
+  - Strengths: the record ends clean, with no half-built work.
+  - Weaknesses: idle capacity.
+  - Opportunities: the maintainer returns to a short, decision-only list.
+  - Threats: none.
+- **Advice, executed:** stop dispatching. Summarise on the queue page, and leave the maintainer's list as the queue page's "Yours".
