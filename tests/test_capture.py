@@ -204,3 +204,57 @@ def test_no_verification_reaches_a_captured_or_a_model_statement():
     load = (ROOT / "harness" / "load.py").read_text(encoding="utf-8")
     block = load[load.index("def load_captures"):]
     assert '"basis": "elicited", "status": "proposed"' in block and not re.search(r'"status": "(verified|approved|validated)"', block)
+
+
+# ---- task-0113: the questionnaire names the unit that closes a declared gap
+
+def _s2_with_od1() -> dict:
+    """S2's result with OD-1 held on its key, as the store holds it (the run file keeps no gap detail)."""
+    rules = CARGO_QUOTE.rules
+    res = _s2()
+    res["keys"]["QuoteAPI|on_screening_outage"]["declared_gaps"] = [
+        {"id": rules["declared_gap_id"], "text": rules["declared_gap_text"].format(req="REQ-06")}]
+    return res
+
+
+def test_s2s_questionnaire_for_org_0002_names_org_0004_as_closing_od_1():
+    """AC1: the item on OD-1 names the closer the gate's finding names (task-0110), in a field and a
+    comment; an item with no declared gap carries neither, and no other owner's questionnaire changes."""
+    nodes = capture.register_nodes(ROOT / "demo" / "register")
+    qs = capture.questionnaires(_s2_with_od1(), CARGO_QUOTE, "S2", "codegen", nodes, TODAY)
+    doc = tomllib.loads(qs["ORG-0002"])
+    item = next(i for i in doc["item"] if i["key"] == "QuoteAPI|on_screening_outage")
+    assert (item["gap"], item["closed_by"], item["closed_by_name"]) == ("gap:declared:OD-1", "ORG-0004", "Compliance (stand-in)")
+    assert ("# gap:declared:OD-1 is closed by ORG-0004 Compliance (stand-in), by a review under a handle with the role closes; "
+            "an answer here does not close it.") in qs["ORG-0002"]
+    for i in doc["item"]:
+        if i["key"] != "QuoteAPI|on_screening_outage":
+            assert not {"gap", "closed_by", "closed_by_name"} & set(i), i
+    want = capture.gap_closers(CARGO_QUOTE, {"QuoteAPI|on_screening_outage": _s2_with_od1()["keys"]["QuoteAPI|on_screening_outage"]["declared_gaps"]})
+    assert item["closed_by"] == want["QuoteAPI|on_screening_outage"]["unit"]
+    before = capture.questionnaires(_s2(), CARGO_QUOTE, "S2", "codegen", nodes, TODAY)
+    assert qs["ORG-0001"] == before["ORG-0001"] and "closed_by" not in before["ORG-0002"]
+
+
+def test_ingest_is_unchanged_and_a_questionnaire_from_before_still_ingests():
+    """AC2: the same answers give the same capture whether the questionnaire names the closer or not
+    (one written before task-0113 carries no closed_by); ingest reads only key, answer, nobody_knows, note."""
+    keys = set(CARGO_QUOTE.tasks["codegen"]["keys"])
+    pattern = capture.handle_pattern(ROOT / "demo" / "register")
+    nodes = capture.register_nodes(ROOT / "demo" / "register")
+    new = tomllib.loads(capture.questionnaires(_s2_with_od1(), CARGO_QUOTE, "S2", "codegen", nodes, TODAY)["ORG-0002"])
+    assert any("closed_by" in i for i in new["item"])
+    old = {**new, "item": [{k: v for k, v in i.items() if k not in ("gap", "closed_by", "closed_by_name")} for i in new["item"]]}
+    caps = []
+    for doc in (new, old):
+        doc["answered"] = {"from": "employee-1", "on": "2026-11-02"}
+        for it in doc["item"]:
+            if it["key"] == "response|hold_presence":
+                it["answer"] = "present when status is review_hold"
+            if it["key"] == "QuoteAPI|on_screening_outage":
+                it["nobody_knows"], it["note"] = True, "compliance has not decided"
+        errs, cap = capture.check_answers(doc, pattern, keys, TODAY)
+        assert errs == [], errs
+        caps.append(capture.capture_toml(cap, "captures/2026-11-02-ORG-0002-employee-1.toml"))
+    assert caps[0] == caps[1]
+    assert tomllib.loads(caps[0])["unknown"] == [{"key": "QuoteAPI|on_screening_outage", "note": "compliance has not decided"}]
