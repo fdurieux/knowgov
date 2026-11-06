@@ -5,7 +5,7 @@ title: >-
   top-right
 type: specification
 created_date: '2026-11-03T22:44:00Z'
-updated_date: '2026-11-06T09:37:00Z'
+updated_date: '2026-11-06T09:56:00Z'
 tags:
   - brief
   - positioning
@@ -104,11 +104,11 @@ Nothing else changes. S1's items became tasks on the maintainer's go of 2026-11-
 
 ## 8. Re-score, 2026-11-06 (home team, neutral rubric)
 
-*2026-11-06. Triggers:
+2026-11-06. Triggers:
 - §7's "an MCP surface: re-score E and V4" fired with task-0056 (the reader has grown to 16 tools since);
 - the maintainer's question of this date: the quadrant now and as a v1.0.
 
-Scored in session at knowgov `43ee83f` (after v0.7.0), ieam-register `735b2e2` (v0.2.12) and pumllint `a39d800`. Checked again at knowgov `a743cca`: no cell moves. That includes decision-0015 and task-0161 (`b44b9bd`), and task-0159's CI hygiene (#285), whose coverage figure is not counted here. The wording is §2's neutral wording, with no anchors (doc-0027's anchors are for the external pass). The field is not re-scored. This is home-team scoring with no external pass yet: doc-0027 is the brief for one, and its output is compared here when it returns. The v1.0 gap lists are doc-0028's; the definition of 0.9 and 1.0 is proposed in decision-0016.*
+Scored in session at knowgov `43ee83f` (after v0.7.0), ieam-register `735b2e2` (v0.2.12) and pumllint `a39d800`. Checked again at knowgov `a743cca`: no cell moves. That includes decision-0015 and task-0161 (`b44b9bd`), and task-0159's CI hygiene (#285), whose coverage figure is not counted here. The wording is §2's neutral wording, with no anchors (doc-0027's anchors are for the external pass). The field is not re-scored. This is home-team scoring with no external pass yet: doc-0027 is the brief for one, and its output is compared here when it returns. The v1.0 gap lists are doc-0028's; the definition of 0.9 and 1.0 is proposed in decision-0016.
 
 | | V1 | V2 | V3 | V4 | **V** | E1 | E2 | E3 | E4 | **E** |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
@@ -162,13 +162,13 @@ A version number is an E1 lever, worth one point. The dot moves right with the l
 
 ## 9. External pass, 2026-11-06 (doc-0027, first runner)
 
-*2026-11-06. The run:
+2026-11-06. The run:
 - Brief: doc-0027, sent unedited by the coordinating session.
 - Model and settings: OpenAI `gpt-5.5-2026-04-23`, Responses API, effort high, web search on. This is the operator's record; the report's own runner section says "model not exposed".
 - Time: 09:02–09:10 UTC; 237,973 input tokens and 29,060 output.
 - Inputs: the 13 files doc-0027 §4 marks required, fetched at its pins and attached (aris2puml `main` at `ca22e13`). It also browsed the §4.4 pages.
 
-The raw report stays outside the repository; this is our reading of it. It is one runner of the two families doc-0027 asks for. It did not read the code, so most of the stack's cells rest on `documented` evidence. Its contamination log names pumllint's PyPI page (the diagram-as-code quadrant), influence "none", and J-F mentions, ignored.*
+The raw report stays outside the repository; this is our reading of it. It is one runner of the two families doc-0027 asks for. It did not read the code, so most of the stack's cells rest on `documented` evidence. Its contamination log names pumllint's PyPI page (the diagram-as-code quadrant), influence "none", and J-F mentions, ignored.
 
 **The stack.**
 
