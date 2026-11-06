@@ -1045,7 +1045,8 @@ differ; the self-check in step 3 is what decides.
    24.04 LTS**, 64-bit (x86); the console may offer a newer release first,
    which has not been recorded. Choose `t3.large`, create a key pair and keep
    its `.pem` file on your own machine (`chmod 400` it), raise the root
-   volume to 30 GiB gp3, and let the security group allow **SSH from My IP
+   volume to 30 GiB gp3 (the default 8 GiB fills with the images, and Neo4j
+   then exits at start with an out-of-disk error in its log), and let the security group allow **SSH from My IP
    only**. Open no other port.
 
 2. *Install and clone.* Connect with
