@@ -6,7 +6,9 @@ the answers back in as statements attributed to the person who gave them.
     python harness/capture.py review REVIEW.toml [--scenario ID]
     python harness/capture.py due [--on DATE] --out DIR
 
-``questionnaire`` loads the scenario as the gate command does, resolves the task, and writes one
+``questionnaire`` loads the scenario as the gate command does, into a scratch store of its own
+(``store.scratch_store``, task-0183: the store ``KG_STORE`` names, which the page and the MCP servers
+read, keeps what it holds), resolves the task, and writes one
 TOML file per owner into DIR. An owner is the organisation unit the register names as owner of
 the nodes a key concerns (the subject's ``register_map.toml``), or the one unit the row names as its
 ``owner`` when it names one of those (task-0043); a key no row maps goes to
@@ -32,7 +34,7 @@ handle's answers go to the owner unit. No name is written anywhere.
 ``review --show`` prints each ruled answer with its note and writes nothing: the reviewer reads it
 before ruling, since a note can identify the person behind the handle and no pattern can tell
 (doc-0007 F6). ``review`` checks a person's review of what the loaded scenario holds (harness/review.py, under
-decision-0002) and writes it into ``<capture dir>/reviews/``, where every load of its scenario
+decision-0002), loaded into a scratch store as ``questionnaire``'s is, and writes it into ``<capture dir>/reviews/``, where every load of its scenario
 reads it after the rules: an approved statement goes to approved, a rejected one leaves the live
 set, a declared gap its owner closes stops blocking. Refused, it is not written (exit 1).
 
@@ -415,8 +417,12 @@ def main(argv: list[str] | None = None) -> int:
     ra.add_argument("--show", action="store_true", help="print each ruled answer with its note, before ruling; write nothing")
     args = ap.parse_args(argv)
     sys.path.insert(0, str(HERE))
+    from store import ScratchUnavailable
     try:
         return {"questionnaire": _questionnaire, "ingest": _ingest, "review": _review, "due": _due}[args.cmd](args)
+    except ScratchUnavailable as e:
+        print(f"capture: cannot run: {e}", file=sys.stderr)
+        return 2
     except CannotRun as e:
         print(f"capture: cannot run: {e}", file=sys.stderr)
         return 2
@@ -433,8 +439,8 @@ def _questionnaire(args) -> int:
     if args.task not in TASKS:
         raise CannotRun(f"{SUBJECT.id}: no task {args.task!r}")
     from gate import resolve
-    from store import open_store
-    with open_store(instance=SUBJECT.id, access="write") as st:   # the load, published when it completes (task-0141.02)
+    from store import scratch_store
+    with scratch_store(instance=SUBJECT.id) as st:   # a private load: the shared store keeps what it holds (task-0183)
         gate_cli._load(st, scenario)
         res = resolve(st, args.task)
     nodes = register_nodes(register_root())
@@ -506,7 +512,7 @@ def _review(args) -> int:
     import gate_cli
     import review
     from rules import compatible
-    from store import open_store
+    from store import scratch_store
     from subject import SUBJECT
     try:
         doc = tomllib.loads(args.review.read_text(encoding="utf-8"))
@@ -520,7 +526,7 @@ def _review(args) -> int:
         raise CannotRun(f"{SUBJECT.id}: no scenario {scenario!r}")
     doc.setdefault("review", {})["scenario"] = scenario
     reg = register_root()
-    with open_store(instance=SUBJECT.id, access="write") as st:   # the load, published when it completes (task-0141.02)
+    with scratch_store(instance=SUBJECT.id) as st:   # a private load: the shared store keeps what it holds (task-0183)
         gate_cli._load(st, scenario)    # with the captures and the reviews already written
         errs, rv = review.check(doc, st, handles=review.issued_handles(reg), owners=owners_of(SUBJECT, register_nodes(reg)),
                                 units=review.organisation_units(reg), captures=review.capture_index(SUBJECT.capture_dir),

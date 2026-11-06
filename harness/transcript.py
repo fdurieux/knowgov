@@ -3,7 +3,8 @@ candidate statements, never knowledge (doc-0001 §0, doc-0007 §6).
 
     python harness/transcript.py TRANSCRIPT [--scenario ID] [--task NAME] [--into DIR]
 
-It loads the scenario as the gate command does, takes the task's required keys the gate holds
+It loads the scenario as the gate command does, into a scratch store of its own (``store.scratch_store``,
+task-0183: the store ``KG_STORE`` names keeps what it holds), takes the task's required keys the gate holds
 nothing on (absent, or a declared gap), and asks the model at the instance's endpoint
 (harness/arms.py ``endpoint()``) what the transcript says about each. Every value it proposes for one
 of those keys is written to ``<capture dir>/inferred/``; every load reads that folder after the
@@ -107,8 +108,12 @@ def run(args, call=None) -> int:
         raise CannotRun(f"{args.transcript}: {e}") from e
     import gate_cli
     from gate import resolve
-    from store import open_store
-    with open_store(instance=SUBJECT.id, access="write") as st:   # the load, published when it completes (task-0141.02)
+    from store import ScratchUnavailable, scratch_store
+    try:
+        st = scratch_store(instance=SUBJECT.id)   # a private load: the shared store keeps what it holds (task-0183)
+    except ScratchUnavailable as e:
+        raise CannotRun(str(e)) from e
+    with st:
         gate_cli._load(st, scenario)
         keys = open_keys(resolve(st, args.task))
     if call is None:

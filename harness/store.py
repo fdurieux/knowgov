@@ -25,6 +25,12 @@ holds a lease in the database from open to close, writes the whole unit in one t
 publishes under a sequence lock that every read call checks (``store_neo4j.py``): a publication that
 lands during a read raises ``StoreChanged``, and ``read()`` runs the logical read again.
 
+A scratch store (task-0183): ``scratch_store()`` is a writer on an rdflib graph in this process's memory,
+never a file and never the store ``KG_STORE`` names. A command that computes an answer for one person
+(``capture.py questionnaire`` and ``review``, ``transcript.py``) loads its scenario there, so that the
+shared store the page, the runs and the MCP servers read keeps what it holds. The shared store is
+written only by a run, the gate command, a trace registration and the register projection.
+
 Status and provenance are the store's; content stays in git. Every adapter must give the
 same answers for the same calls, which the deterministic comparator checks on the CargoQuote
 record. The evaluation's §11 names when another store would be preferred; with this port that
@@ -502,6 +508,23 @@ def setting(name: str, fallback=None):
     if not (lo <= v <= hi) or v != v:
         raise ValueError(f"{name} must be between {lo:g} and {hi:g}, not {raw!r}")
     return v
+
+
+class ScratchUnavailable(RuntimeError):
+    """No scratch store can be made here: the rdflib adapter cannot be imported."""
+
+
+def scratch_store(instance: str = ""):
+    """A write handle of this process's own (task-0183): an rdflib graph in memory, never a file and never
+    the store ``KG_STORE`` names, so a load into it publishes nothing anyone else reads. The gate's report
+    is the same on either adapter (``tools/check_round_trip.py --chain``), so what is computed on it is
+    what the shared store would give after the same load."""
+    try:
+        from store_rdflib import RdflibStore
+    except ImportError as e:
+        raise ScratchUnavailable(f"a private store needs rdflib ({e}); install the harness's pins: "
+                                 "pip install -r demo/requirements.txt") from e
+    return RdflibStore(path="", instance=instance, access="write")
 
 
 def read_attempts() -> int:

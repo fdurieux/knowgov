@@ -66,6 +66,14 @@ names that section with the version.
 
 ### Changes
 
+- **The capture commands no longer reload the shared store** (task-0183). Before, `capture.py questionnaire`,
+  `capture.py review` and `harness/transcript.py` wiped the store `KG_STORE` names and loaded their scenario
+  into it. On a stack, that is the Neo4j the page and the MCP servers read, so an owner following the gate's
+  own route replaced the scenario everyone saw. Each now loads into a private in-memory store of its own
+  (`store.scratch_store`) and leaves the shared store as it was. The files they write are the same. They now
+  need rdflib, which is pinned in `demo/requirements.txt` and present in the image; without it they exit 2
+  and name the install. The onboarding skill no longer sets `KG_STORE=rdflib` for the questionnaire.
+
 - **The road to 1.0 is decided** (decision-0016). 0.9.0 will freeze the contracts an adopter builds on,
   and the contract changes made since 0.8.0 wait for it. After 0.9.0, a 0.9.x release carries only fixes,
   and any contract change becomes 0.10.0. 1.0.0 follows once a pilot organisation has run on the 0.9
