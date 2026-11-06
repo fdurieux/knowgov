@@ -41,6 +41,10 @@ names that section with the version.
   would get, beside the unchanged `arms_enabled`. With a key and no confined worker, the chip reads
   "arms: no contained worker" and the Arms buttons stay greyed, with the reason and the fix
   (`--profile arms`, on Linux with Landlock). `demo/README.md` gives the one-command worker self-check.
+- **knowgov-runs says whether an Arms run would start** (task-0168). `run_options` passes the page's
+  `execution` through (`{"ok", "why"}`, task-0167) and adds `arms_ready`: true only when a model key is
+  set, the operator allows arms, and model output may run. `arms_enabled` and `arms_on_page` are
+  unchanged. A page older than task-0167, which does not report `execution`, reads as refused.
 
 ## 0.8.0 — 2026-11-06
 

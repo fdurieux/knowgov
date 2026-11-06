@@ -40,8 +40,9 @@ class _Resp:
 class StubPage:
     """The page's run API: records every request; one run at a time, as the Runner's lock."""
 
-    def __init__(self, run_text=""):
+    def __init__(self, run_text="", execution=None):
         self.requests, self.current, self.run_text = [], None, run_text
+        self.execution = {"ok": True, "why": None} if execution is None else execution   # "absent": the page omits it
 
     def __call__(self, req, timeout=None):
         body = json.loads(req.data) if req.data else None
@@ -59,7 +60,8 @@ class StubPage:
         if path.startswith("/api/run?"):
             return _Resp(200, self.current or {"status": "idle"})
         if path.startswith("/api/scenarios"):
-            return _Resp(200, {"scenarios": [{"id": "S1"}, {"id": "S2"}], "arms_enabled": True, "deterministic_enabled": True,
+            extra = {} if self.execution == "absent" else {"execution": self.execution}
+            return _Resp(200, {**extra, "scenarios": [{"id": "S1"}, {"id": "S2"}], "arms_enabled": True, "deterministic_enabled": True,
                                "model_rows": [{"id": "openai-gpt", "label": "x", "provider": "openai", "host": "api.openai.com",
                                                "model": "m", "efforts": ["low"], "key_var": "OPENAI_API_KEY", "key_set": True,
                                                "available": True, "why": "", "price": 3}],
@@ -108,6 +110,25 @@ def test_only_the_modes_the_operator_allows_start_and_deterministic_is_the_defau
         assert not any("price" in r for r in opts["model_rows"]), "the rows as the page lists them, no more"
     with _Env(KG_MCP_RUN_MODES="deterministic"):
         assert _call(_server(StubPage()), "run_options")["structuredContent"]["arms_enabled"] is False, "arms on the page, not allowed here"
+
+
+def test_run_options_says_whether_an_arms_run_would_start_not_only_whether_a_key_is_set():
+    """task-0168: the page's execution passed through, and arms_ready when a key, the operator's modes and
+    execution all hold; arms_enabled and arms_on_page as before."""
+    no_worker = {"ok": False, "why": "refused: the worker has not attested its confinement (/jobs/attest.json: FileNotFoundError)"}
+    with _Env(KG_MCP_RUN_MODES="deterministic,arms"):
+        ok = _call(_server(StubPage()), "run_options")["structuredContent"]
+        assert ok["execution"] == {"ok": True, "why": None} and ok["arms_ready"] and ok["arms_enabled"], ok
+        refused = _call(_server(StubPage(execution=no_worker)), "run_options")["structuredContent"]
+        assert refused["execution"] == no_worker and refused["arms_ready"] is False, refused
+        assert refused["arms_enabled"] and refused["arms_on_page"], "the key count is unchanged, for compatibility"
+        old = _call(_server(StubPage(execution="absent")), "run_options")["structuredContent"]
+        assert old["execution"]["ok"] is False and "task-0167" in old["execution"]["why"] and not old["arms_ready"], old
+    with _Env(KG_MCP_RUN_MODES="deterministic"):
+        assert _call(_server(StubPage()), "run_options")["structuredContent"]["arms_ready"] is False, "not allowed here"
+    table = {t["name"]: t for t in mcp_runs.tools_table()}
+    assert "arms_ready" in table["run_options"]["description"] and "execution" in table["run_options"]["description"]
+    assert "arms_ready" in mcp_runs.INSTRUCTIONS
 
 
 def test_n_is_always_one_and_the_run_is_marked_by_mcp():

@@ -8,7 +8,8 @@ starts no process of its own: the page's one runner, its lock, its token rule (t
 run folder (``run.json``, with ``by: mcp``) serve every run, and the page's banner shows it. Three
 tools:
 
-    run_options   what may be run: the modes this server allows, whether the page can run each, the
+    run_options   what may be run: the modes this server allows, whether the page can run each (for
+                  arms, a key and a contained worker: arms_ready, with execution's reason), the
                   model rows with their availability (never a key), the subject's scenarios and the
                   run under way, if any (read-only)
     start_run     start one run of a scenario: deterministic, or arms when the operator allows it,
@@ -51,7 +52,8 @@ LOG_TAIL = 4000          # characters of the log run_status returns
 TIMEOUT = 30             # seconds a call to the page may take; a run is polled, never waited on
 
 INSTRUCTIONS = ("knowgov-runs starts a scenario run of the subject through the knowgov page, and reports on it. "
-                "Call run_options first: it names the modes you may start and the model rows. Then start_run, "
+                "Call run_options first: it names the modes you may start and the model rows; for an arms run, "
+                "arms_ready says whether one would start and execution.why why not. Then start_run, "
                 "and poll run_status until the status is done or failed; a run never answers in one call. A run "
                 "wipes and reloads the one store the page, its viewers and the knowgov reader share, so every viewer "
                 "sees your run, and the reader refuses its gate while the run loads. It never writes the record. "
@@ -77,7 +79,9 @@ def tools_table() -> list[dict]:
         {"name": "run_options", "title": "What may I run?",
          "description": "The modes this server lets you start (allowed_modes, from the operator's KG_MCP_RUN_MODES), whether "
                         "the page can run each now (deterministic_enabled: the store is reachable; arms_enabled: the subject has "
-                        "an oracle and a model row's key is set), the model rows with their availability and efforts (never a "
+                        "an oracle and a model row's key is set; execution: whether model output may run now, ok and why not, "
+                        "the instance guard and the contained worker's attestation; arms_ready: both, so an arms run would "
+                        "start), the model rows with their availability and efforts (never a "
                         "key), the subject's scenarios, whether the page asks for a token, and the run under way, if any.",
          "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
          "annotations": READ_ONLY},
@@ -168,6 +172,14 @@ def _run_view(r: dict, tail: bool, page: "Page | None" = None) -> dict:
     return out
 
 
+def _execution(j: dict) -> dict:
+    """The page's ``execution`` as {ok, why}; a page that does not report it (before task-0167) reads refused."""
+    e = j.get("execution")
+    if not isinstance(e, dict) or not isinstance(e.get("ok"), bool):
+        return {"ok": False, "why": "the page does not say whether model output may run (a page before task-0167)"}
+    return {"ok": e["ok"], "why": None if e["ok"] else str(e.get("why") or "refused")}
+
+
 class RunTools:
     def __init__(self, page: Page | None = None):
         self.page = page or Page()
@@ -178,10 +190,14 @@ class RunTools:
         if code != 200:
             raise ToolError(_error_text(self.page, code, j))
         modes = allowed_modes()
+        execution = _execution(j)
         return {"subject": sid, "page": self.page.url, "allowed_modes": modes,
                 "deterministic_enabled": bool(j.get("deterministic_enabled")),
                 "arms_enabled": bool(j.get("arms_enabled")) and "arms" in modes,
                 "arms_on_page": bool(j.get("arms_enabled")),
+                # task-0168: whether model output may run now, as the page reports it (execution.refusal(): the
+                # instance guard, the backend, the worker's attestation); an arms run starts only when it holds too
+                "execution": execution, "arms_ready": bool(j.get("arms_enabled")) and "arms" in modes and execution["ok"],
                 "model_rows": [{k: r.get(k) for k in ("id", "label", "provider", "host", "model", "efforts", "key_var",
                                                        "key_set", "available", "why")} for r in j.get("model_rows") or []],
                 "record_model": j.get("record_model"), "record_effort": j.get("record_effort"),
