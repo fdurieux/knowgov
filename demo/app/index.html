@@ -392,6 +392,19 @@ function registerEntry() {
       <div class="modes"><button class="small on" data-id="register" data-mode="open">${on ? 'Open ✓ shown' : 'Open'}</button></div></div>`;
 }
 
+// what the register's last update withdrew, as harness/register_change.py computes it for the gate's
+// --register-previous (task-0178): one line when no previous register is configured
+function registerChange(ch) {
+  if (!ch) return '';
+  if (!ch.configured) return `<div class="small" id="reg-change">${esc(ch.sentence)}</div>`;
+  if (ch.error) return `<div class="small" id="reg-change"><b>${esc(ch.sentence)}</b> ${esc(ch.error)}</div>`;
+  const items = [...ch.nodes.map(n => [n.id, 'node', n.from, n.to, n.reason]), ...ch.links.map(l => [l.id, `link ${l.rel}: ${l.source} → ${l.target}`, l.from, l.to, l.reason])];
+  const table = (cols, rows) => rows.length ? `<div class="tw"><table><thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '';
+  return `<div id="reg-change"><h3>What the last register update withdrew</h3><div class="small">${esc(ch.sentence)}</div>
+    ${table(['withdrawn', 'what', 'before', 'now', 'reason'], items.map(([id, what, a, b, why]) => [id, what, a, b || 'gone', why]))}
+    ${table(['key resting on it', 'owner', 'through', 'reason'], ch.keys.map(k => [k.key, k.owner || 'none in the register map', k.causes.join(', '), k.reasons.join('; ')]))}</div>`;
+}
+
 async function showRegister(today) {
   STATE.current = 'register'; STATE.shown = null; renderMenu();
   $('#report').innerHTML = '<div class="card small">loading the register…</div>';
@@ -409,6 +422,7 @@ async function showRegister(today) {
       <div style="margin:8px 0 2px"><b>${r.summary.nodes} nodes, ${r.summary.links} links.</b> ${esc(r.health)}</div>
       <pre class="light">${esc(r.coverage_lines.join('\n'))}</pre>
       <div class="small">${r.exceptions.map(e => esc(e.sentence)).join(' ')} ${esc(r.matrix.sentence)}</div>
+      ${registerChange(r.register_change)}
       <div class="two" style="margin-top:14px">
         <div><h3 style="margin-top:0">Nodes, by taxonomy · click one for its panel</h3>${sliceLine}${taxes}</div>
         <div>

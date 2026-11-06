@@ -468,10 +468,7 @@ def _register_change(st, subject, scenario: str, change: dict, previous: Path) -
                 st.register_derived(did, d.get("kind", "artefact"), sha256(path.read_text(encoding="utf-8")), ids)
                 break
     done = rc.apply(st, landed)
-    return {"from": change["from"], "to": change["to"], "nodes": change["nodes"], "links": change["links"],
-            "keys": [{"key": k["key"], "owner": k["owner"], "reasons": k["reasons"],
-                      "causes": sorted({c.get("node") or c.get("link") for c in k["causes"]})} for k in landed],
-            "invalidated": [x["id"] for x in done["invalidated"]], "derived": did}
+    return {**rc.block(change, landed), "invalidated": [x["id"] for x in done["invalidated"]], "derived": did}
 
 
 def _load(st, scenario: str) -> None:

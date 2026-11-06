@@ -48,6 +48,15 @@ names that section with the version.
 
 ### Changes
 
+- **The page's Register view shows what a register update withdrew** (task-0178). Set
+  `KG_REGISTER_PREVIOUS` to the register as it was before the update, and the view lists the nodes it
+  deprecated or retired, the links it withdrew, each with its reason, and the subject's keys that rest
+  on them. `GET /api/register` carries it as `register_change`. It is computed by the same code as
+  the gate's `--register-previous` block, and `tools/check_register_change.py` holds the two equal.
+  The page reads the setting once, at start, and writes to neither register. Without it, the view
+  says so in one line; a missing path is shown, not raised. This lifts the page half of 0.8.0's known
+  limit on register changes.
+
 - **Every MCP tool's output has a pinned schema** (task-0172). Each tool of the reader and of
   `knowgov-runs` names the schema of its `structuredContent` at the end of its description. Ten are
   new: `store-status`, `three-valued-answer`, `evidence-bundle`, `register-impact`, `list-subjects`,

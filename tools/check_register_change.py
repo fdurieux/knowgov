@@ -14,6 +14,11 @@ REL-06001 withdrawn), then runs ``harness/gate_cli.py --scenario S1 --as-of reco
 2. a register update with no state change: nothing withdrawn, nothing invalidated, and the report
    equal to the gate's without the flag, ``register_change`` aside: exit 0, the record's PROCEED.
 
+3. the page (task-0178): ``demo/app/register_view.register_change`` with ``KG_REGISTER_PREVIOUS`` on the
+   vendored register shows, for each pair, the gate's ``register_change`` block less what the gate wrote
+   (``invalidated``, ``derived``): equal, field by field; a previous register that is not there is
+   reported, never raised.
+
 Every report is valid against the schema, and with more than one store kind each run's report must
 equal across them, the store's name aside (both adapters agree). Exit 0 when every check holds.
 """
@@ -60,6 +65,20 @@ def gate(out: Path, name: str, store: str, register: Path | None, *args: str) ->
     return rep
 
 
+PAGE_FIELDS = ("from", "to", "nodes", "links", "keys")   # the gate's block less what it writes
+_PAGE = ("import json, register_view\n"
+         "print(json.dumps(register_view.register_change()))")
+
+
+def page(register: Path, previous: Path) -> dict:
+    """The page's register-change section, as ``demo/app/register_view`` computes it at start."""
+    env = cadence.pin_record({**os.environ, "KG_REGISTER": str(register), "KG_REGISTER_PREVIOUS": str(previous)})
+    p = subprocess.run([sys.executable, "-c", _PAGE], cwd=ROOT / "demo" / "app", capture_output=True, text=True, env=env)
+    if p.returncode != 0:
+        sys.exit(f"FAIL: the page's register change raised (exit {p.returncode}):\n{p.stdout}{p.stderr}")
+    return json.loads(p.stdout.strip().splitlines()[-1])
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("out", type=Path)
@@ -103,12 +122,26 @@ def main(argv: list[str] | None = None) -> int:
                 f["kind"] == "suspect_derived" and f["severity"] == "blocker" and f["ref"] == DERIVED for f in ch["findings"]):
             failures.append(f"{store} changed: {DERIVED} is not registered and reported suspect, a blocker")
         src = sm.pop("register_change", None) or {}
+        runs[store]["same_change"] = src
         if src.get("nodes") or src.get("links") or src.get("keys") or src.get("invalidated") or src.get("derived"):
             failures.append(f"{store} same: a register update with no state change invalidated something: {src}")
         if sm != plain or plain["exit_code"] != 0 or plain["verdict"] != "PROCEED":
             failures.append(f"{store} same: the report differs from the gate's without the flag, or the record's PROCEED moved")
         print(f"{store}: changed exit {ch['exit_code']} {ch['verdict']}, {len(rc.get('keys', []))} keys, {len(rc.get('invalidated', []))} statements "
               f"invalidated, {len(stale)} stale findings, {ch['suspect_derived']} suspect; same exit {plain['exit_code']} {plain['verdict']}, nothing invalidated")
+    for name, register in (("changed", changed), ("same", same)):   # task-0178: the page shows the gate's block
+        shown = page(register, VENDORED)
+        for store, r in runs.items():
+            block = (r["changed"].get("register_change") if name == "changed" else r["same_change"]) or {}
+            want = {f: block.get(f) for f in PAGE_FIELDS}
+            got = {f: shown.get(f) for f in PAGE_FIELDS}
+            if shown.get("error") or not shown.get("configured") or got != want:
+                diff = sorted(f for f in PAGE_FIELDS if got.get(f) != want.get(f))
+                failures.append(f"{store} {name}: the page's register change differs from the gate's on {diff or shown.get('error')}")
+        print(f"page {name}: {len(shown.get('nodes') or [])} nodes, {len(shown.get('links') or [])} links, {len(shown.get('keys') or [])} keys, as the gate's")
+    gone = page(changed, out / "no-such-register")
+    if not gone.get("configured") or not gone.get("error") or gone.get("nodes"):
+        failures.append(f"page: a previous register that is not there is not reported: {gone}")
     kinds = list(runs)
     for other in kinds[1:]:
         for name in ("changed", "same", "plain"):

@@ -22,5 +22,7 @@ services:
     environment:
       KG_REGISTER: /instance/register
       KG_SUBJECTS: /instance/subjects
+      # task-0178: the register before its last update, for the Register view's changes (unset: none shown)
+      KG_REGISTER_PREVIOUS: ${KG_REGISTER_PREVIOUS:-}
     volumes:
       - ${KG_INSTANCE:?set KG_INSTANCE to the instance folder on this machine}:/instance:ro

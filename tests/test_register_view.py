@@ -1218,3 +1218,110 @@ def test_the_start_is_never_reached_and_an_edge_back_to_it_is_marked():
     for walk in ("dependants", "realisers"):
         for children in (False, True):
             assert "WHEN t = a THEN 'yes, back to the start, not counted'" in sn.impact_texts(walk, children)["rows"]
+
+
+# task-0178: the register panel shows what a register update withdrew, as the gate computes it
+import contextlib as _contextlib  # noqa: E402
+import shutil as _shutil  # noqa: E402
+import subprocess as _subprocess  # noqa: E402
+import tempfile as _tempfile  # noqa: E402
+
+
+@_contextlib.contextmanager
+def _pair(previous, register=None):
+    keep = register_view.PREVIOUS, register_view.REGISTER
+    register_view.PREVIOUS = "" if previous is None else str(previous)
+    if register is not None:
+        register_view.REGISTER = Path(register).resolve()
+    try:
+        yield
+    finally:
+        register_view.PREVIOUS, register_view.REGISTER = keep
+
+
+def _change_fixture(td: str, kind: str = "changed") -> Path:
+    sys.path.insert(0, str(ROOT / "tools"))
+    import register_fixture
+    return getattr(register_fixture, kind)(Path(td) / kind)
+
+
+@on_cargo_quote
+def test_register_change_is_the_gates_block_from_register_change_itself():
+    import register_change as rc
+    with _tempfile.TemporaryDirectory() as td:
+        fx = _change_fixture(td)
+        vendored = ROOT / "demo" / "register"
+        with _pair(vendored, fx):
+            got = register_view.register_change()
+        change = rc.diff(vendored, fx)
+        want = rc.block(change, rc.resting(change, register_view.load_map(), vendored, fx))
+    assert got == {"configured": True, "previous": str(vendored), "error": None, **want}, got
+    assert [n["id"] for n in got["nodes"]] == ["CAP-0001"] and [ln["id"] for ln in got["links"]] == ["REL-06001"]
+    assert len(got["keys"]) == 8 and all(k["causes"] == ["REL-06001"] for k in got["keys"])
+    # the gate builds its block with the same function, so the two cannot drift (tools/check_register_change.py
+    # compares the page with the gate's report on a real store)
+    gate = (ROOT / "harness" / "gate_cli.py").read_text(encoding="utf-8")
+    assert "**rc.block(change, landed)" in gate
+    src = (ROOT / "demo" / "app" / "register_view.py").read_text(encoding="utf-8")
+    body = src.split("def register_change()", 1)[1].split("\ndef ", 1)[0]
+    assert "rc.diff(" in body and "rc.resting(" in body and "rc.block(" in body and "os.environ" not in body, "computed by register_change, the setting read once"
+
+
+@on_cargo_quote
+def test_without_a_previous_register_the_panel_says_so_in_one_line_and_nothing_else_changes():
+    with _pair(None):
+        bare = register_view.build()
+    ch = bare["register_change"]
+    assert ch["configured"] is False and ch["error"] is None and "current register only" in ch["sentence"], ch
+    assert register_view.PREVIOUS_VAR in ch["sentence"]
+    with _tempfile.TemporaryDirectory() as td:
+        with _pair(_change_fixture(td)):
+            told = register_view.build()
+    for k in set(bare) - {"register_change", "text_registry"}:
+        assert bare[k] == told[k], k
+    texts = [x["text"] for x in bare["text_registry"]]
+    assert "This panel shows the current register only." in texts, "the line is registered with the page's sentences"
+    assert [x for x in told["text_registry"] if x["text"] not in texts], "the change's line in its place, the rest as before"
+    for v in (bare, told):
+        for s in _sentences(v["register_change"]["sentence"]):
+            assert len(s.split()) <= 20 and not _forbidden_in(s), s
+
+
+@on_cargo_quote
+def test_a_missing_or_unreadable_previous_register_is_reported_never_raised():
+    with _tempfile.TemporaryDirectory() as td:
+        with _pair(Path(td) / "no-such-register"):
+            v = register_view.build()
+        ch = v["register_change"]
+        assert ch["configured"] and "no such directory" in ch["error"] and "did not load" in ch["sentence"], ch
+        (Path(td) / "empty").mkdir()
+        with _pair(Path(td) / "empty"):
+            ch = register_view.register_change()
+        assert ch["configured"] and ch["error"].startswith("the registers do not compare"), ch
+
+
+def test_the_register_panel_draws_the_change_each_way():
+    node = _shutil.which("node")
+    if not node:
+        from _skip import skip
+        skip("node", "node is not installed; the panel is drawn by the page's own script")
+    page = (DEMO / "app" / "index.html").read_text(encoding="utf-8")
+    fns = [re.search(r"(?m)^const esc = .*$", page).group(0), re.search(r"(?ms)^function registerChange\(.*?^\}$", page).group(0)]
+    nodes = [{"id": "CAP-0001", "from": "approved", "to": "deprecated", "reason": "decisions/0099"}]
+    links = [{"id": "REL-06001", "rel": "supports", "source": "APP-0002", "target": "PROC-0002", "from": "approved", "to": None, "reason": "<b>r</b>"}]
+    keys = [{"key": "weight_kg|max", "owner": "ORG-0001", "reasons": ["decisions/0099"], "causes": ["REL-06001"]}]
+    cases = {"none": {"configured": False, "error": None, "sentence": "This panel shows the current register only."},
+             "error": {"configured": True, "error": "x: no such directory", "sentence": "The previous register did not load."},
+             "change": {"configured": True, "error": None, "sentence": "s", "nodes": nodes, "links": links, "keys": keys}}
+    script = "\n".join(fns + [f"const cases = {json.dumps(cases)};",
+                              "console.log(JSON.stringify(Object.fromEntries(Object.entries(cases).map(([k, v]) => [k, registerChange(v)]))));"])
+    with _tempfile.TemporaryDirectory() as td:
+        f = Path(td) / "p.js"
+        f.write_text(script, encoding="utf-8")
+        out = json.loads(_subprocess.run([node, str(f)], capture_output=True, text=True, check=True, timeout=60).stdout)
+    assert out["none"].count("<div") == 1 and "<table" not in out["none"] and "current register only" in out["none"], out["none"]
+    assert "no such directory" in out["error"] and "<table" not in out["error"], out["error"]
+    c = out["change"]
+    assert c.count("<table") == 2 and "CAP-0001" in c and "REL-06001" in c and "gone" in c and "weight_kg|max" in c and "ORG-0001" in c, c
+    assert "<b>r</b>" not in c and "&lt;b&gt;r&lt;/b&gt;" in c, "a reason is data, escaped"
+    assert "${registerChange(r.register_change)}" in page
