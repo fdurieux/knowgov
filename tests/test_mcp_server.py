@@ -159,10 +159,26 @@ def test_the_store_view_lets_through_reads_of_the_port_and_nothing_else():
         assert f".{name}(" not in src, name
 
 
-def test_an_rdflib_file_is_read_and_never_written_back():
-    stub = Stub()
-    mcp_server.ReadOnlyStore(stub).release()
-    assert stub.closed_with is None, "close() with a path would serialise the graph over the file"
+def test_the_server_opens_the_ports_read_handle_which_never_publishes():
+    """task-0141.02: the server's store is a read handle (open_store(access="read")) under its own
+    narrower view, so releasing it publishes nothing whichever adapter it is; the old workaround,
+    clearing an rdflib store's path before close, is gone (tests/test_store_persistence.py, ST-02)."""
+    import store
+    seen = {}
+
+    def opener(**kw):
+        seen.update(kw)
+        return Stub()
+    view = mcp_server.open_read_only(opener)
+    assert seen["access"] == "read" and isinstance(view._inner, store.ReadOnly), seen
+    try:
+        view._inner.commit()
+    except store.StoreReadOnly:
+        pass
+    else:
+        raise AssertionError("a read handle published")
+    view.release()
+    assert ".path = None" not in SERVER.read_text(encoding="utf-8")
 
 
 def test_gate_verdict_is_the_commands_report_for_the_same_store():

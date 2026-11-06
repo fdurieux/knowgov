@@ -88,7 +88,7 @@ def main() -> int:
 
     keys = set(subject_mod.load().store_keys)
     failures = 0
-    with open_store() as store:
+    with open_store(access="write") as store:   # console_query runs any text, so not a read handle (task-0141.02)
         for q in server.cypher_list():
             for i, stmt in enumerate(statements(q["text"]), 1):
                 label = q["id"] if i == 1 else f"{q['id']} ({i})"

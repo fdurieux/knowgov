@@ -107,8 +107,8 @@ jobs:
           sys.path[:0] = ["harness", "demo/app"]
           from store import open_store
           import register_project
-          register_project.project(open_store())
-          with open_store() as st:
+          register_project.project(open_store(access="write"))
+          with open_store(access="read") as st:
               rows = st.register_node_statements("ENT-0004")
               derived = sorted({d for r in rows for d in r["derived"]})
               assert len(rows) == 13 and derived == ["derived:S1:G:run1 (suspect)"], (len(rows), derived)
@@ -366,7 +366,7 @@ jobs:
           import gate_cli
           from load import load_verifications, pristine_values, load_inferred
           from plant import INFERRED
-          st = open_store()
+          st = open_store(access="write")
           gate_cli._load(st, "S5")            # S5 loads the model-proposed assertion and, here, the captures
           for _ in range(2):
               load_verifications(st, "S5", pristine_values())

@@ -56,7 +56,7 @@ def facts() -> dict:
     from gate import resolve
     from rules import compatible, pairs
     from store import open_store
-    st = open_store()
+    st = open_store(access="write")   # loads S2, published once the reads below are made (task-0141.02)
     try:
         gate_cli._load(st, "S2")
         status = {x["id"]: x["status"] for x in st.assertion_rows()}
@@ -65,6 +65,7 @@ def facts() -> dict:
         agree = sorted(sorted([p["a"], p["b"]]) for p, person in pairs(st)
                        if person and compatible(p["va"], p["vb"], p["pred"]) == "equal")
         level = resolve(st, "codegen")["keys"]["response|statuses"]["level"]
+        st.commit()
         return {"store": st.name, "status": status, "conflicts": gaps, "agree": agree, "level": level}
     finally:
         st.close()

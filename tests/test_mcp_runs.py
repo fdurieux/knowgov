@@ -213,6 +213,7 @@ def test_the_reader_reads_a_runs_new_load_on_its_next_call():
             st.wipe()
             st.create_node("agent:t", "Agent", {})
             st.create_activity(f"act:extract:{sc}:v1", "extract", "2026-11-04T23:00:00+00:00", "t", "", "agent:t")
+            st.commit()
             st.close()
         load(first)
         tools = mcp_server.Tools(opener=lambda: mcp_server.open_read_only(lambda **kw: RdflibStore(path=path, **kw)), runs=Path(td))

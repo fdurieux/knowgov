@@ -336,7 +336,7 @@ def run(args) -> dict:
             raise CannotRun(f"--register-previous: the registers do not compare: {type(e).__name__}: {e}") from e
     from store import open_store
     try:
-        st = open_store(instance=SUBJECT.id)
+        st = open_store(instance=SUBJECT.id, access="read" if args.no_load else "write")   # task-0141.02
     except Exception as e:  # noqa: BLE001
         raise CannotRun(f"the store cannot be opened: {e}") from e
     change = None
@@ -355,9 +355,12 @@ def run(args) -> dict:
                 version = change["version"]
             if reg_change is not None:
                 reg_change = _register_change(st, SUBJECT, scenario, reg_change, previous)
-        return evaluate(st, subject=SUBJECT.id, scenario=scenario, task=args.task, spec=TASKS[args.task],
-                        threshold=args.fail_on, baseline=base, loaded=not args.no_load, version=version, change=change,
-                        as_of=on, register_change=reg_change)
+        report = evaluate(st, subject=SUBJECT.id, scenario=scenario, task=args.task, spec=TASKS[args.task],
+                          threshold=args.fail_on, baseline=base, loaded=not args.no_load, version=version, change=change,
+                          as_of=on, register_change=reg_change)
+        if not args.no_load:
+            st.commit()   # the load and its change, published once the report is made; a failure publishes nothing
+        return report
     except CannotRun:
         raise
     except Exception as e:  # noqa: BLE001 — an unreachable store fails here, on the first statement
