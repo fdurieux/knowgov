@@ -251,7 +251,12 @@ loopback up, no route beyond it and no `CAP_NET_ADMIN` to bring one up, decision
 AF_PACKET socket and no outside address reachable, which no network namespace confines and the engine's
 default seccomp profile refuses; no secret-shaped variable, read-only root, uid 65534, no engine socket,
 Landlock) and refuses to serve when any check fails; the app refuses a job without a fresh attestation, and reads the result as untrusted
-data, capped and checked against its shape. Without a worker nothing runs: there is no fall back to
+data, capped and checked against its shape. The attestation also carries the worker's host as it reads it
+inside its container (`os.uname()`'s system, kernel release and machine, and the engine by its marker file;
+task-0169): facts, never a check, shown on the page's worker chip and in knowgov-runs' `run_options` only
+from an attestation that holds, as untrusted strings (printable, capped). A cloud there is the app's reading
+of the kernel release's suffix (`-aws` and the like), labelled as a reading; nothing asks a metadata
+service, and the worker has no network to ask. Without a worker nothing runs: there is no fall back to
 the host. The only escape is `KG_ALLOW_UNCONTAINED_EXECUTION=1`, which runs the code on the host,
 uncontained, as before. With an organisation's instance mounted, the interim guard (task-0141.07,
 `harness/execution_guard.py`) still refuses first: the worker sees only the public subjects. Supported:

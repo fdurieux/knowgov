@@ -327,3 +327,52 @@ def test_the_worker_service_keeps_its_confinement_and_mounts_its_work_folder_exe
     work = [ln.strip() for ln in block.splitlines() if ln.strip().startswith("- /work:")]
     assert len(work) == 1 and "exec" in work[0].split(":", 1)[1].split(",") and "noexec" not in work[0], work
     assert "privileged" not in block and "seccomp" not in block and "/var/run/docker.sock" not in block
+
+
+AWS_HOST = {"system": "Linux", "kernel": "7.0.0-1014-aws", "machine": "x86_64", "engine": "docker"}
+
+
+def test_placement_reads_the_same_attestation_a_job_is_refused_by():
+    """task-0169: where model output would run, from attested() (called, never copied): attested with the
+    worker's host facts and the cloud read from its kernel release, or not attested with the refusal."""
+    now = time.time()
+    with tempfile.TemporaryDirectory() as td:
+        jobs, env = Path(td), {execution.JOBS_VAR: td}
+        got = execution.placement(env, now=now)
+        assert got["backend"] == "worker" and got["attested"] is False and "has not attested" in got["why"] and got["host"] is None
+        (jobs / execution.ATTEST).write_text(json.dumps({**FAKE, "heartbeat": now, "host": AWS_HOST}))
+        got = execution.placement(env, now=now)
+        assert got == {"backend": "worker", "attested": True, "host": AWS_HOST, "why": None,
+                       "cloud": {"name": "AWS", "basis": "read from the kernel release's -aws suffix, not checked"}}, got
+        assert execution.placement(env, now=now + 10 * execution.HEARTBEAT_S)["why"].endswith("it is not running")
+        loose = {**FAKE, "checks": {**FAKE["checks"], "loopback_only": False}, "heartbeat": now, "host": AWS_HOST}
+        (jobs / execution.ATTEST).write_text(json.dumps(loose))
+        got = execution.placement(env, now=now)
+        assert got["attested"] is False and got["host"] is None and "loopback_only" in got["why"], "facts only from a holding attestation"
+        # an attestation before task-0169, or facts that are not printable strings: shown as absent, never raw
+        (jobs / execution.ATTEST).write_text(json.dumps({**FAKE, "heartbeat": now}))
+        assert execution.placement(env, now=now)["host"] == {k: None for k in execution.HOST_FIELDS}
+        odd = {"system": 7, "kernel": "6.1-gcp\x1b[31m" + "x" * 500, "machine": ["x"], "engine": ""}
+        (jobs / execution.ATTEST).write_text(json.dumps({**FAKE, "heartbeat": now, "host": odd}))
+        h = execution.placement(env, now=now)["host"]
+        assert h["system"] is None and h["machine"] is None and h["engine"] is None, h
+        assert "\x1b" not in h["kernel"] and len(h["kernel"]) == execution.FACT_MAX, h
+    with _env():
+        assert execution.placement({})["backend"] is None and "no contained worker" in execution.placement({})["why"]
+        host = execution.placement({execution_guard.OPT_IN: "1"})
+        assert host["backend"] == "host" and host["attested"] is False and "uncontained" in host["why"]
+
+
+def test_a_cloud_is_only_a_reading_of_the_kernel_release():
+    """task-0169: the suffix a cloud's kernel flavour carries, labelled as a reading; nothing else names one."""
+    assert execution.cloud_reading("7.0.0-1014-aws")["name"] == "AWS"
+    assert execution.cloud_reading("6.8.0-1021-azure")["name"] == "Azure"
+    assert execution.cloud_reading("6.8.0-1019-gcp")["name"] == "Google Cloud"
+    for k in ("6.10.14-linuxkit", "6.8.0-48-generic", "aws", "", None, "6.1.0-aws-custom"):
+        assert execution.cloud_reading(k) is None, k
+    assert "not checked" in execution.cloud_reading("x-aws")["basis"]
+    src = (Path(execution.__file__)).read_text(encoding="utf-8")
+    import ast
+    mods = {a.name.split(".")[0] for n in ast.walk(ast.parse(src)) if isinstance(n, (ast.Import, ast.ImportFrom))
+            for a in (n.names if isinstance(n, ast.Import) else [ast.alias(n.module or "")])}
+    assert "169.254.169.254" not in src and not mods & {"socket", "urllib", "http", "requests"}, "no metadata service, no network"

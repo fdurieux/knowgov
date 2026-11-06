@@ -140,7 +140,7 @@ a{color:var(--teal)}
 <script>
 const $ = (s, el=document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let STATE = {subject: '', scenarios: [], store: null, armsEnabled: false, execution: {ok: false, why: null}, detEnabled: false, current: null, source: null, view: null, run: null, shown: null, lastRun: {}, recordModel: '', recordEffort: '', modelRows: []};
+let STATE = {subject: '', scenarios: [], store: null, armsEnabled: false, execution: {ok: false, why: null}, worker: null, detEnabled: false, current: null, source: null, view: null, run: null, shown: null, lastRun: {}, recordModel: '', recordEffort: '', modelRows: []};
 // the arms choice is kept per subject: each subject has its own record's row (task-0032.02)
 function armsChoice() { try { return JSON.parse(localStorage.getItem('kg-arms-row:' + STATE.subject) || 'null'); } catch (e) { return null; } }
 function saveArmsChoice(c) { try { localStorage.setItem('kg-arms-row:' + STATE.subject, JSON.stringify(c)); } catch (e) {} }
@@ -158,6 +158,22 @@ function armsChip() {
   if (armsReady()) return `<span class="chip ok" title="${esc(rows)}">arms enabled (${STATE.modelRows.filter(r => r.available).length} of ${STATE.modelRows.length} model rows)</span>`;
   if (STATE.armsEnabled) return `<span class="chip warn" title="${esc(armsBlockedWhy())}">arms: ${noWorker() ? 'no contained worker' : 'model output may not run here'}</span>`;
   return `<span class="chip warn" title="${esc(rows)}">arms disabled: ${esc(armsOffWhy())}</span>`;
+}
+// where model output would run, as the worker attested it (task-0169; harness/execution.py placement()): its host facts
+// are its own reading from inside its container, and a cloud is the app's reading of its kernel release, never a check
+const ENGINES = {docker: 'Docker', podman: 'Podman'};
+function workerChip() {
+  const w = STATE.worker;
+  if (!w) return `<span class="chip warn" title="this app does not report where model output would run">worker: not reported</span>`;
+  if (w.attested && w.host) {
+    const h = w.host, facts = [ENGINES[h.engine] || 'engine unknown', [h.system, h.kernel].filter(Boolean).join(' ') + (h.machine ? ' (' + h.machine + ')' : '')];
+    if (w.cloud) facts.push(w.cloud.name + ' (from the kernel release)');
+    const title = 'the worker attested its confinement, every check holding; engine, kernel and machine as it reads them inside its container'
+      + (w.cloud ? '; ' + w.cloud.name + ': ' + w.cloud.basis : '');
+    return `<span class="chip ok" title="${esc(title)}">worker: attested · ${esc(facts.filter(Boolean).join(' · '))}</span>`;
+  }
+  if (w.backend === 'host') return `<span class="chip bad" title="${esc(w.why)}">worker: none · runs uncontained on the app's host</span>`;
+  return `<span class="chip warn" title="${esc(w.why || '')}">worker: not attested</span>`;
 }
 // why the arms are off: no row is available; the key variables to set, by name, never a value
 function armsOffWhy() { const vars = [...new Set(STATE.modelRows.filter(r => !r.key_set).map(r => r.key_var))]; return vars.length ? 'set ' + vars.join(' or ') + " in the app's environment" : 'no model row serves this subject'; }
@@ -195,7 +211,7 @@ async function api(path, opts) {
 
 async function loadScenarios() {
   const j = await api('/api/scenarios');
-  STATE.scenarios = j.scenarios; STATE.store = j.store; STATE.armsEnabled = j.arms_enabled; STATE.execution = j.execution || {ok: false, why: null}; STATE.detEnabled = j.deterministic_enabled; STATE.run = j.run;
+  STATE.scenarios = j.scenarios; STATE.store = j.store; STATE.armsEnabled = j.arms_enabled; STATE.execution = j.execution || {ok: false, why: null}; STATE.worker = j.worker || null; STATE.detEnabled = j.deterministic_enabled; STATE.run = j.run;
   STATE.recordModel = j.record_model; STATE.recordEffort = j.record_effort || ''; STATE.modelRows = j.model_rows || [];
   STATE.writes = j.writes || {}; renderToken();
   if (j.page && j.page.title) { document.querySelector('header h1').textContent = j.page.title; document.title = j.page.title; }
@@ -210,7 +226,7 @@ function renderChips() {
   const s = STATE.store;
   $('#chips').innerHTML =
     `<span class="chip ${s.reachable ? 'ok' : 'bad'}" title="${esc(s.error||'')}">store ${esc(s.store || 'neo4j')} ${s.reachable ? 'reachable' : 'unreachable'} · ${esc(s.uri)}${s.loaded ? ' · loaded: ' + esc(s.loaded) : ''}</span>` +
-    armsChip() +
+    armsChip() + workerChip() +
     `<span class="chip ${s.register ? 'ok' : 'warn'}" title="the register's projection in the store: derived, its own namespace, wiped by a run">register ${s.register ? 'projected at ' + esc(s.register.tag || s.register.commit.slice(0, 7)) : 'not projected'}</span>`;
 }
 

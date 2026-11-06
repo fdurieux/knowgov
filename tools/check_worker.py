@@ -15,6 +15,8 @@ reads what came back as untrusted data:
   EXEC-05  a job that spawns children and hangs is killed whole at its time; the next job runs
   EXEC-06  memory, processes, output and disk each stop at their bound, classified, the worker alive
   EXEC-07  a job without a fresh attestation is refused (a jobs folder no worker serves)
+  host     the attestation names the worker's host (Linux, its kernel and machine, engine docker),
+           read inside its container, and adds no check (task-0169)
   EXEC-09  the CargoQuote reference code and the J-F reference rebuild grade in the worker as the
            record says (all pass), no model called
 A loosened worker (network on, a key in its environment) refusing to serve is run by the workflow,
@@ -60,6 +62,12 @@ def main() -> int:
     jobs = Path(os.environ.get(execution.JOBS_VAR) or "")
     a = execution.attested(jobs)
     check(all(a["checks"].values()), f"the worker attests {', '.join(k for k, v in a['checks'].items() if v)}")
+    # task-0169: and where it runs, as it read it inside its container: facts beside the checks, never one of them
+    place = execution.placement()
+    host = place.get("host") or {}
+    check(place["attested"] and host.get("system") == "Linux" and bool(host.get("kernel")) and bool(host.get("machine"))
+          and host.get("engine") == "docker" and set(a["checks"]) == set(execution.ATTEST_CHECKS),
+          f"the worker attests its host, no check added: {host} (cloud reading: {place.get('cloud')})")
 
     # EXEC-01
     name, value = "KG_UNLISTED_" + secrets.token_hex(4).upper(), "canary-" + secrets.token_hex(8)

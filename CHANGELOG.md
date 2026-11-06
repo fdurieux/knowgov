@@ -50,6 +50,14 @@ names that section with the version.
   A run whose model calls failed now says so, quoting the first error, and that the record's conclusion
   does not apply. A run that did not reproduce the record says what happened instead.
 
+- **The page shows where Arms code runs** (task-0169). A new header chip reads, for example,
+  "worker: attested · Docker · Linux 7.0.0-1014-aws (x86_64) · AWS (from the kernel release)", or
+  "worker: not attested" with the reason. The facts come only from the worker's own attestation, which
+  now carries a `host` block (`system`, `kernel`, `machine`, `engine`) read inside its container;
+  no check and no verdict changes. A cloud is a reading of the kernel release's suffix (`-aws`,
+  `-azure`, `-gcp`, `-oracle`), labelled as such, never asked of a metadata service. `GET /api/scenarios`
+  and knowgov-runs' `run_options` carry it as `worker`, additively.
+
 ## 0.8.0 — 2026-11-06
 
 Code a model writes now runs contained, and a reader never sees a half-built store. The arms'
