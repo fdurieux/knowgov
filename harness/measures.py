@@ -12,6 +12,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import execution_guard
 from subject import SUBJECT
 
 FLAG_WORDS = {sc: list(s.get("flag_words", [])) for sc, s in SUBJECT.scenarios.items()}
@@ -88,6 +89,9 @@ def adopted(arm: str, parsed: dict | None, below: list[str], scenario: str) -> d
 # ------------------------------------------------------------ the suite
 
 def _smoke():
+    """The oracle script, loaded to run model output: refused first when an organisation's instance is
+    mounted (task-0141.07; every execution path below comes through here)."""
+    execution_guard.check()
     script = SUBJECT.oracle_script()
     if script is None:
         raise RuntimeError(f"{SUBJECT.id}: the subject declares no oracle script")
