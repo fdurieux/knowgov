@@ -3,14 +3,15 @@ id: doc-0024
 title: >-
   A heuristic model over the register: a per-step journey rollup on the thread
   walk, a scenario grid, an audit pack, step-attribution candidates. Sense and
-  nonsense, fit/gap, opportunity canvas
+  nonsense, fit/gap, opportunity canvas, SWOT
 type: specification
 created_date: '2026-11-05T23:02:00Z'
-updated_date: '2026-11-06T17:11:00Z'
+updated_date: '2026-11-06T17:19:00Z'
 tags:
   - brief
   - canvas
   - fit-gap
+  - swot
   - register
   - mcp
   - impact
@@ -160,7 +161,57 @@ tags:
 | Risks | A rollup read as a score. A heuristic promoted to fact. Pressure to copy tool attributes into the register. Drift into an EA tool. Coarse links read as fine: three steps share one thread (finding 3) |
 | Unfair advantage | Statement-grain epistemic levels attached to each step. Deterministic and read-only: the same register, subject and date give the same answer |
 
-## 6. Sense and nonsense
+## 6. SWOT
+
+**J1, the build this doc recommends.**
+
+| | Helpful | Harmful |
+|---|---|---|
+| **Internal** | **S.** Every input exists (`THREAD`, A1, task-0152's slices, `landed_rows`/`with_levels`, task-0144); no walk of its own; the step grain separates (22/18 of 36, 65/66 of 163); deterministic, read-only | **W.** As fine as the links (JRN-0009 to JRN-0011: one thread, the same 100 keys); keys from a subject's map, not the register; levels unread here; a contract change to `proposal_impact`; 57 synthetic nodes |
+| **External** | **O.** One call per journey for U1, U2, U6, U8; the pilot's intake demonstration extended to what exists; finding 1 shown per step with its 14 keys; J3 and J4 read J1's cells | **T.** A rollup read as a score; decision-0016's freeze (proposed); overlap with doc-0025 on U4, U10 |
+
+The evidence for each cell:
+
+**Strengths.**
+- Every input exists:
+  - `THREAD` and A1 (decision 0018, vendored by task-0155);
+  - task-0152's slices: the thread by layer, each cell with kind, owner and status, plus withdrawn edges and owners;
+  - `register_impact`'s `landed_rows` and `with_levels`, which `keys.by_node` already reads;
+  - task-0144's held-scenario reads.
+
+  J1 adds no walk and no walk rows.
+- The step grain separates what the journey grain merges. CargoQuote's two steps land on 22 and 18 of 36 keys; J-F's two finer steps on 65 and 66 of 163 (§2).
+- It is deterministic and read-only. The same register, subject and `as_of` give the same answer, as `proposal_impact` already holds for CLI and MCP (task-0152).
+
+**Weaknesses.**
+- **The thread is as fine as the links.** JRN-0009 to JRN-0011 share one thread and the same 100 keys (finding 3). J1 reports this; it cannot resolve it.
+- **Keys per step come from a subject's `register_map.toml`, not from the register.** CargoQuote's map is `authored` (approved 2026-10-31) and J-F's `derived` (approved 2026-11-02). A step's keys are only as complete as its map rows.
+- **Levels were not read here** (no store). The cells' values on a held scenario are unmeasured.
+- **It changes a contract.** `proposal_impact` refuses an overlay that adds nothing (measured), so J1 changes its input (a scope with no overlay) and its report (keys per slice).
+- **57 synthetic nodes; real names not read.**
+
+**Opportunities.**
+- **One call per journey answers U1, U2, U6 and U8**, which today take a walk per step plus `register_impact` per node.
+- **The pilot:** doc-0017 and doc-0022 make intake the architects' first demonstration (task-0062). J1 extends the same answer to what already exists.
+- **Finding 1 shows per step with its weight.** Screening sits on no step's thread, while PROC-0003 carries 14 keys, S2's outage key among them.
+- **J3 and J4 read J1's cells**, so neither needs a read of its own.
+
+**Threats.**
+- **A rollup read as a score.** A per-step "worst level" invites a readiness percentage, against the register's "coverage is never a percentage to pass". Mitigation: cells carry denominators and `unknown`, no aggregate across steps.
+- **The contract freeze.** decision-0016 (proposed) makes 0.9.0 a freeze with 0.9.x fixes only. If it is accepted, J1's contract change lands before 0.9.0 or waits for the next minor after it.
+- **Overlap with doc-0025** (applications to refactor, sunset or replace, reserved) on U4 and U10: two studies reading the same walks from the application side.
+
+**The parked and rejected candidates, where they bear on the advice.**
+
+| Candidate | Weakness | Threat | Bearing |
+|---|---|---|---|
+| J3 grid | Needs one run folder per scenario | `knowgov-runs`' `start_run` wipes the store every viewer shares (decision-0008) | Route over run folders, after J1 |
+| J4 audit pack | No auditor's ask recorded | Assembly without a reader | Park |
+| J5 step-attribution candidates | Precision unmeasured; 57 synthetic names | A candidate read as a link; a candidate never closes a gap | Park until a real register |
+| J6 weights | 57 nodes cannot calibrate a weight | A score hides `unknown` | Park |
+| Simulation, a single risk score | The register holds no attributes by contract | A second record; an EA tool's job (doc-0015 §1) | Reject |
+
+## 7. Sense and nonsense
 
 **Sense.**
 - The aggregation on the pumllint pattern: rules decide, the summary only aggregates, and a gap report says what blocks.
@@ -176,12 +227,12 @@ tags:
 - knowgov composing the thread from raw links.
 - Weights calibrated on 57 synthetic nodes.
 
-## 7. Candidates
+## 8. Candidates
 
 | # | Candidate | Relation to what exists | Disposition |
 |---|---|---|---|
 | — | The journey trace | **is decision 0018's `THREAD`**; findings 1 to 4 are in its record | No knowgov item |
-| J1 | Slices on the approved register, each with its keys and levels | task-0152's slices with two additions. (a) A scope by a named journey or product with no overlay. (b) Per slice, the `register_map.toml` keys landing on its thread, with levels per task class and `as_of`, as `keys.by_node` reads them (`register_impact` `landed_rows`, `with_levels`). Cells: worst level, gaps, lapses, keys behind withdrawn edges, owner handoffs. Facts only, denominators shown | **Build** on the maintainer's go, as a follow-up of task-0152 (§8 item 1) |
+| J1 | Slices on the approved register, each with its keys and levels | task-0152's slices with two additions. (a) A scope by a named journey or product with no overlay. (b) Per slice, the `register_map.toml` keys landing on its thread, with levels per task class and `as_of`, as `keys.by_node` reads them (`register_impact` `landed_rows`, `with_levels`). Cells: worst level, gaps, lapses, keys behind withdrawn edges, owner handoffs. Facts only, denominators shown | **Build** on the maintainer's go, as a follow-up of task-0152 (§9 item 1) |
 | J2 | Support grain per step (finding 3) | the process cell's `kind` in a slice; 0018 records the limit | **No item** |
 | J3 | A step × scenario grid from `run.py --deterministic` run folders, keys to steps through `key_nodes` and `THREAD` | `knowgov-runs` exists, but `start_run` wipes the shared store | **New**, small, after J1. CLI over run folders |
 | J4 | An audit pack per journey: the thread with each link's approval, evidence, `review_due`, the exceptions and their expiry | new | **Park** to the pilot, on an auditor's ask |
@@ -189,9 +240,9 @@ tags:
 | J6 | Weighted structure scores (concentration, ranking a what-if's reach), weights in a versioned file under a decision | pumllint `SCORING.md` the template; doc-0025 for applications | **Park** to the pilot |
 | × | Dynamic simulation; a single risk score; tool attributes in node files; a model's impact score; knowgov's own trace | doc-0015 §1; the register's contracts; doc-0022 §8 | **Reject** |
 
-## 8. For the maintainer
+## 9. For the maintainer
 
-1. **J1's home.** Recommended: task-0152's evaluator, with a scope by journey or product and keys per slice. One evaluator, one schema, one shape of answer for an initiative and for what exists. A separate read would compute the same slices twice.
+1. **J1's home.** Recommended: task-0152's evaluator, with a scope by journey or product and keys per slice. One evaluator, one schema, one shape of answer for an initiative and for what exists. A separate read would compute the same slices twice. Timing (§6 threats): if decision-0016 is accepted, J1 lands before 0.9.0's freeze or in the next minor after it.
 2. **The scenario grid (J3).** Recommended: a CLI over deterministic run folders, after J1, not through `knowgov-runs`, so a sweep never wipes what every viewer of the page sees.
 3. **J4 and J5.** Recommended: park both to the pilot.
 4. **Scores and simulation.** Recommended: J6 parked; simulation and a single risk score rejected, as doc-0015 §1 already holds.
