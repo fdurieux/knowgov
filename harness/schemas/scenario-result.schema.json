@@ -1,0 +1,433 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/scenario-result.schema.json",
+ "title": "knowgov reader scenario_result",
+ "description": "What the MCP reader's scenario_result returns (harness/mcp_server.py Tools.scenario_result, harness/runs_index.py result; task-0129, task-0172): one source's results of one scenario as its files hold them, never the store: the D6 gate as the record holds it (the gate's result without its keys), the date it read, each key's level, the arms' runs and, for a stage-2 scenario, the verdicts before and after the change.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "subject",
+  "reads",
+  "scenario",
+  "source",
+  "label",
+  "gate",
+  "as_of",
+  "as_of_from_run",
+  "levels",
+  "arms"
+ ],
+ "properties": {
+  "subject": {
+   "type": "string"
+  },
+  "reads": {
+   "type": "string"
+  },
+  "scenario": {
+   "type": "string"
+  },
+  "source": {
+   "type": "string"
+  },
+  "label": {
+   "type": "string"
+  },
+  "gate": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "verdict",
+    "why",
+    "blocked_keys",
+    "below_verified",
+    "flagged",
+    "conflicts",
+    "stale",
+    "suspect_derived",
+    "lapsed"
+   ],
+   "properties": {
+    "verdict": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "why": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "blocked_keys": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "below_verified": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "flagged": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "conflicts": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "id",
+       "text"
+      ],
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "text": {
+        "type": [
+         "string",
+         "null"
+        ]
+       }
+      }
+     }
+    },
+    "stale": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "id",
+       "key",
+       "value",
+       "invalidated_by",
+       "verifications",
+       "successors"
+      ],
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "key": {
+        "type": "string"
+       },
+       "value": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "invalidated_by": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "verifications": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "additionalProperties": false,
+         "required": [
+          "id",
+          "valid_until"
+         ],
+         "properties": {
+          "id": {
+           "type": [
+            "string",
+            "null"
+           ]
+          },
+          "valid_until": {
+           "type": [
+            "string",
+            "null"
+           ]
+          }
+         }
+        }
+       },
+       "successors": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "additionalProperties": false,
+         "required": [
+          "id",
+          "value",
+          "status"
+         ],
+         "properties": {
+          "id": {
+           "type": [
+            "string",
+            "null"
+           ]
+          },
+          "value": {
+           "type": [
+            "string",
+            "null"
+           ]
+          },
+          "status": {
+           "type": [
+            "string",
+            "null"
+           ]
+          }
+         }
+        }
+       }
+      }
+     }
+    },
+    "suspect_derived": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "id",
+       "kind",
+       "sha256",
+       "used_invalidated"
+      ],
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "kind": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "sha256": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "used_invalidated": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       }
+      }
+     }
+    },
+    "lapsed": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "id",
+       "key",
+       "from",
+       "valid_until",
+       "lapsed_on",
+       "months",
+       "kind",
+       "verifications"
+      ],
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "key": {
+        "type": "string"
+       },
+       "from": {
+        "type": "string"
+       },
+       "valid_until": {
+        "type": "string"
+       },
+       "lapsed_on": {
+        "type": "string"
+       },
+       "months": {
+        "type": "integer"
+       },
+       "kind": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "verifications": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "as_of": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "as_of_from_run": {
+   "type": "boolean"
+  },
+  "levels": {
+   "type": "object",
+   "additionalProperties": {
+    "type": [
+     "string",
+     "null"
+    ]
+   },
+   "description": "key to its level"
+  },
+  "arms": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "G",
+    "B"
+   ],
+   "properties": {
+    "G": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "run",
+       "decision",
+       "code",
+       "flagged",
+       "suite",
+       "model",
+       "api_error"
+      ],
+      "properties": {
+       "run": {
+        "type": [
+         "integer",
+         "null"
+        ]
+       },
+       "decision": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "code": {
+        "type": "boolean"
+       },
+       "flagged": {
+        "type": "boolean"
+       },
+       "suite": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "model": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "api_error": {
+        "type": "boolean"
+       }
+      }
+     }
+    },
+    "B": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "run",
+       "decision",
+       "code",
+       "flagged",
+       "suite",
+       "model",
+       "api_error"
+      ],
+      "properties": {
+       "run": {
+        "type": [
+         "integer",
+         "null"
+        ]
+       },
+       "decision": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "code": {
+        "type": "boolean"
+       },
+       "flagged": {
+        "type": "boolean"
+       },
+       "suite": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "model": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "api_error": {
+        "type": "boolean"
+       }
+      }
+     }
+    }
+   }
+  },
+  "stage2": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [],
+   "properties": {
+    "gate_before_reverification": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "gate_after_reverification": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  }
+ }
+}

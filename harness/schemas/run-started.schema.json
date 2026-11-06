@@ -1,0 +1,136 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/run-started.schema.json",
+ "title": "knowgov-runs start_run",
+ "description": "What knowgov-runs' start_run returns once the page accepts a run (harness/mcp_runs.py RunTools.start_run; task-0172): started, the run as _run_view keeps it, and the next step.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "started",
+  "id",
+  "subject",
+  "scenario",
+  "mode",
+  "n",
+  "row",
+  "model",
+  "effort",
+  "model_deviation",
+  "as_of",
+  "by",
+  "started",
+  "finished",
+  "status",
+  "exit_code",
+  "elapsed_s",
+  "source",
+  "next"
+ ],
+ "properties": {
+  "started": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "id": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "subject": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "scenario": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "mode": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "n": {
+   "type": [
+    "integer",
+    "null"
+   ]
+  },
+  "row": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "model": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "effort": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "model_deviation": {
+   "type": [
+    "boolean",
+    "null"
+   ]
+  },
+  "as_of": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "by": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "finished": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "status": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "exit_code": {
+   "type": [
+    "integer",
+    "null"
+   ]
+  },
+  "elapsed_s": {
+   "type": [
+    "number",
+    "null"
+   ]
+  },
+  "source": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "next": {
+   "type": "string"
+  }
+ }
+}

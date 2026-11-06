@@ -1,0 +1,446 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/scenario-runs.schema.json",
+ "title": "knowgov reader scenario_runs",
+ "description": "What the MCP reader's scenario_runs returns (harness/mcp_server.py Tools.scenario_runs, harness/runs_index.py scenario_runs; task-0128, task-0172): each scenario with the record's sources and the runs, the run under way (its run.json, as run.schema.json pins it, or null) and the scenario the store holds for this subject. run_in_progress_unknown, store_skipped and store_unavailable say why a part was not read.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "subject",
+  "replay",
+  "scenarios",
+  "run_in_progress",
+  "held",
+  "held_by_other_subject"
+ ],
+ "properties": {
+  "subject": {
+   "type": "string"
+  },
+  "replay": {
+   "type": "string"
+  },
+  "scenarios": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "id",
+     "title",
+     "line",
+     "record",
+     "runs",
+     "runs_total"
+    ],
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "title": {
+      "type": "string"
+     },
+     "line": {
+      "type": "string"
+     },
+     "record": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "id",
+        "label",
+        "deterministic",
+        "gate",
+        "as_of",
+        "arms"
+       ],
+       "properties": {
+        "id": {
+         "type": "string"
+        },
+        "label": {
+         "type": "string"
+        },
+        "deterministic": {
+         "type": "boolean"
+        },
+        "gate": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "as_of": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "arms": {
+         "type": [
+          "object",
+          "null"
+         ],
+         "additionalProperties": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+           "n",
+           "models",
+           "decisions",
+           "suite"
+          ],
+          "properties": {
+           "n": {
+            "type": "integer"
+           },
+           "models": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            }
+           },
+           "decisions": {
+            "type": "array",
+            "items": {
+             "type": [
+              "string",
+              "null"
+             ]
+            }
+           },
+           "suite": {
+            "type": "array",
+            "items": {
+             "type": [
+              "string",
+              "null"
+             ]
+            }
+           }
+          }
+         },
+         "description": "arm (G, B) to its runs"
+        }
+       }
+      }
+     },
+     "runs": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "id",
+        "source",
+        "mode",
+        "n",
+        "row",
+        "model",
+        "effort",
+        "as_of",
+        "started",
+        "finished",
+        "status",
+        "exit_code",
+        "by",
+        "error",
+        "gate",
+        "results",
+        "inferred"
+       ],
+       "properties": {
+        "id": {
+         "type": "string"
+        },
+        "source": {
+         "type": "string"
+        },
+        "mode": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "n": {
+         "type": [
+          "integer",
+          "null"
+         ]
+        },
+        "row": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "model": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "effort": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "as_of": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "started": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "finished": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "status": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "exit_code": {
+         "type": [
+          "integer",
+          "null"
+         ]
+        },
+        "by": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "error": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "gate": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "results": {
+         "type": "boolean"
+        },
+        "inferred": {
+         "type": "boolean"
+        }
+       }
+      }
+     },
+     "runs_total": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "run_in_progress": {
+   "$ref": "#/$defs/run_json"
+  },
+  "held": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "additionalProperties": false,
+   "required": [
+    "scenario",
+    "version",
+    "stage",
+    "loaded_at"
+   ],
+   "properties": {
+    "scenario": {
+     "type": "string"
+    },
+    "version": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "stage": {
+     "type": "integer"
+    },
+    "loaded_at": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "held_by_other_subject": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "run_in_progress_unknown": {
+   "type": "string"
+  },
+  "store_skipped": {
+   "type": "string"
+  },
+  "store_unavailable": {
+   "type": "string"
+  }
+ },
+ "$defs": {
+  "run_json": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "required": [
+    "version",
+    "id",
+    "subject",
+    "scenario",
+    "mode",
+    "n",
+    "row",
+    "model",
+    "effort",
+    "host",
+    "model_deviation",
+    "as_of",
+    "by",
+    "started",
+    "finished",
+    "status",
+    "exit_code",
+    "error",
+    "source",
+    "log"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "version": {
+     "enum": [
+      1,
+      2
+     ]
+    },
+    "id": {
+     "type": "string"
+    },
+    "subject": {
+     "type": "string"
+    },
+    "scenario": {
+     "type": "string"
+    },
+    "mode": {
+     "enum": [
+      "deterministic",
+      "arms"
+     ]
+    },
+    "n": {
+     "type": "integer",
+     "minimum": 1
+    },
+    "row": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "model": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "effort": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "host": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "model_deviation": {
+     "type": "boolean"
+    },
+    "as_of": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "by": {
+     "enum": [
+      "page",
+      "mcp"
+     ]
+    },
+    "started": {
+     "type": "string"
+    },
+    "heartbeat_at": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "finished": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "status": {
+     "enum": [
+      "running",
+      "done",
+      "failed"
+     ]
+    },
+    "exit_code": {
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "error": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "source": {
+     "type": "string"
+    },
+    "log": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  }
+ }
+}
