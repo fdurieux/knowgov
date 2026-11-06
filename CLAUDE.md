@@ -155,7 +155,12 @@ and round trip, the scored record, never do.
 `tests/test_ci_subset.py` holds the subset the same in both workflows and here.
 
 Releases (decision-0003): SemVer, `VERSION` and `CHANGELOG.md` move together in a release PR
-(a test holds them equal); a contract change raises the minor version while 0.x. Between releases,
+(a test holds them equal); a contract change raises the minor version while 0.x. decision-0016
+(accepted 2026-11-06): 0.9.0 is the contract freeze, cut when doc-0028's G9 list is met, and contract
+changes after 0.8.0 gather for it; 0.9.x carries fixes only, any contract change being 0.10.0 and
+restarting the freeze; 1.0.0 follows once the lighthouse's instance has run on the 0.9 contracts
+unchanged, the incumbent's route is verified and a support counterparty exists; from 1.0.0 a
+deprecation lasts at least one further minor and ninety days and a removal is a major. Between releases,
 a PR whose change an adopter would notice (a contract, a feature, a known limit) adds its line under
 `CHANGELOG.md`'s `## Unreleased` as it merges, contract changes under their own heading; the release
 PR renames that section to the version (maintainer, 2026-11-04; `tests/test_release.py` admits one

@@ -66,6 +66,13 @@ names that section with the version.
 
 ### Changes
 
+- **The road to 1.0 is decided** (decision-0016). 0.9.0 will freeze the contracts an adopter builds on,
+  and the contract changes made since 0.8.0 wait for it. After 0.9.0, a 0.9.x release carries only fixes,
+  and any contract change becomes 0.10.0. 1.0.0 follows once a pilot organisation has run on the 0.9
+  contracts without a change. From 1.0.0 on, a deprecated contract keeps working for at least one
+  further minor release and ninety days, and is removed only in a major release. Until a support
+  entity exists, the latest minor release is supported on a best-effort basis.
+
 - **The MCP servers when the stack runs on another machine** (docs, task-0182). `instance/README.md`
   shows how Claude Code and Claude Desktop start `knowgov` and `knowgov-runs` over SSH when the stack
   runs on a server such as the EC2 instance of `demo/README.md`: the same `docker compose … exec`
