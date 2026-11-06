@@ -205,8 +205,8 @@ def test_proposal_impact_is_a_read_only_tool_that_refuses_a_bad_call():
     s, _ = _server()
     tool = next(t for t in mcp_server.TOOLS if t["name"] == "proposal_impact")
     assert tool["annotations"]["readOnlyHint"] is True and tool["annotations"]["destructiveHint"] is False
-    assert tool["inputSchema"]["required"] == ["proposal"]
-    for bad in ({}, {"proposal": {}}, {"proposal": _proposal(), "task": "keys"}, {"proposal": _proposal(), "children": "yes"},
+    assert "required" not in tool["inputSchema"] and "scope" in tool["inputSchema"]["properties"]   # a proposal, a scope or both (task-0191)
+    for bad in ({}, {"proposal": {}}, {"scope": "APP-0002"}, {"scope": "NOPE-0001"}, {"proposal": {"nodes": [], "links": []}}, {"proposal": _proposal(), "task": "keys"}, {"proposal": _proposal(), "children": "yes"},
                 {"proposal": _proposal(), "scenario": "S9"}, {"proposal": _proposal(), "as_of": "soon"}):
         r = _call(s, "proposal_impact", bad)["result"]
         assert r["isError"] is True, bad
@@ -506,7 +506,8 @@ def test_an_overlay_no_product_touches_is_placed_outside_and_the_map_is_facts_on
         text = json.dumps(rep["slices"]).casefold()
         assert not [w for w in PLANNING_WORDS if w in text], [w for w in PLANNING_WORDS if w in text]
     for s in _report()["slices"]["map"]:
-        assert set(s) == {"start", "axis", "products", "descendants", "thread", "empty", "withdrawn", "owners", "elements"}
+        assert set(s) == {"start", "axis", "products", "descendants", "thread", "empty", "withdrawn", "owners", "elements",
+                          "handoffs", "keys"}   # task-0191: each slice's owner handoffs and keys
 
 
 def test_the_command_and_the_mcp_tool_give_the_same_slice_map():
@@ -514,7 +515,7 @@ def test_the_command_and_the_mcp_tool_give_the_same_slice_map():
     run = subprocess.run([sys.executable, str(ROOT / "harness" / "proposal_impact.py"), str(FIXTURE), "--no-store", "-f", "json"],
                          capture_output=True, text=True, env=env, cwd=ROOT)
     assert run.returncode == 0, run.stderr
-    s, _ = _server()
+    s, _ = _server(Stub(scenario=None))   # no scenario held: the slices' keys carry no level, as --no-store's (task-0191)
     got = _call(s, "proposal_impact", {"proposal": _proposal(), "as_of": DAY})["result"]
     assert got.get("isError") is not True, got
     mcp = got["structuredContent"]
@@ -557,3 +558,133 @@ def test_the_instructions_name_the_intake_sequence_on_both_transports_and_every_
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+# ---- task-0191 (doc-0024 J1): a named journey or product on the approved register, keys per slice
+
+CARGO_MAP = __import__("tomllib").loads((ROOT / "subjects" / "cargo_quote" / "register_map.toml").read_text(encoding="utf-8"))
+JF_MAP = __import__("tomllib").loads((ROOT / "subjects" / "jef_data_load" / "register_map.toml").read_text(encoding="utf-8"))
+
+
+def _thread(start: str) -> dict:
+    """The register's own THREAD walk with parent descent from ``start``, read here apart from the evaluator."""
+    root = ri.register_root().resolve()
+    T = ri.load_tools(root)
+    reg = T["register"].load_register(root)
+    return T["impact"].walk_children(reg, start, T["impact"].THREAD)
+
+
+def test_a_named_journey_or_product_with_no_overlay_gives_its_slices_on_the_approved_register():
+    """AC1: no overlay, a scope; the slices are the register's THREAD walk from each approved step under it."""
+    for scope in ("JRN-0001", "PRD-0002"):
+        r = pi.evaluate(None, today=TODAY, scope=scope, register_map=CARGO_MAP)
+        _valid(r)
+        sl = r["slices"]
+        assert sl["scope"]["id"] == scope and r["overlay"]["nodes"] == r["overlay"]["links"] == 0
+        assert [s["start"]["id"] for s in sl["map"]] == ["JRN-0002", "JRN-0003"]
+        assert [p["id"] for p in sl["products"]] == ["PRD-0002"] and sl["products"][0]["required_not_reached"] == ["CAP-0003"]
+        assert sl["elements"] == {"denominator": 0, "in_slices": 0, "in_remainder": 0}
+        for s in sl["map"]:
+            t = _thread(s["start"]["id"])
+            on = {c["id"] for layer in s["thread"].values() for c in layer}
+            assert on == {x for x in t["reached"] if not x.startswith("JRN-")}, s["start"]["id"]
+            assert [c["id"] for c in s["descendants"]] == [d["id"] for d in t["descendants"] if d["live"]]
+    one = pi.evaluate(None, today=TODAY, scope="JRN-0002", register_map=CARGO_MAP)["slices"]
+    assert [s["start"]["id"] for s in one["map"]] == ["JRN-0002"] and one["scope"]["kind"] == "step"
+    jf = pi.evaluate(None, today=TODAY, scope="JRN-0005", register_map=JF_MAP)["slices"]
+    assert [s["start"]["id"] for s in jf["map"]] == ["JRN-0006", "JRN-0007", "JRN-0009", "JRN-0010", "JRN-0011"]
+    # with an overlay, a scope narrows the slices to its own; the overlay's elements are placed as before
+    both = _report(scope="PRD-0002")
+    _valid(both)
+    assert {p["id"] for p in both["slices"]["products"]} == {"PRD-0002"}
+    for bad in ("APP-0002", "NOPE-0001", "PROC-0005", 7):   # an application, nothing, a node not approved, not an id
+        try:
+            pi.evaluate(None, today=TODAY, scope=bad)
+        except pi.ProposalError as e:
+            assert "scope" in str(e), e
+        else:
+            raise AssertionError(f"scope {bad!r} accepted")
+    try:
+        pi.evaluate({"nodes": [], "links": []}, today=TODAY)
+    except pi.ProposalError as e:
+        assert "name a scope" in str(e)
+    else:
+        raise AssertionError("an empty overlay with no scope accepted")
+
+
+def test_each_slice_lists_the_keys_register_impact_lands_on_its_nodes_with_the_denominator():
+    """AC2 (rows), AC3: the rows are register_impact.landed_rows for the slice's start, walked descendants and
+    reached nodes; JRN-0002 lands 22 of CargoQuote's 36 (doc-0024's measure), JRN-0003 the four rows on
+    PROC-0005 behind its proposed edge, one of them landed no other way."""
+    r = pi.evaluate(None, today=TODAY, scope="JRN-0001", register_map=CARGO_MAP)
+    by = {s["start"]["id"]: s for s in r["slices"]["map"]}
+    for sid, s in by.items():
+        t = _thread(sid)
+        want = ri.landed_rows(CARGO_MAP, sid, sorted(t["reached"]), [d["id"] for d in t["descendants"] if d["live"]],
+                              [d["id"] for d in t["descendants"] if not d["live"]])
+        assert s["keys"]["rows"] == want, sid
+        assert s["keys"]["of"] == 36 and s["keys"]["gate"] is None
+        c = s["keys"]["cells"]
+        assert c["read"] is False and c["levels"] == {} and c["worst"] is None and len(c["unread"]) == s["keys"]["landed"]
+    assert (by["JRN-0002"]["keys"]["landed"], by["JRN-0002"]["keys"]["of"]) == (22, 36)
+    behind = by["JRN-0003"]["keys"]["behind_withdrawn"]
+    assert [(b["from"], b["to"], b["state"]) for b in behind] == [("JRN-0003", "PROC-0005", "proposed")]
+    assert len(behind[0]["keys"]) == 4 and behind[0]["only_behind"] == ["QuoteAPI|on_notification_failure"]
+    assert all(h["owners"][0] != h["owners"][1] for s in by.values() for h in s["handoffs"])
+    assert by["JRN-0002"]["handoffs"] and '"score"' not in json.dumps(r["slices"]).casefold()   # facts only: no score field
+    jf = {s["start"]["id"]: s["keys"] for s in pi.evaluate(None, today=TODAY, scope="JRN-0005", register_map=JF_MAP)["slices"]["map"]}
+    assert {k: (v["landed"], v["of"]) for k, v in jf.items()} == \
+        {"JRN-0006": (65, 163), "JRN-0007": (66, 163), "JRN-0009": (100, 163), "JRN-0010": (100, 163), "JRN-0011": (100, 163)}
+
+
+def test_with_a_scenario_held_each_slice_reads_its_levels_as_register_impact_does():
+    """AC2 (levels), AC3: over MCP, each slice's rows are register_impact's with_levels over the gate's report on
+    the slice's keys, under the task class and as_of named; the cells count what the rows read, unknown is
+    the keys at absent, and a key with no statement is never read as anything better."""
+    from subject import SUBJECT
+    from tasks import TASKS
+    import gate_cli  # noqa: F401  (the gate the levels come from)
+    s, _ = _server(Stub())
+    scope = next((n for n in ("JRN-0001", "JRN-0005") if n in json.dumps(SUBJECT.register_map(), default=str)), "JRN-0001")
+    for task in sorted(TASKS):
+        got = _call(s, "proposal_impact", {"scope": scope, "task": task, "as_of": DAY})["result"]
+        assert got.get("isError") is not True, got
+        rep = got["structuredContent"]
+        _valid(rep)
+        assert rep["keys"]["task"] == task and rep["keys"]["scenario"] == SUBJECT.order[0]
+        for sl in rep["slices"]["map"]:
+            k = sl["keys"]
+            if not k["rows"]:
+                continue
+            keys = list(dict.fromkeys(r["key"] for r in k["rows"]))
+            gate = _call(s, "gate_verdict", {"keys": keys, "task": task, "as_of": DAY})["result"]["structuredContent"]
+            bare = [{x: v for x, v in r.items() if x not in ("level", "stale", "suspect", "findings")} for r in k["rows"]]
+            assert k["rows"] == ri.with_levels(bare, gate), (task, sl["start"]["id"])
+            assert k["gate"]["verdict"] == gate["verdict"]
+            c = k["cells"]
+            assert c["read"] is True and sum(c["levels"].values()) == k["landed"] and c["unread"] == []
+            assert c["unknown"] == sorted({r["key"] for r in k["rows"] if r["level"] == "absent" and not r.get("withdrawn")})
+            if c["levels"]:
+                from gate import ORDER
+                assert c["worst"] == min(c["levels"], key=ORDER.index)
+
+
+def test_the_command_and_the_mcp_tool_take_the_scope_alone_and_agree():
+    """AC4: --scope on the command, scope on the MCP tool, the same slices; the changelog's contract line."""
+    env = {**os.environ, "KG_TODAY": DAY}
+    run = subprocess.run([sys.executable, str(ROOT / "harness" / "proposal_impact.py"), "--scope", "JRN-0001", "--no-store", "-f", "json"],
+                         capture_output=True, text=True, env=env, cwd=ROOT)
+    assert run.returncode == 0, run.stderr
+    cli = json.loads(run.stdout)
+    _valid(cli)
+    s, _ = _server(Stub(scenario=None))
+    mcp = _call(s, "proposal_impact", {"scope": "JRN-0001", "as_of": DAY})["result"]["structuredContent"]
+    assert mcp["slices"] == cli["slices"] and cli["slices"]["scope"]["id"] == "JRN-0001"
+    text = subprocess.run([sys.executable, str(ROOT / "harness" / "proposal_impact.py"), "--scope", "JRN-0001", "--no-store"],
+                          capture_output=True, text=True, env=env, cwd=ROOT).stdout
+    assert text.startswith("scope JRN-0001 (journey") and "read as it is: no overlay" in text and "keys " in text
+    bad = subprocess.run([sys.executable, str(ROOT / "harness" / "proposal_impact.py"), "--no-store"], capture_output=True, text=True, env=env, cwd=ROOT)
+    assert bad.returncode == 2 and "--scope" in bad.stderr
+    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
+    contract = log.split("### Contract changes", 1)[1].split("### Changes", 1)[0]
+    assert "task-0191" in contract and "scope" in contract

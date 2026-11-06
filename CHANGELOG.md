@@ -12,6 +12,26 @@ names that section with the version.
 
 ### Contract changes
 
+- **`proposal_impact` reads a named journey or product on the approved register, with each slice's
+  keys** (task-0191, doc-0024 J1). Additive.
+  - **The scope.** A new `scope`, on the MCP tool and as `--scope ID` on the command, names an
+    approved journey, step, touchpoint or product. The slices are then that scope's own, and with no
+    proposal the approved register is read alone. Before, an overlay that added nothing was refused.
+  - **The walk.** The slices still come from the register's own `THREAD` walk and its rule A1. knowgov
+    adds no walker.
+  - **Each slice's keys.** `keys` holds:
+    - the register-map rows `register_impact.landed_rows` gives for the slice's nodes, with the
+      subject's key count as the denominator;
+    - with a scenario held, each row's level as `with_levels` reads it, and the gate over the
+      slice's keys;
+    - the keys behind an edge the thread does not follow.
+  - **The cells.** Counts per level, the keys unread, the lowest level, unknown (the keys at
+    `absent`), gaps, lapses. `handoffs` lists the thread's owner changes. Facts only, never a score.
+  - On CargoQuote, JRN-0002 lands 22 of 36 keys. On J-F, JRN-0006, JRN-0007 and JRN-0009 land 65,
+    66 and 100 of 163.
+  - `proposal` is no longer required on the MCP tool, but a call with neither a proposal nor a scope
+    is refused. The schema grows additively: `slices.scope`, and per slice `handoffs` and `keys`.
+
 - **The gate command leaves the shared store alone unless asked to publish** (decision-0017, task-0184).
   Before, `harness/gate_cli.py` wiped the store `KG_STORE` names and loaded its scenario into it. On a stack
   that is the Neo4j the page, the runs and the MCP servers read, and the adopter docs told people to run the

@@ -418,10 +418,33 @@ def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: s
         failures.append(f"{label}: proposal_impact reported an overlay element not hypothetical, or a stored read")
     if str(HARNESS) not in sys.path:
         sys.path.insert(0, str(HARNESS))
+    import mcp_server
     import proposal_impact as pi   # the CLI's report, in this process: the slice map the same (task-0152)
-    held = json.loads(json.dumps(pi.evaluate(proposal, today=pi._date(got["as_of"], "as_of"))["slices"], default=str))
+    import register_impact as ri
+    st = mcp_server.open_read_only()   # read with the same store, scenario and as_of: each slice's keys at their levels (task-0191)
+    try:
+        mine = pi.with_levels(pi.evaluate(proposal, today=pi._date(got["as_of"], "as_of")), st, task="codegen",
+                              as_of=got["as_of"], scenario=sc)
+    finally:
+        st.release()
+    held = json.loads(json.dumps(mine["slices"], default=str))
     if got.get("slices") != held:
         failures.append(f"{label}: proposal_impact's slice map differs from the command's")
+    scoped = 0   # task-0191: a named journey on the approved register, each slice's rows register_impact's with_levels
+    for scope in ("JRN-0001", "JRN-0005"):
+        rep = client.call("proposal_impact", {"scope": scope, "scenario": sc, "as_of": "record"})
+        if rep["slices"]["scope"]["id"] != scope or rep["overlay"]["nodes"] or not rep["slices"]["map"]:
+            failures.append(f"{label}: proposal_impact scope {scope} gave {rep['slices']['scope']}, {len(rep['slices']['map'])} slice(s)")
+        for sl in rep["slices"]["map"]:
+            k = sl["keys"]
+            if not k["rows"]:
+                continue
+            keys = list(dict.fromkeys(r["key"] for r in k["rows"]))
+            gate = client.call("gate_verdict", {"keys": keys, "scenario": sc, "as_of": "record"})
+            bare = [{x: v for x, v in r.items() if x not in ("level", "stale", "suspect", "findings")} for r in k["rows"]]
+            if k["rows"] != ri.with_levels(bare, gate) or sum(k["cells"]["levels"].values()) != k["landed"]:
+                failures.append(f"{label}: proposal_impact scope {scope}: slice {sl['start']['id']}'s keys differ from the gate's levels")
+            scoped += 1
     n = 0
     for entry in got["keys"]["by_node"]:
         want = client.call("register_impact", {"node": entry["node"], "scenario": sc, "as_of": "record"})
@@ -431,7 +454,8 @@ def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: s
     e = got.get("slices", {}).get("elements", {})
     print(f"{label}: proposal_impact names {len(gaps)} new gap(s); {n} key(s) on {len(got['keys']['by_node'])} reused node(s) "
           f"equal register_impact's; {len(got.get('slices', {}).get('map', []))} slice(s), {e.get('in_slices')} of "
-          f"{e.get('denominator')} element(s) in them, equal the command's")
+          f"{e.get('denominator')} element(s) in them, equal the command's; scoped by JRN-0001 and JRN-0005, {scoped} slice(s) "
+          "with keys, each at the gate's levels (task-0191)")
 
 
 def check_nodes(client: "StdioClient", failures: list[str], label: str) -> None:
