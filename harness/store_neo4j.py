@@ -313,15 +313,27 @@ def _rows(result) -> list[dict]:
 class Neo4jStore(Store):
     name = "neo4j"
 
-    def __init__(self, uri: str = URI, auth: tuple[str, str] = AUTH, connection_timeout: float | None = None, instance: str = ""):
+    def __init__(self, uri: str = URI, auth: tuple[str, str] = AUTH, connection_timeout: float | None = None, instance: str = "",
+                 access: str = "write"):
         from neo4j import GraphDatabase, NotificationMinimumSeverity  # the driver, in the image; lazy so the module imports without it
+        from neo4j import READ_ACCESS, WRITE_ACCESS
 
-        self.uri, self.auth, self.instance = uri, auth, instance
+        if access not in ("read", "write"):
+            raise ValueError(f"access is read or write, not {access!r}")
+        self.uri, self.auth, self.instance, self.access = uri, auth, instance, access
         kw = {"notifications_min_severity": NotificationMinimumSeverity.OFF}
         if connection_timeout:
             kw["connection_timeout"] = connection_timeout
         self._driver = GraphDatabase.driver(uri, auth=auth, **kw)
-        self._session = self._driver.session()
+        # task-0141.02: a read handle's session is in read access mode, so the server refuses a write
+        # as well as the port's ReadOnly view; each statement still commits as it runs (task-0141.06)
+        self._session = self._driver.session(default_access_mode=READ_ACCESS if access == "read" else WRITE_ACCESS)
+
+    def commit(self) -> None:
+        """Nothing left to publish: each statement committed as it ran (task-0141.06 makes a load publish whole)."""
+
+    def abort(self) -> None:
+        """Nothing to drop: what ran is in the store already (task-0141.02 names this limit; task-0141.06 lifts it)."""
 
     def close(self) -> None:
         self._session.close()

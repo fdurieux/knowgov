@@ -205,12 +205,14 @@ INDEX = (HERE / "index.html").read_bytes()
 
 # Saved Cypher for the store panel. Each runs in Neo4j Browser against the
 # scenario currently loaded; the comment on each says which scenario shows it.
-def _store(timeout: float = 3):
-    """A store through the port, for the page's short reads; raises when unreachable."""
+def _store(timeout: float = 3, access: str = "read"):
+    """A store through the port, for the page's short reads (a read handle, which never publishes;
+    task-0141.02), or for the register projection (``access="write"``, waiting at most ``timeout`` for
+    another writer); raises when unreachable or busy."""
     from store import open_store  # the harness's port; the adapter needs its driver, in the image
     if (os.environ.get("KG_STORE") or "neo4j").lower() == "rdflib" and not os.environ.get("KG_RDFLIB_FILE"):
         os.environ["KG_RDFLIB_FILE"] = str(RUNS_DIR / "store.ttl")
-    return open_store(connection_timeout=timeout, instance=_ps().id)
+    return open_store(connection_timeout=timeout, instance=_ps().id, access=access)
 
 
 # What each saved query needs in the store before it returns rows: the store holds one scenario
@@ -837,7 +839,7 @@ class Handler(BaseHTTPRequestHandler):
             if RUNNER.current and RUNNER.current["status"] == "running":
                 return self._json({"error": "a run is in progress; it wipes the store, so project after it ends"}, 409)
             try:
-                return self._json(register_project.project(_store()))
+                return self._json(register_project.project(_store(access="write")))
             except ImportError:
                 return self._json({"error": "neo4j driver not installed"}, 503)
             except Exception as e:  # noqa: BLE001 — the message is the status

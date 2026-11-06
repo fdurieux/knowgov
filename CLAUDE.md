@@ -16,7 +16,8 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   projection need, nothing more) and two adapters: `store_neo4j.py` (every
   Cypher statement, the constraints, the saved queries) and `store_rdflib.py`
   (an rdflib graph in memory, optionally persisted to `KG_RDFLIB_FILE`); `KG_STORE`
-  picks one, `neo4j` by default. No other module speaks Cypher; a test guards
+  picks one, `neo4j` by default. Every caller names `open_store(access="read"|"write")`: a read handle passes `store.READS` only and never
+  publishes; a writer publishes on `commit()`, never `close()`, and on a file locks `<file>.lock` before it loads (task-0141.02). No other module speaks Cypher; a test guards
   it (task-0003). `export_turtle`/`import_turtle` carry a store into a fresh one of either kind in the rdflib
   adapter's form; `tools/check_round_trip.py --chain` holds every scenario's gate reports and three-valued
   answers equal across the hops (rdflib in `harness.yml`, Neo4j to rdflib and back in the stack job; task-0070), and with `--expect-parts` the file digests a directory artefact's Version keeps in `part_sha256` (`record_part_digests`/`part_digests`; `register-cites` compares a cited file by its own; task-0094), and with `--expect-preload` on the example instance with its report every Version's pre-load verdict, the gate's preload bundle and its info findings, both ways through Neo4j (task-0085). The comparator compares D1, the Neo4j edition's constraint

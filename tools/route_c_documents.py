@@ -220,7 +220,7 @@ def run(args, call=None) -> dict:
         orig = SUBJECT.artefacts
         SUBJECT.artefacts = _withheld(SUBJECT, withhold)
         try:
-            st = open_store(instance=SUBJECT.id)
+            st = open_store(instance=SUBJECT.id, access="write")   # a measurement over withheld documents: loaded, never committed (task-0141.02)
             try:
                 gate_cli._load(st, scenario)
                 return {t: resolve(st, t)["keys"] for t in args.tasks}

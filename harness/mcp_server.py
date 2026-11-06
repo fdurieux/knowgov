@@ -368,8 +368,8 @@ class ToolError(Exception):
 
 
 class ReadOnlyStore:
-    """A view of a store that lets through the port's reads only. An rdflib store opened on a file
-    is released without being written back (its ``close`` would serialise the graph)."""
+    """The MCP server's view: of the port's reads, only the ones its tools need, over a read handle
+    (``open_store(access="read")``), which never publishes (task-0141.02)."""
 
     def __init__(self, inner):
         self._inner = inner
@@ -381,16 +381,16 @@ class ReadOnlyStore:
         raise PermissionError(f"the MCP server only reads: {attr} is not a read of the store port")
 
     def release(self) -> None:
-        if self._inner.name == "rdflib":
-            self._inner.path = None   # nothing to release in memory; never serialise over the file
         self._inner.close()
 
 
 def open_read_only(open_store=None) -> ReadOnlyStore:
     from subject import SUBJECT
+    from store import ReadOnly
     if open_store is None:
         from store import open_store
-    return ReadOnlyStore(open_store(instance=SUBJECT.id))
+    st = open_store(instance=SUBJECT.id, access="read")
+    return ReadOnlyStore(st if isinstance(st, ReadOnly) else ReadOnly(st))
 
 
 def _held_any(st) -> str | None:

@@ -216,15 +216,10 @@ def arms_bundle(sc: str, stage: int, keys: list[str] | None = None) -> tuple[str
     from store import open_store
     from tasks import TASKS
     task = "task_codegen"   # the runner passes the prompt prefix; verbatim_documents strips it to the class
-    st = open_store()
-    try:
+    with open_store(access="read") as st:   # never published (task-0141.02)
         gate = resolve(st, "codegen") if keys is None else resolve_spec(st, "keys", dict(TASKS["codegen"], keys=keys))
         bundle = render_bundle(gate, arms.policy(), verbatim_documents(kit_for(sc, stage), task))
         return bundle, {a["id"] for v in gate["keys"].values() for a in v["assertions"]}
-    finally:
-        if st.name == "rdflib":
-            st.path = None
-        st.close()
 
 
 def check_bundle(client: "StdioClient", sc: str, stage: int, failures: list[str], label: str) -> None:
@@ -585,13 +580,8 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
 def census() -> dict:
     sys.path.insert(0, str(HARNESS))
     from store import open_store
-    st = open_store()
-    try:
+    with open_store(access="read") as st:   # never published (task-0141.02)
         return st.census()
-    finally:
-        if st.name == "rdflib":
-            st.path = None   # read, never written back
-        st.close()
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-05T21:24:00Z'
-updated_date: '2026-11-05T22:56:00Z'
+updated_date: '2026-11-05T23:48:00Z'
 labels: []
 dependencies:
   - TASK-0146
@@ -29,10 +29,10 @@ Onboarding a subject is the lighthouse's first hour. doc-0018 §4 lists the step
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The reader declares the prompts capability and serves new_subject and add_artefact through prompts/list and prompts/get in both protocol eras; their text is read-only by nature and pinned by a test
-- [ ] #2 A Claude Code skill under instance/ci/claude/ walks doc-0018 §4: scaffold on a branch with the client's file tools, subject_check or check_instance.py after every write, proposal_impact first for a subject about a new product, and the exits (a pull request, the owners' questionnaires)
-- [ ] #3 instance/README.md walks a first subject through it in the adopter register; the onboarding study's findings are applied or the departure recorded; CHANGELOG Unreleased carries the line
-- [ ] #4 Prompt and skill carry the never-list (no content drafted, no attestation written, no key drawn from the yield) and the stop condition, and name only tools that exist; task-0147's hook backs the never-list
+- [x] #1 The reader declares the prompts capability and serves new_subject and add_artefact through prompts/list and prompts/get in both protocol eras; their text is read-only by nature and pinned by a test
+- [x] #2 A Claude Code skill under instance/ci/claude/ walks doc-0018 §4: scaffold on a branch with the client's file tools, subject_check or check_instance.py after every write, proposal_impact first for a subject about a new product, and the exits (a pull request, the owners' questionnaires)
+- [x] #3 instance/README.md walks a first subject through it in the adopter register; the onboarding study's findings are applied or the departure recorded; CHANGELOG Unreleased carries the line
+- [x] #4 Prompt and skill carry the never-list (no content drafted, no attestation written, no key drawn from the yield) and the stop condition, and name only tools that exist; task-0147's hook backs the never-list
 - [ ] #5 instance/README.md states Claude Desktop's role: asking the gate (gate_verdict, evidence_bundle, the impact tools) until the maintainer's Desktop test on this task's branch shows the prompts listed and subject_check running; onboarding is Claude Code's (maintainer, 2026-11-05, doc-0021 §10.2). MRTR elicitation is not in this task (doc-0021 §10.4)
 <!-- AC:END -->
 
@@ -48,4 +48,8 @@ Onboarding a subject is the lighthouse's first hour. doc-0018 §4 lists the step
 Draft PR fdurieux/knowgov#245; branch claude/task-0148-wizard offered for the maintainer's Desktop test.
 
 Rebased onto main after #242, #248, #249; B1/B2 workarounds removed, register_nodes first; marked ready. run_tests 501/502 (1 skipped), check_mcp_server.py --scenarios S1 every check holds.
+
+Merged as fdurieux/knowgov#245 on a fully green matrix at 54a8207 (tests, stack, rdflib; publish skipped). Evidence: tests/test_wizard.py (both eras and transports with the Mcp-Name check, argument validation, each prompt equal to the skill's parts, the never-list and stop condition, every backticked tool real, mappers.toml equal to harness/extract.py's EXTRACTORS read by ast, knowgov-runs without prompts); check_mcp_server.py --scenarios S1 lists and gets the prompts over stdio and HTTP; run_tests 498/502 stdlib (4 skipped), 501/502 with the pins. doc-0021 §8 applied: items 1 to 12; B1/B2 workarounds retired after #248 and #249; register_nodes first. Departures recorded: none outstanding (register_nodes added once #238 merged). The maintainer's Desktop test is still to run; the README states Desktop's role until then.
+
+AC #5 left open: instance/README.md states Desktop's role (it asks the gate; onboarding is Claude Code's), but the AC holds until the maintainer's own Claude Desktop test shows the prompts listed and subject_check running. The task stays In Progress until then; the README's Desktop paragraph is updated with the result (coordinator, 2026-11-05).
 <!-- SECTION:NOTES:END -->

@@ -23,6 +23,18 @@ names that section with the version.
   required_not_reached, frame, exceptions, outside), with the denominator. Facts only: no label,
   estimate or rank. The CLI's text output and the MCP tool give the same section.
 
+- **The store port names its access; a read never publishes** (task-0141.02). `open_store()` takes
+  `access="read"` or `access="write"`. A read handle lets through the port's reads (`store.READS`)
+  and refuses any other operation with `StoreReadOnly`. A write handle publishes on `commit()`,
+  which the context manager calls when its block ends cleanly, and never on `close()`, which now
+  only releases it. With `KG_RDFLIB_FILE`, a writer locks `<file>.lock` before it loads, waits at most
+  `KG_RDFLIB_LOCK_TIMEOUT` seconds (default 60) for another writer, then fails with `StoreBusy`. It
+  publishes through a synced temporary file and an atomic replacement. A file that does not parse
+  fails with `StoreCorrupt` and is left as it is. Before, closing any handle, a read included,
+  serialised its snapshot over the file. A page or MCP read could restore an older store over a
+  newer run, and two writers could lose an update. Neo4j read handles run in read access mode.
+  Supported for a file-backed writer: POSIX with `flock`.
+
 - **The reader serves prompts: the subject wizard** (task-0148, doc-0018 candidate 4, doc-0021 §8).
   `knowgov` declares the `prompts` capability and serves `new_subject <id> <task>` and
   `add_artefact <subject> [file]` through `prompts/list` and `prompts/get`, in both protocol eras;

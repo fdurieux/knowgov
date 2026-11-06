@@ -268,8 +268,8 @@ jobs:
           sys.path[:0] = ["harness", "demo/app"]
           from store import open_store
           import register_project
-          register_project.project(open_store())
-          with open_store() as st:
+          register_project.project(open_store(access="write"))
+          with open_store(access="read") as st:
               rows = st.register_node_statements("ENT-0004")
               derived = sorted({d for r in rows for d in r["derived"]})
               assert len(rows) == 13 and derived == ["derived:S1:G:run1 (suspect)"], (len(rows), derived)
@@ -377,7 +377,7 @@ jobs:
           assert pre and all(f["severity"] == "info" for f in pre) and r["exit_code"] == 0, (pre, r["exit_code"])
           print(f"{r['store']}: {len(pre)} document(s) behind the keys unchecked or with findings; exit {r['exit_code']}")
           PY
-          docker compose exec -T -e KG_SUBJECT=/tmp/verdict/subjects/cargo_quote app python3 -c 'import sys; sys.path.insert(0, "harness"); from store import open_store; v = open_store().preload_verdicts(); assert v and {x["state"] for x in v} >= {"clean", "unchecked"}, v; print("neo4j: preload_verdicts", len(v), "version(s)")'
+          docker compose exec -T -e KG_SUBJECT=/tmp/verdict/subjects/cargo_quote app python3 -c 'import sys; sys.path.insert(0, "harness"); from store import open_store; v = open_store(access="read").preload_verdicts(); assert v and {x["state"] for x in v} >= {"clean", "unchecked"}, v; print("neo4j: preload_verdicts", len(v), "version(s)")'
           # task-0085: the pre-load verdicts, the gate's preload bundle and its info findings survive Neo4j→rdflib→Neo4j and rdflib→Neo4j→rdflib
           docker compose exec -T -e KG_STORE=neo4j -e KG_SUBJECT=/tmp/verdict/subjects/cargo_quote app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j --scenarios S6 --expect-preload
           docker compose exec -T -e KG_STORE=rdflib -e KG_SUBJECT=/tmp/verdict/subjects/cargo_quote app python tools/check_round_trip.py --chain rdflib,neo4j,rdflib --scenarios S6 --expect-preload

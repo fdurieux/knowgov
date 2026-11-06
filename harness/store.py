@@ -3,11 +3,22 @@
 Not a generic graph API. Each method is one thing the loader, the rules, the gate, the census,
 the SHACL projection or the register projection does; the first adapter (``store_neo4j.py``)
 keeps the Cypher, the Browser link and the saved queries. ``open_store()`` picks the adapter
-from ``KG_STORE`` (``neo4j`` is the default) and returns it ready to use as a context manager:
+from ``KG_STORE`` (``neo4j`` is the default) and returns it ready to use as a context manager. Every
+caller names its access (task-0141.02):
 
-    with open_store() as st:
-        st.wipe()
+    with open_store(access="write") as st:   # a unit of work: published when the block ends cleanly,
+        st.wipe()                             # abandoned when it raises
         ...
+
+    with open_store(access="read") as st:    # a snapshot: the port's reads only, never published
+        st.census()
+
+A read handle (``ReadOnly``) lets through the operations in ``READS`` and refuses every other with
+``StoreReadOnly``; closing it publishes nothing. A write handle publishes on ``commit()`` (the context
+manager's clean exit) and never on ``close()``, which releases it; ``abort()`` drops what it changed
+where the adapter can. The file-backed rdflib adapter takes its writer lock before it loads the
+snapshot it starts from and holds it to publication (``store_rdflib.py``); Neo4j writes each statement
+as it runs, so ``abort()`` cannot undo them there (task-0141.06 makes a load publish whole).
 
 Status and provenance are the store's; content stays in git. Every adapter must give the
 same answers for the same calls, which the deterministic comparator checks on the CargoQuote
@@ -30,6 +41,30 @@ def part_rows(artefact: str, version: str, entries) -> list[dict]:
     return [{"artefact": artefact, "version": version, "part": e[66:], "sha256": e[:64]} for e in entries or []]
 
 
+class StoreReadOnly(PermissionError):
+    """An operation that would change the store, asked of a read handle: refused, nothing changed."""
+
+
+class StoreBusy(RuntimeError):
+    """Another writer holds the store past this one's lock timeout: nothing was loaded or changed."""
+
+
+class StoreCorrupt(RuntimeError):
+    """The store's published file does not parse: left as it is, never read as an empty store."""
+
+
+# The port's reads (task-0141.02): what a read handle lets through. Every other operation of the port
+# changes the store, or, for console_query, may (it runs whatever text it is given).
+READS = frozenset({
+    "part_digests", "find_fragment", "review_verifications", "structural_violations", "candidate_pairs",
+    "vague_fragments", "unresolved_assertions", "declared_open", "requirements_without", "silent_entities",
+    "key_evidence", "declared_gaps_for_key", "conflict_gaps", "assertion_brief", "declared_gap", "stale_on_keys",
+    "suspect_derived", "all_derived", "preload_verdicts", "census", "extraction_activities", "extraction_times",
+    "gaps_with_concerns", "assertions_on_key", "assertion_rows", "supported_by", "candidate_for",
+    "fragments_with_version", "requirements_verified_by", "register_census", "register_node_statements",
+    "export_turtle", "describe", "saved_queries"})
+
+
 def by_id(rows: list[dict]) -> list[dict]:
     """``rows`` in one order on every adapter: by ``id``, a row without one (an OPTIONAL MATCH that met
     nothing) last. A store's collect() answers in its own traversal order, which a reload can move;
@@ -48,16 +83,30 @@ class Store:
 
     name = "abstract"
     instance = ""          # the instance id the adapter may stamp on its writes (a shared store later)
+    access = "write"       # "read" or "write", as opened (task-0141.02)
 
     # ---- lifecycle
     def __enter__(self) -> "Store":
         return self
 
-    def __exit__(self, *exc) -> None:
-        self.close()
+    def __exit__(self, exc_type, exc, tb) -> None:
+        """A unit of work: published when the block ends cleanly, abandoned when it raises; released either way."""
+        try:
+            if exc_type is None:
+                self.commit()
+            else:
+                self.abort()
+        finally:
+            self.close()
+
+    def commit(self) -> None:
+        """Publish what this handle changed. A store that writes as it goes has nothing left to publish."""
+
+    def abort(self) -> None:
+        """Abandon what this handle changed and has not published, where the adapter can."""
 
     def close(self) -> None:
-        pass
+        """Release the handle. Never publishes: a writer that did not commit leaves the store as it was."""
 
     def wipe(self) -> None:
         """Delete everything this instance holds. The free Neo4j edition serves one database."""
@@ -349,12 +398,50 @@ class Store:
         raise NotImplementedError(f"the {self.name} store has no console")
 
 
-def open_store(kind: str | None = None, **kw: Any) -> Store:
+class ReadOnly:
+    """A read handle on an adapter (task-0141.02): the port's reads go through, any other operation is
+    refused with StoreReadOnly before it reaches the adapter, and closing it publishes nothing."""
+
+    def __init__(self, inner: Store):
+        self._inner = inner
+        self.name, self.instance, self.access = inner.name, getattr(inner, "instance", ""), "read"
+
+    def __getattr__(self, attr):
+        if attr in READS:
+            return getattr(self._inner, attr)
+        raise StoreReadOnly(f"a read handle on the {self._inner.name} store only reads: {attr} is not a read of the store port")
+
+    def __enter__(self) -> "ReadOnly":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
+    def commit(self) -> None:
+        raise StoreReadOnly(f"a read handle on the {self._inner.name} store publishes nothing")
+
+    def abort(self) -> None:
+        pass
+
+    def close(self) -> None:
+        self._inner.close()
+
+
+ACCESS = ("read", "write")
+
+
+def open_store(kind: str | None = None, *, access: str, **kw: Any):
+    """The adapter ``kind`` (default ``KG_STORE``, else neo4j) opened for ``access``: ``read``, a
+    ReadOnly view on a snapshot, or ``write``, the adapter itself as one unit of work."""
+    if access not in ACCESS:
+        raise ValueError(f"access is read or write, not {access!r}")
     kind = (kind or os.environ.get("KG_STORE") or "neo4j").lower()
     if kind == "neo4j":
         from store_neo4j import Neo4jStore
-        return Neo4jStore(**kw)
-    if kind == "rdflib":
+        st = Neo4jStore(access=access, **kw)
+    elif kind == "rdflib":
         from store_rdflib import RdflibStore
-        return RdflibStore(**kw)
-    raise ValueError(f"unknown store {kind!r}; KG_STORE names an adapter: neo4j, rdflib")
+        st = RdflibStore(access=access, **kw)
+    else:
+        raise ValueError(f"unknown store {kind!r}; KG_STORE names an adapter: neo4j, rdflib")
+    return ReadOnly(st) if access == "read" else st
