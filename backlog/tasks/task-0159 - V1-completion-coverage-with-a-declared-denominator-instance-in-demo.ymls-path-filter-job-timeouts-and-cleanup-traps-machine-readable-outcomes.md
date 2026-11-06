@@ -3,11 +3,11 @@ id: TASK-0159
 title: >-
   V1 completion: coverage with a declared denominator, instance/** in demo.yml's
   path filter, job timeouts and cleanup traps, machine-readable outcomes
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-06T06:18:00Z'
-updated_date: '2026-11-06T07:42:00Z'
+updated_date: '2026-11-06T08:57:00Z'
 labels:
   - ci
   - security
@@ -25,10 +25,10 @@ The 2026-11-05 code and architecture review's plan (task-0141) runs a cross-cutt
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Statement and branch coverage is measured with a declared denominator (the modules counted and those left out, by name), subprocesses instrumented where integration coverage is claimed, and the figures recorded with the scope they cover
-- [ ] #2 demo.yml's pull_request and push path filters include instance/**, so a change to the instance template runs the stack job
-- [ ] #3 Every job in harness.yml, demo.yml and tests.yml has a timeout-minutes, and every step that starts containers or servers tears them down on failure as well as on success
-- [ ] #4 The test runner and the check tools write machine-readable outcomes (pass, fail and skip per test or check, with the skip's reason), kept as a CI artifact
+- [x] #1 Statement and branch coverage is measured with a declared denominator (the modules counted and those left out, by name), subprocesses instrumented where integration coverage is claimed, and the figures recorded with the scope they cover
+- [x] #2 demo.yml's pull_request and push path filters include instance/**, so a change to the instance template runs the stack job
+- [x] #3 Every job in harness.yml, demo.yml and tests.yml has a timeout-minutes, and every step that starts containers or servers tears them down on failure as well as on success
+- [x] #4 The test runner and the check tools write machine-readable outcomes (pass, fail and skip per test or check, with the skip's reason), kept as a CI artifact
 - [x] #5 rdflib and stack are measured on an uncontended runner against task-0084's 12-minute budget; if over, a proposal to split or trim that never subsets the record
 <!-- AC:END -->
 
@@ -57,4 +57,18 @@ Proposal, none of which subsets the record:
 (C) the lighthouse step (2.6 min, evidence, not the record) on push and nightly only: changes what a PR runs.
 (D) restate rdflib's budget.
 Coordinator's decision (2026-11-06, under the delegation): B now (task-0097, another session); A to the maintainer as its own task, measured after B; C and D not taken.
+
+CI: #285 merged as a743cca on a full green matrix at bbf49e7 (the coordinator merged #284's main in; the teardown test now matches 'docker compose ... down' with or without --profile, as it matches up). Runs on bbf49e7: tests success (4.9 min, run 42187993865), harness rdflib success (27.0 min, run 42187993911), demo stack success (17.9 min, run 42187993878). Each run kept its outcomes artifact, 14 days (expires 2026-11-20): outcomes-tests 36308 bytes, outcomes-rdflib 19524, outcomes-stack 2808. The tests job ran tools/coverage_stdlib.py and summarised it.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+V1 of the 2026-11-05 review completed.
+- AC #1: tools/coverage_stdlib.py measures statement and branch coverage with the standard library alone (sys.monitoring, CPython 3.12+), against a declared denominator. 89 files are counted; the rest are left out by named rule, and a test holds every .py accounted for. Scope: in-process only, so no integration coverage is claimed. CargoQuote with the pins 67.6% statements and 47.2% branches; J-F 65.4/45.4; stdlib 60.8/43.2. The tests job reports it.
+- AC #2: instance/** runs the stack job.
+- AC #3: every job of tests.yml, harness.yml and demo.yml has a timeout above its worst run seen: tests 20, rdflib 120, stack 60, publish 30, against 2.9, 71.8, 25.4 and 0.9 min. Teardowns run on failure, and check tools kill a server that does not exit.
+- AC #4: the runner (KG_TEST_REPORT) and every check tool (KG_OUTCOMES, tools/_outcomes.py) write machine-readable outcomes. Each job's summary has one line per tool, and the outcome JSON is kept 14 days as an artifact (actions/upload-artifact v7.0.2, pinned).
+- AC #5: stack is within task-0084's 12 minutes uncontended; rdflib is over. B (task-0097's cache) and A (task-0163, the split, approved by the maintainer) follow.
+PR #285, merged a743cca.
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -74,6 +74,14 @@ names that section with the version.
 
 ### Changes
 
+- **Two corrections to the adopter documentation.** `docs/guide.md` §6 said the review step was
+  not built and that no command took S2 to PROCEED. It is built (task-0037): the section now says
+  what a review does, that S2 reaches PROCEED once its answers are reviewed and its open decision
+  is closed by its owner, and that an approval lapses after six months, with `instance/README.md`
+  for the detail. `README.md` and `demo/README.md` named Python 3.13 for the harness and the app
+  image; the image runs Python 3.12 (`demo/Dockerfile`), and that is the version to install for the
+  harness. The standard-library tests still run on 3.13 in CI too.
+
 - **The rdflib CI job runs as two parallel jobs** (task-0163). `rdflib` keeps the record and its round
   trip, and `rdflib-readers` runs the readers (the MCP server, the lighthouse, the gate, the wrappers,
   review, capture, transcript). Nothing is dropped or subset: a test holds that every step of the old job
@@ -94,6 +102,13 @@ names that section with the version.
   `lo` is up, no route leaves `lo`, and `CAP_NET_ADMIN` is in neither the effective nor the bounding
   set; anything unreadable counts against it. The attestation's `interfaces` is now a map from each
   interface to `up` or `down`, beside `routes` and `cap_net_admin`.
+
+- **The MCP server's rdflib reads reuse one parse per publication** (task-0097). A read handle on a
+  file-backed rdflib store now reuses the process's parse of the published file while it is the same
+  publication (keyed by the file's device, inode, size and times), and parses again after a publication,
+  so a read never answers from a retired generation; one read handle per call and Neo4j are unchanged.
+  The rdflib MCP step took 430 s and now 259 s locally on the pull-request subset. The process keeps the
+  latest parse: about 15 MB for CargoQuote S1 and 82 MB for J-F C.
 
 - **A directory artefact's file digests are the file's bytes** (task-0098, a fix to task-0094). `part_sha256`
   hashed each part as bundled, and the bundle adds a newline to a file that lacks one and reads CRLF as LF,

@@ -22,9 +22,13 @@ scenarios, re-runs them against the database, and shows the register's impact wa
 | `backlog/` | the queue, the decisions and the briefs ([Backlog.md](https://github.com/MrLesk/Backlog.md)) | the `backlog` command |
 | `tests/` | the checks; `python tests/run_tests.py` needs the standard library only | this repository |
 
-The harness needs Python 3.13 with the pinned packages the Dockerfile installs,
-pumllint among them: the sequence-diagram mapper uses pumllint's parser as a
-library. The page itself is standard library only.
+The harness needs Python 3.12, the version the demo's app image runs, with the
+pinned packages the Dockerfile installs, pumllint among them: the
+sequence-diagram mapper uses pumllint's parser as a library. The page itself is
+standard library only.
+
+The standard-library tests (`python tests/run_tests.py`) need no packages; CI
+runs them on Python 3.13 as well as 3.12.
 
 Releases are listed in [`CHANGELOG.md`](CHANGELOG.md); each publishes the image
 `ghcr.io/fdurieux/knowgov:<version>`, so an instance can run a named release rather than
