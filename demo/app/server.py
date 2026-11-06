@@ -657,14 +657,29 @@ def write_refusal() -> str | None:
             "(every such request then carries it as Authorization: Bearer <token>)")
 
 
+def page_policy(port: int):
+    """What the page answers for (task-0141.03, harness/http_boundary.py), from its configuration and
+    listener, never from a request: the loopback names on the port it listens on and on the port compose
+    publishes it on (KG_PUBLIC_PORT), the viewer's host on that port (KG_DEMO_HOST, as the Browser's
+    allowlist already names it), and KG_PAGE_AUTHORITIES; its origins ``http://`` each, plus
+    KG_PAGE_ORIGINS (a TLS proxy's ``https://...``). The impact guides, which Neo4j Browser fetches
+    from its own origin, also admit the Browser's origin (KG_BROWSER_URL)."""
+    import http_boundary
+    public = int(os.environ.get("KG_PUBLIC_PORT") or port)
+    names = [x for x in (os.environ.get("KG_PAGE_AUTHORITIES") or "").split(",") if x.strip()]
+    demo = (os.environ.get("KG_DEMO_HOST") or "").strip()
+    if demo:
+        names.append(f"{demo}:{public}")
+    browser = urllib.parse.urlsplit(os.environ.get("KG_BROWSER_URL", BROWSER_URL))
+    guide = [f"{browser.scheme}://{browser.netloc}"] if browser.scheme in ("http", "https") and browser.netloc else []
+    return http_boundary.build(listen_host(), [port, public], authorities=",".join(names),
+                               origins=os.environ.get("KG_PAGE_ORIGINS", ""), extra_origins={"guide": guide})
+
+
 def write_guard(headers) -> tuple[int, str, dict] | None:
-    """None when a POST may proceed, else (status, message, extra headers). A request from another
-    web origin is refused whatever the bind, so a page elsewhere in the viewer's browser cannot
-    start a run; with KG_PAGE_TOKEN set the request must carry it; without it, a page published
-    beyond this machine refuses every write."""
-    origin = headers.get("Origin")
-    if origin and urllib.parse.urlsplit(origin).netloc.lower() != (headers.get("Host") or "").lower():
-        return 403, f"a request from another web origin ({origin}) may not change state", {}
+    """None when a POST may proceed, else (status, message, extra headers), after the Host and Origin
+    checks every request passes (Handler._boundary): with KG_PAGE_TOKEN set the request must carry it;
+    without it, a page published beyond this machine refuses every write."""
     token = page_token()
     if token:
         got = headers.get("Authorization") or ""
@@ -710,9 +725,23 @@ class Handler(BaseHTTPRequestHandler):
             return urllib.parse.unquote(parts[3]), parts[6], parts[4]
         return None
 
+    def _boundary(self) -> bool:
+        """Host and Origin checked on every request, each on its own (task-0141.03): False, answered,
+        when refused. A guide's route also admits the Browser's origin."""
+        import http_boundary
+        route = "guide" if self._guide_parts(urllib.parse.urlparse(self.path).path) else None
+        refused = http_boundary.check(page_policy(self.server.server_address[1]), self.headers, route)
+        if refused:
+            self.close_connection = True
+            self._json({"error": refused[1]}, refused[0])
+            return False
+        return True
+
     def do_OPTIONS(self) -> None:  # noqa: N802
         """The preflight of the Browser's cross-origin fetch of a guide (it sends pragma and
         cache-control headers); no other route, and no guide that does not exist, answers one."""
+        if not self._boundary():
+            return
         parts = self._guide_parts(urllib.parse.urlparse(self.path).path)
         if parts is None or impact_guide(*parts) is None:
             return self._json({"error": "not found"}, 404)
@@ -727,6 +756,8 @@ class Handler(BaseHTTPRequestHandler):
         self._send(code, json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8"), extra=extra)
 
     def do_GET(self) -> None:  # noqa: N802
+        if not self._boundary():
+            return
         u = urllib.parse.urlparse(self.path)
         q = urllib.parse.parse_qs(u.query)
         parts = [p for p in u.path.split("/") if p]
@@ -818,7 +849,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         # every POST changes state (a run reloads the store and may call the model; the projection
-        # writes the store): the guard comes before the body is read (task-0096)
+        # writes the store): the guards come before the body is read (task-0096, task-0141.03)
+        if not self._boundary():
+            return
         refused = write_guard(self.headers)
         if refused:
             code, why, extra = refused
