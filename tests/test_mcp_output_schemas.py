@@ -207,4 +207,10 @@ def test_the_knowgov_runs_tools_conform_against_a_page():
         assert "next" in call("run_status", {"run": "2026-11-04-2300"})
     page = StubPage(execution="absent")
     with _Env(KG_MCP_RUN_MODES=None):
-        assert call("run_options")["execution"]["ok"] is False
+        got = call("run_options")
+        assert got["execution"]["ok"] is False and got["worker"]["attested"] is False
+    page = StubPage(worker={"backend": "worker", "attested": True, "why": None,
+                            "host": {"system": "Linux", "kernel": "7.0.0-1014-aws", "machine": "x86_64", "engine": "docker 28"},
+                            "cloud": {"name": "AWS", "basis": "read from the kernel release's -aws suffix, not checked"}})
+    with _Env(KG_MCP_RUN_MODES="deterministic"):
+        assert call("run_options")["worker"]["cloud"]["name"] == "AWS"

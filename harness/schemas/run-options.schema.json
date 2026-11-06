@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/run-options.schema.json",
  "title": "knowgov-runs run_options",
- "description": "What knowgov-runs' run_options returns (harness/mcp_runs.py RunTools.run_options; task-0172): the page's scenarios, the modes this server may start, whether model output may run (execution, task-0168), the model rows without any key's value, and the run under way, as _run_view keeps it.",
+ "description": "What knowgov-runs' run_options returns (harness/mcp_runs.py RunTools.run_options; task-0172): the page's scenarios, the modes this server may start, whether model output may run (execution, task-0168) and where (worker, task-0169), the model rows without any key's value, and the run under way, as _run_view keeps it.",
  "type": "object",
  "additionalProperties": false,
  "required": [
@@ -20,7 +20,8 @@
   "scenarios",
   "token_required",
   "writes_refused",
-  "run"
+  "run",
+  "worker"
  ],
  "properties": {
   "subject": {
@@ -104,6 +105,93 @@
   },
   "run": {
    "$ref": "#/$defs/run_view"
+  },
+  "worker": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "backend",
+    "attested",
+    "host",
+    "cloud",
+    "why"
+   ],
+   "description": "where model output would run, as the worker attested it (task-0169, harness/execution.py placement); not attested, with why, when the page does not say",
+   "properties": {
+    "backend": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "attested": {
+     "type": "boolean"
+    },
+    "host": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "additionalProperties": false,
+     "required": [
+      "system",
+      "kernel",
+      "machine",
+      "engine"
+     ],
+     "properties": {
+      "system": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "kernel": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "machine": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "engine": {
+       "type": [
+        "string",
+        "null"
+       ]
+      }
+     }
+    },
+    "cloud": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "additionalProperties": false,
+     "required": [
+      "name",
+      "basis"
+     ],
+     "properties": {
+      "name": {
+       "type": "string"
+      },
+      "basis": {
+       "type": "string"
+      }
+     }
+    },
+    "why": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
   }
  },
  "$defs": {
