@@ -81,8 +81,9 @@ def test_questionnaire_and_review_leave_a_published_store_as_it_was():
     import store
     with tempfile.TemporaryDirectory() as td:
         shared = Path(td) / "shared.ttl"
+        from subject import SUBJECT   # the process's subject: any scenario of it stands for what a run left
         with store.open_store("rdflib", path=str(shared), access="write") as st:   # what a run on the page leaves
-            gate_cli._load(st, "S1")
+            gate_cli._load(st, SUBJECT.order[0])
         before, files = shared.read_bytes(), sorted(p.name for p in Path(td).iterdir())   # the file and its lock
         env = _env(KG_STORE="rdflib", KG_RDFLIB_FILE=str(shared))
         q = _capture(env, "questionnaire", "--scenario", "S4", "--out", str(Path(td) / "q"))

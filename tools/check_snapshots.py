@@ -538,7 +538,7 @@ def snap_03_memory() -> None:
               f"task-0176 a load forecast over db.memory.transaction.max is refused before it starts, naming the setting and both figures: {msg[:200]}")
     check(read_now() == before, "task-0176 after the refusal the published generation is read whole")
     env = {k: v for k, v in os.environ.items() if not k.startswith(("OPENAI", "GEMINI", "AWS", "KG_ANTHROPIC", "KG_MODEL_API"))}
-    p = subprocess.run([sys.executable, str(ROOT / "harness" / "gate_cli.py"), "--scenario", other, "--as-of", "record", "-f", "json"],
+    p = subprocess.run([sys.executable, str(ROOT / "harness" / "gate_cli.py"), "--scenario", other, "--as-of", "record", "--publish", "-f", "json"],
                        capture_output=True, text=True, env=env, timeout=300)
     check(p.returncode == 2 and "db.memory.transaction.max" in p.stderr and "refused before loading" in p.stderr,
           f"task-0176 gate_cli exits 2 (cannot run), naming the setting and both figures: exit {p.returncode}, {p.stderr.strip()[-200:]}")

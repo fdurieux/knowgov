@@ -21,6 +21,7 @@
     KG_GATE: gate              # preload, gate, trace-check or trace-register
     KG_INSTANCE: instance
     KG_AS_OF: ""               # gate, trace-*: the date review currency is read on (YYYY-MM-DD, record); empty: today
+    KG_PUBLISH: ""             # gate: 1 to publish the load to KG_STORE's store for a later trace job; empty: the store is left as it was
     GIT_DEPTH: "0"             # the diff against the merge request's base
     KG_ANNOTATE: "gitlab:gl-code-quality-report.json"   # empty: no code-quality report
   before_script:

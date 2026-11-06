@@ -28,8 +28,9 @@ lands during a read raises ``StoreChanged``, and ``read()`` runs the logical rea
 A scratch store (task-0183): ``scratch_store()`` is a writer on an rdflib graph in this process's memory,
 never a file and never the store ``KG_STORE`` names. A command that computes an answer for one person
 (``capture.py questionnaire`` and ``review``, ``transcript.py``) loads its scenario there, so that the
-shared store the page, the runs and the MCP servers read keeps what it holds. The shared store is
-written only by a run, the gate command, a trace registration and the register projection.
+shared store the page, the runs and the MCP servers read keeps what it holds. ``gate_cli.py`` loads there
+too unless ``--publish`` (decision-0017). The shared store is written only by a run, the gate command with
+``--publish``, a trace registration and the register projection.
 
 Status and provenance are the store's; content stays in git. Every adapter must give the
 same answers for the same calls, which the deterministic comparator checks on the CargoQuote

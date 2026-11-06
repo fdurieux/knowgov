@@ -15,6 +15,9 @@
 #                   key set: the CI route requires a task class (doc-0014 C4), so keys exits 2
 #   KG_STAGE        gate: 2 to bring in the scenario's later version
 #   KG_NO_LOAD      gate: 1 to read the store as the instance's load left it
+#   KG_PUBLISH      gate: 1 to load into the store KG_STORE names and publish the load, for a later step
+#                   that reads it (trace-check, trace-register, the MCP server); unset: the gate loads into a
+#                   store of its own process and leaves KG_STORE's as it was (decision-0017)
 #   KG_AS_OF        gate, trace-*: the date review currency is read on (--as-of; decision-0005; trace-register
 #                   picks the gate's statements on it and records it in the ledger, task-0093): YYYY-MM-DD,
 #                   record (the subject's pinned record date) or today; unset: today (KG_TODAY, else the clock)
@@ -134,6 +137,7 @@ gate)
     [ -n "${KG_FAIL_ON:-}" ] && set -- "$@" --fail-on "$KG_FAIL_ON"
     [ -n "${KG_STAGE:-}" ] && set -- "$@" --stage "$KG_STAGE"
     [ "${KG_NO_LOAD:-}" = 1 ] && set -- "$@" --no-load
+    [ "${KG_PUBLISH:-}" = 1 ] && set -- "$@" --publish
     [ -n "${KG_AS_OF:-}" ] && set -- "$@" --as-of "$KG_AS_OF"
     [ -n "$REPORT" ] && set -- "$@" -o "$REPORT"
     core gate_cli.py "$@"

@@ -754,10 +754,22 @@ version 1, each finding names its `kind` (key, task, stale,
 suspect_derived), the statement or derived output it is about (`ref`)
 and what relates to it (`related`); `stale` and `suspect_derived` are
 lists of ids, no longer counts; the baseline adds `new_suspect`. A
-version-1 report still reads as a baseline. A load replaces what the store
-holds. `--no-load` reads the store as the page left it instead, and
-refuses when the store holds another scenario. Outside the stack, add
-`KG_STORE=rdflib` to run it without a database.
+version-1 report still reads as a baseline.
+
+**Which store it writes.** None, by default. The command loads the
+scenario into a private copy in its own memory, answers from it, and
+throws it away, so the page and the assistants go on reading the scenario
+they were reading. You can run it on a stack anyone is using, and outside
+the stack with no database at all. The report's `store` reads `rdflib`
+(the private copy's kind) and `published` reads `false`. The copy needs
+the harness's Python packages, which the image has; without them the
+command says so and exits 2.
+
+`--publish` loads into the stack's store instead, replacing what it holds,
+as a run does. Use it only when a later step reads that store: a trace
+check, the MCP server, or `--no-load`. The answer is the same either way.
+`--no-load` reads the store as the page left it, and refuses when the
+store holds another scenario; it cannot be combined with `--publish`.
 
 ## A proposal read before approval
 

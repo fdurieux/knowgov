@@ -40,6 +40,9 @@ inputs:
   stage:
     description: "gate: 2 to bring in the scenario's later version"
     default: ""
+  publish:
+    description: "gate: true to load into the store KG_STORE names and publish the load, for a later step that reads it (trace-check, trace-register); default: the gate computes in a store of its own and leaves that store as it was (decision-0017)"
+    default: "false"
   as-of:
     description: "gate, trace-*: the date review currency is read on (YYYY-MM-DD, record or today); trace-register records it in the ledger; default today"
     default: ""
@@ -84,6 +87,7 @@ runs:
         KG_SCENARIO: ${{ inputs.scenario }}
         KG_TASK: ${{ inputs.task }}
         KG_STAGE: ${{ inputs.stage }}
+        KG_PUBLISH: ${{ inputs.publish == 'true' && '1' || '' }}
         KG_AS_OF: ${{ inputs.as-of }}
         KG_LEDGER: ${{ inputs.ledger }}
         KG_FILES: ${{ inputs.files }}

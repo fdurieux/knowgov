@@ -242,13 +242,19 @@ jobs:
           set +e
           docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S2; s2=$?
           docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S2 --baseline record; s2b=$?
-          docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S1 -f json > gate.json; s1=$?
+          docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S1 --publish -f json > gate.json; s1=$?
+          # decision-0017: without --publish the gate loads S2 into a store of its own; Neo4j still holds S1, generation unchanged
+          gen() { docker compose exec -T app python -c 'import sys; sys.path.insert(0, "harness"); from store import open_store; st = open_store(access="read"); print(st.extraction_activities(), st._inner.generation()); st.close()'; }
+          before=$(gen)
+          docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S2 -f json > gate-s2.json; s2p=$?
+          after=$(gen)
           docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S1 --no-load; s1n=$?
           docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S2 --no-load; s2n=$?
           set -e
-          echo "S2 $s2, S2 against the record $s2b, S1 $s1, S1 as loaded $s1n, S2 while S1 is loaded $s2n"
-          test "$s2 $s2b $s1 $s1n $s2n" = "1 0 0 0 2"
-          python3 -c 'import json; r=json.load(open("gate.json")); assert r["store"]=="neo4j" and r["verdict"]=="PROCEED" and r["exit_code"]==0, r; print("gate on neo4j:", r["verdict"])'
+          echo "S2 $s2, S2 against the record $s2b, S1 published $s1, S2 private $s2p, S1 as loaded $s1n, S2 while S1 is loaded $s2n"
+          test "$s2 $s2b $s1 $s2p $s1n $s2n" = "1 0 0 1 0 2"
+          echo "held before: $before"; echo "held after:  $after"; test "$before" = "$after"
+          python3 -c 'import json; r=json.load(open("gate.json")); assert r["store"]=="neo4j" and r["published"] and r["verdict"]=="PROCEED" and r["exit_code"]==0, r; p=json.load(open("gate-s2.json")); assert p["store"]=="rdflib" and not p["published"] and p["verdict"]=="BLOCKED", p; print("gate on neo4j:", r["verdict"], "published; S2 on its own store:", p["verdict"])'
 
       - name: "The contained worker (task-0141.05, decision-0012): EXEC-01 to EXEC-09 on the real worker container, and a loosened worker, network on or a key in its environment, refuses to serve"
         run: |

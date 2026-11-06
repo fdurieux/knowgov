@@ -281,6 +281,7 @@ jobs:
           test "$(gate --scenario S1 --stage 2)" = 2
           test "$(gate --scenario S6 --reverify)" = 2
           test "$(gate --scenario S6 --stage 2 --no-load)" = 2
+          test "$(gate --scenario S1 --publish --no-load)" = 2   # decision-0017: a publish loads, --no-load reads
           test "$(gate --subject ../subjects/jef_data_load --baseline record)" = 0
           test "$(gate --subject ../subjects/minimal)" = 1
           # decision-0005: CargoQuote's ten review-only keys, reviewed 2026-08-06; the three response keys rest on a step,
@@ -338,7 +339,7 @@ jobs:
           sarif-category: knowgov-ci-wrappers
       - name: "The action: gate on S6, exit 0"
         uses: ./instance/ci/github
-        with: { gate: gate, instance: runs/wrap/instance, scenario: S6 }
+        with: { gate: gate, instance: runs/wrap/instance, scenario: S6, publish: "true" }
       - name: "The action: trace-register the reference code, exit 0"
         uses: ./instance/ci/github
         with: { gate: trace-register, instance: runs/wrap/instance, files: reference_impl.py, ledger: runs/wrap/ledger.json }
@@ -346,7 +347,7 @@ jobs:
         id: wrap_stage2
         continue-on-error: true
         uses: ./instance/ci/github
-        with: { gate: gate, instance: runs/wrap/instance, scenario: S6, stage: "2", report: runs/wrap/gate-stage2.json }
+        with: { gate: gate, instance: runs/wrap/instance, scenario: S6, stage: "2", publish: "true", report: runs/wrap/gate-stage2.json }
       - name: "A code change in the instance's repository: an edit to the registered file"
         run: |
           f=runs/wrap/instance/subjects/cargo_quote/vendor/stack_experiment/cargo_quote/reference_impl.py && echo "# an edit in the pull request" >> "$f"

@@ -2,7 +2,8 @@
 
     python tools/check_mcp_server.py [--scenarios S1,S2]
 
-For each scenario: load it into the store with ``gate_cli.py`` (the command's own load), then ask
+For each scenario: load it into the store with ``gate_cli.py --publish`` (the command's own load,
+published so the server reads it; decision-0017), then ask
 the same question twice of the store as it stands, once as ``gate_cli.py --no-load -f json`` and
 once as an MCP client over stdio calling ``gate_verdict``, and require the two reports to be equal
 key for key. Then ask ``three_valued_answer`` for every key the subject names and require the
@@ -199,7 +200,7 @@ def settled(stale: list[dict]) -> dict[str, list[str]]:
 def check_stage2(sc: str, subject, failures: list[str]) -> None:
     """S6 after its change and re-verification: the server and the command agree, and both name
     what supersedes each invalidated statement as the record does."""
-    load = gate_cli("--scenario", sc, "--stage", "2", "--reverify", "-f", "json")
+    load = gate_cli("--scenario", sc, "--stage", "2", "--reverify", "--publish", "-f", "json")   # the server reads this load (decision-0017)
     if load.returncode == 2:
         failures.append(f"{sc} stage 2: gate_cli could not load: {load.stderr.strip()}")
         return
@@ -733,7 +734,7 @@ def main(argv: list[str] | None = None) -> int:
     failures = []
     ex = example_trace(failures)
     for sc in scenarios:
-        load = gate_cli("--scenario", sc, "--as-of", "record", "-f", "json")
+        load = gate_cli("--scenario", sc, "--as-of", "record", "--publish", "-f", "json")   # the server reads this load (decision-0017)
         if load.returncode == 2:
             failures.append(f"{sc}: gate_cli could not load: {load.stderr.strip()}")
             continue

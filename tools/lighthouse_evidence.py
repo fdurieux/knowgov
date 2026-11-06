@@ -197,7 +197,7 @@ def child(out: Path, cap: int | None, only: list[str] | None = None, transport: 
     ev["scenarios"] = scenarios
     gates, mcp = {}, {}
     for i, sc in enumerate(scenarios):
-        (code, rep, err), t = timed(gate_cli, "--scenario", sc)
+        (code, rep, err), t = timed(gate_cli, "--scenario", sc, "--publish")   # the MCP reads below read this load (decision-0017)
         ev["timings_s"][f"gate {sc}"] = t
         if rep is None or code == 2:
             failures.append(f"gate {sc}: could not run: {err}")
@@ -236,8 +236,8 @@ def child(out: Path, cap: int | None, only: list[str] | None = None, transport: 
         cfg2 = SUBJECT.scenario(sc).get("stage2")
         if not cfg2:
             continue
-        (c1, before, e1), t1 = timed(gate_cli, "--scenario", sc, "--stage", "2")
-        (c2, after, e2), t2 = timed(gate_cli, "--scenario", sc, "--stage", "2", "--reverify")
+        (c1, before, e1), t1 = timed(gate_cli, "--scenario", sc, "--stage", "2", "--publish")
+        (c2, after, e2), t2 = timed(gate_cli, "--scenario", sc, "--stage", "2", "--reverify", "--publish")
         ev["timings_s"][f"stage 2 {sc}"] = round(t1 + t2, 2)
         if before is None or after is None:
             failures.append(f"invalidation {sc}: could not run: {e1 or e2}")

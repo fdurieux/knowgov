@@ -160,7 +160,7 @@ def test_the_store_backed_tools_conform_on_both_subjects():
             m, scenarios = _manifest(subject)
             store, sc = os.path.join(d, f"{subject.name}.ttl"), scenarios[0]
             env = _env(subject, store)
-            p = subprocess.run([sys.executable, str(ROOT / "harness" / "gate_cli.py"), "--scenario", sc, "--as-of", "record"],
+            p = subprocess.run([sys.executable, str(ROOT / "harness" / "gate_cli.py"), "--scenario", sc, "--as-of", "record", "--publish"],
                                capture_output=True, text=True, env=env, timeout=600)
             assert p.returncode in (0, 1), p.stderr[-600:]
             r = Reader(env)

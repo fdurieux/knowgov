@@ -159,7 +159,9 @@ def test_the_real_gate_with_a_missing_subject_blocks_as_unavailable():
 
 
 def test_the_real_gate_with_an_unreachable_store_blocks_and_the_advisory_profile_lets_it_through():
-    kw = dict(KG_SUBJECT=str(ROOT / "subjects" / "cargo_quote"), KG_STORE="neo4j", KG_NEO4J_URI="bolt://127.0.0.1:9")
+    """A gate asked to publish (KG_PUBLISH=1) needs the configured store: unreachable, it cannot run. By
+    default (decision-0017) the gate computes in its own process and does not need it."""
+    kw = dict(KG_SUBJECT=str(ROOT / "subjects" / "cargo_quote"), KG_STORE="neo4j", KG_NEO4J_URI="bolt://127.0.0.1:9", KG_PUBLISH="1")
     p = _real(PUSH, **kw)
     assert p.returncode == 2 and "the gate is unavailable (exit 2)" in p.stderr, p.stderr
     p = _hook(PUSH, "gate", "--task", "codegen", "--advisory", "--instance", str(ROOT), env=_env(KG_AS_OF="record", **kw))

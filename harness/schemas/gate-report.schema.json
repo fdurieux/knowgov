@@ -12,8 +12,9 @@
     "subject": {"type": "string", "description": "the subject's id"},
     "scenario": {"type": "string"},
     "task": {"type": "string", "description": "the task class of the subject's [tasks] table"},
-    "store": {"type": "string", "description": "the store adapter: neo4j or rdflib"},
-    "loaded": {"type": "boolean", "description": "true: the gate loaded the scenario into the store first; false (--no-load): it read the store as it was"},
+    "store": {"type": "string", "description": "the store adapter the gate computed on: rdflib for the default load into the process's scratch store (decision-0017); KG_STORE's adapter with --publish or --no-load"},
+    "loaded": {"type": "boolean", "description": "true: the gate loaded the scenario first; false (--no-load): it read the configured store as it was"},
+    "published": {"type": "boolean", "description": "true (--publish): the load was published to the store KG_STORE names; false: that store is as it was (decision-0017). Absent with --no-load, from the MCP server's report (which equals --no-load's), and before 0.9.0"},
     "version": {"type": ["string", "null"], "description": "the version loaded last (task-0049): v1 for stage 1, the subject's [scenario.stage2] version for --stage 2; with --no-load, the store's latest extraction"},
     "change": {
       "type": ["object", "null"],
