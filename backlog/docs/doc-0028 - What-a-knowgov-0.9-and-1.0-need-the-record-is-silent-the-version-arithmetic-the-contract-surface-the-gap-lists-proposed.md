@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-06T09:37:00Z'
+updated_date: '2026-11-06T11:15:00Z'
 tags:
   - brief
   - release
@@ -108,15 +108,15 @@ None of these changes a contract that 1.0 would freeze:
 
 ## 7. Placement
 
-From doc-0012 §8, on the neutral rubric:
+From doc-0012 §10, the placement of record (the mean of the two external passes, accepted 2026-11-06), with §8's home re-score beside it:
 
-| state | V · E |
-|---|--:|
-| now | 16 · 4 |
-| contracts frozen | 16 · 5 |
-| 1.0 at the lighthouse | 17–18 · ≈ 9 |
+| state | record V · E | §8 V · E |
+|---|--:|--:|
+| now | 14 · 2.5 | 16 · 4 |
+| contracts frozen, a declared 1.0 | 14 · 3 | 16 · 5 |
+| 1.0 with its conditions met | 15.5 · 8 | 17–18 · ≈ 9 |
 
-The version number is worth one Execute point. The rest needs G1-1, G1-2 and G1-4.
+The version number is worth half an Execute point on the record, one on §8. The rest needs G1-1, G1-2 and G1-4, and the stack stays Visionary even with them.
 
 ## 8. Corrections to the session's first reading (2026-11-06, in chat)
 

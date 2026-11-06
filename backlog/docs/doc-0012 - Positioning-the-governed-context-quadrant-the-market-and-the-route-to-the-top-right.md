@@ -5,7 +5,7 @@ title: >-
   top-right
 type: specification
 created_date: '2026-11-03T22:44:00Z'
-updated_date: '2026-11-06T10:26:00Z'
+updated_date: '2026-11-06T11:15:00Z'
 tags:
   - brief
   - positioning
@@ -20,7 +20,7 @@ tags:
 
 Not in Gartner's DTO Magic Quadrant (first edition 2026-07-27, 18 vendors): its definition needs operational data, knowgov holds the declarative twin. Not a fourth register in the EA Tools MQ (2025-10-06) either, at E ≈ 3 against 16–20. The position is the seam between them. Positioning line: *"Before an AI agent builds on what your architecture says, know whether it is true."*
 
-*2026-11-06: re-scored by the home team under the neutral rubric at 16 · 4 (18 · 5 on the note rubric), still Visionary (§8). Two external passes on doc-0027's brief placed it at 13 · 3 (§9) and 15 · 2 (§10): a mean of 14 · 2.5, still Visionary.*
+*2026-11-06: re-scored by the home team under the neutral rubric at 16 · 4 (18 · 5 on the note rubric), still Visionary (§8). Two external passes on doc-0027's brief placed it at 13 · 3 (§9) and 15 · 2 (§10): a mean of 14 · 2.5, still Visionary, the placement of record (§10, accepted 2026-11-06).*
 
 ## 1. Category and field
 
@@ -296,4 +296,6 @@ OpenAI, with search, put Palantir and ServiceNow in the corner and the stack mid
 
 These are G1-1, G1-2, G1-4 and G1-6.
 
-**Proposed reading.** With both runners in, this doc reads the stack at their mean, 14 · 2.5, Visionaries. It keeps §8's 16 · 4 as the home team's reading, about two points high on Vision and 1.5 on Execute. The field stays §9's, the one with sources. doc-0027 owes no third runner. A rerun of this one that actually uses search would firm up the field.
+**Placement of record** (maintainer, 2026-11-06: "accept the mean as the placement of record"). The stack reads at the two runners' mean, 14 · 2.5, Visionaries; as a v1.0, 14 · 3 declared and 15.5 · 8 with its conditions met, the means of their v1.0 rows. §8's 16 · 4 stays the home team's reading, about two points high on Vision and 1.5 on Execute. The field stays §9's, the one with sources. doc-0027 owes no third runner. A rerun of this one that actually uses search would firm up the field.
+
+The artifact page "knowgov Quadrant Placement" (https://claude.ai/artifact/SMa3tgeKWrykqzyyaQGeac) is a view of §9 and §10: the field from §9, the stack at the placement of record and its two v1.0 marks, and the readings behind the mean.
