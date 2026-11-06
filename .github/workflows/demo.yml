@@ -23,6 +23,7 @@ on:
       - "harness/**"
       - "subjects/**"
       - "tools/**"
+      - "instance/**"
       - ".github/workflows/demo.yml"
   schedule:
     - cron: "17 3 * * *"   # the full J-F set, nightly
@@ -34,6 +35,7 @@ on:
       - "harness/**"
       - "subjects/**"
       - "tools/**"
+      - "instance/**"
       - ".github/workflows/demo.yml"
 
 permissions:
@@ -42,6 +44,7 @@ permissions:
 jobs:
   stack:
     runs-on: ubuntu-latest
+    timeout-minutes: 60   # task-0159: above the worst run seen (see tests/test_ci_hygiene.py), never the 12-minute budget
     env:
       # task-0084: the J-F subset on a pull request, empty (every scenario) on any other event
       KG_JF_SCENARIOS: ${{ github.event_name == 'pull_request' && 'C,D3' || '' }}
@@ -439,6 +442,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: stack
     runs-on: ubuntu-latest
+    timeout-minutes: 30   # task-0159: above the worst run seen (see tests/test_ci_hygiene.py), never the 12-minute budget
     permissions:
       contents: read
       packages: write

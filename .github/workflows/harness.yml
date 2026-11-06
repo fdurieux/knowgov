@@ -29,6 +29,7 @@ permissions:
 jobs:
   rdflib:
     runs-on: ubuntu-latest
+    timeout-minutes: 120   # task-0159: above the worst run seen (see tests/test_ci_hygiene.py), never the 12-minute budget
     permissions:
       contents: read
       security-events: write   # task-0116: the action's opt-in SARIF upload, this job only

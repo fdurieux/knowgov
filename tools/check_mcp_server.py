@@ -73,6 +73,16 @@ def gate_cli(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run([sys.executable, str(HARNESS / "gate_cli.py"), *args], capture_output=True, text=True, env=os.environ.copy())
 
 
+def _stop(p: subprocess.Popen, grace: float = 30) -> None:
+    """A server this check started ends with the check, whatever its outcome (task-0159): it is waited
+    for, then killed and reaped if it has not exited within ``grace`` seconds."""
+    try:
+        p.wait(timeout=grace)
+    except subprocess.TimeoutExpired:
+        p.kill()
+        p.wait(timeout=grace)
+
+
 class StdioClient:
     """A minimal MCP client: start the server, initialise, call tools."""
 
@@ -110,8 +120,10 @@ class StdioClient:
         return self.request(method, {**params, "_meta": meta})
 
     def close(self) -> None:
-        self.p.stdin.close()
-        self.p.wait(timeout=30)
+        try:
+            self.p.stdin.close()
+        finally:
+            _stop(self.p)
 
 
 class HttpClient(StdioClient):
@@ -156,7 +168,7 @@ class HttpClient(StdioClient):
 
     def close(self) -> None:
         self.p.terminate()
-        self.p.wait(timeout=30)
+        _stop(self.p)
 
 
 def settled(stale: list[dict]) -> dict[str, list[str]]:
