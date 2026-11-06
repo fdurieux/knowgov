@@ -3,9 +3,11 @@ id: TASK-0151
 title: >-
   Spike: one MCP server for several subjects, measured before a decision
   (doc-0021 S3, G4)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-05T21:46:00Z'
+updated_date: '2026-11-06T04:43:00Z'
 labels: []
 dependencies:
   - TASK-0146

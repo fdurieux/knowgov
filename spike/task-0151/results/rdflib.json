@@ -1,0 +1,80 @@
+{
+ "store": "rdflib",
+ "subject": "cargo_quote",
+ "n_warm": 20,
+ "python": "3.13.18",
+ "designs": {
+  "a_child_per_call": {
+   "gate_verdict": {
+    "cold_s": 0.7047,
+    "warm": {
+     "n": 20,
+     "median_s": 0.7105,
+     "p95_s": 0.774,
+     "min_s": 0.6922,
+     "max_s": 0.8108
+    }
+   },
+   "register_nodes": {
+    "cold_s": 0.0754,
+    "warm": {
+     "n": 20,
+     "median_s": 0.0761,
+     "p95_s": 0.0814,
+     "min_s": 0.073,
+     "max_s": 0.0834
+    }
+   }
+  },
+  "b_pool_per_subject": {
+   "gate_verdict": {
+    "cold_s": 0.6882,
+    "cold_includes_spawn": true,
+    "warm": {
+     "n": 20,
+     "median_s": 0.5615,
+     "p95_s": 0.6354,
+     "min_s": 0.5353,
+     "max_s": 0.7068
+    }
+   },
+   "register_nodes": {
+    "cold_s": 0.0109,
+    "cold_includes_spawn": false,
+    "warm": {
+     "n": 20,
+     "median_s": 0.0098,
+     "p95_s": 0.0103,
+     "min_s": 0.0097,
+     "max_s": 0.0103
+    }
+   }
+  },
+  "c_subject_as_value": {
+   "gate_verdict": {
+    "cold_s": 0.6332,
+    "cold_wall_with_interpreter_s": 0.691,
+    "warm": {
+     "n": 20,
+     "median_s": 0.5506,
+     "p95_s": 0.6191,
+     "min_s": 0.5238,
+     "max_s": 0.6342
+    }
+   },
+   "register_nodes": {
+    "cold_s": 0.0579,
+    "cold_wall_with_interpreter_s": 0.0838,
+    "warm": {
+     "n": 20,
+     "median_s": 0.0098,
+     "p95_s": 0.0112,
+     "min_s": 0.0094,
+     "max_s": 0.0119
+    }
+   }
+  }
+ },
+ "answers_equal": true,
+ "gate_verdict": "PROCEED"
+}

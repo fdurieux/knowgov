@@ -993,6 +993,9 @@ class Server:
         table; none for a server that passes its own table unless it names them)."""
         self.tools = tools or Tools()
         self.table = TOOLS if table is None else table
+        if table is None and os.environ.get("KG_SUBJECT_DISPATCH"):   # SPIKE task-0151: subject on every tool
+            import subject_dispatch as sd
+            self.table, self.pool = sd.with_subject(self.table), sd.Pool()
         self.info = SERVER if info is None else info
         self.instructions = INSTRUCTIONS if instructions is None else instructions
         if prompts is None and table is None:
@@ -1050,6 +1053,16 @@ class Server:
             return _error(id_, -32602, f"unknown tool {name!r}")
         if not isinstance(args, dict):
             return _error(id_, -32602, "arguments must be an object")
+        mode = os.environ.get("KG_SUBJECT_DISPATCH")   # SPIKE task-0151: (a) child or (b) pool, by subject id
+        if mode and (name == "list_subjects" or "subject" in args):
+            import subject_dispatch as sd
+            try:
+                got = sd.route(mode, getattr(self, "pool", None), name, dict(args))
+            except sd.UnknownSubject as e:
+                return _result(id_, {"content": [{"type": "text", "text": str(e)}], "isError": True, **stamp})
+            if got is not None:
+                return _result(id_, {**got, **stamp})
+            args = {k: v for k, v in args.items() if k != "subject"}
         try:
             data = getattr(self.tools, name)(args)
         except (ToolError, PermissionError) as e:
