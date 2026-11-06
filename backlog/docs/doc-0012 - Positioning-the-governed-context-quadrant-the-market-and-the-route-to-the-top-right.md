@@ -5,7 +5,7 @@ title: >-
   top-right
 type: specification
 created_date: '2026-11-03T22:44:00Z'
-updated_date: '2026-11-06T09:05:00Z'
+updated_date: '2026-11-06T10:26:00Z'
 tags:
   - brief
   - positioning
@@ -20,7 +20,7 @@ tags:
 
 Not in Gartner's DTO Magic Quadrant (first edition 2026-07-27, 18 vendors): its definition needs operational data, knowgov holds the declarative twin. Not a fourth register in the EA Tools MQ (2025-10-06) either, at E ≈ 3 against 16–20. The position is the seam between them. Positioning line: *"Before an AI agent builds on what your architecture says, know whether it is true."*
 
-*2026-11-06: re-scored by the home team under the neutral rubric at 16 · 4 (18 · 5 on the note rubric), still Visionary (§8). doc-0027 is the brief for the external pass.*
+*2026-11-06: re-scored by the home team under the neutral rubric at 16 · 4 (18 · 5 on the note rubric), still Visionary (§8). Two external passes on doc-0027's brief placed it at 13 · 3 (§9) and 15 · 2 (§10): a mean of 14 · 2.5, still Visionary.*
 
 ## 1. Category and field
 
@@ -104,11 +104,11 @@ Nothing else changes. S1's items became tasks on the maintainer's go of 2026-11-
 
 ## 8. Re-score, 2026-11-06 (home team, neutral rubric)
 
-*2026-11-06. Triggers:
+2026-11-06. Triggers:
 - §7's "an MCP surface: re-score E and V4" fired with task-0056 (the reader has grown to 16 tools since);
 - the maintainer's question of this date: the quadrant now and as a v1.0.
 
-Scored in session at knowgov `43ee83f` (after v0.7.0), ieam-register `735b2e2` (v0.2.12) and pumllint `a39d800`. Checked again at knowgov `a743cca`: no cell moves. That includes decision-0015 and task-0161 (`b44b9bd`), and task-0159's CI hygiene (#285), whose coverage figure is not counted here. The wording is §2's neutral wording, with no anchors (doc-0027's anchors are for the external pass). The field is not re-scored. This is home-team scoring with no external pass yet: doc-0027 is the brief for one, and its output is compared here when it returns. The v1.0 gap lists are doc-0028's; the definition of 0.9 and 1.0 is proposed in decision-0016.*
+Scored in session at knowgov `43ee83f` (after v0.7.0), ieam-register `735b2e2` (v0.2.12) and pumllint `a39d800`. Checked again at knowgov `a743cca`: no cell moves. That includes decision-0015 and task-0161 (`b44b9bd`), and task-0159's CI hygiene (#285), whose coverage figure is not counted here. The wording is §2's neutral wording, with no anchors (doc-0027's anchors are for the external pass). The field is not re-scored. This is home-team scoring with no external pass yet: doc-0027 is the brief for one, and its output is compared here when it returns. The v1.0 gap lists are doc-0028's; the definition of 0.9 and 1.0 is proposed in decision-0016.
 
 | | V1 | V2 | V3 | V4 | **V** | E1 | E2 | E3 | E4 | **E** |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
@@ -159,3 +159,141 @@ Scored in session at knowgov `43ee83f` (after v0.7.0), ieam-register `735b2e2` (
 | S3 (note rubric target) | 19 | 16 | §6 |
 
 A version number is an E1 lever, worth one point. The dot moves right with the lighthouse, not with the tag.
+
+## 9. External pass, 2026-11-06 (doc-0027, first runner)
+
+2026-11-06. The run:
+- Brief: doc-0027, sent unedited by the coordinating session.
+- Model and settings: OpenAI `gpt-5.5-2026-04-23`, Responses API, effort high, web search on. This is the operator's record; the report's own runner section says "model not exposed".
+- Time: 09:02–09:10 UTC; 237,973 input tokens and 29,060 output.
+- Inputs: the 13 files doc-0027 §4 marks required, fetched at its pins and attached (aris2puml `main` at `ca22e13`). It also browsed the §4.4 pages.
+
+The raw report stays outside the repository; this is our reading of it. It is one runner of the two families doc-0027 asks for. It did not read the code, so most of the stack's cells rest on `documented` evidence. Its contamination log names pumllint's PyPI page (the diagram-as-code quadrant), influence "none", and J-F mentions, ignored.
+
+**The stack.**
+
+| scoring | V1 | V2 | V3 | V4 | **V** | E1 | E2 | E3 | E4 | **E** |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| §3, neutral (2026-11-03) | 3 | 4 | 3 | 3 | 13 | 1 | 0 | 1 | 0 | 2 |
+| §8, home re-score, neutral | 4 | 4 | 4 | 4 | 16 | 2 | 0 | 2 | 0 | 4 |
+| **external, neutral with doc-0027's anchors** | 3 | 4 | 3 | 3 | **13** | 2 | 0 | 1 | 0 | **3** |
+
+- **Blind, it reproduces §3's neutral Vision exactly (13).** What it credits since 2026-11-03 is one point of E1, the releases. §8's +3 on Vision (V1, V3, V4) is not confirmed. This is the home-team lift §2 named ("about three points lower on Vision"), seen again under the neutral wording.
+- **V1, 3 against §8's 4.** It read the three walks and the `owns`/`maps_to` exclusion correctly. It held V1 at 3 for synthetic content and unverified export mappings: identity *across the authoring tools* is unproven. Accepted: under the anchors, "all elements working" needs that cross-tool identity.
+- **V3, 3 against 4.** Some integrations are not proven on real runners (GitLab) or real installations. Accepted.
+- **V4, 3 against 4.** It weighed GPL-3.0-or-later against embedding, and the domain formats as non-standard, beside the MCP surface. §8 left out the licence, which the rubric's V4 names. Accepted. task-0058 is the lever.
+- **E3, 1 against 2.** It treats the delivery integrations as built but not verified at an adopter. The anchor's "verified" is undefined for delivery tools: the GitHub action runs for real in `harness.yml`, so 2 is arguable. Recorded as a scale question, not conceded.
+- **V2, E1, E2, E4: agreed** (4, 2, 0, 0). V2's 4 is marked as resting on `documented` evidence alone.
+
+**The field.**
+- The corner holds **Palantir (17 · 16) and ServiceNow (16 · 20)**. §3's "empty on the mean, contested" does not hold under the neutral wording with anchors, as OpenAI's blind 17 already hinted.
+- The stack's Vision of 13 is mid-field. It equals LeanIX + Signavio's 13 and sits below Palantir, ServiceNow, Collibra and Fabric IQ, and below Celonis and CALM at 14. §8's "the field's highest Vision" holds on the note rubric only.
+- 17 of the 18 field products land in Leaders (all but FINOS CALM, at 14 · 9), with Structurizr / LikeC4 on both midlines at 10 · 10. That is a property of doc-0027's midline at 10 with anchors that reward scale, not a finding about the field.
+- Its category verdict: "coherent but not yet an analyst-standard category name"; the field is heterogeneous by design.
+
+**As a v1.0.**
+
+| state | external V · E | §8 (home) V · E |
+|---|--:|--:|
+| v1.0-minimal / contracts frozen | 13 · 3 | 16 · 5 |
+| v1.0-as-defined / at the lighthouse | 16 · 8 | 17–18 · ≈ 9 |
+
+- **Both readings agree on the claim that matters.** The version number moves nothing, or one E1 point. The lighthouse moves Execute to about 8–9, still left of the midline, and still Visionary.
+- **Its conditions match decision-0016's,** points 1, 3 and 4, and doc-0028's G9 and G1:
+  - stable contracts, including the MCP tools' schemas;
+  - a public external pilot on real content;
+  - a system-of-record route verified on a real installation;
+  - CI integrations proven on the platforms they name;
+  - a legal entity and support terms;
+  - a licence decision for adapters;
+  - a release image that matches the security claims.
+- **It adds four conditions:**
+  - an independent security review, or an adopter's security sign-off;
+  - a compatibility statement for the two MCP protocol eras;
+  - a bus-factor disclosure;
+  - adoption metrics that tell stack use apart from pumllint's downloads.
+
+**Errors it found in the sources.** Two of them this session had found too (doc-0028 G9-9):
+- `README.md` says Python 3.13, but the image is 3.12;
+- `docs/guide.md` §6 says the review step is not built.
+
+Two are new:
+- `docs/guide.md` still describes a narrower impact walk than the register's three walks;
+- 0.7.0's Known limits (no containment, no whole publication) read against Unreleased's fixes: the published image lags `main`.
+
+**What would change its mind:**
+- a public pilot on real content, with a redacted evidence pack;
+- a real system-of-record run, with a redacted reconciliation report;
+- a sustaining model: an entity or governance, support terms, bus-factor disclosure and an adapter licence strategy.
+
+These are G1-1, G1-2 and G1-4, and G9-8.
+
+**Bounds.** One runner, not two. It worked from documentation, not code. doc-0027's anchors are new, so their effect cannot be separated from the runner's. The second runner, from another model family, is still owed. Proposed: until it reports, this doc reads the stack at the external 13 · 3, and keeps §8's 16 · 4 as the home team's reading.
+
+## 10. External pass, 2026-11-06 (doc-0027, second runner)
+
+2026-11-06. The run:
+- Brief: doc-0027, sent unedited from the drafting session on the maintainer's go ("run the Gemini pass").
+- Model and settings: Google `gemini-3.1-pro-preview` through the native `streamGenerateContent`, thinking level high, with the Google Search tool available. This is the operator's record; the report's own runner section says "Gemini 2.5 Pro", which is wrong.
+- Time: 10:23:44–10:25:22 UTC; 109,847 input tokens, 7,432 output and 6,784 thinking.
+- Inputs: the same 13 files at the same pins as the first runner (aris2puml `ca22e13`), with an operator's note naming them.
+- It did not use the search tool: the stream carries no grounding metadata. Its field therefore rests on recalled knowledge, although it marks every field product `thin: false`.
+
+The raw report stays outside the repository; this is our reading of it. It is about a quarter the length of the first runner's (7.4k output tokens against 29k), and less careful:
+- it marks the stack's cells `observed` where it read documentation only; the brief's class for that is `documented`;
+- it counts 13 MCP tools, where `instance/README.md` says sixteen;
+- its stack table says "Niche" for 15 · 2, which the brief's rule and its own JSON read as Visionaries;
+- its "errors in the sources" are not errors. Two are corrections the evaluation record makes of itself, one is its own rule-following on J-F, and it says ieam-register's decision 0019 is missing when it exists.
+
+**The stack.**
+
+| scoring | V1 | V2 | V3 | V4 | **V** | E1 | E2 | E3 | E4 | **E** |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| §3, neutral (2026-11-03) | 3 | 4 | 3 | 3 | 13 | 1 | 0 | 1 | 0 | 2 |
+| §8, home re-score, neutral | 4 | 4 | 4 | 4 | 16 | 2 | 0 | 2 | 0 | 4 |
+| §9, first runner (OpenAI) | 3 | 4 | 3 | 3 | 13 | 2 | 0 | 1 | 0 | 3 |
+| **second runner (Gemini)** | 4 | 4 | 3 | 4 | **15** | 1 | 0 | 1 | 0 | **2** |
+| mean of the two runners | 3.5 | 4 | 3 | 3.5 | 14 | 1.5 | 0 | 1 | 0 | 2.5 |
+
+- **Five cells agree across both runners:** V2 4, V3 3, E2 0, E3 1, E4 0. Both reject §8's V3 of 4 and E3 of 2, so §9's scale question on E3 is settled against §8.
+- **Three cells split:**
+  - V1 and V4: Gemini 4, with §8; OpenAI 3.
+  - E1: OpenAI 2; Gemini 1, citing seven releases in four days and the worker refused on Docker Desktop for Mac.
+
+  Gemini's V4 rests partly on its miscount of tools, and it does not weigh the GPL licence, which OpenAI did. OpenAI's V1 reading (identity across the authoring tools is unproven) is the stricter under the anchors.
+- **Vision:** the runners bracket it at 13–15, mean 14. §8's 16 sits above both; §3's 13 sits at the low end.
+- **Execute:** 2–3, mean 2.5. §8's 4 sits above both.
+- **Both place the stack in Visionaries.**
+
+**The field.** Gemini scored it from recall, without search, and lower throughout:
+- no product reaches the corner, Palantir peaking at 15 · 15;
+- the stack's 15 ties Palantir's as the field's highest Vision.
+
+OpenAI, with search, put Palantir and ServiceNow in the corner and the stack mid-field. The products recalled rather than searched show the widest gaps: FINOS CALM (Gemini 7 · 5, OpenAI 14 · 9) and Spec Kit / Kiro (8 · 9 against 12 · 15). The corner question and the stack's rank on Vision stay open; the first runner's field, which cites its sources, is the stronger of the two.
+
+**Category.** Gemini: not a coherent category but "highly specific to the home team's invention"; an analyst would split the stack across EA tools, AI governance and developer portals. OpenAI: coherent, but not an analyst-standard name. Neither treats it as a category an analyst would score.
+
+**As a v1.0.**
+
+| state | first runner | second runner | §8 (home) |
+|---|--:|--:|--:|
+| v1.0-minimal | 13 · 3 | 15 · 3 | 16 · 5 |
+| v1.0-as-defined | 16 · 8 | 15 · 8 | 17–18 · ≈ 9 |
+
+- **On Execute the runners agree exactly:** 3 for a declared 1.0, and 8 with every condition met; Visionary either way. The version number moves Execute by one point at most. §8's claim holds, though its levels run about one point high.
+- **Gemini's four conditions:**
+  - stable contracts;
+  - production-grade isolation: a login on the page beyond localhost, and the contained worker on the main desktop platforms (task-0162 covers macOS);
+  - connectors validated on real exports;
+  - a legal entity and support.
+
+  Each is in decision-0016 or among the first runner's additions, except the page's login, which `docs/security.md` already lists ("The page's reads have no login").
+
+**What would change its mind:**
+- a public enterprise deployment that validates the ARIS route and the MCP server;
+- a commercial or support entity, with security such as single sign-on on the page;
+- the CI wrappers proven on real runners.
+
+These are G1-1, G1-2, G1-4 and G1-6.
+
+**Proposed reading.** With both runners in, this doc reads the stack at their mean, 14 · 2.5, Visionaries. It keeps §8's 16 · 4 as the home team's reading, about two points high on Vision and 1.5 on Execute. The field stays §9's, the one with sources. doc-0027 owes no third runner. A rerun of this one that actually uses search would firm up the field.

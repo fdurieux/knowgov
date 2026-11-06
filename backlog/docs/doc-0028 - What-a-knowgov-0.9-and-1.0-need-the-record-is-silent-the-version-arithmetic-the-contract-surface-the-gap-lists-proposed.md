@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-06T09:08:00Z'
+updated_date: '2026-11-06T09:37:00Z'
 tags:
   - brief
   - release
@@ -80,12 +80,12 @@ Every item here is the maintainer's to meet.
 | G9-1 | What 1.0 promises: the contracts at 1.0, a deprecation rule, a support window | nothing | decision-0016 |
 | G9-2 | Format versions on the instance's inputs (§3), or a read rule | none carries one | P1 |
 | G9-3 | The known contract changes landed | task-0157 (B7: every reader tool gains `subject`); task-0160 (a file Version's digest over raw bytes); task-0148 (the wizard's prompts, In Progress) | the existing tasks |
-| G9-4 | A published image that runs every feature | 0.7.0's image predates the worker | 0.8.0, being prepared |
+| G9-4 | A published image that runs every feature, and matches `main`'s security claims | 0.7.0's image predates the worker; the external pass (doc-0012 §9) read 0.7.0's Known limits against Unreleased's fixes as the published image lagging `main` | 0.8.0, being prepared; the compose pin's digest moves after each Release (the planned follow-up) |
 | G9-5 | CI hygiene and budget | task-0159 merged (#285): timeouts, machine-readable outcomes, coverage with a declared denominator. rdflib is over budget: a median of 24.9 min over 128 PR runs, against 12 | task-0163, the rdflib split |
 | G9-6 | Every Known limit closed or carried as a named 1.0 limit | 0.7.0 lists fourteen, and Unreleased closes two (containment, whole publication). Three have no task: response size is not capped; the Neo4j window between raising the lock and committing; transaction memory bounding a unit (task-0159's description) | P3 |
 | G9-7 | Names, before they freeze | task-0061 is To Do. `knowgov` sits in the image name, the `KG_` prefix, `knowgov-gate.sh`, the reports' `tool` strings and the MCP server's name | task-0061; deciding "the technical name stays knowgov" is enough |
 | G9-8 | The licence boundary | task-0058 is To Do; its AC #3 stamps a licence on every file under the boundary | task-0058 |
-| G9-9 | Accurate adopter docs | `docs/guide.md:321-324` says task-0037 is not built and that nothing takes S2 to PROCEED; task-0037 is Done, and its AC #5 shows that path. `README.md:25` and `demo/README.md:1024` say Python 3.13; the image is `python:3.12-slim` (`demo/Dockerfile:9`) | P2 |
+| G9-9 | Accurate adopter docs | `docs/guide.md:321-324` says task-0037 is not built and that nothing takes S2 to PROCEED; task-0037 is Done, and its AC #5 shows that path. `README.md:25` and `demo/README.md:1024` say Python 3.13; the image is `python:3.12-slim` (`demo/Dockerfile:9`). #291 (open) fixes both. The external pass (doc-0012 §9) found them too, and a third: `docs/guide.md` describes a narrower impact walk than the register's three walks (dependants, realisers, thread) | P2 |
 | G9-10 | The upstream formats an instance may use | unstated | decision-0016 point 3 |
 
 ## 5. 1.0: the contracts proven (proposed gap list)
