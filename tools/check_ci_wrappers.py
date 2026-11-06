@@ -154,6 +154,12 @@ def main() -> None:
     print(f"    trace-register KG_AS_OF={LAPSE_DAY}: the ledger entry as of {e['as_of']}")
 
     # task-0106: the pre-load gate writes its report too, so a broken document reaches the code-quality widget
+    # task-0115: a document no subject names, committed before the diff base, is a layout problem the report carries
+    orphan = inst / "artefacts" / "user-stories" / "orphan.md"
+    orphan.parent.mkdir(parents=True, exist_ok=True)
+    orphan.write_text("# Orphan\n\nNo subject names this story.\n", encoding="utf-8")
+    git(inst, "add", "-A")
+    git(inst, "-c", "user.name=ci", "-c", "user.email=ci@example.invalid", "commit", "-qm", "an unread story")
     puml = inst / "artefacts" / "plantuml-models" / "broken.puml"
     puml.write_text("@startuml\nparticipant A\nA -> B : hi\n@enduml\n", encoding="utf-8")
     head = git(inst, "rev-parse", "HEAD")
@@ -170,6 +176,13 @@ def main() -> None:
     if errs or [f["file"] for f in rep["files"]] != ["artefacts/plantuml-models/broken.puml"] or not on_it or on_it[0]["location"]["lines"]["begin"] < 1:
         sys.exit(f"FAIL: want the pre-load report on the changed diagram and SEQ001 on {where} in the code-quality report: {errs[:3]} {issues}")
     print(f"    preload: SEQ001 ({on_it[0]['severity']}) on {where} line {on_it[0]['location']['lines']['begin']}")
+    lay, at = rep.get("layout") or {}, orphan.relative_to(out).as_posix()
+    mine = {i["check_name"]: i["severity"] for i in issues if i["location"]["path"] == at}
+    if rep["exit_code"] != 1 or lay.get("holds") is not True or lay.get("exit_code") != 0 or \
+            mine != {"knowgov-layout:absent": "minor", "knowgov-layout:unread": "info"}:
+        sys.exit(f"FAIL: want the unread story's layout problems in the report and the code-quality report, the exit the lint's: "
+                 f"{rep['exit_code']} {lay} {mine}")
+    print(f"    preload: the layout's problems on {at} as code quality, {sorted(mine)}; the exit still the lint's ({rep['exit_code']})")
     print("GitLab include: the same command line as the action and the shell snippet; S6's change fails the merge request naming APP-0001; "
           f"KG_AS_OF reads both gates and the registration as of {LAPSE_DAY}")
 

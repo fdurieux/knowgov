@@ -81,7 +81,7 @@ def test_the_script_exits_2_on_an_unknown_gate_and_an_instance_without_one_subje
 
 def test_the_pre_load_gate_writes_its_report_through_kg_report():
     pre = (CI / "preload-check.sh").read_text(encoding="utf-8")
-    assert 'if [ -n "${KG_REPORT:-}" ]; then set -- "$@" -o "$KG_REPORT"; fi' in pre
+    assert 'if [ -n "${KG_REPORT:-}" ]; then set -- "$@" -o "$KG_REPORT" --layout; fi' in pre   # the layout's problems too (task-0115)
     script = SCRIPT.read_text(encoding="utf-8")
     branch = script.split("preload)", 1)[1].split(";;", 1)[0]
     assert 'KG_REPORT=$REPORT sh "$KG/instance/ci/preload-check.sh"' in branch and 'finish "$rc"' in branch and "exec" not in branch

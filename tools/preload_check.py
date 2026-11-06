@@ -2,7 +2,7 @@
 
     python tools/preload_check.py <instance> [--changed FILE ...] [--since REF]
                                   [--fail-on blocker|critical|major|minor|info] [-f text|json] [-o FILE]
-                                  [--baseline FILE]
+                                  [--baseline FILE] [--layout]
 
 For each file under the instance's artefacts/<kind>/ (every file, or only those named by
 --changed, or only those changed since the git ref REF in the instance's checkout), run the
@@ -29,6 +29,11 @@ The programme's gate contract:
 A --changed file outside artefacts/ (a subject manifest, a register row) is listed as skipped:
 it is not a document of a kind. The JSON report (-f json) is pinned by
 harness/schemas/preload-report.schema.json through harness/schema_check.py.
+
+--layout (task-0115) also runs tools/check_instance.py on the instance and carries its problems in the
+report's ``layout`` block, each with a severity, a kind, the file it concerns and whether it breaks the
+layout, so harness/annotate.py shows them beside the lint findings; the exit code stays the lint's alone
+(the layout's is check_instance.py's, as instance/ci/preload-check.sh runs it).
 
 --baseline FILE is an earlier report of this command (-o), which the instance's owner chose to
 commit: a finding it holds (same file, rule and message, at the same severity or worse; lines are
@@ -430,6 +435,60 @@ def check(instance: Path, changed: list[str] | None = None, threshold: str = "ma
     return out
 
 
+def _where(inst: Path, text: str) -> str | None:
+    """The file a layout error names by its leading path (``subjects/x: ...``, ``artefacts/k/``,
+    ``code_map.toml: ...``): that file, or a subject root's subject.toml; None when it names no file."""
+    head = text.split(": ", 1)[0].strip().rstrip("/")
+    if not head or head.startswith("/") or ".." in Path(head).parts:
+        return None
+    p = inst / head
+    if p.is_file():
+        return head
+    if (p / "subject.toml").is_file():
+        return f"{head}/subject.toml"
+    return None
+
+
+def layout(instance: Path, table: dict | None = None) -> dict:
+    """The layout check's problems (tools/check_instance.py, task-0115) for the pre-load report: each
+    with a severity on the report's ladder, a kind, the file it concerns relative to the instance (or
+    None), a message, and ``fails``: whether it breaks the layout (check_instance.py's exit 1). A layout
+    error is a blocker that fails; the rest are what check_instance.py lists to read, never failing:
+    a subject check's warning (minor) or note (info), an absent document (minor), an unread one (info),
+    an unmapped code file (minor), an unmatched code-map row (info)."""
+    inst = instance.resolve()
+    rep = check_instance.check(inst, table)
+    out = []
+
+    def add(severity, kind, path, message, fails=False):
+        out.append({"severity": severity, "kind": kind, "path": path, "message": message, "fails": fails})
+    for e in rep["errors"]:
+        add("blocker", "error", _where(inst, e), e, True)
+    for sub in rep["subjects"]:
+        manifest = f"{sub['root']}/subject.toml"
+        chk = sub.get("check") or {}
+        for f in chk.get("findings", []):
+            if f["level"] == "warning":
+                add("minor", f"warning:{f['rule']}", manifest, f"{f['where']}: {f['message']}; fix: {f['fix']}")
+        for n in chk.get("notes", []):
+            add("info", "note", manifest, f"{n['where']}: {n['message']}")
+    paths = {(s["id"], a["key"]): a["path"] for s in rep["subjects"] for a in s["artefacts"]}
+    for a in rep["absent"]:
+        path = paths.get((a["subject"], a["key"])) if a["subject"] else a["key"]
+        add("minor", "absent", path if path and (inst / path).is_file() else None,
+            f"{a['key']} [{a['kind']}]: {a['why']}" + (f" (subject {a['subject']})" if a["subject"] else ""))
+    for u in rep["unread"]:
+        add("info", "unread", u["file"], f"{u['file']} [{u['kind']}]: no subject names it, so nothing loads it")
+    cm = rep.get("code_map")
+    if cm:
+        root = cm["root"] if cm["root"] not in (None, ".") else ""
+        for f in cm["unmapped"]:
+            add("minor", "unmapped", f"{root}/{f}" if root else f, f"{f}: no row of {check_instance.CODE_MAP} names its application")
+        for g in cm["unmatched"]:
+            add("info", "unmatched", check_instance.CODE_MAP, f"{g}: no code file matches this row's glob")
+    return {"holds": not rep["errors"], "exit_code": 1 if rep["errors"] else 0, "problems": out}
+
+
 def render(rep: dict) -> str:
     out = [f"preload check {rep['instance']} ({rep['scope']} files; fail on {rep['threshold']} and above)"]
     for lt in rep["linters"]:
@@ -441,6 +500,10 @@ def render(rep: dict) -> str:
                    + (f": {r['why']}" if r["why"] else ""))
         for f in r["findings"]:
             out.append(f"    {f['line']}: [{f['rule']}/{f['severity']}] {f['message']}" + (" (held by the baseline)" if f.get("held") else ""))
+    lay = rep.get("layout")
+    if lay is not None:   # the layout check prints its own report; here, what the pre-load report carries (task-0115)
+        fails = sum(1 for x in lay["problems"] if x["fails"])
+        out.append(f"layout: {'holds' if lay['holds'] else 'does not hold'}; {len(lay['problems'])} problem(s) in the report, {fails} failing")
     c = rep["counts"]
     if rep.get("baseline"):
         b = rep["baseline"]
@@ -459,6 +522,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("-f", "--format", choices=["text", "json"], default="text")
     ap.add_argument("-o", "--output", help="also write the JSON report to this file (commit one as a baseline: the owner's decision)")
     ap.add_argument("--baseline", metavar="FILE", help="an earlier report (-o): exit 1 only on a finding it does not hold; never written by this command")
+    ap.add_argument("--layout", action="store_true", help="also carry tools/check_instance.py's layout problems in the report "
+                                                           "(its layout block, for annotation; task-0115); the exit code stays the lint's")
     args = ap.parse_args(argv)
     if not args.instance.is_dir():
         print(f"cannot run: {args.instance} is not a directory", file=sys.stderr)
@@ -489,6 +554,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"cannot run: --baseline {args.baseline} is not a preload report: {errors[0]}", file=sys.stderr)
             return 2
     rep = check(args.instance, changed, args.fail_on, table, baseline, args.baseline or "")
+    if args.layout:
+        rep["layout"] = layout(args.instance, table)
     if args.output:
         Path(args.output).write_text(json.dumps(rep, indent=1) + "\n", encoding="utf-8")
     print(json.dumps(rep, indent=1) if args.format == "json" else render(rep))
