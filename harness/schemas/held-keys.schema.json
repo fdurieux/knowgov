@@ -1,0 +1,134 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/held-keys.schema.json",
+ "title": "knowgov held keys report",
+ "description": "What the MCP tool held_keys returns (task-0144, doc-0020 C3): every key a statement of the held scenario names, by key, with its statement count by status, its level as gate_verdict reads that key set under task on as_of (null only when the store holds no key), the task classes requiring it (required_by, empty for a key no class asks for, listed again under unrequired) and whether the subject's register map places it; and the required keys the store holds no statement on. Read through one read handle; nothing written. Version 1; a change is additive or a new version.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "schema_version",
+  "tool",
+  "subject",
+  "scenario",
+  "store",
+  "as_of",
+  "task",
+  "total",
+  "keys",
+  "required_not_held",
+  "unrequired",
+  "gate"
+ ],
+ "properties": {
+  "schema_version": {
+   "const": 1
+  },
+  "subject": {
+   "type": "string"
+  },
+  "scenario": {
+   "type": "string"
+  },
+  "store": {
+   "type": "string"
+  },
+  "tool": {
+   "const": "held_keys"
+  },
+  "as_of": {
+   "type": "string"
+  },
+  "task": {
+   "type": "string"
+  },
+  "total": {
+   "type": "integer",
+   "minimum": 0
+  },
+  "keys": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "key",
+     "n",
+     "statuses",
+     "level",
+     "required_by",
+     "mapped"
+    ],
+    "properties": {
+     "key": {
+      "type": "string"
+     },
+     "n": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "statuses": {
+      "type": "object",
+      "additionalProperties": {
+       "type": "integer",
+       "minimum": 0
+      }
+     },
+     "level": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "required_by": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "mapped": {
+      "type": "boolean"
+     }
+    }
+   }
+  },
+  "required_not_held": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "unrequired": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "gate": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "additionalProperties": false,
+   "required": [
+    "task",
+    "verdict",
+    "why"
+   ],
+   "properties": {
+    "task": {
+     "type": "string"
+    },
+    "verdict": {
+     "enum": [
+      "PROCEED",
+      "QUALIFIED",
+      "BLOCKED"
+     ]
+    },
+    "why": {
+     "type": "string"
+    }
+   }
+  }
+ }
+}

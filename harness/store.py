@@ -62,7 +62,7 @@ READS = frozenset({
     "suspect_derived", "all_derived", "preload_verdicts", "census", "extraction_activities", "extraction_times",
     "gaps_with_concerns", "assertions_on_key", "assertion_rows", "supported_by", "candidate_for",
     "fragments_with_version", "requirements_verified_by", "register_census", "register_node_statements",
-    "export_turtle", "describe", "saved_queries"})
+    "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions"})
 
 
 def by_id(rows: list[dict]) -> list[dict]:
@@ -302,6 +302,23 @@ class Store:
 
     def all_derived(self) -> list[dict]:
         """Every derived output with its suspect flag."""
+        raise NotImplementedError
+
+    # ---- the store reads over MCP (task-0144, doc-0020 C3): each answers by id, as by_id orders it
+    def held_keys(self) -> list[dict]:
+        """Every key a statement of the store names, by key: {key, n, statuses: {status: count}}."""
+        raise NotImplementedError
+
+    def derived_outputs(self) -> list[dict]:
+        """Every derived output, any state, by id: {id, kind, sha256, suspect, used: [{id, key, status,
+        artefact, version}]}, the statements it used (USED_ASSERTION) by id."""
+        raise NotImplementedError
+
+    def artefact_assertions(self, artefact: str) -> list[dict]:
+        """The statements a document yields, by id: those whose artefact is ``artefact`` or one of whose
+        supporting fragments is from it (a directory artefact, ending in '/', by prefix), each {id, key,
+        value, status, basis, artefact, version, fragments: [{locator, artefact}]}, its fragments from
+        that document only, by content."""
         raise NotImplementedError
 
     # ---- the pre-load check's verdict on a version (task-0064; harness/preload.py)

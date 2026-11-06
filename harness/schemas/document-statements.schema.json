@@ -1,0 +1,162 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/document-statements.schema.json",
+ "title": "knowgov document statements report",
+ "description": "What the MCP tool document_statements returns (task-0144, doc-0020 C3): the statements the held scenario holds from a document (whose source is it, or that rest on one of its fragments; a directory artefact by its path ending in '/'), each with its key, value, status, basis, version, the document's fragments it rests on and the derived outputs that used it; the versions held, and with version only that one's. Read through one read handle; nothing written. Version 1; a change is additive or a new version.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "schema_version",
+  "tool",
+  "subject",
+  "scenario",
+  "store",
+  "document",
+  "version",
+  "versions",
+  "total",
+  "keys",
+  "statements",
+  "derived"
+ ],
+ "properties": {
+  "schema_version": {
+   "const": 1
+  },
+  "subject": {
+   "type": "string"
+  },
+  "scenario": {
+   "type": "string"
+  },
+  "store": {
+   "type": "string"
+  },
+  "tool": {
+   "const": "document_statements"
+  },
+  "document": {
+   "type": "string"
+  },
+  "version": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "versions": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "total": {
+   "type": "integer",
+   "minimum": 0
+  },
+  "keys": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "derived": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "statements": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "id",
+     "key",
+     "value",
+     "status",
+     "basis",
+     "artefact",
+     "version",
+     "fragments",
+     "derived"
+    ],
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "key": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "value": {
+      "type": [
+       "string",
+       "number",
+       "boolean",
+       "null"
+      ]
+     },
+     "status": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "basis": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "artefact": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "version": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "fragments": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "locator",
+        "artefact"
+       ],
+       "properties": {
+        "locator": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "artefact": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       }
+      }
+     },
+     "derived": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  }
+ }
+}
