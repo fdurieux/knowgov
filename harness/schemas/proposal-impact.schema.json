@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/proposal-impact.schema.json",
  "title": "knowgov proposal impact report",
- "description": "What `python harness/proposal_impact.py PROPOSAL -f json` prints and the MCP tool proposal_impact returns (task-0130, task-0131): a proposed addition read against the register as if approved, without approving it. Every overlay node, link and exception is hypothetical (const true) and read_as approved; nothing is stored (stored const false). Candidates carry their rule (D1-D4), their basis (authored or inferred) and the status proposed, never more; D5 is a placement finding. branch is null for a proposal held in the call and, in branch mode (task-0132, additive), names the checkout, the base, the merge base and head commits and what the diff holds that is not an addition. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "description": "What `python harness/proposal_impact.py PROPOSAL -f json` prints and the MCP tool proposal_impact returns (task-0130, task-0131): a proposed addition read against the register as if approved, without approving it. Every overlay node, link and exception is hypothetical (const true) and read_as approved; nothing is stored (stored const false). Candidates carry their rule (D1-D4), their basis (authored or inferred) and the status proposed, never more; D5 is a placement finding. branch is null for a proposal held in the call and, in branch mode (task-0132, additive), names the checkout, the base, the merge base and head commits and what the diff holds that is not an addition. slices (task-0152, additive) is the slice map, one vertical slice per journey step by the register's thread walk. Version 1; a change is additive or a new version. Exit 2 prints no report.",
  "type": "object",
  "additionalProperties": false,
  "required": [
@@ -21,6 +21,7 @@
   "coverage",
   "reach",
   "rests_on",
+  "slices",
   "keys",
   "unmapped",
   "approvals",
@@ -98,6 +99,71 @@
      "type": "array",
      "items": {
       "type": "object"
+     }
+    }
+   }
+  },
+  "cell": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "kind",
+    "name",
+    "owner",
+    "status"
+   ],
+   "description": "A node on a thread as the slice map shows it: new (an overlay node), changed (a reused node the proposal changes) or reused (any other register node)",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "kind": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "name": {
+     "type": "string"
+    },
+    "owner": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "status": {
+     "enum": [
+      "new",
+      "reused",
+      "changed"
+     ]
+    }
+   }
+  },
+  "placed": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "element"
+   ],
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "element": {
+     "enum": [
+      "node",
+      "link",
+      "exception"
+     ]
+    },
+    "slices": {
+     "type": "array",
+     "items": {
+      "type": "string"
      }
     }
    }
@@ -847,6 +913,339 @@
      },
      "gap": {
       "type": "boolean"
+     }
+    }
+   }
+  },
+  "slices": {
+   "type": "object",
+   "additionalProperties": false,
+   "description": "The slice map (task-0152, doc-0022 K1, additive): the register's thread walk with parent descent (ieam-register decision 0018) from each approved step of a journey that concerns a product in scope (a touchpoint under no step is its own), or, for a product no journey concerns, from each process that delivers it. The capabilities a product requires and no slice reaches are the register's A1 finding. Every overlay node, link and exception is placed once: in the one slice whose thread holds it, or in a named remainder group; elements gives the denominator. Facts only: no planning label, estimate or rank.",
+   "required": [
+    "walk",
+    "register_rule",
+    "children",
+    "products",
+    "map",
+    "remainder",
+    "elements"
+   ],
+   "properties": {
+    "walk": {
+     "const": "thread"
+    },
+    "register_rule": {
+     "const": "A1"
+    },
+    "children": {
+     "const": true
+    },
+    "products": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "id",
+       "name",
+       "status",
+       "axis",
+       "journeys",
+       "processes",
+       "slices",
+       "not_walked",
+       "required",
+       "reached",
+       "required_not_reached",
+       "reached_not_required",
+       "alignment_by"
+      ],
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "name": {
+        "type": "string"
+       },
+       "status": {
+        "enum": [
+         "new",
+         "reused",
+         "changed"
+        ]
+       },
+       "axis": {
+        "enum": [
+         "step",
+         "process"
+        ]
+       },
+       "journeys": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "processes": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "slices": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "not_walked": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "required": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "reached": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "required_not_reached": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "reached_not_required": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "alignment_by": {
+        "type": "string"
+       }
+      }
+     }
+    },
+    "map": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "start",
+       "axis",
+       "products",
+       "descendants",
+       "thread",
+       "empty",
+       "withdrawn",
+       "owners",
+       "elements"
+      ],
+      "properties": {
+       "start": {
+        "$ref": "#/$defs/cell"
+       },
+       "axis": {
+        "enum": [
+         "step",
+         "process"
+        ]
+       },
+       "products": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "descendants": {
+        "type": "array",
+        "items": {
+         "$ref": "#/$defs/cell"
+        }
+       },
+       "thread": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "process",
+         "capability",
+         "application",
+         "information"
+        ],
+        "properties": {
+         "process": {
+          "type": "array",
+          "items": {
+           "$ref": "#/$defs/cell"
+          }
+         },
+         "capability": {
+          "type": "array",
+          "items": {
+           "$ref": "#/$defs/cell"
+          }
+         },
+         "application": {
+          "type": "array",
+          "items": {
+           "$ref": "#/$defs/cell"
+          }
+         },
+         "information": {
+          "type": "array",
+          "items": {
+           "$ref": "#/$defs/cell"
+          }
+         }
+        }
+       },
+       "empty": {
+        "type": "array",
+        "items": {
+         "enum": [
+          "process",
+          "capability",
+          "application",
+          "information"
+         ]
+        }
+       },
+       "withdrawn": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "additionalProperties": false,
+         "required": [
+          "from",
+          "rel",
+          "to",
+          "state"
+         ],
+         "properties": {
+          "from": {
+           "type": "string"
+          },
+          "rel": {
+           "type": "string"
+          },
+          "to": {
+           "type": "string"
+          },
+          "state": {
+           "type": [
+            "string",
+            "null"
+           ]
+          }
+         }
+        }
+       },
+       "owners": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "elements": {
+        "type": "array",
+        "items": {
+         "$ref": "#/$defs/placed"
+        }
+       }
+      }
+     }
+    },
+    "remainder": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "group",
+       "why",
+       "elements"
+      ],
+      "properties": {
+       "group": {
+        "enum": [
+         "shared",
+         "required_not_reached",
+         "frame",
+         "exceptions",
+         "outside"
+        ]
+       },
+       "why": {
+        "type": "string"
+       },
+       "elements": {
+        "type": "array",
+        "items": {
+         "$ref": "#/$defs/placed"
+        }
+       },
+       "capabilities": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "additionalProperties": false,
+         "required": [
+          "capability",
+          "required_by",
+          "realisers"
+         ],
+         "properties": {
+          "capability": {
+           "$ref": "#/$defs/cell"
+          },
+          "required_by": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           }
+          },
+          "realisers": {
+           "type": "array",
+           "items": {
+            "$ref": "#/$defs/cell"
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    },
+    "elements": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "denominator",
+      "in_slices",
+      "in_remainder"
+     ],
+     "properties": {
+      "denominator": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "in_slices": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "in_remainder": {
+       "type": "integer",
+       "minimum": 0
+      }
      }
     }
    }
