@@ -810,13 +810,34 @@ after `--` is the command that starts it. Here that command runs `harness/mcp_se
 `app` container; `-T` gives it plain input and output rather than a terminal, which the protocol
 needs. `-s user` registers it for you in every folder; without it, Claude Code registers it only for
 the folder you ran the command in, and a session started anywhere else does not see it. `claude mcp
-list` then shows `knowgov` as connected, and inside a session `/mcp` shows its six tools.
+list` then shows `knowgov` as connected, and inside a session `/mcp` lists its tools.
 
 The compose file publishes the page and Neo4j, not the server's HTTP port (8765), so this stdio
 route is the one that works with the stack as it stands. For a stack started under another project
 name (`docker compose -p knowgov-jef`, as the compose file's notes show), add the same `-p` after
-`docker compose`. To ask about another subject than the one the page opens on, name its root in the
-container: `exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python harness/mcp_server.py`.
+`docker compose`. To ask about another subject than the one the server started on, name it on the
+call: every tool takes `subject`, an id `list_subjects` names (below).
+
+### One registration for every subject
+
+One registration of each server answers for every subject under `KG_SUBJECTS` (task-0157,
+decision-0013). Every tool of the reader and of `knowgov-runs` takes an optional `subject`: the id
+in a subject's `subject.toml`, never a path, resolved under `KG_SUBJECTS` as the page resolves
+`?subject=`. A call that names none answers as before, for `KG_SUBJECT`. `list_subjects` names
+every subject, the scenario the shared store holds for each, and which tools are store-backed.
+
+- **Files-only tools** (`register_nodes`, `key_nodes`, `code_path`, `document_links`,
+  `subject_check`, `scenario_runs`, `scenario_result`) answer for any subject at once.
+- **Store-backed tools** (`gate_verdict`, `three_valued_answer`, `evidence_bundle`, `store_status`,
+  `held_keys`, `derived_outputs`, `document_statements`, and `register_impact` and
+  `proposal_impact` for their keys' levels) answer only for the subject and scenario the store
+  holds. The store holds one scenario of one subject at a time. For any other subject they
+  refuse, naming the held subject and scenario and the `start_run` that would load the one you
+  asked about. The reader never loads it for you. Each tool says which it is in its `_meta`
+  (`io.knowgov/storeBacked`).
+- A call naming another subject runs in a short-lived child process for that subject, with the
+  server's date: about 0.4 s a call on Neo4j, more on a file-backed rdflib store, which parses
+  the file in each child.
 
 ### Connecting Claude Desktop
 
@@ -1018,10 +1039,10 @@ branch exits 0 or 1 (never 2, cannot run), and every remaining finding is knowle
 and a route. Then it opens the pull request, with a readiness card (per document: kind, mapper,
 yield, form; per key: yielded or not, owner, level) and the questionnaires.
 
-**After the merge,** the page lists the new subject on its next request, with no restart. Until
-the servers answer for any subject, two steps are yours: relaunch or re-register both servers with
-`-e KG_SUBJECT=/instance/subjects/<id>` and reconnect the client; then load `S0` (on the page, or
-`start_run` on `knowgov-runs`), knowing the load replaces what everyone else viewing that store sees.
+**After the merge,** the page lists the new subject on its next request, with no restart, and both
+servers answer for it by id with no relaunch (every tool takes `subject`; see "One registration for
+every subject" below). One step is yours: load `S0` (on the page, or `start_run` on `knowgov-runs`
+with the subject's id), knowing the load replaces what everyone else viewing that store sees.
 
 **Claude Desktop's role, for now: asking the gate, not onboarding.** In Claude Desktop, use the
 server to ask `gate_verdict`, `evidence_bundle`, `three_valued_answer`, `register_impact` and

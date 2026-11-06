@@ -12,6 +12,22 @@ names that section with the version.
 
 ### Contract changes
 
+- **One reader for every subject, by id** (task-0157, decision-0013 with amendment A1). Every tool of
+  the MCP reader and of `knowgov-runs` takes an optional `subject`: the id of a subject under
+  `KG_SUBJECTS`, never a path. A path, an unknown id or an id outside `KG_SUBJECTS` is refused. A
+  call that names none answers exactly as before. Additive: existing clients see no change.
+  - **`list_subjects`** names every subject, the default (`KG_SUBJECT`), the scenario the store holds
+    for each, or none, and which tools are store-backed and which read files only.
+  - **Store-backed or files-only.** Each tool says which it is in `_meta` (`io.knowgov/storeBacked`).
+    A store-backed tool for a subject whose scenario the store does not hold refuses, naming the
+    held subject and scenario and the `start_run` that would load the one asked about. The reader
+    never loads.
+  - **How.** A call naming another subject is answered by a child process with that subject's
+    `KG_SUBJECT` and the server's date, equal to what a reader started on that subject answers;
+    `tools/check_mcp_server.py` holds this over stdio and HTTP. About 0.4 s a call on Neo4j
+    (p95 0.51 s); `KG_SUBJECT_CALL_TIMEOUT` bounds it (300 s).
+  - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
+
 - **A store publishes whole generations, and every read answers from one** (task-0141.06,
   decision-0014). On Neo4j a writer's whole unit is now one transaction under a lease in the
   database, published under a sequence lock that every read call checks.

@@ -93,11 +93,11 @@ def test_the_never_list_and_the_stop_condition_say_what_they_must():
     # doc-0021 §8: the workarounds, the order and the manual steps after the merge
     for s in ("zero-yield", "not in that mapper's convention", "refuses a mapped artefact without", "is not a typo",
               "| REQ-nn | text |", "register_nodes", "proposal_impact", "commented out", "spelling, then mapper fit, then attestation",
-              "no restart", "KG_SUBJECT=/instance/subjects/<id>", "start_run", "replaces what everyone",
+              "no restart", "list_subjects", "`subject` the new id", "start_run", "replaces what everyone",
               "subject_check", "readiness card"):
         assert s in allp, s
     # B1 and B2 (task-0149, task-0150) retired these workarounds: the check and the page do it now
-    for gone in ("always write `short`", "restart the page", "yield.artefacts"):
+    for gone in ("always write `short`", "restart the page", "yield.artefacts", "relaunch or re-register"):
         assert gone not in allp, gone
 
 

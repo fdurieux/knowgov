@@ -147,15 +147,14 @@ Open one pull request per subject, from the branch, with a readiness card in its
 - the stop condition's three answers, and the owners' questionnaires attached.
 
 A person reviews and merges it; you do not. After the merge, the page lists the new subject on
-its next request, with no restart. Until the MCP servers answer for any subject, these steps are
-manual; name them with their commands:
+its next request, with no restart, and both MCP servers answer for it by id, with no relaunch:
+every tool takes `subject` (task-0157). Name the next steps with their arguments:
 
-1. relaunch or re-register both MCP servers for the subject, with
-   `-e KG_SUBJECT=/instance/subjects/<id>` in their `exec` command, and reconnect the client
-   (`/mcp` in Claude Code; quit and reopen Claude Desktop);
-2. load `S0` with `start_run` on `knowgov-runs`, saying first that the load replaces what everyone
-   else viewing that store sees;
-3. ask `gate_verdict` with `scenario` `S0` for the task class.
+1. check `list_subjects` names the new subject's id (it lists the subjects under `KG_SUBJECTS`);
+2. load `S0` with `start_run` on `knowgov-runs`, `subject` the new id, saying first that the load
+   replaces what everyone else viewing that store sees;
+3. ask `gate_verdict` with `subject` the new id and `scenario` `S0` for the task class. A store-backed
+   tool answers only for the subject whose scenario the store holds; it says so, and names the run.
 <!-- /part -->
 
 <!-- part:reference -->
