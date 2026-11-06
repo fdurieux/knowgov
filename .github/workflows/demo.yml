@@ -81,8 +81,12 @@ jobs:
           # it is set, and carries no key: no field beyond the public ones, no value that looks like one
           rows = j["model_rows"]
           assert rows[0]["id"] == "record" and len(rows) > 1, rows
-          public = {"id", "label", "provider", "host", "model", "efforts", "key_var", "arms", "key_set", "serves", "available", "why"}
+          public = {"id", "label", "provider", "host", "model", "efforts", "key_var", "arms", "key_set", "serves", "available", "why", "key_check"}
           assert all(set(r) == public and not r["key_set"] and r["why"].startswith("set ") for r in rows[1:]), rows
+          # task-0171: each row's key verdict, with no key set here: unchecked, naming the variable to set, nothing sent
+          verdict = {"state", "status", "checked_at", "scope", "model_listed", "why"}
+          assert all(set(r["key_check"]) == verdict and r["key_check"]["state"] == "unchecked" and r["key_check"]["status"] is None
+                     and r["key_check"]["why"] == "set " + r["key_var"] for r in rows), [r["key_check"] for r in rows]
           assert "sk-" not in json.dumps(rows), "a key value reached the page"
           print("model rows:", [r["id"] for r in rows])
           # task-0032.02: one stack lists both public subjects (the fixture skipped), and each route answers within the one it names

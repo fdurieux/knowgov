@@ -75,7 +75,8 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
         if path not in FAMILY or path not in STORE:
             continue
         family, fmt = FAMILY[path]
-        st.upsert_artefact_version(path, family, fmt, f"V:{path}:{version_tag}", sha256(text), len(text.encode()), ts, version_tag, aid)
+        digest, size = SUBJECT.version_digest(path, text)   # a file artefact's raw bytes, as the register digests them (task-0160)
+        st.upsert_artefact_version(path, family, fmt, f"V:{path}:{version_tag}", digest, size, ts, version_tag, aid)
         if path.endswith("/"):   # a directory artefact: its digest is the bundle's, so each file's is kept too (task-0094)
             st.record_part_digests(f"V:{path}:{version_tag}", SUBJECT.part_digests(path, text))
     preload = _record_preload(st, kit, version_tag)

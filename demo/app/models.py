@@ -25,7 +25,8 @@ RECORD_ID, CUSTOM_ID = "record", "custom"
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 VAR_RE = re.compile(r"^[A-Z_][A-Z0-9_]{0,63}$")
 FIELDS = ("id", "label", "provider", "base_url", "model", "efforts", "key_var", "arms")
-OPTIONAL = {"thinking_uncounted": False}   # the endpoint leaves a thinking model's tokens out of streamed usage (task-0034)
+OPTIONAL = {"thinking_uncounted": False,   # the endpoint leaves a thinking model's tokens out of streamed usage (task-0034)
+            "gateway": False}              # the endpoint is a gateway holding the provider's key: its listing proves its own key only (task-0171)
 KINDS = ("reply", "agent")
 
 
@@ -58,8 +59,9 @@ def load_table(path: Path | None = None) -> list[dict]:
             raise ValueError(f"{path.name}: row {r['id']!r}: base_url must be an http(s) URL")
         if not set(r["arms"]) <= set(KINDS) or not r["arms"]:
             raise ValueError(f"{path.name}: row {r['id']!r}: arms must list reply, agent or both")
-        if not isinstance(r.get("thinking_uncounted", False), bool):
-            raise ValueError(f"{path.name}: row {r['id']!r}: thinking_uncounted is true or false")
+        for flag in OPTIONAL:
+            if not isinstance(r.get(flag, False), bool):
+                raise ValueError(f"{path.name}: row {r['id']!r}: {flag} is true or false")
         seen.add(r["id"])
         out.append({**{f: r[f] for f in FIELDS}, **{k: r.get(k, v) for k, v in OPTIONAL.items()}})
     return out
@@ -84,25 +86,46 @@ def _custom_row() -> dict | None:
             "key_var": var or DEFAULT_KEY_VAR, "arms": list(KINDS)}
 
 
-def rows(record_model: str, record_effort: str, arm_kind: str) -> list[dict]:
-    """Every row the page lists, in order: the record's, the instance's when set, the table's. Each
-    carries key_set (whether its variable holds a value, never the value), whether it serves this
-    subject's arm kind, and whether a run on it would be a deviation from the record. The record's
-    row is unavailable on a subject whose record ran no arm."""
+def endpoints(listed: list[dict]) -> list[tuple[str, str]]:
+    """The (base URL, key variable) pairs a key check covers for these rows, each once (task-0171)."""
+    return sorted({(r["base_url"], r["key_var"]) for r in listed})
+
+
+def listed_rows(record_model: str, record_effort: str) -> list[dict]:
+    """The rows before any verdict: the record's, the instance's when set, the table's."""
     listed = [_record_row(record_model, record_effort)]
     custom = _custom_row()
     if custom:
         listed.append(custom)
-    listed += load_table()
+    return listed + load_table()
+
+
+def _unchecked(row: dict) -> dict:
+    return {"state": "unchecked", "status": None, "checked_at": None, "scope": "gateway" if row.get("gateway") else "key",
+            "model_listed": None, "why": "the key was not checked"}
+
+
+def rows(record_model: str, record_effort: str, arm_kind: str, check=None) -> list[dict]:
+    """Every row the page lists, in order: the record's, the instance's when set, the table's. Each
+    carries key_set (whether its variable holds a value, never the value), whether it serves this
+    subject's arm kind, and whether a run on it would be a deviation from the record. The record's
+    row is unavailable on a subject whose record ran no arm.
+
+    ``check(row)`` gives the row's key verdict from the key check's cache (harness/key_check.py,
+    task-0171), never a request; without it every row reads unchecked. A row whose key the endpoint
+    refused is unavailable, so a run on it is refused before anything runs."""
     out = []
-    for r in listed:
+    for r in listed_rows(record_model, record_effort):
         no_record = r["id"] == RECORD_ID and not record_model
         serves = arm_kind in r["arms"]
         key_set = bool(os.environ.get(r["key_var"]))
-        out.append({**r, "host": host_of(r["base_url"]), "key_set": key_set, "serves": serves,
-                    "available": key_set and serves and bool(r["model"]) and not no_record,
+        verdict = check(r) if check else _unchecked(r)
+        refused = verdict["state"] == "refused"
+        out.append({**r, "host": host_of(r["base_url"]), "key_set": key_set, "serves": serves, "key_check": verdict,
+                    "available": key_set and serves and bool(r["model"]) and not no_record and not refused,
                     "why": ("the record ran no arm" if no_record else
                             f"set {r['key_var']}" if not key_set else
+                            verdict["why"] if refused else
                             f"serves the {' and '.join(r['arms'])} arms, not this subject's {arm_kind} arm" if not serves else
                             "set KG_ARMS_MODEL" if not r["model"] else "")})
     return out
@@ -113,11 +136,13 @@ def is_deviation(row: dict, effort: str, record_model: str, record_effort: str) 
     return bool(record_model) and (row["host"] != host_of(DEFAULT_BASE_URL) or row["model"] != record_model or effort != record_effort)
 
 
-def resolve(row_id: str | None, effort: str | None, record_model: str, record_effort: str, arm_kind: str) -> tuple[dict, dict, bool]:
+def resolve(row_id: str | None, effort: str | None, record_model: str, record_effort: str, arm_kind: str,
+            check=None) -> tuple[dict, dict, bool]:
     """The row and the effort a run asks for, checked, as (row, the harness's environment, deviation).
     An unknown row, a row that is unavailable (its key unset, another arm kind, the record's row
-    when the record ran none) and an effort the row does not list are refused with the reason."""
-    listed = rows(record_model, record_effort, arm_kind)
+    when the record ran none, a row whose key the endpoint refused) and an effort the row does not
+    list are refused with the reason."""
+    listed = rows(record_model, record_effort, arm_kind, check=check)
     if not row_id:
         row_id = next((r["id"] for r in listed if r["available"]), "")
     row = next((r for r in listed if r["id"] == row_id), None)
@@ -137,4 +162,4 @@ def resolve(row_id: str | None, effort: str | None, record_model: str, record_ef
 def public(row: dict) -> dict:
     """What the page receives for a row: everything but nothing secret, since a row holds nothing secret."""
     return {k: row[k] for k in ("id", "label", "provider", "host", "model", "efforts", "key_var", "arms",
-                                "key_set", "serves", "available", "why")}
+                                "key_set", "serves", "available", "why", "key_check")}

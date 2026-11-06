@@ -11,7 +11,8 @@ tools:
     run_options   what may be run: the modes this server allows, whether the page can run each (for
                   arms, a key and a contained worker: arms_ready, with execution's reason; where
                   the worker runs, as it attested it: worker, task-0169), the
-                  model rows with their availability (never a key), the subject's scenarios and the
+                  model rows with their availability and key_check, the endpoint's verdict on each
+                  row's key (task-0171; never a key), the subject's scenarios and the
                   run under way, if any (read-only)
     start_run     start one run of a scenario: deterministic, or arms when the operator allows it,
                   always at n = 1; refused while another run is under way, with the page's message.
@@ -84,7 +85,9 @@ def tools_table() -> list[dict]:
                         "the instance guard and the contained worker's attestation; arms_ready: both, so an arms run would "
                         "start; worker: where model output would run, the worker's attested engine, kernel and machine, and a "
                         "cloud only as a reading of its kernel release), the model rows with their availability and efforts (never a "
-                        "key), the subject's scenarios, whether the page asks for a token, and the run under way, if any.",
+                        "key) and each row's key_check (task-0171: the endpoint's model listing, no tokens: accepted, "
+                        "refused, a refused row unavailable, unreachable or unchecked, with the HTTP status; scope "
+                        "gateway when the listing proves a gateway's own key only), the subject's scenarios, whether the page asks for a token, and the run under way, if any.",
          "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
          "annotations": READ_ONLY},
         {"name": "start_run", "title": "Run this scenario (wipes and reloads the shared store)",
@@ -213,7 +216,7 @@ class RunTools:
                 # task-0169: where model output would run, the worker's attested host facts and the cloud read from them
                 "worker": _worker(j),
                 "model_rows": [{k: r.get(k) for k in ("id", "label", "provider", "host", "model", "efforts", "key_var",
-                                                       "key_set", "available", "why")} for r in j.get("model_rows") or []],
+                                                       "key_set", "available", "why", "key_check")} for r in j.get("model_rows") or []],
                 "record_model": j.get("record_model"), "record_effort": j.get("record_effort"),
                 "scenarios": [s["id"] for s in j.get("scenarios") or []],
                 "token_required": bool((j.get("writes") or {}).get("token_required")),

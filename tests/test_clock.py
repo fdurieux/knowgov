@@ -27,6 +27,7 @@ ALLOWED = {
     "harness/review.py": (2, "today() and now() themselves: KG_TODAY or KG_NOW, else the wall clock unless KG_CLOCK=pinned"),
     "harness/load.py": (1, "the load's provenance stamp when KG_TODAY is unset; no outcome reads it"),
     "demo/app/server.py": (3, "the page's run timestamps and elapsed time"),
+    "harness/key_check.py": (1, "a key check's checked_at, shown beside its verdict (task-0171)"),
     "demo/app/register_project.py": (1, "the projection's loaded_at stamp"),
     "demo/app/register_view.py": (1, "the register view at the wall clock, chosen by the viewer or for a checkout with no pinned date"),
     "tools/vendor_subject.py": (1, "the SOURCE note's copied date, a maintainer's command"),

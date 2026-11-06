@@ -510,6 +510,34 @@ address and the key variable itself, so nothing typed in a browser can
 point a run somewhere else. The header chip says how many rows are
 available, and names the variables to set when none is.
 
+**Each key is checked before you pick it.** When the page starts, it
+asks every row's endpoint for its list of models. That request costs no
+tokens and sends no prompt and no document. Each row then shows one of
+four marks:
+
+- *key accepted*: the endpoint answered with its list;
+- *key refused*: the endpoint answered 401 or 403. The row is greyed with
+  the status and the variable to fix, and a run on it is refused at once,
+  before any call is made;
+- *endpoint unreachable*: no answer. The row stays usable, since a run
+  may still get through later;
+- *key unchecked*: no key is set, the check is off, or the endpoint does
+  not serve a list (404, for instance), which says nothing about the key.
+
+Rows that share an endpoint and a key are checked once. After you fix a
+key and restart, or to ask again, press *re-check keys* under the
+drop-down. Like a run, it needs the page's token when one is set. The
+page keeps only the mark, the HTTP status and the time. It never keeps,
+logs or shows the key, nor the provider's error text, which for OpenAI
+quotes part of the key. Set `KG_KEY_CHECK=off` for an endpoint that
+should receive nothing but runs.
+
+A row behind a gateway is marked `gateway = true` in the table, as the
+Claude row is. There, the list proves only the gateway's own key
+(`LITELLM_MASTER_KEY`), and the row reads *gateway key accepted,
+upstream unchecked*. The Anthropic key behind the gateway is first tested
+by a run: LiteLLM's own health check would send a real, paid request.
+
 Two rows are not in the file. The **record's row** comes first: the
 model and effort the record's arms ran at, so a run on it is
 like-for-like. On a subject whose record ran no arm, it stays listed and
@@ -885,7 +913,11 @@ Without a token on a wider bind, those requests answer `403` and say to set `KG_
 an Arms run may start from `GET /api/scenarios`: `"arms_enabled"` says a model row has its key, and
 `"execution": {"ok": true|false, "why": null|"<the reason>"}` says whether model output may run now (no
 organisation's instance mounted beside the app, and the worker running and confined); an Arms run
-starts only when both hold, and `why` is the refusal that run would get. The
+starts only when both hold, and `why` is the refusal that run would get. Each of `"model_rows"`
+carries `"key_check"`: `"state"` (`accepted`, `refused`, `unreachable` or `unchecked`), the HTTP
+`"status"`, `"checked_at"`, `"scope"` (`gateway` when the listing proves a gateway's own key only) and
+`"why"`; a refused row reads `"available": false`. `POST /api/models/check` checks every key again
+and answers with the rows. The
 token takes effect with an image built from this checkout (`docker compose up --build`) or a
 release after 0.2.0. A run or a projection is also refused when it comes from a page on another
 web address, so a site open in the same browser cannot start one.

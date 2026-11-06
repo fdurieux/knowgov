@@ -88,7 +88,7 @@ def test_the_server_calls_the_refusal_and_keeps_arms_enabled_as_it_was():
 
 
 # the page's functions the chip and the buttons are drawn by, cut from index.html as they stand
-_CUT = ("esc", "running", "armsReady", "WORKER_HINT", "noWorker", "armsBlockedWhy", "armsChip", "armsOffWhy", "writesWhy",
+_CUT = ("esc", "KEY_MARK", "keyMark", "running", "armsReady", "WORKER_HINT", "noWorker", "armsBlockedWhy", "armsChip", "armsOffWhy", "writesWhy",
         "pageToken", "armsRow", "armsEffort", "modeButton")
 
 

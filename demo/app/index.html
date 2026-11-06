@@ -116,6 +116,7 @@ a{color:var(--teal)}
         <label for="am-row">model <select id="am-row"></select></label>
         <label for="am-effort">effort <select id="am-effort"></select></label>
         <div class="why" id="am-why"></div>
+        <div class="why"><span id="am-check"></span> <button id="am-recheck" class="small" type="button" title="ask each row's endpoint for its model listing again: no tokens, only the verdict and the HTTP status are kept">re-check keys</button></div>
       </div>
       <div class="toggle" id="asof"><b>Reviews as of</b> — the date a run's gate reads review currency on; empty is the subject's record date
         <label for="as-of">date <input type="date" id="as-of"></label>
@@ -154,11 +155,15 @@ const WORKER_HINT = 'start the stack with --profile arms, on Linux with Landlock
 function noWorker() { return !STATE.execution.why || STATE.execution.why.includes('worker'); }   // else the instance guard's refusal, which names its own remedy
 function armsBlockedWhy() { return !STATE.armsEnabled ? armsOffWhy() : (STATE.execution.why || 'the app did not say whether model output may run') + (noWorker() ? '; ' + WORKER_HINT : ''); }
 function armsChip() {
-  const rows = STATE.modelRows.map(r => r.label + ': ' + (r.available ? r.host + ', key in ' + r.key_var : r.why)).join('\n');
+  const rows = STATE.modelRows.map(r => r.label + ': ' + (r.available ? r.host + ', key in ' + r.key_var + ', ' + keyMark(r) : r.why)).join('\n');
   if (armsReady()) return `<span class="chip ok" title="${esc(rows)}">arms enabled (${STATE.modelRows.filter(r => r.available).length} of ${STATE.modelRows.length} model rows)</span>`;
   if (STATE.armsEnabled) return `<span class="chip warn" title="${esc(armsBlockedWhy())}">arms: ${noWorker() ? 'no contained worker' : 'model output may not run here'}</span>`;
   return `<span class="chip warn" title="${esc(rows)}">arms disabled: ${esc(armsOffWhy())}</span>`;
 }
+// a row's key verdict (task-0171): the endpoint's model listing, checked with no tokens spent; never the key
+const KEY_MARK = {accepted: 'key accepted', refused: 'key refused', unreachable: 'endpoint unreachable', unchecked: 'key unchecked'};
+function keyMark(r) { const k = r.key_check || {}; return k.state === 'accepted' && k.scope === 'gateway' ? 'gateway key accepted, upstream unchecked' : (KEY_MARK[k.state] || 'key unchecked'); }
+function keyLine(r) { const k = r.key_check || {}; return keyMark(r) + (k.status ? ` (HTTP ${k.status})` : '') + (k.checked_at ? `, checked ${k.checked_at}` : '') + (k.state !== 'accepted' && k.why ? ': ' + k.why : '') + (k.model_listed === false ? `; ${r.model} is not in the endpoint's listing` : ''); }
 // where model output would run, as the worker attested it (task-0169; harness/execution.py placement()): its host facts
 // are its own reading from inside its container, and a cloud is the app's reading of its kernel release, never a check
 const ENGINES = {docker: 'Docker', podman: 'Podman'};
@@ -237,12 +242,13 @@ function renderToggle() {
   const effortName = e => e || 'API default';
   // every row is listed; one whose key is unset, which serves another arm kind, or the record's row
   // when the record ran no arm is greyed with the reason, and the server refuses it too
-  sel.innerHTML = rows.map(r => `<option value="${esc(r.id)}" ${r.available ? '' : 'disabled'}>${esc(r.label)}${r.available ? '' : ' (' + esc(r.why) + ')'}</option>`).join('');
+  sel.innerHTML = rows.map(r => `<option value="${esc(r.id)}" ${r.available ? '' : 'disabled'}>${esc(r.label)}${r.available ? (r.key_check && r.key_check.state !== 'unchecked' ? ' — ' + esc(keyMark(r)) : '') : ' (' + esc(r.why) + ')'}</option>`).join('');
   const saved = armsChoice() || {};
   const pick = rows.find(r => r.id === saved.row && r.available) || rows.find(r => r.available) || rows[0];
   if (pick) sel.value = pick.id;
   const fill = keepEffort => {
     const r = rows.find(x => x.id === sel.value);
+    $('#am-check').textContent = r && r.key_set ? keyLine(r) : '';
     if (!r) { eff.innerHTML = ''; $('#am-why').textContent = 'no model row is listed'; return; }
     eff.innerHTML = r.efforts.map(e => `<option value="${esc(e)}">${esc(effortName(e))}</option>`).join('');
     if (keepEffort && r.efforts.includes(saved.effort)) eff.value = saved.effort;
@@ -256,6 +262,13 @@ function renderToggle() {
   fill(true);
   const save = () => saveArmsChoice({row: sel.value, effort: eff.value});
   sel.onchange = () => { fill(false); save(); renderMenu(); };
+  $('#am-recheck').disabled = !!writesWhy(); $('#am-recheck').textContent = 're-check keys';
+  $('#am-recheck').onclick = async () => {
+    const b = $('#am-recheck'); b.disabled = true; b.textContent = 'checking…';
+    try { await api('/api/models/check', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'}); }
+    catch (e) { $('#am-check').textContent = e.message; b.disabled = false; b.textContent = 're-check keys'; return; }
+    await loadScenarios();
+  };
   eff.onchange = () => { save(); renderMenu(); };
   save();
 }

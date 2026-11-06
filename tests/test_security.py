@@ -103,7 +103,8 @@ def test_the_mcp_servers_reads_are_the_ones_the_document_names():
 
 def test_the_store_gets_a_documents_digest_and_size_never_its_text():
     """The port's document-version write takes a digest and a byte count and no text; the loader
-    passes sha256(text) and the length. Excerpts (fragments) and statement values are stored, as
+    passes the subject's version_digest, a SHA-256 and a length (task-0160: a file's raw bytes, else the
+    text's). Excerpts (fragments) and statement values are stored, as
     the document says: the gate's evidence is the excerpt."""
     port = ast.parse((ROOT / "harness" / "store.py").read_text(encoding="utf-8"))
     args = {n.name: [a.arg for a in n.args.args] for n in ast.walk(port) if isinstance(n, ast.FunctionDef)}
@@ -111,7 +112,12 @@ def test_the_store_gets_a_documents_digest_and_size_never_its_text():
     assert "text" in args["create_fragment"]
     load = (ROOT / "harness" / "load.py").read_text(encoding="utf-8")
     calls = re.findall(r"st\.upsert_artefact_version\((.*)\)", load)
-    assert calls and all("sha256(text), len(text.encode())" in c for c in calls), calls
+    assert calls and all(", digest, size, " in c and "text" not in c for c in calls), calls
+    assert "digest, size = SUBJECT.version_digest(path, text)" in load
+    from subject import SUBJECT
+    key = next(k for k, p in SUBJECT.kit_files if p.is_file())
+    d, n = SUBJECT.version_digest(key, SUBJECT.artefact_text(key))
+    assert re.fullmatch(r"[0-9a-f]{64}", d) and isinstance(n, int), "a digest and a size, never the text"
     assert '"text": a["text"]' in load and '"value": a["value"]' in load
 
 
@@ -124,7 +130,9 @@ def test_the_baseline_arm_sends_whole_documents():
 NETWORK = {"requests", "httpx", "urllib3", "aiohttp", "socket", "smtplib", "ftplib", "telnetlib", "websocket",
            "websockets", "paramiko", "grpc", "boto3", "google", "anthropic", "pycurl"}
 NETWORK_DOTTED = {"urllib.request", "http.client", "xmlrpc.client"}
-CLIENTS = {"openai": {"harness/arms.py", "harness/agent.py"}, "neo4j": {"harness/store_neo4j.py"}}
+# the model client: the two arms, and the key check (task-0171), which asks the row's own endpoint for its model
+# listing and nothing else (tests/test_key_check.py holds that)
+CLIENTS = {"openai": {"harness/arms.py", "harness/agent.py", "harness/key_check.py"}, "neo4j": {"harness/store_neo4j.py"}}
 # the stack job's own check of the page it just started: it asks the local page and nothing else
 # and the MCP check's HTTP client (task-0095), which asks only the loopback server it started itself;
 # and knowgov-runs (task-0133), a client of the page's run API at the operator's KG_PAGE_URL, the local page by default
