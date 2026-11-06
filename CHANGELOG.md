@@ -74,6 +74,14 @@ names that section with the version.
 
 ### Changes
 
+- **Two corrections to the adopter documentation.** `docs/guide.md` §6 said the review step was
+  not built and that no command took S2 to PROCEED. It is built (task-0037): the section now says
+  what a review does, that S2 reaches PROCEED once its answers are reviewed and its open decision
+  is closed by its owner, and that an approval lapses after six months, with `instance/README.md`
+  for the detail. `README.md` and `demo/README.md` named Python 3.13 for the harness and the app
+  image; the image runs Python 3.12 (`demo/Dockerfile`), and that is the version to install for the
+  harness. The standard-library tests still run on 3.13 in CI too.
+
 - **The worker's network check accepts the down tunnel devices Docker Desktop creates** (task-0161,
   decision-0015). `loopback_only` held only when `/sys/class/net` listed `lo` alone. A kernel with
   tunnel modules loaded puts `tunl0`, `gre0`, `sit0` and others, down, in every network namespace,

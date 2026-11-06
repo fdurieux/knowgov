@@ -1021,7 +1021,7 @@ Arms mode is simply disabled; everything else works.
 |---|---|
 | `docker-compose.yml` | the two services, with the registry image for the app |
 | `docker-compose.override.yml` | local build of the app image from this checkout, and demo runs written into the checkout |
-| `Dockerfile`, `Dockerfile.dockerignore` | the app image: Python 3.13, this repository installed, the harness's dependencies at the record's versions |
+| `Dockerfile`, `Dockerfile.dockerignore` | the app image: Python 3.12, this repository installed, the harness's dependencies at the record's versions |
 | `app/server.py` | the web server (standard library only): the menu, the report view, starting a re-run, the store's status |
 | `app/views.py` | builds the report view of a scenario from its result files |
 | `app/cascade.py` | draws the systemic-model view with the deck generator's layout |
