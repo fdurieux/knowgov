@@ -117,8 +117,12 @@ def test_a_refused_row_is_unavailable_and_a_run_on_it_refused_before_anything_ru
     key_check.CHECKER.enabled = True
     execution.refusal = lambda: None   # a contained worker, as the stack has it: the key is what refuses here
     try:
-        with _env(OPENAI_API_KEY=FAKE, GEMINI_API_KEY=FAKE, LITELLM_MASTER_KEY=FAKE,
-                  KG_SUBJECT=str(ROOT / "subjects" / "cargo_quote")):
+        import page_subject
+        from subject import Subject
+        # the subject named, whatever the process's KG_SUBJECT (tests.yml runs the suite again on J-F):
+        # CargoQuote has S1, an oracle and a record row on OpenAI's endpoint
+        with _env(OPENAI_API_KEY=FAKE, GEMINI_API_KEY=FAKE, LITELLM_MASTER_KEY=FAKE), \
+                page_subject.using(Subject(ROOT / "subjects" / "cargo_quote")):
             rows = {r["id"]: r for r in server.model_rows()}
             gpt = rows["openai-gpt-5.5"]
             assert not gpt["available"] and gpt["key_set"] and gpt["key_check"]["state"] == "refused", gpt
@@ -154,7 +158,9 @@ def test_a_refused_row_is_unavailable_and_a_run_on_it_refused_before_anything_ru
 def test_without_the_checker_started_every_row_reads_unchecked_and_nothing_changes():
     import server
     assert key_check.CHECKER.enabled is False, "importing the page sends nothing; main() enables it"
-    with _env(OPENAI_API_KEY=FAKE, KG_SUBJECT=str(ROOT / "subjects" / "cargo_quote")):
+    import page_subject
+    from subject import Subject
+    with _env(OPENAI_API_KEY=FAKE), page_subject.using(Subject(ROOT / "subjects" / "cargo_quote")):
         rows = server.model_rows()
     gpt = next(r for r in rows if r["id"] == "openai-gpt-5.5")
     assert gpt["available"] and gpt["key_check"]["state"] == "unchecked" and gpt["why"] == "", gpt
