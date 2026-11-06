@@ -1,0 +1,464 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/register-impact.schema.json",
+ "title": "knowgov reader register_impact",
+ "description": "What the MCP reader's register_impact returns (harness/mcp_server.py Tools.register_impact, harness/register_impact.py walk; task-0111, task-0118, task-0120, task-0172): the register's tag and commit, the walk from the node, the node with its owning unit, its children (with children, every descendant by parent, walked or withdrawn), the edges, what is reached by taxonomy prefix, the register-map rows it lands on and, with a scenario held, each landed key at the gate's level with its findings and the gate's verdict over them. store, scenario and as_of are null and gate is null when no store answers; store_unavailable says why the store could not be read.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "subject",
+  "store",
+  "scenario",
+  "as_of",
+  "register",
+  "walk",
+  "node",
+  "children_walked",
+  "children",
+  "edges",
+  "reached",
+  "keys",
+  "gate"
+ ],
+ "properties": {
+  "subject": {
+   "type": "string"
+  },
+  "store": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "scenario": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "as_of": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "register": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "tag",
+    "commit"
+   ],
+   "properties": {
+    "tag": {
+     "type": "string"
+    },
+    "commit": {
+     "type": "string"
+    }
+   }
+  },
+  "walk": {
+   "type": "string"
+  },
+  "node": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "taxonomy",
+    "kind",
+    "name",
+    "state",
+    "owner",
+    "parent",
+    "owning_unit"
+   ],
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "taxonomy": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "kind": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "name": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "state": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "owner": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "parent": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "owning_unit": {
+     "$ref": "#/$defs/owning_unit"
+    }
+   }
+  },
+  "children_walked": {
+   "type": "boolean"
+  },
+  "children": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "id",
+     "name",
+     "state",
+     "walked"
+    ],
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     },
+     "walked": {
+      "type": "boolean"
+     },
+     "parent": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "withdrawn": {
+      "type": "boolean"
+     }
+    }
+   }
+  },
+  "edges": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "from",
+     "rel",
+     "to",
+     "state",
+     "owner",
+     "evidence",
+     "live",
+     "to_start"
+    ],
+    "properties": {
+     "from": {
+      "type": "string"
+     },
+     "rel": {
+      "type": "string"
+     },
+     "to": {
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     },
+     "owner": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "evidence": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "live": {
+      "type": "boolean"
+     },
+     "to_start": {
+      "type": "boolean"
+     }
+    }
+   }
+  },
+  "reached": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "array",
+    "items": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "id",
+      "name",
+      "state",
+      "owning_unit"
+     ],
+     "properties": {
+      "id": {
+       "type": "string"
+      },
+      "name": {
+       "type": "string"
+      },
+      "state": {
+       "type": "string"
+      },
+      "owning_unit": {
+       "$ref": "#/$defs/owning_unit"
+      }
+     }
+    }
+   },
+   "description": "taxonomy prefix (CAP, APP, ...) to the nodes reached"
+  },
+  "keys": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/key"
+   }
+  },
+  "gate": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "additionalProperties": false,
+   "required": [
+    "task",
+    "verdict",
+    "why",
+    "exit_code"
+   ],
+   "properties": {
+    "task": {
+     "type": "string"
+    },
+    "verdict": {
+     "$ref": "#/$defs/verdict"
+    },
+    "why": {
+     "type": "string"
+    },
+    "exit_code": {
+     "type": "integer"
+    }
+   }
+  },
+  "store_unavailable": {
+   "type": "string"
+  }
+ },
+ "$defs": {
+  "owning_unit": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "unit",
+    "name",
+    "owns"
+   ],
+   "properties": {
+    "unit": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "owns": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "key": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "key",
+    "owner",
+    "anchor",
+    "via"
+   ],
+   "properties": {
+    "key": {
+     "type": "string"
+    },
+    "owner": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "anchor": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "via": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "withdrawn": {
+     "type": "boolean"
+    },
+    "level": {
+     "type": "string"
+    },
+    "stale": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "suspect": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "findings": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/finding"
+     }
+    }
+   }
+  },
+  "verdict": {
+   "enum": [
+    "PROCEED",
+    "QUALIFIED",
+    "BLOCKED"
+   ]
+  },
+  "finding": {
+   "type": "object",
+   "required": [
+    "severity",
+    "kind",
+    "key",
+    "level",
+    "flags",
+    "ref",
+    "related",
+    "message"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "severity": {
+     "$ref": "#/$defs/severity"
+    },
+    "kind": {
+     "enum": [
+      "key",
+      "task",
+      "stale",
+      "suspect_derived",
+      "lapsed",
+      "preload"
+     ],
+     "description": "key: a required key's level or flags; task: the task as a whole; stale: an invalidated statement on a required key; suspect_derived: a derived output that used an invalidated statement; lapsed: a statement on a required key whose review has lapsed (decision-0005), its verifications in related; preload: a document behind the keys whose form the pre-load check left unchecked or found findings in (info, task-0064)"
+    },
+    "key": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "the required key; null for a finding on the task as a whole or on a derived output"
+    },
+    "level": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "the key's level; a stale statement's own status (invalidated)"
+    },
+    "flags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "ref": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "the statement (stale, lapsed) or derived output (suspect_derived) by id; null for a key or the task"
+    },
+    "related": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "stale: the verified or approved successors; suspect_derived: the invalidated statements it used; lapsed: the review verifications that lapsed"
+    },
+    "message": {
+     "type": "string"
+    },
+    "owner": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "key, stale, lapsed (task-0102): the unit that answers for the key, from the subject's register_map.toml (task-0043); null when no row maps the key or several units answer for it; absent on a report from before and on the other kinds"
+    },
+    "route": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "key, stale, lapsed (task-0102): the route to approval, the owner's questionnaire (task-0009): the command that writes it, the file the owner answers, its ingest and a review; null when that questionnaire does not cover the key (an agent-chosen key set's key outside the task class it was resolved under); on a declared gap it ends with the close by the closing unit (task-0110)"
+    },
+    "closer": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "key, on a declared gap (task-0110, decision-0002 point 3): the unit that closes the gap, the owner its declaration names, else the key's owners; null when that is no unit of the register or several; absent elsewhere and on a report from before"
+    }
+   }
+  },
+  "severity": {
+   "enum": [
+    "blocker",
+    "critical",
+    "major",
+    "minor",
+    "info"
+   ]
+  }
+ }
+}

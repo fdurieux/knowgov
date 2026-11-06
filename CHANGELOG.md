@@ -30,6 +30,16 @@ names that section with the version.
 
 ### Changes
 
+- **Every MCP tool's output has a pinned schema** (task-0172). Each tool of the reader and of
+  `knowgov-runs` names the schema of its `structuredContent` at the end of its description. Ten are
+  new: `store-status`, `three-valued-answer`, `evidence-bundle`, `register-impact`, `list-subjects`,
+  `scenario-runs`, `scenario-result`, `run-options`, `run-started` and `run-status`. The others
+  were already pinned (the gate report, `register-nodes`, `key-nodes`, `code-path`,
+  `document-links`, `held-keys`, `derived-outputs`, `document-statements`, `proposal-impact`,
+  `subject-check`). No output changes shape. A test calls every tool on both public subjects and
+  validates each answer, and `tools/check_mcp_server.py` validates every answer it reads, over
+  stdio and HTTP. A field a schema does not name fails.
+
 - **The compose file runs the v0.8.0 release** (decision-0003). `demo/docker-compose.yml`'s `app` and
   `worker` pin `ghcr.io/fdurieux/knowgov:v0.8.0` by its index digest, the first release image that carries
   the worker, so `docker compose --profile arms up -d --wait` from the published compose now serves arms

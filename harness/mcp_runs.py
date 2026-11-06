@@ -258,10 +258,15 @@ class RunTools:
         return r
 
 
+OUTPUT_SCHEMAS = {"run_options": "run-options", "start_run": "run-started", "run_status": "run-status"}   # task-0172
+
+
 def _with_subject(table: list[dict]) -> list[dict]:
-    """Every tool takes an optional subject id (task-0157), as the reader's do."""
+    """Every tool takes an optional subject id (task-0157), as the reader's do, and its description names the
+    schema its structuredContent is pinned by (task-0172)."""
     for t in table:
         t["inputSchema"]["properties"]["subject"] = mcp_server.SUBJECT_ARG
+        t["description"] += mcp_server.output_note(OUTPUT_SCHEMAS[t["name"]])
     return table
 
 

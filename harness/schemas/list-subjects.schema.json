@@ -1,0 +1,98 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/list-subjects.schema.json",
+ "title": "knowgov reader list_subjects",
+ "description": "What the MCP reader's list_subjects returns (harness/mcp_server.py Tools.list_subjects; task-0157, decision-0013 A1, task-0172): the default subject, what the shared store holds and for whom (unavailable says why it could not be read), every subject under KG_SUBJECTS with its scenarios and the scenario held for it, and the tools classed store-backed or files-only.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "default",
+  "store",
+  "subjects",
+  "store_backed",
+  "files_only"
+ ],
+ "properties": {
+  "default": {
+   "type": "string"
+  },
+  "store": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "held_scenario",
+    "held_by",
+    "unavailable"
+   ],
+   "properties": {
+    "held_scenario": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "held_by": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "unavailable": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "subjects": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "id",
+     "name",
+     "default",
+     "scenarios",
+     "held"
+    ],
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "default": {
+      "type": "boolean"
+     },
+     "scenarios": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "held": {
+      "type": [
+       "string",
+       "null"
+      ]
+     }
+    }
+   }
+  },
+  "store_backed": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "files_only": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  }
+ }
+}
