@@ -421,3 +421,13 @@ jobs:
       - name: The outcomes, machine-readable, in the job's summary (task-0159)
         if: always()
         run: python tools/outcomes_summary.py outcomes >> "$GITHUB_STEP_SUMMARY"
+      - name: The outcome files kept as an artifact, 14 days, outcomes JSON only (task-0159)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: outcomes-rdflib
+          path: |
+            outcomes/*.json
+            outcomes/*.jsonl
+          if-no-files-found: warn
+          retention-days: 14

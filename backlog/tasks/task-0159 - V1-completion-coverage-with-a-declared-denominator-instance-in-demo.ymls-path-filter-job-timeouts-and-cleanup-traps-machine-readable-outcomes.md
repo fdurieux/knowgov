@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-06T06:18:00Z'
-updated_date: '2026-11-06T07:38:00Z'
+updated_date: '2026-11-06T07:42:00Z'
 labels:
   - ci
   - security
@@ -29,7 +29,7 @@ The 2026-11-05 code and architecture review's plan (task-0141) runs a cross-cutt
 - [ ] #2 demo.yml's pull_request and push path filters include instance/**, so a change to the instance template runs the stack job
 - [ ] #3 Every job in harness.yml, demo.yml and tests.yml has a timeout-minutes, and every step that starts containers or servers tears them down on failure as well as on success
 - [ ] #4 The test runner and the check tools write machine-readable outcomes (pass, fail and skip per test or check, with the skip's reason), kept as a CI artifact
-- [ ] #5 rdflib and stack are measured on an uncontended runner against task-0084's 12-minute budget; if over, a proposal to split or trim that never subsets the record
+- [x] #5 rdflib and stack are measured on an uncontended runner against task-0084's 12-minute budget; if over, a proposal to split or trim that never subsets the record
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -46,4 +46,15 @@ The 2026-11-05 code and architecture review's plan (task-0141) runs a cross-cutt
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-11-06 evidence. AC #1 coverage (tools/coverage_stdlib.py, sys.monitoring, no new dependency): denominator 89 files counted (harness/, demo/app/, tools/, demo/tools/, instance/, .claude/hooks/), left out by named rule (tests/; subjects/*/vendor, demo/model, demo/register vendored and pinned by digest; subjects/*/oracle run only in child processes), a test holding every .py of the repository counted or left out; statements are line-table lines, branches the two outcomes of each POP_JUMP_IF_* and FOR_ITER; in-process only, no integration coverage claimed. Figures 18461 statements, 15762 branch outcomes: CargoQuote with the pins 67.6% statements, 47.2% branches; J-F with the pins 65.4%, 45.4%; CargoQuote stdlib (3.13) 60.8%, 43.2%. By folder (CargoQuote, pins): demo/app 93.9%/68.6%, harness 74.9%/52.9%, demo/tools 63.6%/46.8%, tools 45.1%/29.0%, instance 30.7%/13.6%, .claude 48.0%/10.9%; the modules at 0% (run.py, worker_job.py, the check tools, _outcomes.py) run only as child processes. The review's 71.0%/66.0% was another scope (a local unit-plus-CargoQuote sample) and is not comparable. AC #2: instance/** in demo.yml's pull_request and push filters; tests/test_ci_hygiene.py. AC #3: timeouts tests 20, rdflib 120, stack 60, publish 30 against job execution worst cases tests 2.9, rdflib 71.8 (push, full J-F), stack 25.4 (push), publish 0.9 (GitHub API, first attempts, 2026-11-04..06; run spans include up to ~20 min of queueing, which a job timeout does not count); the compose teardown is if: always() already, the docker run workers --rm in the foreground, check_mcp_server's servers now killed after a bounded wait; tests/test_ci_hygiene.py holds each timeout >= max(1.5 x worst, worst + 10) and > 12. AC #4: KG_TEST_REPORT (the runner's JSON) and KG_OUTCOMES (tools/_outcomes.py, every check tool exits through it; per-check outcomes from check_worker and check_snapshots, the SNAP-07 skip with its reason); each job's summary (tools/outcomes_summary.py); tests/test_outcomes.py. The CI artifact upload waits on the coordinator's decision (actions/upload-artifact would be a new pin). Suite four ways, 0 failed: CargoQuote pins 584/585, stdlib 568/585; J-F pins 583/585, stdlib 567/585.
+
+AC #5, measured 2026-11-06 (GitHub API, pull-request jobs, first attempts; concurrency = other workflow runs active during the job):
+- stack within task-0084's 12 minutes uncontended: 7.0-10.6 min in the 14 runs with at most one other run active; median 10.6 over 128 PR runs, max 17.7.
+- rdflib over: 27.4 min in the one quiet run (one other active); fastest of 128 PR runs 15.6, median 24.9, max 36.7; on push to main (the full J-F set) 64.7-71.8.
+- Where rdflib's time goes (median of the 8 latest PR jobs): MCP server step 8.3 min, round trip 5.1, lighthouse 2.6, suite 1.7, J-F record 1.7, SNAP 1.4, oracle 1.0, citations 0.8, gate 0.8, review 0.7, the rest under 0.5 each.
+Proposal, none of which subsets the record:
+(A) split rdflib into two parallel jobs, the record and its round trip, and the readers (MCP, lighthouse, SNAP, review, capture, transcript); each half ~12-14 min; a second runner per PR; it gates only once the maintainer adds the new job to the ruleset's required checks.
+(B) trim the MCP step through task-0097 (rescoped: a per-process cache of rdflib's parsed snapshot); no change to what runs. Expected to remove much of the MCP step's 8.3 min but not all: the ~4 s per J-F call measured by task-0095 is the parse, an estimated 3-5 min; rdflib then ~20-22 min, still over.
+(C) the lighthouse step (2.6 min, evidence, not the record) on push and nightly only: changes what a PR runs.
+(D) restate rdflib's budget.
+Coordinator's decision (2026-11-06, under the delegation): B now (task-0097, another session); A to the maintainer as its own task, measured after B; C and D not taken.
 <!-- SECTION:NOTES:END -->

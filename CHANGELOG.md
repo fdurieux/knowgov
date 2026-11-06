@@ -72,8 +72,9 @@ names that section with the version.
   - **The stack job's paths.** A change under `instance/` now runs it.
   - **Outcomes, machine-readable.** `tests/run_tests.py` writes a JSON report when `KG_TEST_REPORT` names a
     file. Every check tool appends its exit and, where it reports them, each check's pass, fail or skip with
-    the skip's reason, when `KG_OUTCOMES` names one (`tools/_outcomes.py`). Each job's summary lists them
-    (`tools/outcomes_summary.py`).
+    the skip's reason, when `KG_OUTCOMES` names one (`tools/_outcomes.py`). Each job's summary lists them, one
+    line per tool (`tools/outcomes_summary.py`), and keeps the outcome JSON for 14 days as an artifact
+    (`actions/upload-artifact`, pinned by commit), whatever the job's result.
   - **Coverage.** `tools/coverage_stdlib.py` measures the suite's statement and branch coverage with
     the standard library alone (CPython 3.12+), against a declared denominator. It counts the suite's own
     process only, so it claims no integration coverage. The tests job reports it.

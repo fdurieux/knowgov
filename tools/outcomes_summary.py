@@ -40,11 +40,14 @@ def summary(folder: Path) -> str:
                 rows.append({"tool": "?", "outcome": "unreadable line", "checks": []})
         bad = [r for r in rows if r.get("outcome") != "pass"]
         lines.append(f"- checks `{f.name}`: {len(rows) - len(bad)}/{len(rows)} tool runs passed")
-        for r in rows:
-            mark = "" if r.get("outcome") == "pass" else f" **{r.get('outcome')}**"
-            if mark:
-                lines.append(f"  - `{r.get('tool')} {' '.join(r.get('argv', []))}`:{mark} (exit {r.get('exit')}) {r.get('error', '')}")
-            for c in r.get("checks", []):
+        for r in rows:   # one line per tool run, then any check of it that did not pass
+            checks = r.get("checks", [])
+            counts = ", ".join(f"{sum(1 for c in checks if c['outcome'] == o)} {o}" for o in ("pass", "fail", "skip")
+                               if any(c["outcome"] == o for c in checks))
+            cmd = f"{r.get('tool')} {' '.join(r.get('argv', []))}".rstrip()
+            lines.append(f"  - {r.get('outcome')}: `{cmd}` (exit {r.get('exit')}, {r.get('seconds')} s"
+                         f"{', checks ' + counts if counts else ''}) {r.get('error', '')}".rstrip())
+            for c in checks:
                 if c["outcome"] != "pass":
                     lines.append(f"    - {c['outcome']} {c['check']}" + (f": {c['reason']}" if c.get("reason") else ""))
     return "\n".join(lines) + "\n"

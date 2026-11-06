@@ -68,3 +68,19 @@ def test_a_server_a_check_tool_starts_ends_with_it():
         if "subprocess.Popen(" not in code:
             continue
         assert "def _stop(" in code and "p.kill()" in code, f"{path.name} starts a process it may not stop"
+
+
+def test_the_outcome_artifacts_keep_only_the_outcomes_json_briefly_and_whatever_the_result():
+    """The coordinator's conditions (2026-11-06): actions/upload-artifact pinned (tests/test_pins.py holds
+    the form), if: always(), 14 days, the outcome JSON alone (never runs/, no environment), no permission."""
+    for wf, folder in (("tests.yml", "outcomes"), ("harness.yml", "outcomes"), ("demo.yml", "demo/outcomes")):
+        text = (WORKFLOWS / wf).read_text(encoding="utf-8")
+        steps = [s for s in re.split(r"(?m)^      - ", text) if "actions/upload-artifact@" in s]
+        assert len(steps) == 1, wf
+        s = steps[0]
+        assert "if: always()" in s and "retention-days: 14" in s, wf
+        paths = re.findall(r"(?m)^            (\S+)$", s)
+        assert paths == [f"{folder}/*.json", f"{folder}/*.jsonl"], (wf, paths)
+        assert "runs/" not in s and "env" not in s.split("with:", 1)[1], wf
+    harness = (WORKFLOWS / "harness.yml").read_text(encoding="utf-8")
+    assert harness.count("actions: write") == 0 and (WORKFLOWS / "tests.yml").read_text(encoding="utf-8").count("permissions:\n  contents: read") == 1
