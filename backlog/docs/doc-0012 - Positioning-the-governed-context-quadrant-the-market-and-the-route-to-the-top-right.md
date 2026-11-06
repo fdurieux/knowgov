@@ -5,14 +5,14 @@ title: >-
   top-right
 type: specification
 created_date: '2026-11-03T22:44:00Z'
-updated_date: '2026-11-06T10:26:00Z'
+updated_date: '2026-11-06T11:30:00Z'
 tags:
   - brief
   - positioning
   - market
   - quadrant
 ---
-*2026-11-03. Maintainer register. A study: nothing built, nothing queued. Trigger: the maintainer's question of this date, where knowgov, Legible and ieam-register sit on a Magic Quadrant, the market potential of "the governed knowledge layer of a declarative twin", and what moves the stack to the far top-right. Scored at knowgov `5af89c4`, ieam-register `71de2d0` (v0.2.3), pumllint `38c5679`; recorded on `main` at `e2902b8` (register v0.2.4, `docs/guide.md` #80, the three saved queries #81), which moves no score: the walk itself is unchanged. Method: pumllint `docs/positioning-quadrant.md` (2026-08-28). Validated the same day by two external models, blind then adversarial (§5). The artifact page "Governed Context Quadrant" (https://claude.ai/artifact/Jizk9X9Gt6hKKGwxsZo82m) is a view of this doc. One record per thing: the twin wording stays doc-0010's, the walk, process-mining and code-traceability fit-gaps doc-0011's; this doc adds the market reading and the scores.*
+*2026-11-03. Maintainer register. A study: nothing built, nothing queued. Trigger: the maintainer's question of this date, where knowgov, Legible and ieam-register sit on a Magic Quadrant, the market potential of "the governed knowledge layer of a declarative twin", and what moves the stack to the far top-right. Scored at knowgov `5af89c4`, ieam-register `71de2d0` (v0.2.3), pumllint `38c5679`; recorded on `main` at `e2902b8` (register v0.2.4, `docs/guide.md` #80, the three saved queries #81), which moves no score: the walk itself is unchanged. Method: pumllint `docs/positioning-quadrant.md` (2026-08-28). Validated the same day by two external models, blind then adversarial (§5). The artifact page "knowgov Quadrant Placement" (https://claude.ai/artifact/SMa3tgeKWrykqzyyaQGeac) is the view of this doc. The first view, "Governed Context Quadrant" of 2026-11-03, was retired on 2026-11-06 at the maintainer's word, by the coordinating session. One record per thing: the twin wording stays doc-0010's, the walk, process-mining and code-traceability fit-gaps doc-0011's; this doc adds the market reading and the scores.*
 
 ## Verdict
 
@@ -20,7 +20,7 @@ tags:
 
 Not in Gartner's DTO Magic Quadrant (first edition 2026-07-27, 18 vendors): its definition needs operational data, knowgov holds the declarative twin. Not a fourth register in the EA Tools MQ (2025-10-06) either, at E ≈ 3 against 16–20. The position is the seam between them. Positioning line: *"Before an AI agent builds on what your architecture says, know whether it is true."*
 
-*2026-11-06: re-scored by the home team under the neutral rubric at 16 · 4 (18 · 5 on the note rubric), still Visionary (§8). Two external passes on doc-0027's brief placed it at 13 · 3 (§9) and 15 · 2 (§10): a mean of 14 · 2.5, still Visionary.*
+*2026-11-06: re-scored by the home team under the neutral rubric at 16 · 4 (18 · 5 on the note rubric), still Visionary (§8). Two external passes on doc-0027's brief placed it at 13 · 3 (§9) and 15 · 2 (§10): a mean of 14 · 2.5, still Visionary, the placement of record (§10, accepted 2026-11-06).*
 
 ## 1. Category and field
 
@@ -296,4 +296,6 @@ OpenAI, with search, put Palantir and ServiceNow in the corner and the stack mid
 
 These are G1-1, G1-2, G1-4 and G1-6.
 
-**Proposed reading.** With both runners in, this doc reads the stack at their mean, 14 · 2.5, Visionaries. It keeps §8's 16 · 4 as the home team's reading, about two points high on Vision and 1.5 on Execute. The field stays §9's, the one with sources. doc-0027 owes no third runner. A rerun of this one that actually uses search would firm up the field.
+**Placement of record** (maintainer, 2026-11-06: "accept the mean as the placement of record"). The stack reads at the two runners' mean, 14 · 2.5, Visionaries; as a v1.0, 14 · 3 declared and 15.5 · 8 with its conditions met, the means of their v1.0 rows. §8's 16 · 4 stays the home team's reading, about two points high on Vision and 1.5 on Execute. The field stays §9's, the one with sources. doc-0027 owes no third runner. A rerun of this one that actually uses search would firm up the field.
+
+The artifact page "knowgov Quadrant Placement" (https://claude.ai/artifact/SMa3tgeKWrykqzyyaQGeac) is a view of §9 and §10: the field from §9, the stack at the placement of record and its two v1.0 marks, and the readings behind the mean.
