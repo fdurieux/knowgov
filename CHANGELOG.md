@@ -37,7 +37,8 @@ names that section with the version.
 - **The Arms mode on an EC2 instance, from a Mac** (task-0162). `demo/README.md` walks through running
   the stack, the worker included, on an EC2 `t3.large` with Ubuntu Server 24.04 LTS and Ubuntu's own
   Docker, the page reached through an SSH tunnel with the default `127.0.0.1` bind. The worker's
-  self-check attested every check true there on a real machine (kernel `7.0.0-1014-aws`, with Landlock);
+  self-check attested every check true there on a real machine (kernel `7.0.0-1014-aws`, with Landlock),
+  and an arms run on the Claude row completed;
   Docker Desktop for Mac 4.48.0 still refuses it (no Landlock). `docs/security.md` names that host and no
   other.
 

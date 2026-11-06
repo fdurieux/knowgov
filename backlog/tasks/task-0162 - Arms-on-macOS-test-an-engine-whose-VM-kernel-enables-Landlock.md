@@ -4,7 +4,7 @@ title: 'Arms on macOS: test an engine whose VM kernel enables Landlock'
 status: Done
 assignee: []
 created_date: '2026-11-06T07:22:00Z'
-updated_date: '2026-11-06T12:04:00Z'
+updated_date: '2026-11-06T12:41:00Z'
 labels:
   - worker
   - security
@@ -50,6 +50,8 @@ The X1 session's view (session_01HTAA1UsSVF25SBM7XfjnqP, 2026-11-06), advice onl
 2026-11-06, the maintainer's EC2 instance in eu-west-1 (t3.large, 2 vCPU, 8 GiB; Ubuntu Server 24.04 LTS x86_64 AMI, /etc/os-release 'Ubuntu 24.04.5 LTS'), docker.io 29.1.3-0ubuntu3~24.04.2 with docker-compose-v2 2.40.3, kernel 7.0.0-1014-aws, /sys/kernel/security/lsm 'lockdown,capability,landlock,yama,apparmor,ima,evm'; knowgov main cloned that day. `docker compose --profile arms run --rm --no-deps worker python harness/worker.py --attest-only` gave "ok": true, every check true: loopback_only (interfaces lo up only, no routes, cap_net_admin false), no_secret_variables (secret_names empty), read_only_root, uid_65534, no_docker_socket, write_confined, no_socket_escape (AF_VSOCK and AF_PACKET refused EPERM, outside ENETUNREACH). Verdict: attested; the first real machine on which the worker serves outside CI. Compose's 'buildx isn't installed' warning is harmless (the classic builder built the image).
 
 The EC2 attestation was taken at knowgov main 5ce8262 (PR #301's merge).
+
+2026-11-06, the same EC2 instance, the stack up with --profile claude --profile arms (all services healthy after the root volume was raised from 8 to 30 GiB; on 8 GiB Neo4j exited out of disk), the page reached over an SSH tunnel: an S1 arms run on the Claude row (through the LiteLLM gateway) completed, the maintainer reports. The OpenAI row's runs failed with a 401 because OPENAI_API_KEY held a value that was not an OpenAI secret key (the first attempt an Anthropic key, the second a value not starting sk-); configuration, not the worker. The Gemini row was not offered, for want of GEMINI_API_KEY. Checking keys before a run is session_01HTAA1V5hRxxogbYzNaHL2a's task.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
