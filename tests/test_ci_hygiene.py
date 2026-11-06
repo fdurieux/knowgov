@@ -13,7 +13,9 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 # The worst execution of each job, in minutes: first attempts, job start to completion (not the run's
 # span, which includes queueing), from the GitHub API over 2026-11-04..06 (task-0159's notes). rdflib's
 # is a push to main, which runs the full J-F set; stack's likewise.
-OBSERVED_WORST = {("tests.yml", "tests"): 2.9, ("harness.yml", "rdflib"): 71.8,
+# task-0163 split rdflib in two: each half's worst is its steps' sum in the slowest push run before the
+# split (run 42161874258, 71.8 min in all), the shared setup counted in both.
+OBSERVED_WORST = {("tests.yml", "tests"): 2.9, ("harness.yml", "rdflib"): 23.7, ("harness.yml", "rdflib-readers"): 48.4,
                   ("demo.yml", "stack"): 25.4, ("demo.yml", "publish"): 0.9}
 BUDGET = 12   # task-0084: a pull request's rdflib and stack, uncontended
 
@@ -74,13 +76,21 @@ def test_the_outcome_artifacts_keep_only_the_outcomes_json_briefly_and_whatever_
     """The coordinator's conditions (2026-11-06): actions/upload-artifact pinned (tests/test_pins.py holds
     the form), if: always(), 14 days, the outcome JSON alone (never runs/, no environment), no permission."""
     for wf, folder in (("tests.yml", "outcomes"), ("harness.yml", "outcomes"), ("demo.yml", "demo/outcomes")):
-        text = (WORKFLOWS / wf).read_text(encoding="utf-8")
-        steps = [s for s in re.split(r"(?m)^      - ", text) if "actions/upload-artifact@" in s]
-        assert len(steps) == 1, wf
-        s = steps[0]
-        assert "if: always()" in s and "retention-days: 14" in s, wf
-        paths = re.findall(r"(?m)^            (\S+)$", s)
-        assert paths == [f"{folder}/*.json", f"{folder}/*.jsonl"], (wf, paths)
-        assert "runs/" not in s and "env" not in s.split("with:", 1)[1], wf
+        for job, block in _jobs(WORKFLOWS / wf).items():
+            steps = [s for s in re.split(r"(?m)^      - ", block) if "actions/upload-artifact@" in s]
+            if job == "publish":
+                assert not steps
+                continue
+            assert len(steps) == 1, (wf, job)
+            _artifact_step_holds(wf, folder, steps[0])
     harness = (WORKFLOWS / "harness.yml").read_text(encoding="utf-8")
+    names = re.findall(r"(?m)^          name: (outcomes-[\w-]+)$", harness)
+    assert len(names) == len(set(names)) == 2, names   # one artifact per job, distinct names
     assert harness.count("actions: write") == 0 and (WORKFLOWS / "tests.yml").read_text(encoding="utf-8").count("permissions:\n  contents: read") == 1
+
+
+def _artifact_step_holds(wf: str, folder: str, s: str) -> None:
+    assert "if: always()" in s and "retention-days: 14" in s, wf
+    paths = re.findall(r"(?m)^            (\S+)$", s)
+    assert paths == [f"{folder}/*.json", f"{folder}/*.jsonl"], (wf, paths)
+    assert "runs/" not in s and "env" not in s.split("with:", 1)[1], wf

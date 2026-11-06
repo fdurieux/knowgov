@@ -207,7 +207,8 @@ def test_the_action_uploads_sarif_only_when_asked_pinned_and_after_any_exit():
     top = wf.split("\njobs:", 1)[0]
     assert "security-events" not in top and re.search(r"^permissions:\n  contents: read$", top, re.M)
     assert wf.count("security-events: write") == 1
-    assert re.search(r"^  rdflib:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read\n      security-events: write", wf, re.M)
+    # the job that runs the action's SARIF step: rdflib-readers since the split (task-0163)
+    assert re.search(r"^  rdflib-readers:\n(?:    #.*\n)*    runs-on: ubuntu-latest\n    permissions:\n      contents: read\n      security-events: write", wf, re.M)
     same_repo_pr = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}"
     assert wf.count("sarif: " + same_repo_pr) == 1 and wf.count("SARIF_ON: " + same_repo_pr) == 1   # never main: a fixture's alerts
     assert "steps.wrap_as_of.outputs.sarif-id" in wf

@@ -90,6 +90,11 @@ names that section with the version.
   image; the image runs Python 3.12 (`demo/Dockerfile`), and that is the version to install for the
   harness. The standard-library tests still run on 3.13 in CI too.
 
+- **The rdflib CI job runs as two parallel jobs** (task-0163). `rdflib` keeps the record and its round
+  trip, and `rdflib-readers` runs the readers (the MCP server, the lighthouse, the gate, the wrappers,
+  review, capture, transcript). Nothing is dropped or subset: a test holds that every step of the old job
+  runs in exactly one. `rdflib-readers` gates once it joins the ruleset's required checks.
+
 - **The worker attests that it cannot open AF_VSOCK or AF_PACKET sockets or reach an outside address**
   (`no_socket_escape`, task-0165; decision-0012, decision-0015). No network namespace confines AF_VSOCK,
   and on Docker Desktop the VM's host side answers on it; the engine's default seccomp profile refuses it,
