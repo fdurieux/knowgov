@@ -5,7 +5,7 @@ title: >-
   2026-11-06 afternoon delegation
 type: other
 created_date: '2026-11-06T13:02:00Z'
-updated_date: '2026-11-06T13:46:00Z'
+updated_date: '2026-11-06T14:43:00Z'
 ---
 *2026-11-06. Maintainer register. A choice taken under the maintainer's delegation of ~13:00 UTC: "I'll be off again for a few hours; continue unsupervised; use the swot, opportunity canvas, fit/gap, and derive an advise which you then document and execute." Drafted and executed by the coordinating session. It decides no record question: decision-0016 and decision-0011 stay the maintainer's, and nothing here accepts either.*
 
@@ -101,3 +101,34 @@ Since this doc was written, the following merged: task-0172's base, task-0160 (#
 - dispatch task-0175 now;
 - dispatch task-0177 after #311;
 - leave task-0176 and task-0178 To Do.
+
+## Third tranche, 2026-11-06 14:45 UTC
+
+The second tranche merged: task-0175 (#314) and task-0177 (#315). Of the four limits task-0173 minted, task-0176 (the heap a Neo4j load needs) and task-0178 (the register panel) remain. The second tranche held task-0176 back because it "needs an instance's scale". Its AC #1 asks for a synthetic scale-up, so it does not. That reason is withdrawn here.
+
+| Box | Content |
+|---|---|
+| Problem | An instance's first Neo4j load, larger than the public subjects', fails inside its transaction with no forecast (task-0176). A reviewer on the page cannot see what a register update withdrew (task-0178). |
+| Who, and when | The pilot's operators at their first load. Reviewers of a register update on the page. |
+| Today | Both are only listed as limits (doc-0028 §10, K4 and K18). |
+| Solution | task-0176 goes to the session that built S2 and measured 41 and 64 MiB (session_01HTAA1UsSVF25SBM7XfjnqP). task-0178 goes to the session that built the worker chip on the page (session_01HTAA1UUkk7jJTbGCaLWPnf). |
+| Measure | Each merged on its whole green matrix, with its Known limit lifted in Unreleased. |
+| Cost | Two sessions for a few hours, plus one local Neo4j for task-0176's measurement. |
+| Risk | task-0176's forecast is a model: a forecast too low still fails in the transaction (today's behaviour), and one too high refuses a load that would fit. |
+
+**Fit/gap.**
+- decision-0014 is kept: a refused load starts nothing and keeps the previous generation.
+- task-0178 reuses `harness/register_change.py`, the gate's own computation, so the page and the gate agree by construction.
+- **Gap:** task-0176's forecast must be conservative only by a stated margin. A setting turns the pre-check off, as `KG_KEY_CHECK` does for the key check.
+- Neither needs decision-0016.
+
+**SWOT.**
+- **Strengths:** both close named limits; task-0178 reuses an existing computation.
+- **Weaknesses:** task-0176 adds a refusal, a contract change gathered in Unreleased.
+- **Opportunities:** the pilot's first load gets a sizing rule before it starts. The 1.0 limits list shrinks to the thirteen proposed for the maintainer.
+- **Threats:** a forecast tuned on synthetic data that misses an instance's shape. AC #1 records the relation with its data, so it can be refitted.
+
+**Advice, executed:**
+- dispatch task-0176, with a switch-off setting for the pre-check;
+- dispatch task-0178;
+- task-0163's AC #2 still waits for a quiet slot.
