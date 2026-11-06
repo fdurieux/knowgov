@@ -64,7 +64,30 @@ names that section with the version.
   `KG_WORKER_MAX_JOB_SECONDS` and `KG_WORKER_JOB_SECONDS`, and compose's `KG_WORKER_MEM` and
   `KG_WORKER_CPUS`.
 
+- **The worker starts only with `--profile arms`** (decision-0015). The default `docker compose up
+  -d --build --wait` now starts the app and Neo4j (and the gateway with `--profile claude`), green on
+  every engine; it no longer starts the worker. An arms run without a served worker is refused, as
+  before. To run arms: `docker compose --profile arms up -d --build --wait`, on Linux with Landlock
+  (kernel 5.13 or later, enabled). A known limit: Docker Desktop for Mac 4.48.0's kernel
+  (6.10.14-linuxkit) is built without Landlock, so there the worker refuses to serve and exits 3,
+  and arms are refused; a later version may differ, unverified (task-0162).
+
 ### Changes
+
+- **The worker's network check accepts the down tunnel devices Docker Desktop creates** (task-0161,
+  decision-0015). `loopback_only` held only when `/sys/class/net` listed `lo` alone. A kernel with
+  tunnel modules loaded puts `tunl0`, `gre0`, `sit0` and others, down, in every network namespace,
+  and the bonding driver adds its `bonding_masters` file. The check now holds when no interface but
+  `lo` is up, no route leaves `lo`, and `CAP_NET_ADMIN` is in neither the effective nor the bounding
+  set; anything unreadable counts against it. The attestation's `interfaces` is now a map from each
+  interface to `up` or `down`, beside `routes` and `cap_net_admin`.
+
+- **A directory artefact's file digests are the file's bytes** (task-0098, a fix to task-0094). `part_sha256`
+  hashed each part as bundled, and the bundle adds a newline to a file that lacks one and reads CRLF as LF,
+  so such a file's digest disagreed with the register's, which `register-cites` compares it with. The load now
+  hashes each file's raw bytes; a part a scenario's plant changed keeps its text's digest. Every file of the
+  public subjects' directory artefacts (J-F's 47) already ends in a newline with LF line ends, so no recorded
+  digest moves; an instance's file without one now matches its register.
 
 - **CI hygiene, the review's V1 completed** (task-0159).
   - **Timeouts.** Every job of `tests.yml`, `harness.yml` and `demo.yml` has a timeout, each above the worst run seen, so a slow, honest run

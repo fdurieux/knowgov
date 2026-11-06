@@ -58,7 +58,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build the image and start the stack
-        run: docker compose up -d --build --wait --wait-timeout 240
+        # the worker is behind its profile (decision-0015): started here so EXEC-01..09 and the loosened workers run
+        run: docker compose --profile arms up -d --build --wait --wait-timeout 240
 
       - name: The report endpoint answers and sees the store
         run: |
@@ -452,11 +453,11 @@ jobs:
 
       - name: Logs on failure
         if: failure()
-        run: docker compose logs --no-color | tail -200
+        run: docker compose --profile arms logs --no-color | tail -200
 
       - name: Tear down
         if: always()
-        run: docker compose down -v --remove-orphans
+        run: docker compose --profile arms down -v --remove-orphans
 
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

@@ -18,6 +18,7 @@ names a subject, a document or a scenario: all of it comes from here.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import tomllib
@@ -54,17 +55,26 @@ def _glob_re(g: str) -> re.Pattern:
     return re.compile(f"^{out}$")
 
 
-def bundle(root: Path, include: list[str] | None = None) -> str:
-    """Every file under ``root`` matching ``include`` (relative POSIX globs, path-aware; all
-    files when empty), in path order, each prefixed by its marker line and ended by a newline."""
+def bundle_files(root: Path, include: list[str] | None = None) -> list[tuple[str, Path]]:
+    """(relative path, file) for every file under ``root`` matching ``include`` (relative POSIX
+    globs, path-aware; all files when empty), in path order: the files ``bundle`` joins."""
     patterns = [_glob_re(g) for g in (include or [])]
-    parts = []
+    out = []
     for p in sorted(root.rglob("*")):
         if not p.is_file() or "__pycache__" in p.parts:
             continue
         rel = p.relative_to(root).as_posix()
         if patterns and not any(r.match(rel) for r in patterns):
             continue
+        out.append((rel, p))
+    return out
+
+
+def bundle(root: Path, include: list[str] | None = None) -> str:
+    """Every file ``bundle_files`` names, in path order, each prefixed by its marker line and ended
+    by a newline (added when the file lacks one, so a part's text is not always its file's bytes)."""
+    parts = []
+    for rel, p in bundle_files(root, include):
         text = p.read_text(encoding="utf-8")
         parts.append(BUNDLE_MARK.format(rel=rel) + "\n" + text + ("" if text.endswith("\n") else "\n"))
     return "".join(parts)
@@ -155,6 +165,27 @@ class Subject:
     @property
     def shorts(self) -> dict[str, str]:
         return {a["key"]: a["short"] for a in self.artefacts if a.get("short")}
+
+    def raw_part_digests(self, key: str) -> dict[str, str]:
+        """A directory artefact's files by relative path, each with the SHA-256 of its raw bytes as
+        they are on disk (task-0098): what the register's digest of a cited file is taken over, and
+        not the part's bundled text, which gains a newline a file lacks. A file artefact: empty."""
+        a = next(x for x in self.artefacts if x["key"] == key)
+        p = self.root / a["path"]
+        if not p.is_dir():
+            return {}
+        return {rel: hashlib.sha256(f.read_bytes()).hexdigest() for rel, f in bundle_files(p, a.get("include"))}
+
+    def part_digests(self, key: str, text: str) -> dict[str, str]:
+        """Each file of a directory artefact as a scenario's kit holds it (``text``, its bundle), by
+        relative path (task-0094): the SHA-256 of the file's raw bytes on disk when the kit's part is the
+        file as bundled, unplanted (task-0098: the bundle adds a newline a file lacks and reads text, so
+        its part is not the bytes the register digests); a part a plant changed has no bytes on disk, so
+        its digest is its text's (UTF-8)."""
+        raw = self.raw_part_digests(key)
+        on_disk = dict(bundle_parts(self.artefact_text(key))) if raw else {}
+        return {rel: raw[rel] if rel in raw and on_disk.get(rel) == part else hashlib.sha256(part.encode("utf-8")).hexdigest()
+                for rel, part in bundle_parts(text) if rel}
 
     def pristine(self) -> dict[str, str]:
         return {key: self.artefact_text(key) for key, _p in self.kit_files}

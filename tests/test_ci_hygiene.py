@@ -55,7 +55,7 @@ def test_every_container_a_workflow_starts_is_torn_down_on_failure_as_on_success
             steps = re.split(r"(?m)^      - ", block)
             ups = [i for i, s in enumerate(steps) if re.search(r"docker compose [^\n]*\bup\b", s)]
             if ups:
-                downs = [i for i, s in enumerate(steps) if "if: always()" in s and "docker compose down" in s]
+                downs = [i for i, s in enumerate(steps) if "if: always()" in s and re.search(r"docker compose [^\n]*\bdown\b", s)]
                 assert downs and max(downs) > max(ups), f"{wf.name} {job}: compose started without an always() teardown after it"
         for line in re.findall(r"docker run [^\n]*", text):
             assert "--rm" in line and not re.search(r"\s-d\b|--detach", line), f"{wf.name}: {line[:80]}"
