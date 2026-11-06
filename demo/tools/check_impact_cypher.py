@@ -53,12 +53,18 @@ def block_of(guide: str) -> str:
     return html.unescape(blocks[0]).strip()
 
 
+def browser_origin() -> str:
+    """The origin Neo4j Browser fetches a guide from: KG_BROWSER_URL's, as the page admits it (task-0141.03)."""
+    u = urllib.parse.urlsplit(os.environ.get("KG_BROWSER_URL") or "http://localhost:7474")
+    return f"{u.scheme}://{u.netloc}"
+
+
 def fetch_guide(url: str) -> str:
     """The guide as the Browser gets it: the preflight answered, the header on the response."""
     pre = urllib.request.urlopen(urllib.request.Request(url, method="OPTIONS", headers={
-        "Origin": "http://browser.test", "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "pragma,cache-control"}))
+        "Origin": browser_origin(), "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "pragma,cache-control"}))
     assert pre.status == 204 and pre.headers.get("Access-Control-Allow-Origin") == "*", (url, pre.status)
-    with urllib.request.urlopen(urllib.request.Request(url, headers={"Origin": "http://browser.test", "Pragma": "no-cache"})) as resp:
+    with urllib.request.urlopen(urllib.request.Request(url, headers={"Origin": browser_origin(), "Pragma": "no-cache"})) as resp:
         assert resp.headers.get("Access-Control-Allow-Origin") == "*" and resp.headers.get("Content-Type", "").startswith("text/html"), url
         return resp.read().decode("utf-8")
 

@@ -12,6 +12,21 @@ names that section with the version.
 
 ### Contract changes
 
+- **Both servers check the request's authority and origin on every request** (task-0141.03). A
+  request whose Host names an authority the server does not answer for gets 421, and a malformed or
+  repeated Host 400. An Origin that is not one of the server's own gets 403, `null` included, on
+  reads as well as writes. Each check stands on its own and apart from the bearer token. The page
+  answers for the loopback names and `KG_DEMO_HOST` on its published port (compose passes
+  `KG_PORT_APP` as `KG_PUBLIC_PORT`), plus `KG_PAGE_AUTHORITIES`. Its origins are those authorities
+  over `http://`, plus `KG_PAGE_ORIGINS`. The impact guides also admit Neo4j Browser's origin
+  (`KG_BROWSER_URL`). The MCP server answers for the loopback names on its port, or its bind
+  address, plus `KG_MCP_AUTHORITIES` and `KG_MCP_ORIGINS`. Forwarded headers are never read: behind
+  a proxy, list the public authority and its `https://` origin. Before, the page compared Origin
+  with the request's own Host, so a rebound name sending both passed. The MCP server took any
+  loopback origin on any port. Compatibility: the MCP Inspector (`http://localhost:6274`) now needs
+  `KG_MCP_ORIGINS=http://localhost:6274`. A client reaching the page by a name other than
+  `localhost`, `127.0.0.1`, `[::1]` or `KG_DEMO_HOST` needs it in `KG_PAGE_AUTHORITIES`.
+
 - **`proposal_impact`'s report gains a slice map** (task-0152, doc-0022 K1, additive: `slices`,
   required, in `harness/schemas/proposal-impact.schema.json`, version 1). One vertical slice per
   approved journey step of each product the proposal touches, or per delivering process for a

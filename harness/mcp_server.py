@@ -85,8 +85,12 @@ a start with no ``KG_TODAY`` and a relative date is refused.
 
 Over HTTP it binds 127.0.0.1 unless ``--host``/``KG_MCP_HOST`` says otherwise; a bind that is not
 a loopback address needs ``KG_MCP_TOKEN``, which every request then carries as
-``Authorization: Bearer <token>``. A request whose ``Origin`` is not a loopback host is refused, so
-a web page in the operator's browser cannot reach the server (DNS rebinding).
+``Authorization: Bearer <token>``. Every request's Host must name an authority the server answers for
+(the loopback names on its port, or the bind address, plus ``KG_MCP_AUTHORITIES``), else 421, and an
+``Origin``, when sent, must be one of its own (``http://`` each authority, plus ``KG_MCP_ORIGINS``,
+such as the MCP Inspector's ``http://localhost:6274``), else 403; each is checked on its own and
+apart from the token, so a page that rebinds a name to this machine reaches nothing
+(``harness/http_boundary.py``, task-0141.03).
 
 Standard library only, like the page and the gate command: MCP's JSON-RPC 2.0 messages, newline
 delimited on stdio, one JSON response per POST over HTTP.
@@ -1030,12 +1034,14 @@ def is_loopback(host: str) -> bool:
         return False
 
 
-def origin_allowed(origin: str | None) -> bool:
-    """No Origin (a non-browser client) or a loopback one; anything else may be a page doing DNS rebinding."""
-    if not origin:
-        return True
-    host = urlsplit(origin).hostname or ""
-    return is_loopback(host)
+def http_policy(host: str, port: int):
+    """The authorities and origins the HTTP transport answers for (task-0141.03, harness/http_boundary.py):
+    the loopback names on the bound port for a loopback or wildcard bind, else the bind address, plus
+    KG_MCP_AUTHORITIES; origins ``http://`` each, plus KG_MCP_ORIGINS (the MCP Inspector's
+    ``http://localhost:6274``, a TLS proxy's ``https://...``). Never from a request."""
+    import http_boundary
+    return http_boundary.build(host, [port], authorities=os.environ.get("KG_MCP_AUTHORITIES", ""),
+                               origins=os.environ.get("KG_MCP_ORIGINS", ""))
 
 
 def bind_check(host: str, token: str | None) -> str | None:
@@ -1068,8 +1074,10 @@ def make_handler(server: Server, token: str | None):
             if urlsplit(self.path).path != "/mcp":
                 self._send(404, _error(None, -32600, "the MCP endpoint is /mcp"))
                 return False
-            if not origin_allowed(self.headers.get("Origin")):
-                self._send(403, _error(None, -32600, "a non-loopback Origin is refused"))
+            import http_boundary
+            refused = http_boundary.check(self.server.policy, self.headers)   # Host and Origin, each on its own (task-0141.03)
+            if refused:
+                self._send(refused[0], _error(None, -32600, refused[1]))
                 return False
             if token:
                 got = self.headers.get("Authorization", "")
@@ -1100,7 +1108,9 @@ def serve_http(server: Server, host: str, port: int, token: str | None) -> Threa
     why = bind_check(host, token)
     if why:
         raise SystemExit(f"mcp_server: refusing to bind: {why}")
-    return ThreadingHTTPServer((host.strip("[]"), port), make_handler(server, token))
+    httpd = ThreadingHTTPServer((host.strip("[]"), port), make_handler(server, token))
+    httpd.policy = http_policy(host, httpd.server_address[1])   # the port actually bound, port 0 included
+    return httpd
 
 
 def main(argv: list[str] | None = None) -> int:
