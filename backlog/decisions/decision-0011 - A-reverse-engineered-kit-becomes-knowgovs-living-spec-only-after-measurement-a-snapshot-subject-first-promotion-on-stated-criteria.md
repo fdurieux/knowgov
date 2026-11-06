@@ -15,7 +15,7 @@ The maintainer, 2026-11-05 23:59, in the dogfooding session (`session_01HTAA1Uek
 3. home: "A subject in knowgov. (Just like J-F data load & CargoQuote";
 4. "Living spec".
 
-Answers 1 to 3 settle an experiment. Answer 4 is a different kind of decision. A kit maintained with the code is a second upstream record beside `backlog/`, so CLAUDE.md's "one record per thing" requires the division between them to be explicit. On 2026-11-06 the maintainer asked the coordinating session to explain its recommendation, then said: "record it as a proposed decision".
+Answers 1 to 3 settle an experiment. Answer 4 is a different kind of decision. A kit maintained with the code is a second upstream record beside `backlog/`, so CLAUDE.md's "one record per thing" requires the division between them to be explicit. On 2026-11-06 the maintainer asked the coordinating session to explain its recommendation, then said: "record it as a proposed decision". The dogfooding session's six amendments (A1 to A6), its fidelity bar and its choice of task class were folded in the same night, while the decision was still proposed.
 
 What holds on `main` at `772afbb`:
 - **Both public kits are frozen.** `cargo_quote` and `jef_data_load` are vendored from pumllint at a tag, with a digest test per file, and the comparator holds each subject's deterministic record. Nothing in the subject format or in CI assumes a subject that moves.
@@ -36,9 +36,11 @@ What holds on `main` at `772afbb`:
 Proposed: **(c)**.
 
 **Now.** Build the gate lane's kit as a knowgov subject at a named commit, by the J-F method: requirements in EARS form with `KGV-nnn` ids, contracts carrying the schemas, decision tables, PlantUML, and Gherkin tagged by id. The maintainer's answers 1 to 3 apply:
-- **No clean room.** The pre-registration names the departure, and the scoring phase scores "the kit with its context", not "the kit alone".
-- **The subject lives under `subjects/`,** frozen at its commit like the other two.
-- **The run doubles as doc-0021 §9's spike step S6** and records its onboarding measures.
+- **No clean room for the kit's author (A1).** The author reads everything: code, backlog, docs. The rebuilder works from a bundle, the kit plus named context, and never gets the lane's sources or git history (a knowgov checkout carries the code in its history). The pre-registration lists the bundle's contents, and the scoring phase scores "the kit with its context", not "the kit alone". Without the bundle rule, the fidelity criterion would measure copying.
+- **The snapshot commit comes after task-0141.02 (S1) merges (A4).** S1 reworks `store.py` and the adapters, which are in the lane.
+- **The subject lives under `subjects/`, frozen at its commit, and something enforces it (A5).** A note naming the commit and a digest test per file, as the vendored subjects have. `.claude/hooks/protected_paths.py` covers the subject until the shadow period opens.
+- **The register slice (A6).** Step one also proposes knowgov's own slice to ieam-register: nodes, owners and links in a decision shaped like the register's 0005, approved by the maintainer per its 0019. Without owners on `register_map.toml` rows, doc-0021 S6's stop condition 3 cannot hold.
+- **The run doubles as doc-0021 §9's spike step S6** and records its onboarding measures. Its task class is task-0144 (store reads over MCP), whose gap is open: task-0152's would close with #260. The task's keys live in the subject's `[tasks]` only.
 - **The kit is not upstream.** No task cites a `KGV-` id as its requirement, and `backlog/` stays the record.
 
 **Shadow period.** After scoring, two to four weeks in which:
@@ -47,8 +49,12 @@ Proposed: **(c)**.
 - the kit is not authoritative.
 
 **Promotion** to living spec is a later decision record, taken only when all three of these hold:
-1. **Fidelity:** the rebuild meets a fidelity bar fixed in the pre-registration before the run.
-2. **Drift found:** the advisory gate found drift on real pull requests that review would otherwise have missed, counted.
+1. **Fidelity:** the rebuild meets a fidelity bar fixed in the pre-registration before the run. Proposed bar, in J-F's shape:
+   - gated, 100%: the gate report per scenario identical after normalisation, the exit codes identical, and every JSON valid against its schema;
+   - reported, not gated: the command-line text.
+2. **Drift found (A2):** the advisory instruments found drift on real pull requests that review would otherwise have missed, counted. The instruments are named, because the gate reads knowledge levels and does not see code drift:
+   - the kit's suite run on the pull request's head, for code that moved without the kit;
+   - `trace`: pumllint's trace for requirement-to-scenario coverage, and knowgov-trace (`code_map.toml`, citation headers) for code built on keys that changed.
 3. **Cost:** the cost per pull request stays acceptable. The measure (kit lines touched, minutes added) is recorded in the shadow period, and the threshold is the maintainer's.
 
 That later record fixes:
@@ -56,6 +62,7 @@ That later record fixes:
 - **Same-PR rule.** A behaviour change edits the kit in the same pull request as the code, kit-first for new behaviour.
 - **Attestation** per decision-0009 and ieam-register 0019: a session drafts and the maintainer approves. A statement the suite verifies on the code reaches `verified` without attestation. That shows the kit and the code agree, not that the behaviour is right, so new behaviour still needs the maintainer's approval.
 - **Blocking gate.** The gate on knowgov's pull requests moves from advisory to blocking for the lane.
+- **The base's gate grades the head (A3).** knowgov's own pull requests are gated by the gate at the base, never by the head's: a change to the gate must not grade itself.
 - **Scope.** The gate lane only, widened lane by lane by later records.
 
 ## Why not (a)
@@ -99,5 +106,10 @@ It drops the maintainer's goal (answer 1): knowgov managing its own roadmap. (c)
 ## Consequences
 
 - No change to `backlog/`, the subject format or CI until the maintainer approves.
-- **If approved:** the dogfooding session's experiment proceeds as (c)'s first step. Its pull requests that touch `subjects/`, `harness/`, `tools/` or `demo/` wait until task-0141's S1, .07, H1 and H2 have merged. Its tasks are minted by the coordinating session, and doc-0026 is reserved for its study.
+- **If approved,** the coordinating session mints four tasks, proposed by the dogfooding session, in this order:
+  - P1, knowgov's register slice proposed to ieam-register (A6), now;
+  - P2, the pre-registration now, and the gate-lane kit at a commit after S1 (A1, A4, A5);
+  - P3, `subjects/knowgov` onboarded with the wizard as S6, task class task-0144, after S1;
+  - P4, the shadow-period wiring (A2, A3), advisory, after scoring.
+- Its pull requests that touch `subjects/`, `harness/`, `tools/` or `demo/` wait until task-0141's S1, .07, H1 and H2 have merged. doc-0026 is reserved for its study.
 - The promotion criteria are fixed here, so the later record cannot set them after seeing the numbers.
