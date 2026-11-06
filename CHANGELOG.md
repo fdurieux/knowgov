@@ -8,6 +8,17 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
+## Unreleased
+
+### Changes
+
+- **The GitHub action can upload its findings to code scanning** (task-0116, after task-0106). A new
+  optional input, `sarif` (off by default), writes the report as SARIF 2.1.0 and uploads it with
+  `github/codeql-action/upload-sarif`, pinned by commit, whatever the gate's exit; `sarif-category`
+  names the analysis (default `knowgov-<gate>`) and the output `sarif-id` the upload. The instance's
+  job needs `security-events: write` and code scanning available (instance README). The exit code
+  stays the gate's.
+
 ## 0.7.0 — 2026-11-06
 
 The store, the HTTP boundary and code execution are hardened for an organisation's own instance,

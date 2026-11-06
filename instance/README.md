@@ -346,6 +346,20 @@ report names statements, not lines in a document. A pre-load finding your baseli
 warning, since it did not fail the check. The layout check's problems appear in the job's log only.
 Annotations never change the exit code.
 
+On GitHub the action can also send the findings to code scanning, so they stay in the repository's
+Security tab between runs. It is off by default: set the input `sarif: true` (and, optionally,
+`sarif-category`; the default is `knowgov-<gate>`). The action writes the report as SARIF 2.1.0 and
+uploads it with `github/codeql-action/upload-sarif`, pinned by commit, even when the gate fails; a
+run that cannot run (exit 2) writes no report and uploads nothing. Your instance needs two things:
+
+- the job's token may write security events: `permissions: { contents: read, security-events: write }`
+  on the job that runs the action, not on the whole workflow;
+- code scanning available on the repository: any public repository, or a private one with GitHub
+  Advanced Security (Code Security). A pull request from a fork gets a read-only token, so pass
+  `sarif: false` for it, as this repository's CI does.
+
+The upload's id is the action's output `sarif-id`. The exit code stays the gate's.
+
 This repository's CI runs the GitHub action on
 the example instance, and runs the GitLab job's own script lines in a shell
 (`tools/check_ci_wrappers.py`). Both use S6: the change turns the registered code suspect, and the

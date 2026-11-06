@@ -41,7 +41,8 @@ def test_both_wrappers_call_the_same_script_with_the_platforms_commit_and_base()
     assert 'KG_COMMIT="$CI_COMMIT_SHA"' in gitlab and "CI_MERGE_REQUEST_DIFF_BASE_SHA" in gitlab
     set_in_action = set(re.findall(r"^\s+(KG_[A-Z_]+):", action, re.M)) - {"KG_SUBJECT_IN"}
     assert set_in_action <= _read_vars() | {"KG_GATE", "KG_INSTANCE"}, set_in_action - _read_vars()
-    assert "${{ inputs." not in action.split("run: |", 1)[1], "inputs reach the shell through env, never inline"
+    script = action.split("run: |", 1)[1].split("\n    - name:", 1)[0]   # the run block, to the next step
+    assert "${{ inputs." not in script and "${{" not in script, "inputs reach the shell through env, never inline"
 
 
 def test_both_wrappers_annotate_by_default_and_gitlab_keeps_the_code_quality_report():
@@ -153,3 +154,29 @@ def test_env_01_the_claude_hook_hands_the_gate_its_own_interpreter_unless_python
     assert 'env.setdefault("PYTHON", sys.executable)' in src
     gate = src.split("def run_gate", 1)[1].split("\ndef ", 1)[0]
     assert gate.index('env.setdefault("PYTHON", sys.executable)') < gate.index("subprocess.run(cmd")
+
+
+def test_the_action_uploads_sarif_only_when_asked_pinned_and_after_any_exit():
+    """Task-0116 (after task-0106): an opt-in input, off by default; the SARIF the core call writes is
+    uploaded by the pinned upload-sarif whatever the gate's exit, and only when a report was written;
+    harness.yml exercises it once, with security-events: write on that job alone; the README names what
+    an instance needs."""
+    action = ACTION.read_text(encoding="utf-8")
+    assert re.search(r'^  sarif:\n    description: .*\n    default: "false"$', action, re.M)
+    assert re.search(r"^  sarif-category:\n", action, re.M) and "outputs:\n  sarif-id:" in action
+    step = action.split("    - name: knowgov ${{ inputs.gate }}, findings to code scanning", 1)[1]
+    assert "if: always() && inputs.sarif == 'true' && steps.gate.outputs.sarif != ''" in step
+    assert re.search(r"uses: github/codeql-action/upload-sarif@[0-9a-f]{40} # v\d+\.\d+\.\d+", step)
+    script = action.split("run: |", 1)[1].split("\n    - name:", 1)[0]
+    assert 'sarif:$sarif' in script and '|| rc=$?' in script and 'exit "$rc"' in script and '[ -s "$sarif" ]' in script
+    wf = (ROOT / ".github" / "workflows" / "harness.yml").read_text(encoding="utf-8")
+    top = wf.split("\njobs:", 1)[0]
+    assert "security-events" not in top and re.search(r"^permissions:\n  contents: read$", top, re.M)
+    assert wf.count("security-events: write") == 1
+    assert re.search(r"^  rdflib:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read\n      security-events: write", wf, re.M)
+    assert wf.count("sarif: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}") == 1
+    assert "steps.wrap_as_of.outputs.sarif-id" in wf
+    readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
+    sec = readme[readme.index("## Running the gates in your pipeline"):readme.index("## A register pull request read before approval")]
+    for s in ("`sarif: true`", "security-events: write", "code scanning", "Advanced Security", "fork", "`sarif-id`"):
+        assert s in sec, s

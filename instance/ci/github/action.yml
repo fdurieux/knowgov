@@ -11,7 +11,8 @@
 # Python and the pins of the tag's harness.yml (pumllint, rdflib or the Neo4j driver) are the
 # caller's steps, as is the store (KG_STORE and its variables, from the repository's secrets and
 # variables). Every gate's findings show as annotations and a job-summary table
-# (input annotate; harness/annotate.py). Exit: the core command's, 0 pass, 1 a finding at or above fail-on, 2 cannot run.
+# (input annotate; harness/annotate.py); with sarif: true they also go to GitHub code scanning, which
+# needs the job's `security-events: write` and code scanning enabled (task-0116). Exit: the core command's, 0 pass, 1 a finding at or above fail-on, 2 cannot run.
 name: knowgov gate
 description: Run one of knowgov's gates (pre-load, knowledge, code trace) under the 0/1/2 contract.
 inputs:
@@ -57,10 +58,21 @@ inputs:
   annotate:
     description: "every gate: show the report's findings as annotations on the run and the pull request, and as a table in the job summary (task-0083); false: neither"
     default: "true"
+  sarif:
+    description: "every gate: also upload the report's findings to GitHub code scanning as SARIF 2.1.0 (task-0116), even when the gate fails; needs `security-events: write` on the job and code scanning enabled on the repository; off by default"
+    default: "false"
+  sarif-category:
+    description: "with sarif: the analysis category code scanning keeps the upload under; default knowgov-<gate>"
+    default: ""
+outputs:
+  sarif-id:
+    description: "with sarif: the id code scanning gave the upload; empty when nothing was uploaded"
+    value: ${{ steps.upload.outputs.sarif-id }}
 runs:
   using: composite
   steps:
     - name: knowgov ${{ inputs.gate }}
+      id: gate
       shell: sh
       env:
         KG_GATE: ${{ inputs.gate }}
@@ -78,7 +90,22 @@ runs:
         KG_REPORT: ${{ inputs.report }}
         KG_CODE_REPO: ${{ inputs.code-repo || github.event.repository.name }}
         KNOWGOV_ANNOTATE: ${{ inputs.annotate }}
+        KNOWGOV_SARIF: ${{ inputs.sarif }}
       run: |
         if [ -n "$KG_SUBJECT_IN" ]; then export KG_SUBJECT="$KG_SUBJECT_IN"; fi
         if [ "$KNOWGOV_ANNOTATE" = true ]; then export KG_ANNOTATE="github,summary:$GITHUB_STEP_SUMMARY"; fi
-        sh "$GITHUB_ACTION_PATH/../knowgov-gate.sh" "$GITHUB_ACTION_PATH/../../.." "$KG_INSTANCE" "$KG_GATE"
+        sarif="${RUNNER_TEMP:-/tmp}/knowgov-$KG_GATE.sarif"
+        if [ "$KNOWGOV_SARIF" = true ]; then rm -f "$sarif"; export KG_ANNOTATE="${KG_ANNOTATE:+$KG_ANNOTATE,}sarif:$sarif"; fi
+        rc=0
+        sh "$GITHUB_ACTION_PATH/../knowgov-gate.sh" "$GITHUB_ACTION_PATH/../../.." "$KG_INSTANCE" "$KG_GATE" || rc=$?
+        if [ "$KNOWGOV_SARIF" = true ] && [ -s "$sarif" ]; then echo "sarif=$sarif" >> "$GITHUB_OUTPUT"; fi
+        exit "$rc"
+    # task-0116: the SARIF the step above wrote, to code scanning, whatever the gate's exit (a run that
+    # exits 2 writes no report, so nothing is uploaded); the action's own result stays the gate's
+    - name: knowgov ${{ inputs.gate }}, findings to code scanning
+      id: upload
+      if: always() && inputs.sarif == 'true' && steps.gate.outputs.sarif != ''
+      uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      with:
+        sarif_file: ${{ steps.gate.outputs.sarif }}
+        category: ${{ inputs.sarif-category || format('knowgov-{0}', inputs.gate) }}
