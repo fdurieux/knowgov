@@ -30,6 +30,11 @@ names that section with the version.
 
 ### Changes
 
+- **The compose file runs the v0.8.0 release** (decision-0003). `demo/docker-compose.yml`'s `app` and
+  `worker` pin `ghcr.io/fdurieux/knowgov:v0.8.0` by its index digest, the first release image that carries
+  the worker, so `docker compose --profile arms up -d --wait` from the published compose now serves arms
+  runs, on Linux with Landlock. `docs/security.md`'s pins row names the release.
+
 - **The Arms chip and button say whether an Arms run can start** (task-0167). Before, the page showed
   "arms enabled" whenever a model key was set, even with no contained worker running, and the run was
   then refused. Now `GET /api/scenarios` carries `"execution": {"ok", "why"}`, the refusal an Arms run

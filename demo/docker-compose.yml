@@ -92,7 +92,7 @@ services:
       start_period: 20s
 
   app:
-    image: ghcr.io/fdurieux/knowgov:v0.7.0@sha256:a2341bc607c62d29c233a09d698d2c1167b62f4b7c83a235c85c59d819b50605   # the release (decision-0003) and its digest; :latest is the last main (task-0092)
+    image: ghcr.io/fdurieux/knowgov:v0.8.0@sha256:9a1efc9b8954125bfcd39196f3a76bf85008cfa1489c42719f7b874585754008   # the release (decision-0003) and its digest; :latest is the last main (task-0092)
     depends_on:
       neo4j:
         condition: service_healthy
@@ -137,7 +137,7 @@ services:
   # On an engine without Landlock (Docker Desktop for Mac 4.48.0) the worker refuses to serve and exits 3.
   worker:
     profiles: ["arms"]
-    image: ghcr.io/fdurieux/knowgov:v0.7.0@sha256:a2341bc607c62d29c233a09d698d2c1167b62f4b7c83a235c85c59d819b50605   # the app's; an image after 0.7.0 carries the worker
+    image: ghcr.io/fdurieux/knowgov:v0.8.0@sha256:9a1efc9b8954125bfcd39196f3a76bf85008cfa1489c42719f7b874585754008   # the app's; from 0.8.0 the image carries the worker
     command: ["python", "harness/worker.py"]
     user: "65534:65534"
     network_mode: none
