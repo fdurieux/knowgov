@@ -78,9 +78,34 @@ Only a regular file in `/sys/class/net` is skipped; an interface entry is a syml
 | Arms refused without confinement | unchanged: `harness/execution.py` reads the attestation | none |
 | Arms on Docker Desktop for Mac | not met | no Landlock there; task-0162 |
 
+## Opportunity canvas
+
+- **Problem:** the worker exited 3 on Docker Desktop for Mac with no network reachable, so the default `docker compose up --wait` failed for everyone on that engine, although the page, the store and the gate were healthy.
+- **Who:** the maintainer and any adopter running the demo on Docker Desktop for Mac; any Linux host with tunnel or bonding modules loaded; CI, which must still prove the worker's confinement.
+- **Solution:** (a) a network check that reads interface state, routes and `CAP_NET_ADMIN` instead of interface names; (b) the worker behind the compose profile `arms`.
+- **Measures:**
+  - `tests/test_worker.py` and the real-namespace proof;
+  - the stack job's EXEC-01..09 and its loosened workers with `--profile arms`;
+  - the maintainer's Mac: the default `up --wait` green, and with `--profile arms` `loopback_only` true and `write_confined` false.
+- **Cost:**
+  - one function in `harness/worker.py` and its tests;
+  - one compose key, the profile flag on three `demo.yml` lines, one README paragraph;
+  - an adopter adds `--profile arms` to run arms.
+- **Risk:**
+  - an adopter expecting the worker by default sees arms refused (the refusal names the missing attestation; the README names the profile);
+  - an attestation that reads state must read it right, so anything unreadable counts against it.
+
 ## SWOT
 
 - **Strengths.** The check states what the threat needs: no path out, and no way to make one. The precondition is attested, not assumed from compose. The default stack no longer depends on the engine's kernel. No weaker mode.
 - **Weaknesses.** One more flag for arms. The attestation's shape grows: `interfaces` is now a map of names to states.
 - **Opportunities.** The same check holds on Linux hosts with tunnel modules loaded, and on any later engine that adds Landlock. task-0162 can test a macOS engine against an exact attestation.
 - **Threats.** An adopter who expects the worker by default sees arms refused; the refusal names the missing attestation, and the README names the profile. A future kernel could add another regular file under `/sys/class/net`: it is skipped, as it cannot be an interface.
+
+## Advice
+
+Take (a)3 with (b)(i), as decided.
+- (a)3 states what decision-0012's threat T needs, not a proxy for it: no path out, and no way to make one. It holds on every engine that confines the worker, whatever modules its kernel loads, and it fails closed.
+- (b)(i) keeps the refusal where it already is, app-side from the attestation, and stops one engine's missing kernel feature from failing the whole demo.
+- Reject (b)(iii) and any mode without Landlock: both would report a worker that cannot confine its jobs as healthy.
+- Next: task-0165 adds the socket probes the netns does not cover (AF_VSOCK); task-0162 tests arms on a macOS engine whose VM kernel enables Landlock.

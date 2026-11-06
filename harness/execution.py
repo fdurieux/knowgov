@@ -33,7 +33,8 @@ JOB_SECONDS = 900.0           # the default wall time one job may take, unless K
 COLLECT_MAX_FILES = 2000
 COLLECT_MAX_BYTES = 32 * 1024 * 1024
 KINDS = ("suite", "suite_dir", "feedback", "probe")
-ATTEST_CHECKS = ("loopback_only", "no_secret_variables", "read_only_root", "uid_65534", "no_docker_socket", "write_confined")
+ATTEST_CHECKS = ("loopback_only", "no_secret_variables", "read_only_root", "uid_65534", "no_docker_socket", "write_confined",
+                 "no_socket_escape")
 
 
 def backend(env=None) -> str:
