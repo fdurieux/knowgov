@@ -822,6 +822,15 @@ has no Landlock, so the worker cannot stop model-written code writing outside
 its own folder, and every Arms run is refused. Run the Arms mode on a Linux
 host instead; Replay and Deterministic need no worker.
 
+Beside the Arms chip, the **worker** chip says where Arms code would run, as
+the worker itself reported it: for example **worker: attested · Docker ·
+Linux 7.0.0-1014-aws (x86_64) · AWS (from the kernel release)**. The engine,
+kernel and machine are what the worker reads inside its container. The cloud
+is only a reading of the kernel's name (Ubuntu's cloud kernels end in `-aws`,
+`-azure`, `-gcp` or `-oracle`), not a check: nothing asks the cloud provider.
+**worker: not attested** means no confined worker is running; hover for the
+reason. A script reads the same from `GET /api/scenarios` as `"worker"`.
+
 ```bash
 export OPENAI_API_KEY=sk-your-real-key-here
 ```

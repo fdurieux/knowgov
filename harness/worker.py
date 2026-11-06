@@ -186,6 +186,19 @@ def sockets(*, opener=None, connect=None, timeout: float = 0.5) -> dict:
     return {"ok": all(v.startswith("refused ") for v in probes.values()), "probes": probes}
 
 
+ENGINE_MARKS = ((".dockerenv", "docker"), ("run/.containerenv", "podman"))   # the files each engine leaves at the root
+
+
+def host_facts(uname=None, root: str = "/") -> dict:
+    """Where the worker runs, as it reads it from inside its container (task-0169): the kernel's
+    ``os.uname()`` (system, release, machine) and the engine by the marker file it leaves at the root,
+    else ``unknown``. Facts only, no check: nothing here decides whether the worker serves, and no
+    network is asked (a cloud is the app's reading of the kernel release, harness/execution.py)."""
+    u = os.uname() if uname is None else uname
+    engine = next((name for mark, name in ENGINE_MARKS if os.path.exists(os.path.join(root, mark))), "unknown")
+    return {"system": u.sysname, "kernel": u.release, "machine": u.machine, "engine": engine}
+
+
 def attest(env=None, *, sys_root: str = "/sys", proc_root: str = "/proc", socket_probe=None) -> dict:
     """The confinement checks, each True or False, and ok when all hold (decision-0012; the network
     check's reading per ``network``, the sockets' per ``sockets``). ``socket_probe`` stands in for
@@ -203,7 +216,7 @@ def attest(env=None, *, sys_root: str = "/sys", proc_root: str = "/proc", socket
               "write_confined": landlock_abi() >= 1, "no_socket_escape": sk["ok"]}
     return {"ok": all(checks.values()), "checks": checks, "interfaces": nw["interfaces"], "routes": nw["routes"],
             "cap_net_admin": nw["cap_net_admin"], "sockets": sk["probes"], "secret_names": leaked,
-            "pid": os.getpid(), "heartbeat": time.time()}
+            "host": host_facts(), "pid": os.getpid(), "heartbeat": time.time()}
 
 
 def _write_atomic(path: Path, data: dict) -> None:

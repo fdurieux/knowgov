@@ -45,6 +45,13 @@ names that section with the version.
   `execution` through (`{"ok", "why"}`, task-0167) and adds `arms_ready`: true only when a model key is
   set, the operator allows arms, and model output may run. `arms_enabled` and `arms_on_page` are
   unchanged. A page older than task-0167, which does not report `execution`, reads as refused.
+- **The page shows where Arms code runs** (task-0169). A new header chip reads, for example,
+  "worker: attested · Docker · Linux 7.0.0-1014-aws (x86_64) · AWS (from the kernel release)", or
+  "worker: not attested" with the reason. The facts come only from the worker's own attestation, which
+  now carries a `host` block (`system`, `kernel`, `machine`, `engine`) read inside its container;
+  no check and no verdict changes. A cloud is a reading of the kernel release's suffix (`-aws`,
+  `-azure`, `-gcp`, `-oracle`), labelled as such, never asked of a metadata service. `GET /api/scenarios`
+  and knowgov-runs' `run_options` carry it as `worker`, additively.
 
 ## 0.8.0 — 2026-11-06
 

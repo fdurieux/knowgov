@@ -211,6 +211,13 @@ def execution_view() -> dict:
     Arms chip and button read it beside ``arms_enabled``, which counts keys only."""
     why = execution.refusal()
     return {"ok": why is None, "why": why}
+
+
+def worker_view() -> dict:
+    """Where model output would run, as the worker attested it: ``execution.placement()``'s answer (the
+    backend, the attestation, the host facts the worker read from inside its container and the cloud the
+    app reads from its kernel release, labelled as a reading), never a copy of its logic (task-0169)."""
+    return execution.placement()
 INDEX = (HERE / "index.html").read_bytes()
 
 # Saved Cypher for the store panel. Each runs in Neo4j Browser against the
@@ -861,7 +868,7 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
                 st = store_status()
                 return self._json({"scenarios": views.scenario_list(RUNS_DIR), "store": st,
                                    "page": {"title": _ps().subject.page.get("title", ""), "subtitle": _ps().subject.page.get("subtitle", "")},
-                                   "arms_enabled": arms_enabled(), "execution": execution_view(), "model_rows": model_rows(),
+                                   "arms_enabled": arms_enabled(), "execution": execution_view(), "worker": worker_view(), "model_rows": model_rows(),
                                    "record_model": _ps().record_model, "record_effort": _ps().record_effort,
                                    "deterministic_enabled": st["reachable"], "writes": writes_view(),
                                    "runs_dir": str(RUNS_DIR), "run": RUNNER.describe()})
