@@ -67,7 +67,31 @@ publication. It publishes only on commit, through a synced temporary file in the
 an atomic replacement. A failure or an exception publishes nothing and releases the lock. A file that
 does not parse is reported and left as it is, never read as an empty store. Supported on POSIX
 filesystems with `flock` (Linux, macOS), on a local disk; a platform without it refuses a writer.
-Neo4j writes each statement as it runs; a load published whole on both stores is task-0141.06.
+
+Store generations (task-0141.06, decision-0013): on both stores a writer builds its unit privately and
+publishes it whole, and a read answers from one published generation or refuses.
+- **rdflib.** The lock above, held from load to the atomic replacement. A reader keeps the snapshot it
+  loaded for as long as it is open. A writer publishes only while the lock file at the path is still
+  the one it locked, so a writer whose lock was cleared publishes nothing.
+- **Neo4j.** A writer holds a lease in the database, a `_KgPublication` node outside every evidence
+  label, from open to close: `KG_NEO4J_LEASE_SECONDS` long (default 60), renewed while it runs. A
+  second writer waits `KG_NEO4J_LOCK_TIMEOUT` seconds (default 60), then cannot run. The writer's whole
+  unit, the wipe, the load, the rules and the reviews, is one transaction, so nothing of it is visible
+  before it commits and a failure leaves nothing behind.
+  - It publishes under a sequence lock: a counter raised in its own transaction before the unit
+    commits, and matched inside it.
+  - A read handle pins the counter when it opens and checks it after every read. A publication during
+    a read refuses it (`StoreChanged`); the page and the MCP server read again, up to
+    `KG_STORE_READ_ATTEMPTS` times (default 3).
+  - A writer whose lease ran out cannot publish: its epoch is gone, and the writer that took the lease
+    over terminates its transaction. Recovery is automatic.
+  - Supported on Neo4j 5 Community with one database; nothing assumes a second database.
+- **Retirement.** Neo4j keeps no earlier generation: a reader open across a publication is refused,
+  never answered from a retired one. A writer killed between raising the counter and committing makes
+  reads wait up to `KG_NEO4J_READ_WAIT` seconds (default 10), then refuse, until the next writer takes
+  the lease.
+- **Coordination.** The page decides a register projection under the same lock that starts a run, and
+  a projection that finds another writer holding the store answers 409.
 
 | Property | Evidence |
 |---|---|
@@ -76,6 +100,7 @@ Neo4j writes each statement as it runs; a load published whole on both stores is
 | Writers are serialised from load to publication; no update is lost | `tests/test_store_persistence.py::test_st_04_a_second_writer_waits_for_the_first_and_starts_from_its_publication` |
 | A reader sees the whole old file or the whole new one; a failure keeps the old file | `tests/test_store_persistence.py::test_st_05_a_reader_during_a_publication_gets_the_whole_old_file_or_the_whole_new_one`, `tests/test_store_persistence.py::test_st_06_a_failed_serialisation_sync_or_replacement_keeps_the_previous_file_and_releases_the_lock`, `tests/test_store_persistence.py::test_st_07_a_writer_that_raises_publishes_nothing` |
 | A killed writer leaves the last publication and a recoverable lock; a corrupt file fails explicitly | `tests/test_store_persistence.py::test_st_08_a_writer_killed_before_publication_leaves_the_last_snapshot_and_a_recoverable_lock`, `tests/test_store_persistence.py::test_st_09_a_corrupt_file_fails_explicitly_and_is_never_replaced` |
+| A read answers from one published generation or refuses, on both stores; a half-staged load, a killed or failed publication, racing writers and a recovered lease never show a partial or mixed graph (SNAP-01 to SNAP-07) | CI: `tools/check_snapshots.py` in `harness.yml` (rdflib) and `demo.yml` (Neo4j); `tests/test_store_generations.py::test_a_read_handle_refuses_the_read_after_a_publication_and_never_answers_from_two_generations`, `tests/test_store_generations.py::test_snap_05_a_file_writer_whose_lock_file_was_replaced_publishes_nothing` |
 
 Because the store holds excerpts, treat it, its volume, `KG_RDFLIB_FILE` and `runs/` as being
 as sensitive as the documents they came from. **Practice:** keep them on the instance's

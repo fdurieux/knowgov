@@ -9,14 +9,37 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
+import time
+import uuid
 
-from store import Store, by_content, by_id, part_list, part_rows
+from store import Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, part_list, part_rows
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
 
 URI = os.environ.get("KG_NEO4J_URI", "bolt://localhost:7687")
 AUTH = (os.environ.get("KG_NEO4J_USER", "neo4j"), os.environ.get("KG_NEO4J_PASSWORD", "kgpoc2026"))
 BROWSER = os.environ.get("KG_BROWSER_URL", "http://localhost:7474")
+
+# Publication (task-0141.06, decision-0013). One node, outside every evidence label, holds the writer's
+# lease and the sequence lock: ``begin`` is raised in its own transaction before a unit commits, ``end``
+# set equal to it inside the unit's transaction; a reader pins (begin, end) with begin == end at open and
+# checks the pair after every read call. A writer owns the store from open to close by its lease
+# (``owner``, a fencing ``epoch``, ``expires``), renewed by a heartbeat; a writer whose lease another took
+# cannot raise ``begin`` or commit. Nothing that reads the evidence (wipe, export, the census) sees it.
+PUB = "_KgPublication"
+PUB_MATCH = f"MATCH (p:{PUB} {{id:'publication'}})"
+LEASE_S = 60.0          # a writer's lease, renewed every third of it (KG_NEO4J_LEASE_SECONDS)
+WRITER_WAIT_S = 60.0    # how long a writer waits for another's lease (KG_NEO4J_LOCK_TIMEOUT)
+READ_WAIT_S = 10.0      # how long a reader waits out a publication in flight (KG_NEO4J_READ_WAIT)
+_on_publish = None      # test hook (SNAP-03): called between raising begin and committing the unit
+
+
+def _env_s(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name) or default)
+    except ValueError:
+        return default
 
 CONSTRAINTS = [
     ("uniqueness", "CREATE CONSTRAINT assertion_id IF NOT EXISTS FOR (n:Assertion) REQUIRE n.id IS UNIQUE"),
@@ -322,41 +345,242 @@ def _rows(result) -> list[dict]:
     return [dict(r) for r in result]
 
 
+class _Unit:
+    """A handle's publication (task-0141.06, decision-0013): for a writer, the lease, the unit's one
+    transaction and the sequence lock it publishes under; for a reader, the generation it pinned."""
+
+    def __init__(self, driver, session, uri: str, access: str, read_mode, write_mode):
+        self.driver, self.session, self.uri, self.access = driver, session, uri, access
+        self.read_mode, self.write_mode = read_mode, write_mode
+        self.tx = None                  # the unit's one transaction, begun at its first statement
+        self.wipe_pending = False       # a wipe asked before the transaction began, run as its first statement
+        self.after_commit: list[str] = []
+        self.token, self.epoch, self.lost = None, None, False
+        self.beat_stop = threading.Event()
+        self.pinned = None
+        self.lease_s = LEASE_S
+
+    # ---- statements outside the unit
+    def meta(self, work):
+        """``work(tx)`` in a managed write transaction of its own session, retried on a transient error
+        (a deadlock with another writer's lease) for at most the driver's bounded retry time."""
+        with self.driver.session(default_access_mode=self.write_mode) as s:
+            return s.execute_write(work)
+
+    def schema(self, cypher: str) -> None:
+        """A schema statement, which Neo4j will not run in a transaction that has written data."""
+        with self.driver.session(default_access_mode=self.write_mode) as s:
+            s.run(cypher).consume()
+
+    # ---- the writer's lease
+    def acquire(self, wait: float, lease_s: float) -> None:
+        self.lease_s = lease_s
+        token, ms = uuid.uuid4().hex, int(lease_s * 1000)
+
+        def take(tx):
+            tx.run(f"MERGE (p:{PUB} {{id:'publication'}}) ON CREATE SET p.begin = 0, p.end = 0, p.epoch = 0").consume()
+            tx.run(f"{PUB_MATCH} SET p.lock_seq = coalesce(p.lock_seq, 0) + 1").consume()   # the node's write lock, then read
+            r = tx.run(f"{PUB_MATCH} RETURN p.owner AS owner, p.expires < datetime() AS expired").single()
+            if r["owner"] is not None and not r["expired"]:
+                return None
+            # free, or its owner's lease ran out: that owner can no longer raise begin or commit (its epoch
+            # is gone), so a begin it raised and never matched is closed here; the data is its predecessor's
+            return tx.run(f"{PUB_MATCH} SET p.owner = $t, p.epoch = p.epoch + 1, p.end = p.begin, "
+                          "p.expires = datetime() + duration({milliseconds: $ms}) RETURN p.epoch AS epoch",
+                          t=token, ms=ms).single()["epoch"]
+        self.schema(f"CREATE CONSTRAINT kg_publication IF NOT EXISTS FOR (p:{PUB}) REQUIRE p.id IS UNIQUE")
+        deadline = time.monotonic() + max(0.0, wait)
+        while True:
+            epoch = self.meta(take)
+            if epoch is not None:
+                break
+            if time.monotonic() >= deadline:
+                raise StoreBusy(f"{self.uri}: another writer holds the store (waited {wait:g} s; KG_NEO4J_LOCK_TIMEOUT sets how long)")
+            time.sleep(0.1)
+        self.token, self.epoch = token, epoch
+        self.terminate_stale()
+        threading.Thread(target=self.heartbeat, daemon=True).start()
+
+    def terminate_stale(self) -> None:
+        """Fence on the server: a unit transaction of an earlier owner (its lease ran out, so it can no
+        longer publish) is terminated, so its locks do not hold this writer and it can never commit."""
+        try:
+            with self.driver.session(default_access_mode=self.write_mode) as s:
+                ids = [r["id"] for r in s.run(
+                    "SHOW TRANSACTIONS YIELD transactionId AS id, metaData AS m "
+                    "WHERE m.kg_writer IS NOT NULL AND m.kg_epoch <> $e RETURN id", e=self.epoch)]
+                if ids:
+                    s.run("TERMINATE TRANSACTIONS $ids", ids=ids).consume()
+        except Exception:  # noqa: BLE001 — an edition or role without these commands: the epoch check still fences the commit
+            pass
+
+    def owned(self, tx, then: str = "", **params):
+        """Inside ``tx``: lock the publication node, then ``then`` only if this writer still owns it."""
+        tx.run(f"{PUB_MATCH} SET p.lock_seq = coalesce(p.lock_seq, 0) + 1").consume()
+        return tx.run(f"{PUB_MATCH} WHERE p.owner = $t AND p.epoch = $e {then} RETURN p.begin AS begin, p.end AS end",
+                      t=self.token, e=self.epoch, **params).single()
+
+    def heartbeat(self) -> None:
+        ms = int(self.lease_s * 1000)
+        while not self.beat_stop.wait(self.lease_s / 3):
+            try:
+                ok = self.meta(lambda tx: self.owned(tx, "SET p.expires = datetime() + duration({milliseconds: $ms})", ms=ms))
+            except Exception:  # noqa: BLE001 — a missed beat; the next one, or the lease, decides
+                continue
+            if ok is None:
+                self.lost = True
+                return
+
+    def release(self) -> None:
+        self.beat_stop.set()
+        if self.token is None:
+            return
+        try:
+            self.meta(lambda tx: self.owned(tx, "SET p.owner = null, p.expires = null"))
+        except Exception:  # noqa: BLE001 — the lease runs out on its own
+            pass
+        self.token = None
+
+    # ---- the reader's pin
+    def generation(self) -> tuple[int, int] | None:
+        """One autocommit read, unretried: an unreachable store fails at the connection timeout."""
+        with self.driver.session(default_access_mode=self.read_mode) as s:
+            r = s.run(f"{PUB_MATCH} RETURN p.begin AS b, p.end AS e").single()
+        return (int(r["b"]), int(r["e"])) if r else None
+
+    def pin(self, wait: float) -> None:
+        """The published generation this read handle answers from: begin == end, or none yet."""
+        deadline = time.monotonic() + max(0.0, wait)
+        while True:
+            g = self.generation()
+            if g is None or g[0] == g[1]:
+                self.pinned = g
+                return
+            if time.monotonic() >= deadline:
+                raise StoreBusy(f"{self.uri}: a publication is in flight or was interrupted (generation {g[1]} to {g[0]}); "
+                                "retry, or let the next writer recover it (KG_NEO4J_READ_WAIT sets the wait)")
+            time.sleep(0.05)
+
+    def check(self) -> None:
+        if self.generation() != self.pinned:
+            raise StoreChanged(f"{self.uri}: a new generation was published during this read; read again")
+
+    # ---- the unit's transaction
+    def begin(self):
+        if self.tx is None:
+            self.tx = self.session.begin_transaction(metadata={"kg_writer": self.token, "kg_epoch": self.epoch})
+            if self.wipe_pending:
+                self.wipe_pending = False
+                self.tx.run(f"MATCH (n) WHERE NOT n:{PUB} DETACH DELETE n").consume()
+        return self.tx
+
+    def publish(self) -> None:
+        """Raise ``begin`` in its own transaction, then set ``end`` and commit the unit's transaction;
+        a writer that lost its lease publishes nothing (StoreFenced)."""
+        if self.token is None:
+            raise StoreBusy(f"{self.uri}: this writer was closed; it no longer holds the store and cannot publish")
+        if self.tx is None and not self.wipe_pending:
+            return   # nothing written: nothing to publish
+        tx = self.begin()
+        raised = False
+        try:
+            if self.lost or self.meta(lambda t: self.owned(t, "SET p.begin = p.end + 1")) is None:
+                raise StoreFenced(f"{self.uri}: this writer's lease was taken by another; nothing published")
+            raised = True
+            if _on_publish is not None:
+                _on_publish(self)
+            if self.owned(tx, "SET p.end = p.begin") is None:
+                raise StoreFenced(f"{self.uri}: this writer's lease was taken by another; nothing published")
+            tx.commit()
+        except BaseException:
+            self.drop()
+            if raised:   # the unit never committed: close the gap it opened, while this writer still owns the store
+                try:
+                    self.meta(lambda t: self.owned(t, "SET p.begin = p.end"))
+                except Exception:  # noqa: BLE001 — the next writer closes it at acquisition
+                    pass
+            raise
+        self.tx = None
+        for cypher in self.after_commit:
+            try:
+                self.schema(cypher)
+            except Exception:  # noqa: BLE001 — housekeeping only
+                pass
+        self.after_commit = []
+
+    def drop(self) -> None:
+        if self.tx is not None:
+            for step in (self.tx.rollback, self.tx.close):
+                try:
+                    step()
+                except Exception:  # noqa: BLE001 — a closed connection has rolled it back already
+                    pass
+            self.tx = None
+        self.wipe_pending = False
+
+
 class Neo4jStore(Store):
     name = "neo4j"
 
     def __init__(self, uri: str = URI, auth: tuple[str, str] = AUTH, connection_timeout: float | None = None, instance: str = "",
-                 access: str = "write"):
+                 access: str = "write", lock_timeout: float | None = None, lease_seconds: float | None = None, **_ignored):
         from neo4j import GraphDatabase, NotificationMinimumSeverity  # the driver, in the image; lazy so the module imports without it
         from neo4j import READ_ACCESS, WRITE_ACCESS
 
         if access not in ("read", "write"):
             raise ValueError(f"access is read or write, not {access!r}")
         self.uri, self.auth, self.instance, self.access = uri, auth, instance, access
-        kw = {"notifications_min_severity": NotificationMinimumSeverity.OFF}
+        kw = {"notifications_min_severity": NotificationMinimumSeverity.OFF, "max_transaction_retry_time": 5.0}
         if connection_timeout:
             kw["connection_timeout"] = connection_timeout
         self._driver = GraphDatabase.driver(uri, auth=auth, **kw)
         # task-0141.02: a read handle's session is in read access mode, so the server refuses a write
-        # as well as the port's ReadOnly view; each statement still commits as it runs (task-0141.06)
+        # as well as the port's ReadOnly view
         self._session = self._driver.session(default_access_mode=READ_ACCESS if access == "read" else WRITE_ACCESS)
+        self._pub = _Unit(self._driver, self._session, uri, access, READ_ACCESS, WRITE_ACCESS)
+        self._constraints = None        # D1 as measured once by this handle, before its transaction
+        try:
+            if access == "write":
+                wait = lock_timeout if lock_timeout is not None else _env_s("KG_NEO4J_LOCK_TIMEOUT", connection_timeout or WRITER_WAIT_S)
+                self._pub.acquire(wait, lease_seconds or _env_s("KG_NEO4J_LEASE_SECONDS", LEASE_S))
+            else:
+                self._pub.pin(_env_s("KG_NEO4J_READ_WAIT", READ_WAIT_S))
+                self._after_read = self._pub.check   # store.ReadOnly calls it after every read (task-0141.06)
+        except BaseException:
+            self._session.close()
+            self._driver.close()
+            raise
 
     def commit(self) -> None:
-        """Nothing left to publish: each statement committed as it ran (task-0141.06 makes a load publish whole)."""
+        """Publish the unit whole (decision-0013); a read handle publishes nothing."""
+        if self.access != "write":
+            raise StoreReadOnly(f"{self.uri}: a read handle publishes nothing")
+        self._pub.publish()
 
     def abort(self) -> None:
-        """Nothing to drop: what ran is in the store already (task-0141.02 names this limit; task-0141.06 lifts it)."""
+        """Drop the unit: its transaction is rolled back, so nothing of it was ever visible."""
+        self._pub.drop()
 
     def close(self) -> None:
-        self._session.close()
-        self._driver.close()
+        """Release the handle: an unpublished unit is dropped, the lease released. Never publishes."""
+        try:
+            self._pub.drop()
+            self._pub.release()
+        finally:
+            self._session.close()
+            self._driver.close()
 
     def run(self, cypher: str, **params):
+        if self.access == "write":
+            return self._pub.begin().run(cypher, **params)
         return self._session.run(cypher, **params)
 
     # ---- lifecycle
     def wipe(self) -> None:
-        self.run("MATCH (n) DETACH DELETE n").consume()
+        if self.access == "write" and self._pub.tx is None:
+            self._pub.wipe_pending = True   # run first in the unit's transaction, so a constraint can be applied before it
+            return
+        self.run(f"MATCH (n) WHERE NOT n:{PUB} DETACH DELETE n").consume()
 
     # ---- portability (task-0070): the graph through the rdflib adapter's property-graph layer,
     # so the Turtle is that adapter's form whichever store wrote it
@@ -364,7 +588,7 @@ class Neo4jStore(Store):
         from store_rdflib import RdflibStore
         g = RdflibStore(path="")
         made = {}
-        for r in self.run("MATCH (n) RETURN elementId(n) AS el, labels(n) AS labels, properties(n) AS props"):
+        for r in self.run(f"MATCH (n) WHERE NOT n:{PUB} RETURN elementId(n) AS el, labels(n) AS labels, properties(n) AS props"):
             props, labels = dict(r["props"]), list(r["labels"])
             nid = props.get("id")
             if nid is None and "reg_id" in props:   # a register node: named as the rdflib adapter names it
@@ -380,8 +604,10 @@ class Neo4jStore(Store):
         g.import_turtle(text)
         q = lambda name: "`" + name.replace("`", "``") + "`"  # noqa: E731
         self.wipe()
-        self.run("CREATE INDEX kg_import IF NOT EXISTS FOR (n:_KgImport) ON (n._kg)").consume()
-        self.run("CALL db.awaitIndexes()").consume()
+        if self._pub.tx is None:   # a schema statement before the unit's transaction; only a speed-up, so skipped inside one
+            self._pub.schema("CREATE INDEX kg_import IF NOT EXISTS FOR (n:_KgImport) ON (n._kg)")
+            self._pub.schema("CALL db.awaitIndexes()")
+            self._pub.after_commit.append("DROP INDEX kg_import IF EXISTS")
         runs: list[tuple[tuple, list]] = []   # consecutive nodes with one label set, in store order
         for nid, n in g._nodes.items():
             labels = tuple(g.labels(n))
@@ -406,17 +632,22 @@ class Neo4jStore(Store):
             self.run(f"UNWIND $rows AS r MATCH (a:_KgImport {{_kg:r.a}}), (b:_KgImport {{_kg:r.b}}) CREATE (a)-[e:{q(t)}]->(b) SET e = r.props",
                      rows=rows).consume()
         self.run("MATCH (n:_KgImport) REMOVE n:_KgImport, n._kg").consume()
-        self.run("DROP INDEX kg_import IF EXISTS").consume()
 
     def apply_constraints(self) -> list[dict]:
+        """Each constraint family in a schema statement of its own, before the unit's transaction (Neo4j
+        refuses schema changes in a transaction that wrote data); measured once per handle, since every
+        statement is IF NOT EXISTS and a second measurement answers as the first."""
+        if self._constraints is not None:
+            return [dict(c) for c in self._constraints]
         out = []
         for kind, q in CONSTRAINTS:
             try:
-                self.run(q).consume()
+                self._pub.schema(q) if self.access == "write" else self.run(q).consume()
                 out.append({"type": kind, "cypher": q, "accepted": True, "message": ""})
             except Exception as e:  # noqa: BLE001 — the message is the measurement
                 out.append({"type": kind, "cypher": q, "accepted": False, "message": str(e).splitlines()[0][:300]})
-        return out
+        self._constraints = out
+        return [dict(c) for c in out]
 
     # ---- loading
     def ensure_agents(self, tool_name: str, version: str, human: dict, llm: dict) -> None:
@@ -835,7 +1066,7 @@ class Neo4jStore(Store):
         st = {r["status"]: r["n"] for r in self.run("MATCH (x:Assertion) RETURN x.status AS status, count(*) AS n")}
         gaps = {r["kind"]: r["n"] for r in self.run("MATCH (g:Gap) RETURN g.kind AS kind, count(*) AS n")}
         contradicts = self.run("MATCH ()-[r:CONTRADICTS]->() RETURN count(r)/2 AS n").single()["n"]
-        nodes = self.run("MATCH (n) RETURN count(n) AS n").single()["n"]
+        nodes = self.run(f"MATCH (n) WHERE NOT n:{PUB} RETURN count(n) AS n").single()["n"]
         rels = self.run("MATCH ()-[r]->() RETURN count(r) AS n").single()["n"]
         return {"assertions_by_status": st, "gaps_by_kind": gaps, "contradicts": contradicts, "nodes": nodes, "relationships": rels}
 

@@ -12,6 +12,21 @@ names that section with the version.
 
 ### Contract changes
 
+- **A store publishes whole generations, and every read answers from one** (task-0141.06,
+  decision-0013). On Neo4j a writer's whole unit is now one transaction under a lease in the
+  database, published under a sequence lock that every read call checks.
+  - **Visibility.** The page, the MCP server and `gate_cli --no-load` see a run's load only once it
+    commits, never half of it. A run that fails or is killed leaves the previous generation.
+  - **The port.** `StoreChanged` is a publication during a read, `StoreFenced` a writer whose ownership
+    was taken over. `store.read(fn)` runs a logical read again on a fresh handle.
+  - **Compatibility.**
+    - The page's register projection answers 409 while another writer holds the store.
+    - A Neo4j database gains one `_KgPublication` node and its uniqueness constraint; neither is in
+      the exported Turtle, the census or D1.
+    - On rdflib a writer whose lock file was removed or replaced publishes nothing.
+    - New settings: `KG_NEO4J_LOCK_TIMEOUT`, `KG_NEO4J_LEASE_SECONDS`, `KG_NEO4J_READ_WAIT`,
+      `KG_STORE_READ_ATTEMPTS`.
+
 - **The pre-load report carries the layout check's problems** (task-0115, additive): `tools/preload_check.py
   --layout` runs `tools/check_instance.py` on the same instance and adds an optional `layout` block
   (`holds`, `exit_code`, `problems`, each with a severity, a kind, the file it concerns and `fails`)

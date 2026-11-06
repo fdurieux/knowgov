@@ -45,7 +45,7 @@ from urllib.parse import quote, unquote
 
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
 
-from store import Store, StoreBusy, StoreCorrupt, StoreReadOnly, by_content, by_id, part_list, part_rows
+from store import Store, StoreBusy, StoreCorrupt, StoreFenced, StoreReadOnly, by_content, by_id, part_list, part_rows
 
 try:
     import fcntl
@@ -154,6 +154,18 @@ class RdflibStore(Store):
             raise
         self._lock = fd
 
+    def _fence(self) -> None:
+        """Publish only while the lock file at the path is the one this writer locked (task-0141.06): a lock
+        file removed or replaced since (an operator clearing it, a recovery) means another writer may hold
+        the new one, so this one publishes nothing."""
+        held = os.fstat(self._lock)
+        try:
+            now = os.stat(self.path + ".lock")
+        except FileNotFoundError:
+            now = None
+        if now is None or (now.st_dev, now.st_ino) != (held.st_dev, held.st_ino):
+            raise StoreFenced(f"{self.path}: the lock file this writer holds was removed or replaced; nothing published")
+
     def _release(self) -> None:
         if self._lock is not None:
             fd, self._lock = self._lock, None
@@ -195,6 +207,7 @@ class RdflibStore(Store):
             return
         if self._lock is None:
             raise StoreBusy(f"{self.path}: this writer was closed; it no longer holds the lock and cannot publish")
+        self._fence()
         directory = os.path.dirname(os.path.abspath(self.path))
         fd, tmp = tempfile.mkstemp(prefix=TMP_PREFIX + os.path.basename(self.path) + ".", dir=directory)
         try:
