@@ -45,6 +45,10 @@ names that section with the version.
   `execution` through (`{"ok", "why"}`, task-0167) and adds `arms_ready`: true only when a model key is
   set, the operator allows arms, and model output may run. `arms_enabled` and `arms_on_page` are
   unchanged. A page older than task-0167, which does not report `execution`, reads as refused.
+- **"What this shows" speaks for the run on screen** (task-0170). The plain-English box ends with the
+  record's conclusion only for the record, and for a run whose every arm outcome the record also had.
+  A run whose model calls failed now says so, quoting the first error, and that the record's conclusion
+  does not apply. A run that did not reproduce the record says what happened instead.
 
 ## 0.8.0 — 2026-11-06
 
