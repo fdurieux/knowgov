@@ -555,9 +555,13 @@ class Tools:
 
     def _with_store(self, fn):
         """``fn`` on one read handle, one published generation (task-0141.06): when a publication lands
-        during the call the call runs again on a fresh handle, at most ``store.READ_ATTEMPTS`` times."""
-        from store import READ_ATTEMPTS, StoreChanged
-        for attempt in range(READ_ATTEMPTS):
+        during the call the call runs again on a fresh handle, at most ``KG_STORE_READ_ATTEMPTS`` times (3)."""
+        from store import StoreChanged, read_attempts
+        try:
+            attempts = read_attempts()
+        except ValueError as e:
+            raise ToolError(str(e)) from e
+        for attempt in range(attempts):
             try:
                 st = self.opener()
             except Exception as e:  # noqa: BLE001
@@ -565,8 +569,8 @@ class Tools:
             try:
                 return fn(st)
             except StoreChanged as e:
-                if attempt == READ_ATTEMPTS - 1:
-                    raise ToolError(f"the store was republished during each of {READ_ATTEMPTS} reads; call again: {e}") from e
+                if attempt == attempts - 1:
+                    raise ToolError(f"the store was republished during each of {attempts} reads; call again: {e}") from e
             except (ToolError, PermissionError):
                 raise
             except Exception as e:  # noqa: BLE001

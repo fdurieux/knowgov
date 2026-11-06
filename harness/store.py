@@ -17,7 +17,7 @@ A read handle (``ReadOnly``) lets through the operations in ``READS`` and refuse
 ``StoreReadOnly``; closing it publishes nothing. A write handle publishes on ``commit()`` (the context
 manager's clean exit) and never on ``close()``, which releases it; ``abort()`` drops what it changed.
 
-Generations (task-0141.06, decision-0013): a writer builds its unit privately and publishes it whole;
+Generations (task-0141.06, decision-0014): a writer builds its unit privately and publishes it whole;
 a read handle answers from one published generation for its whole life, or refuses. The file-backed
 rdflib adapter takes its writer lock before it loads the snapshot it starts from, holds it to an atomic
 replace of the file, and a reader keeps the snapshot it loaded (``store_rdflib.py``). The Neo4j adapter
@@ -472,12 +472,40 @@ ACCESS = ("read", "write")
 
 READ_ATTEMPTS = 3
 
+# task-0141.06's settings: name -> (default, least, most); a value outside, or not a number, is refused
+SETTINGS = {
+    "KG_STORE_READ_ATTEMPTS": (3, 1, 10),            # times a logical read is run on a fresh handle
+    "KG_NEO4J_LEASE_SECONDS": (60.0, 1.0, 3600.0),   # a Neo4j writer's lease, renewed every third of it
+    "KG_NEO4J_LOCK_TIMEOUT": (60.0, 0.0, 86400.0),   # how long a Neo4j writer waits for another's lease
+    "KG_NEO4J_READ_WAIT": (10.0, 0.0, 600.0),        # how long a Neo4j reader waits out a publication in flight
+}
+
+
+def setting(name: str, fallback=None):
+    """The value of one of ``SETTINGS`` from the environment, else ``fallback``, else its default;
+    ValueError naming the variable for anything that is not a number within its bounds."""
+    default, lo, hi = SETTINGS[name]
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default if fallback is None else type(default)(fallback)
+    try:
+        v = int(raw) if isinstance(default, int) else float(raw)
+    except ValueError:
+        raise ValueError(f"{name} must be a {'whole ' if isinstance(default, int) else ''}number, not {raw!r}") from None
+    if not (lo <= v <= hi) or v != v:
+        raise ValueError(f"{name} must be between {lo:g} and {hi:g}, not {raw!r}")
+    return v
+
+
+def read_attempts() -> int:
+    return setting("KG_STORE_READ_ATTEMPTS")
+
 
 def read(fn, kind: str | None = None, *, attempts: int | None = None, **kw: Any):
     """One logical read: ``fn(handle)`` on a read handle, run again on a fresh handle when a publication
     lands during it (``StoreChanged``), at most ``attempts`` times (``KG_STORE_READ_ATTEMPTS``, 3); the
     last StoreChanged propagates, so a caller answers "busy, retry" rather than a mixed result."""
-    n = attempts or int(os.environ.get("KG_STORE_READ_ATTEMPTS") or READ_ATTEMPTS)
+    n = attempts or read_attempts()
     for i in range(max(1, n)):
         with open_store(kind, access="read", **kw) as st:
             try:

@@ -1,4 +1,4 @@
-"""Task-0141.06 (S2, decision-0013): store generations, the parts that need no database. A read handle
+"""Task-0141.06 (S2, decision-0014): store generations, the parts that need no database. A read handle
 checks after every read that the generation it pinned is still the published one and refuses
 (StoreChanged) when it is not; ``store.read`` and the MCP server run the logical read again on a fresh
 handle; a file-backed writer whose lock file was replaced publishes nothing (StoreFenced); the Neo4j
@@ -169,3 +169,92 @@ def test_both_workflows_run_the_snapshot_checks_on_a_real_store():
     assert "docker compose exec -T app python tools/check_snapshots.py --disposable --no-round-trip" in demo
     # SNAP-07's round trips on Neo4j are the stack job's own steps, which must stay
     assert "check_round_trip.py --chain neo4j,rdflib,neo4j" in demo and "--expect-parts" in demo and "--expect-preload" in demo
+
+
+class _Moving(_Inner):
+    """A store republished during every read."""
+
+    def extraction_activities(self):
+        raise store.StoreChanged("republished")
+
+    census = describe = extraction_activities
+
+
+def _env(**kv):
+    import contextlib
+
+    @contextlib.contextmanager
+    def cm():
+        old = {k: os.environ.get(k) for k in kv}
+        os.environ.update({k: v for k, v in kv.items() if v is not None})
+        for k, v in kv.items():
+            if v is None:
+                os.environ.pop(k, None)
+        try:
+            yield
+        finally:
+            for k, v in old.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+    return cm()
+
+
+def test_a_reader_whose_retries_run_out_answers_each_contract():
+    """gate_cli --no-load exits 2 (cannot run); the page's /api/store and /api/gaps answer 503 with
+    Retry-After and ``busy``; the MCP tool answers an error result (the test above)."""
+    import gate_cli
+    real = store.open_store
+    opened = []
+
+    def fake_open(kind=None, *, access, **kw):
+        h = store.ReadOnly(_Moving([1]))
+        opened.append(h)
+        return h
+    store.open_store = fake_open
+    try:
+        assert gate_cli.main(["--no-load", "--scenario", "S1", "--as-of", "2026-11-06", "-f", "json"]) == 2
+        assert len(opened) == 3
+    finally:
+        store.open_store = real
+    sys.path.insert(0, str(ROOT / "demo" / "app"))
+    import contextlib
+    import server
+
+    @contextlib.contextmanager
+    def moving(timeout=3):
+        yield store.ReadOnly(_Moving([1]))
+    real_store = server._store
+    server._store = moving
+    try:
+        st, gaps = server.store_status(), server.store_gaps("S1")
+    finally:
+        server._store = real_store
+    assert st["busy"] and "republished" in st["error"] and gaps["busy"], (st, gaps)
+    sent = []
+
+    class H:
+        def _json(self, obj, code=200, extra=None):
+            sent.append((code, extra))
+    server._busy_json(H(), st)
+    server._busy_json(H(), {"error": "unreachable"})
+    assert sent == [(503, {"Retry-After": "1"}), (200, None)]
+
+
+def test_the_generation_settings_have_defaults_and_refuse_nonsense():
+    with _env(KG_STORE_READ_ATTEMPTS=None, KG_NEO4J_LEASE_SECONDS=None, KG_NEO4J_LOCK_TIMEOUT=None, KG_NEO4J_READ_WAIT=None):
+        assert [store.setting(n) for n in ("KG_STORE_READ_ATTEMPTS", "KG_NEO4J_LEASE_SECONDS", "KG_NEO4J_LOCK_TIMEOUT", "KG_NEO4J_READ_WAIT")] == [3, 60.0, 60.0, 10.0]
+        assert store.setting("KG_NEO4J_LOCK_TIMEOUT", 3) == 3.0   # the page's connection timeout, when nothing is set
+    for name, bad in (("KG_STORE_READ_ATTEMPTS", "0"), ("KG_STORE_READ_ATTEMPTS", "2.5"), ("KG_STORE_READ_ATTEMPTS", "99"),
+                      ("KG_NEO4J_LEASE_SECONDS", "soon"), ("KG_NEO4J_LEASE_SECONDS", "0.1"), ("KG_NEO4J_LOCK_TIMEOUT", "-1"),
+                      ("KG_NEO4J_READ_WAIT", "nan"), ("KG_NEO4J_READ_WAIT", "1e9")):
+        with _env(**{name: bad}):
+            try:
+                store.setting(name)
+            except ValueError as e:
+                assert name in str(e), e
+            else:
+                raise AssertionError(f"{name}={bad!r} accepted")
+    with _env(KG_NEO4J_LEASE_SECONDS="5"):
+        assert store.setting("KG_NEO4J_LEASE_SECONDS") == 5.0

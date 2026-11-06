@@ -13,7 +13,7 @@ names that section with the version.
 ### Contract changes
 
 - **A store publishes whole generations, and every read answers from one** (task-0141.06,
-  decision-0013). On Neo4j a writer's whole unit is now one transaction under a lease in the
+  decision-0014). On Neo4j a writer's whole unit is now one transaction under a lease in the
   database, published under a sequence lock that every read call checks.
   - **Visibility.** The page, the MCP server and `gate_cli --no-load` see a run's load only once it
     commits, never half of it. A run that fails or is killed leaves the previous generation.
@@ -24,8 +24,16 @@ names that section with the version.
     - A Neo4j database gains one `_KgPublication` node and its uniqueness constraint; neither is in
       the exported Turtle, the census or D1.
     - On rdflib a writer whose lock file was removed or replaced publishes nothing.
-    - New settings: `KG_NEO4J_LOCK_TIMEOUT`, `KG_NEO4J_LEASE_SECONDS`, `KG_NEO4J_READ_WAIT`,
-      `KG_STORE_READ_ATTEMPTS`.
+    - New settings, each refused outside its bounds with the variable's name: `KG_NEO4J_LOCK_TIMEOUT`
+      (0 to 86400 s, default 60), `KG_NEO4J_LEASE_SECONDS` (1 to 3600 s, default 60),
+      `KG_NEO4J_READ_WAIT` (0 to 600 s, default 10), `KG_STORE_READ_ATTEMPTS` (1 to 10, default 3).
+  - **A new refusal.** A reader whose every attempt met a publication, or that waited out an
+    interrupted one, refuses:
+    - `gate_cli --no-load` exits 2 ("cannot run");
+    - the MCP server answers an error result;
+    - the page's `/api/store` and `/api/gaps` answer 503 with `Retry-After: 1` and `"busy": true`.
+  - **A known limit.** On Neo4j a writer's unit is bounded by the server's transaction memory. A larger
+    one fails and keeps the previous generation (docs/security.md).
 
 - **The pre-load report carries the layout check's problems** (task-0115, additive): `tools/preload_check.py
   --layout` runs `tools/check_instance.py` on the same instance and adds an optional `layout` block

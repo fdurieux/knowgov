@@ -13,7 +13,7 @@ import threading
 import time
 import uuid
 
-from store import Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, part_list, part_rows
+from store import Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, part_list, part_rows, setting
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
 
@@ -21,7 +21,7 @@ URI = os.environ.get("KG_NEO4J_URI", "bolt://localhost:7687")
 AUTH = (os.environ.get("KG_NEO4J_USER", "neo4j"), os.environ.get("KG_NEO4J_PASSWORD", "kgpoc2026"))
 BROWSER = os.environ.get("KG_BROWSER_URL", "http://localhost:7474")
 
-# Publication (task-0141.06, decision-0013). One node, outside every evidence label, holds the writer's
+# Publication (task-0141.06, decision-0014). One node, outside every evidence label, holds the writer's
 # lease and the sequence lock: ``begin`` is raised in its own transaction before a unit commits, ``end``
 # set equal to it inside the unit's transaction; a reader pins (begin, end) with begin == end at open and
 # checks the pair after every read call. A writer owns the store from open to close by its lease
@@ -29,17 +29,8 @@ BROWSER = os.environ.get("KG_BROWSER_URL", "http://localhost:7474")
 # cannot raise ``begin`` or commit. Nothing that reads the evidence (wipe, export, the census) sees it.
 PUB = "_KgPublication"
 PUB_MATCH = f"MATCH (p:{PUB} {{id:'publication'}})"
-LEASE_S = 60.0          # a writer's lease, renewed every third of it (KG_NEO4J_LEASE_SECONDS)
-WRITER_WAIT_S = 60.0    # how long a writer waits for another's lease (KG_NEO4J_LOCK_TIMEOUT)
-READ_WAIT_S = 10.0      # how long a reader waits out a publication in flight (KG_NEO4J_READ_WAIT)
+LEASE_S = 60.0          # the lease's default; KG_NEO4J_LEASE_SECONDS, KG_NEO4J_LOCK_TIMEOUT and KG_NEO4J_READ_WAIT in store.SETTINGS
 _on_publish = None      # test hook (SNAP-03): called between raising begin and committing the unit
-
-
-def _env_s(name: str, default: float) -> float:
-    try:
-        return float(os.environ.get(name) or default)
-    except ValueError:
-        return default
 
 CONSTRAINTS = [
     ("uniqueness", "CREATE CONSTRAINT assertion_id IF NOT EXISTS FOR (n:Assertion) REQUIRE n.id IS UNIQUE"),
@@ -90,7 +81,6 @@ REALISER_STEPS = [
     ("processes", ("REG_SUPPORTS",), False),
 ]
 WALK_STEPS = {"dependants": IMPACT_STEPS, "realisers": REALISER_STEPS}
-
 
 def _step(n: str, r: str, steps: list = IMPACT_STEPS) -> str:
     """The predicate: ``r`` is a step the walk takes from ``n``, by ``n``'s taxonomy."""
@@ -346,7 +336,7 @@ def _rows(result) -> list[dict]:
 
 
 class _Unit:
-    """A handle's publication (task-0141.06, decision-0013): for a writer, the lease, the unit's one
+    """A handle's publication (task-0141.06, decision-0014): for a writer, the lease, the unit's one
     transaction and the sequence lock it publishes under; for a reader, the generation it pinned."""
 
     def __init__(self, driver, session, uri: str, access: str, read_mode, write_mode):
@@ -541,10 +531,10 @@ class Neo4jStore(Store):
         self._constraints = None        # D1 as measured once by this handle, before its transaction
         try:
             if access == "write":
-                wait = lock_timeout if lock_timeout is not None else _env_s("KG_NEO4J_LOCK_TIMEOUT", connection_timeout or WRITER_WAIT_S)
-                self._pub.acquire(wait, lease_seconds or _env_s("KG_NEO4J_LEASE_SECONDS", LEASE_S))
+                wait = lock_timeout if lock_timeout is not None else setting("KG_NEO4J_LOCK_TIMEOUT", connection_timeout)
+                self._pub.acquire(wait, lease_seconds or setting("KG_NEO4J_LEASE_SECONDS"))
             else:
-                self._pub.pin(_env_s("KG_NEO4J_READ_WAIT", READ_WAIT_S))
+                self._pub.pin(setting("KG_NEO4J_READ_WAIT"))
                 self._after_read = self._pub.check   # store.ReadOnly calls it after every read (task-0141.06)
         except BaseException:
             self._session.close()
@@ -552,7 +542,7 @@ class Neo4jStore(Store):
             raise
 
     def commit(self) -> None:
-        """Publish the unit whole (decision-0013); a read handle publishes nothing."""
+        """Publish the unit whole (decision-0014); a read handle publishes nothing."""
         if self.access != "write":
             raise StoreReadOnly(f"{self.uri}: a read handle publishes nothing")
         self._pub.publish()

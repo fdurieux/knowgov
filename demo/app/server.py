@@ -219,14 +219,15 @@ def _store(timeout: float = 3, access: str = "read"):
 def _read(fn, timeout: float = 3):
     """One logical read of the page on one published generation (task-0141.06): ``fn(handle)`` on a
     read handle from ``_store``, run again on a fresh one when a publication lands during it, at most
-    ``store.READ_ATTEMPTS`` times (as store.read does)."""
-    from store import READ_ATTEMPTS, StoreChanged
-    for attempt in range(READ_ATTEMPTS):
+    ``KG_STORE_READ_ATTEMPTS`` times (3), as store.read does."""
+    from store import StoreChanged, read_attempts
+    attempts = read_attempts()
+    for attempt in range(attempts):
         with _store(timeout) as s:
             try:
                 return fn(s)
             except StoreChanged:
-                if attempt == READ_ATTEMPTS - 1:
+                if attempt == attempts - 1:
                     raise
 
 
@@ -400,7 +401,25 @@ def store_status() -> dict:
         return out
     except Exception as e:  # noqa: BLE001 — the message is the status
         out["error"] = str(e).splitlines()[0][:200]
+        _mark_busy(out, e)
     return out
+
+
+def _mark_busy(out: dict, e: Exception) -> None:
+    """A store that is held or was republished through every read (task-0141.06): ``busy``, so the route
+    answers 503 with Retry-After rather than a store that is simply unreachable."""
+    from store import StoreBusy
+    if isinstance(e, StoreBusy):
+        out["busy"] = True
+
+
+def _busy_json(handler, out: dict) -> None:
+    if out.get("busy"):
+        return handler._json(out, 503, {"Retry-After": str(BUSY_RETRY_AFTER)})
+    return handler._json(out)
+
+
+BUSY_RETRY_AFTER = 1   # seconds: a publication or a held writer lock, both short-lived
 
 
 def store_gaps(scenario: str) -> dict:
@@ -419,6 +438,7 @@ def store_gaps(scenario: str) -> dict:
         return out
     except Exception as e:  # noqa: BLE001
         out["error"] = str(e).splitlines()[0][:200]
+        _mark_busy(out, e)
     return out
 
 
@@ -849,7 +869,7 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
                     view["footprint"] = None
                 return self._json(view)
             if parts == ["api", "store"]:
-                return self._json(store_status())
+                return _busy_json(self, store_status())
             if parts == ["api", "register"]:
                 today = q.get("today", [None])[0]
                 if today not in (None, "wall") and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", today):
@@ -884,7 +904,7 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
                 out = impact_view(parts[3], self._origin(), walk=walk, children=children in ("1", "true"))
                 return self._json(out) if out is not None else self._json({"error": f"no such node: {parts[3]}"}, 404)
             if parts[:2] == ["api", "gaps"] and len(parts) == 3 and parts[2] in views.SCENARIOS:
-                return self._json(store_gaps(parts[2]))
+                return _busy_json(self, store_gaps(parts[2]))
             if parts == ["api", "cypher"]:
                 return self._json(cypher_list())
             if parts == ["api", "runs"]:

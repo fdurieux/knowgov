@@ -68,7 +68,7 @@ an atomic replacement. A failure or an exception publishes nothing and releases 
 does not parse is reported and left as it is, never read as an empty store. Supported on POSIX
 filesystems with `flock` (Linux, macOS), on a local disk; a platform without it refuses a writer.
 
-Store generations (task-0141.06, decision-0013): on both stores a writer builds its unit privately and
+Store generations (task-0141.06, decision-0014): on both stores a writer builds its unit privately and
 publishes it whole, and a read answers from one published generation or refuses.
 - **rdflib.** The lock above, held from load to the atomic replacement. A reader keeps the snapshot it
   loaded for as long as it is open. A writer publishes only while the lock file at the path is still
@@ -92,6 +92,31 @@ publishes it whole, and a read answers from one published generation or refuses.
   the lease.
 - **Coordination.** The page decides a register projection under the same lock that starts a run, and
   a projection that finds another writer holding the store answers 409.
+- **When the retries run out.** A reader that meets a publication on every attempt, or a writer's
+  publication interrupted past `KG_NEO4J_READ_WAIT`, answers a refusal, never a mixed result:
+  - `gate_cli --no-load` exits 2, "cannot run";
+  - the MCP server answers an error result naming the republished store;
+  - the page's `/api/store` and `/api/gaps` answer 503 with `Retry-After: 1` and `"busy": true`;
+  - `/api/scenarios`, which the page boots from, keeps 200 and carries the same `busy` and `error` in
+    its `store`.
+- **Settings.** Each is a number within bounds, and anything else is refused with the variable's name:
+  - `KG_STORE_READ_ATTEMPTS`: a whole number, 1 to 10;
+  - `KG_NEO4J_LEASE_SECONDS`: 1 to 3600, with a heartbeat every third of it;
+  - `KG_NEO4J_LOCK_TIMEOUT`: 0 to 86400;
+  - `KG_NEO4J_READ_WAIT`: 0 to 600.
+- **Transaction memory bounds a Neo4j unit.** A writer's whole unit is one transaction, so the
+  server's transaction memory limits a load.
+  - The bounds: `db.memory.transaction.max` per transaction (unset, so unlimited on its own) and
+    `db.memory.transaction.total.max` (by default 70% of the heap; the compose heap is 1 GiB).
+  - Measured peaks of the estimated heap: CargoQuote's whole seven-scenario deterministic run about
+    41 MiB; J-F's whole run about 64 MiB.
+  - A unit over the limit fails with `MemoryPoolOutOfMemoryError` and publishes nothing; the previous
+    generation is read whole. `tools/check_snapshots.py --memory-limited` checks this on a server
+    started with a small `db.memory.transaction.max`, and passed with 2 MiB.
+  - **Practice:** size the heap for an instance whose documents are much larger.
+- **The server-side fence.** It was seen working on Neo4j 5.26 Community: right after a takeover, the
+  former owner's unit transaction reads `Terminated` in `SHOW TRANSACTIONS`, and its commit raises
+  `StoreFenced` (SNAP-05).
 
 | Property | Evidence |
 |---|---|

@@ -1,4 +1,4 @@
-"""Store generations, proven on a real store (task-0141.06, decision-0013): SNAP-01..SNAP-07.
+"""Store generations, proven on a real store (task-0141.06, decision-0014): SNAP-01..SNAP-07.
 
     python tools/check_snapshots.py --disposable                 # KG_STORE=neo4j: the database it names
     KG_STORE=rdflib python tools/check_snapshots.py --disposable  # a file-backed store in a temporary folder
@@ -322,8 +322,12 @@ def snap_05(s1: str, s2: str, g1: dict, g2: dict) -> None:
         a = opener("write", lease_seconds=2)
         a._pub.beat_stop.set()        # paused: its heartbeat stops, its lease runs out
         load(a, s2)
+        a_epoch = a._pub.epoch
+        check(a_epoch in _writer_epochs(a), "SNAP-05 the former writer's unit transaction is open on the server before the takeover")
         time.sleep(2.5)
         b = opener("write", lock_timeout=30)   # recovers ownership
+        check(a_epoch not in _writer_epochs(a),
+              "SNAP-05 the takeover terminated the former writer's transaction on the server (TERMINATE TRANSACTIONS ran)")
         with b:
             load(b, s1)
         try:
@@ -348,6 +352,36 @@ def snap_05(s1: str, s2: str, g1: dict, g2: dict) -> None:
         finally:
             a.close()
     check(read_now() == g1, "SNAP-05 the store holds the recovering writer's generation, not the former writer's")
+
+
+def _writer_epochs(handle) -> set:
+    """The epochs of the knowgov unit transactions running on the Neo4j server (by their metadata); a
+    terminated one stays listed, with its status, until its client next speaks, so it is not counted."""
+    with handle._pub.driver.session() as s:   # the adapter's own driver: no module here imports the driver
+        return {r["e"] for r in s.run("SHOW TRANSACTIONS YIELD metaData AS m, status "
+                                      "WHERE m.kg_writer IS NOT NULL AND NOT status STARTS WITH 'Terminated' RETURN m.kg_epoch AS e")}
+
+
+def snap_03_memory() -> None:
+    """Neo4j started with a small ``db.memory.transaction.max`` (Community cannot change it at run time):
+    a writer's unit larger than it fails cleanly and the published generation is read whole after it."""
+    import store
+    from subject import SUBJECT
+    before = read_now()
+    other = next(s for s in SUBJECT.order if s != before["held"])
+    try:
+        with opener("write") as st:
+            load(st, other)
+        check(False, "SNAP-03 a unit over db.memory.transaction.max fails")
+    except store.StoreBusy as e:
+        check(False, f"SNAP-03 a unit over db.memory.transaction.max fails on memory, not on the lease: {e}")
+    except Exception as e:  # noqa: BLE001 — the driver's class for a memory pool refusal
+        check("memory" in str(e).lower(), f"SNAP-03 a unit over db.memory.transaction.max fails: {type(e).__name__}: {str(e)[:160]}")
+    after = read_now()
+    check(after == before, f"SNAP-03 after it the published generation ({before['held']}) is read whole: {after['held']}, {after['nodes']} nodes")
+    with opener("write") as st:
+        gen = st._pub.generation()
+    check(gen is not None and gen[0] == gen[1], f"SNAP-03 the sequence lock is closed after the refused unit: {gen}")
 
 
 def snap_06(s1: str, s2: str, g1: dict, g2: dict) -> None:
@@ -408,6 +442,9 @@ def snap_07(round_trip: bool = True) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--disposable", action="store_true", help="confirm the store may be wiped (required)")
+    ap.add_argument("--memory-limited", action="store_true",
+                    help="Neo4j only, on a server started with a small db.memory.transaction.max and a generation "
+                         "published: only check that a larger unit fails cleanly and the generation stays")
     ap.add_argument("--no-round-trip", action="store_true",
                     help="leave SNAP-07's round trip to the workflow's own round-trip steps (the export check still runs)")
     args = ap.parse_args()
@@ -420,6 +457,13 @@ def main() -> int:
     if kind() == "rdflib":
         tmp = tempfile.TemporaryDirectory()
         os.environ["KG_RDFLIB_FILE"] = str(Path(tmp.name) / "store.ttl")
+    if args.memory_limited:
+        if kind() != "neo4j":
+            print("check_snapshots: --memory-limited is a Neo4j check", file=sys.stderr)
+            return 2
+        snap_03_memory()
+        print("snapshots (neo4j, memory-limited): " + ("every check holds" if not FAILURES else f"{len(FAILURES)} failure(s)"))
+        return 1 if FAILURES else 0
     from subject import SUBJECT
     s1, s2 = SUBJECT.order[0], SUBJECT.order[1]
     import register_project
