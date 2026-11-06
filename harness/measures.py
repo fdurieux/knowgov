@@ -102,8 +102,9 @@ def _smoke():
     return mod
 
 
-def run_suite(code: str | None, scenario: str) -> dict:
-    """pass/total over the oracle's scenarios, with the scenario's recomputed overlays."""
+def local_run_suite(code: str | None, scenario: str) -> dict:
+    """pass/total over the oracle's scenarios, with the scenario's recomputed overlays. Runs the code
+    here: only the worker (harness/worker_job.py), or the host under task-0141.07's opt-in, calls it."""
     if not code:
         return {"ran": False, "passed": 0, "total": SUITE_TOTAL, "per_scenario": {}}
     smoke = _smoke()
@@ -127,7 +128,7 @@ def run_suite(code: str | None, scenario: str) -> dict:
     return {"ran": True, "passed": sum(1 for v in per.values() if v["passed"]), "total": len(per), "per_scenario": per}
 
 
-def run_suite_dir(path: Path, scenario: str) -> dict:
+def local_run_suite_dir(path: Path, scenario: str) -> dict:
     """pass/total over the oracle's scenarios for a directory artefact (an agent run's sandbox),
     with the scenario's recomputed overlays; the oracle script decides what a directory must hold."""
     path = Path(path)
@@ -151,18 +152,47 @@ def run_suite_dir(path: Path, scenario: str) -> dict:
     return {"ran": True, "passed": sum(1 for v in per.values() if v["passed"]), "total": len(per), "per_scenario": per}
 
 
-def feedback_runner(kit: dict[str, str], features_key: str):
-    """The agent's run_suite tool: the scenario's own (planted) suite, as the kit holds it, run over the
-    sandbox by the oracle script's run_feedback; a script without one says so."""
-    from subject import bundle_parts
-
+def local_feedback(sandbox_root: Path, features: dict[str, str], feature: str | None) -> dict:
+    """The oracle script's run_feedback over a sandbox, run here (the worker, or the opted-in host)."""
     smoke = _smoke()
     if not hasattr(smoke, "run_feedback"):
         raise RuntimeError(f"{SUBJECT.id}: the oracle script has no run_feedback; the agent arm needs one")
+    return smoke.run_feedback(Path(sandbox_root), features, feature)
+
+
+# ---- the three execution paths (task-0141.05, decision-0012): one route for all of them, the contained
+# worker, or the host only under task-0141.07's opt-in; never silently the host
+
+def run_suite(code: str | None, scenario: str) -> dict:
+    """A single-reply arm's code graded by the oracle, in the worker (harness/execution.py)."""
+    if not code:
+        return {"ran": False, "passed": 0, "total": SUITE_TOTAL, "per_scenario": {}}
+    import execution
+    return execution.run("suite", {"scenario": scenario}, {"artifact.py": code.encode("utf-8")})
+
+
+def run_suite_dir(path: Path, scenario: str) -> dict:
+    """An agent run's sandbox graded by the oracle, in the worker; the sandbox collected without
+    following a symlink (harness/execution.py collect)."""
+    import execution
+    files = execution.collect(Path(path))
+    if not files:
+        return {"ran": False, "passed": 0, "total": SUITE_TOTAL, "per_scenario": {}}
+    return execution.run("suite_dir", {"scenario": scenario}, files)
+
+
+def feedback_runner(kit: dict[str, str], features_key: str):
+    """The agent's run_suite tool: the scenario's own (planted) suite, as the kit holds it, run over the
+    sandbox by the oracle script's run_feedback, in the worker, as the final grading is."""
+    import execution
+    from subject import bundle_parts
+
+    execution.check()   # refused before the agent starts, as before, when nothing may run
     features = {rel: text for rel, text in bundle_parts(kit.get(features_key, "")) if rel}
 
-    def feedback(sandbox_root: Path, feature: str | None) -> dict:
-        return smoke.run_feedback(Path(sandbox_root), features, feature)
+    def feedback(sandbox_root: Path, feature: str | None, deadline: float | None = None) -> dict:
+        return execution.run("feedback", {"features": features, "feature": feature}, execution.collect(Path(sandbox_root)),
+                             deadline=deadline)
     return feedback
 
 

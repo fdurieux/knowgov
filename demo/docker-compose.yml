@@ -19,9 +19,9 @@
 #                      wider KG_BIND refuses them. Never committed, never baked in
 #   KG_NEO4J_PASSWORD  the store's password (default kgpoc2026, the harness default, refused on a wider KG_BIND)
 #   OPENAI_API_KEY     enables the arms mode; passed through to the app only, never baked in. Model-written code
-#                      runs in this container, uncontained, until task-0141.05 (X1): for the public demo use a
-#                      project key with a spending cap; never set one where an organisation's data is mounted
-#                      (docker-compose.instance.yml), where every arms run refuses (task-0141.07)
+#                      runs in the worker service below, contained (task-0141.05), never in the app; for the
+#                      public demo use a project key with a spending cap. With an organisation's data mounted
+#                      (docker-compose.instance.yml) every arms run still refuses (task-0141.07)
 #   KG_MODEL_BASE_URL  the model endpoint (default api.openai.com): Google's compatible endpoint, or a
 #                      private model behind vLLM, Ollama, LiteLLM or a gateway
 #   KG_MODEL_API_KEY_VAR  the name of the variable holding the key (default OPENAI_API_KEY); the compose
@@ -118,10 +118,43 @@ services:
       KG_MODELS: ${KG_MODELS:-/repo/demo/models.toml}
       KG_ARMS_MODEL: ${KG_ARMS_MODEL:-}   # optional: with the two KG_MODEL_* variables, the drop-down's "this instance's settings" row
       KG_ARMS_EFFORT: ${KG_ARMS_EFFORT:-}  # optional: the effort a harness run outside the page sends; the page sets its own per run
+      KG_WORKER_JOBS: /jobs   # task-0141.05: model output runs only in the worker below, through this folder
     ports:
       - "${KG_BIND:-127.0.0.1}:${KG_PORT_APP:-8080}:8080"
     volumes:
       - demo-runs:/repo/runs
+      - worker-jobs:/jobs
+
+  # The contained worker (task-0141.05, decision-0012): runs the code an arm's model writes, graded by
+  # the subject's oracle, and nothing else. Same image as the app; no network, a read-only root, no
+  # capabilities, no privilege escalation, uid 65534, bounded memory, processes and CPU, and no secret
+  # in its environment. It attests that confinement at start (harness/worker.py) and the app refuses a
+  # job without a fresh attestation. It sees only what ships in the image and the jobs folder.
+  worker:
+    image: ghcr.io/fdurieux/knowgov:v0.6.0@sha256:7b1c8873ea0419f15730bd7350d489527aeaadc5ede9bd34b20d5cb8a26df3cc   # the app's; an image after 0.7.0 carries the worker
+    command: ["python", "harness/worker.py"]
+    user: "65534:65534"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: ${KG_WORKER_MEM:-4g}
+    pids_limit: 256
+    cpus: ${KG_WORKER_CPUS:-2}
+    environment:
+      KG_WORKER_JOBS: /jobs
+      KG_WORKER_WORK: /work
+    tmpfs:
+      # exec: the oracle runs the launchers it writes into the job's folder (J-F's jef-data, daily.sh);
+      # Docker mounts a tmpfs noexec by default, and a job can run any Python anyway, so noexec bounds nothing
+      - /work:size=1g,mode=1777,exec
+    volumes:
+      - worker-jobs:/jobs
+    healthcheck:
+      test: ["CMD", "python", "harness/worker.py", "--attest-only"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
 
   # The gateway in front of Anthropic for the Claude row (task-0035, doc-0006). Started only with the
   # profile: `docker compose --profile claude up -d --build --wait`; without it, nothing here runs.
@@ -139,3 +172,9 @@ services:
 volumes:
   neo4j-data:
   demo-runs:
+  worker-jobs:   # memory only, shared by the app and the worker, writable by the worker's uid
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=256m,mode=1777"
