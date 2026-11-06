@@ -1,0 +1,66 @@
+---
+id: TASK-0184
+title: >-
+  gate_cli.py without --no-load replaces the shared store's scenario on a stack
+  host: compute privately by default, publish only when asked
+status: To Do
+assignee: []
+created_date: '2026-11-06T18:33:00Z'
+updated_date: '2026-11-06T18:39:00Z'
+labels:
+  - gate
+  - store
+  - contract
+dependencies: []
+references:
+  - harness/gate_cli.py
+  - harness/store.py
+  - backlog/tasks/task-0183
+priority: medium
+type: task
+ordinal: 184000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+`harness/gate_cli.py` without `--no-load` opens the store `KG_STORE` names for writing (`open_store(access="write")`), wipes it, loads the scenario (`_load`) and publishes the load on `commit()` once the report is made. Its docstring states this as the contract: "A load wipes the store first, as a run does." On a stack host that store is the shared one. The page and its viewers read it, and so do `knowgov-runs` and the read-only MCP reader. The adopter docs tell a person to run the command there: `demo/README.md` "The gate as a command" (`docker compose exec -T app python harness/gate_cli.py --scenario S2`, and `--scenario S6 --stage 2`), and `docs/guide.md` (`python harness/gate_cli.py --scenario S2`). Following them replaces the scenario every reader sees, without a warning. The record is never written; a reload restores the scenario.
+
+Found by task-0183's session on 2026-11-06 (#325), which moved `capture.py questionnaire`/`review` and `transcript.py` onto `store.scratch_store()` and left this command out of scope as a contract. Related, out of scope: `knowgov-runs`'s `start_run` wipes the shared store by design (decision-0008, marked destructive). On 2026-11-06 an assistant called it to *show* S3 and replaced S4 unasked; that session's improvements plan covers the client's route.
+
+Callers that rely on the load publishing today (to be kept working, with an explicit flag if the default changes):
+- `.github/workflows/demo.yml`'s stack steps (gate loads on the stack's Neo4j, then the MCP and saved-query steps read it);
+- `tools/check_mcp_server.py` (loads with `gate_cli.py`, then asks the server);
+- `instance/ci/knowgov-gate.sh` and its wrappers (GitHub action, GitLab template, the Claude hook), which load unless `KG_NO_LOAD=1`;
+- `harness.yml`'s `KG_STORE=rdflib` steps.
+In-process callers of `gate_cli._load` (`tools/check_round_trip.py`, `tools/check_capture_pairing.py`) pass their own handle and are unaffected.
+
+**Opportunity canvas.** Users: an adopter or owner running the gate by hand on a stack host; the page's viewers and MCP clients sharing that store. Problem: the documented command silently replaces the shared scenario. Solution space: (A) docs only: warn, and point to `--no-load` or `KG_STORE=rdflib`; (B) compute on `store.scratch_store()` by default, and publish to the configured store only on an explicit flag; (C) keep the load, but refuse with exit 2 when the configured store already holds another scenario, unless an explicit flag says to replace it. Value: the gate's answer without a side effect on everyone else's view. Metric: a shared store's held scenario and generation unchanged after a documented command. Cost: A small; B and C about one flag, the callers above and tests. Risk: a contract change to a CI-facing command.
+
+**Fit/gap.**
+- The exit contract 0/1/2: A, B and C all fit; C adds a refusal at exit 2.
+- The report shape: fits for all three. task-0183 relies on equal reports across adapters (`tools/check_round_trip.py --chain`).
+- The deterministic record: fits for all three. The load is the same `_load`.
+- The callers above: A needs nothing; B and C each need the flag where a caller wants the publish (demo.yml, check_mcp_server.py, knowgov-gate.sh when a later step reads the store).
+- The Neo4j-only load-memory forecast (task-0176): B gaps on it, since a scratch load never forecasts the server's transaction memory. It can be kept on the publishing path.
+- decision-0016: B and C change a CLI contract after 0.8.0, so they gather for 0.9.0, or wait for 0.10.0 if they miss the cut. A is a docs fix and is not bound by the freeze.
+
+**SWOT, for B.** Strengths: the same mechanism as task-0183, so one rule ("a command computing for one person never writes the shared store") holds across the harness. Weaknesses: needs rdflib for the default path, which the image pins (`demo/requirements.txt`); and the Neo4j forecast is lost on the default path. Opportunities: the docs' hand-run gate becomes safe on any host; the hook and CI keep their behaviour by passing the flag. Threats: a caller that relied on the publish silently reads a stale store. *Response:* every caller above is listed and tested; and `--no-load` already refuses when the store holds another scenario.
+
+**Advice.** B, with A's doc lines now as a fix. B removes the hazard at its source, as task-0183 did for the capture commands. C still lets a hand-run gate replace a scenario once someone passes the flag, and a caller that loads several scenarios in turn on one store (demo.yml's S2, then S1) would need the flag on every call. A leaves the hazard for anyone who does not read. The choice is the maintainer's before any code. B lands in the 0.9.0 gathering under decision-0016.
+<!-- SECTION:DESCRIPTION:END -->
+
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [x] #1 The maintainer's choice among A, B and C is recorded with its four parts before any code (in this task's notes, or a decision record if it changes the gate's contract), and its release follows decision-0016
+- [ ] #2 Run as the adopter docs show on a store holding another scenario, the gate command leaves that store's held scenario and generation unchanged unless an explicit flag asks to replace it; a test proves it on both adapters
+- [ ] #3 For each subject, scenario, task and as_of the report (JSON and exit code) equals the one the loading command gives today
+- [ ] #4 Every caller listed in the description still passes, with the explicit flag where it needs the publish: demo.yml's stack steps, tools/check_mcp_server.py, instance/ci/knowgov-gate.sh and its wrappers, harness.yml
+- [ ] #5 demo/README.md, docs/guide.md and instance/README.md say which store the command writes, in the adopter register; the module docstring and CHANGELOG.md (under its contract heading if the contract changes) follow
+<!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-06: the maintainer chose option B ("go for option B on task-0184"). Recorded as decision-0017, accepted, with its four parts: the default computes on store.scratch_store(); --publish loads into and publishes to the configured store, as today; --publish with --no-load exits 2; --no-load is unchanged; the callers that read after the load pass --publish (knowgov-gate.sh: KG_PUBLISH=1 beside KG_NO_LOAD). A contract change after 0.8.0: it gathers for 0.9.0 under decision-0016. A's doc lines land with the build.
+<!-- SECTION:NOTES:END -->
