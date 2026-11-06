@@ -25,6 +25,18 @@ names that section with the version.
   - One read handle per call; refused mid-run and on another subject's scenario. Listed on stdio and
     HTTP. Schemas `held-keys`, `derived-outputs`, `document-statements`, version 1;
     `check_mcp_server.py` holds each equal to the port's read, `check_round_trip.py` across store kinds.
+
+- **`proposal_impact`'s report gains a slice map** (task-0152, doc-0022 K1, additive: `slices`,
+  required, in `harness/schemas/proposal-impact.schema.json`, version 1). One vertical slice per
+  approved journey step of each product the proposal touches, or per delivering process for a
+  product no journey concerns: the register's own thread walk (ieam-register decision 0018, at
+  v0.2.11) from step to process, capability, application and information, each node new, reused or
+  changed, with its owner, the layers the thread leaves empty and the edges it reports withdrawn.
+  The capabilities a product requires and no slice reaches are the register's rule A1. Every
+  overlay node, link and exception sits in exactly one slice or one named remainder (shared,
+  required_not_reached, frame, exceptions, outside), with the denominator. Facts only: no label,
+  estimate or rank. The CLI's text output and the MCP tool give the same section.
+
 - **The store port names its access; a read never publishes** (task-0141.02). `open_store()` takes
   `access="read"` or `access="write"`. A read handle lets through the port's reads (`store.READS`)
   and refuses any other operation with `StoreReadOnly`. A write handle publishes on `commit()`,
@@ -97,6 +109,16 @@ names that section with the version.
   and `[guids]` in an older folder.
 
 ### Changes
+
+- **Arms runs refuse beside a mounted instance until X1** (task-0141.07, a stopgap). Code a model
+  writes still runs uncontained, with the process's environment and files; task-0141.05 contains it.
+  Until then, when `KG_SUBJECT`, `KG_SUBJECTS` or `KG_REGISTER` names a folder outside the knowgov
+  checkout, as `docker-compose.instance.yml` sets them, every path that runs model output refuses.
+  Those paths are the single-reply grading, the agent's feedback suite and its final grading.
+  `run.py` exits 2 before its first model call, and the page refuses to start an arms run.
+  `KG_ALLOW_UNCONTAINED_EXECUTION=1` lifts the refusal and accepts the risk. The public demo runs
+  as before. Do not set a model key where an organisation's data is mounted. For the public demo,
+  use a project key with a spending cap.
 
 - **The store's reads answer in one order on both adapters.** Neo4j's `collect()` answers in its
   traversal order, which a reload can move, so the evidence bundle's suspect line and the gate

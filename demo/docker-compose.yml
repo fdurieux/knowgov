@@ -18,7 +18,10 @@
 #                      Authorization: Bearer <token> (the page asks the viewer for it once); without it, a
 #                      wider KG_BIND refuses them. Never committed, never baked in
 #   KG_NEO4J_PASSWORD  the store's password (default kgpoc2026, the harness default, refused on a wider KG_BIND)
-#   OPENAI_API_KEY     enables the arms mode; passed through to the app only, never baked in
+#   OPENAI_API_KEY     enables the arms mode; passed through to the app only, never baked in. Model-written code
+#                      runs in this container, uncontained, until task-0141.05 (X1): for the public demo use a
+#                      project key with a spending cap; never set one where an organisation's data is mounted
+#                      (docker-compose.instance.yml), where every arms run refuses (task-0141.07)
 #   KG_MODEL_BASE_URL  the model endpoint (default api.openai.com): Google's compatible endpoint, or a
 #                      private model behind vLLM, Ollama, LiteLLM or a gateway
 #   KG_MODEL_API_KEY_VAR  the name of the variable holding the key (default OPENAI_API_KEY); the compose
