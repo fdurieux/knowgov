@@ -74,3 +74,23 @@ Option B, on the maintainer's word of 2026-11-06: "go for option B on task-0184"
 ## Advice
 
 B. It removes the hazard at its source, as task-0183 did for the capture commands. C would still let a hand-run gate replace a scenario once someone passes the flag, and a caller that loads several scenarios in turn on one store (demo.yml's S2, then S1) would need the flag on every call. A leaves the hazard for anyone who does not read. A's doc lines land with B's build.
+
+## Amendment A1 (2026-11-06)
+
+On the maintainer's word of 2026-11-06: "go for (a)+(b), merge when green". Raised under point 6 while building task-0184: point 1 holds the report equal to the loading command's, and the report's required `store` field named the configured adapter, which the default path no longer computes on.
+
+1. (a) The report's `store` names the adapter the gate computed on. That is `rdflib` on the default path, whatever `KG_STORE` names, and `KG_STORE`'s adapter with `--publish` or `--no-load`.
+2. (b) An optional `published` boolean in `gate-report.schema.json`: true only with `--publish`, false on the default path, and absent with `--no-load`, which loads nothing. The MCP server's `gate_verdict` report stays equal to `--no-load`'s.
+3. Point 1 reads: for each subject, scenario, task and `as_of`, the report equals the loading command's but for `store` and `published`. The verdict, findings, levels, keys, conflicts and exit code are unchanged.
+
+**Opportunity canvas.** The problem is that a report would misstate where its answer was computed, or a reader could not tell a published load from a private one. The users are pipelines and people reading a report or its `-o` file. The solution is (a)+(b), and the measure is a report that says where it was computed and whether the shared store moved. The cost is one schema field and its tests.
+
+**Fit/gap.** It fits schema version 2, which is additive: an older report still validates. It fits the MCP server's equality with `--no-load`, since `published` is absent there. And it fits `check_round_trip`'s adapter equality, which already ignores `store`. Gap: on a Neo4j host `store` changes from `neo4j` to `rdflib` on the default path. A reader that keyed on it sees the change, and the changelog names it.
+
+**SWOT.**
+- **Strength:** the report tells the truth about its origin and its effect.
+- **Weakness:** one more field.
+- **Opportunity:** a pipeline can assert `published` before a step that reads the store.
+- **Threat:** a reader comparing `store` across runs. *Response:* the field is documented, and no shipped caller compares it.
+
+**Advice.** (a)+(b), as taken. Reporting the configured adapter's name would misstate where the answer was computed, and leaving `published` out would leave a reader unable to tell whether the shared store moved.

@@ -337,7 +337,7 @@ jobs:
           annotate: "false"
           sarif: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
           sarif-category: knowgov-ci-wrappers
-      - name: "The action: gate on S6, published for the trace steps that read the store (decision-0017), exit 0"
+      - name: "The action: gate on S6, exit 0"
         uses: ./instance/ci/github
         with: { gate: gate, instance: runs/wrap/instance, scenario: S6, publish: "true" }
       - name: "The action: trace-register the reference code, exit 0"

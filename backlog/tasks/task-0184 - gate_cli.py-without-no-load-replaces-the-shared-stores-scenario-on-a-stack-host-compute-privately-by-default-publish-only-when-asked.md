@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-06T18:33:00Z'
-updated_date: '2026-11-06T19:00:00Z'
+updated_date: '2026-11-06T19:13:00Z'
 labels:
   - gate
   - store
@@ -70,4 +70,6 @@ In-process callers of `gate_cli._load` (`tools/check_round_trip.py`, `tools/chec
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-11-06: the maintainer chose option B ("go for option B on task-0184"). Recorded as decision-0017, accepted, with its four parts: the default computes on store.scratch_store(); --publish loads into and publishes to the configured store, as today; --publish with --no-load exits 2; --no-load is unchanged; the callers that read after the load pass --publish (knowgov-gate.sh: KG_PUBLISH=1 beside KG_NO_LOAD). A contract change after 0.8.0: it gathers for 0.9.0 under decision-0016. A's doc lines land with the build.
+
+Callers found while building, beyond the description's list, each given --publish where a later step reads the store: tools/lighthouse_evidence.py (each scenario's gate, then --no-load and the MCP reads; stage 2 and its re-verification), tools/check_trace_walkthrough.py (S6 and its stage 2, then trace reads the store), tools/check_snapshots.py (task-0176's forecast refusal, which exists on the publish path only; SNAP-04 loads in process and is unaffected), tools/check_ci_wrappers.py and harness.yml's action steps (S6 and its stage 2 before trace-register and trace-check: KG_PUBLISH=1, the action's publish input). Callers that only read the report stay unflagged: check_review_walkthrough, check_gate_after_change, check_register_change, harness.yml's gate step, the Claude hook. Raised under decision-0017 point 6: the report's store names the adapter computed on (rdflib by default), and an additive optional published (true with --publish, false by default, absent with --no-load so the MCP server's gate_verdict stays equal to --no-load's); awaiting the maintainer.
 <!-- SECTION:NOTES:END -->
