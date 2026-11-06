@@ -13,6 +13,8 @@
               "gate",
               "--task",
               "codegen",
+              "--task-for",
+              "spec=design",
               "--knowgov",
               "/opt/knowgov"
             ],

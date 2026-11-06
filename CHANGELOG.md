@@ -33,6 +33,13 @@ names that section with the version.
 
 ### Changes
 
+- **The hook's settings snippets read the spec commit under `design`** (task-0114, after task-0101).
+  The three snippets under `instance/ci/claude/` (repository, managed, advisory) add
+  `--task-for spec=design`, as the pilot protocol does; the plan and the push stay `codegen`. Keep it
+  only where every gated subject declares `[tasks.design]`; elsewhere the spec commit's gate exits 2,
+  which the mandatory hook blocks and the advisory one lets through, so drop the two arguments
+  (instance README).
+
 - **The owner's questionnaire names who closes a declared gap** (task-0113, after task-0110). An item
   on a declared gap carries `gap`, `closed_by` and `closed_by_name`, the unit its declaration names, as
   the gate's finding names it in `closer`, and a comment line saying an answer does not close it: S2's
