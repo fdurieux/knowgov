@@ -5,7 +5,7 @@ title: >-
   and nonsense, fit/gap, opportunity canvas, SWOT, proposals
 type: specification
 created_date: '2026-11-05T23:02:00Z'
-updated_date: '2026-11-06T17:07:00Z'
+updated_date: '2026-11-06T23:06:00Z'
 tags:
   - canvas
   - swot
@@ -128,3 +128,12 @@ Mapped to what exists; none has a task id.
 - **Whether to propose P3 to ieam-register now.** Recommendation: yes, as a proposed decision only; it is cheap, fires nowhere today, and gives a sunset an expiring deadline in the register's own terms.
 - **Whether P4 is tasked now that task-0152 is built.** Recommendation: not before the pilot's first replacement question; it is the only medium proposal and the public register has no replacement to read.
 - **Whether lifecycle and quality ever enter knowgov.** Recommendation: only as P5, read from a dated export, never in a node file and never as a score.
+
+## Answered (2026-11-06)
+
+The maintainer: "accept the advice on all three" (doc-0023, doc-0024, doc-0025). In force:
+
+- **P1 and P2:** not before the lighthouse. Built on the pilot's first rationalisation question; no task.
+- **P3:** proposed to ieam-register as a proposed decision only, drafted by this doc's session in an ieam-register pull request held for the maintainer's approval (decision 0019). Nothing is approved by the proposal.
+- **P4:** not tasked before the pilot's first replacement question.
+- **P5:** lifecycle and quality enter knowgov only as P5, read from a dated export: never in a node file, never as a score. Parked behind task-0123.
