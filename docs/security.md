@@ -185,6 +185,18 @@ run's own folder and run the subject's test suite there. That executes model-wri
 the run folder, on the machine running the arm. It is not a business action. **Practice:** run the
 arms only on a machine or container that holds nothing the run should not touch.
 
+That code is not contained yet: it runs with the process's environment (the model key and the store's
+password among it) and can read what the process can. Containment is task-0141.05 (X1). Until it lands,
+a stopgap (task-0141.07, `harness/execution_guard.py`): with an organisation's instance mounted, that is
+`KG_SUBJECT`, `KG_SUBJECTS` or `KG_REGISTER` outside the knowgov checkout (as
+`demo/docker-compose.instance.yml` sets them), every path that runs model output refuses before it runs,
+naming X1. The arms run exits 2, the page refuses to start it, and nothing is graded.
+`KG_ALLOW_UNCONTAINED_EXECUTION=1` lifts the refusal and accepts the risk; it does not contain anything.
+**Practice:** never set a model key where an organisation's data is mounted until X1. For the public demo,
+use a project key with a spending cap. Evidence: `tests/test_execution_guard.py::test_every_execution_path_refuses_before_running_model_output`,
+`tests/test_execution_guard.py::test_run_py_refuses_an_arms_run_before_the_store_or_a_model_call_and_exits_2`,
+`tests/test_execution_guard.py::test_the_page_refuses_an_arms_run_with_an_instance_mounted_and_not_without`.
+
 Evidence per row:
 
 | Row | Evidence |

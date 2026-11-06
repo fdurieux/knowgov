@@ -85,6 +85,16 @@ names that section with the version.
 
 ### Changes
 
+- **Arms runs refuse beside a mounted instance until X1** (task-0141.07, a stopgap). Code a model
+  writes still runs uncontained, with the process's environment and files; task-0141.05 contains it.
+  Until then, when `KG_SUBJECT`, `KG_SUBJECTS` or `KG_REGISTER` names a folder outside the knowgov
+  checkout, as `docker-compose.instance.yml` sets them, every path that runs model output refuses.
+  Those paths are the single-reply grading, the agent's feedback suite and its final grading.
+  `run.py` exits 2 before its first model call, and the page refuses to start an arms run.
+  `KG_ALLOW_UNCONTAINED_EXECUTION=1` lifts the refusal and accepts the risk. The public demo runs
+  as before. Do not set a model key where an organisation's data is mounted. For the public demo,
+  use a project key with a spending cap.
+
 - **The store's reads answer in one order on both adapters.** Neo4j's `collect()` answers in its
   traversal order, which a reload can move, so the evidence bundle's suspect line and the gate
   report's stale statements could list the same items differently on two reads of one store. Now

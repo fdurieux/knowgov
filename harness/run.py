@@ -21,6 +21,7 @@ from pathlib import Path
 
 import arms
 import cadence
+import execution_guard
 import measures
 import shacl
 from gate import resolve, render_bundle, render_index, knowledge_reader, three_valued
@@ -240,6 +241,10 @@ def main() -> None:
         as_of = cadence.as_of(args.as_of).isoformat()
     except ValueError as e:
         ap.error(str(e))
+    if not args.deterministic and (why := execution_guard.refusal()):
+        # task-0141.07: before the store is opened and before the first model call; a run that cannot run (exit 2)
+        print(f"run: {why}", file=sys.stderr)
+        sys.exit(2)
     out_root = Path(args.out)
     pv = pristine_values()
     d = open_store(instance=SUBJECT.id, access="write")

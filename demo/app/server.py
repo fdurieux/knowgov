@@ -53,6 +53,7 @@ import models  # noqa: E402  (the models table behind the Arms call drop-down, t
 ROOT = HERE.parent.parent
 HARNESS = ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
+import execution_guard  # noqa: E402  (task-0141.07: the stopgap before X1's containment)
 import page_subject  # noqa: E402  (the subject as a value: task-0032.01)
 import runs_index  # noqa: E402  (the one reader of the run folders, shared with the MCP server: task-0128)
 from subject import Subject  # noqa: E402
@@ -495,6 +496,9 @@ class Runner:
         if mode == "arms":
             if ps.subject.oracle_script() is None:
                 raise ValueError("arms mode needs an oracle: this subject declares none")
+            why = execution_guard.refusal()   # task-0141.07: model output would run uncontained beside a mounted instance
+            if why:
+                raise ValueError(why)
             # the row and the effort are checked against the table: an unknown row, a row whose key
             # is unset and an effort the row does not list are refused here, before anything runs
             chosen, model_env, deviation = models.resolve(row, effort, ps.record_model, ps.record_effort, ps.arm_kind)
