@@ -881,6 +881,40 @@ class RdflibStore(Store):
     def all_derived(self) -> list[dict]:
         return [{"id": self.nid(d), "suspect": self.prop(d, "suspect")} for d in self.nodes("Derived")]
 
+    def held_keys(self) -> list[dict]:
+        out: dict[str, dict] = {}
+        for x in self.nodes("Assertion"):
+            key = self.prop(x, "key")
+            if key is None:
+                continue
+            k = out.setdefault(key, {"key": key, "n": 0, "statuses": {}})
+            k["n"] += 1
+            st = self.prop(x, "status")
+            k["statuses"][st] = k["statuses"].get(st, 0) + 1
+        return [out[k] for k in sorted(out)]
+
+    def derived_outputs(self) -> list[dict]:
+        return by_id([{"id": self.nid(d), "kind": self.prop(d, "kind"), "sha256": self.prop(d, "sha256"),
+                       "suspect": bool(self.prop(d, "suspect")),
+                       "used": by_id(_distinct([{"id": self.nid(x), "key": self.prop(x, "key"), "status": self.prop(x, "status"),
+                                                 "artefact": self.prop(x, "artefact"), "version": self.prop(x, "version")}
+                                                for x in self.out(d, "USED_ASSERTION") if self.has_label(x, "Assertion")]))}
+                      for d in self.nodes("Derived")])
+
+    def artefact_assertions(self, artefact) -> list[dict]:
+        def mine(path):
+            return path == artefact or (artefact.endswith("/") and isinstance(path, str) and path.startswith(artefact))
+        out = []
+        for x in self.nodes("Assertion"):
+            fs = [{"locator": self.prop(f, "locator"), "artefact": self.prop(f, "artefact")}
+                  for f in self.out(x, "SUPPORTED_BY") if self.has_label(f, "Fragment") and mine(self.prop(f, "artefact"))]
+            if not (mine(self.prop(x, "artefact")) or fs):
+                continue
+            out.append({"id": self.nid(x), "key": self.prop(x, "key"), "value": self.prop(x, "value"), "status": self.prop(x, "status"),
+                        "basis": self.prop(x, "basis"), "artefact": self.prop(x, "artefact"), "version": self.prop(x, "version"),
+                        "fragments": by_content(_distinct(fs))})
+        return by_id(out)
+
     def record_preload(self, vid, verdict) -> None:
         v = self.node(vid, "Version")
         if v is not None:

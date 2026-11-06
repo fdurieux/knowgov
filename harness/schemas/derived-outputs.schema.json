@@ -1,0 +1,157 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/derived-outputs.schema.json",
+ "title": "knowgov derived outputs report",
+ "description": "What the MCP tool derived_outputs returns (task-0144, doc-0020 C3): with key, every derived output in the store that used a statement on the key, any state; with derived, that one output. Each with its kind, digest, suspect flag, the keys behind it and every statement it used, each read live (not invalidated), stale (invalidated, nothing settled replaces it), superseded (invalidated, with the verified or approved successors gate.superseded_by names) or rejected. Read through one read handle; nothing written. Version 1; a change is additive or a new version.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "schema_version",
+  "tool",
+  "subject",
+  "scenario",
+  "store",
+  "key",
+  "derived",
+  "total",
+  "outputs"
+ ],
+ "properties": {
+  "schema_version": {
+   "const": 1
+  },
+  "subject": {
+   "type": "string"
+  },
+  "scenario": {
+   "type": "string"
+  },
+  "store": {
+   "type": "string"
+  },
+  "tool": {
+   "const": "derived_outputs"
+  },
+  "key": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "derived": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "total": {
+   "type": "integer",
+   "minimum": 0
+  },
+  "outputs": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "id",
+     "kind",
+     "sha256",
+     "suspect",
+     "keys",
+     "used"
+    ],
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "kind": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "sha256": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "suspect": {
+      "type": "boolean"
+     },
+     "keys": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "used": {
+      "type": "array",
+      "items": {
+       "$ref": "#/$defs/used"
+      }
+     }
+    }
+   }
+  }
+ },
+ "$defs": {
+  "used": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "key",
+    "status",
+    "artefact",
+    "version",
+    "state",
+    "superseded_by"
+   ],
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "key": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "status": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "artefact": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "version": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "state": {
+     "enum": [
+      "live",
+      "stale",
+      "superseded",
+      "rejected"
+     ]
+    },
+    "superseded_by": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ }
+}

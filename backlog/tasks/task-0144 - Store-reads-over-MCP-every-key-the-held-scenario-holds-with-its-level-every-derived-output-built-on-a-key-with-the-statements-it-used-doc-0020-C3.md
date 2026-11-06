@@ -3,10 +3,11 @@ id: TASK-0144
 title: >-
   Store reads over MCP: every key the held scenario holds with its level, every
   derived output built on a key with the statements it used (doc-0020 C3)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-05T20:44:00Z'
-updated_date: '2026-11-05T20:53:00Z'
+updated_date: '2026-11-06T00:29:00Z'
 labels: []
 dependencies:
   - TASK-0141.02
@@ -31,3 +32,13 @@ store_status lists declared keys only and census only counts, so a key held but 
 - [ ] #4 From a document (an artefact path, and a version where several are held), the statements it yields in the held scenario with their keys, statuses and versions, and the derived outputs that used them
 - [ ] #5 Served by the read-only knowgov MCP server over stdio and Streamable HTTP, listed by tools/list, admitted by the shipped managed-mcp-allowlist.json by server name with no client change, and named in instance/README.md's MCP section (maintainer, 2026-11-05: "make these functionalities available via the MCP")
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Port reads held_keys, derived_outputs, artefact_assertions in harness/store.py, on Neo4j and rdflib, by id (store.by_id), in store.READS and mcp_server.READS.
+2. harness/store_reads.py: held_keys (levels from gate_cli.evaluate over the held key set, the classes requiring each), derived_outputs (key or derived, exclusive; each used statement live, stale, superseded via gate.superseded_by, or rejected), document_statements (a document's statements by version, the outputs built on them).
+3. MCP tools on one read handle per call (_with_store), refused mid-run and on another subject's scenario; schemas held-keys, derived-outputs, document-statements.
+4. tests/test_store_reads.py (stub store via the server; rdflib fixture); check_mcp_server.py equal to the port's reads at stage 1 and S6 stage 2, listed on both transports; check_round_trip.py compares the reads across store kinds.
+5. CHANGELOG Unreleased contract line, CLAUDE.md, instance/README.md.
+<!-- SECTION:PLAN:END -->

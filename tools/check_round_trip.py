@@ -73,10 +73,23 @@ def answers(st, scenario: str) -> dict:
             "census": st.census(),
             # task-0094: the file digests a directory artefact's versions carry
             "parts": st.part_digests(),
+            # task-0144: the store reads over MCP, the port's three and the tools on them, held equal across store kinds
+            "store_reads": store_reads(tools, view, scenario),
             # task-0085: each Version's pre-load verdict, and per task the gate's preload bundle and its info findings
             "preload": {"verdicts": view.preload_verdicts(),
                         "bundle": {t: gate.resolve(view, t).get("preload") for t in sorted(TASKS)},
                         "findings": {t: [f for f in r["findings"] if f["kind"] == "preload"] for t, r in reports.items()}}}
+
+
+def store_reads(tools, view, scenario: str) -> dict:
+    """held_keys with its levels, every derived output from both ends, and the documents they used (task-0144)."""
+    derived = view.derived_outputs()
+    docs = sorted({u["artefact"] for d in derived for u in d["used"] if u["artefact"]})
+    strip = lambda d: {k: v for k, v in d.items() if k != "store"}  # noqa: E731
+    return {"held_keys": strip(tools.held_keys({"scenario": scenario, "as_of": "record"})),
+            "derived_outputs": derived,
+            "by_derived": {d["id"]: strip(tools.derived_outputs({"scenario": scenario, "derived": d["id"]})) for d in derived},
+            "documents": {doc: view.artefact_assertions(doc) for doc in docs}}
 
 
 def shape(turtle: str) -> tuple[list, list]:

@@ -3,7 +3,7 @@
     python harness/mcp_server.py                      # stdio, for an agent that starts the server itself
     python harness/mcp_server.py --http [--host H] [--port P]   # Streamable HTTP at http://H:P/mcp
 
-The question an agent asks is "may I build on this?". Thirteen tools answer it, all read-only:
+The question an agent asks is "may I build on this?". Sixteen tools answer it, all read-only:
 
     store_status          what the store holds: the subject, the scenario loaded, the tasks and the
                           keys the subject asks the three-valued question of
@@ -50,6 +50,11 @@ The question an agent asks is "may I build on this?". Thirteen tools answer it, 
                           cites and its trace ledger entry, each leg read or unchecked; files only (task-0143)
     document_links        the register links whose evidence cites a document, with the nodes at both ends and
                           their owners, as the Browser's register-cites joins them; files only (task-0143)
+    held_keys             every key the held scenario holds, with its count by status, its gate level and the
+                          task classes requiring it, the required keys it lacks (task-0144)
+    derived_outputs       the derived outputs built on a key, any state, or one output, with each statement it
+                          used read live, stale, superseded or rejected (task-0144)
+    document_statements   the statements a document yields, by version, and the outputs built on them (task-0144)
     subject_check         a proposed subject (subject.toml, register_map.toml, scenarios.toml, the documents'
                           text) checked by tools/check_subject.py's own functions against the served register,
                           in a temporary directory removed after the call: its subject-check report; nothing
@@ -132,7 +137,8 @@ DEFAULT_HOST, DEFAULT_PORT = "127.0.0.1", 8765
 
 # The store port's reads this server may call (harness/store.py); anything else raises.
 READS = frozenset({"key_evidence", "declared_gaps_for_key", "conflict_gaps", "stale_on_keys", "suspect_derived",
-                   "extraction_activities", "extraction_times", "assertions_on_key", "census", "preload_verdicts"})
+                   "extraction_activities", "extraction_times", "assertions_on_key", "census", "preload_verdicts",
+                   "held_keys", "derived_outputs", "artefact_assertions"})   # task-0144
 
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
 
@@ -144,7 +150,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
-                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The prompts new_subject and add_artefact walk an assistant through scaffolding a subject on a branch; nothing is written through this server. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. code_path, key_nodes and document_links read files only; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it. This server only reads.")
+                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The prompts new_subject and add_artefact walk an assistant through scaffolding a subject on a branch; nothing is written through this server. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on, then derived_outputs key=... for what was built on a key. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. In the store: held_keys lists every key the held scenario holds with its level, including those no task class requires; document_statements names the statements a document yields and the outputs built on them; derived_outputs derived=... the statements behind one output. code_path, key_nodes and document_links read files only; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it. This server only reads.")
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -357,6 +363,48 @@ TOOLS.append(
          "documents": {"type": "object", "additionalProperties": {"type": "string"},
                        "description": "{path relative to the subject root: the document's text}, every document the manifest names"},
          "root": {"type": "string", "description": "the label the report's root carries, such as the subject root's path in your checkout (default: proposed)"}}},
+     "annotations": READ_ONLY})
+
+
+TOOLS.append(
+    {"name": "held_keys", "title": "Which keys does the held scenario hold, and at what level?",
+     "description": "Every key a statement of the held scenario names, read from the store: each with its statement "
+                    "count by status, its level as the gate reads it under the task class named (codegen by default) on "
+                    "the server's date, the task classes whose required keys include it (required_by; empty for a key no "
+                    "class asks for, which store_status never shows) and whether the subject's register map places it; "
+                    "and the required keys the store holds no statement on. The levels are gate_verdict's for that key set.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
+         "task": {"type": "string", "description": "the task class whose block levels and bar the levels are read under (default: codegen)"},
+         "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another"},
+         "as_of": {"type": "string", "description": "the date review currency is read on: the server's date (default), today, record or YYYY-MM-DD"}}},
+     "annotations": READ_ONLY})
+
+
+TOOLS.append(
+    {"name": "derived_outputs", "title": "What was built on this key, or behind this output?",
+     "description": "Derived outputs read from the store, any state. With key: every output that used a statement on "
+                    "the key; with derived: that one output. Each with its kind, digest, suspect flag, the keys behind it "
+                    "and every statement it used, each read live, stale (invalidated, nothing settled replaces it), "
+                    "superseded (with the verified or approved successors superseded_by names) or rejected. Name "
+                    "exactly one of key and derived.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
+         "key": {"type": "string", "description": "an entity|attribute key: the outputs built on it"},
+         "derived": {"type": "string", "description": "a derived output id, as the gate's suspect findings and code_path's ledger entry name it"},
+         "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another"}}},
+     "annotations": READ_ONLY})
+
+
+TOOLS.append(
+    {"name": "document_statements", "title": "What does this document yield, and what was built on it?",
+     "description": "The statements a document yields in the held scenario, read from the store: those whose source "
+                    "is the document or that rest on one of its fragments (a directory artefact's files by its path "
+                    "ending in '/'), each with its key, value, status, basis, version and the document's fragments, "
+                    "and the derived outputs that used it; the versions held, and with version one of them only. A "
+                    "document no statement comes from is refused.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "required": ["document"], "properties": {
+         "document": {"type": "string", "description": "an artefact path, as a statement's source (artefact) names it"},
+         "version": {"type": "string", "description": "one of the document's held versions, such as v1 (default: every one)"},
+         "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another"}}},
      "annotations": READ_ONLY})
 
 
@@ -802,6 +850,46 @@ class Tools:
             return subject_check.evaluate(args)
         except subject_check.SubjectCheckError as e:
             raise ToolError(f"the proposed subject cannot be checked: {e}") from e
+
+    def _store_read(self, args: dict, fn):
+        """One read handle for the call (``_with_store``): the held scenario this subject's, never mid-run."""
+        import store_reads
+        self._not_mid_run()
+
+        def go(st):
+            scenario = _check_scenario(st, args.get("scenario"))
+            try:
+                return fn(st, scenario)
+            except store_reads.ReadError as e:
+                raise ToolError(str(e)) from e
+        return self._with_store(go)
+
+    def held_keys(self, args: dict) -> dict:
+        """Every held key with its level, as the gate reads it (``store_reads.held_keys``, task-0144)."""
+        import store_reads
+        from subject import SUBJECT
+        from tasks import TASKS
+        task = args.get("task")
+        if task is None:
+            task = "codegen" if "codegen" in TASKS else next(iter(TASKS), None)
+        elif task not in TASKS:
+            raise ToolError(f"{SUBJECT.id}: no task {task!r}; the subject declares {sorted(TASKS) or 'none'}")
+        on = self._as_of(args)
+        return self._store_read(args, lambda st, sc: store_reads.held_keys(st, subject=SUBJECT.id, scenario=sc, task=task, as_of=on))
+
+    def derived_outputs(self, args: dict) -> dict:
+        """The outputs built on a key, or one output's statements (``store_reads.derived_outputs``, task-0144)."""
+        import store_reads
+        from subject import SUBJECT
+        return self._store_read(args, lambda st, sc: store_reads.derived_outputs(
+            st, subject=SUBJECT.id, scenario=sc, key=args.get("key"), derived=args.get("derived")))
+
+    def document_statements(self, args: dict) -> dict:
+        """The statements a document yields and the outputs built on them (``store_reads``, task-0144)."""
+        import store_reads
+        from subject import SUBJECT
+        return self._store_read(args, lambda st, sc: store_reads.document_statements(
+            st, subject=SUBJECT.id, scenario=sc, document=args.get("document"), version=args.get("version")))
 
     def three_valued_answer(self, args: dict) -> dict:
         from gate import THREE_VALUED_STATUSES, invalidated_on_key, three_valued
