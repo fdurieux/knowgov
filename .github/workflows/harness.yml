@@ -133,6 +133,7 @@ jobs:
       - run: pip install "pumllint==0.33.0" "pyyaml==6.0.3" "rdflib==7.6.0" "pyshacl==0.40.2" "openai==3.41.0" "pandas==3.0.5" "numpy==2.4.6" "requests==2.34.2" "pyarrow==25.0.1" "pytest==9.1.1" "pytest-bdd==9.0.1"
       - name: The subject check (task-0135) with the mappers installed, the public subjects hold with their whole yield, doc-0018's probe is refused and its misspelt key named with the key the documents yield
         run: |
+          mkdir -p runs   # task-0163: this job's first step; the record's steps made runs/ in the one job before the split
           python tools/check_subject.py subjects/cargo_quote | tee runs/check-cargo.txt
           grep -Fx 'yield: 93 key(s) from 10 artefact(s)' runs/check-cargo.txt
           if grep -E '^(ERROR|WARNING|NOTE)' runs/check-cargo.txt; then exit 1; fi

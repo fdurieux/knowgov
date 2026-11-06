@@ -114,3 +114,11 @@ def test_both_jobs_keep_the_old_jobs_environment_and_neither_needs_the_others_fi
     assert not made & set(re.findall(r"runs/[\w.-]+", readers)), "the readers would need a file the record's job makes"
     assert "security-events: write" not in record and "security-events: write" in readers
     assert "needs:" not in record and "needs:" not in readers   # parallel, each self-standing
+
+
+def test_the_readers_job_makes_its_own_runs_folder_before_any_step_writes_into_it():
+    """Before the split an earlier record step left runs/ behind; the readers' job now makes it first."""
+    block = _job("rdflib-readers").split("    steps:\n", 1)[1]
+    first_write = re.search(r"(?:tee|>|>>|-o|--output|--out)\s+runs/", block)
+    made = block.find("mkdir -p runs")
+    assert first_write and made != -1 and made < first_write.start(), "rdflib-readers writes into runs/ before making it"
