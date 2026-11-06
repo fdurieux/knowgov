@@ -1141,6 +1141,9 @@ differ; the self-check in step 3 is what decides.
 
    and browse to `http://localhost:8080`. Neo4j Browser comes the same way,
    with `-L 7474:localhost:7474 -L 7687:localhost:7687` added.
+   The assistants' MCP servers need no tunnel: they start over SSH itself,
+   as `instance/README.md` shows under *The MCP servers when the stack runs
+   on another machine*.
 
 6. *Stop.* On the instance, `docker compose --profile claude --profile arms
    down`, then stop the instance in the console; a stopped instance costs
