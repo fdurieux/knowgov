@@ -42,9 +42,10 @@ def _env(**kw) -> dict:
 
 def test_publish_with_no_load_is_refused_before_any_store_is_opened():
     import gate_cli
+    from subject import SUBJECT   # the process's subject (tests.yml runs the suite again on J-F)
     err = io.StringIO()
     with redirect_stderr(err):
-        assert gate_cli.main(["--scenario", "S1", "--publish", "--no-load"]) == 2
+        assert gate_cli.main(["--scenario", SUBJECT.order[0], "--publish", "--no-load"]) == 2
     assert "--publish publishes a load; --no-load reads the store as it is" in err.getvalue(), err.getvalue()
 
 
@@ -99,12 +100,13 @@ def test_with_neo4j_configured_and_unreachable_the_default_still_answers():
 
 def test_without_rdflib_the_default_names_the_install():
     import gate_cli
+    from subject import SUBJECT
     saved = sys.modules.get("store_rdflib")
     sys.modules["store_rdflib"] = None
     err = io.StringIO()
     try:
         with redirect_stderr(err):
-            assert gate_cli.main(["--scenario", "S1", "--as-of", "record"]) == 2
+            assert gate_cli.main(["--scenario", SUBJECT.order[0], "--as-of", "record"]) == 2
     finally:
         if saved is None:
             sys.modules.pop("store_rdflib", None)
