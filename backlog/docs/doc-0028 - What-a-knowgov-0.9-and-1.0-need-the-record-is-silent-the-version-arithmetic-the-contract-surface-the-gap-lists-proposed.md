@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-06T11:15:00Z'
+updated_date: '2026-11-06T13:26:00Z'
 tags:
   - brief
   - release
@@ -130,3 +130,49 @@ The version number is worth half an Execute point on the record, one on §8. The
 - **P2 (G9-9).** Fix the two stale claims. At 0.9.0, a pass holding every adopter-facing claim against the code; a check like pumllint's `tests/test_docs_flags.py` is the model where one fits.
 - **P3 (G9-6).** The Known limits pass: each limit in 0.7.0 and Unreleased closed, tasked, or named a 1.0 limit in the 0.9.0 section. Each of the three with no task gets a task or a named limit.
 - **P4 (decision-0016 point 3).** Once decision-0016 is accepted, `instance/README.md` states the contracts at 1.0 in the adopter register.
+
+## 10. The Known limits pass (task-0173, P3)
+
+*Drafted by the v1.0 session (session_01HTAA1TThDg3TA2qJHCemaG) at `main` `38ae719`; filed by the coordinating session under the maintainer's delegation (doc-0029).*
+
+**Scope.** Every Known limit listed for 0.7.0 and 0.8.0, plus what Unreleased (at `main` `38ae719`) adds. Each was read against the code at `38ae719` and the backlog.
+
+**Classes:**
+- **closed**, citing the PR that closed it;
+- **tasked**, citing the task that owns it;
+- **to mint**: a task the pass proposed, now minted (task-0175 to task-0178);
+- **proposed 1.0 limit**: offered to the maintainer to name in 1.0's Known limits. Each carries a sentence on why. None is declared without the maintainer (decision-0016 point 1).
+
+No released `CHANGELOG.md` section is edited.
+
+**Totals:** 2 closed, 6 tasked, 4 to mint (now task-0175 to task-0178), 13 proposed as 1.0 limits, out of 25 entries.
+
+| # | Known limit (first listed) | Class | Evidence and why |
+|--:|---|---|---|
+| K-a | Code a model writes is not yet contained (0.7.0) | closed | task-0141.05, #271, decision-0012; shipped in 0.8.0, and the compose file now pins the v0.8.0 image that carries the worker (Unreleased) |
+| K-b | A load is not yet published whole on Neo4j (0.7.0) | closed | task-0141.06, #278, decision-0014; shipped in 0.8.0 |
+| K1 | Contained execution needs Linux with Landlock; Docker Desktop for Mac's kernel lacks it (0.8.0) | tasked | task-0162 tests an engine whose VM kernel enables Landlock. If none does, this becomes a 1.0 limit |
+| K2 | Neo4j keeps no earlier generation: a read across a publication is refused and read again, then refused after `KG_STORE_READ_ATTEMPTS` (0.8.0) | proposed 1.0 limit | decision-0014 chose whole publication without history. Keeping earlier generations is a second read path, which is task-0164's question, parked until the pilot |
+| K3 | A writer killed between raising the publication counter and committing makes reads wait up to `KG_NEO4J_READ_WAIT`, then refuse, until the next writer takes the lease (0.8.0) | to mint | no task: the window is named in task-0159's description only. `store_neo4j.py` (the pin and the lease) has no recovery for a reader. Minted as task-0175 (T-a) |
+| K4 | The server's transaction memory bounds a Neo4j load (41 MiB CargoQuote, 64 MiB J-F, against 70% of a 1 GiB heap) (0.8.0) | to mint | no task: the bound is measured on the public subjects only. An instance's load size is unknown until the pilot. Minted as task-0176 (T-b) |
+| K5 | Terminating a stale writer's transaction needs a role allowed `TERMINATE TRANSACTIONS` (0.8.0) | proposed 1.0 limit | a database privilege knowgov cannot grant itself (`store_neo4j.py` runs `TERMINATE TRANSACTIONS`). Without it the epoch check still refuses the stale commit, so correctness holds and only lock release waits for the connection to end |
+| K6 | One MCP process holds one parsed rdflib store, the latest publication: about 15 MB for CargoQuote S1, 82 MB for J-F C (0.8.0) | proposed 1.0 limit | the memory price of task-0097's cache, by design. Each other-subject call adds a child (task-0157), which starts its own. A sizing fact for operators, not a defect |
+| K7 | A file artefact's Version digest hashes its text, so a CRLF file's digest differs from a register citation over raw bytes (0.8.0) | tasked | task-0160, under doc-0029's plan; its AC #3 stops it if a recorded digest would move |
+| K8 | A file-backed store supports its writers on POSIX with `flock`, on a local disk (0.7.0) | proposed 1.0 limit | `store_rdflib.py` refuses a writer where `fcntl.flock` is missing. The rdflib file store is the no-database route; Neo4j is the shared, multi-host store. Windows and network filesystems are not writer platforms for it |
+| K9 | Response sizes are not capped by the HTTP limits (0.7.0) | to mint | no cap in `demo/app` or `harness/mcp_server.py`. H2 (task-0141.04) bounded requests only. Minted as task-0177 (T-c) |
+| K10 | Claude Desktop's role is asking the gate until the maintainer's own Desktop test shows the prompts and `subject_check` (0.7.0) | tasked | task-0148 AC #5, In Progress, waits on the maintainer's test |
+| K11 | A proposal's slices are as fine as the register's links: steps supported only by one end-to-end process share one thread (0.7.0) | proposed 1.0 limit | by design: doc-0022 K1 slices on the register's own `THREAD` walk, facts only. A finer slice is the register's to model (ieam-register), not knowgov's to infer |
+| K12 | An attestation is the manifest's declaration and is not bound to a document's version (0.7.0) | proposed 1.0 limit | decision-0009 (a) chose attestation by the subject's declaration, built by task-0136. Binding an attestation to a version is a new decision, not a fix. If the maintainer wants it before 1.0, it needs a decision record first |
+| K13 | A run folder from before `run.json` is inferred: status, start and initiator unknown (0.7.0) | proposed 1.0 limit | historical runs only. Every run since task-0127 writes `run.json`, and `runs/` is gitignored and never the record |
+| K14 | `proposal_impact`'s branch mode reads a branch's additions only (0.7.0) | proposed 1.0 limit | `branch_overlay` reads added node files; a modified one is listed as reused ("changed") and a deleted one is not read. That matches doc-0017's question, a proposed addition. A change or a removal is `register_impact`'s and `--register-previous`'s question |
+| K15 | The subject check compares keys with the documents' yield only where the mappers run (0.7.0) | proposed 1.0 limit | knowgov extracts keys only through deterministic mappers. Route c (task-0139) measured model proposals for the prose kinds and adopted none. A kind with no mapper yields nothing to compare |
+| K16 | The connector has run only on the synthetic CargoQuote export (0.7.0) | tasked | task-0063 AC #2 and #5, at the pilot |
+| K17 | A register change is read only when the gate is given the previous register (0.7.0) | proposed 1.0 limit | by design: CI passes the base ref's register (`--register-previous`, task-0122). A gate with no previous register cannot know what changed |
+| K18 | The page's register panel does not show what a register change withdrew (0.7.0, the same entry as K17) | to mint | no module under `demo/app` reads a previous register. Minted as task-0178 (T-d) |
+| K19 | The GitLab include is proven by shell, not on a GitLab runner (0.7.0) | tasked | task-0108, at the pilot |
+| K20 | The hooks see Edit and Write, not a shell command writing the same file (0.7.0) | proposed 1.0 limit | Claude Code's PreToolUse hook on Bash sees a command string, not the files it writes, and parsing shell is unreliable. The pre-load check, the review files and the pull request remain the backstop (task-0147) |
+| U1 | A store-backed tool answers only for the subject whose scenario the store holds; for another subject it refuses, naming the run that would load it (Unreleased, task-0157) | tasked | task-0164, per-subject read snapshots, parked until the pilot and needing its own decision (decision-0013 A1) |
+| U2 | A call naming another subject runs a child process: about 0.4 s a call on Neo4j (p95 0.51 s), bounded by `KG_SUBJECT_CALL_TIMEOUT` (Unreleased) | proposed 1.0 limit | the isolation decision-0013 chose: one process per other-subject call, with no shared state. A latency fact, not a defect |
+| U3 | A page older than task-0167, which reports no `execution`, reads as refused to `knowgov-runs` (Unreleased) | proposed 1.0 limit | a compatibility rule between two components, fail-closed by design. It lapses once every page reports `execution` |
+
+The 0.7.0 and 0.8.0 entries count once each: 0.8.0 repeats 0.7.0's fourteen and adds K1–K7, minus the two it closed. K17 and K18 split one 0.7.0 entry: the gate half is by design, the page half is a gap.
