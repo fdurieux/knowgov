@@ -124,12 +124,20 @@ counts as green), without asking; a PR the brief says the parent session merges
 is left to it. With a coordinating session, the coordinator merges every sub-session's PR
 itself as soon as its whole matrix is green, and the sub-sessions neither merge nor enable
 auto-merge (maintainer, 2026-11-05: "perform the merge yourself, whenever possible").
+Merging on green is standing and needs no further word (maintainer, 2026-11-06: "always auto merge
+when green"): every PR merges as soon as its whole matrix is green on its current head, by GitHub
+auto-merge or by hand, whichever comes first; nothing waits for "merge #N when green". A release does
+not hold `main`: other PRs merge on green after the release PR, and if `main` has moved past the
+release commit when the owner publishes, the session pushes a throwaway `release/vX.Y.Z` branch at it
+as the Release's target. The only holds are a PR whose merge would decide what the maintainer has not
+(a decision to accepted, an approval) and an ordering a brief states.
 
 GitHub auto-merge is on (2026-11-03): the ruleset on `main` requires `tests` and `rdflib`, not
 `stack` (path-filtered, so a required `stack` would leave a PR pending forever) and not an
 up-to-date branch. So: a PR whose diff touches `stack`'s paths (`demo/`, `harness/`, `subjects/`,
 `tools/`, `demo.yml`) gets auto-merge only once `stack` is green on its head, or is merged by hand
-then; any other PR gets auto-merge when it opens. A PR that must wait (a proposed decision, an
+then; any other PR gets auto-merge when it opens. Until `rdflib-readers` is a required check, auto-merge
+would not wait for it, so a PR gets auto-merge only once `rdflib-readers` is green too, or is merged by hand then. A PR that must wait (a proposed decision, an
 ordering) gets none. A `stack` red on `main` after a merge is fixed at once. `harness.yml` runs two
 jobs in parallel (task-0163): `rdflib`, the record and its round trip, and `rdflib-readers`, the
 readers; every step of the old `rdflib` runs in exactly one (`tests/test_rdflib_split.py`), and
