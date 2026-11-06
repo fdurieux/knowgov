@@ -40,6 +40,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
 import time
 from urllib.parse import quote, unquote
 
@@ -59,6 +60,28 @@ TMP_PREFIX = ".kg-publish-"   # the temporary files a commit writes beside the s
 _fsync = os.fsync
 _replace = os.replace
 _on_lock_wait = None    # called once when a writer finds the lock held, before it waits (ST-04)
+
+# task-0097: a read handle's parsed snapshot, kept per process and keyed by the identity of the published
+# file it was read from (device, inode, size, mtime and ctime), so the next read handle on an unchanged publication reuses the parse instead of
+# parsing the file again (about 4 s a J-F call). A publication is an atomic replace (a new inode), so the
+# key changes with every generation and a reader never answers from a retired one. The latest only: one
+# parsed graph per process. Read handles never mutate the graph or its indexes (their methods are the
+# port's READS), so they share it; a writer never uses the cache. The lock makes the fill single-flight
+# under the HTTP transport's concurrent calls.
+_snapshot_lock = threading.Lock()
+_snapshot: tuple | None = None   # (identity, graph, nodes, out, in, seq)
+_parses = 0                      # how many times a read handle parsed the file (a test reads it)
+
+
+def _identity(path: str, st) -> tuple:
+    return (os.path.abspath(path), st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+
+
+def drop_snapshot() -> None:
+    """Forget the cached snapshot (a test, or a process that wants its memory back)."""
+    global _snapshot
+    with _snapshot_lock:
+        _snapshot = None
 
 N = Namespace("urn:kg:n:")        # nodes
 L = Namespace("urn:kg:label:")    # labels
@@ -186,18 +209,43 @@ class RdflibStore(Store):
                     pass
 
     def _load(self) -> None:
+        if self.access == "read":
+            return self._load_shared()
         try:
             with open(self.path, "rb") as fh:
                 data = fh.read()
         except FileNotFoundError:
             self.absent = True
             return
+        self._parse(data)
+
+    def _parse(self, data: bytes) -> None:
         try:
             self.g.parse(data=data, format="turtle")
         except Exception as e:  # noqa: BLE001 — rdflib raises several classes for a bad file
             raise StoreCorrupt(f"{self.path}: the store's file does not parse as Turtle ({type(e).__name__}); "
                                "it is left as it is: move it aside to start an empty store") from e
         self._reindex()
+
+    def _load_shared(self) -> None:
+        """A read handle's load (task-0097): the generation is the file the descriptor opened, identified
+        by its fstat, which an atomic replace can neither change nor half-write; the parse is reused when
+        the cached one is of that same file, else made and cached in its place."""
+        global _snapshot, _parses
+        try:
+            fh = open(self.path, "rb")
+        except FileNotFoundError:
+            self.absent = True
+            return
+        with fh, _snapshot_lock:
+            key = _identity(self.path, os.fstat(fh.fileno()))
+            if _snapshot is not None and _snapshot[0] == key:
+                _, self.g, self._nodes, self._out, self._in, self._seq = _snapshot
+                return
+            data = fh.read()
+            self._parse(data)
+            _parses += 1
+            _snapshot = (key, self.g, self._nodes, self._out, self._in, self._seq)
 
     def commit(self) -> None:
         """Publish the graph atomically (see the module's docstring); a store in memory has nothing to publish."""

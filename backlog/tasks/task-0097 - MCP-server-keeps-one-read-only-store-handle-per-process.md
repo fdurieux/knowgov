@@ -3,10 +3,11 @@ id: TASK-0097
 title: >-
   MCP server caches the parsed rdflib snapshot per process, keyed by the
   published file's identity
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-04T08:46:00Z'
-updated_date: '2026-11-06T06:18:00Z'
+updated_date: '2026-11-06T07:45:00Z'
 labels:
   - mcp
   - ci
@@ -28,6 +29,12 @@ Found by task-0095: on rdflib the MCP server parses the published store file on 
 - [ ] #1 Two calls with no publication between them parse the store file once; a call after a publication answers the new generation, never the retired one (a test across a publication, on a file-backed store)
 - [ ] #2 check_mcp_server and the lighthouse step pass unchanged, and the step timings in the task notes show the saving on rdflib
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. harness/store_rdflib.py: a read handle's load reads the published file through one descriptor and keys the parse by its fstat identity (path, dev, ino, size, mtime_ns, ctime_ns); the latest parse kept per process (graph, node index, edge indexes, seq) and reused by the next read handle on the same identity; a publication's atomic replace changes the key. Fill under a lock (single-flight for the HTTP transport's concurrent calls). Writers never use or fill it; one read handle per call stays the unit of a logical read; Neo4j unchanged. 2. Shown safe to share: no method in store.READS mutates the graph or its indexes. 3. Tests: two reads parse once; a read after a publication answers the new generation; a held handle keeps its own (decision-0014); 12 concurrent readers parse once and see one generation; a writer neither uses nor fills it. 4. Evidence: check_mcp_server and the lighthouse unchanged in their answers; the MCP step before/after locally on both subjects and on the PR's rdflib job; memory of the cached graph for CargoQuote and J-F; SNAP-01..07 on rdflib; the suites both ways.
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
