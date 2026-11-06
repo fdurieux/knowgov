@@ -1,11 +1,11 @@
 ---
 id: TASK-0116
 title: Optional SARIF upload to GitHub code scanning in the instance CI templates
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T14:56:00Z'
-updated_date: '2026-11-06T04:14:00Z'
+updated_date: '2026-11-06T04:39:00Z'
 labels:
   - ci
 milestone: m-8
@@ -24,7 +24,7 @@ Proposed by task-0106; chosen by the maintainer 2026-11-04. harness/annotate.py 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 instance/ci/github/action.yml has an opt-in input that uploads the SARIF; off by default
-- [ ] #2 harness.yml exercises it once; the README says what it needs (permissions, code scanning enabled)
+- [x] #2 harness.yml exercises it once; the README says what it needs (permissions, code scanning enabled)
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -39,4 +39,12 @@ Proposed by task-0106; chosen by the maintainer 2026-11-04. harness/annotate.py 
 2026-11-06: the pin github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1 (2026-10-21, the commit its annotated tag names; v4.39.2 and v4.39.3 are under two weeks old). The run block, run locally: sarif true, the S1 as-of gate exits 1 and writes sarif=<file> to GITHUB_OUTPUT; sarif false writes nothing, the same exit. The SARIF has 30 results, every one located (annotate.py falls back to subject.toml). tests/test_ci_wrappers.py test_the_action_uploads_sarif_only_when_asked_pinned_and_after_any_exit; tests/test_pins.py holds the pin's form. The inline-inputs check now reads the run block itself, to the next step, since the upload step's with: names inputs. run_tests.py after merging main (task-0113): 536/552 stdlib, 551/552 pinned, 0 failed. AC2 waits on harness.yml's run on the PR: the upload's sarif-id asserted.
 
 2026-11-06, the coordinator on #274: the first PR upload worked (code scanning's 'knowgov gate' check, github-advanced-security set up). The exercise is now same-repository pull requests only, never main or the nightly run: a default branch's upload would keep the example instance's lapsed-review findings, a fixture, as standing alerts. A PR's upload is analysed against its merge ref. README and test say so.
+
+2026-11-06: #274 merged as 1b8fee5. AC2 held by the PR's own harness.yml run on a same-repository pull request: the S1 as-of step uploaded, code scanning's 'knowgov gate' check green, and the check step's sarif-id assertion passed. main and the nightly run never upload (a fixture's alerts); the maintainer checks the Security tab.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+instance/ci/github/action.yml gains an opt-in SARIF upload to GitHub code scanning: inputs sarif (off by default) and sarif-category, the report written as SARIF 2.1.0 through KG_ANNOTATE and uploaded by github/codeql-action/upload-sarif pinned by commit (v4.39.1), whatever the gate's exit; output sarif-id; the exit stays the gate's. harness.yml exercises it on the S1 as-of step on same-repository pull requests only, security-events: write on the rdflib job alone; knowgov's main never uploads, its findings being a fixture's. The instance README names what an instance needs (the job permission, code scanning available, sarif false for a fork's PR). Merged in #274.
+<!-- SECTION:FINAL_SUMMARY:END -->
