@@ -5,7 +5,7 @@ title: >-
   harness defects. A probe, fit/gap, opportunity canvas, SWOT, proposals
 type: specification
 created_date: '2026-11-05T23:02:00Z'
-updated_date: '2026-11-06T17:27:00Z'
+updated_date: '2026-11-06T17:44:00Z'
 tags:
   - arms
   - models
@@ -15,9 +15,9 @@ tags:
   - swot
   - fit-gap
 ---
-*2026-11-05. Maintainer register. The study the maintainer asked for: which other models should be offered to run the arms (Mistral, Qwen, Jev named), and where else in knowgov such models could serve. One local probe through the harness's own code, desk research against primary sources where they exist; no hosted call, no key, nothing under `results/` or `runs/`, raw outputs in the session's scratch directory. Every run on a model other than the record's is a deviation. Nothing is built; no task, no models.toml row, no harness change. Every follow-up is a proposal.*
+*2026-11-05. Maintainer register. The study the maintainer asked for: which other models should be offered to run the arms (Mistral, Qwen, Jev named), and where else in knowgov such models could serve. One local probe through the harness's own code, desk research against primary sources where they exist; no hosted model call and no valid key; public model listings read without a key or with an invalid bearer, at no cost (OpenRouter's, the inventory and the fourth finding; Mistral's and Alibaba's international endpoint's, both 401); nothing under `results/` or `runs/`, raw outputs in the session's scratch directory. Every run on a model other than the record's is a deviation. Nothing is built; no task, no models.toml row, no harness change. Every follow-up is a proposal.*
 
-*Revised 2026-11-06: the four parts the record now asks of a decision put to the maintainer (fit/gap, opportunity canvas, SWOT, advice); what decision-0016's freeze means for the advice; one key-check finding, measured with an invalid key and no cost. Code references re-read at `8f5edd5`.*
+*Revised 2026-11-06: the four parts the record now asks of a decision put to the maintainer (fit/gap, opportunity canvas, SWOT, advice); what decision-0016's freeze means for the advice; one key-check finding, measured on two public model listings with an invalid bearer and no cost. Code references re-read at `8f5edd5`.*
 
 ## Verdict
 
@@ -41,7 +41,7 @@ Set-up: Ollama 0.40.14 on CPU (4 cores, no GPU) in the session container; `arms.
 
 The probe ran `arms.call()` and `agent.run()` directly, outside the worker: its toy suite read the written file and executed nothing.
 
-Not run: thinking on across a multi-turn agent run (stopped: minutes per turn on CPU), gpt-oss (13 GB), the public subjects' arms, any hosted Mistral, Qwen or OpenRouter endpoint (no key, no go).
+Not run: thinking on across a multi-turn agent run (stopped: minutes per turn on CPU), gpt-oss (13 GB), the public subjects' arms, any model call to a hosted Mistral, Qwen or OpenRouter endpoint (no valid key, no go).
 
 ## Defect 1: Ollama cuts a long prompt silently
 
@@ -158,7 +158,7 @@ In order. 1 to 4 are fixes and are not bound by decision-0016's freeze; 5 is tre
 - **Which endpoint kinds to add.** Recommendation: kind 1 first; kind 2 after its spike and defect 2's fix; kind 3 for your study on the public subjects only, after the key-check fix; neither Jev nor Alibaba's cloud. Reasons: kind 1 is the only one that keeps an instance's content inside (task-0013) and the only one measured with both arm kinds; kind 2 is documented but breaks the join at effort high; kind 3 routes to providers an instance does not choose, and its listing accepts any key; Jev generates no reply; Qwen serves better as open weights under kind 1.
 - **When the row lands, against the freeze.** Recommendation: fixes 1 to 4 now, as fixes; the row and the profile in the 0.9.0 gathering only if built before G9 is met, never holding 0.9.0 for them, else 0.10.0. Reasons: decision-0016 restarts the freeze on any contract change after 0.9.0, and the fixes make a private row honest whenever it lands.
 - **What the self-hosted route needs.** Recommendation: defect 1's guard as a precondition of the row; the server's context length named in the profile and the README; the efforts listed per model; a GPU host stated as the operator's; a vLLM probe before the docs call the route proven. Reasons: the probe's cut prompt answered HTTP 200; CPU thinking took 116 to 444 s per reply; vLLM and thinking across turns are unmeasured.
-- **Whether to spend on keyed calls.** Recommendation: one Mistral spike after defect 2's fix; OpenRouter only for the replication. Reasons: no hosted call has been made; defect 2 is reproduced against the SDK only.
+- **Whether to spend on keyed calls.** Recommendation: one Mistral spike after defect 2's fix; OpenRouter only for the replication. Reasons: no hosted model call has been made; defect 2 is reproduced against the SDK only.
 - **Jev as a second model client.** Recommendation: not now. Reasons: `tests/test_security.py` lets nothing reach the network but the model client and the store driver; the service is US-hosted with no DPA stated; its fits (doc-0019 C2, a screen before route (c), doc-0017 candidate 4) are parked behind measured preconditions.
 
 ## What was read
