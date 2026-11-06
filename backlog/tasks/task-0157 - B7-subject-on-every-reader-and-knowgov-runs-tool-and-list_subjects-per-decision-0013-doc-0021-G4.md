@@ -3,10 +3,11 @@ id: TASK-0157
 title: >-
   B7: subject on every reader and knowgov-runs tool, and list_subjects, per
   decision-0013 (doc-0021 G4)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-06T04:53:00Z'
-updated_date: '2026-11-06T08:20:00Z'
+updated_date: '2026-11-06T09:14:00Z'
 labels:
   - mcp
   - subject
