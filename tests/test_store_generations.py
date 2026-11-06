@@ -205,6 +205,8 @@ def test_a_reader_whose_retries_run_out_answers_each_contract():
     """gate_cli --no-load exits 2 (cannot run); the page's /api/store and /api/gaps answer 503 with
     Retry-After and ``busy``; the MCP tool answers an error result (the test above)."""
     import gate_cli
+    from subject import SUBJECT
+    first = SUBJECT.order[0]   # the subject's own first scenario, under either subject
     real = store.open_store
     opened = []
 
@@ -214,7 +216,7 @@ def test_a_reader_whose_retries_run_out_answers_each_contract():
         return h
     store.open_store = fake_open
     try:
-        assert gate_cli.main(["--no-load", "--scenario", "S1", "--as-of", "2026-11-06", "-f", "json"]) == 2
+        assert gate_cli.main(["--no-load", "--scenario", first, "--as-of", "2026-11-06", "-f", "json"]) == 2
         assert len(opened) == 3
     finally:
         store.open_store = real
@@ -228,7 +230,7 @@ def test_a_reader_whose_retries_run_out_answers_each_contract():
     real_store = server._store
     server._store = moving
     try:
-        st, gaps = server.store_status(), server.store_gaps("S1")
+        st, gaps = server.store_status(), server.store_gaps(first)
     finally:
         server._store = real_store
     assert st["busy"] and "republished" in st["error"] and gaps["busy"], (st, gaps)
