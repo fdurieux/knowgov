@@ -71,6 +71,8 @@ jobs:
           assert [s["id"] for s in j["scenarios"]] == ["S1", "S2", "S3", "S4", "S5", "S6", "S7"], j["scenarios"]
           assert j["store"]["reachable"], j["store"]
           assert j["deterministic_enabled"] and not j["arms_enabled"], j
+          # task-0167: the worker (this job starts its profile) attests, so model output may run; arms stay off for want of a key
+          assert j["execution"] == {"ok": True, "why": None}, j["execution"]
           # task-0029: the models table's rows, the record's first; each names its key variable and whether
           # it is set, and carries no key: no field beyond the public ones, no value that looks like one
           rows = j["model_rows"]

@@ -28,6 +28,15 @@ names that section with the version.
     (p95 0.51 s); `KG_SUBJECT_CALL_TIMEOUT` bounds it (300 s).
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
+### Changes
+
+- **The Arms chip and button say whether an Arms run can start** (task-0167). Before, the page showed
+  "arms enabled" whenever a model key was set, even with no contained worker running, and the run was
+  then refused. Now `GET /api/scenarios` carries `"execution": {"ok", "why"}`, the refusal an Arms run
+  would get, beside the unchanged `arms_enabled`. With a key and no confined worker, the chip reads
+  "arms: no contained worker" and the Arms buttons stay greyed, with the reason and the fix
+  (`--profile arms`, on Linux with Landlock). `demo/README.md` gives the one-command worker self-check.
+
 ## 0.8.0 — 2026-11-06
 
 Code a model writes now runs contained, and a reader never sees a half-built store. The arms'

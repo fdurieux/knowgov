@@ -807,6 +807,21 @@ kernel feature that stops that code writing outside its own folder (kernel
 there the worker refuses to start and every Arms run is refused; the rest of
 the demo works as usual.
 
+The page tells you which case you are in. With a key set and no worker, the
+Arms chip reads **arms: no contained worker** and the Arms buttons stay
+greyed; hover over either for the reason. To check the worker on your engine
+in one command, from `~/knowgov/demo`:
+
+```bash
+docker compose --profile arms run --rm --no-deps worker python harness/worker.py --attest-only
+```
+
+It prints the worker's attestation and exits 0 when the worker is confined,
+3 when it is not. `write_confined: false` in that output means this engine
+has no Landlock, so the worker cannot stop model-written code writing outside
+its own folder, and every Arms run is refused. Run the Arms mode on a Linux
+host instead; Replay and Deterministic need no worker.
+
 ```bash
 export OPENAI_API_KEY=sk-your-real-key-here
 ```
@@ -854,7 +869,11 @@ the token there once; the browser keeps it for that tab only and sends it with e
 projection. Viewers without it still read every report, but the Deterministic, Arms and Project
 buttons stay greyed with the reason. A script sends it as a header:
 `curl -X POST -H "Authorization: Bearer $KG_PAGE_TOKEN" -H 'Content-Type: application/json' -d '{"scenario":"S1","mode":"deterministic"}' http://<host>:8080/api/run`.
-Without a token on a wider bind, those requests answer `403` and say to set `KG_PAGE_TOKEN`. The
+Without a token on a wider bind, those requests answer `403` and say to set `KG_PAGE_TOKEN`. A script reads whether
+an Arms run may start from `GET /api/scenarios`: `"arms_enabled"` says a model row has its key, and
+`"execution": {"ok": true|false, "why": null|"<the reason>"}` says whether model output may run now (no
+organisation's instance mounted beside the app, and the worker running and confined); an Arms run
+starts only when both hold, and `why` is the refusal that run would get. The
 token takes effect with an image built from this checkout (`docker compose up --build`) or a
 release after 0.2.0. A run or a projection is also refused when it comes from a page on another
 web address, so a site open in the same browser cannot start one.

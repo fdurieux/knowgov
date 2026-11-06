@@ -4,7 +4,8 @@ lacks, and tests/run_tests.py counts it apart from the passes. A prerequisite na
 installs a prerequisite proves the tests resting on it rather than reporting them passed unrun.
 
 Prerequisites: rdflib (the pins), hook-live (KG_HOOK_LIVE=1, the live hook against a store) and
-register-rows (a subject whose register_map.toml has rows; J-F has none)."""
+register-rows (a subject whose register_map.toml has rows; J-F has none) and node (the page's own script,
+run by tests/test_arms_execution.py; the rdflib job requires it)."""
 import importlib
 
 

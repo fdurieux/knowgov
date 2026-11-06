@@ -140,13 +140,25 @@ a{color:var(--teal)}
 <script>
 const $ = (s, el=document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let STATE = {subject: '', scenarios: [], store: null, armsEnabled: false, detEnabled: false, current: null, source: null, view: null, run: null, shown: null, lastRun: {}, recordModel: '', recordEffort: '', modelRows: []};
+let STATE = {subject: '', scenarios: [], store: null, armsEnabled: false, execution: {ok: false, why: null}, detEnabled: false, current: null, source: null, view: null, run: null, shown: null, lastRun: {}, recordModel: '', recordEffort: '', modelRows: []};
 // the arms choice is kept per subject: each subject has its own record's row (task-0032.02)
 function armsChoice() { try { return JSON.parse(localStorage.getItem('kg-arms-row:' + STATE.subject) || 'null'); } catch (e) { return null; } }
 function saveArmsChoice(c) { try { localStorage.setItem('kg-arms-row:' + STATE.subject, JSON.stringify(c)); } catch (e) {} }
 // the row and the effort sent with an Arms run (task-0029): the page sends ids only, the server resolves them
 function armsRow() { const r = STATE.modelRows.find(x => x.id === $('#am-row').value); return r && r.available ? r : null; }
 function armsEffort() { return $('#am-effort').value; }
+// the arms need both: a model row with its key (arms_enabled) and somewhere model output may run (execution:
+// the instance guard, the backend, the worker's attestation; harness/execution.py refusal())
+function armsReady() { return STATE.armsEnabled && STATE.execution.ok; }
+const WORKER_HINT = 'start the stack with --profile arms, on Linux with Landlock (see demo/README, Quick start on a Mac, step 2)';
+function noWorker() { return !STATE.execution.why || STATE.execution.why.includes('worker'); }   // else the instance guard's refusal, which names its own remedy
+function armsBlockedWhy() { return !STATE.armsEnabled ? armsOffWhy() : (STATE.execution.why || 'the app did not say whether model output may run') + (noWorker() ? '; ' + WORKER_HINT : ''); }
+function armsChip() {
+  const rows = STATE.modelRows.map(r => r.label + ': ' + (r.available ? r.host + ', key in ' + r.key_var : r.why)).join('\n');
+  if (armsReady()) return `<span class="chip ok" title="${esc(rows)}">arms enabled (${STATE.modelRows.filter(r => r.available).length} of ${STATE.modelRows.length} model rows)</span>`;
+  if (STATE.armsEnabled) return `<span class="chip warn" title="${esc(armsBlockedWhy())}">arms: ${noWorker() ? 'no contained worker' : 'model output may not run here'}</span>`;
+  return `<span class="chip warn" title="${esc(rows)}">arms disabled: ${esc(armsOffWhy())}</span>`;
+}
 // why the arms are off: no row is available; the key variables to set, by name, never a value
 function armsOffWhy() { const vars = [...new Set(STATE.modelRows.filter(r => !r.key_set).map(r => r.key_var))]; return vars.length ? 'set ' + vars.join(' or ') + " in the app's environment" : 'no model row serves this subject'; }
 // shown: {scenario, mode} of the report on screen; lastRun[scenario+mode]: the most recent run's record for that button
@@ -183,7 +195,7 @@ async function api(path, opts) {
 
 async function loadScenarios() {
   const j = await api('/api/scenarios');
-  STATE.scenarios = j.scenarios; STATE.store = j.store; STATE.armsEnabled = j.arms_enabled; STATE.detEnabled = j.deterministic_enabled; STATE.run = j.run;
+  STATE.scenarios = j.scenarios; STATE.store = j.store; STATE.armsEnabled = j.arms_enabled; STATE.execution = j.execution || {ok: false, why: null}; STATE.detEnabled = j.deterministic_enabled; STATE.run = j.run;
   STATE.recordModel = j.record_model; STATE.recordEffort = j.record_effort || ''; STATE.modelRows = j.model_rows || [];
   STATE.writes = j.writes || {}; renderToken();
   if (j.page && j.page.title) { document.querySelector('header h1').textContent = j.page.title; document.title = j.page.title; }
@@ -198,7 +210,7 @@ function renderChips() {
   const s = STATE.store;
   $('#chips').innerHTML =
     `<span class="chip ${s.reachable ? 'ok' : 'bad'}" title="${esc(s.error||'')}">store ${esc(s.store || 'neo4j')} ${s.reachable ? 'reachable' : 'unreachable'} · ${esc(s.uri)}${s.loaded ? ' · loaded: ' + esc(s.loaded) : ''}</span>` +
-    `<span class="chip ${STATE.armsEnabled ? 'ok' : 'warn'}" title="${esc(STATE.modelRows.map(r => r.label + ': ' + (r.available ? r.host + ', key in ' + r.key_var : r.why)).join('\n'))}">arms ${STATE.armsEnabled ? 'enabled (' + STATE.modelRows.filter(r => r.available).length + ' of ' + STATE.modelRows.length + ' model rows)' : 'disabled: ' + esc(armsOffWhy())}</span>` +
+    armsChip() +
     `<span class="chip ${s.register ? 'ok' : 'warn'}" title="the register's projection in the store: derived, its own namespace, wiped by a run">register ${s.register ? 'projected at ' + esc(s.register.tag || s.register.commit.slice(0, 7)) : 'not projected'}</span>`;
 }
 
@@ -254,7 +266,7 @@ function renderMenu() {
       <div class="modes">
         ${modeButton(s, 'replay', 'Replay', true, '')}
         ${modeButton(s, 'deterministic', 'Deterministic', STATE.detEnabled && !writesWhy(), writesWhy() || 'the store is unreachable')}
-        ${modeButton(s, 'arms', 'Arms', STATE.armsEnabled && STATE.detEnabled && !writesWhy(), writesWhy() || armsOffWhy() + " (and the store must be reachable)", (r => r ? `calls ${r.model} at effort ${armsEffort() || 'API default'}${!STATE.recordModel || r.id === 'record' ? '' : ' (a deviation from the record)'}` : 'pick an available model row')(armsRow()))}
+        ${modeButton(s, 'arms', 'Arms', armsReady() && STATE.detEnabled && !writesWhy(), writesWhy() || armsBlockedWhy() + " (and the store must be reachable)", (r => r ? `calls ${r.model} at effort ${armsEffort() || 'API default'}${!STATE.recordModel || r.id === 'record' ? '' : ' (a deviation from the record)'}` : 'pick an available model row')(armsRow()))}
       </div></div>`).join('') + registerEntry();
   $('#menu-list').querySelectorAll('button').forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); if (b.dataset.id === 'register') return showRegister(); onMode(b.dataset.id, b.dataset.mode); }));
   $('#menu-list').querySelectorAll('.sc').forEach(d => d.addEventListener('click', () => d.dataset.id === 'register' ? showRegister() : show(d.dataset.id)));
