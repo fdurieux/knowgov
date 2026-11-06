@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-04T14:56:00Z'
-updated_date: '2026-11-06T04:02:00Z'
+updated_date: '2026-11-06T04:14:00Z'
 labels:
   - ci
 milestone: m-8
@@ -37,4 +37,6 @@ Proposed by task-0106; chosen by the maintainer 2026-11-04. harness/annotate.py 
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-11-06: the pin github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1 (2026-10-21, the commit its annotated tag names; v4.39.2 and v4.39.3 are under two weeks old). The run block, run locally: sarif true, the S1 as-of gate exits 1 and writes sarif=<file> to GITHUB_OUTPUT; sarif false writes nothing, the same exit. The SARIF has 30 results, every one located (annotate.py falls back to subject.toml). tests/test_ci_wrappers.py test_the_action_uploads_sarif_only_when_asked_pinned_and_after_any_exit; tests/test_pins.py holds the pin's form. The inline-inputs check now reads the run block itself, to the next step, since the upload step's with: names inputs. run_tests.py after merging main (task-0113): 536/552 stdlib, 551/552 pinned, 0 failed. AC2 waits on harness.yml's run on the PR: the upload's sarif-id asserted.
+
+2026-11-06, the coordinator on #274: the first PR upload worked (code scanning's 'knowgov gate' check, github-advanced-security set up). The exercise is now same-repository pull requests only, never main or the nightly run: a default branch's upload would keep the example instance's lapsed-review findings, a fixture, as standing alerts. A PR's upload is analysed against its merge ref. README and test say so.
 <!-- SECTION:NOTES:END -->

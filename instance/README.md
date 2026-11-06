@@ -360,6 +360,12 @@ run that cannot run (exit 2) writes no report and uploads nothing. Your instance
 
 The upload's id is the action's output `sarif-id`. The exit code stays the gate's.
 
+knowgov's own CI exercises the upload on its same-repository pull requests only, never on `main` or
+the nightly run: its findings are the example instance's, a fixture, and a default branch's upload
+would keep them as standing alerts in the Security tab. A pull request's upload is analysed against
+its merge ref and leaves no alert on the default branch. Your instance's findings are real, so upload
+wherever your team reads them.
+
 This repository's CI runs the GitHub action on
 the example instance, and runs the GitLab job's own script lines in a shell
 (`tools/check_ci_wrappers.py`). Both use S6: the change turns the registered code suspect, and the

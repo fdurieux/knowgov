@@ -174,9 +174,11 @@ def test_the_action_uploads_sarif_only_when_asked_pinned_and_after_any_exit():
     assert "security-events" not in top and re.search(r"^permissions:\n  contents: read$", top, re.M)
     assert wf.count("security-events: write") == 1
     assert re.search(r"^  rdflib:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read\n      security-events: write", wf, re.M)
-    assert wf.count("sarif: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}") == 1
+    same_repo_pr = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}"
+    assert wf.count("sarif: " + same_repo_pr) == 1 and wf.count("SARIF_ON: " + same_repo_pr) == 1   # never main: a fixture's alerts
     assert "steps.wrap_as_of.outputs.sarif-id" in wf
     readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
     sec = readme[readme.index("## Running the gates in your pipeline"):readme.index("## A register pull request read before approval")]
-    for s in ("`sarif: true`", "security-events: write", "code scanning", "Advanced Security", "fork", "`sarif-id`"):
+    for s in ("`sarif: true`", "security-events: write", "code scanning", "Advanced Security", "fork", "`sarif-id`",
+              "same-repository pull requests only, never on `main`"):
         assert s in sec, s
