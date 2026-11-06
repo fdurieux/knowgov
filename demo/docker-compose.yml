@@ -91,7 +91,7 @@ services:
       start_period: 20s
 
   app:
-    image: ghcr.io/fdurieux/knowgov:v0.6.0@sha256:7b1c8873ea0419f15730bd7350d489527aeaadc5ede9bd34b20d5cb8a26df3cc   # the release (decision-0003) and its digest; :latest is the last main (task-0092)
+    image: ghcr.io/fdurieux/knowgov:v0.7.0@sha256:a2341bc607c62d29c233a09d698d2c1167b62f4b7c83a235c85c59d819b50605   # the release (decision-0003) and its digest; :latest is the last main (task-0092)
     depends_on:
       neo4j:
         condition: service_healthy
@@ -132,7 +132,7 @@ services:
   # in its environment. It attests that confinement at start (harness/worker.py) and the app refuses a
   # job without a fresh attestation. It sees only what ships in the image and the jobs folder.
   worker:
-    image: ghcr.io/fdurieux/knowgov:v0.6.0@sha256:7b1c8873ea0419f15730bd7350d489527aeaadc5ede9bd34b20d5cb8a26df3cc   # the app's; an image after 0.7.0 carries the worker
+    image: ghcr.io/fdurieux/knowgov:v0.7.0@sha256:a2341bc607c62d29c233a09d698d2c1167b62f4b7c83a235c85c59d819b50605   # the app's; an image after 0.7.0 carries the worker
     command: ["python", "harness/worker.py"]
     user: "65534:65534"
     network_mode: none
