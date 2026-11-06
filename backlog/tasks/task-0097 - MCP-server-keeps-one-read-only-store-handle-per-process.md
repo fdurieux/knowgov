@@ -3,11 +3,11 @@ id: TASK-0097
 title: >-
   MCP server caches the parsed rdflib snapshot per process, keyed by the
   published file's identity
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T08:46:00Z'
-updated_date: '2026-11-06T07:45:00Z'
+updated_date: '2026-11-06T08:10:00Z'
 labels:
   - mcp
   - ci
@@ -26,8 +26,8 @@ Found by task-0095: on rdflib the MCP server parses the published store file on 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Two calls with no publication between them parse the store file once; a call after a publication answers the new generation, never the retired one (a test across a publication, on a file-backed store)
-- [ ] #2 check_mcp_server and the lighthouse step pass unchanged, and the step timings in the task notes show the saving on rdflib
+- [x] #1 Two calls with no publication between them parse the store file once; a call after a publication answers the new generation, never the retired one (a test across a publication, on a file-backed store)
+- [x] #2 check_mcp_server and the lighthouse step pass unchanged, and the step timings in the task notes show the saving on rdflib
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -51,4 +51,12 @@ Found by task-0095: on rdflib the MCP server parses the published store file on 
 Priority unchanged (LOW): performance only.
 
 2026-11-06: the coordinating session accepted the rescope (title, description, ACs) under the maintainer's delegation, on the S2 sub-session's recommendation above. Status To Do, priority low.
+
+2026-11-06, evidence on main at e8717b3 plus this branch, CPython 3.13, rdflib 7.6.0, 4 cores. Shared-graph safety: no method in store.READS (37) mutates the graph or its indexes (an AST walk of each read and what it calls: only local sets and dicts, node() a lookup, _edge() a read). Tests (tests/test_rdflib_snapshot_cache.py): two reads parse once and share the graph; after a publication the next read parses again and sees the new generation, while a handle held across it keeps its own (decision-0014); 12 concurrent read handles parse once and see one generation; a writer neither uses nor fills the cache, and an uncommitted writer leaves it current. Timing, check_mcp_server on the PR subsets, rdflib, sequentially, main then branch: CargoQuote S1,S2,S6 88.9 s -> 36.5 s; J-F C,D3 341.3 s -> 222.6 s; the step 430 s -> 259 s (-171 s, -40%); every check holds both times and the outputs are line-for-line equal once timings, ports and temporary paths are masked. Lighthouse (--only cargo_quote=S1,S2,S6, jef_data_load=C,D3): 144 s -> 100 s, J-F's mcp C 31.0 -> 12.2 s and mcp D3 28.9 -> 13.8 s; the three evidence files equal once timings_s and the checkout paths are removed. Memory of the cached parse (latest only): CargoQuote S1, 0.52 MB of Turtle, 11 985 triples: 14.6 MB retained (tracemalloc), RSS +32 MB; J-F C, 3.47 MB, 69 722 triples: 82.4 MB, RSS +173 MB. SNAP-01..07 on rdflib (tools/check_snapshots.py --disposable): every check holds. Suites: bare venv stdlib 561/581 and KG_SUBJECT=jef 560/581; pinned with KG_TEST_REQUIRE=rdflib 580/581 and 579/581; 0 failed (a parallel run of two suites trips test_subject_check_tool's /tmp scan, each seeing the other's temporary directory; sequential runs pass). The PR's rdflib job gives the CI before/after.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+A read handle on a file-backed rdflib store reuses the process's parse of the published file while it is the same publication, keyed by the file's fstat identity (path, dev, ino, size, mtime_ns, ctime_ns) and filled single-flight under a lock; a publication's atomic replace changes the key, so a read never answers from a retired generation, and a held handle keeps its own. One read handle per call, writers and Neo4j are unchanged. check_mcp_server and the lighthouse answer identically; the MCP step on the PR subsets goes 430 s -> 259 s locally, the lighthouse 144 s -> 100 s; the cache holds about 15 MB (CargoQuote) and 82 MB (J-F). SNAP-01..07 hold on rdflib; the suites pass both ways.
+<!-- SECTION:FINAL_SUMMARY:END -->

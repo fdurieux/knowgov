@@ -66,6 +66,13 @@ names that section with the version.
 
 ### Changes
 
+- **The MCP server's rdflib reads reuse one parse per publication** (task-0097). A read handle on a
+  file-backed rdflib store now reuses the process's parse of the published file while it is the same
+  publication (keyed by the file's device, inode, size and times), and parses again after a publication,
+  so a read never answers from a retired generation; one read handle per call and Neo4j are unchanged.
+  The rdflib MCP step took 430 s and now 259 s locally on the pull-request subset. The process keeps the
+  latest parse: about 15 MB for CargoQuote S1 and 82 MB for J-F C.
+
 - **A directory artefact's file digests are the file's bytes** (task-0098, a fix to task-0094). `part_sha256`
   hashed each part as bundled, and the bundle adds a newline to a file that lacks one and reads CRLF as LF,
   so such a file's digest disagreed with the register's, which `register-cites` compares it with. The load now
