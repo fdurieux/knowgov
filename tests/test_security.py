@@ -131,6 +131,9 @@ CLIENTS = {"openai": {"harness/arms.py", "harness/agent.py"}, "neo4j": {"harness
 LOCAL_CHECKS = {"demo/tools/check_impact_cypher.py": 'os.environ.get("KG_DEMO_URL", "http://localhost:8080")',
                 "tools/check_mcp_server.py": '"--http", "--host", "127.0.0.1", "--port", "0"',
                 "harness/mcp_runs.py": 'DEFAULT_PAGE = "http://localhost:8080"'}
+# the worker's attestation probe (no_socket_escape): it tries to open AF_VSOCK and AF_PACKET sockets and to
+# connect to TEST-NET-1 (RFC 5737, never routed), and holds only when every attempt is refused
+PROBES = {"harness/worker.py": 'OUTSIDE = ("192.0.2.1", 9)'}
 
 
 def test_nothing_reaches_the_network_but_the_model_client_and_the_store_driver():
@@ -149,6 +152,9 @@ def test_nothing_reaches_the_network_but_the_model_client_and_the_store_driver()
                 for m in mods:
                     if rel in LOCAL_CHECKS and m == "urllib.request":
                         assert LOCAL_CHECKS[rel] in path.read_text(encoding="utf-8"), rel
+                        continue
+                    if rel in PROBES and m == "socket":
+                        assert PROBES[rel] in path.read_text(encoding="utf-8"), rel
                         continue
                     assert m.split(".")[0] not in NETWORK and m not in NETWORK_DOTTED, (rel, m)
                     if m.split(".")[0] in CLIENTS:
@@ -305,3 +311,30 @@ def test_the_page_sends_its_token_and_the_stack_passes_the_bind_and_the_token():
 def test_the_lighthouse_protocol_points_to_the_matrix():
     lh = (ROOT / "docs" / "lighthouse-evaluation.md").read_text(encoding="utf-8")
     assert "docs/security.md" in lh or "security.md" in lh
+
+
+def test_the_workers_socket_use_is_only_the_probe_that_proves_it_cannot_reach_out():
+    """The PROBES exception above, as tight as the guard: harness/worker.py touches ``socket`` only to
+    try the two families no network namespace confines and one connect to TEST-NET-1. No bind, listen,
+    accept, send, receive, name lookup or other address; a later edit that does more fails here."""
+    tree = ast.parse((ROOT / "harness" / "worker.py").read_text(encoding="utf-8"))
+    nodes = list(ast.walk(tree))
+    assert not any(isinstance(n, ast.ImportFrom) and n.module == "socket" for n in nodes), "only `import socket`"
+    used = {n.attr for n in nodes if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == "socket"}
+    assert used == {"socket", "SOCK_STREAM", "SOCK_RAW", "create_connection"}, used
+    forbidden = {"bind", "listen", "accept", "send", "sendall", "sendto", "sendmsg", "sendfile", "recv", "recvfrom",
+                 "recv_into", "recvfrom_into", "recvmsg", "connect", "connect_ex", "getaddrinfo", "gethostbyname",
+                 "gethostbyname_ex", "create_server", "socketpair", "fromfd"}
+    assert not {n.attr for n in nodes if isinstance(n, ast.Attribute)} & forbidden
+    assigned = {ast.unparse(n.targets[0]): ast.literal_eval(n.value) for n in tree.body
+                if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) in ("OUTSIDE", "(AF_VSOCK, AF_PACKET)")}
+    assert assigned == {"OUTSIDE": ("192.0.2.1", 9), "(AF_VSOCK, AF_PACKET)": (40, 17)}, assigned
+    connects = [n for n in nodes if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "create_connection"]
+    assert len(connects) == 1 and isinstance(connects[0].args[0], ast.Name) and connects[0].args[0].id == "OUTSIDE"
+    probe = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "sockets")
+    loop = next(n for n in ast.walk(probe) if isinstance(n, ast.For))
+    assert [e.elts[1].id for e in loop.iter.elts] == ["AF_VSOCK", "AF_PACKET"], "the two families, nothing else"
+    opened = [n for n in ast.walk(probe) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "opener"]
+    assert len(opened) == 1 and [a.id for a in opened[0].args] == ["family", "kind"]
+    assert {n.name for n in tree.body if isinstance(n, ast.FunctionDef) and any(
+        isinstance(m, ast.Name) and m.id == "socket" for m in ast.walk(n))} == {"sockets"}, "socket is used in sockets() only"

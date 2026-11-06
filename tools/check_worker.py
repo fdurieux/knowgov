@@ -10,6 +10,8 @@ reads what came back as untrusted data:
   EXEC-02  a file only the app has is not visible; writes outside the job's folder fail; neither
            the app's runs nor an instance is mounted
   EXEC-03  a connection to the store and to the app fails: no network
+  EXEC-10  the worker attests no_socket_escape, every probe refused, and a job opens no AF_VSOCK or
+           AF_PACKET socket either: no path out that a network namespace does not confine
   EXEC-05  a job that spawns children and hangs is killed whole at its time; the next job runs
   EXEC-06  memory, processes, output and disk each stop at their bound, classified, the worker alive
   EXEC-07  a job without a fresh attestation is refused (a jobs folder no worker serves)
@@ -109,6 +111,22 @@ for host, port in (("neo4j", 7687), ("app", 8080), ("1.1.1.1", 443)):
 print(json.dumps(out))""")
     got = last_json(r) or {}
     check(got and "connected" not in got.values(), f"EXEC-03 no connection leaves the worker: {got}")
+
+    # EXEC-10
+    probes = a.get("sockets") or {}
+    check(a["checks"].get("no_socket_escape") is True and probes and all(v.startswith("refused ") for v in probes.values()),
+          f"EXEC-10 the worker attests no_socket_escape, every probe refused: {probes}")
+    r = probe("""
+import json, socket
+out = {}
+for label, family, kind in (("AF_VSOCK", 40, socket.SOCK_STREAM), ("AF_PACKET", 17, socket.SOCK_RAW)):
+    try:
+        socket.socket(family, kind).close(); out[label] = "opened"
+    except OSError as e:
+        out[label] = type(e).__name__
+print(json.dumps(out))""")
+    got = last_json(r) or {}
+    check(got and "opened" not in got.values(), f"EXEC-10 a job opens no AF_VSOCK or AF_PACKET socket: {got}")
 
     # EXEC-05
     marker = "exec05-" + secrets.token_hex(4)
