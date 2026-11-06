@@ -30,6 +30,9 @@ Then ask ``key_nodes`` for every key of the subject's register map, and, on the 
 for the reference code and the climb to a capability's ancestors, and ``document_links`` for the first row's
 anchored document (task-0143). Once, store-free: the file-only tools listed and answering alike over stdio and
 HTTP, and the shipped managed allowlist admitting the server by name (task-0142, task-0143).
+Then ask ``held_keys``, ``derived_outputs`` and ``document_statements`` and require each equal to the port's
+read in-process through a read handle, the levels gate_verdict's for the held key set, and each used statement
+stale or superseded as the gate's stale statements read; at stage 2 too (task-0144).
 Then ask ``scenario_runs`` and require the subject's scenarios in order, the held scenario this one with
 ``store_status``'s ``loaded_at``, the record's D6 verdict for it, and no run in progress (task-0128);
 and ``scenario_result`` on the record with that verdict, read from files (task-0129).
@@ -200,6 +203,7 @@ def check_stage2(sc: str, subject, failures: list[str]) -> None:
               f"in the gate and in {len(by_key)} three-valued answer(s)")
         check_bundle(client, sc, 2, failures, f"{sc} stage 2")
         check_impact(client, sc, failures, f"{sc} stage 2", rec["gate_after_reverification"], got)
+        check_store_reads(client, sc, failures, f"{sc} stage 2", stage=2)
     finally:
         client.close()
     if census() != before:
@@ -543,6 +547,7 @@ def check_upward(client: "StdioClient", ex: dict | None, failures: list[str], la
 
 
 FILE_TOOLS = ("register_nodes", "key_nodes", "code_path", "document_links")   # doc-0020's hops: files only, no store
+STORE_TOOLS = ("held_keys", "derived_outputs", "document_statements")   # doc-0020 C3: the store's reads (task-0144)
 ALLOWLIST = ROOT / "instance" / "ci" / "claude" / "managed-mcp-allowlist.json"
 
 
@@ -560,7 +565,7 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
         client = cls()
         try:
             listed = {t["name"] for t in client.request("tools/list", {})["result"]["tools"]}
-            missing = [t for t in FILE_TOOLS if t not in listed]
+            missing = [t for t in (*FILE_TOOLS, *STORE_TOOLS) if t not in listed]
             if missing:
                 failures.append(f"{name}: tools/list lacks {missing}")
             answers[name] = [client.call(t, a) for t, a in calls]
@@ -573,8 +578,63 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
     import mcp_server
     if mcp_server.SERVER["name"] not in allowed:
         failures.append(f"{ALLOWLIST.name} admits {sorted(allowed)}, not the server {mcp_server.SERVER['name']}")
-    print(f"transports: {', '.join(FILE_TOOLS)} listed over stdio and HTTP, {len(calls)} call(s) equal on both; "
+    print(f"transports: {', '.join((*FILE_TOOLS, *STORE_TOOLS))} listed over stdio and HTTP, {len(calls)} call(s) equal on both; "
           f"{ALLOWLIST.name} admits {mcp_server.SERVER['name']}")
+
+
+def check_store_reads(client: "StdioClient", sc: str, failures: list[str], label: str, stage: int = 1) -> None:
+    """held_keys, derived_outputs, document_statements (task-0144): each equal to the port's read on the store as
+    it stands, through a read handle in-process; held_keys' levels gate_verdict's for that key set; every output's
+    used statements read stale or superseded exactly as the gate's stale statements are superseded; under its schema."""
+    sys.path.insert(0, str(HARNESS))
+    import schema_check
+    from gate import superseded_by
+    from store import open_store
+    held = client.call("held_keys", {"scenario": sc, "as_of": "record"})
+    with open_store(access="read") as st:
+        port_keys = st.held_keys()
+        port_derived = st.derived_outputs()
+        stale = {x["id"]: x for x in st.stale_on_keys(sorted({u["key"] for d in port_derived for u in d["used"] if u["key"]}))}
+        docs = sorted({u["artefact"] for d in port_derived for u in d["used"] if u["artefact"]}) or \
+            sorted({r["artefact"] for k in port_keys[:3] for r in st.key_evidence(k["key"], ["proposed", "validated", "verified", "approved"])})
+        port_docs = {doc: st.artefact_assertions(doc) for doc in docs[:3]}
+    for name, rep in (("held_keys", held),):
+        if errors := schema_check.validate(rep, schema_check.load("held-keys")):
+            failures.append(f"{label}: {name} is off its schema: {errors[:3]}")
+    if [{k: r[k] for k in ("key", "n", "statuses")} for r in held["keys"]] != port_keys:
+        failures.append(f"{label}: held_keys lists {held['total']} key(s), the port's held_keys {len(port_keys)}")
+    if port_keys:
+        gate = client.call("gate_verdict", {"scenario": sc, "keys": [k["key"] for k in port_keys], "as_of": "record"})
+        if {r["key"]: r["level"] for r in held["keys"]} != gate["levels"]:
+            failures.append(f"{label}: held_keys' levels differ from gate_verdict's for the held key set")
+    outs = []
+    for key in sorted({u["key"] for d in port_derived for u in d["used"] if u["key"]})[:5]:
+        got = client.call("derived_outputs", {"scenario": sc, "key": key})
+        outs += got["outputs"]
+        if errors := schema_check.validate(got, schema_check.load("derived-outputs")):
+            failures.append(f"{label}: derived_outputs {key} is off its schema: {errors[:3]}")
+        if [o["id"] for o in got["outputs"]] != [d["id"] for d in port_derived if any(u["key"] == key for u in d["used"])]:
+            failures.append(f"{label}: derived_outputs {key} names {[o['id'] for o in got['outputs']]}")
+    for d in port_derived:
+        one = client.call("derived_outputs", {"scenario": sc, "derived": d["id"]})["outputs"][0]
+        if [u["id"] for u in one["used"]] != [u["id"] for u in d["used"]]:
+            failures.append(f"{label}: derived_outputs {d['id']} used differs from the port's")
+        for u in one["used"]:
+            if u["status"] == "invalidated":
+                want = "superseded" if superseded_by(stale.get(u["id"], {})) else "stale"
+                if u["state"] != want or u["superseded_by"] != superseded_by(stale.get(u["id"], {})):
+                    failures.append(f"{label}: {d['id']} reads {u['id']} {u['state']}, the gate's stale statements {want}")
+    for doc, rows in port_docs.items():
+        got = client.call("document_statements", {"scenario": sc, "document": doc})
+        if errors := schema_check.validate(got, schema_check.load("document-statements")):
+            failures.append(f"{label}: document_statements {doc} is off its schema: {errors[:3]}")
+        if [x["id"] for x in got["statements"]] != [r["id"] for r in rows]:
+            failures.append(f"{label}: document_statements {doc} lists {got['total']}, the port's read {len(rows)}")
+    states = sorted({u["state"] for d in port_derived for u in client.call("derived_outputs", {"scenario": sc, "derived": d["id"]})["outputs"][0]["used"]}) \
+        if port_derived else []
+    print(f"{label}: held_keys {held['total']} key(s) ({len(held['unrequired'])} unrequired) at gate_verdict's levels; "
+          f"derived_outputs {len(port_derived)} output(s), used read {states or 'none'}; "
+          f"document_statements on {len(port_docs)} document(s), each the port's read")
 
 
 def census() -> dict:
@@ -640,6 +700,7 @@ def main(argv: list[str] | None = None) -> int:
             check_runs(client, sc, status, failures, sc)
             check_nodes(client, failures, sc)
             check_upward(client, ex, failures, sc)
+            check_store_reads(client, sc, failures, sc)
         finally:
             client.close()
         if census() != before:
