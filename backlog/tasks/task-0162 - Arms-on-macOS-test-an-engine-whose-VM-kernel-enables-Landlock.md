@@ -4,7 +4,7 @@ title: 'Arms on macOS: test an engine whose VM kernel enables Landlock'
 status: Done
 assignee: []
 created_date: '2026-11-06T07:22:00Z'
-updated_date: '2026-11-06T12:41:00Z'
+updated_date: '2026-11-06T12:50:00Z'
 labels:
   - worker
   - security
@@ -52,6 +52,8 @@ The X1 session's view (session_01HTAA1UsSVF25SBM7XfjnqP, 2026-11-06), advice onl
 The EC2 attestation was taken at knowgov main 5ce8262 (PR #301's merge).
 
 2026-11-06, the same EC2 instance, the stack up with --profile claude --profile arms (all services healthy after the root volume was raised from 8 to 30 GiB; on 8 GiB Neo4j exited out of disk), the page reached over an SSH tunnel: an S1 arms run on the Claude row (through the LiteLLM gateway) completed, the maintainer reports. The OpenAI row's runs failed with a 401 because OPENAI_API_KEY held a value that was not an OpenAI secret key (the first attempt an Anthropic key, the second a value not starting sk-); configuration, not the worker. The Gemini row was not offered, for want of GEMINI_API_KEY. Checking keys before a run is session_01HTAA1V5hRxxogbYzNaHL2a's task.
+
+2026-11-06, the same EC2 instance, after a new OpenAI key (the models listing answered 200): demo run 2026-11-06-1248, S1 arms on the record's model gpt-5.1-2025-11-13, effort the API default, finished in 73 s. B: decisions ['generate_with_assumptions'], code [True], suite [11], flagged [False]; G: decisions ['generate'], code [True], suite [11], flagged [False]; usage 2 calls, 32882 tokens. The oracle's suite ran in the attested worker on both arms' code, 11/11 each, as the record's S1; the gate's report identical to results/S1 on all 122 fields, timestamps aside.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

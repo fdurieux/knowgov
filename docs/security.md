@@ -265,7 +265,7 @@ Landlock (`CONFIG_SECURITY_LANDLOCK` not set), so there the worker refuses to se
 (task-0162). The one machine besides CI where the worker has attested every check true is an EC2
 `t3.large` on Ubuntu Server 24.04 LTS (x86_64) with Ubuntu's `docker.io` 29.1.3 and `docker-compose-v2`
 2.40.3, kernel `7.0.0-1014-aws`, Landlock listed in `/sys/kernel/security/lsm` (2026-11-06, at `5ce8262`,
-task-0162), and an arms run on the Claude row completed there the same day; `demo/README.md` walks through it with the default `127.0.0.1` bind and an SSH tunnel. No other
+task-0162), and arms runs completed there the same day, on the Claude row and on the record's model (S1, the oracle's suite run in the worker, 11/11 for each arm); `demo/README.md` walks through it with the default `127.0.0.1` bind and an SSH tunnel. No other
 host is claimed. On Docker Desktop, in the worker container under compose's settings, AF_VSOCK and AF_PACKET are refused
 (EPERM) and an outside address is unreachable (ENETUNREACH). Evidence: `tests/test_worker.py` (the network
 check on a fake sysfs and procfs, the Mac's listing included; the socket probes with stand-in sockets),
