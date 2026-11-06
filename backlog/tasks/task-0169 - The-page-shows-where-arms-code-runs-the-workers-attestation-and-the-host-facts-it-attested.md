@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-06T12:29:00Z'
-updated_date: '2026-11-06T12:33:00Z'
+updated_date: '2026-11-06T12:36:00Z'
 labels:
   - demo
   - security
@@ -49,4 +49,6 @@ Maintainer, 2026-11-06: 'Create a task: visualise on the dashboard that the arms
 
 <!-- SECTION:NOTES:BEGIN -->
 Implemented as planned. worker.host_facts(uname, root) beside attest(); execution.placement() calls attested() and reads host facts only from a holding attestation, each a printable string capped at 128 characters (else None); cloud_reading() maps the kernel release's last '-' part through KERNEL_CLOUDS. The page's workerChip() sits between the Arms and register chips: ok when attested, warn when not, bad under the uncontained opt-in. python tests/run_tests.py: 608/629 passed, 21 skipped, 0 failed (node present, so the chip tests ran). AC #6's stack-job assertion (demo.yml: the worker attests with engine docker) is proven only on the PR's stack run; it is left unchecked until that run is green.
+
+tools/check_worker.py (the stack job, on the real worker) also checks the attestation names Linux, a kernel, a machine and engine docker, and that its checks are ATTEST_CHECKS unchanged (coordinator's ask).
 <!-- SECTION:NOTES:END -->
