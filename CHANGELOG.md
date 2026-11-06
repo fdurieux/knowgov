@@ -125,6 +125,12 @@ names that section with the version.
 
 ### Changes
 
+- **The MCP server's instructions name the intake sequence** (task-0156, doc-0022 K5). Beside the down and
+  up sequences, on both transports: `proposal_impact` on a proposed initiative, its `slices` as the story
+  map's backbone, then `gate_verdict` per slice's keys under one task class and one `as_of`. They say
+  knowgov writes no work item and ranks nothing, and that a backlog coverage check is parked to the
+  pilot. Text only; no tool or schema changes.
+
 - **Arms runs refuse beside a mounted instance until X1** (task-0141.07, a stopgap). Code a model
   writes still runs uncontained, with the process's environment and files; task-0141.05 contains it.
   Until then, when `KG_SUBJECT`, `KG_SUBJECTS` or `KG_REGISTER` names a folder outside the knowgov
