@@ -554,21 +554,32 @@ class Tools:
                 "loaded_at": None if at is None else str(at)}
 
     def _with_store(self, fn):
+        """``fn`` on one read handle, one published generation (task-0141.06): when a publication lands
+        during the call the call runs again on a fresh handle, at most ``KG_STORE_READ_ATTEMPTS`` times (3)."""
+        from store import StoreChanged, read_attempts
         try:
-            st = self.opener()
-        except Exception as e:  # noqa: BLE001
-            raise ToolError(f"the store cannot be opened: {type(e).__name__}: {e}") from e
-        try:
-            return fn(st)
-        except (ToolError, PermissionError):
-            raise
-        except Exception as e:  # noqa: BLE001
-            raise ToolError(f"the store did not answer: {type(e).__name__}: {e}") from e
-        finally:
+            attempts = read_attempts()
+        except ValueError as e:
+            raise ToolError(str(e)) from e
+        for attempt in range(attempts):
             try:
-                st.release()
-            except Exception:  # noqa: BLE001
-                pass
+                st = self.opener()
+            except Exception as e:  # noqa: BLE001
+                raise ToolError(f"the store cannot be opened: {type(e).__name__}: {e}") from e
+            try:
+                return fn(st)
+            except StoreChanged as e:
+                if attempt == attempts - 1:
+                    raise ToolError(f"the store was republished during each of {attempts} reads; call again: {e}") from e
+            except (ToolError, PermissionError):
+                raise
+            except Exception as e:  # noqa: BLE001
+                raise ToolError(f"the store did not answer: {type(e).__name__}: {e}") from e
+            finally:
+                try:
+                    st.release()
+                except Exception:  # noqa: BLE001
+                    pass
 
     def store_status(self, args: dict) -> dict:
         from subject import SUBJECT

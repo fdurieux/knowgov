@@ -15,10 +15,15 @@ caller names its access (task-0141.02):
 
 A read handle (``ReadOnly``) lets through the operations in ``READS`` and refuses every other with
 ``StoreReadOnly``; closing it publishes nothing. A write handle publishes on ``commit()`` (the context
-manager's clean exit) and never on ``close()``, which releases it; ``abort()`` drops what it changed
-where the adapter can. The file-backed rdflib adapter takes its writer lock before it loads the
-snapshot it starts from and holds it to publication (``store_rdflib.py``); Neo4j writes each statement
-as it runs, so ``abort()`` cannot undo them there (task-0141.06 makes a load publish whole).
+manager's clean exit) and never on ``close()``, which releases it; ``abort()`` drops what it changed.
+
+Generations (task-0141.06, decision-0014): a writer builds its unit privately and publishes it whole;
+a read handle answers from one published generation for its whole life, or refuses. The file-backed
+rdflib adapter takes its writer lock before it loads the snapshot it starts from, holds it to an atomic
+replace of the file, and a reader keeps the snapshot it loaded (``store_rdflib.py``). The Neo4j adapter
+holds a lease in the database from open to close, writes the whole unit in one transaction, and
+publishes under a sequence lock that every read call checks (``store_neo4j.py``): a publication that
+lands during a read raises ``StoreChanged``, and ``read()`` runs the logical read again.
 
 Status and provenance are the store's; content stays in git. Every adapter must give the
 same answers for the same calls, which the deterministic comparator checks on the CargoQuote
@@ -51,6 +56,16 @@ class StoreBusy(RuntimeError):
 
 class StoreCorrupt(RuntimeError):
     """The store's published file does not parse: left as it is, never read as an empty store."""
+
+
+class StoreChanged(StoreBusy):
+    """A publication landed while this read handle was reading (task-0141.06): what it read so far may
+    belong to two generations, so the logical read is refused. ``read()`` retries it on a fresh handle."""
+
+
+class StoreFenced(StoreBusy):
+    """This writer no longer owns the store (its lease expired and another writer took it, or its lock
+    file was replaced): it publishes nothing, and what it built is dropped (task-0141.06)."""
 
 
 # The port's reads (task-0141.02): what a read handle lets through. Every other operation of the port
@@ -425,7 +440,16 @@ class ReadOnly:
 
     def __getattr__(self, attr):
         if attr in READS:
-            return getattr(self._inner, attr)
+            fn = getattr(self._inner, attr)
+            check = getattr(self._inner, "_after_read", None)
+            if check is None or not callable(fn):
+                return fn
+
+            def pinned(*a, **kw):
+                out = fn(*a, **kw)
+                check()   # the generation this handle pinned is still the published one, or StoreChanged
+                return out
+            return pinned
         raise StoreReadOnly(f"a read handle on the {self._inner.name} store only reads: {attr} is not a read of the store port")
 
     def __enter__(self) -> "ReadOnly":
@@ -445,6 +469,50 @@ class ReadOnly:
 
 
 ACCESS = ("read", "write")
+
+READ_ATTEMPTS = 3
+
+# task-0141.06's settings: name -> (default, least, most); a value outside, or not a number, is refused
+SETTINGS = {
+    "KG_STORE_READ_ATTEMPTS": (3, 1, 10),            # times a logical read is run on a fresh handle
+    "KG_NEO4J_LEASE_SECONDS": (60.0, 1.0, 3600.0),   # a Neo4j writer's lease, renewed every third of it
+    "KG_NEO4J_LOCK_TIMEOUT": (60.0, 0.0, 86400.0),   # how long a Neo4j writer waits for another's lease
+    "KG_NEO4J_READ_WAIT": (10.0, 0.0, 600.0),        # how long a Neo4j reader waits out a publication in flight
+}
+
+
+def setting(name: str, fallback=None):
+    """The value of one of ``SETTINGS`` from the environment, else ``fallback``, else its default;
+    ValueError naming the variable for anything that is not a number within its bounds."""
+    default, lo, hi = SETTINGS[name]
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default if fallback is None else type(default)(fallback)
+    try:
+        v = int(raw) if isinstance(default, int) else float(raw)
+    except ValueError:
+        raise ValueError(f"{name} must be a {'whole ' if isinstance(default, int) else ''}number, not {raw!r}") from None
+    if not (lo <= v <= hi) or v != v:
+        raise ValueError(f"{name} must be between {lo:g} and {hi:g}, not {raw!r}")
+    return v
+
+
+def read_attempts() -> int:
+    return setting("KG_STORE_READ_ATTEMPTS")
+
+
+def read(fn, kind: str | None = None, *, attempts: int | None = None, **kw: Any):
+    """One logical read: ``fn(handle)`` on a read handle, run again on a fresh handle when a publication
+    lands during it (``StoreChanged``), at most ``attempts`` times (``KG_STORE_READ_ATTEMPTS``, 3); the
+    last StoreChanged propagates, so a caller answers "busy, retry" rather than a mixed result."""
+    n = attempts or read_attempts()
+    for i in range(max(1, n)):
+        with open_store(kind, access="read", **kw) as st:
+            try:
+                return fn(st)
+            except StoreChanged:
+                if i == n - 1:
+                    raise
 
 
 def open_store(kind: str | None = None, *, access: str, **kw: Any):

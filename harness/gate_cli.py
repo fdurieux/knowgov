@@ -334,11 +334,32 @@ def run(args) -> dict:
             reg_change = rc.diff(previous, rc.ri.register_root())
         except Exception as e:  # noqa: BLE001 — a register that does not load is a cannot-run
             raise CannotRun(f"--register-previous: the registers do not compare: {type(e).__name__}: {e}") from e
-    from store import open_store
+    from store import StoreChanged, open_store, read_attempts
     try:
-        st = open_store(instance=SUBJECT.id, access="read" if args.no_load else "write")   # task-0141.02
-    except Exception as e:  # noqa: BLE001
-        raise CannotRun(f"the store cannot be opened: {e}") from e
+        attempts = read_attempts() if args.no_load else 1
+    except ValueError as e:
+        raise CannotRun(str(e)) from e   # task-0141.06: a publication during a --no-load read reads again
+    for attempt in range(attempts):
+        try:
+            st = open_store(instance=SUBJECT.id, access="read" if args.no_load else "write")   # task-0141.02
+        except Exception as e:  # noqa: BLE001
+            raise CannotRun(f"the store cannot be opened: {e}") from e
+        try:
+            return _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous)
+        except StoreChanged as e:
+            if attempt == attempts - 1:
+                raise CannotRun(f"the store was republished during each of {attempts} reads; run again: {e}") from e
+        finally:
+            try:
+                st.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
+    """The gate on one store handle: read as it is (``--no-load``) or loaded, then published."""
+    from store import StoreChanged
+    from tasks import TASKS
     change = None
     try:
         if args.no_load:
@@ -361,15 +382,10 @@ def run(args) -> dict:
         if not args.no_load:
             st.commit()   # the load and its change, published once the report is made; a failure publishes nothing
         return report
-    except CannotRun:
+    except (CannotRun, StoreChanged):
         raise
     except Exception as e:  # noqa: BLE001 — an unreachable store fails here, on the first statement
         raise CannotRun(f"the store did not answer: {type(e).__name__}: {e}") from e
-    finally:
-        try:
-            st.close()
-        except Exception:  # noqa: BLE001
-            pass
 
 
 def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshold: str,

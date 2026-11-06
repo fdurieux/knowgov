@@ -212,9 +212,28 @@ def _store(timeout: float = 3, access: str = "read"):
     task-0141.02), or for the register projection (``access="write"``, waiting at most ``timeout`` for
     another writer); raises when unreachable or busy."""
     from store import open_store  # the harness's port; the adapter needs its driver, in the image
+    _store_file_default()
+    return open_store(connection_timeout=timeout, instance=_ps().id, access=access)
+
+
+def _read(fn, timeout: float = 3):
+    """One logical read of the page on one published generation (task-0141.06): ``fn(handle)`` on a
+    read handle from ``_store``, run again on a fresh one when a publication lands during it, at most
+    ``KG_STORE_READ_ATTEMPTS`` times (3), as store.read does."""
+    from store import StoreChanged, read_attempts
+    attempts = read_attempts()
+    for attempt in range(attempts):
+        with _store(timeout) as s:
+            try:
+                return fn(s)
+            except StoreChanged:
+                if attempt == attempts - 1:
+                    raise
+
+
+def _store_file_default() -> None:
     if (os.environ.get("KG_STORE") or "neo4j").lower() == "rdflib" and not os.environ.get("KG_RDFLIB_FILE"):
         os.environ["KG_RDFLIB_FILE"] = str(RUNS_DIR / "store.ttl")
-    return open_store(connection_timeout=timeout, instance=_ps().id, access=access)
 
 
 # What each saved query needs in the store before it returns rows: the store holds one scenario
@@ -304,14 +323,14 @@ def node_statements(start: str) -> dict:
     store is reachable with the register projected and a scenario loaded, else None and ``missing``,
     one of driver, store, register or scenario. Any adapter: the port's read, no console needed."""
     out = {"rows": None, "missing": None}
+    def read(s):
+        if s.register_census() is None:
+            return {"rows": None, "missing": "register"}
+        if not s.extraction_activities():
+            return {"rows": None, "missing": "scenario"}
+        return {"rows": s.register_node_statements(start), "missing": None}
     try:
-        with _store() as s:
-            if s.register_census() is None:
-                out["missing"] = "register"
-            elif not s.extraction_activities():
-                out["missing"] = "scenario"
-            else:
-                out["rows"] = s.register_node_statements(start)
+        out.update(_read(read))
     except ImportError:
         out["missing"] = "driver"
     except Exception:  # noqa: BLE001 — unreachable, whatever the driver's class
@@ -371,11 +390,7 @@ def store_status() -> dict:
     out = {"store": kind, "uri": NEO4J_URI if kind == "neo4j" else "", "browser": BROWSER_URL if kind == "neo4j" else None,
            "reachable": False, "loaded": None, "loaded_subject": None, "census": None, "register": None, "error": None, "subject": _ps().id}
     try:
-        with _store() as s:
-            d = s.describe()
-            acts = s.extraction_activities()
-            c = s.census()
-            reg = s.register_census()
+        d, acts, c, reg = _read(lambda s: (s.describe(), s.extraction_activities(), s.census(), s.register_census()))
         out.update(store=d.get("store", kind), uri=d.get("uri", out["uri"]), browser=d.get("browser"), reachable=True,
                    census={"nodes": c["nodes"], "relationships": c["relationships"], "assertions_by_status": c["assertions_by_status"]},
                    loaded=(acts[0].split(":")[2] if acts else None), activities=acts, register=reg)
@@ -386,26 +401,44 @@ def store_status() -> dict:
         return out
     except Exception as e:  # noqa: BLE001 — the message is the status
         out["error"] = str(e).splitlines()[0][:200]
+        _mark_busy(out, e)
     return out
+
+
+def _mark_busy(out: dict, e: Exception) -> None:
+    """A store that is held or was republished through every read (task-0141.06): ``busy``, so the route
+    answers 503 with Retry-After rather than a store that is simply unreachable."""
+    from store import StoreBusy
+    if isinstance(e, StoreBusy):
+        out["busy"] = True
+
+
+def _busy_json(handler, out: dict) -> None:
+    if out.get("busy"):
+        return handler._json(out, 503, {"Retry-After": str(BUSY_RETRY_AFTER)})
+    return handler._json(out)
+
+
+BUSY_RETRY_AFTER = 1   # seconds: a publication or a held writer lock, both short-lived
 
 
 def store_gaps(scenario: str) -> dict:
     """Every Gap node with what it concerns, from the running store, only when
     the scenario loaded there is the one on screen (one database, one scenario)."""
     out = {"scenario": scenario, "loaded": None, "match": False, "gaps": [], "error": None}
+    def read(s):
+        acts = s.extraction_activities()
+        loaded = acts[0].split(":")[2] if acts else None
+        return loaded, (s.gaps_with_concerns() if loaded == scenario else [])
     try:
-        with _store() as s:
-            acts = s.extraction_activities()
-            out["loaded"] = acts[0].split(":")[2] if acts else None
-            if out["loaded"] != scenario:
-                return out
-            out["gaps"] = s.gaps_with_concerns()
-            out["match"] = True
+        out["loaded"], out["gaps"] = _read(read)
+        out["match"] = out["loaded"] == scenario
     except ImportError:
         out["error"] = "store driver not installed"
         return out
     except Exception as e:  # noqa: BLE001
         out["error"] = str(e).splitlines()[0][:200]
+        _mark_busy(out, e)
     return out
 
 
@@ -836,7 +869,7 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
                     view["footprint"] = None
                 return self._json(view)
             if parts == ["api", "store"]:
-                return self._json(store_status())
+                return _busy_json(self, store_status())
             if parts == ["api", "register"]:
                 today = q.get("today", [None])[0]
                 if today not in (None, "wall") and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", today):
@@ -871,7 +904,7 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
                 out = impact_view(parts[3], self._origin(), walk=walk, children=children in ("1", "true"))
                 return self._json(out) if out is not None else self._json({"error": f"no such node: {parts[3]}"}, 404)
             if parts[:2] == ["api", "gaps"] and len(parts) == 3 and parts[2] in views.SCENARIOS:
-                return self._json(store_gaps(parts[2]))
+                return _busy_json(self, store_gaps(parts[2]))
             if parts == ["api", "cypher"]:
                 return self._json(cypher_list())
             if parts == ["api", "runs"]:
@@ -916,11 +949,17 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
 
     def _post(self, parts, body) -> None:
         if parts == ["api", "register", "project"]:
-            # the projection: derived, in its own namespace, never the record; a run wipes it
-            if RUNNER.current and RUNNER.current["status"] == "running":
-                return self._json({"error": "a run is in progress; it wipes the store, so project after it ends"}, 409)
+            # the projection: derived, in its own namespace, never the record; a run wipes it. Decided and
+            # done under the runner's lock, so no run starts between the check and the projection; the
+            # store's own writer lock (lease or file lock) serialises it with any other writer (task-0141.06)
+            from store import StoreBusy
             try:
-                return self._json(register_project.project(_store(access="write")))
+                with RUNNER.lock:
+                    if RUNNER.current and RUNNER.current["status"] == "running":
+                        return self._json({"error": "a run is in progress; it wipes the store, so project after it ends"}, 409)
+                    return self._json(register_project.project(_store(access="write")))
+            except StoreBusy as e:
+                return self._json({"error": str(e).splitlines()[0][:200]}, 409)
             except ImportError:
                 return self._json({"error": "neo4j driver not installed"}, 503)
             except Exception as e:  # noqa: BLE001 — the message is the status
