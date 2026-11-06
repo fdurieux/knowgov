@@ -5,7 +5,7 @@ title: >-
   top-right
 type: specification
 created_date: '2026-11-03T22:44:00Z'
-updated_date: '2026-11-05T17:22:00Z'
+updated_date: '2026-11-06T09:05:00Z'
 tags:
   - brief
   - positioning
@@ -19,6 +19,8 @@ tags:
 **Visionary, deep: Vision 16, Execute 3 as first scored; 17.3 · 3 on the mean of three scorings (§5); 13 · 2 under a neutral rubric.** The differentiator survives review: nobody else gates delivery on whether design knowledge is verified (V2 epistemic governance, V3 delivery-time enforcement). The top-right corner (V ≥ 16 and E ≥ 16) is empty on the mean and contested: Palantir sits at 15 · 19, OpenAI's blind 17 puts it inside. "Empty corner" holds only for the narrow category, declared architecture upstream of delivery. The gap is execution: every other product averages Execute ≥ 10. Route: borrow execution from the incumbents (one lighthouse connector, the gate behind MCP, an outcome study), standardise second, company last.
 
 Not in Gartner's DTO Magic Quadrant (first edition 2026-07-27, 18 vendors): its definition needs operational data, knowgov holds the declarative twin. Not a fourth register in the EA Tools MQ (2025-10-06) either, at E ≈ 3 against 16–20. The position is the seam between them. Positioning line: *"Before an AI agent builds on what your architecture says, know whether it is true."*
+
+*2026-11-06: re-scored by the home team under the neutral rubric at 16 · 4 (18 · 5 on the note rubric), still Visionary (§8). doc-0027 is the brief for the external pass.*
 
 ## 1. Category and field
 
@@ -99,3 +101,61 @@ Targets are the first-scored rubric's; under the neutral rubric each stage sits 
 - A paying pilot, a verified export route, or an MCP surface: re-score E and V4, re-issue the figure with the neutral rubric.
 
 Nothing else changes. S1's items became tasks on the maintainer's go of 2026-11-03, in milestone m-8 "The lighthouse": task-0062 (choose the incumbent and the pilot; the connector choice is the maintainer's), task-0063 (the connector, verified), task-0056 (the gate behind a read-only MCP server), task-0057 (the outcome study pre-registered), task-0058 (licence for adapters), task-0059 (security pack), task-0060 (legal entity and support terms), task-0061 (one buyer-facing name). doc-0009's two milestones are m-5 (capture) and m-6 (adopter), doc-0011's code traceability m-7; m-8 runs beside them and does not wait for them.
+
+## 8. Re-score, 2026-11-06 (home team, neutral rubric)
+
+*2026-11-06. Triggers:
+- §7's "an MCP surface: re-score E and V4" fired with task-0056 (the reader has grown to 16 tools since);
+- the maintainer's question of this date: the quadrant now and as a v1.0.
+
+Scored in session at knowgov `43ee83f` (after v0.7.0), ieam-register `735b2e2` (v0.2.12) and pumllint `a39d800`. Checked again at knowgov `a743cca`: no cell moves. That includes decision-0015 and task-0161 (`b44b9bd`), and task-0159's CI hygiene (#285), whose coverage figure is not counted here. The wording is §2's neutral wording, with no anchors (doc-0027's anchors are for the external pass). The field is not re-scored. This is home-team scoring with no external pass yet: doc-0027 is the brief for one, and its output is compared here when it returns. The v1.0 gap lists are doc-0028's; the definition of 0.9 and 1.0 is proposed in decision-0016.*
+
+| | V1 | V2 | V3 | V4 | **V** | E1 | E2 | E3 | E4 | **E** |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| §3, neutral (2026-11-03) | 3 | 4 | 3 | 3 | 13 | 1 | 0 | 1 | 0 | 2 |
+| **2026-11-06, neutral** | 4 | 4 | 4 | 4 | **16** | 2 | 0 | 2 | 0 | **4** |
+| §3, note | 3 | 5 | 5 | 3 | 16 | 1 | 0 | 1 | 1 | 3 |
+| 2026-11-06, note | 4 | 5 | 5 | 4 | 18 | 2 | 0 | 2 | 1 | 5 |
+
+**What moved.**
+
+- **V1, 3 → 4: the walk.** §3 counted 5 of 10 relationship types walked, at register v0.2.3. Since then:
+  - register decision 0010 (2026-11-03) walks dependants from every kind, over 8 of the 10 types, with `owns` and `maps_to` excluded by rule;
+  - decisions 0012 (realisers), 0014 (`parent` descent on request) and 0018 (thread) add named walks.
+
+  §6 S2's "the walk over all ten relationship types" is met in substance. It is not 5: the content is synthetic.
+- **V3, 3 → 4 (neutral).**
+  - fail-closed Claude Code hooks at plan, spec commit and push (task-0099, task-0102), and on attestation paths (task-0147);
+  - the GitHub action's SARIF upload to code scanning (task-0116);
+  - the permission matrix (task-0059 AC #5).
+
+  It is not 5: the GitLab include has not met a runner (task-0108), and no enforcement has been measured at an organisation (task-0103).
+- **V4, 3 → 4.** §3 recorded "no MCP surface". There are now 16 read-only tools and 2 prompts on the reader:
+  - over stdio and Streamable HTTP, in both protocol eras (task-0079);
+  - with conformance checked against the official SDK (task-0056);
+  - beside the runs server (decision-0008).
+
+  It is not 5: there is no interchange standard; §6's route A is untouched.
+- **V2 stays 4.**
+  - Stronger: review lapses (decision-0005), owner and closer routing (task-0102, task-0110), staling on a register change (task-0122).
+  - Still absent: policy mapping to an external framework.
+- **E1, 1 → 2.**
+  - For: seven tags (v0.1.0–v0.7.0), each with its image; the 2026-11-05 review's critical fixes closed (task-0141); the security pack (task-0059); digest pins with Dependabot (task-0092).
+  - Against: six contract-changing minors in four days; no coverage figure at the scored commit (task-0159, merged since as #285); no published image that runs the arms until 0.8.0.
+- **E3, 1 → 2, on the delivery side only.** On the system-of-record side, the ARIS connector is built (task-0063 AC #1, #3, #4), and `mapping/matrix.toml` reads 17 rows `unverified` and 0 verified.
+- **E2 stays 0:** no stars, forks or instance. **E4 stays 1 on the note rubric** and is 0 on the neutral: one maintainer, no entity (task-0060).
+
+**Reading.** Still Visionary, deep.
+- §6 S1's target was 17 · 6 (note rubric). Vision is past it, and Execute stands at 5. That Execute came from engineering maturity and the delivery side, not from S1's own items. Every one of S1's own Execute items is untouched: the pilot organisation (task-0062 AC #2), a verified route (task-0063 AC #2, #5), the outcome study (task-0057), the entity (task-0060), the licence (task-0058) and the name (task-0061). Each remaining Execute point needs a third party or a decision that is not code; more code moves E1 by one at most.
+- On the note rubric 18 is the field's highest Vision (Palantir 15 on the mean). The field was never scored on the neutral rubric, so no comparison holds there.
+- ARIS, decision-0006's incumbent, is not in §1's field. doc-0027 adds it, with Orbus, Avolution and Sparx.
+
+**As a v1.0 (neutral; doc-0028, decision-0016):**
+
+| state | V | E | cells |
+|---|--:|--:|---|
+| contracts frozen, 1.0 by declaration | 16 | 5 | only E1 moves, 2 → 3 |
+| 1.0 at the lighthouse: one paid pilot in a regulated organisation, the ARIS route verified on its installation, an entity with support terms | 17–18 | ≈ 9 | V1 5, V3 4–5; E1 3, E2 1, E3 3, E4 2 |
+| S3 (note rubric target) | 19 | 16 | §6 |
+
+A version number is an E1 lever, worth one point. The dot moves right with the lighthouse, not with the tag.
