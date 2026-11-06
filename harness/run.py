@@ -29,6 +29,8 @@ from kitio import kit_for, kit_text, verbatim_documents
 import agent
 from load import PROV, load_captures, load_inferred, load_reviews, load_scenario, load_verifications, pristine_values
 from store import open_store
+import load_memory
+from extract import extract_all
 from change import apply_change, reverify
 from plant import INFERRED
 from rules import census, run_all
@@ -249,6 +251,20 @@ def main() -> None:
     pv = pristine_values()
     d = open_store(instance=SUBJECT.id, access="write")
     summary = {}
+    try:
+        # before the first load and the first model call: the whole run is one unit (task-0176)
+        load_memory.preflight(d, [load_memory.statements(extract_all(kit_for(sc), SUBJECT.reference_code())) for sc in args.scenarios])
+        _run_all(args, d, pv, as_of, out_root, summary)
+    except load_memory.LoadTooLarge as e:   # task-0176: refused before the unit's first write; nothing published
+        d.close()
+        print(f"run: cannot run: {e}", file=sys.stderr)
+        sys.exit(2)
+    d.commit()   # task-0141.02: published once every scenario ran; an exception above publishes nothing
+    d.close()
+    _write_usage(out_root, summary)
+
+
+def _run_all(args, d, pv, as_of, out_root, summary) -> None:
     for sc in args.scenarios:
         out_dir = out_root / sc
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -278,8 +294,9 @@ def main() -> None:
                       f"suite {[r['M4_suite']['passed'] for r in runs[arm]]}; flagged {[r['M3_flagged']['flagged'] for r in runs[arm]]}", flush=True)
         summary[sc] = {"gate": det["D6_gate"]["verdict"],
                        "runs": {arm: [{k: r[k] for k in ("run", "M1_decision", "M2_code", "M3_flagged", "M4_targets", "outage_status", "M5_refs", "M6_noncompliance")} | {"suite": f"{r['M4_suite']['passed']}/{r['M4_suite']['total']}"} for r in rs] for arm, rs in runs.items()}}
-    d.commit()   # task-0141.02: published once every scenario ran; an exception above publishes nothing
-    d.close()
+
+
+def _write_usage(out_root, summary) -> None:
     dump(out_root / "summary.json", summary)
     prev_usage = json.loads((out_root / "usage.json").read_text()) if (out_root / "usage.json").exists() else None
     u = arms.usage()

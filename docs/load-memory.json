@@ -1,0 +1,431 @@
+{
+ "what": "Peak transaction memory of a Neo4j writer's unit against the statements (assertions plus fragments) it writes and its wipes delete (task-0176). Measured by tools/measure_load_memory.py --disposable, once per public subject; the fit is harness/load_memory.fit over every row, and harness/load_memory.py carries it (BASE = base_envelope, PER_WRITTEN, PER_DELETED).",
+ "measured": {
+  "on": "2026-11-06",
+  "neo4j": "5.26.0 Community, tarball, Java 21",
+  "driver": "neo4j 6.4.1 (Python 3.12)",
+  "peak": "SHOW TRANSACTIONS estimatedUsedHeapMemory, sampled every 20 ms from a second session while the unit ran and committed; it moves in steps of about 1 MiB",
+  "statements": "assertions plus fragments, as harness/load_memory.py counts them before the first write: written over the whole unit, deleted by its wipes (the first wipe deletes the published generation)"
+ },
+ "fit": {
+  "per_written": 9583.4,
+  "per_deleted": 9609.8,
+  "base": 4335618,
+  "base_envelope": 25563415,
+  "largest_residual": 21227798,
+  "r2": 0.9836,
+  "rows": 41
+ },
+ "rows": [
+  {
+   "unit": "a first unit, wiping what the store held",
+   "subject": "cargo_quote",
+   "written": 0,
+   "deleted": 1509,
+   "peak_bytes": 16777216,
+   "peak_mib": 16.0,
+   "samples": 6,
+   "seconds": 0.1
+  },
+  {
+   "unit": "S1 (gate_cli load)",
+   "subject": "cargo_quote",
+   "written": 240,
+   "deleted": 0,
+   "peak_bytes": 4194304,
+   "peak_mib": 4.0,
+   "samples": 44,
+   "seconds": 1.1
+  },
+  {
+   "unit": "S2 (gate_cli load)",
+   "subject": "cargo_quote",
+   "written": 226,
+   "deleted": 240,
+   "peak_bytes": 10485760,
+   "peak_mib": 10.0,
+   "samples": 14,
+   "seconds": 0.3
+  },
+  {
+   "unit": "S3 (gate_cli load)",
+   "subject": "cargo_quote",
+   "written": 226,
+   "deleted": 226,
+   "peak_bytes": 7340032,
+   "peak_mib": 7.0,
+   "samples": 15,
+   "seconds": 0.3
+  },
+  {
+   "unit": "S4 (gate_cli load)",
+   "subject": "cargo_quote",
+   "written": 235,
+   "deleted": 226,
+   "peak_bytes": 9437184,
+   "peak_mib": 9.0,
+   "samples": 14,
+   "seconds": 0.3
+  },
+  {
+   "unit": "S5 (gate_cli load)",
+   "subject": "cargo_quote",
+   "written": 226,
+   "deleted": 235,
+   "peak_bytes": 7340032,
+   "peak_mib": 7.0,
+   "samples": 12,
+   "seconds": 0.2
+  },
+  {
+   "unit": "S6 (gate_cli load)",
+   "subject": "cargo_quote",
+   "written": 240,
+   "deleted": 227,
+   "peak_bytes": 10485760,
+   "peak_mib": 10.0,
+   "samples": 13,
+   "seconds": 0.3
+  },
+  {
+   "unit": "S7 (gate_cli load)",
+   "subject": "cargo_quote",
+   "written": 240,
+   "deleted": 240,
+   "peak_bytes": 9437184,
+   "peak_mib": 9.0,
+   "samples": 12,
+   "seconds": 0.3
+  },
+  {
+   "unit": "every scenario in one unit (run.py --deterministic)",
+   "subject": "cargo_quote",
+   "written": 1633,
+   "deleted": 1633,
+   "peak_bytes": 17825792,
+   "peak_mib": 17.0,
+   "samples": 64,
+   "seconds": 1.7
+  },
+  {
+   "unit": "synthetic: S1's kit x1",
+   "subject": "cargo_quote",
+   "written": 240,
+   "deleted": 240,
+   "peak_bytes": 3145728,
+   "peak_mib": 3.0,
+   "samples": 11,
+   "seconds": 0.2
+  },
+  {
+   "unit": "synthetic: S1's kit x1 after x1",
+   "subject": "cargo_quote",
+   "written": 240,
+   "deleted": 240,
+   "peak_bytes": 4194304,
+   "peak_mib": 4.0,
+   "samples": 10,
+   "seconds": 0.2
+  },
+  {
+   "unit": "synthetic: S1's kit x2",
+   "subject": "cargo_quote",
+   "written": 480,
+   "deleted": 240,
+   "peak_bytes": 8388608,
+   "peak_mib": 8.0,
+   "samples": 16,
+   "seconds": 0.4
+  },
+  {
+   "unit": "synthetic: S1's kit x1 after x2",
+   "subject": "cargo_quote",
+   "written": 240,
+   "deleted": 480,
+   "peak_bytes": 4194304,
+   "peak_mib": 4.0,
+   "samples": 10,
+   "seconds": 0.2
+  },
+  {
+   "unit": "synthetic: S1's kit x4",
+   "subject": "cargo_quote",
+   "written": 960,
+   "deleted": 240,
+   "peak_bytes": 12582912,
+   "peak_mib": 12.0,
+   "samples": 27,
+   "seconds": 0.6
+  },
+  {
+   "unit": "synthetic: S1's kit x1 after x4",
+   "subject": "cargo_quote",
+   "written": 240,
+   "deleted": 960,
+   "peak_bytes": 12582912,
+   "peak_mib": 12.0,
+   "samples": 11,
+   "seconds": 0.3
+  },
+  {
+   "unit": "synthetic: S1's kit x8",
+   "subject": "cargo_quote",
+   "written": 1920,
+   "deleted": 240,
+   "peak_bytes": 23068672,
+   "peak_mib": 22.0,
+   "samples": 51,
+   "seconds": 1.3
+  },
+  {
+   "unit": "synthetic: S1's kit x1 after x8",
+   "subject": "cargo_quote",
+   "written": 240,
+   "deleted": 1920,
+   "peak_bytes": 23068672,
+   "peak_mib": 22.0,
+   "samples": 15,
+   "seconds": 0.3
+  },
+  {
+   "unit": "synthetic: S1's kit x16",
+   "subject": "cargo_quote",
+   "written": 3840,
+   "deleted": 240,
+   "peak_bytes": 41943040,
+   "peak_mib": 40.0,
+   "samples": 127,
+   "seconds": 3.5
+  },
+  {
+   "unit": "synthetic: S1's kit x1 after x16",
+   "subject": "cargo_quote",
+   "written": 240,
+   "deleted": 3840,
+   "peak_bytes": 41943040,
+   "peak_mib": 40.0,
+   "samples": 17,
+   "seconds": 0.4
+  },
+  {
+   "unit": "synthetic: S1's kit x32",
+   "subject": "cargo_quote",
+   "written": 7680,
+   "deleted": 240,
+   "peak_bytes": 79691776,
+   "peak_mib": 76.0,
+   "samples": 204,
+   "seconds": 6.0
+  },
+  {
+   "unit": "synthetic: S1's kit x1 after x32",
+   "subject": "cargo_quote",
+   "written": 240,
+   "deleted": 7680,
+   "peak_bytes": 79691776,
+   "peak_mib": 76.0,
+   "samples": 25,
+   "seconds": 0.8
+  },
+  {
+   "unit": "a first unit, wiping what the store held",
+   "subject": "jef_data_load",
+   "written": 0,
+   "deleted": 240,
+   "peak_bytes": 4194304,
+   "peak_mib": 4.0,
+   "samples": 4,
+   "seconds": 0.0
+  },
+  {
+   "unit": "C (gate_cli load)",
+   "subject": "jef_data_load",
+   "written": 1509,
+   "deleted": 0,
+   "peak_bytes": 27262976,
+   "peak_mib": 26.0,
+   "samples": 101,
+   "seconds": 2.7
+  },
+  {
+   "unit": "D1 (gate_cli load)",
+   "subject": "jef_data_load",
+   "written": 1509,
+   "deleted": 1509,
+   "peak_bytes": 42991616,
+   "peak_mib": 41.0,
+   "samples": 97,
+   "seconds": 2.7
+  },
+  {
+   "unit": "D2 (gate_cli load)",
+   "subject": "jef_data_load",
+   "written": 1509,
+   "deleted": 1509,
+   "peak_bytes": 53477376,
+   "peak_mib": 51.0,
+   "samples": 93,
+   "seconds": 2.5
+  },
+  {
+   "unit": "D3 (gate_cli load)",
+   "subject": "jef_data_load",
+   "written": 1509,
+   "deleted": 1509,
+   "peak_bytes": 54525952,
+   "peak_mib": 52.0,
+   "samples": 94,
+   "seconds": 2.6
+  },
+  {
+   "unit": "D4 (gate_cli load)",
+   "subject": "jef_data_load",
+   "written": 1507,
+   "deleted": 1509,
+   "peak_bytes": 53477376,
+   "peak_mib": 51.0,
+   "samples": 125,
+   "seconds": 3.4
+  },
+  {
+   "unit": "D5 (gate_cli load)",
+   "subject": "jef_data_load",
+   "written": 1506,
+   "deleted": 1507,
+   "peak_bytes": 53477376,
+   "peak_mib": 51.0,
+   "samples": 93,
+   "seconds": 2.5
+  },
+  {
+   "unit": "every scenario in one unit (run.py --deterministic)",
+   "subject": "jef_data_load",
+   "written": 9049,
+   "deleted": 9049,
+   "peak_bytes": 102760448,
+   "peak_mib": 98.0,
+   "samples": 520,
+   "seconds": 15.2
+  },
+  {
+   "unit": "synthetic: C's kit x1",
+   "subject": "jef_data_load",
+   "written": 1509,
+   "deleted": 1506,
+   "peak_bytes": 42991616,
+   "peak_mib": 41.0,
+   "samples": 57,
+   "seconds": 1.7
+  },
+  {
+   "unit": "synthetic: C's kit x1 after x1",
+   "subject": "jef_data_load",
+   "written": 1509,
+   "deleted": 1509,
+   "peak_bytes": 31457280,
+   "peak_mib": 30.0,
+   "samples": 44,
+   "seconds": 1.2
+  },
+  {
+   "unit": "synthetic: C's kit x2",
+   "subject": "jef_data_load",
+   "written": 3018,
+   "deleted": 1509,
+   "peak_bytes": 46137344,
+   "peak_mib": 44.0,
+   "samples": 77,
+   "seconds": 2.1
+  },
+  {
+   "unit": "synthetic: C's kit x1 after x2",
+   "subject": "jef_data_load",
+   "written": 1509,
+   "deleted": 3018,
+   "peak_bytes": 46137344,
+   "peak_mib": 44.0,
+   "samples": 55,
+   "seconds": 1.5
+  },
+  {
+   "unit": "synthetic: C's kit x4",
+   "subject": "jef_data_load",
+   "written": 6036,
+   "deleted": 1509,
+   "peak_bytes": 76546048,
+   "peak_mib": 73.0,
+   "samples": 164,
+   "seconds": 4.7
+  },
+  {
+   "unit": "synthetic: C's kit x1 after x4",
+   "subject": "jef_data_load",
+   "written": 1509,
+   "deleted": 6036,
+   "peak_bytes": 75497472,
+   "peak_mib": 72.0,
+   "samples": 92,
+   "seconds": 2.6
+  },
+  {
+   "unit": "synthetic: C's kit x8",
+   "subject": "jef_data_load",
+   "written": 12072,
+   "deleted": 1509,
+   "peak_bytes": 136314880,
+   "peak_mib": 130.0,
+   "samples": 341,
+   "seconds": 10.2
+  },
+  {
+   "unit": "synthetic: C's kit x1 after x8",
+   "subject": "jef_data_load",
+   "written": 1509,
+   "deleted": 12072,
+   "peak_bytes": 136314880,
+   "peak_mib": 130.0,
+   "samples": 121,
+   "seconds": 3.6
+  },
+  {
+   "unit": "synthetic: C's kit x16",
+   "subject": "jef_data_load",
+   "written": 24144,
+   "deleted": 1509,
+   "peak_bytes": 254899840,
+   "peak_mib": 243.1,
+   "samples": 635,
+   "seconds": 20.3
+  },
+  {
+   "unit": "synthetic: C's kit x1 after x16",
+   "subject": "jef_data_load",
+   "written": 1509,
+   "deleted": 24144,
+   "peak_bytes": 254899824,
+   "peak_mib": 243.1,
+   "samples": 193,
+   "seconds": 6.2
+  },
+  {
+   "unit": "synthetic: C's kit x32",
+   "subject": "jef_data_load",
+   "written": 48288,
+   "deleted": 1509,
+   "peak_bytes": 490393888,
+   "peak_mib": 467.7,
+   "samples": 1187,
+   "seconds": 45.0
+  },
+  {
+   "unit": "synthetic: C's kit x1 after x32",
+   "subject": "jef_data_load",
+   "written": 1509,
+   "deleted": 48288,
+   "peak_bytes": 492490992,
+   "peak_mib": 469.7,
+   "samples": 270,
+   "seconds": 12.1
+  }
+ ]
+}

@@ -515,19 +515,44 @@ def _writer_epochs(handle) -> set:
 
 def snap_03_memory() -> None:
     """Neo4j started with a small ``db.memory.transaction.max`` (Community cannot change it at run time):
-    a writer's unit larger than it fails cleanly and the published generation is read whole after it."""
+    a load forecast over it is refused before its first write (task-0176: ``LoadTooLarge``, and
+    ``gate_cli`` exits 2 naming the setting and both figures); with the forecast off
+    (``KG_LOAD_MEMORY_CHECK=off``) the unit fails cleanly inside its transaction. Either way the published
+    generation is read whole after it and the sequence lock is closed."""
+    import load_memory
     import store
     from subject import SUBJECT
     before = read_now()
     other = next(s for s in SUBJECT.order if s != before["held"])
+    with opener("write") as st:
+        limit = (st.transaction_memory() or {}).get("limit")
+    check(limit is not None and limit["setting"] == "db.memory.transaction.max",
+          f"task-0176 the writer reads the server's smallest transaction memory limit: {limit}")
     try:
         with opener("write") as st:
             load(st, other)
-        check(False, "SNAP-03 a unit over db.memory.transaction.max fails")
+        check(False, "task-0176 a load forecast over db.memory.transaction.max is refused before it starts (LoadTooLarge)")
+    except load_memory.LoadTooLarge as e:
+        msg = str(e)
+        check("db.memory.transaction.max" in msg and msg.count("MiB") >= 2 and "KG_LOAD_MEMORY_CHECK=off" in msg,
+              f"task-0176 a load forecast over db.memory.transaction.max is refused before it starts, naming the setting and both figures: {msg[:200]}")
+    check(read_now() == before, "task-0176 after the refusal the published generation is read whole")
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("OPENAI", "GEMINI", "AWS", "KG_ANTHROPIC", "KG_MODEL_API"))}
+    p = subprocess.run([sys.executable, str(ROOT / "harness" / "gate_cli.py"), "--scenario", other, "--as-of", "record", "-f", "json"],
+                       capture_output=True, text=True, env=env, timeout=300)
+    check(p.returncode == 2 and "db.memory.transaction.max" in p.stderr and "refused before loading" in p.stderr,
+          f"task-0176 gate_cli exits 2 (cannot run), naming the setting and both figures: exit {p.returncode}, {p.stderr.strip()[-200:]}")
+    check(read_now() == before, "task-0176 after gate_cli's refusal the published generation is read whole")
+    try:
+        with _env(KG_LOAD_MEMORY_CHECK="off"):
+            with opener("write") as st:
+                load(st, other)
+        check(False, "SNAP-03 with the forecast off, a unit over db.memory.transaction.max fails")
     except store.StoreBusy as e:
         check(False, f"SNAP-03 a unit over db.memory.transaction.max fails on memory, not on the lease: {e}")
     except Exception as e:  # noqa: BLE001 — the driver's class for a memory pool refusal
-        check("memory" in str(e).lower(), f"SNAP-03 a unit over db.memory.transaction.max fails: {type(e).__name__}: {str(e)[:160]}")
+        check("memory" in str(e).lower() and not isinstance(e, load_memory.LoadTooLarge),
+              f"SNAP-03 with the forecast off, a unit over db.memory.transaction.max fails inside its transaction: {type(e).__name__}: {str(e)[:160]}")
     after = read_now()
     check(after == before, f"SNAP-03 after it the published generation ({before['held']}) is read whole: {after['held']}, {after['nodes']} nodes")
     with opener("write") as st:

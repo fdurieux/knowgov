@@ -12,6 +12,24 @@ names that section with the version.
 
 ### Contract changes
 
+- **A Neo4j load that would not fit the server's transaction memory is refused before it starts**
+  (task-0176). Before, such a load failed inside its transaction.
+  - **The refusal.** The load forecasts its peak transaction memory from the statements it writes and
+    those its wipe deletes, and compares it with the smallest of `db.memory.transaction.max`,
+    `db.memory.transaction.total.max` and `dbms.memory.transaction.total.max` (70% of the heap by
+    default). Over the limit, it refuses before writing anything: `gate_cli` and `harness/run.py` exit
+    2, naming the setting and both figures, and the store keeps what it held. `run.py` checks its whole
+    run before the first load and the first model call.
+  - **The forecast.** Measured on both public subjects and a synthetic scale-up to 48,288 statements
+    (`docs/load-memory.json`, `tools/measure_load_memory.py`): about 9.4 KiB a statement written or
+    deleted, raised to cover every measured peak, plus `KG_LOAD_MEMORY_MARGIN` (default 25%).
+  - **The escape.** `KG_LOAD_MEMORY_CHECK=off` loads anyway, and a unit that does not fit then fails
+    inside its transaction as before.
+  - **Sizing.** `instance/README.md` ("Sizing the Neo4j heap") states the heap an instance needs as a
+    function of its statement count, and `python harness/load_memory.py` prints a subject's.
+  - **Known limit.** The forecast is measured on Neo4j 5.26 Community. It over-reads a run of several
+    scenarios by up to about two times, and the off switch is the answer when it refuses a load that
+    would fit. No record result moves.
 - **Both servers cap a response's size** (task-0177). This lifts the 0.7.0 and 0.8.0 known limit
   "Response sizes are not capped".
   - **The page:** a response over `KG_PAGE_MAX_RESPONSE` bytes (default 8 MiB) is refused with a 500

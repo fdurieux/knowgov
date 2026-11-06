@@ -358,6 +358,7 @@ def run(args) -> dict:
 
 def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
     """The gate on one store handle: read as it is (``--no-load``) or loaded, then published."""
+    import load_memory
     from store import StoreChanged
     from tasks import TASKS
     change = None
@@ -384,6 +385,8 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
         return report
     except (CannotRun, StoreChanged):
         raise
+    except load_memory.LoadTooLarge as e:   # task-0176: refused before the unit's first write; nothing published
+        raise CannotRun(str(e)) from e
     except Exception as e:  # noqa: BLE001 — an unreachable store fails here, on the first statement
         raise CannotRun(f"the store did not answer: {type(e).__name__}: {e}") from e
 

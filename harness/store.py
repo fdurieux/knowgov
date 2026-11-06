@@ -132,6 +132,12 @@ class Store:
         what the edition refuses is itself a measurement (D1)."""
         raise NotImplementedError
 
+    def transaction_memory(self) -> dict | None:
+        """What bounds a writer's unit in transaction memory (task-0176; harness/load_memory.py):
+        ``{"limit": {bytes, setting, value} or None, "published": statements of the published generation}``,
+        or None when nothing bounds it. Only a store whose unit is one server transaction has one."""
+        return None
+
     # ---- loading: agents, activities, artefacts, fragments, entities, assertions
     def ensure_agents(self, tool_name: str, version: str, human: dict, llm: dict) -> None:
         raise NotImplementedError
@@ -478,6 +484,7 @@ SETTINGS = {
     "KG_NEO4J_LEASE_SECONDS": (60.0, 1.0, 3600.0),   # a Neo4j writer's lease, renewed every third of it
     "KG_NEO4J_LOCK_TIMEOUT": (60.0, 0.0, 86400.0),   # how long a Neo4j writer waits for another's lease
     "KG_NEO4J_READ_WAIT": (10.0, 0.0, 600.0),        # how long a Neo4j reader waits out a publication in flight
+    "KG_LOAD_MEMORY_MARGIN": (0.25, 0.0, 4.0),       # task-0176: the forecast's margin over the measured envelope
 }
 
 
