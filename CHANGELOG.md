@@ -28,6 +28,13 @@ names that section with the version.
     (p95 0.51 s); `KG_SUBJECT_CALL_TIMEOUT` bounds it (300 s).
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
+### Changes
+
+- **The compose file runs the v0.8.0 release** (decision-0003). `demo/docker-compose.yml`'s `app` and
+  `worker` pin `ghcr.io/fdurieux/knowgov:v0.8.0` by its index digest, the first release image that carries
+  the worker, so `docker compose --profile arms up -d --wait` from the published compose now serves arms
+  runs, on Linux with Landlock. `docs/security.md`'s pins row names the release.
+
 ## 0.8.0 — 2026-11-06
 
 Code a model writes now runs contained, and a reader never sees a half-built store. The arms'
