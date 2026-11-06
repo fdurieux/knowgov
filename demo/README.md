@@ -829,6 +829,37 @@ same through the MCP tool `proposal_impact`, with the proposal in its
 call (see `instance/README.md`). Outside the stack, add `KG_STORE=rdflib`,
 or `--no-store` to leave the keys without their levels.
 
+### What exists, step by step
+
+The same report reads a journey or a product that is already in the
+register, with no proposal (task-0191, doc-0024). Name it with
+`--scope`:
+
+```bash
+docker compose exec -T app python harness/proposal_impact.py --scope JRN-0001
+```
+
+In plain English: you get one slice per step of *Get a freight quote*.
+Each slice is the register's own thread walk from the step: the process
+behind it, the capability, the application and the data. Each slice also
+lists its knowledge keys: the subject's register-map rows on those
+nodes, with the total as the denominator. Here *Submit a quote request*
+lands 22 of CargoQuote's 36.
+
+With a scenario loaded, each key has its level under the task class and
+date you name. The slice then says:
+- how many keys are at each level;
+- the lowest level;
+- which keys are unknown (no statement) or a documented gap;
+- which reviews have lapsed;
+- which keys sit behind a link the walk does not follow, such as
+  *Notify the shipper*, still `proposed`;
+- where ownership changes hands along the thread.
+
+These are facts with their denominators, never a score. A product's id
+(`--scope PRD-0002`) gives its journeys' steps. An MCP client passes
+`scope` instead of, or beside, `proposal`.
+
 ## Quick start on a Mac, step by step
 
 Six steps. Each block is ready to paste into Terminal (zsh) as a whole;
