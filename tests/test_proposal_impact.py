@@ -523,3 +523,37 @@ def test_the_command_and_the_mcp_tool_give_the_same_slice_map():
                           capture_output=True, text=True, env=env, cwd=ROOT).stdout
     assert "slice JRN-0013 (new step): process PROC-0002" in text
     assert "slices: 4 in slices, 8 in the remainder, of 12 overlay element(s)" in text
+
+
+# ---- task-0156 (doc-0022 K5): the intake sequence in the server's instructions
+
+def test_the_instructions_name_the_intake_sequence_on_both_transports_and_every_tool_they_name_exists():
+    import re
+
+    from tests.test_mcp_server import MODERN, _modern, _post_raw, _serve
+    text = mcp_server.INSTRUCTIONS
+    intake = text.index("Intake, from a proposed initiative")
+    seq = [text.index(t, intake) for t in ("proposal_impact proposal=", "slices", "gate_verdict keys=", "one task class and one as_of")]
+    assert seq == sorted(seq) and text.index("Up, from a code file") < intake
+    rest = text[intake:]
+    for said in ("knowgov writes no work item and ranks nothing", "the tracker writes the items",
+                 "(K3) is parked to the pilot, not offered"):
+        assert said in rest, said
+    tools = {t["name"] for t in mcp_server.TOOLS}
+    named = set(re.findall(r"\b([a-z]+(?:_[a-z]+)+) [a-z]+=", text[text.index("The chain composes"):]))
+    assert {"proposal_impact", "gate_verdict", "register_impact", "evidence_bundle", "register_nodes"} <= named
+    assert named <= tools, named - tools
+    # the same text over stdio's handler, in both eras, and over Streamable HTTP
+    s, _ = _server()
+    init = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25"}}
+    assert s.handle(init)["result"]["instructions"] == text
+    assert s.handle(_modern("server/discover"))["result"]["instructions"] == text
+    httpd, base = _serve()
+    try:
+        code, body = _post_raw(base + "/mcp", _modern("server/discover"), {"MCP-Protocol-Version": MODERN, "Mcp-Method": "server/discover"})
+        assert code == 200 and body["result"]["instructions"] == text
+        code, body = _post_raw(base + "/mcp", init, {})
+        assert code == 200 and body["result"]["instructions"] == text
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
