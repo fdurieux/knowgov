@@ -1158,6 +1158,9 @@ about?" (`list_subjects`).
 **When it does not connect.** Claude Desktop's log for the server
 (`~/Library/Logs/Claude/mcp-server-knowgov.log`) shows what SSH said:
 
+- `Using MCP server command: /usr/local/bin/docker`, then `service "app" is not running`: Claude
+  Desktop still runs the local entry. `claude mcp add` changes Claude Code only; Claude Desktop reads
+  its own file, so replace its `knowgov` entry there and quit and reopen it.
 - `Permission denied (publickey)`: the block's `IdentityFile` or `User` is wrong.
 - `Host key verification failed`: step 2 has not been done, or the instance is new; do it again.
 - It hangs, then times out: the instance's address has changed (a stopped and started instance gets
