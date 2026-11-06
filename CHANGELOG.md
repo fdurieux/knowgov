@@ -12,6 +12,24 @@ names that section with the version.
 
 ### Contract changes
 
+- **Both servers bound what a request may cost** (task-0141.04). The framing is checked before any
+  of the body is read:
+  - one `Content-Length` of digits, else 400;
+  - none, or a `Transfer-Encoding`, 411;
+  - a `Content-Encoding`, or a `Content-Type` other than JSON, 415;
+  - above the body limit, 413.
+
+  A request must arrive whole within an absolute deadline, however slowly it is sent; an idle
+  timeout also bounds each silent wait. At most a fixed number of connections are served at once,
+  and the next is answered 503 with `Retry-After`, with no thread started. The limits: the page's
+  `KG_PAGE_MAX_BODY` (64 KiB), `KG_PAGE_READ_TIMEOUT` (10 s), `KG_PAGE_IDLE_TIMEOUT` (5 s) and
+  `KG_PAGE_MAX_CONNECTIONS` (32); the MCP server's `KG_MCP_*` likewise, with a 4 MiB body for
+  `subject_check`. A page body must be a JSON object with typed fields. A run's `n` must be an integer
+  from 1 to `KG_PAGE_MAX_RUNS` (5, the record's count). Compatibility: `true`, `2.5` and `"3"` were
+  coerced before and are now refused (400), as is any `n` above the maximum, which before was
+  unbounded. Before, a negative or unfinished `Content-Length` held a worker indefinitely, a
+  non-numeric one dropped the connection, and connections were unbounded.
+
 - **`held_keys`, `derived_outputs` and `document_statements`, three new read-only MCP tools, on three
   new reads of the store port** (task-0144, doc-0020 C3, additive). The port gains `held_keys`,
   `derived_outputs` and `artefact_assertions`, on Neo4j and rdflib, in `store.READS`, answering by id

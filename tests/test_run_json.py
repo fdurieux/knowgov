@@ -114,7 +114,7 @@ def test_by_names_who_asked_and_nothing_else_is_admitted():
             raise AssertionError("an unknown initiator is refused")
         assert not (Path(td) / "cargo_quote").exists(), "refused before any folder is made"
     src = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
-    assert 'by=str(body.get("by") or "page")' in src, "POST /api/run passes by; the page's buttons send none"
+    assert 'by=r["by"] or "page"' in src, "POST /api/run passes by (typed by run_request, task-0141.04); the page's buttons send none"
 
 
 def test_run_json_carries_no_secret():
