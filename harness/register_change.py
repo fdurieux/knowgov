@@ -172,6 +172,15 @@ def resting(change: dict, register_map: dict, previous: Path, current: Path) -> 
     return out
 
 
+def block(change: dict, landed: list[dict]) -> dict:
+    """The register change as the gate reports it and the page shows it (task-0178): the two registers,
+    what the update withdrew and the keys resting on it, each with its owner, reasons and causes. The
+    gate adds what it wrote (``invalidated``, ``derived``); the page writes nothing."""
+    return {"from": change["from"], "to": change["to"], "nodes": change["nodes"], "links": change["links"],
+            "keys": [{"key": k["key"], "owner": k["owner"], "reasons": k["reasons"],
+                      "causes": sorted({c.get("node") or c.get("link") for c in k["causes"]})} for k in landed]}
+
+
 def apply(store, landed: list[dict]) -> dict:
     """Mark the live statements on the landed keys stale and what used them suspect, through the port."""
     if not landed:

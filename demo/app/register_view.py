@@ -29,6 +29,10 @@ HERE = Path(__file__).resolve().parent
 # One register per organisation, shared by every subject of it: the instance's own checkout when
 # KG_REGISTER names one, else the public register vendored under demo/register at a tag.
 REGISTER = Path(os.environ.get("KG_REGISTER") or (HERE.parent / "register")).resolve()
+# The register before its last update, when the instance names one (task-0178): read once at start, read
+# only, and compared with REGISTER by harness/register_change.py, the gate's own --register-previous code.
+PREVIOUS_VAR = "KG_REGISTER_PREVIOUS"
+PREVIOUS = (os.environ.get(PREVIOUS_VAR) or "").strip()
 
 sys.path.insert(0, str(HERE))
 import views  # noqa: E402  (the controlled-English registry and glossary live there)
@@ -754,6 +758,44 @@ def footprint(view: dict) -> dict:
 
 
 @takes_subject
+def register_change() -> dict:
+    """What the update from the previous register (``KG_REGISTER_PREVIOUS``) to this one withdrew, and the
+    subject's keys resting on it: ``register_change.block`` on ``diff`` and ``resting``, the gate's
+    register-change block less what the gate writes (task-0178). ``configured`` False without a previous
+    register; ``error`` when it is named but missing or does not compare, never raised."""
+    if not PREVIOUS:
+        return {"configured": False, "previous": None, "error": None}
+    prev = Path(PREVIOUS)
+    if not prev.is_dir():
+        return {"configured": True, "previous": PREVIOUS, "error": f"{PREVIOUS}: no such directory, or it cannot be read"}
+    root = HERE.parent.parent / "harness"
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    try:
+        import register_change as rc
+        change = rc.diff(prev, REGISTER)
+        landed = rc.resting(change, load_map() if has_map() else {}, prev, REGISTER)
+        return {"configured": True, "previous": PREVIOUS, "error": None, **rc.block(change, landed)}
+    except Exception as e:  # noqa: BLE001 — a previous register that does not compare is reported, never raised
+        return {"configured": True, "previous": PREVIOUS, "error": f"the registers do not compare: {type(e).__name__}: {e}"}
+
+
+def _change_sentence(ch: dict, C) -> str:
+    """The register-change section's one controlled line."""
+    if not ch["configured"]:
+        return C("This panel shows the current register only.", f"No previous register is configured ({PREVIOUS_VAR}).")
+    if ch["error"]:
+        return C("The previous register did not load, so no change is shown.")
+    tag = lambda x: x.get("tag") or (x.get("commit") or "")[:7] or "an unversioned folder"  # noqa: E731
+    n, ln, k = len(ch["nodes"]), len(ch["links"]), len(ch["keys"])
+    if not n and not ln:
+        return C(f"The update from {tag(ch['from'])} to {tag(ch['to'])} withdrew nothing.")
+    return C(f"The update from {tag(ch['from'])} to {tag(ch['to'])} withdrew {views._plural(n, 'node')} and {views._plural(ln, 'link')}.",
+             f"{views._plural(k, 'key')} of this subject rest on them.",
+             "A gate run given the previous register marks their statements stale." if k else "")
+
+
+@takes_subject
 def build(today: str | None = None) -> dict:
     """The view model. ``today`` is None for the pinned date, "wall" for the wall clock,
     or an ISO date; the result says which run it is."""
@@ -811,6 +853,8 @@ def build(today: str | None = None) -> dict:
     matrix_sentence = (C(f"The mapping matrix has {len(mrows)} rows, and every row is unverified.") if unverified == len(mrows)
                        else C(f"The mapping matrix has {len(mrows)} rows, {unverified} of them unverified."))
     glossary = [{"term": t["term"], "meaning": t["meaning"], "forbidden": t.get("forbidden", [])} for t in reg["glossary"].get("term", [])]
+    change = register_change()
+    change["sentence"] = _change_sentence(change, C)
     return {"source": src, "run_date": run_date.isoformat(), "pinned": today is None and pinned is not None,
             "pinned_date": pinned.isoformat() if pinned else "",
             "summary": {"nodes": summary["nodes"], "links": summary["links"], "errors": len(errors), "warnings": len(warnings)},
@@ -820,7 +864,7 @@ def build(today: str | None = None) -> dict:
             "impact_default": default_start,
             "nodes_by_taxonomy": by_tax, "links": links, "relationship_types": rel_types,
             "exceptions": exceptions, "matrix": {"rows": len(mrows), "unverified": unverified, "sentence": matrix_sentence},
-            "glossary": glossary, "text_registry": reg_sentences}
+            "glossary": glossary, "register_change": change, "text_registry": reg_sentences}
 
 
 _COMPAT = {"REQ_ANCHOR": "req_anchor", "REQ_DOC_ANCHOR": "req_doc_anchor", "SYSTEM": "system", "SYS": "sys", "REQ_ID": "req_id",

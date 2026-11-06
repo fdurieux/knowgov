@@ -190,6 +190,17 @@ entry then says *this instance* instead of the public repository, the
 checker runs at today's date, since a checkout has no pinned date, and no
 digest is checked, since there is no `SOURCE.md` to check against.
 
+To see what a register update withdrew, keep the register as it was before
+the update beside it, for example a copy at `register-previous/` in the
+instance folder, and set `KG_REGISTER_PREVIOUS` to it
+(`KG_REGISTER_PREVIOUS=/instance/register-previous` with the overlay). The
+Register view then lists the nodes the update deprecated or retired, the
+links it withdrew, each with its reason, and the subject's keys that rest on
+them, the same list the gate prints with `--register-previous`. The page reads
+the setting once, at start, and never writes to either register. Without it,
+the view says it shows the current register only; a path that is not there
+is shown on the page, not as an error.
+
 **Switching subject.** A *subject* is one kit with its documents,
 scenarios and record: the CargoQuote demo and J-F's data load are the two
 public ones. The **subject** drop-down at the top of the page lists every
