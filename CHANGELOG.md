@@ -45,6 +45,19 @@ names that section with the version.
   `execution` through (`{"ok", "why"}`, task-0167) and adds `arms_ready`: true only when a model key is
   set, the operator allows arms, and model output may run. `arms_enabled` and `arms_on_page` are
   unchanged. A page older than task-0167, which does not report `execution`, reads as refused.
+- **"What this shows" speaks for the run on screen** (task-0170). The plain-English box ends with the
+  record's conclusion only for the record, and for a run whose every arm outcome the record also had.
+  A run whose model calls failed now says so, quoting the first error, and that the record's conclusion
+  does not apply. A run that did not reproduce the record says what happened instead.
+
+- **The page shows where Arms code runs** (task-0169). A new header chip reads, for example,
+  "worker: attested · Docker · Linux 7.0.0-1014-aws (x86_64) · AWS (from the kernel release)", or
+  "worker: not attested" with the reason. The facts come only from the worker's own attestation, which
+  now carries a `host` block (`system`, `kernel`, `machine`, `engine`) read inside its container;
+  no check and no verdict changes. A cloud is a reading of the kernel release's suffix (`-aws`,
+  `-azure`, `-gcp`, `-oracle`), labelled as such, never asked of a metadata service. `GET /api/scenarios`
+  and knowgov-runs' `run_options` carry it as `worker`, additively.
+
 - **Model keys are checked before the Arms drop-down offers a row** (task-0171). When the page starts,
   it asks each row's endpoint for its model listing (`GET {base_url}/models`), which spends no tokens.
   Each row then reads key accepted, key refused (401 or 403), endpoint unreachable, or key unchecked.

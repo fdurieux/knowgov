@@ -40,8 +40,8 @@ class _Resp:
 class StubPage:
     """The page's run API: records every request; one run at a time, as the Runner's lock."""
 
-    def __init__(self, run_text="", execution=None):
-        self.requests, self.current, self.run_text = [], None, run_text
+    def __init__(self, run_text="", execution=None, worker="absent"):
+        self.requests, self.current, self.run_text, self.worker = [], None, run_text, worker
         self.execution = {"ok": True, "why": None} if execution is None else execution   # "absent": the page omits it
 
     def __call__(self, req, timeout=None):
@@ -61,6 +61,8 @@ class StubPage:
             return _Resp(200, self.current or {"status": "idle"})
         if path.startswith("/api/scenarios"):
             extra = {} if self.execution == "absent" else {"execution": self.execution}
+            if self.worker != "absent":
+                extra["worker"] = self.worker
             return _Resp(200, {**extra, "scenarios": [{"id": "S1"}, {"id": "S2"}], "arms_enabled": True, "deterministic_enabled": True,
                                "model_rows": [{"id": "openai-gpt", "label": "x", "provider": "openai", "host": "api.openai.com",
                                                "model": "m", "efforts": ["low"], "key_var": "OPENAI_API_KEY", "key_set": True,
@@ -246,3 +248,16 @@ def test_the_reader_reads_a_runs_new_load_on_its_next_call():
         got = tools.store_status({})
         assert got["scenario"] == second and got["loaded_at"] == "2026-11-04T23:00:00+00:00", got
         assert Path(path).read_text(encoding="utf-8").count(f"act:extract:{second}") >= 1
+
+
+def test_run_options_passes_the_workers_place_through():
+    """task-0169: the page's worker (execution.placement()) as it reports it; a page without it reads not attested."""
+    aws = {"backend": "worker", "attested": True, "why": None,
+           "host": {"system": "Linux", "kernel": "7.0.0-1014-aws", "machine": "x86_64", "engine": "docker"},
+           "cloud": {"name": "AWS", "basis": "read from the kernel release's -aws suffix, not checked"}}
+    with _Env(KG_MCP_RUN_MODES="deterministic,arms"):
+        got = _call(_server(StubPage(worker=aws)), "run_options")["structuredContent"]["worker"]
+        assert got == aws, got
+        old = _call(_server(StubPage()), "run_options")["structuredContent"]["worker"]
+        assert old["attested"] is False and old["host"] is None and "task-0169" in old["why"], old
+    assert "worker" in {t["name"]: t for t in mcp_runs.tools_table()}["run_options"]["description"]

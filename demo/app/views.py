@@ -505,6 +505,64 @@ def record_check(scenario: str, d: Path, source: str = "") -> dict | None:
             "lines": [ln.strip() for ln in lines if ln.startswith("  ")][:6]}
 
 
+def _outcome(r: dict) -> tuple:
+    """One arm run's outcome, as the record's conclusion speaks of it: the decision, whether it wrote
+    code, whether that code passed every oracle scenario, and the planted targets it failed."""
+    suite = r.get("suite")
+    passed = None if suite is None else suite.split("/")[0] == suite.split("/")[1]
+    return (r.get("decision"), bool(r.get("code")), passed, tuple(sorted(t for t, v in (r.get("targets") or {}).items() if v is False)))
+
+
+def reproduces_record(view: dict) -> bool:
+    """True when the source is the record, or when every arm run in it has an outcome some run of the
+    record's same arm had, and no call failed (task-0170): only then is the record's conclusion this
+    source's conclusion too."""
+    if view["source"] == "record":
+        return True
+    if view["api_errors"]:
+        return False
+    rec = resolve_source(view["scenario"], "record", Path())
+    if rec is None:
+        return False
+    for arm in ("G", "B"):
+        mine = view["arms"][arm]["runs"]
+        if not mine:
+            continue
+        seen = {_outcome(_run_view(r)) for r in _runs(rec, arm)}
+        if not seen or any(_outcome(r) not in seen for r in mine):
+            return False
+    return True
+
+
+def _conclusion(view: dict, C, D, R) -> str:
+    """The plain-English box's last word: the record's sentence for the record and for a source that
+    reproduces it; otherwise this source's own outcome, said plainly (task-0170)."""
+    if reproduces_record(view):
+        return C("What this shows:") + " " + R(view["meta"]["plain"])
+    arms = view["arms"]
+    failed = [a for a in ("G", "B") if arms[a]["summary"]["n"] and arms[a]["summary"]["api_errors"] == arms[a]["summary"]["n"]]
+    first = (view["api_errors"][0]["error"] if view["api_errors"] else "")[:160]
+    if failed and len(failed) == sum(1 for a in ("G", "B") if arms[a]["summary"]["n"]):
+        return (C("What this run shows: the arms' calls to the model failed, so no code was graded.") + " "
+                + D("First error: " + first + ".") + " "
+                + C("The record's conclusion does not apply to this run."))
+    parts = [C("What this run shows: its arms did not reproduce the record's outcome.")]
+    for a in ("G", "B"):
+        sm = arms[a]["summary"]
+        if not sm["n"]:
+            continue
+        if a in failed:
+            parts.append(C(f"Arm {a}'s calls to the model failed, so none of its code was graded."))
+        elif sm["api_errors"]:
+            parts.append(C(f"{sm['api_errors']} of arm {a}'s {sm['n']} calls failed before any answer."))
+        if sm["code"] and sm["all_11"] < sm["code"]:
+            parts.append(C(f"Arm {a}'s code failed some of the oracle's scenarios in {sm['code'] - sm['all_11']} of {sm['n']} runs."))
+    if first:
+        parts.append(D("First error: " + first + "."))
+    parts.append(C("The record's conclusion does not apply to this run."))
+    return " ".join(parts)
+
+
 def narrative(view: dict, det: dict, reg: list) -> list[str]:
     """The report in sentences for a reader who knows none of the shorthand.
     Every number comes from the same files as the boxes above it. Controlled
@@ -609,7 +667,7 @@ def narrative(view: dict, det: dict, reg: list) -> list[str]:
                 marked = ", ".join(str(x) for x in sm["assumed_below"]) or "0"
                 sents.append(f"Of the {sm['below_n']} keys below verified it read {reads} and marked {marked} as assumptions, run by run.")
             out.append(C(*sents))
-        out.append(C("What this shows:") + " " + R(meta["plain"]))
+        out.append(_conclusion(view, C, D, R))
     else:
         out.append(C("This source holds the store's half only.", "The loading, the rules and the gate were re-executed.",
                      "The two arms were not called.", "Replay shows the record's runs for this scenario.", "Arms calls them again."))
