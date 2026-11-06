@@ -77,6 +77,18 @@ names that section with the version.
   `-azure`, `-gcp`, `-oracle`), labelled as such, never asked of a metadata service. `GET /api/scenarios`
   and knowgov-runs' `run_options` carry it as `worker`, additively.
 
+- **Model keys are checked before the Arms drop-down offers a row** (task-0171). When the page starts,
+  it asks each row's endpoint for its model listing (`GET {base_url}/models`), which spends no tokens.
+  Each row then reads key accepted, key refused (401 or 403), endpoint unreachable, or key unchecked.
+  A refused row is greyed with the HTTP status and the variable to fix, and a run on it is refused at
+  once instead of failing after the first call. Rows on the same endpoint and key are checked once.
+  *re-check keys* asks again (`POST /api/models/check`, behind the page's token). Only the verdict, the
+  status and the time are kept, never the key or the provider's message. `KG_KEY_CHECK=off` turns the
+  check off. The Claude row reads "gateway key accepted, upstream unchecked": the gateway's listing
+  proves its own key only, and LiteLLM's `/health` would make a paid call, so the Anthropic key is first
+  tested by a run. Each row in `GET /api/scenarios` and knowgov-runs' `run_options` carries
+  `key_check`, and `demo/models.toml` gains an optional `gateway` field. Both are additive.
+
 ## 0.8.0 — 2026-11-06
 
 Code a model writes now runs contained, and a reader never sees a half-built store. The arms'

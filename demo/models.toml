@@ -25,6 +25,10 @@
 #   thinking_uncounted  optional, default false: the endpoint leaves a thinking model's tokens out of
 #             streamed usage, so its counts are low; the page says so on every run. Measured for
 #             LiteLLM in front of Gemini (task-0034); Google's own endpoint counts them in its total.
+#   gateway   optional, default false: the endpoint is a gateway that holds the provider's key itself.
+#             The page checks every row's key when it starts, by the endpoint's model listing, which
+#             spends no tokens (task-0171); behind a gateway that proves the gateway's own key only, so
+#             the row reads "gateway key accepted, upstream unchecked". KG_KEY_CHECK=off turns the check off.
 
 [[row]]
 id = "openai-gpt-5.5"
@@ -67,6 +71,8 @@ arms = ["reply", "agent"]
 # the upstream model so a run file records claude-sonnet-5-5. The key is the gateway's own,
 # LITELLM_MASTER_KEY; your Anthropic key goes to the gateway only, as KG_ANTHROPIC_KEY.
 # Checked 2026-11-02: a J-F agent run read every turn after the first from the cache.
+# The page's key check reaches the gateway's listing only: LiteLLM's /health would test the Anthropic
+# key with a real, paid completion, so KG_ANTHROPIC_KEY stays unchecked until the first call (task-0171).
 [[row]]
 id = "anthropic-claude-sonnet-5-5"
 label = "Anthropic claude-sonnet-5-5, through the gateway"
@@ -76,3 +82,4 @@ model = "claude-sonnet-5-5"
 efforts = ["", "low", "medium", "high"]
 key_var = "LITELLM_MASTER_KEY"
 arms = ["reply", "agent"]
+gateway = true

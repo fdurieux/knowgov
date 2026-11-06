@@ -124,7 +124,7 @@ def test_run_json_carries_no_secret():
     env = {"KG_MODEL_BASE_URL": "https://api.example.test/v1", "KG_MODEL_API_KEY_VAR": key_var,
            "KG_ARMS_MODEL": "test-model", "KG_ARMS_EFFORT": "low", "KG_THINKING_UNCOUNTED": ""}
     keep_resolve, keep_env = server.models.resolve, dict(os.environ)
-    server.models.resolve = lambda *a: (row, env, True)
+    server.models.resolve = lambda *a, **kw: (row, env, True)
     os.environ.update({key_var: key, "KG_PAGE_TOKEN": token})
     try:
         with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as jobs:
