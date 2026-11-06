@@ -6,7 +6,7 @@ title: >-
   nonsense, fit/gap, opportunity canvas, SWOT
 type: specification
 created_date: '2026-11-05T23:02:00Z'
-updated_date: '2026-11-06T17:19:00Z'
+updated_date: '2026-11-06T17:22:00Z'
 tags:
   - brief
   - canvas
@@ -20,7 +20,7 @@ tags:
 
 *Trigger: the maintainer's question: does a heuristic model in knowgov make sense? It would apply to a subject's register to test scenarios and analyse an end-to-end journey down to its applications, with relevant use cases, sense and nonsense, an opportunity canvas and fit/gap.*
 
-*Read on knowgov `main` at `8f20af0`. The register is v0.2.11 (decision 0018 approved, vendored by task-0155); task-0152 and task-0144 are done. Executed:*
+*Read on knowgov `main` at `8f20af0`, and decision-0016 as accepted at `8f5edd5`. The register is v0.2.11 (decision 0018 approved, vendored by task-0155); task-0152 and task-0144 are done. Executed:*
 - *a read-only script over the register's `load_register`, `impact.walk(…, THREAD)`, `walk_children` and `descendants`, committed nowhere, joining per reached node the keys of `subjects/cargo_quote/register_map.toml` and `subjects/jef_data_load/register_map.toml`;*
 - *`harness/proposal_impact.py --no-store` on an overlay that adds nothing;*
 - *ieam-register `tools/check_register.py`.*
@@ -168,7 +168,7 @@ tags:
 | | Helpful | Harmful |
 |---|---|---|
 | **Internal** | **S.** Every input exists (`THREAD`, A1, task-0152's slices, `landed_rows`/`with_levels`, task-0144); no walk of its own; the step grain separates (22/18 of 36, 65/66 of 163); deterministic, read-only | **W.** As fine as the links (JRN-0009 to JRN-0011: one thread, the same 100 keys); keys from a subject's map, not the register; levels unread here; a contract change to `proposal_impact`; 57 synthetic nodes |
-| **External** | **O.** One call per journey for U1, U2, U6, U8; the pilot's intake demonstration extended to what exists; finding 1 shown per step with its 14 keys; J3 and J4 read J1's cells | **T.** A rollup read as a score; decision-0016's freeze (proposed); overlap with doc-0025 on U4, U10 |
+| **External** | **O.** One call per journey for U1, U2, U6, U8; the pilot's intake demonstration extended to what exists; finding 1 shown per step with its 14 keys; J3 and J4 read J1's cells | **T.** A rollup read as a score; the 0.9.0 freeze's timing (decision-0016); overlap with doc-0025 on U4, U10 |
 
 The evidence for each cell:
 
@@ -198,7 +198,12 @@ The evidence for each cell:
 
 **Threats.**
 - **A rollup read as a score.** A per-step "worst level" invites a readiness percentage, against the register's "coverage is never a percentage to pass". Mitigation: cells carry denominators and `unknown`, no aggregate across steps.
-- **The contract freeze.** decision-0016 (proposed) makes 0.9.0 a freeze with 0.9.x fixes only. If it is accepted, J1's contract change lands before 0.9.0 or waits for the next minor after it.
+- **The freeze's timing.** decision-0016 (accepted 2026-11-06, #320) puts it in force:
+  - contract changes after 0.8.0 gather for 0.9.0, which is cut when doc-0028's G9 list is met;
+  - 0.9.x carries fixes only;
+  - a contract change after the cut is 0.10.0 and restarts the freeze.
+
+  J1 is an additive schema change (a scope option, a keys field per slice). It lands in the 0.9.0 gathering, or waits for 0.10.0 if it misses the cut.
 - **Overlap with doc-0025** (applications to refactor, sunset or replace, reserved) on U4 and U10: two studies reading the same walks from the application side.
 
 **The parked and rejected candidates, where they bear on the advice.**
@@ -242,7 +247,7 @@ The evidence for each cell:
 
 ## 9. For the maintainer
 
-1. **J1's home.** Recommended: task-0152's evaluator, with a scope by journey or product and keys per slice. One evaluator, one schema, one shape of answer for an initiative and for what exists. A separate read would compute the same slices twice. Timing (§6 threats): if decision-0016 is accepted, J1 lands before 0.9.0's freeze or in the next minor after it.
+1. **J1's home.** Recommended: task-0152's evaluator, with a scope by journey or product and keys per slice. One evaluator, one schema, one shape of answer for an initiative and for what exists. A separate read would compute the same slices twice. Timing (§6 threats, decision-0016): J1 lands in the 0.9.0 gathering, or waits for 0.10.0 if it misses the cut.
 2. **The scenario grid (J3).** Recommended: a CLI over deterministic run folders, after J1, not through `knowgov-runs`, so a sweep never wipes what every viewer of the page sees.
 3. **J4 and J5.** Recommended: park both to the pilot.
 4. **Scores and simulation.** Recommended: J6 parked; simulation and a single risk score rejected, as doc-0015 §1 already holds.
