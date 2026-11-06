@@ -1,0 +1,468 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/run-options.schema.json",
+ "title": "knowgov-runs run_options",
+ "description": "What knowgov-runs' run_options returns (harness/mcp_runs.py RunTools.run_options; task-0172): the page's scenarios, the modes this server may start, whether model output may run (execution, task-0168) and where (worker, task-0169), the model rows without any key's value, each with its key check (task-0171), and the run under way, as _run_view keeps it.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "subject",
+  "page",
+  "allowed_modes",
+  "deterministic_enabled",
+  "arms_enabled",
+  "arms_on_page",
+  "execution",
+  "arms_ready",
+  "model_rows",
+  "record_model",
+  "record_effort",
+  "scenarios",
+  "token_required",
+  "writes_refused",
+  "run",
+  "worker"
+ ],
+ "properties": {
+  "subject": {
+   "type": "string"
+  },
+  "page": {
+   "type": "string"
+  },
+  "allowed_modes": {
+   "type": "array",
+   "items": {
+    "enum": [
+     "deterministic",
+     "arms"
+    ]
+   }
+  },
+  "deterministic_enabled": {
+   "type": "boolean"
+  },
+  "arms_enabled": {
+   "type": "boolean"
+  },
+  "arms_on_page": {
+   "type": "boolean"
+  },
+  "execution": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "ok",
+    "why"
+   ],
+   "properties": {
+    "ok": {
+     "type": "boolean"
+    },
+    "why": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "arms_ready": {
+   "type": "boolean"
+  },
+  "model_rows": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/model_row"
+   }
+  },
+  "record_model": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "record_effort": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "scenarios": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "token_required": {
+   "type": "boolean"
+  },
+  "writes_refused": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "run": {
+   "$ref": "#/$defs/run_view"
+  },
+  "worker": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "backend",
+    "attested",
+    "host",
+    "cloud",
+    "why"
+   ],
+   "description": "where model output would run, as the worker attested it (task-0169, harness/execution.py placement); not attested, with why, when the page does not say",
+   "properties": {
+    "backend": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "attested": {
+     "type": "boolean"
+    },
+    "host": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "additionalProperties": false,
+     "required": [
+      "system",
+      "kernel",
+      "machine",
+      "engine"
+     ],
+     "properties": {
+      "system": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "kernel": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "machine": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "engine": {
+       "type": [
+        "string",
+        "null"
+       ]
+      }
+     }
+    },
+    "cloud": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "additionalProperties": false,
+     "required": [
+      "name",
+      "basis"
+     ],
+     "properties": {
+      "name": {
+       "type": "string"
+      },
+      "basis": {
+       "type": "string"
+      }
+     }
+    },
+    "why": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  }
+ },
+ "$defs": {
+  "model_row": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "label",
+    "provider",
+    "host",
+    "model",
+    "efforts",
+    "key_var",
+    "key_set",
+    "available",
+    "why",
+    "key_check"
+   ],
+   "properties": {
+    "id": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "label": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "provider": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "host": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "model": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "efforts": {
+     "type": [
+      "array",
+      "null"
+     ],
+     "items": {
+      "type": "string"
+     }
+    },
+    "key_var": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "key_set": {
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
+    "available": {
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
+    "why": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "key_check": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "additionalProperties": false,
+     "required": [
+      "state",
+      "status",
+      "checked_at",
+      "scope",
+      "model_listed",
+      "why"
+     ],
+     "description": "the endpoint's verdict on the row's key (task-0171, harness/key_check.py Checker.verdict): its model listing, no tokens; null from a page before task-0171",
+     "properties": {
+      "state": {
+       "enum": [
+        "accepted",
+        "refused",
+        "unreachable",
+        "unchecked"
+       ]
+      },
+      "status": {
+       "type": [
+        "integer",
+        "null"
+       ]
+      },
+      "checked_at": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "scope": {
+       "enum": [
+        "key",
+        "gateway"
+       ]
+      },
+      "model_listed": {
+       "type": [
+        "boolean",
+        "null"
+       ]
+      },
+      "why": {
+       "type": [
+        "string",
+        "null"
+       ]
+      }
+     }
+    }
+   }
+  },
+  "run_view": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "subject",
+    "scenario",
+    "mode",
+    "n",
+    "row",
+    "model",
+    "effort",
+    "model_deviation",
+    "as_of",
+    "by",
+    "started",
+    "finished",
+    "status",
+    "exit_code",
+    "elapsed_s",
+    "source"
+   ],
+   "properties": {
+    "id": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "subject": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "scenario": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "mode": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "n": {
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "row": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "model": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "effort": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "model_deviation": {
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
+    "as_of": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "by": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "started": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "finished": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "status": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "exit_code": {
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "elapsed_s": {
+     "type": [
+      "number",
+      "null"
+     ]
+    },
+    "source": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   },
+   "description": "the run under way, as _run_view keeps it, or null when none"
+  }
+ }
+}

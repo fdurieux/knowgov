@@ -432,10 +432,25 @@ TOOLS.append(
                     "answer for any subject). Name a subject on any tool with its subject argument.",
      "inputSchema": {"type": "object", "additionalProperties": False, "properties": {}},
      "annotations": READ_ONLY})
+# task-0172: every tool's structuredContent is pinned by a schema under harness/schemas/, its description names
+# it, and tests/test_mcp_output_schemas.py validates each tool's output against it with harness/schema_check.py
+OUTPUT_SCHEMAS = {"store_status": "store-status", "gate_verdict": "gate-report", "three_valued_answer": "three-valued-answer",
+                  "evidence_bundle": "evidence-bundle", "register_impact": "register-impact", "proposal_impact": "proposal-impact",
+                  "scenario_runs": "scenario-runs", "scenario_result": "scenario-result", "register_nodes": "register-nodes",
+                  "key_nodes": "key-nodes", "code_path": "code-path", "document_links": "document-links",
+                  "subject_check": "subject-check", "held_keys": "held-keys", "derived_outputs": "derived-outputs",
+                  "document_statements": "document-statements", "list_subjects": "list-subjects"}
+
+
+def output_note(schema: str) -> str:
+    return f" Output (structuredContent): harness/schemas/{schema}.schema.json."
+
+
 for _t in TOOLS:
     if _t["name"] != "list_subjects":
         _t["inputSchema"]["properties"]["subject"] = SUBJECT_ARG
     _t["_meta"] = {META_STORE: _t["name"] in STORE_BACKED}
+    _t["description"] += output_note(OUTPUT_SCHEMAS[_t["name"]])
 
 
 class ToolError(Exception):

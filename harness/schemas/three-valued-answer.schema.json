@@ -1,0 +1,283 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/three-valued-answer.schema.json",
+ "title": "knowgov reader three_valued_answer",
+ "description": "What the MCP reader's three_valued_answer returns (harness/mcp_server.py Tools.three_valued_answer; task-0172): one key's answer, asserted, documented_absent or unknown (with why), each live statement with its provenance as the port's key_evidence reads it, and the invalidated statements on the key with what superseded them.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "subject",
+  "store",
+  "scenario",
+  "key",
+  "answer",
+  "statements",
+  "invalidated"
+ ],
+ "properties": {
+  "subject": {
+   "type": "string"
+  },
+  "store": {
+   "type": "string"
+  },
+  "scenario": {
+   "type": "string"
+  },
+  "key": {
+   "type": "string"
+  },
+  "answer": {
+   "enum": [
+    "asserted",
+    "documented_absent",
+    "unknown"
+   ]
+  },
+  "statements": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/statement"
+   }
+  },
+  "invalidated": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "id",
+     "value",
+     "invalidated_by",
+     "superseded_by"
+    ],
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "value": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "invalidated_by": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "superseded_by": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  },
+  "why": {
+   "type": "string"
+  }
+ },
+ "$defs": {
+  "statement": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "value",
+    "text",
+    "basis",
+    "status",
+    "artefact",
+    "agent",
+    "fragments",
+    "verifications",
+    "approvals",
+    "gaps"
+   ],
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "value": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "text": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "basis": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "status": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "artefact": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "agent": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "fragments": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "locator",
+       "text",
+       "artefact"
+      ],
+      "properties": {
+       "locator": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "text": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "artefact": {
+        "type": [
+         "string",
+         "null"
+        ]
+       }
+      }
+     }
+    },
+    "verifications": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "id",
+       "method",
+       "scope",
+       "at",
+       "valid_until"
+      ],
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "method": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "scope": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "at": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "valid_until": {
+        "type": [
+         "string",
+         "null"
+        ]
+       }
+      }
+     }
+    },
+    "approvals": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "id",
+       "at",
+       "record"
+      ],
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "at": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "record": {
+        "type": [
+         "string",
+         "null"
+        ]
+       }
+      }
+     }
+    },
+    "gaps": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "id",
+       "kind",
+       "declared",
+       "text"
+      ],
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "kind": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "declared": {
+        "type": [
+         "boolean",
+         "null"
+        ]
+       },
+       "text": {
+        "type": [
+         "string",
+         "null"
+        ]
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}

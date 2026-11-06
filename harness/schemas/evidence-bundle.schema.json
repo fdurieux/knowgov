@@ -1,0 +1,74 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/evidence-bundle.schema.json",
+ "title": "knowgov reader evidence_bundle",
+ "description": "What the MCP reader's evidence_bundle returns (harness/mcp_server.py Tools.evidence_bundle; task-0172): the bundle as harness/run.py hands it to the governed arm (render_bundle's text), with the verdict it rests on, the statements by id, the verbatim documents by name, the version held and the date read.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "subject",
+  "store",
+  "scenario",
+  "version",
+  "task",
+  "as_of",
+  "verdict",
+  "why",
+  "assertion_ids",
+  "verbatim",
+  "bundle"
+ ],
+ "properties": {
+  "subject": {
+   "type": "string"
+  },
+  "store": {
+   "type": "string"
+  },
+  "scenario": {
+   "type": "string"
+  },
+  "version": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "task": {
+   "type": "string"
+  },
+  "as_of": {
+   "type": "string"
+  },
+  "verdict": {
+   "$ref": "#/$defs/verdict"
+  },
+  "why": {
+   "type": "string"
+  },
+  "assertion_ids": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "verbatim": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "bundle": {
+   "type": "string"
+  }
+ },
+ "$defs": {
+  "verdict": {
+   "enum": [
+    "PROCEED",
+    "QUALIFIED",
+    "BLOCKED"
+   ]
+  }
+ }
+}

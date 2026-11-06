@@ -44,6 +44,8 @@ Once, after the scenarios: ``subject_check`` listed over stdio and Streamable HT
 Once, after the scenarios: a call naming another subject under ``KG_SUBJECTS`` equals the same call on a reader
 started on that subject, over stdio and HTTP; ``list_subjects`` names every subject; a store-backed call for it
 refuses naming the held subject and the run to start (task-0157, decision-0013 with A1).
+Every answer it reads, over either transport, conforms to the schema the tool's description names
+(``mcp_server.OUTPUT_SCHEMAS``, harness/schemas/; task-0172).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
 
 A scenario with a later version (``[scenario.stage2]``, S6) is asked a second time after
@@ -86,6 +88,17 @@ def _stop(p: subprocess.Popen, grace: float = 30) -> None:
         p.wait(timeout=grace)
 
 
+def conform(name: str, out: dict) -> None:
+    """Every answer this check reads, on either transport, conforms to the schema the tool names (task-0172)."""
+    if str(HARNESS) not in sys.path:
+        sys.path.insert(0, str(HARNESS))
+    import mcp_server
+    import schema_check
+    errors = schema_check.validate(out, schema_check.load(mcp_server.OUTPUT_SCHEMAS[name]))
+    if errors:
+        raise AssertionError(f"{name}: off harness/schemas/{mcp_server.OUTPUT_SCHEMAS[name]}.schema.json: {errors[:3]}")
+
+
 class StdioClient:
     """A minimal MCP client: start the server, initialise, call tools."""
 
@@ -114,7 +127,9 @@ class StdioClient:
         r = self.request("tools/call", {"name": name, "arguments": args})["result"]
         if r.get("isError"):
             raise AssertionError(f"{name}{args}: {r['content'][0]['text']}")
-        return r["structuredContent"]
+        out = r["structuredContent"]
+        conform(name, out)
+        return out
 
     def modern(self, method: str, params: dict) -> dict:
         """A self-contained 2026-07-28 request on the same process (task-0079): no handshake state used."""

@@ -1,0 +1,97 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/store-status.schema.json",
+ "title": "knowgov reader store_status",
+ "description": "What the MCP reader's store_status returns (harness/mcp_server.py Tools.store_status; task-0172): the subject, the store kind, the scenario the store holds for this subject (null when none, or when it holds another subject's, which held_by_other_subject names), when it was loaded, the date gate_verdict and evidence_bundle read on by default and where it came from, the subject's scenarios, its task classes with their required keys, block levels, bar and rationale, and the keys the three-valued question is asked of.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "subject",
+  "store",
+  "scenario",
+  "loaded_at",
+  "held_by_other_subject",
+  "as_of",
+  "as_of_from",
+  "scenarios",
+  "tasks",
+  "three_valued_keys"
+ ],
+ "properties": {
+  "subject": {
+   "type": "string"
+  },
+  "store": {
+   "type": "string"
+  },
+  "scenario": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "loaded_at": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "held_by_other_subject": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "as_of": {
+   "type": "string"
+  },
+  "as_of_from": {
+   "type": "string"
+  },
+  "scenarios": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "tasks": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "keys",
+     "block_levels",
+     "max_unverified_share"
+    ],
+    "properties": {
+     "keys": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "block_levels": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "max_unverified_share": {
+      "type": "number"
+     },
+     "rationale": {
+      "type": "string"
+     }
+    }
+   },
+   "description": "task class name to its spec"
+  },
+  "three_valued_keys": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  }
+ }
+}

@@ -36,6 +36,17 @@ names that section with the version.
 
 ### Changes
 
+- **Every MCP tool's output has a pinned schema** (task-0172). Each tool of the reader and of
+  `knowgov-runs` names the schema of its `structuredContent` at the end of its description. Ten are
+  new: `store-status`, `three-valued-answer`, `evidence-bundle`, `register-impact`, `list-subjects`,
+  `scenario-runs`, `scenario-result`, `run-options` (with `execution`, `worker` and each model row's
+  `key_check`), `run-started` and `run-status`. The others
+  were already pinned (the gate report, `register-nodes`, `key-nodes`, `code-path`,
+  `document-links`, `held-keys`, `derived-outputs`, `document-statements`, `proposal-impact`,
+  `subject-check`). No output changes shape. A test calls every tool on both public subjects and
+  validates each answer, and `tools/check_mcp_server.py` validates every answer it reads, over
+  stdio and HTTP. A field a schema does not name fails.
+
 - **A reader recovers from an abandoned Neo4j publication** (task-0175). Before, a writer killed between
   raising the publication counter and committing left reads waiting `KG_NEO4J_READ_WAIT`, then
   refusing, until the next writer took the lease.
