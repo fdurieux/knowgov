@@ -12,6 +12,12 @@ names that section with the version.
 
 ### Contract changes
 
+- **A file document's Version digest is over its raw bytes** (task-0160). The SHA-256 a Version
+  records for a file artefact is now taken over the file's bytes on disk, as the register's digest of
+  a cited file is. Before, it was taken over the text as read, which turns CRLF line ends into LF, so register-cites
+  read an unchanged CRLF file as "differs". A planted text, which has no file, and a directory
+  artefact's bundle keep their text's digest. The public subjects' files are all LF, so no recorded
+  digest moves. 0.8.0's known limit on this is lifted.
 - **One reader for every subject, by id** (task-0157, decision-0013 with amendment A1). Every tool of
   the MCP reader and of `knowgov-runs` takes an optional `subject`: the id of a subject under
   `KG_SUBJECTS`, never a path. A path, an unknown id or an id outside `KG_SUBJECTS` is refused. A

@@ -176,6 +176,21 @@ class Subject:
             return {}
         return {rel: hashlib.sha256(f.read_bytes()).hexdigest() for rel, f in bundle_files(p, a.get("include"))}
 
+    def version_digest(self, key: str, text: str) -> tuple[str, int]:
+        """A Version's (SHA-256, bytes) for ``key`` as a scenario's kit holds it (``text``), task-0160: for a
+        file artefact whose kit text is the file as read, unplanted, the digest and length of its raw bytes
+        on disk, which is what the register's digest of a cited file is taken over (read_text turns CRLF
+        into LF); for a planted text, which has no bytes on disk, a directory artefact's bundle (its files
+        keep their own raw digests in ``part_digests``) or an artefact with no file, its text's (UTF-8)."""
+        a = next((x for x in self.artefacts if x["key"] == key), None)
+        p = self.root / a["path"] if a and a.get("path") else None
+        if p is not None and p.is_file():
+            raw = p.read_bytes()
+            if raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n") == text:
+                return hashlib.sha256(raw).hexdigest(), len(raw)
+        enc = text.encode("utf-8")
+        return hashlib.sha256(enc).hexdigest(), len(enc)
+
     def part_digests(self, key: str, text: str) -> dict[str, str]:
         """Each file of a directory artefact as a scenario's kit holds it (``text``, its bundle), by
         relative path (task-0094): the SHA-256 of the file's raw bytes on disk when the kit's part is the
