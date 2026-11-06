@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-06T06:18:00Z'
-updated_date: '2026-11-06T07:11:00Z'
+updated_date: '2026-11-06T07:38:00Z'
 labels:
   - ci
   - security
@@ -41,3 +41,9 @@ The 2026-11-05 code and architecture review's plan (task-0141) runs a cross-cutt
 4. AC #1: statement and branch coverage, standard library only (sys.monitoring, CPython 3.12+; no new dependency): a tool runs the suite under it, the denominator declared (modules counted by name, those left out and why), branches from the bytecode's conditional jumps; in-process only, so no integration coverage claimed; figures recorded with their scope.
 5. AC #5: measured (GitHub API): stack within budget uncontended (7.0-10.6 min with at most one other run active); rdflib over (27.4 min in the one quiet sample; median 24.9 of 128 PR runs). A proposal to split or trim that never subsets the record, with its fit/gap, to the coordinator; stop there.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-06 evidence. AC #1 coverage (tools/coverage_stdlib.py, sys.monitoring, no new dependency): denominator 89 files counted (harness/, demo/app/, tools/, demo/tools/, instance/, .claude/hooks/), left out by named rule (tests/; subjects/*/vendor, demo/model, demo/register vendored and pinned by digest; subjects/*/oracle run only in child processes), a test holding every .py of the repository counted or left out; statements are line-table lines, branches the two outcomes of each POP_JUMP_IF_* and FOR_ITER; in-process only, no integration coverage claimed. Figures 18461 statements, 15762 branch outcomes: CargoQuote with the pins 67.6% statements, 47.2% branches; J-F with the pins 65.4%, 45.4%; CargoQuote stdlib (3.13) 60.8%, 43.2%. By folder (CargoQuote, pins): demo/app 93.9%/68.6%, harness 74.9%/52.9%, demo/tools 63.6%/46.8%, tools 45.1%/29.0%, instance 30.7%/13.6%, .claude 48.0%/10.9%; the modules at 0% (run.py, worker_job.py, the check tools, _outcomes.py) run only as child processes. The review's 71.0%/66.0% was another scope (a local unit-plus-CargoQuote sample) and is not comparable. AC #2: instance/** in demo.yml's pull_request and push filters; tests/test_ci_hygiene.py. AC #3: timeouts tests 20, rdflib 120, stack 60, publish 30 against job execution worst cases tests 2.9, rdflib 71.8 (push, full J-F), stack 25.4 (push), publish 0.9 (GitHub API, first attempts, 2026-11-04..06; run spans include up to ~20 min of queueing, which a job timeout does not count); the compose teardown is if: always() already, the docker run workers --rm in the foreground, check_mcp_server's servers now killed after a bounded wait; tests/test_ci_hygiene.py holds each timeout >= max(1.5 x worst, worst + 10) and > 12. AC #4: KG_TEST_REPORT (the runner's JSON) and KG_OUTCOMES (tools/_outcomes.py, every check tool exits through it; per-check outcomes from check_worker and check_snapshots, the SNAP-07 skip with its reason); each job's summary (tools/outcomes_summary.py); tests/test_outcomes.py. The CI artifact upload waits on the coordinator's decision (actions/upload-artifact would be a new pin). Suite four ways, 0 failed: CargoQuote pins 584/585, stdlib 568/585; J-F pins 583/585, stdlib 567/585.
+<!-- SECTION:NOTES:END -->
