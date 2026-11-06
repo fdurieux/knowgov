@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-06T12:42:00Z'
-updated_date: '2026-11-06T13:00:00Z'
+updated_date: '2026-11-06T13:01:00Z'
 labels:
   - demo
   - security
@@ -64,6 +64,8 @@ The Claude row goes through the LiteLLM gateway, and the app holds only LITELLM_
 - AC6: the real openai 3.41.0 client against a loopback stand-in: 200 accepted, 401 and 403 refused, 404 unchecked, a closed port unreachable; exactly one GET /v1/models each, the key as a bearer token, and nothing of the key or of the provider's message in the verdict. Prerequisite openai, added to harness.yml rdflib's KG_TEST_REQUIRE. Suite: stdlib 609/631, 22 skipped, 0 failed; with the pins (rdflib, pyshacl, pumllint, openai) and KG_TEST_REQUIRE=rdflib,node,openai, 630/631, 1 skipped (hook-live), 0 failed.
 - AC7: CHANGELOG Unreleased > Changes line; demo/README 'Which model the Arms mode calls' and the HTTP-surface paragraph; compose passes KG_KEY_CHECK (default on) and documents it.
 - Gateway: no free upstream check is used. LiteLLM /health makes a paid completion. LiteLLM's /v1/messages/count_tokens (Anthropic's free token count) and a configured pass-through to Anthropic's GET /v1/models are untested against image v1.108.0. They are a possible follow-up, not built.
+
+2026-11-06, relayed by the coordinator: on the maintainer's EC2 stack, the value in OPENAI_API_KEY was not an OpenAI secret key at all (no sk- prefix). A prefix-shape warning was suggested; it was not added. The listing check refuses such a key at start, at no cost; a prefix rule would read the key's text and keep provider-specific shapes (Google's and LiteLLM's keys have no fixed prefix).
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
