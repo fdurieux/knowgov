@@ -5,7 +5,7 @@ title: >-
   top-right
 type: specification
 created_date: '2026-11-03T22:44:00Z'
-updated_date: '2026-11-06T09:56:00Z'
+updated_date: '2026-11-06T10:26:00Z'
 tags:
   - brief
   - positioning
@@ -20,7 +20,7 @@ tags:
 
 Not in Gartner's DTO Magic Quadrant (first edition 2026-07-27, 18 vendors): its definition needs operational data, knowgov holds the declarative twin. Not a fourth register in the EA Tools MQ (2025-10-06) either, at E ≈ 3 against 16–20. The position is the seam between them. Positioning line: *"Before an AI agent builds on what your architecture says, know whether it is true."*
 
-*2026-11-06: re-scored by the home team under the neutral rubric at 16 · 4 (18 · 5 on the note rubric), still Visionary (§8). The first external pass on doc-0027's brief placed it at 13 · 3, still Visionary (§9).*
+*2026-11-06: re-scored by the home team under the neutral rubric at 16 · 4 (18 · 5 on the note rubric), still Visionary (§8). Two external passes on doc-0027's brief placed it at 13 · 3 (§9) and 15 · 2 (§10): a mean of 14 · 2.5, still Visionary.*
 
 ## 1. Category and field
 
@@ -229,3 +229,71 @@ Two are new:
 These are G1-1, G1-2 and G1-4, and G9-8.
 
 **Bounds.** One runner, not two. It worked from documentation, not code. doc-0027's anchors are new, so their effect cannot be separated from the runner's. The second runner, from another model family, is still owed. Proposed: until it reports, this doc reads the stack at the external 13 · 3, and keeps §8's 16 · 4 as the home team's reading.
+
+## 10. External pass, 2026-11-06 (doc-0027, second runner)
+
+2026-11-06. The run:
+- Brief: doc-0027, sent unedited from the drafting session on the maintainer's go ("run the Gemini pass").
+- Model and settings: Google `gemini-3.1-pro-preview` through the native `streamGenerateContent`, thinking level high, with the Google Search tool available. This is the operator's record; the report's own runner section says "Gemini 2.5 Pro", which is wrong.
+- Time: 10:23:44–10:25:22 UTC; 109,847 input tokens, 7,432 output and 6,784 thinking.
+- Inputs: the same 13 files at the same pins as the first runner (aris2puml `ca22e13`), with an operator's note naming them.
+- It did not use the search tool: the stream carries no grounding metadata. Its field therefore rests on recalled knowledge, although it marks every field product `thin: false`.
+
+The raw report stays outside the repository; this is our reading of it. It is about a quarter the length of the first runner's (7.4k output tokens against 29k), and less careful:
+- it marks the stack's cells `observed` where it read documentation only; the brief's class for that is `documented`;
+- it counts 13 MCP tools, where `instance/README.md` says sixteen;
+- its stack table says "Niche" for 15 · 2, which the brief's rule and its own JSON read as Visionaries;
+- its "errors in the sources" are not errors. Two are corrections the evaluation record makes of itself, one is its own rule-following on J-F, and it says ieam-register's decision 0019 is missing when it exists.
+
+**The stack.**
+
+| scoring | V1 | V2 | V3 | V4 | **V** | E1 | E2 | E3 | E4 | **E** |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| §3, neutral (2026-11-03) | 3 | 4 | 3 | 3 | 13 | 1 | 0 | 1 | 0 | 2 |
+| §8, home re-score, neutral | 4 | 4 | 4 | 4 | 16 | 2 | 0 | 2 | 0 | 4 |
+| §9, first runner (OpenAI) | 3 | 4 | 3 | 3 | 13 | 2 | 0 | 1 | 0 | 3 |
+| **second runner (Gemini)** | 4 | 4 | 3 | 4 | **15** | 1 | 0 | 1 | 0 | **2** |
+| mean of the two runners | 3.5 | 4 | 3 | 3.5 | 14 | 1.5 | 0 | 1 | 0 | 2.5 |
+
+- **Five cells agree across both runners:** V2 4, V3 3, E2 0, E3 1, E4 0. Both reject §8's V3 of 4 and E3 of 2, so §9's scale question on E3 is settled against §8.
+- **Three cells split:**
+  - V1 and V4: Gemini 4, with §8; OpenAI 3.
+  - E1: OpenAI 2; Gemini 1, citing seven releases in four days and the worker refused on Docker Desktop for Mac.
+
+  Gemini's V4 rests partly on its miscount of tools, and it does not weigh the GPL licence, which OpenAI did. OpenAI's V1 reading (identity across the authoring tools is unproven) is the stricter under the anchors.
+- **Vision:** the runners bracket it at 13–15, mean 14. §8's 16 sits above both; §3's 13 sits at the low end.
+- **Execute:** 2–3, mean 2.5. §8's 4 sits above both.
+- **Both place the stack in Visionaries.**
+
+**The field.** Gemini scored it from recall, without search, and lower throughout:
+- no product reaches the corner, Palantir peaking at 15 · 15;
+- the stack's 15 ties Palantir's as the field's highest Vision.
+
+OpenAI, with search, put Palantir and ServiceNow in the corner and the stack mid-field. The products recalled rather than searched show the widest gaps: FINOS CALM (Gemini 7 · 5, OpenAI 14 · 9) and Spec Kit / Kiro (8 · 9 against 12 · 15). The corner question and the stack's rank on Vision stay open; the first runner's field, which cites its sources, is the stronger of the two.
+
+**Category.** Gemini: not a coherent category but "highly specific to the home team's invention"; an analyst would split the stack across EA tools, AI governance and developer portals. OpenAI: coherent, but not an analyst-standard name. Neither treats it as a category an analyst would score.
+
+**As a v1.0.**
+
+| state | first runner | second runner | §8 (home) |
+|---|--:|--:|--:|
+| v1.0-minimal | 13 · 3 | 15 · 3 | 16 · 5 |
+| v1.0-as-defined | 16 · 8 | 15 · 8 | 17–18 · ≈ 9 |
+
+- **On Execute the runners agree exactly:** 3 for a declared 1.0, and 8 with every condition met; Visionary either way. The version number moves Execute by one point at most. §8's claim holds, though its levels run about one point high.
+- **Gemini's four conditions:**
+  - stable contracts;
+  - production-grade isolation: a login on the page beyond localhost, and the contained worker on the main desktop platforms (task-0162 covers macOS);
+  - connectors validated on real exports;
+  - a legal entity and support.
+
+  Each is in decision-0016 or among the first runner's additions, except the page's login, which `docs/security.md` already lists ("The page's reads have no login").
+
+**What would change its mind:**
+- a public enterprise deployment that validates the ARIS route and the MCP server;
+- a commercial or support entity, with security such as single sign-on on the page;
+- the CI wrappers proven on real runners.
+
+These are G1-1, G1-2, G1-4 and G1-6.
+
+**Proposed reading.** With both runners in, this doc reads the stack at their mean, 14 · 2.5, Visionaries. It keeps §8's 16 · 4 as the home team's reading, about two points high on Vision and 1.5 on Execute. The field stays §9's, the one with sources. doc-0027 owes no third runner. A rerun of this one that actually uses search would firm up the field.
