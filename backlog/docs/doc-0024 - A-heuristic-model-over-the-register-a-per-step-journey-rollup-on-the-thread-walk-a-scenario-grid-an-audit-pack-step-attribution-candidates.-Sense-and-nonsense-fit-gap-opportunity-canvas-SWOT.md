@@ -6,7 +6,7 @@ title: >-
   nonsense, fit/gap, opportunity canvas, SWOT
 type: specification
 created_date: '2026-11-05T23:02:00Z'
-updated_date: '2026-11-06T17:22:00Z'
+updated_date: '2026-11-06T23:06:00Z'
 tags:
   - brief
   - canvas
@@ -252,3 +252,13 @@ The evidence for each cell:
 3. **J4 and J5.** Recommended: park both to the pilot.
 4. **Scores and simulation.** Recommended: J6 parked; simulation and a single risk score rejected, as doc-0015 §1 already holds.
 5. **The coarse J-F steps.** Not knowgov's call: whether JRN-0009 to JRN-0011 get finer processes is a register content change for ORG-0003. 0018 leaves it open.
+
+## Answered (2026-11-06)
+
+The maintainer: "accept the advice on all three" (doc-0023, doc-0024, doc-0025). In force:
+
+1. **J1:** in task-0152's evaluator, scoped by a named journey or product, keys per slice: task-0191. An additive contract change: the 0.9.0 gathering, or 0.10.0 if it misses the cut (decision-0016).
+2. **J3:** a CLI over deterministic run folders, after J1, never through `knowgov-runs`: task-0192.
+3. **J4 and J5:** parked to the pilot; no task.
+4. **J6:** parked. Simulation and a single risk score stay rejected (doc-0015 §1).
+5. **JRN-0009 to JRN-0011:** finer processes are a register content change for ORG-0003, not knowgov's call; decision 0018 leaves it open.

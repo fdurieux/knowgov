@@ -5,7 +5,7 @@ title: >-
   harness defects. A probe, fit/gap, opportunity canvas, SWOT, proposals
 type: specification
 created_date: '2026-11-05T23:02:00Z'
-updated_date: '2026-11-06T17:44:00Z'
+updated_date: '2026-11-06T23:06:00Z'
 tags:
   - arms
   - models
@@ -169,3 +169,25 @@ In order. 1 to 4 are fixes and are not bound by decision-0016's freeze; 5 is tre
 - OpenRouter's public model list, openrouter.ai/api/v1/models, 2026-11-05.
 - TypeSafe AI, 2026-11-05: typesafe.ai; typesafe.ai/blog/introducing-system-one-models-and-jev; docs.typesafe.ai introduction, quickstart, models, api/errors, introduction/coding-agents, cookbooks/citation_check; typesafe.ai/legal/privacy-policy, /legal/terms, /enterprise.
 - Third-party, weaker, named where used: on Mistral's data terms (waimakers.com, requesty.ai) and on open-weight rankings (mindstudio.ai, kilo.ai; vendor-reported and conflicting).
+
+## Answered (2026-11-06)
+
+The maintainer: "accept the advice on all three" (doc-0023, doc-0024, doc-0025). In force:
+
+- **Endpoint kinds.** Kind 1 first: task-0189, after task-0185. Kind 2 after its keyed spike (task-0190) and defect 2's fix. Kind 3 for the maintainer's study on the public subjects only, after the key-check fix. Neither Jev nor Alibaba's cloud.
+- **The fixes, now, outside decision-0016's freeze:**
+  - defect 1, the prompt-integrity guard: task-0185;
+  - defect 2, list-shaped content chunks: task-0186;
+  - retries on 429, 5xx and network errors only: task-0187;
+  - a key check that a public listing cannot fool: task-0188.
+- **The private row against the freeze.** It joins the 0.9.0 gathering only if built before G9 is met, and never holds 0.9.0; otherwise it is 0.10.0. This is task-0189's AC.
+- **What the self-hosted route needs:**
+  - the guard as a precondition;
+  - the context length named;
+  - the efforts listed per model;
+  - the GPU host stated as the operator's;
+  - a vLLM probe before the docs call the route proven.
+
+  All five are task-0189's.
+- **Keyed calls.** One Mistral spike after defect 2's fix: task-0190, the one paid spike this acceptance authorises. OpenRouter is for the cross-family replication only, which is follow-up 8 and not tasked yet.
+- **Jev.** Not now.
