@@ -1,7 +1,8 @@
 """The worker's network check (harness/worker.py ``network``, ``loopback_only`` in its attestation) on a
 fake sysfs and procfs: down tunnel devices beside lo pass, as Docker Desktop's kernel creates them in a
 ``network_mode: none`` container; an interface up, a route over anything but lo, CAP_NET_ADMIN held or
-anything unreadable fail. The real worker's attestation is proven in the stack job (tools/check_worker.py
+anything unreadable fail. Its socket probes (``sockets``, ``no_socket_escape``) with stand-in sockets:
+AF_VSOCK, AF_PACKET and an outside connect all refused pass; any that opens or reaches fails. The real worker's attestation is proven in the stack job (tools/check_worker.py
 and demo.yml's loosened workers)."""
 from __future__ import annotations
 
@@ -90,3 +91,60 @@ def test_the_attestation_carries_the_view_and_its_check():
     with tempfile.TemporaryDirectory() as td:
         a = worker.attest({}, sys_root=str(Path(td) / "nosys"), proc_root=str(Path(td) / "noproc"))
     assert a["checks"]["loopback_only"] is False and a["interfaces"] is None and a["routes"] is None and a["cap_net_admin"]
+
+
+def _refuse(code):
+    def f(*_a, **_k):
+        raise OSError(code, "refused")
+    return f
+
+
+class _Opened:
+    def close(self):
+        pass
+
+
+def _opens(family, kind):
+    return _Opened()
+
+
+def test_no_socket_escape_holds_when_vsock_packet_and_the_outside_are_all_refused():
+    # the maintainer's Mac in the worker container: EPERM, EPERM, ENETUNREACH (Docker Desktop 4.48.0)
+    import errno
+    v = worker.sockets(opener=_refuse(errno.EPERM), connect=_refuse(errno.ENETUNREACH))
+    assert v["ok"] and v["probes"] == {"AF_VSOCK": "refused EPERM", "AF_PACKET": "refused EPERM",
+                                       "outside": "refused ENETUNREACH"}, v
+    assert worker.sockets(opener=_refuse(errno.EAFNOSUPPORT), connect=_refuse(errno.ENETUNREACH))["ok"], \
+        "a kernel without the family cannot open it either"
+
+
+def test_a_vsock_or_packet_socket_that_opens_fails_the_check():
+    import errno
+    v = worker.sockets(opener=_opens, connect=_refuse(errno.ENETUNREACH))
+    assert not v["ok"] and v["probes"]["AF_VSOCK"] == "opened" and v["probes"]["AF_PACKET"] == "opened", v
+
+    def vsock_only(family, kind):
+        if family == worker.AF_VSOCK:
+            return _Opened()
+        raise OSError(errno.EPERM, "refused")
+    assert not worker.sockets(opener=vsock_only, connect=_refuse(errno.ENETUNREACH))["ok"]
+
+
+def test_a_connect_that_ends_any_way_but_no_network_counts_as_reaching_out():
+    import errno
+    import socket
+    for connect in (lambda: None, _refuse(errno.ECONNREFUSED), _refuse(errno.EHOSTUNREACH),
+                    lambda: (_ for _ in ()).throw(socket.timeout("timed out"))):
+        v = worker.sockets(opener=_refuse(errno.EPERM), connect=connect)
+        assert not v["ok"] and not v["probes"]["outside"].startswith("refused "), v
+
+
+def test_the_attestation_carries_the_socket_probes_and_their_check():
+    import errno
+    with tempfile.TemporaryDirectory() as td:
+        held = worker.attest({}, sys_root=str(Path(td) / "nosys"), proc_root=str(Path(td) / "noproc"),
+                             socket_probe=lambda: worker.sockets(opener=_refuse(errno.EPERM), connect=_refuse(errno.ENETUNREACH)))
+        open_ = worker.attest({}, sys_root=str(Path(td) / "nosys"), proc_root=str(Path(td) / "noproc"),
+                              socket_probe=lambda: worker.sockets(opener=_opens, connect=_refuse(errno.ENETUNREACH)))
+    assert held["checks"]["no_socket_escape"] is True and held["sockets"]["AF_VSOCK"] == "refused EPERM", held
+    assert open_["checks"]["no_socket_escape"] is False and not open_["ok"], open_

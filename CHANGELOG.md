@@ -74,6 +74,14 @@ names that section with the version.
 
 ### Changes
 
+- **The worker attests that it cannot open AF_VSOCK or AF_PACKET sockets or reach an outside address**
+  (`no_socket_escape`, task-0165; decision-0012, decision-0015). No network namespace confines AF_VSOCK,
+  and on Docker Desktop the VM's host side answers on it; the engine's default seccomp profile refuses it,
+  and the worker now proves that at start rather than assume it. It tries both families and a connect to
+  `192.0.2.1:9` (TEST-NET-1, never routed); any that opens or reaches fails the check, and the app refuses
+  jobs from a worker whose attestation lacks it. The attestation carries each probe's outcome under
+  `sockets`. On Docker Desktop for Mac 4.48.0 all three are refused (EPERM, EPERM, ENETUNREACH).
+
 - **The worker's network check accepts the down tunnel devices Docker Desktop creates** (task-0161,
   decision-0015). `loopback_only` held only when `/sys/class/net` listed `lo` alone. A kernel with
   tunnel modules loaded puts `tunl0`, `gre0`, `sit0` and others, down, in every network namespace,
