@@ -41,6 +41,8 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tools"))
+import _outcomes  # noqa: E402 — task-0159: each check's outcome, when KG_OUTCOMES names a file
 sys.path[:0] = [str(ROOT / "harness"), str(ROOT / "demo" / "app")]
 os.environ.setdefault("KG_CLOCK", "pinned")
 
@@ -48,6 +50,7 @@ FAILURES: list[str] = []
 
 
 def check(cond, label: str) -> bool:
+    _outcomes.check(label, cond)
     print(("ok   " if cond else "FAIL ") + label, flush=True)
     if not cond:
         FAILURES.append(label)
@@ -425,6 +428,7 @@ def snap_06(s1: str, s2: str, g1: dict, g2: dict) -> None:
 
 def snap_07(round_trip: bool = True) -> None:
     if not round_trip:
+        _outcomes.skip("SNAP-07 round trip", "not run here; the workflow's own round-trip steps run it (--no-round-trip)")
         print("skip SNAP-07 round trip: not run here; the workflow's own round-trip steps run it (--no-round-trip)", flush=True)
     chain = "neo4j,rdflib,neo4j" if kind() == "neo4j" else "rdflib,rdflib"   # the workflows run the other chains
     env = dict(os.environ)
@@ -489,4 +493,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_outcomes.run(main))

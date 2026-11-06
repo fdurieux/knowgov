@@ -120,6 +120,7 @@ services:
       KG_ARMS_MODEL: ${KG_ARMS_MODEL:-}   # optional: with the two KG_MODEL_* variables, the drop-down's "this instance's settings" row
       KG_ARMS_EFFORT: ${KG_ARMS_EFFORT:-}  # optional: the effort a harness run outside the page sends; the page sets its own per run
       KG_WORKER_JOBS: /jobs   # task-0141.05: model output runs only in the worker below (profile arms), through this folder
+      KG_OUTCOMES: ${KG_OUTCOMES:-}   # task-0159: where a check tool appends its outcome (tools/_outcomes.py); unset, nothing is written
     ports:
       - "${KG_BIND:-127.0.0.1}:${KG_PORT_APP:-8080}:8080"
     volumes:

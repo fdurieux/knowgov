@@ -154,4 +154,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    import _outcomes   # task-0159: the outcome recorded when KG_OUTCOMES names a file
+    sys.exit(_outcomes.run(lambda: main(sys.argv[1:])))

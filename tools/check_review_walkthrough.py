@@ -171,6 +171,7 @@ def main(out: Path) -> int:
 
 
 if __name__ == "__main__":
+    import _outcomes   # task-0159: the outcome recorded when KG_OUTCOMES names a file
     if len(sys.argv) != 2:
         sys.exit(__doc__)
-    sys.exit(main(Path(sys.argv[1]).resolve()))
+    sys.exit(_outcomes.run(lambda: main(Path(sys.argv[1]).resolve())))

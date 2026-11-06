@@ -89,6 +89,19 @@ names that section with the version.
   public subjects' directory artefacts (J-F's 47) already ends in a newline with LF line ends, so no recorded
   digest moves; an instance's file without one now matches its register.
 
+- **CI hygiene, the review's V1 completed** (task-0159).
+  - **Timeouts.** Every job of `tests.yml`, `harness.yml` and `demo.yml` has a timeout, each above the worst run seen, so a slow, honest run
+    is not killed: tests 20 min, rdflib 120, stack 60, publish 30.
+  - **The stack job's paths.** A change under `instance/` now runs it.
+  - **Outcomes, machine-readable.** `tests/run_tests.py` writes a JSON report when `KG_TEST_REPORT` names a
+    file. Every check tool appends its exit and, where it reports them, each check's pass, fail or skip with
+    the skip's reason, when `KG_OUTCOMES` names one (`tools/_outcomes.py`). Each job's summary lists them, one
+    line per tool (`tools/outcomes_summary.py`), and keeps the outcome JSON for 14 days as an artifact
+    (`actions/upload-artifact`, pinned by commit), whatever the job's result.
+  - **Coverage.** `tools/coverage_stdlib.py` measures the suite's statement and branch coverage with
+    the standard library alone (CPython 3.12+), against a declared denominator. It counts the suite's own
+    process only, so it claims no integration coverage. The tests job reports it.
+
 - **The hook's settings snippets read the spec commit under `design`** (task-0114, after task-0101).
   The three snippets under `instance/ci/claude/` (repository, managed, advisory) add
   `--task-for spec=design`, as the pilot protocol does; the plan and the push stay `codegen`. Keep it

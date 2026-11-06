@@ -30,6 +30,8 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tools"))
+import _outcomes  # noqa: E402 — task-0159: each check's outcome, when KG_OUTCOMES names a file
 sys.path[:0] = [str(ROOT / "harness")]
 
 
@@ -48,6 +50,7 @@ def main() -> int:
     failures: list[str] = []
 
     def check(cond, label):
+        _outcomes.check(label, cond)
         print(("ok   " if cond else "FAIL ") + label, flush=True)
         if not cond:
             failures.append(label)
@@ -192,4 +195,4 @@ except OSError as e:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_outcomes.run(main))

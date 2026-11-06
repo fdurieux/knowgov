@@ -14,11 +14,27 @@ permissions:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20   # task-0159: above the worst run seen (see tests/test_ci_hygiene.py), never the 12-minute budget
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
-      - run: python tests/run_tests.py
+      - run: KG_TEST_REPORT=outcomes/tests-cargo_quote.json python tests/run_tests.py
       - name: The same suite under the second public subject
-        run: KG_SUBJECT=subjects/jef_data_load python tests/run_tests.py
+        run: KG_SUBJECT=subjects/jef_data_load KG_TEST_REPORT=outcomes/tests-jef_data_load.json python tests/run_tests.py
+      - name: Statement and branch coverage of the suite, in-process, against its declared denominator (task-0159)
+        run: python tools/coverage_stdlib.py --out outcomes/coverage.json
+      - name: The outcomes, machine-readable, in the job's summary (task-0159)
+        if: always()
+        run: python tools/outcomes_summary.py outcomes >> "$GITHUB_STEP_SUMMARY"
+      - name: The outcome files kept as an artifact, 14 days, outcomes JSON only (task-0159)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: outcomes-tests
+          path: |
+            outcomes/*.json
+            outcomes/*.jsonl
+          if-no-files-found: warn
+          retention-days: 14
