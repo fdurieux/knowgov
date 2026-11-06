@@ -356,8 +356,18 @@ def test_it_binds_localhost_unless_told_and_a_wider_bind_needs_a_token():
         assert mcp_server.bind_check(host, None), host
         assert mcp_server.bind_check(host, "s3cret") is None, host
     assert mcp_server.main(["--http", "--host", "0.0.0.0"]) == 2
-    assert mcp_server.origin_allowed(None) and mcp_server.origin_allowed("http://localhost:6274")
-    assert not mcp_server.origin_allowed("https://evil.example")
+    # task-0141.03: the origins are the server's own, never every loopback port; the MCP Inspector's is configured
+    import http_boundary as hb
+    own = {"Host": "127.0.0.1:8765"}
+    assert hb.check(mcp_server.http_policy("127.0.0.1", 8765), own) is None
+    assert hb.check(mcp_server.http_policy("127.0.0.1", 8765), {**own, "Origin": "http://localhost:6274"})[0] == 403
+    assert hb.check(mcp_server.http_policy("127.0.0.1", 8765), {**own, "Origin": "https://evil.example"})[0] == 403
+    keep = os.environ.get("KG_MCP_ORIGINS")
+    os.environ["KG_MCP_ORIGINS"] = "http://localhost:6274"
+    try:
+        assert hb.check(mcp_server.http_policy("127.0.0.1", 8765), {**own, "Origin": "http://localhost:6274"}) is None
+    finally:
+        os.environ.pop("KG_MCP_ORIGINS") if keep is None else os.environ.__setitem__("KG_MCP_ORIGINS", keep)
 
 
 def _post(url, body, headers=None):

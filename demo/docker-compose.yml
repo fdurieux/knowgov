@@ -31,6 +31,13 @@
 #                      on a server, http://<its address>:7474)
 #   KG_DEMO_HOST       the host the viewer reaches this page by (default localhost): Neo4j Browser fetches
 #                      the impact panel's guides from it, and allows only the hosts listed here
+#   KG_PAGE_AUTHORITIES  further host[:port] the page answers for (comma-separated); it answers only for
+#                      the loopback names and KG_DEMO_HOST on KG_PORT_APP otherwise, whatever Host a request
+#                      names (421), and admits a browser Origin only of those (403) (task-0141.03)
+#   KG_PAGE_ORIGINS    further browser origins, as scheme://host[:port]: behind a TLS reverse proxy, its
+#                      https://... origin, with the proxy passing the public Host through unchanged.
+#                      Forwarded headers are never read. Example, kg.example.org behind nginx on 443:
+#                      KG_PAGE_AUTHORITIES=kg.example.org:443 KG_PAGE_ORIGINS=https://kg.example.org
 #   KG_STORE           the store adapter: neo4j (default) or rdflib, in memory (harness/store.py)
 #   KG_SUBJECT         the subject the page opens on (default /repo/subjects/cargo_quote; see subjects/README.md)
 #   KG_SUBJECTS        the subjects the header's drop-down lists: a folder of subjects or several roots, comma-separated
@@ -93,7 +100,11 @@ services:
       KG_BIND: ${KG_BIND:-127.0.0.1}   # where the page is published: the server refuses writes beyond this machine without a token
       KG_PAGE_TOKEN: ${KG_PAGE_TOKEN:-}   # task-0096: the bearer token runs and projections must carry; passed through, never baked in
       KG_NEO4J_PASSWORD: ${KG_NEO4J_PASSWORD:-kgpoc2026}
-      KG_BROWSER_URL: ${KG_BROWSER_URL:-http://localhost:7474}
+      KG_BROWSER_URL: ${KG_BROWSER_URL:-http://localhost:7474}   # also the one other origin the impact guides admit (task-0141.03)
+      KG_PUBLIC_PORT: ${KG_PORT_APP:-8080}   # the port the page is published on: the Host it answers for (task-0141.03)
+      KG_DEMO_HOST: ${KG_DEMO_HOST:-localhost}
+      KG_PAGE_AUTHORITIES: ${KG_PAGE_AUTHORITIES:-}
+      KG_PAGE_ORIGINS: ${KG_PAGE_ORIGINS:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       KG_MODEL_API_KEY: ${KG_MODEL_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}   # the Gemini row's key (demo/models.toml); passed through, never baked in
