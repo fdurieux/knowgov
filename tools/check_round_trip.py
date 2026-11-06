@@ -49,7 +49,7 @@ sys.path.insert(0, str(HARNESS))
 
 def open_kind(kind: str, instance: str):
     from store import open_store
-    return open_store(kind, instance=instance, **({"path": ""} if kind == "rdflib" else {}))
+    return open_store(kind, instance=instance, access="write", **({"path": ""} if kind == "rdflib" else {}))
 
 
 def answers(st, scenario: str) -> dict:

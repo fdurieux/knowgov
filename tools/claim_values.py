@@ -320,7 +320,7 @@ def scenario_store(sc: str, results: Path, s) -> Store:
 
 def measure(results: Path, scenarios: list[str]) -> list[dict]:
     targets_keys = TARGET_KEYS.get(SUBJECT.id, {})
-    s = open_store(instance=SUBJECT.id)
+    s = open_store(instance=SUBJECT.id, access="write")   # loads each scenario to measure it: never committed (task-0141.02)
     rows = []
     try:
         for sc in scenarios:

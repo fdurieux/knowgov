@@ -47,9 +47,9 @@ def main(argv=None) -> int:
              if ln.get("state") == "approved" for ev in ln.get("evidence", []) if ev.startswith(ps.sys)]
     projected = register_project.rows()["cites"]
     approved = {ln["id"] for rel in reg["relationships"].values() for ln in rel["links"] if ln.get("state") == "approved"}
-    register_project.project(open_store())
+    register_project.project(open_store(access="write"))
     failures: list[str] = []
-    with open_store() as st:
+    with open_store(access="read") as st:
         by_node: dict[str, list[dict]] = {}
         reached, unloaded = [], []
         for lid, src, tgt, ev in cites:

@@ -424,12 +424,9 @@ def _questionnaire(args) -> int:
         raise CannotRun(f"{SUBJECT.id}: no task {args.task!r}")
     from gate import resolve
     from store import open_store
-    st = open_store(instance=SUBJECT.id)
-    try:
+    with open_store(instance=SUBJECT.id, access="write") as st:   # the load, published when it completes (task-0141.02)
         gate_cli._load(st, scenario)
         res = resolve(st, args.task)
-    finally:
-        st.close()
     nodes = register_nodes(register_root())
     qs = questionnaires(res, SUBJECT, scenario, args.task, nodes, review.today())
     args.out.mkdir(parents=True, exist_ok=True)
@@ -513,14 +510,11 @@ def _review(args) -> int:
         raise CannotRun(f"{SUBJECT.id}: no scenario {scenario!r}")
     doc.setdefault("review", {})["scenario"] = scenario
     reg = register_root()
-    st = open_store(instance=SUBJECT.id)
-    try:
+    with open_store(instance=SUBJECT.id, access="write") as st:   # the load, published when it completes (task-0141.02)
         gate_cli._load(st, scenario)    # with the captures and the reviews already written
         errs, rv = review.check(doc, st, handles=review.issued_handles(reg), owners=owners_of(SUBJECT, register_nodes(reg)),
                                 units=review.organisation_units(reg), captures=review.capture_index(SUBJECT.capture_dir),
                                 now=review.today(), compatible=compatible)
-    finally:
-        st.close()
     if errs:
         for e in errs:
             print(f"refused: {e}", file=sys.stderr)
