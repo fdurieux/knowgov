@@ -103,23 +103,69 @@ def _num(name: str, default: float) -> float:
         return default
 
 
-def attest(env=None) -> dict:
-    """The confinement checks, each True or False, and ok when all hold (decision-0012)."""
-    env = os.environ if env is None else env
+IFF_UP = 0x1
+CAP_NET_ADMIN = 12
+
+
+def network(sys_root: str = "/sys", proc_root: str = "/proc") -> dict:
+    """What ``loopback_only`` reads: each interface and its state, the routes over any device but lo,
+    and whether this process holds CAP_NET_ADMIN, effective or in its bounding set. It holds when no
+    interface but lo is up, no route leaves lo, and nothing here can bring a device up. A down device is
+    allowed: Docker Desktop's kernel puts tunl0, gre0, sit0, ip6tnl0 and the like, down, in every
+    network namespace, ``network_mode: none`` included. Whatever cannot be read fails the check."""
+    net = Path(sys_root) / "class" / "net"
     try:
-        ifaces = sorted(os.listdir("/sys/class/net"))
+        names = sorted(os.listdir(net))
     except OSError:
-        ifaces = None
+        names = None
+    states = {}
+    for n in names or ():
+        try:
+            states[n] = "down" if not int((net / n / "flags").read_text().strip(), 16) & IFF_UP else "up"
+        except (OSError, ValueError):
+            states[n] = "up"   # unread counts as up
+    routes: list | None = []
+    for table, dev_field, header in (("route", 0, True), ("ipv6_route", -1, False)):
+        try:
+            lines = (Path(proc_root) / "net" / table).read_text().splitlines()[1 if header else 0:]
+        except FileNotFoundError:
+            if table == "ipv6_route":
+                continue   # IPv6 disabled in the kernel: no table, no route
+            routes = None
+            break
+        except OSError:
+            routes = None
+            break
+        routes += [f"{table}:{f[dev_field]}" for f in (ln.split() for ln in lines) if f and f[dev_field] != "lo"]
+    caps = {}
+    try:
+        for ln in (Path(proc_root) / "self" / "status").read_text().splitlines():
+            k, _, v = ln.partition(":")
+            if k in ("CapEff", "CapBnd"):
+                caps[k] = int(v.strip(), 16)
+    except (OSError, ValueError):
+        pass
+    net_admin = len(caps) < 2 or any(c >> CAP_NET_ADMIN & 1 for c in caps.values())
+    up = sorted(n for n, s in states.items() if s == "up" and n != "lo")
+    ok = names is not None and "lo" in states and not up and routes == [] and not net_admin
+    return {"ok": ok, "interfaces": states if names is not None else None, "routes": routes, "cap_net_admin": net_admin}
+
+
+def attest(env=None, *, sys_root: str = "/sys", proc_root: str = "/proc") -> dict:
+    """The confinement checks, each True or False, and ok when all hold (decision-0012; the network
+    check's reading per ``network``)."""
+    env = os.environ if env is None else env
+    nw = network(sys_root, proc_root)
     try:
         ro = bool(os.statvfs("/").f_flag & os.ST_RDONLY)
     except OSError:
         ro = False
     leaked = sorted(k for k in env if SECRET_NAMES.match(k))
-    checks = {"loopback_only": ifaces == ["lo"], "no_secret_variables": not leaked, "read_only_root": ro,
+    checks = {"loopback_only": nw["ok"], "no_secret_variables": not leaked, "read_only_root": ro,
               "uid_65534": os.getuid() == 65534, "no_docker_socket": not any(os.path.exists(s) for s in SOCKETS),
               "write_confined": landlock_abi() >= 1}
-    return {"ok": all(checks.values()), "checks": checks, "interfaces": ifaces, "secret_names": leaked,
-            "pid": os.getpid(), "heartbeat": time.time()}
+    return {"ok": all(checks.values()), "checks": checks, "interfaces": nw["interfaces"], "routes": nw["routes"],
+            "cap_net_admin": nw["cap_net_admin"], "secret_names": leaked, "pid": os.getpid(), "heartbeat": time.time()}
 
 
 def _write_atomic(path: Path, data: dict) -> None:
