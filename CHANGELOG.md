@@ -66,6 +66,13 @@ names that section with the version.
 
 ### Changes
 
+- **The road to 1.0 is decided** (decision-0016). 0.9.0 will freeze the contracts an adopter builds on,
+  and the contract changes made since 0.8.0 wait for it. After 0.9.0, a 0.9.x release carries only fixes,
+  and any contract change becomes 0.10.0. 1.0.0 follows once a pilot organisation has run on the 0.9
+  contracts without a change. From 1.0.0 on, a deprecated contract keeps working for at least one
+  further minor release and ninety days, and is removed only in a major release. Until a support
+  entity exists, the latest minor release is supported on a best-effort basis.
+
 - **The page's Register view shows what a register update withdrew** (task-0178). Set
   `KG_REGISTER_PREVIOUS` to the register as it was before the update, and the view lists the nodes it
   deprecated or retired, the links it withdrew, each with its reason, and the subject's keys that rest

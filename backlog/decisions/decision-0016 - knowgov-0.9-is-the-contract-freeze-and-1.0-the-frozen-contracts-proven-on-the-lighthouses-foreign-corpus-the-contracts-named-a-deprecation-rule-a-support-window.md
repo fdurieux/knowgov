@@ -5,7 +5,7 @@ title: >-
   lighthouse's foreign corpus: the contracts named, a deprecation rule, a
   support window
 date: '2026-11-06T09:04:00Z'
-status: proposed
+status: accepted
 ---
 ## Context
 
@@ -116,3 +116,36 @@ Against it: 1.0's date depends on task-0062. If the maintainer wants a date unde
 - Once accepted, `instance/README.md` states the contracts at 1.0 in the adopter register (doc-0028 P4).
 - doc-0012 §8's v1.0 rows read under this definition.
 - If the maintainer chooses (a) instead, points 1 to 3 and 5 to 7 stand. Point 4 becomes: 1.0.0 is cut on 0.9.0's contracts after a stated time without a contract change.
+
+## Acceptance (2026-11-06)
+
+The maintainer, 2026-11-06 ~16:5x UTC: "approve decision-0016 option (b)". The decision is accepted as written, without amendment. Point 5's ninety days stand as the drafter's figure, accepted with the rest.
+
+**In force from now (point 2):**
+- Contract changes after 0.8.0 gather for 0.9.0.
+- Unreleased already holds four:
+  - B7, one reader for every subject (task-0157);
+  - the raw-byte file Version digest (task-0160);
+  - response sizes bounded (task-0177);
+  - a Neo4j load refused over its transaction memory (task-0176).
+- decision-0003 §2 stands until 0.9.0. From 0.9.0 on, 0.9.x carries fixes only, and any contract change is 0.10.0 and restarts the freeze.
+
+**The freeze list (doc-0028 §4) at acceptance:**
+
+| | gap | state |
+|---|---|---|
+| G9-1 | this decision | met |
+| G9-2 | format versions | task-0174's plan filed, scheme the maintainer's |
+| G9-3 | known contract changes | task-0157 and task-0160 merged; task-0148 waits on the maintainer's Claude Desktop test |
+| G9-4 | a published image | v0.8.0; 0.9.0's own image follows its release |
+| G9-5 | CI budget | `rdflib` 17.2 min over 12; task-0180 proposed |
+| G9-6 | Known limits | task-0173 done, task-0175 to task-0178 closed; 13 proposed 1.0 limits are the maintainer's to name |
+| G9-7 | the name | task-0061, the maintainer's |
+| G9-8 | the licence boundary | task-0058, the maintainer's |
+| G9-9 | adopter docs | #291; the guide's walk section to check |
+| G9-10 | upstream formats | point 3 |
+
+**Consequences, executed:**
+- doc-0028 P4 is minted as task-0181: `instance/README.md` states the contracts at 1.0.
+- CLAUDE.md's Releases paragraph names this decision.
+- `CHANGELOG.md` gains an adopter line under Unreleased.
