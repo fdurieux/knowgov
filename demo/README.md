@@ -799,6 +799,14 @@ this Terminal window only; it is never written to disk and never baked
 into the image. Skip this step and the Arms buttons simply stay greyed
 out; Replay and Deterministic work without it.
 
+An Arms run also needs the *worker*, the sealed container that runs the code
+the model writes. It starts only when you add `--profile arms` to the
+`docker compose up` command in step 3, and only on Linux with Landlock, a
+kernel feature that stops that code writing outside its own folder (kernel
+5.13 or later, enabled). Docker Desktop for Mac 4.48.0 has no Landlock, so
+there the worker refuses to start and every Arms run is refused; the rest of
+the demo works as usual.
+
 ```bash
 export OPENAI_API_KEY=sk-your-real-key-here
 ```
