@@ -3,11 +3,11 @@ id: TASK-0115
 title: >-
   The instance layout check's problems go into the pre-load report, so they
   annotate
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T14:55:00Z'
-updated_date: '2026-11-06T03:17:00Z'
+updated_date: '2026-11-06T04:59:00Z'
 labels:
   - ci
   - preload
@@ -26,8 +26,8 @@ Proposed by task-0106; chosen by the maintainer 2026-11-04. The layout check's p
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A layout problem in the example instance appears in the pre-load report and as a GitHub annotation and a GitLab code-quality entry
-- [ ] #2 The preload report schema change is additive; the exit code is unchanged
+- [x] #1 A layout problem in the example instance appears in the pre-load report and as a GitHub annotation and a GitLab code-quality entry
+- [x] #2 The preload report schema change is additive; the exit code is unchanged
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -39,3 +39,15 @@ Proposed by task-0106; chosen by the maintainer 2026-11-04. The layout check's p
 4. instance/ci/preload-check.sh: --layout when KG_REPORT is set; check_instance.py still sets the layout exit. Schema additive (layout optional).
 5. Proof: harness.yml's action preload step and tools/check_ci_wrappers.py (GitLab) on an unread document committed beside the broken diagram; tests; CHANGELOG new Unreleased.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Evidence. AC1: with an unread story (artefacts/user-stories/orphan.md) committed before the broken diagram, harness.yml's action preload step greps ::warning ... title=knowgov layout absent (minor) and ::notice ... title=knowgov layout unread (info) on it from annotate.py's GitHub output, and asserts the report's layout block; tools/check_ci_wrappers.py asserts the GitLab code-quality entries knowgov-layout:absent (minor) and knowgov-layout:unread (info) on it; tests/test_preload_layout.py adds a layout error (a blocker, an error annotation at the subject's subject.toml or with no file, GitLab '.') and non-failing problems never an error at --fail-on info, on GitHub, GitLab and SARIF. AC2: the layout block is optional (only with --layout), the rest of the report unchanged (test), schema version 1; the report's exit_code stays the lint's and preload-check.sh's exit is unchanged (check_instance.py still sets the layout's). Merged in #273 (2f633a0) on a full green matrix with stack.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+The layout check's problems now ride in the pre-load report: tools/preload_check.py --layout runs tools/check_instance.py on the same instance and adds an optional layout block (holds, exit_code, problems with severity, kind, file and fails); instance/ci/preload-check.sh passes it with KG_REPORT, so KG_ANNOTATE shows them through harness/annotate.py, a layout error as an error and absent, unread, warning, note, unmapped and unmatched problems as warnings or notices only. Additive schema change (version 1); exit codes unchanged. Proven in harness.yml's action preload step (GitHub annotations) and tools/check_ci_wrappers.py (GitLab code quality) on an unread story; tests/test_preload_layout.py. Merged in #273. Follow-up: none.
+<!-- SECTION:FINAL_SUMMARY:END -->
