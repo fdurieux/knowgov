@@ -12,6 +12,12 @@ names that section with the version.
 
 ### Changes
 
+- **The owner's questionnaire names who closes a declared gap** (task-0113, after task-0110). An item
+  on a declared gap carries `gap`, `closed_by` and `closed_by_name`, the unit its declaration names, as
+  the gate's finding names it in `closer`, and a comment line saying an answer does not close it: S2's
+  questionnaire for ORG-0002 names ORG-0004 as closing OD-1. Ingest reads none of them; a questionnaire
+  written before still ingests to the same capture.
+
 - **The GitHub action can upload its findings to code scanning** (task-0116, after task-0106). A new
   optional input, `sarif` (off by default), writes the report as SARIF 2.1.0 and uploads it with
   `github/codeql-action/upload-sarif`, pinned by commit, whatever the gate's exit; `sarif-category`
