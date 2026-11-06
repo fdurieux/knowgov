@@ -130,7 +130,10 @@ GitHub auto-merge is on (2026-11-03): the ruleset on `main` requires `tests` and
 up-to-date branch. So: a PR whose diff touches `stack`'s paths (`demo/`, `harness/`, `subjects/`,
 `tools/`, `demo.yml`) gets auto-merge only once `stack` is green on its head, or is merged by hand
 then; any other PR gets auto-merge when it opens. A PR that must wait (a proposed decision, an
-ordering) gets none. A `stack` red on `main` after a merge is fixed at once.
+ordering) gets none. A `stack` red on `main` after a merge is fixed at once. `harness.yml` runs two
+jobs in parallel (task-0163): `rdflib`, the record and its round trip, and `rdflib-readers`, the
+readers; every step of the old `rdflib` runs in exactly one (`tests/test_rdflib_split.py`), and
+`rdflib-readers` gates once the maintainer adds it to the ruleset's required checks.
 
 CI budget (task-0084): a pull request's `rdflib` and `stack` each within 12 minutes on an
 uncontended runner; under parallel load the job may run longer, and the record is never subset to

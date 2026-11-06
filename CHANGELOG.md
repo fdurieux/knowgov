@@ -28,6 +28,30 @@ names that section with the version.
     (p95 0.51 s); `KG_SUBJECT_CALL_TIMEOUT` bounds it (300 s).
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
+## 0.8.0 — 2026-11-06
+
+Code a model writes now runs contained, and a reader never sees a half-built store. The arms'
+grading and the agent's suites run in a sibling `worker` container of the same image: no network, a
+read-only root, no capabilities, uid 65534, bounded memory, processes and CPU, no secret, and
+Landlock letting a job write only beneath its own folder. The worker attests that confinement at
+start (no interface up but loopback, no route out, no network-admin capability, no socket that could
+leave the namespace, a read-only root, its uid, no engine socket, and Landlock's write confinement),
+and the app refuses a job without a fresh attestation. The worker starts only with
+`--profile arms`, so the default `docker compose up --wait` is green on every engine. On Neo4j a
+writer's whole unit is one transaction under a lease, published under a sequence lock that every
+read checks, so the page, the MCP server and `gate_cli --no-load` see a run's load only once it
+commits; a reader that cannot get one whole generation refuses rather than answer from a mix. The
+pre-load report carries the instance layout check's problems, so they annotate; the GitHub action
+can send its findings to code scanning; the owner's questionnaire names who closes a declared gap;
+a directory artefact's part digests hash each file's raw bytes; and the MCP server reuses one parse
+of an rdflib store per publication.
+The CI gate script now refuses an instance it cannot name a subject for: in 0.7.0 and earlier, an
+instance with no subject or several, and no `KG_SUBJECT`, ran the gate on the default subject and
+could pass. The adopter guide now describes the review step as built, the READMEs name Python 3.12,
+the image's interpreter, and the rdflib CI job runs as two parallel jobs.
+
+### Contract changes (why this is 0.8.0, decision-0003)
+
 - **A store publishes whole generations, and every read answers from one** (task-0141.06,
   decision-0014). On Neo4j a writer's whole unit is now one transaction under a lease in the
   database, published under a sequence lock that every read call checks.
@@ -89,6 +113,27 @@ names that section with the version.
   and arms are refused; a later version may differ, unverified (task-0162).
 
 ### Changes
+
+- **The CI gate script refuses an instance it cannot name a subject for** (security; 0.7.0 and
+  earlier affected). With `KG_SUBJECT` unset, `instance/ci/knowgov-gate.sh` is meant to exit 2 for
+  `gate` and `trace-*` unless the instance holds exactly one subject. Its refusal ran inside
+  `$(...)`, so it ended only a subshell, and an empty `subjects/` folder counted as one subject. So
+  an instance with no subject, or several, ran the gate on the harness's default subject, and could
+  pass when it should have refused. Now nothing runs and the exit is 2. Set `KG_SUBJECT` to keep
+  any other behaviour.
+
+- **Two corrections to the adopter documentation.** `docs/guide.md` §6 said the review step was
+  not built and that no command took S2 to PROCEED. It is built (task-0037): the section now says
+  what a review does, that S2 reaches PROCEED once its answers are reviewed and its open decision
+  is closed by its owner, and that an approval lapses after six months, with `instance/README.md`
+  for the detail. `README.md` and `demo/README.md` named Python 3.13 for the harness and the app
+  image; the image runs Python 3.12 (`demo/Dockerfile`), and that is the version to install for the
+  harness. The standard-library tests still run on 3.13 in CI too.
+
+- **The rdflib CI job runs as two parallel jobs** (task-0163). `rdflib` keeps the record and its round
+  trip, and `rdflib-readers` runs the readers (the MCP server, the lighthouse, the gate, the wrappers,
+  review, capture, transcript). Nothing is dropped or subset: a test holds that every step of the old job
+  runs in exactly one. `rdflib-readers` gates once it joins the ruleset's required checks.
 
 - **The worker attests that it cannot open AF_VSOCK or AF_PACKET sockets or reach an outside address**
   (`no_socket_escape`, task-0165; decision-0012, decision-0015). No network namespace confines AF_VSOCK,
@@ -152,6 +197,60 @@ names that section with the version.
   names the analysis (default `knowgov-<gate>`) and the output `sarif-id` the upload. The instance's
   job needs `security-events: write` and code scanning available (instance README). The exit code
   stays the gate's.
+
+### What this release carries
+
+| what | version |
+|---|---|
+| pumllint (the sequence-diagram mapper's parser) | 0.33.0, from PyPI |
+| the IEAM register, vendored under `demo/register/` | ieam-register `v0.2.11` |
+| the record's pins | unchanged from 0.7.0 |
+| Python | 3.12 in the image |
+
+The image is `ghcr.io/fdurieux/knowgov:v0.8.0`, the first release image that carries the worker. The
+compose file moves to it in a follow-up, once the Release has published its digest; until then the
+published compose runs v0.7.0, whose image has no worker, so an arms run refuses there.
+
+### Known limits
+
+- Contained execution needs Linux with Landlock (kernel 5.13 or later, enabled) and a container
+  engine that runs the compose `worker` service under `--profile arms`. Docker Desktop for Mac
+  4.48.0's kernel (6.10.14-linuxkit) is built without Landlock: there the worker refuses to serve
+  and every arms run is refused, while the page, deterministic runs, the gate and the MCP server are
+  unaffected. A later Docker Desktop may differ; unverified (task-0162).
+  `KG_ALLOW_UNCONTAINED_EXECUTION=1` is the only escape, and it runs the code on the host.
+- Neo4j keeps no earlier generation: a reader open across a publication is refused and read again,
+  and one that cannot get a whole generation within `KG_STORE_READ_ATTEMPTS` refuses (`gate_cli`
+  exit 2, an MCP error result, 503 on the page).
+- A writer killed between raising the publication counter and committing makes reads wait up to
+  `KG_NEO4J_READ_WAIT` seconds, then refuse, until the next writer takes the lease.
+- The server's transaction memory bounds a Neo4j load: measured peaks about 41 MiB for CargoQuote's
+  whole run and 64 MiB for J-F's, against 70% of the compose's 1 GiB heap. Size the heap for a much
+  larger instance.
+- Terminating a stale writer's transaction needs a role allowed to run `TERMINATE TRANSACTIONS`;
+  without it the epoch check still refuses that writer's commit, but its open transaction holds its
+  locks until its connection ends.
+- One MCP process holds one parsed rdflib store, the latest publication only: about 15 MB for
+  CargoQuote S1 and 82 MB for J-F C.
+- A file artefact's Version digest hashes its text, so a file with CRLF line endings has a different
+  digest from a register citation over its raw bytes (task-0160). A directory artefact's parts hash
+  their raw bytes.
+- A file-backed store supports its writers on POSIX with `flock`, on a local disk.
+- Response sizes are not capped by the HTTP limits; request framing, bodies, deadlines and
+  connections are.
+- Claude Desktop's role is asking the gate until the maintainer's own test shows the prompts listed
+  there and `subject_check` running; onboarding is Claude Code's.
+- A proposal's slices are as fine as the register's links: steps supported only by one end-to-end
+  process share one thread.
+- An attestation is the manifest's declaration and is not bound to a document's version.
+- A run folder from before `run.json` is inferred: its status, start and initiator are unknown.
+- `proposal_impact`'s branch mode reads a branch's additions only.
+- The subject check compares keys with the documents' yield only where the mappers run.
+- The connector has run only on the synthetic CargoQuote export, not on a real installation.
+- A register change is read only when the gate is given the previous register; the page's register
+  panel does not show what a change withdrew yet.
+- The GitLab include is proven by shell, not yet on a GitLab runner (task-0108).
+- The hooks see Edit and Write, not a shell command writing the same file.
 
 ## 0.7.0 — 2026-11-06
 

@@ -314,14 +314,28 @@ a questionnaire per owner, generated from the gate's gaps, and its answers read 
 commands. `backlog/docs/doc-0007` walks through it on S2, S4 and S3, with one employee as the
 example.
 
+A captured answer then needs a second person's *review*. A review is a short file, written once
+and never edited, that approves or rejects each answer and may close a declared gap.
+`python harness/capture.py review FILE` checks it against what the store holds and saves it in the
+subject's `captures/reviews/` folder. Every later load of the scenario applies it. Who may approve
+an answer, overrule a document, settle a dispute or close a gap comes from your register's list of
+issued handles, never from the review itself. The command refuses a review that breaks a rule, and
+names the rule (`backlog/decisions/`, decision-0002). `instance/README.md` ("Capturing what people
+know", from "Reviewing what people said") gives the file's form, the commands and the rules. On
+S2, the gate says PROCEED once reviewers have ruled on the employee's answers, settling where they
+and the documents disagree, and the compliance unit has closed the open decision.
+`tools/check_review_walkthrough.py` runs that path from start to finish.
+
 Know three limits before you rely on it:
 
-- An answer reads *proposed*. The gate lists it as an assumption, so it moves a key from absent
-  to QUALIFIED at most.
-- A captured answer does not close a declared gap. Only the gap's owner can close it.
-- Who may approve an answer, close a gap or settle a dispute is decided (`backlog/decisions/`,
-  decision-0002) but not built yet (task-0037). Until then, no command takes S2 from BLOCKED to
-  PROCEED.
+- An answer reads *proposed* until a reviewer approves it. Until then the gate lists it as an
+  assumption, so it moves a key from absent to QUALIFIED at most.
+- A captured answer does not close a declared gap. Only a review by the gap's owner closes it:
+  someone with the role `closes`, in the unit the declaration names. Closing a gap supplies no
+  value, so the key still needs an answer, or the gate reads it as absent and still blocks.
+- An approval lapses six months after the answer was given. The statement then reads *proposed*
+  again until someone asks again (`python harness/capture.py due`) and a reviewer approves the new
+  answer.
 
 ## 7. Reading the dashboard
 
