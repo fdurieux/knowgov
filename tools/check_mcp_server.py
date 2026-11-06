@@ -41,6 +41,9 @@ which must equal the handshake's (task-0079).
 Once, after the scenarios: ``subject_check`` listed over stdio and Streamable HTTP, and on doc-0018's probe
 (``tools/fixtures/subject_probe``) its report equal to ``tools/check_subject.py --json``'s, over stdio in both eras (task-0146); and the prompts
 ``new_subject`` and ``add_artefact`` listed and given over both transports (task-0148).
+Once, after the scenarios: a call naming another subject under ``KG_SUBJECTS`` equals the same call on a reader
+started on that subject, over stdio and HTTP; ``list_subjects`` names every subject; a store-backed call for it
+refuses naming the held subject and the run to start (task-0157, decision-0013 with A1).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
 
 A scenario with a later version (``[scenario.stage2]``, S6) is asked a second time after
@@ -563,6 +566,51 @@ STORE_TOOLS = ("held_keys", "derived_outputs", "document_statements")   # doc-00
 ALLOWLIST = ROOT / "instance" / "ci" / "claude" / "managed-mcp-allowlist.json"
 
 
+def check_subjects(failures: list[str]) -> None:
+    """task-0157 (B7, decision-0013 with A1): over stdio and Streamable HTTP, a call naming another subject
+    under KG_SUBJECTS, on the reader of this subject, equals the same call on a reader started on that
+    subject (a files-only tool, and scenario_runs for that subject); list_subjects names every subject and the
+    held scenario's; a store-backed call for the other subject is refused naming the held subject and the run
+    to start; a path is refused."""
+    sys.path.insert(0, str(HARNESS))
+    import subject_ids
+    from subject import SUBJECT
+    other = next((x for x in subject_ids.subjects() if x["id"] != SUBJECT.id), None)
+    if other is None:
+        failures.append("subjects: KG_SUBJECTS lists no subject beside the server's own")
+        return
+    calls = [("register_nodes", {"taxonomy": "capabilities"}), ("scenario_runs", {})]
+    for name, cls in (("stdio", StdioClient), ("http", HttpClient)):
+        mine = cls()
+        keep = os.environ.get("KG_SUBJECT")
+        os.environ["KG_SUBJECT"] = str(other["root"])
+        try:
+            theirs = cls()
+        finally:
+            os.environ.pop("KG_SUBJECT", None) if keep is None else os.environ.__setitem__("KG_SUBJECT", keep)
+        try:
+            for tool, args in calls:
+                if mine.call(tool, {**args, "subject": other["id"]}) != theirs.call(tool, args):
+                    failures.append(f"subjects {name}: {tool} for {other['id']} differs from a reader started on it")
+            listed = mine.call("list_subjects", {})
+            ids = [x["id"] for x in listed["subjects"]]
+            if ids[0] != SUBJECT.id or other["id"] not in ids or listed["store_backed"] != sorted(listed["store_backed"]):
+                failures.append(f"subjects {name}: list_subjects lists {ids}")
+            held = listed["store"]["held_scenario"]
+            r = mine.request("tools/call", {"name": "gate_verdict", "arguments": {"subject": other["id"]}})["result"]
+            text = r["content"][0]["text"]
+            if held and held not in other["scenarios"] and not (r.get("isError") and "start_run" in text and held in text):
+                failures.append(f"subjects {name}: gate_verdict for {other['id']} with {held} held answered {text[:160]!r}")
+            r = mine.request("tools/call", {"name": "register_nodes", "arguments": {"subject": "../" + other["id"]}})["result"]
+            if not (r.get("isError") and "never a path" in r["content"][0]["text"]):
+                failures.append(f"subjects {name}: a path as subject was not refused")
+        finally:
+            mine.close()
+            theirs.close()
+    print(f"subjects: {other['id']} answered through {SUBJECT.id}'s reader as by its own, over stdio and HTTP; "
+          f"list_subjects lists {len(listed['subjects'])}; a store-backed call for it refused with the run to start")
+
+
 def check_transports(failures: list[str], ex: dict | None = None) -> None:
     """doc-0020's tools served by the knowgov server on both transports (task-0142, task-0143): tools/list over
     stdio and Streamable HTTP lists each, the same call answers the same on both, and the shipped managed
@@ -721,6 +769,9 @@ def main(argv: list[str] | None = None) -> int:
             check_stage2(sc, SUBJECT, failures)
     check_transports(failures, ex)
     before = census()
+    check_subjects(failures)
+    if census() != before:
+        failures.append("subjects: the store changed while the reader answered for another subject")
     check_subject_tool(failures)
     if census() != before:
         failures.append("subject_check: the store changed while the server checked a proposed subject")

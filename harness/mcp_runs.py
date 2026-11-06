@@ -73,7 +73,7 @@ def tools_table() -> list[dict]:
     """The tool table, its open-world hint on start_run true only when arms are allowed (a model call
     leaves this machine)."""
     start = dict(START, openWorldHint="arms" in allowed_modes())
-    return [
+    return _with_subject([
         {"name": "run_options", "title": "What may I run?",
          "description": "The modes this server lets you start (allowed_modes, from the operator's KG_MCP_RUN_MODES), whether "
                         "the page can run each now (deterministic_enabled: the store is reachable; arms_enabled: the subject has "
@@ -101,7 +101,7 @@ def tools_table() -> list[dict]:
          "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
              "run": {"type": "string", "description": "the id start_run returned (default: the page's latest run)"}}},
          "annotations": READ_ONLY},
-    ]
+    ])
 
 
 class Page:
@@ -139,9 +139,17 @@ class Page:
             raise ToolError(self._redact(f"the page at {self.url} did not answer: {e}")) from None
 
 
-def _subject_id() -> str:
+def _subject_id(args: dict | None = None) -> str:
+    """The subject a call names (task-0157): an id, checked for its shape here and resolved by the page
+    (``?subject=``, which refuses an id it does not serve); none named, this server's own, KG_SUBJECT."""
     from subject import SUBJECT
-    return SUBJECT.id
+    import subject_ids
+    sid = (args or {}).get("subject")
+    if sid is None:
+        return SUBJECT.id
+    if not isinstance(sid, str) or not subject_ids.ID.fullmatch(sid) or ".." in sid:
+        raise ToolError(f"subject is the id of a subject the page serves, never a path: {sid!r}")
+    return sid
 
 
 def _error_text(page: Page, code: int, j: dict) -> str:
@@ -165,7 +173,7 @@ class RunTools:
         self.page = page or Page()
 
     def run_options(self, args: dict) -> dict:
-        sid = _subject_id()
+        sid = _subject_id(args)
         code, j = self.page.request("GET", "/api/scenarios?subject=" + urllib.parse.quote(sid))
         if code != 200:
             raise ToolError(_error_text(self.page, code, j))
@@ -190,7 +198,7 @@ class RunTools:
         if mode not in modes:
             raise ToolError(f"mode {mode!r} is not allowed here: this server starts {modes or 'nothing'} "
                             "(the operator's KG_MCP_RUN_MODES)")
-        body = {"subject": _subject_id(), "scenario": scenario, "mode": mode, "n": 1, "by": "mcp"}
+        body = {"subject": _subject_id(args), "scenario": scenario, "mode": mode, "n": 1, "by": "mcp"}
         for k in ("row", "effort", "as_of"):
             v = args.get(k)
             if v is not None:
@@ -211,7 +219,7 @@ class RunTools:
         want = args.get("run")
         if want is not None and not isinstance(want, str):
             raise ToolError("run must be a string, the id start_run returned")
-        sid = _subject_id()
+        sid = _subject_id(args)
         code, cur = self.page.request("GET", "/api/run?subject=" + urllib.parse.quote(sid))
         if code != 200:
             raise ToolError(_error_text(self.page, code, cur))
@@ -228,9 +236,17 @@ class RunTools:
                 raise ToolError(f"no run {want!r} of {sid} on the page (a run with no results and not the latest is not listed)")
             r = _run_view(hit["run"], tail=False)
         if r.get("status") in ("done", "failed"):
-            r["next"] = (f"ask the knowgov reader: scenario_runs {{\"scenario\": \"{r.get('scenario')}\"}} for this run's verdict, "
-                         f"gate_verdict {{\"scenario\": \"{r.get('scenario')}\"}} on the store it loaded")
+            who = "" if "subject" not in args else f', "subject": "{sid}"'
+            r["next"] = (f"ask the knowgov reader: scenario_runs {{\"scenario\": \"{r.get('scenario')}\"{who}}} for this run's verdict, "
+                         f"gate_verdict {{\"scenario\": \"{r.get('scenario')}\"{who}}} on the store it loaded")
         return r
+
+
+def _with_subject(table: list[dict]) -> list[dict]:
+    """Every tool takes an optional subject id (task-0157), as the reader's do."""
+    for t in table:
+        t["inputSchema"]["properties"]["subject"] = mcp_server.SUBJECT_ARG
+    return table
 
 
 def make_server(page: Page | None = None) -> mcp_server.Server:

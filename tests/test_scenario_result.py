@@ -37,7 +37,7 @@ def test_every_cargo_quote_record_source_equals_the_pages_replay():
 
 def test_a_source_not_listed_is_refused_no_path_is_taken_and_the_reply_says_it_reads_files():
     t = next(x for x in mcp_server.TOOLS if x["name"] == "scenario_result")
-    assert t["annotations"] == mcp_server.READ_ONLY and set(t["inputSchema"]["properties"]) == {"scenario", "source"}
+    assert t["annotations"] == mcp_server.READ_ONLY and set(t["inputSchema"]["properties"]) == {"scenario", "source", "subject"}
     opened = []
 
     def opener():

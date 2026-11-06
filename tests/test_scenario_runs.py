@@ -351,7 +351,7 @@ def test_the_runner_beats_while_the_run_is_under_way_and_never_after_its_end():
 def test_scenario_runs_is_read_only_takes_no_path_and_store_status_names_loaded_at():
     from subject import SUBJECT
     t = next(x for x in mcp_server.TOOLS if x["name"] == "scenario_runs")
-    assert t["annotations"] == mcp_server.READ_ONLY and set(t["inputSchema"]["properties"]) == {"scenario", "limit"}
+    assert t["annotations"] == mcp_server.READ_ONLY and set(t["inputSchema"]["properties"]) == {"scenario", "limit", "subject"}
     with tempfile.TemporaryDirectory() as td:
         tools = _tools(Path(td))
         j = _call(tools, "scenario_runs")["structuredContent"]

@@ -154,7 +154,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
-                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The prompts new_subject and add_artefact walk an assistant through scaffolding a subject on a branch; nothing is written through this server. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on, then derived_outputs key=... for what was built on a key. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. In the store: held_keys lists every key the held scenario holds with its level, including those no task class requires; document_statements names the statements a document yields and the outputs built on them; derived_outputs derived=... the statements behind one output. Intake, from a proposed initiative to the board a tracker holds: proposal_impact proposal=... on the overlay; its slices, one per journey step (per delivering process for a product no journey concerns), each overlay element in one slice or a named remainder, are the story map's backbone; then gate_verdict keys=... per slice, for the keys keys.by_node lands on that slice's reused nodes, under one task class and one as_of. knowgov writes no work item and ranks nothing: no label, score or estimate; the tracker writes the items, each citing register ids. A check that a backlog covers the slices (K3) is parked to the pilot, not offered. code_path, key_nodes and document_links read files only; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it. This server only reads.")
+                "(task, as gate_verdict's; codegen by default), those resting only on a withdrawn descendant flagged withdrawn. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The prompts new_subject and add_artefact walk an assistant through scaffolding a subject on a branch; nothing is written through this server. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on, then derived_outputs key=... for what was built on a key. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. In the store: held_keys lists every key the held scenario holds with its level, including those no task class requires; document_statements names the statements a document yields and the outputs built on them; derived_outputs derived=... the statements behind one output. Intake, from a proposed initiative to the board a tracker holds: proposal_impact proposal=... on the overlay; its slices, one per journey step (per delivering process for a product no journey concerns), each overlay element in one slice or a named remainder, are the story map's backbone; then gate_verdict keys=... per slice, for the keys keys.by_node lands on that slice's reused nodes, under one task class and one as_of. knowgov writes no work item and ranks nothing: no label, score or estimate; the tracker writes the items, each citing register ids. A check that a backlog covers the slices (K3) is parked to the pilot, not offered. code_path, key_nodes and document_links read files only; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it.  Every tool takes subject, the id of a subject under KG_SUBJECTS (list_subjects names them, never a path); none named is this server's own. A store-backed tool (its _meta io.knowgov/storeBacked true) answers only for the subject and scenario the store holds and otherwise names the start_run that would load it; a files-only tool answers for any subject. This server only reads.")
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -414,6 +414,29 @@ TOOLS.append(
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another"}}},
      "annotations": READ_ONLY})
 
+# task-0157 (B7, decision-0013 with A1): one reader for every subject under KG_SUBJECTS. Every tool takes an
+# optional subject id; a call naming another subject than the process's own is answered by a child process
+# for that subject (harness/mcp_child.py). A tool is store-backed or reads files only, and says which in its
+# _meta: a store-backed one answers only for the subject and scenario the shared store holds, and refuses
+# for any other with the held subject and scenario and the run to start; a files-only one answers for any.
+STORE_BACKED = frozenset({"store_status", "gate_verdict", "three_valued_answer", "evidence_bundle", "register_impact",
+                          "proposal_impact", "held_keys", "derived_outputs", "document_statements"})
+META_STORE = "io.knowgov/storeBacked"
+SUBJECT_ARG = {"type": "string", "description": "the id of a subject under KG_SUBJECTS, as list_subjects names them, never a "
+               "path (default: this server's own subject, KG_SUBJECT)"}
+TOOLS.append(
+    {"name": "list_subjects", "title": "Which subjects can I ask about, and what does the store hold?",
+     "description": "Every subject this server answers for, by id (the subjects under KG_SUBJECTS; the default, KG_SUBJECT, "
+                    "first), each with its scenarios and the scenario the shared store holds for it, or none; and which tools "
+                    "are store-backed (they answer only for the held subject and scenario) and which read files only (they "
+                    "answer for any subject). Name a subject on any tool with its subject argument.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "properties": {}},
+     "annotations": READ_ONLY})
+for _t in TOOLS:
+    if _t["name"] != "list_subjects":
+        _t["inputSchema"]["properties"]["subject"] = SUBJECT_ARG
+    _t["_meta"] = {META_STORE: _t["name"] in STORE_BACKED}
+
 
 class ToolError(Exception):
     """A tool could not answer: returned to the client as a result with isError, never a crash."""
@@ -465,15 +488,26 @@ def _foreign(st) -> str | None:
     return held if held is not None and held not in SUBJECT.scenarios else None
 
 
+def _start_run(sid: str, scenarios) -> str:
+    """The next step a store-backed refusal names (decision-0013, A1): the run that would load the subject."""
+    first = next(iter(scenarios), None)
+    return (f"to read {sid}, start a run of one of its scenarios {list(scenarios)} through knowgov-runs start_run "
+            f'{{"subject": "{sid}", "scenario": "{first}", "mode": "deterministic"}} or the page; this server never loads')
+
+
 def _check_scenario(st, scenario: str | None) -> str:
     from subject import SUBJECT
+    import subject_ids
     foreign = _foreign(st)
     if foreign is not None:
-        raise ToolError(f"the store holds {foreign}, a scenario of another subject, not of {SUBJECT.id} "
-                        f"(which declares {SUBJECT.order}); this server reads its own subject's scenarios only")
+        owners = subject_ids.declaring(foreign)
+        whose = (owners[0] if len(owners) == 1 else f"one of {owners}" if owners else "a subject not under KG_SUBJECTS")
+        raise ToolError(f"the store holds {foreign}, a scenario of another subject ({whose}), not of {SUBJECT.id} (which declares "
+                        f"{SUBJECT.order}); a store-backed tool reads the held subject and scenario only: "
+                        f"{_start_run(SUBJECT.id, SUBJECT.order)}")
     held = _held(st)
     if held is None:
-        raise ToolError("the store holds no scenario; load one through the page or a run first (this server never loads)")
+        raise ToolError(f"the store holds no scenario; {_start_run(SUBJECT.id, SUBJECT.order)}")
     if scenario and scenario != held:
         raise ToolError(f"the store holds {held}, not {scenario!r}")
     return held
@@ -580,6 +614,27 @@ class Tools:
                     st.release()
                 except Exception:  # noqa: BLE001
                     pass
+
+    def list_subjects(self, args: dict) -> dict:
+        """Every subject this reader answers for, the shared store's held scenario and whose it is, and the
+        tools' store-backed class (task-0157, decision-0013 with A1). A store that cannot be read, or a run
+        loading it, leaves held null with the reason; the subjects are listed all the same."""
+        import subject_ids
+        from subject import SUBJECT
+        listed = subject_ids.subjects()
+        held, why = None, None
+        try:
+            self._not_mid_run()
+            held = self._with_store(_held_any)
+        except ToolError as e:
+            why = str(e)
+        owners = subject_ids.declaring(held)
+        return {"default": SUBJECT.id,
+                "store": {"held_scenario": held, "held_by": owners, "unavailable": why},
+                "subjects": [{"id": x["id"], "name": x["name"], "default": x["id"] == SUBJECT.id, "scenarios": x["scenarios"],
+                              "held": held if x["id"] in owners else None} for x in listed],
+                "store_backed": sorted(t["name"] for t in TOOLS if t["_meta"][META_STORE]),
+                "files_only": sorted(t["name"] for t in TOOLS if not t["_meta"][META_STORE])}
 
     def store_status(self, args: dict) -> dict:
         from subject import SUBJECT
@@ -997,7 +1052,7 @@ class Server:
     None for a notification or a response."""
 
     def __init__(self, tools=None, table: list[dict] | None = None, info: dict | None = None,
-                 instructions: str | None = None, prompts=None):
+                 instructions: str | None = None, prompts=None, route="default"):
         """``tools`` answers each tool by name; ``table``, ``info`` and ``instructions`` are what the
         server lists and announces (this module's by default; knowgov-runs passes its own, task-0133).
         ``prompts`` lists and gives the prompts (``harness/wizard.py``'s, task-0148, for the reader's own
@@ -1011,6 +1066,9 @@ class Server:
             prompts = wizard
         self.prompts = prompts
         self.capabilities = {**CAPABILITIES, **({"prompts": {"listChanged": False}} if prompts else {})}
+        # a call naming another subject (task-0157): the reader's own table routes it to a child; a server with
+        # its own table (knowgov-runs) or a child (route=None) answers it itself or not at all
+        self.route = (route_to_child if table is None else None) if route == "default" else route
 
     def handle(self, msg) -> dict | None:
         if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0":
@@ -1061,6 +1119,15 @@ class Server:
             return _error(id_, -32602, f"unknown tool {name!r}")
         if not isinstance(args, dict):
             return _error(id_, -32602, "arguments must be an object")
+        if self.route is not None and "subject" in args:
+            import subject_ids
+            try:
+                entry = subject_ids.resolve(args.get("subject"))
+            except subject_ids.UnknownSubject as e:
+                return _result(id_, {"content": [{"type": "text", "text": str(e)}], "isError": True, **stamp})
+            args = {k: v for k, v in args.items() if k != "subject"}
+            if not subject_ids.is_own(entry):
+                return _result(id_, {**self.route(self.tools, entry, name, args), **stamp})
         try:
             data = getattr(self.tools, name)(args)
         except (ToolError, PermissionError) as e:
@@ -1111,6 +1178,39 @@ class Server:
                 return 400, _error(msg.get("id"), HEADER_MISMATCH, f"Header mismatch: {why}")
         resp = self.handle(msg)
         return http_status(resp, modern), resp
+
+
+CHILD_TIMEOUT = 300.0   # seconds one call for another subject may take (KG_SUBJECT_CALL_TIMEOUT)
+
+
+def route_to_child(tools, entry: dict, name: str, args: dict) -> dict:
+    """A call for another subject (task-0157, design (a)): ``harness/mcp_child.py`` run with that subject's
+    root as KG_SUBJECT, the session's date (its ``record`` read as that subject's record date) and the code
+    leg's instance and ledger as this process read them at start; its result returned as it gave it."""
+    import subprocess
+    env = dict(os.environ, KG_SUBJECT=str(entry["root"]))
+    env["KG_AS_OF"] = "record" if tools.as_of_from == "record" else tools.session_as_of()
+    cfg = getattr(tools, "trace_cfg", None) or {}
+    for var, key in (("KG_INSTANCE", "instance"), ("KG_LEDGER", "ledger")):
+        if cfg.get(key):
+            env[var] = cfg[key]
+        else:
+            env.pop(var, None)
+    try:
+        timeout = float(os.environ.get("KG_SUBJECT_CALL_TIMEOUT") or CHILD_TIMEOUT)
+        p = subprocess.run([sys.executable, str(Path(__file__).resolve().parent / "mcp_child.py")],
+                           input=json.dumps({"name": name, "arguments": args}), capture_output=True, text=True,
+                           env=env, timeout=timeout)
+        got = json.loads(p.stdout) if p.returncode == 0 and p.stdout.strip() else None
+    except (OSError, ValueError, subprocess.TimeoutExpired) as e:
+        got, p = None, None
+        why = f"{type(e).__name__}: {e}"
+    else:
+        why = (p.stderr or "").strip()[-400:] or f"exit {p.returncode}"
+    if not isinstance(got, dict) or "error" in got:
+        detail = (got or {}).get("error", {}).get("message") if isinstance(got, dict) else why
+        return {"content": [{"type": "text", "text": f"{name} could not answer for {entry['id']}: {detail}"}], "isError": True}
+    return got
 
 
 def serve_stdio(server: Server, inp=None, out=None) -> None:
