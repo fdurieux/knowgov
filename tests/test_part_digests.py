@@ -46,7 +46,7 @@ def test_the_entries_are_sha256sums_form_sorted_by_path_and_read_back():
 def test_the_load_records_each_file_of_a_directory_artefact_and_no_other():
     src = (ROOT / "harness" / "load.py").read_text(encoding="utf-8")
     assert 'if path.endswith("/"):' in src
-    assert 'st.record_part_digests(f"V:{path}:{version_tag}", {rel: sha256(part) for rel, part in bundle_parts(text) if rel})' in src
+    assert 'st.record_part_digests(f"V:{path}:{version_tag}", SUBJECT.part_digests(path, text))' in src
     from subject import bundle_parts
     text = "==> a.md <==\nalpha\n==> dmn/b.dmn <==\n<b/>\n"
     assert {rel: hashlib.sha256(p.encode()).hexdigest() for rel, p in bundle_parts(text) if rel} == {
@@ -81,3 +81,63 @@ def test_the_round_trip_compares_them_and_ci_expects_them_on_jef():
     assert "KG_SUBJECT=subjects/jef_data_load python tools/check_round_trip.py --chain rdflib,rdflib --expect-parts" in harness
     demo = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert "-e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j --expect-parts" in demo
+
+
+# ---- task-0098: each file's raw bytes, not its bundled text
+
+def _dir_subject(td: Path, files: dict[str, bytes]):
+    import subject
+    (td / "docs").mkdir()
+    for rel, data in files.items():
+        (td / "docs" / rel).parent.mkdir(parents=True, exist_ok=True)
+        (td / "docs" / rel).write_bytes(data)
+    (td / "subject.toml").write_text('[subject]\nid = "probe"\n\n[[artefact]]\nkey = "docs/"\npath = "docs"\n'
+                                     'family = "contracts"\nformat = "bundle"\n', encoding="utf-8")
+    return subject.Subject(td)
+
+
+def test_a_file_without_a_final_newline_keeps_the_digest_of_its_raw_bytes():
+    """The bundle adds a newline a file lacks and reads it as text; the register digests the file's
+    bytes (demo/app/register_project.py), so the load records those: a file with no final newline, one
+    with CRLF line ends and an ordinary one each keep sha256 of their bytes on disk, which is not the
+    digest of their bundled part for the first two; a part a plant changed keeps its text's digest."""
+    import tempfile
+    from subject import bundle_parts   # stdlib only: the tests job has no yaml, so never harness/load.py
+    files = {"no_eol.md": b"last line, no newline", "crlf.md": b"one\r\ntwo\r\n", "sub/plain.md": b"plain\n"}
+    with tempfile.TemporaryDirectory() as d:
+        s = _dir_subject(Path(d), files)
+        raw = {rel: hashlib.sha256(b).hexdigest() for rel, b in files.items()}
+        assert s.raw_part_digests("docs/") == raw
+        text = s.artefact_text("docs/")
+        bundled = {rel: hashlib.sha256(p.encode()).hexdigest() for rel, p in bundle_parts(text) if rel}
+        assert bundled["no_eol.md"] != raw["no_eol.md"] and bundled["crlf.md"] != raw["crlf.md"]
+        assert bundled["sub/plain.md"] == raw["sub/plain.md"]
+        assert s.part_digests("docs/", text) == raw
+        planted = text.replace("last line, no newline", "a planted line")
+        got = s.part_digests("docs/", planted)
+        assert got["no_eol.md"] == hashlib.sha256(b"a planted line\n").hexdigest() != raw["no_eol.md"]
+        assert {k: v for k, v in got.items() if k != "no_eol.md"} == {k: v for k, v in raw.items() if k != "no_eol.md"}
+        assert s.raw_part_digests("docs/") and _file_subject_has_none(Path(d))
+
+
+def _file_subject_has_none(td: Path) -> bool:
+    import subject
+    (td / "one.md").write_text("x", encoding="utf-8")
+    (td / "subject.toml").write_text('[subject]\nid = "probe2"\n\n[[artefact]]\nkey = "one.md"\npath = "one.md"\n'
+                                     'family = "prose"\nformat = "md"\n', encoding="utf-8")
+    return subject.Subject(td).raw_part_digests("one.md") == {}
+
+
+def test_every_committed_jef_file_matches_its_raw_digest_and_its_bundled_one():
+    """On the public J-F subject every file of a directory artefact ends in a newline and has LF line
+    ends, so its raw and bundled digests agree: the change moves no digest of the record."""
+    import subject
+    from subject import bundle_parts
+    s = subject.Subject(ROOT / "subjects" / "jef_data_load")
+    n = 0
+    for key in (a["key"] for a in s.artefacts if a.get("path") and (s.root / a["path"]).is_dir()):
+        raw = s.raw_part_digests(key)
+        bundled = {rel: hashlib.sha256(p.encode()).hexdigest() for rel, p in bundle_parts(s.artefact_text(key)) if rel}
+        assert raw == bundled, sorted(k for k in raw if raw[k] != bundled.get(k))
+        n += len(raw)
+    assert n >= 13, n
