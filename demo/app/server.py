@@ -55,6 +55,7 @@ HARNESS = ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
 import execution_guard  # noqa: E402  (task-0141.07: the stopgap before X1's containment)
 import page_subject  # noqa: E402  (the subject as a value: task-0032.01)
+import http_boundary  # noqa: E402  (the HTTP trust boundary and limits, task-0141.03, task-0141.04)
 import runs_index  # noqa: E402  (the one reader of the run folders, shared with the MCP server: task-0128)
 from subject import Subject  # noqa: E402
 _ps = page_subject.current   # the subject of the call in progress; the environment's when no call names one
@@ -692,8 +693,46 @@ def write_guard(headers) -> tuple[int, str, dict] | None:
 
 # ------------------------------------------------------------------ HTTP
 
-class Handler(BaseHTTPRequestHandler):
+def page_limits():
+    """The page's bounds (task-0141.04): KG_PAGE_MAX_BODY bytes (default 65536; its largest request, a
+    run, is under 1 KB), KG_PAGE_READ_TIMEOUT seconds for a request to arrive whole (10),
+    KG_PAGE_IDLE_TIMEOUT for one silent wait (5), KG_PAGE_MAX_CONNECTIONS at once (32; more get 503)."""
+    import http_boundary
+    return http_boundary.Limits.from_env("KG_PAGE", max_body=65536)
+
+
+MAX_RUNS = 5   # a run's n at most, unless KG_PAGE_MAX_RUNS says: the record's own count per arm and scenario
+
+
+def run_request(body: dict) -> dict:
+    """A run's fields, typed before anything is chosen or started (task-0141.04): scenario and mode
+    strings; n an integer in 1..KG_PAGE_MAX_RUNS (a boolean, a float or a numeric string is refused,
+    no longer coerced); row, effort, as_of, by and subject strings when present."""
+    out = {}
+    for k in ("scenario", "mode"):
+        v = body.get(k, "")
+        if not isinstance(v, str):
+            raise ValueError(f"{k} must be a string")
+        out[k] = v
+    n = body.get("n", 1)
+    cap = int(os.environ.get("KG_PAGE_MAX_RUNS") or MAX_RUNS)
+    if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= cap:
+        raise ValueError(f"n must be an integer from 1 to {cap}")
+    out["n"] = n
+    for k in ("row", "effort", "as_of", "by", "subject"):
+        v = body.get(k)
+        if v is not None and not isinstance(v, str):
+            raise ValueError(f"{k} must be a string")
+        out[k] = v
+    return out
+
+
+class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
     server_version = "kg-demo/1"
+    default_limits = None   # a plain server (a test) gets page_limits() through _limits
+
+    def _limits(self):
+        return getattr(self.server, "limits", None) or page_limits()
 
     def log_message(self, fmt, *args):  # quieter than the default
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
@@ -740,6 +779,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:  # noqa: N802
         """The preflight of the Browser's cross-origin fetch of a guide (it sends pragma and
         cache-control headers); no other route, and no guide that does not exist, answers one."""
+        self.arrived()   # no body: the request is in (task-0141.04)
         if not self._boundary():
             return
         parts = self._guide_parts(urllib.parse.urlparse(self.path).path)
@@ -756,6 +796,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(code, json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8"), extra=extra)
 
     def do_GET(self) -> None:  # noqa: N802
+        self.arrived()   # no body: the request is in (task-0141.04)
         if not self._boundary():
             return
         u = urllib.parse.urlparse(self.path)
@@ -858,12 +899,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": why}, code, extra)
         u = urllib.parse.urlparse(self.path)
         parts = [p for p in u.path.split("/") if p]
-        length = int(self.headers.get("Content-Length") or 0)
-        try:
-            body = json.loads(self.rfile.read(length) or b"{}")
-        except json.JSONDecodeError:
-            return self._json({"error": "body must be JSON"}, 400)
+        try:   # framing before a byte is read, then a JSON object (task-0141.04); every POST sends one
+            body = http_boundary.read_json_body(self, self._limits())
+            self.arrived(body=True)
+        except http_boundary.Refused as e:
+            self.close_connection = True
+            return self._json({"error": e.reason}, e.status)
         q = urllib.parse.parse_qs(u.query)
+        if body.get("subject") is not None and not isinstance(body["subject"], str):
+            return self._json({"error": "subject must be a string"}, 400)
         ps = subject_of_request(q, body)
         if ps is None:
             return self._json({"error": "no such subject here; /api/subjects lists them"}, 404)
@@ -883,11 +927,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": str(e).splitlines()[0][:200]}, 503)
         if parts == ["api", "run"]:
             try:
-                rec = RUNNER.start(str(body.get("scenario", "")), str(body.get("mode", "")), int(body.get("n", 1)),
-                                   row=(str(body["row"]) if body.get("row") else None),
-                                   effort=(str(body["effort"]) if body.get("effort") is not None else None),
-                                   as_of=(str(body["as_of"]) if body.get("as_of") else None),
-                                   by=str(body.get("by") or "page"))
+                r = run_request(body)
+                rec = RUNNER.start(r["scenario"], r["mode"], r["n"], row=r["row"] or None, effort=r["effort"],
+                                   as_of=r["as_of"] or None, by=r["by"] or "page")
                 return self._json(rec, 202)
             except (ValueError, RuntimeError) as e:
                 return self._json({"error": str(e)}, 409 if isinstance(e, RuntimeError) else 400)
@@ -899,7 +941,7 @@ def main() -> None:
     for rid in close_stale_runs():
         print(f"closed {rid}: its run.json read running with a stale heartbeat ({runs_index.RESTARTED})", flush=True)
     host = listen_host()
-    httpd = ThreadingHTTPServer((host, PORT), Handler)
+    httpd = http_boundary.BoundedServer((host, PORT), Handler, page_limits())   # task-0141.04
     writes = "token required" if page_token() else (write_refusal() or "open on this machine")
     print(f"kg demo on http://{host}:{PORT}  published on {exposure()}  store {NEO4J_URI}  runs {RUNS_DIR}  writes: {writes}", flush=True)
     httpd.serve_forever()

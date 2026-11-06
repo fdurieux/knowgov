@@ -18,8 +18,12 @@ one by sending a header. DNS names are compared as text, never resolved."""
 from __future__ import annotations
 
 import ipaddress
+import json
+import os
 import re
+import threading
 from dataclasses import dataclass, field
+from http.server import ThreadingHTTPServer
 
 LOOPBACK_NAMES = ("localhost", "127.0.0.1", "::1")
 WILDCARDS = ("0.0.0.0", "::", "")
@@ -163,3 +167,184 @@ def check(policy: Policy, headers, route: str | None = None) -> tuple[int, str] 
         if origin not in policy.origins and origin not in policy.extra_origins.get(route, frozenset()):
             return 403, f"a request from another web origin ({_display(origin[1], origin[2], origin[0])}) may not call this server"
     return None
+
+
+# ---- H2 (task-0141.04): bounded input, connections and the time a request may take to arrive ----------------
+
+
+class Refused(Exception):
+    """A request refused before it reaches an operation: the status, and a reason safe to show."""
+
+    def __init__(self, status: int, reason: str):
+        super().__init__(reason)
+        self.status, self.reason = status, reason
+
+
+@dataclass
+class Limits:
+    """Finite, configurable bounds (env ``<PREFIX>_MAX_BODY``, ``_READ_TIMEOUT``, ``_IDLE_TIMEOUT``,
+    ``_MAX_CONNECTIONS``). ``read_timeout`` is absolute: a request's line, headers and body must all
+    arrive within it, however the client paces them; ``idle_timeout`` bounds one silent wait on the
+    socket. A connection over ``max_connections`` is answered 503 and closed without a thread."""
+    max_body: int
+    read_timeout: float
+    idle_timeout: float
+    max_connections: int
+
+    @classmethod
+    def from_env(cls, prefix: str, *, max_body: int, read_timeout: float = 10.0, idle_timeout: float = 5.0,
+                 max_connections: int = 32) -> "Limits":
+        def num(name, default, kind):
+            raw = os.environ.get(f"{prefix}_{name}")
+            if raw is None or raw == "":
+                return default
+            try:
+                v = kind(raw)
+            except ValueError:
+                raise ValueError(f"{prefix}_{name} must be a {kind.__name__}, not {raw!r}") from None
+            if v <= 0:
+                raise ValueError(f"{prefix}_{name} must be positive, not {raw!r}")
+            return v
+        return cls(num("MAX_BODY", max_body, int), num("READ_TIMEOUT", read_timeout, float),
+                   num("IDLE_TIMEOUT", idle_timeout, float), num("MAX_CONNECTIONS", max_connections, int))
+
+
+def read_body(handler, limits: Limits, *, required: bool = True) -> bytes:
+    """The request's body, its framing checked before a byte of it is read: one Content-Length of
+    digits (411 when absent and ``required``, 400 when malformed or repeated, 413 above ``max_body``),
+    no Transfer-Encoding (411: send a length), no Content-Encoding (415), a Content-Type, when sent,
+    of JSON (415). Raises Refused; the handler answers it and closes the connection."""
+    h = handler.headers
+    if h.get_all("Transfer-Encoding"):
+        raise Refused(411, "send the body with a Content-Length; a transfer encoding is not accepted")
+    if h.get_all("Content-Encoding"):
+        raise Refused(415, "a content encoding is not accepted")
+    ctype = (h.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+    if ctype and ctype != "application/json":
+        raise Refused(415, "the body must be application/json")
+    lengths = h.get_all("Content-Length") or []
+    if not lengths:
+        if required:
+            raise Refused(411, "a Content-Length is required")
+        return b""
+    raw = lengths[0].strip()
+    if len(lengths) != 1 or not raw.isascii() or not raw.isdigit():
+        raise Refused(400, "one Content-Length of digits is required")
+    n = int(raw)
+    if n > limits.max_body:
+        raise Refused(413, f"the body exceeds {limits.max_body} bytes")
+    data = handler.rfile.read(n) if n else b""
+    if len(data) != n:
+        raise Refused(400, "the body ended before its Content-Length")
+    return data
+
+
+def read_json_body(handler, limits: Limits, *, required: bool = True) -> dict:
+    """``read_body``, then UTF-8 JSON (400) whose top level is an object (400); an empty body is {}."""
+    data = read_body(handler, limits, required=required)
+    if not data:
+        return {}
+    try:
+        body = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise Refused(400, "the body must be UTF-8 JSON") from None
+    if not isinstance(body, dict):
+        raise Refused(400, "the body must be a JSON object")
+    return body
+
+
+class ArrivalDeadline:
+    """The absolute deadline on a request's arrival: armed when the handler starts reading a request,
+    disarmed once its body is in; at the deadline the socket is shut, so a client trickling one byte
+    at a time still releases its worker."""
+
+    def __init__(self, sock, seconds: float):
+        self._sock, self._timer = sock, threading.Timer(seconds, self._fire)
+        self._timer.daemon = True
+        self.fired = False
+        self._timer.start()
+
+    def _fire(self):
+        self.fired = True
+        try:
+            self._sock.shutdown(2)   # SHUT_RDWR: both directions, so a blocked read returns
+        except OSError:
+            pass
+
+    def cancel(self):
+        self._timer.cancel()
+
+
+class BoundedMixin:
+    """For a BaseHTTPRequestHandler: the socket's idle timeout, and the arrival deadline per request.
+    The handler calls ``self.arrived()`` once its body is read (or at once for a request without one)."""
+    default_limits: Limits | None = None   # the handler's own when its server carries none (a plain server in a test)
+
+    def _limits(self) -> Limits:
+        return getattr(self.server, "limits", None) or self.default_limits or Limits(1 << 20, 10.0, 5.0, 32)
+
+    def setup(self):
+        self.timeout = self._limits().idle_timeout
+        super().setup()
+
+    def handle_one_request(self):
+        self._deadline = ArrivalDeadline(self.connection, self._limits().read_timeout)
+        try:
+            super().handle_one_request()
+        except OSError:   # a timeout, a reset, or the deadline's shutdown: the connection ends
+            self.close_connection = True
+        finally:
+            self._deadline.cancel()
+
+    def parse_request(self):
+        """A request whose line or headers were cut by the deadline is never dispatched: the socket was
+        shut, so what parsed is a fragment, not the request the client meant."""
+        ok = super().parse_request()
+        return ok and not self._deadline.fired
+
+    def arrived(self, body: bool = False):
+        """Disarm the deadline: at once for a request without a body (its headers are in), or once the
+        body is read (``body=True``), then Refused(408) when it fired first, so a body cut short is
+        never handed on."""
+        self._deadline.cancel()
+        if body and self._deadline.fired:
+            self.close_connection = True
+            raise Refused(408, "the request did not arrive within its time")
+
+
+class BoundedServer(ThreadingHTTPServer):
+    """A threading server that admits at most ``limits.max_connections`` at once: the next one is
+    answered 503 with Retry-After and closed on the accepting thread, no worker started; a slot is
+    released when its connection ends, whatever ended it."""
+    daemon_threads = True
+
+    def __init__(self, address, handler, limits: Limits):
+        self.limits = limits
+        self._slots = threading.BoundedSemaphore(limits.max_connections)
+        super().__init__(address, handler)
+
+    def process_request(self, request, client_address):
+        if not self._slots.acquire(blocking=False):
+            try:
+                body = b'{"error": "the server is at capacity; retry shortly"}'
+                request.sendall(b"HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\nRetry-After: 1\r\n"
+                                b"Connection: close\r\nContent-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body)
+            except OSError:
+                pass
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._slots.release()
+
+    def active(self) -> int:
+        """Connections being served now (for a test or a status line)."""
+        return self.limits.max_connections - self._slots._value

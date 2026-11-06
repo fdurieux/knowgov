@@ -1051,8 +1051,19 @@ def bind_check(host: str, token: str | None) -> str | None:
     return None
 
 
+def mcp_limits():
+    """The HTTP transport's bounds (task-0141.04): KG_MCP_MAX_BODY bytes (default 4 MiB: subject_check
+    admits 1 MB of documents' text, more once escaped in JSON), KG_MCP_READ_TIMEOUT seconds for a
+    request to arrive whole (10), KG_MCP_IDLE_TIMEOUT for one silent wait (5), KG_MCP_MAX_CONNECTIONS
+    at once (32; more get 503)."""
+    import http_boundary
+    return http_boundary.Limits.from_env("KG_MCP", max_body=4 << 20)
+
+
 def make_handler(server: Server, token: str | None):
-    class Handler(BaseHTTPRequestHandler):
+    import http_boundary
+
+    class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
         server_version = "knowgov-mcp/1"
 
@@ -1086,19 +1097,30 @@ def make_handler(server: Server, token: str | None):
                     return False
             return True
 
+        def _limits(self):
+            return getattr(self.server, "limits", None) or mcp_limits()
+
         def do_POST(self):
             if not self._guard():
+                self.arrived()
                 return
-            n = int(self.headers.get("Content-Length") or 0)
-            text = self.rfile.read(n).decode("utf-8", "replace")
-            code, resp = server.handle_http(text, self.headers)
+            try:   # framing before a byte is read (task-0141.04); the JSON-RPC parse error stays the protocol's
+                data = http_boundary.read_body(self, self._limits())
+                self.arrived(body=True)
+            except http_boundary.Refused as e:
+                self.close_connection = True
+                self._send(e.status, _error(None, -32600, e.reason))
+                return
+            code, resp = server.handle_http(data.decode("utf-8", "replace"), self.headers)
             self._send(code, resp)
 
         def do_GET(self):
+            self.arrived()
             if self._guard():
                 self._send(405, None, {"Allow": "POST"})   # no server-initiated stream: nothing is ever pushed
 
         def do_DELETE(self):
+            self.arrived()
             if self._guard():
                 self._send(405, None, {"Allow": "POST"})   # stateless: there is no session to end
     return Handler
@@ -1108,7 +1130,8 @@ def serve_http(server: Server, host: str, port: int, token: str | None) -> Threa
     why = bind_check(host, token)
     if why:
         raise SystemExit(f"mcp_server: refusing to bind: {why}")
-    httpd = ThreadingHTTPServer((host.strip("[]"), port), make_handler(server, token))
+    import http_boundary
+    httpd = http_boundary.BoundedServer((host.strip("[]"), port), make_handler(server, token), mcp_limits())   # task-0141.04
     httpd.policy = http_policy(host, httpd.server_address[1])   # the port actually bound, port 0 included
     return httpd
 
