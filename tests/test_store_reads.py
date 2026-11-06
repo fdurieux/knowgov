@@ -82,7 +82,9 @@ def test_held_keys_lists_every_held_key_at_gate_verdicts_level_with_the_classes_
     gate = tm._call(s, "gate_verdict", {"keys": sorted(st.rows)})["result"]["structuredContent"]
     assert {k["key"]: k["level"] for k in got["keys"]} == gate["levels"]
     extra = next(k for k in got["keys"] if k["key"] == EXTRA)
-    assert extra["required_by"] == [] and got["unrequired"] == [EXTRA]
+    required = {k for spec in TASKS.values() for k in spec["keys"]}   # the subject's own classes: the stub's keys are CargoQuote's
+    assert extra["required_by"] == [] and EXTRA in got["unrequired"]
+    assert got["unrequired"] == sorted(k for k in st.rows if k not in required)
     first = next(k for k in got["keys"] if k["key"] == TASKS["codegen"]["keys"][1])
     assert "codegen" in first["required_by"]
     assert TASKS["codegen"]["keys"][0] in got["required_not_held"]   # the stub's absent key
