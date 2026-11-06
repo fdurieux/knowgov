@@ -54,9 +54,12 @@ abspath() { case "$1" in /*) echo "$1" ;; *) echo "$(pwd)/$1" ;; esac; }
 
 subject() {
     if [ -n "${KG_SUBJECT:-}" ]; then abspath "$KG_SUBJECT"; return; fi
-    set -- "$INST"/subjects/*/subject.toml
-    if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then echo "knowgov-gate: set KG_SUBJECT: $INST/subjects holds $# subject(s)" >&2; exit 2; fi
-    dirname "$1"
+    n=0 one=
+    for m in "$INST"/subjects/*/subject.toml; do   # an unmatched glob stays literal: count only files
+        [ -f "$m" ] && { n=$((n + 1)); one=$m; }
+    done
+    if [ "$n" -ne 1 ]; then echo "knowgov-gate: set KG_SUBJECT: $INST/subjects holds $n subject(s)" >&2; return 2; fi
+    dirname "$one"
 }
 
 changed() {   # the code files changed since KG_BASE, relative to the code map's root, one per line
@@ -125,7 +128,8 @@ preload)
     finish "$rc"
     ;;
 gate)
-    set -- --subject "$(subject)" --task "${KG_TASK:-codegen}"
+    S=$(subject) || exit 2   # in $(...) an exit ends only the subshell: refuse here (fail-closed)
+    set -- --subject "$S" --task "${KG_TASK:-codegen}"
     [ -n "${KG_SCENARIO:-}" ] && set -- "$@" --scenario "$KG_SCENARIO"
     [ -n "${KG_FAIL_ON:-}" ] && set -- "$@" --fail-on "$KG_FAIL_ON"
     [ -n "${KG_STAGE:-}" ] && set -- "$@" --stage "$KG_STAGE"
@@ -135,7 +139,8 @@ gate)
     core gate_cli.py "$@"
     ;;
 trace-check|trace-register)
-    set -- "${GATE#trace-}" --instance "$INST" --ledger "$(abspath "${KG_LEDGER:-trace-ledger.json}")" --subject "$(subject)" --task "${KG_TASK:-codegen}"
+    S=$(subject) || exit 2
+    set -- "${GATE#trace-}" --instance "$INST" --ledger "$(abspath "${KG_LEDGER:-trace-ledger.json}")" --subject "$S" --task "${KG_TASK:-codegen}"
     [ -n "$REPORT" ] && set -- "$@" -o "$REPORT"
     [ -n "${KG_COMMIT:-}" ] && set -- "$@" --commit "$KG_COMMIT"
     [ -n "${KG_AS_OF:-}" ] && set -- "$@" --as-of "$KG_AS_OF"

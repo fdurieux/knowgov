@@ -74,6 +74,14 @@ names that section with the version.
 
 ### Changes
 
+- **The CI gate script refuses an instance it cannot name a subject for** (security; 0.7.0 and
+  earlier affected). With `KG_SUBJECT` unset, `instance/ci/knowgov-gate.sh` is meant to exit 2 for
+  `gate` and `trace-*` unless the instance holds exactly one subject. Its refusal ran inside
+  `$(...)`, so it ended only a subshell, and an empty `subjects/` folder counted as one subject. So
+  an instance with no subject, or several, ran the gate on the harness's default subject, and could
+  pass when it should have refused. Now nothing runs and the exit is 2. Set `KG_SUBJECT` to keep
+  any other behaviour.
+
 - **Two corrections to the adopter documentation.** `docs/guide.md` §6 said the review step was
   not built and that no command took S2 to PROCEED. It is built (task-0037): the section now says
   what a review does, that S2 reaches PROCEED once its answers are reviewed and its open decision
