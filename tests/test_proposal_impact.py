@@ -400,3 +400,126 @@ def test_the_ci_step_is_in_the_template_proven_in_harness_yml_and_documented():
     assert "python tools/check_proposal_branch.py" in wf
     readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
     assert "proposal-impact.sh" in readme and "--register-branch" in readme
+
+
+# ---- task-0152 (doc-0022 K1): the slice map, by the register's thread walk
+
+PLANNING_WORDS = ("skeleton", "mvp", "priority", "rank", "estimate", "first", "later", "sprint", "story point")
+
+
+def _placed(sl: dict) -> list[str]:
+    return [e["id"] for s in sl["map"] for e in s["elements"]] + [e["id"] for g in sl["remainder"] for e in g["elements"]]
+
+
+def _group(sl: dict, name: str) -> dict:
+    return next(g for g in sl["remainder"] if g["group"] == name)
+
+
+def test_the_worked_example_is_three_step_slices_and_the_required_capabilities_no_step_reaches():
+    """AC1, AC2, AC4: doc-0022 §2's map, computed: JRN-0013 rests on reused PROC-0002's thread,
+    JRN-0014 and JRN-0015 have none, and CAP-0002, CAP-0003 and the new CAP-0009 are required by
+    PRD-0006 and reached by no step (A1)."""
+    r = _report()
+    _valid(r)
+    sl = r["slices"]
+    assert (sl["walk"], sl["register_rule"], sl["children"]) == ("thread", "A1", True)
+    assert [p["id"] for p in sl["products"]] == ["PRD-0006"]
+    p = sl["products"][0]
+    assert (p["status"], p["axis"], p["journeys"], p["slices"]) == ("new", "step", ["JRN-0012"], ["JRN-0013", "JRN-0014", "JRN-0015"])
+    assert p["required_not_reached"] == ["CAP-0002", "CAP-0003", "CAP-0009"] and p["reached"] == ["CAP-0004"]
+    by = {s["start"]["id"]: s for s in sl["map"]}
+    t = by["JRN-0013"]["thread"]
+    assert [c["id"] for c in t["process"]] == ["PROC-0002"] and [c["id"] for c in t["capability"]] == ["CAP-0004"]
+    assert [c["id"] for c in t["application"]] == ["APP-0002"] and [c["id"] for c in t["information"]] == ["ENT-0002", "ENT-0003"]
+    assert by["JRN-0013"]["start"]["status"] == "new" and {c["status"] for v in t.values() for c in v} == {"reused"}
+    assert by["JRN-0013"]["empty"] == [] and by["JRN-0013"]["owners"] == ["ORG-0001", "ORG-0002"]
+    assert [e["id"] for e in by["JRN-0013"]["elements"]] == ["JRN-0013", "link-6"]
+    for s in ("JRN-0014", "JRN-0015"):
+        assert by[s]["empty"] == ["process", "capability", "application", "information"]
+        assert [e["id"] for e in by[s]["elements"]] == [s]
+    rnr = _group(sl, "required_not_reached")
+    assert [c["capability"]["id"] for c in rnr["capabilities"]] == ["CAP-0002", "CAP-0003", "CAP-0009"]
+    assert {c["capability"]["id"]: [x["id"] for x in c["realisers"]] for c in rnr["capabilities"]} == {
+        "CAP-0002": ["APP-0003", "PROC-0004"], "CAP-0003": ["APP-0004", "PROC-0003"], "CAP-0009": []}
+    assert [e["id"] for e in rnr["elements"]] == ["CAP-0009", "link-1", "link-2", "link-4"]
+    assert [e["id"] for e in _group(sl, "frame")["elements"]] == ["PRD-0006", "JRN-0012", "link-3", "link-5"]
+    for g in ("shared", "exceptions", "outside"):
+        assert _group(sl, g)["elements"] == []
+    # every overlay element exactly once, the denominator shown
+    placed = _placed(sl)
+    want = [n["id"] for n in r["nodes"]] + [ln["id"] for ln in r["links"]] + [e["id"] for e in r["exceptions"]]
+    assert sorted(placed) == sorted(want) and len(set(placed)) == len(placed)
+    assert sl["elements"] == {"denominator": 12, "in_slices": 4, "in_remainder": 8}
+
+
+def test_on_the_approved_register_prd_0002s_cap_0003_is_reached_by_no_step_and_prd_0005_is_sliced_by_its_process():
+    """AC4: a two-entity overlay on the approved register touches PRD-0002 (through PROC-0003, which
+    realises CAP-0003 and supports no step) and the daily chain (PROC-0007, on JRN-0006's thread and on
+    PROC-0006's, the process that delivers PRD-0005, which no journey concerns)."""
+    proposal = {"title": "approved register probe (synthetic)",
+                "nodes": [{"id": "ENT-0020", "kind": "business_entity", "name": "Screening record", "owner": "ORG-0001"},
+                          {"id": "ENT-0021", "kind": "business_entity", "name": "Sync ledger", "owner": "ORG-0003"}],
+                "links": [{"type": "crud", "source": "PROC-0003", "target": "ENT-0020", "rationale": "screening writes it"},
+                          {"type": "crud", "source": "PROC-0007", "target": "ENT-0021", "rationale": "the sync run writes it"}],
+                "exceptions": [{"rule": "C1", "scope": ["ENT-0020"], "expires": "2027-01-01", "rationale": "probe"}]}
+    r = _report(proposal)
+    _valid(r)
+    sl = r["slices"]
+    prods = {p["id"]: p for p in sl["products"]}
+    assert sorted(prods) == ["PRD-0002", "PRD-0004", "PRD-0005"]
+    assert prods["PRD-0002"]["slices"] == ["JRN-0002", "JRN-0003"] and prods["PRD-0002"]["required_not_reached"] == ["CAP-0003"]
+    assert prods["PRD-0002"]["alignment_by"] == "A1"
+    assert prods["PRD-0004"]["reached_not_required"] == ["CAP-0008"] and prods["PRD-0004"]["not_walked"] == ["JRN-0008"]
+    p5 = prods["PRD-0005"]
+    assert (p5["axis"], p5["journeys"], p5["processes"], p5["slices"]) == ("process", [], ["PROC-0006"], ["PROC-0006"])
+    assert p5["required_not_reached"] == [] and p5["reached"] == ["CAP-0007", "CAP-0008"]
+    by = {s["start"]["id"]: s for s in sl["map"]}
+    assert by["PROC-0006"]["axis"] == "process" and "process" not in by["PROC-0006"]["empty"]
+    assert [c["id"] for c in by["PROC-0006"]["descendants"]] == ["PROC-0007", "PROC-0009", "PROC-0008"]
+    assert [c["id"] for c in by["JRN-0002"]["descendants"]] == ["JRN-0004"]   # the touchpoint rides its step
+    assert by["JRN-0009"]["empty"] == ["capability"]   # PROC-0006 realises nothing itself: as fine as the links
+    assert {"rel": "is_supported_by", "from": "JRN-0003", "to": "PROC-0005", "state": "proposed"} in by["JRN-0003"]["withdrawn"]
+    assert "ENT-0021" in [c["id"] for c in by["JRN-0006"]["thread"]["information"]]
+    shared = _group(sl, "shared")["elements"]
+    assert shared == [{"id": "ENT-0021", "element": "node", "slices": ["JRN-0006", "PROC-0006"]},
+                      {"id": "link-2", "element": "link", "slices": ["JRN-0006", "PROC-0006"]}]
+    rnr = _group(sl, "required_not_reached")
+    assert [c["capability"]["id"] for c in rnr["capabilities"]] == ["CAP-0003"]
+    assert [c["required_by"] for c in rnr["capabilities"]] == [["PRD-0002"]]
+    assert [e["id"] for e in rnr["elements"]] == ["ENT-0020", "link-1"]
+    assert [e["id"] for e in _group(sl, "exceptions")["elements"]] == ["exception-1"]
+    assert sl["elements"] == {"denominator": 5, "in_slices": 0, "in_remainder": 5}
+    assert sorted(_placed(sl)) == sorted(["ENT-0020", "ENT-0021", "link-1", "link-2", "exception-1"])
+
+
+def test_an_overlay_no_product_touches_is_placed_outside_and_the_map_is_facts_only():
+    """AC2, AC3: an element on no product's footprint is in the named remainder outside; the section
+    carries no planning label, estimate or rank."""
+    proposal = {"nodes": [{"id": "ORG-0020", "kind": "team", "name": "Contract desk", "parent": "ORG-0001", "owner": "ORG-0001"}]}
+    r = _report(proposal)
+    _valid(r)
+    sl = r["slices"]
+    assert sl["products"] == [] and sl["map"] == []
+    assert [e["id"] for e in _group(sl, "outside")["elements"]] == ["ORG-0020"]
+    assert sl["elements"] == {"denominator": 1, "in_slices": 0, "in_remainder": 1}
+    for rep in (r, _report()):
+        text = json.dumps(rep["slices"]).casefold()
+        assert not [w for w in PLANNING_WORDS if w in text], [w for w in PLANNING_WORDS if w in text]
+    for s in _report()["slices"]["map"]:
+        assert set(s) == {"start", "axis", "products", "descendants", "thread", "empty", "withdrawn", "owners", "elements"}
+
+
+def test_the_command_and_the_mcp_tool_give_the_same_slice_map():
+    env = {**os.environ, "KG_TODAY": DAY}
+    run = subprocess.run([sys.executable, str(ROOT / "harness" / "proposal_impact.py"), str(FIXTURE), "--no-store", "-f", "json"],
+                         capture_output=True, text=True, env=env, cwd=ROOT)
+    assert run.returncode == 0, run.stderr
+    s, _ = _server()
+    got = _call(s, "proposal_impact", {"proposal": _proposal(), "as_of": DAY})["result"]
+    assert got.get("isError") is not True, got
+    mcp = got["structuredContent"]
+    assert mcp["slices"] == json.loads(run.stdout)["slices"] == json.loads(json.dumps(_report()["slices"]))
+    text = subprocess.run([sys.executable, str(ROOT / "harness" / "proposal_impact.py"), str(FIXTURE), "--no-store"],
+                          capture_output=True, text=True, env=env, cwd=ROOT).stdout
+    assert "slice JRN-0013 (new step): process PROC-0002" in text
+    assert "slices: 4 in slices, 8 in the remainder, of 12 overlay element(s)" in text

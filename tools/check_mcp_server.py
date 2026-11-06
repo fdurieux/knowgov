@@ -371,8 +371,9 @@ def check_runs(client: "StdioClient", sc: str, status: dict, failures: list[str]
 
 
 def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: str) -> None:
-    """proposal_impact (task-0130): the worked example's gaps, and each reused node's keys equal to
-    register_impact's for that node on the same scenario, task and as_of."""
+    """proposal_impact (task-0130): the worked example's gaps, its slice map equal to the command's
+    (task-0152), and each reused node's keys equal to register_impact's for that node on the same
+    scenario, task and as_of."""
     proposal = json.loads((ROOT / "tools" / "fixtures" / "proposal_contract_quote.json").read_text(encoding="utf-8"))
     got = client.call("proposal_impact", {"proposal": proposal, "scenario": sc, "as_of": "record"})
     gaps = sorted((g["rule"], g["id"]) for g in got["coverage"]["new_gaps"])
@@ -380,14 +381,22 @@ def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: s
         failures.append(f"{label}: proposal_impact's new gaps are {gaps}")
     if not all(x["hypothetical"] is True for x in got["nodes"] + got["links"]) or got["stored"] is not False:
         failures.append(f"{label}: proposal_impact reported an overlay element not hypothetical, or a stored read")
+    if str(HARNESS) not in sys.path:
+        sys.path.insert(0, str(HARNESS))
+    import proposal_impact as pi   # the CLI's report, in this process: the slice map the same (task-0152)
+    held = json.loads(json.dumps(pi.evaluate(proposal, today=pi._date(got["as_of"], "as_of"))["slices"], default=str))
+    if got.get("slices") != held:
+        failures.append(f"{label}: proposal_impact's slice map differs from the command's")
     n = 0
     for entry in got["keys"]["by_node"]:
         want = client.call("register_impact", {"node": entry["node"], "scenario": sc, "as_of": "record"})
         n += len(entry["keys"])
         if entry["keys"] != want["keys"]:
             failures.append(f"{label}: proposal_impact's keys on {entry['node']} differ from register_impact's")
+    e = got.get("slices", {}).get("elements", {})
     print(f"{label}: proposal_impact names {len(gaps)} new gap(s); {n} key(s) on {len(got['keys']['by_node'])} reused node(s) "
-          f"equal register_impact's")
+          f"equal register_impact's; {len(got.get('slices', {}).get('map', []))} slice(s), {e.get('in_slices')} of "
+          f"{e.get('denominator')} element(s) in them, equal the command's")
 
 
 def check_nodes(client: "StdioClient", failures: list[str], label: str) -> None:

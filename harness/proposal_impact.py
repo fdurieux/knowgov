@@ -24,6 +24,12 @@ second walk semantics here.
   ``impact.walk`` (or ``walk_children`` with ``children``) from every reused node before and after,
   the ``changed`` ones flagged; what each new node rests on, through ``requires`` targets and the
   ``realisers`` walk (decision 0012).
+- Slices (task-0152, doc-0022 K1): the slice map, by the register's ``THREAD`` walk with parent
+  descent (decision 0018) and its rule A1 (``check_alignment``), both on the read register. One slice
+  per approved step of a journey that concerns a product in scope, or, for a product no journey
+  concerns, per process that delivers it; each overlay element in the one slice whose thread holds it,
+  else in a named remainder (shared, required_not_reached, frame, exceptions, outside), with the
+  denominator. Facts only: no label, estimate or rank.
 - Keys: per reused node, the register-map rows ``register_impact`` lands on the base register for that
   node, and with a scenario held each key's level, stale statements, suspect derived outputs and
   findings, as the MCP tool ``register_impact`` reports them for the same node, task class and as_of.
@@ -403,6 +409,217 @@ def rests_on(T, read: dict, ov: Overlay) -> list[dict]:
     return out
 
 
+# ---- the slice map (task-0152, doc-0022 K1) ----
+
+LAYERS = (("processes", "process"), ("capabilities", "capability"), ("applications", "application"), ("information", "information"))
+FRAME_LINKS = ("concerns", "delivers", "requires")
+GROUPS = {
+    "shared": "on the thread of more than one slice",
+    "required_not_reached": "a capability a product in scope requires that no slice's thread reaches (the register's A1 for "
+                            "a product a journey concerns, the process slices' thread walk otherwise), what realises it by "
+                            "the realisers walk and each realising process's thread",
+    "frame": "a product in scope, a journey element above its slices, or a concerns, delivers or requires link of a product "
+             "in scope, on no slice's thread",
+    "exceptions": "a proposed exception: it scopes a rule and is on no thread",
+    "outside": "on no slice's thread, no required capability's realisers and no product's frame",
+}
+
+
+def _approved(reg: dict, rel: str) -> list[dict]:
+    return [ln for ln in reg["relationships"].get(rel, {}).get("links", []) if ln.get("state") == "approved" and ln.get("target")]
+
+
+def _triples(edges: list[dict]) -> set[tuple[str, str, str]]:
+    """The links a walk followed, as (source, type, target): an inverse edge is its link read backwards."""
+    out = set()
+    for e in edges:
+        if not e.get("live"):
+            continue
+        rel = e["rel"].removesuffix(" (inverse)")
+        out.add((e["to"], rel, e["from"]) if e["rel"] != rel else (e["from"], rel, e["to"]))
+    return out
+
+
+def slices(T, CR, read: dict, ov: Overlay) -> dict:
+    """The overlay grouped into vertical slices, one per approved step of a journey that concerns a
+    product in scope (a touchpoint under no step is its own), or, for a product no journey concerns,
+    one per process that delivers it. A slice is the register's thread walk with parent descent from
+    its start (decision 0018), as A1 walks; the required capabilities no slice reaches are A1's own
+    finding. A product is in scope when its footprint (itself, its journeys and their descendants,
+    its slices' threads, its required capabilities and their realisers) holds an overlay node or both
+    ends of an overlay link. Every overlay element is placed once: in the one slice whose thread holds
+    it, else in a named remainder. Facts only: no label, estimate or order beyond the register's ids."""
+    imp, nodes = T["impact"], read["nodes"]
+    withdrawn = imp.WITHDRAWN
+    changed = {r["id"] for r in ov.reused if r["mode"] == "changed"}
+
+    def status(x):
+        return "new" if ov.is_new(x) else "changed" if x in changed else "reused"
+
+    def cell(x):
+        n = nodes.get(x) or {}
+        return {"id": ov.name(x), "kind": n.get("kind"), "name": n.get("name", ""), "owner": n.get("owner"), "status": status(x)}
+
+    def key(x):
+        return ov.name(x)
+
+    a1 = CR.check_alignment(read, CR.Findings())
+    walked: dict[str, dict] = {}
+
+    def thread(start):
+        if start not in walked:
+            got = imp.walk_children(read, start, imp.THREAD)
+            live = [d["id"] for d in got["descendants"] if d["live"]]
+            walked[start] = {**got, "live": live, "nodes": {start, *live, *got["reached"]}, "triples": _triples(got["edges"])}
+        return walked[start]
+
+    def realisers(cap):
+        edges = imp.walk(read, cap, imp.WALKS["realisers"])
+        return imp.reached(edges), _triples(edges)
+
+    def is_step_start(d, top):
+        n = nodes[d]
+        if n.get("state") != "approved" or n.get("kind") not in STEP_KINDS:
+            return False
+        if n["kind"] == "step":
+            return True
+        p = n.get("parent")   # a touchpoint is its own slice only under no step
+        while p and p != top:
+            if (nodes.get(p) or {}).get("kind") == "step":
+                return False
+            p = (nodes.get(p) or {}).get("parent")
+        return True
+
+    products = sorted((nid for nid, n in nodes.items() if n.get("kind") in ("product", "variant") and n.get("state") == "approved"), key=key)
+    plan = {}
+    for pid in products:
+        journeys = sorted({ln["source"] for ln in _approved(read, "concerns") if ln["target"] == pid
+                           and (nodes.get(ln["source"]) or {}).get("state") not in withdrawn}, key=key)
+        required = sorted({ln["target"] for ln in _approved(read, "requires") if ln["source"] == pid}, key=key)
+        frame, starts, not_walked = {pid}, [], []
+        if journeys:
+            axis = "step"
+            for j in journeys:
+                frame.add(j)
+                if nodes[j].get("kind") in STEP_KINDS and nodes[j].get("state") == "approved":
+                    starts.append(j)
+                for d in imp.descendants(read, j):
+                    if is_step_start(d, j):
+                        starts.append(d)
+                    elif nodes[d].get("state") != "approved":
+                        not_walked.append(d)
+                    frame.add(d)
+            axis_nodes = journeys
+        else:
+            axis = "process"
+            axis_nodes = sorted({ln["source"] for ln in _approved(read, "delivers") if ln["target"] == pid
+                                 and (nodes.get(ln["source"]) or {}).get("state") not in withdrawn}, key=key)
+            starts = list(axis_nodes)
+        starts = list(dict.fromkeys(starts))
+        reached_caps = sorted({x for s in starts for x in thread(s)["reached"] if nodes.get(x, {}).get("_taxonomy") == "capabilities"}, key=key)
+        if journeys:
+            missing = [c for p, c in a1["required_not_reached"] if p == pid]
+            extra = [c for p, c in a1["reached_not_required"] if p == pid]
+        else:
+            missing = [c for c in required if c not in reached_caps]
+            extra = [c for c in reached_caps if c not in required]
+        foot = set(frame) | set(required)
+        for s in starts:
+            foot |= thread(s)["nodes"]
+        for c in required:
+            got = realisers(c)[0]
+            foot |= got
+            for x in got:
+                if nodes.get(x, {}).get("_taxonomy") == "processes":
+                    foot |= thread(x)["nodes"]
+        frame -= {x for s in starts for x in thread(s)["nodes"]}
+        plan[pid] = {"journeys": journeys, "axis": axis, "axis_nodes": axis_nodes, "required": required, "starts": starts,
+                     "reached": reached_caps, "missing": missing, "extra": extra, "frame": frame, "foot": foot,
+                     "not_walked": sorted(set(not_walked), key=key)}
+    in_scope = [pid for pid in products
+                if any(n["id"] in plan[pid]["foot"] for n in ov.nodes)
+                or any(ln["source"] in plan[pid]["foot"] and ln["target"] in plan[pid]["foot"] for ln in ov.links)]
+
+    starts: dict[str, list[str]] = {}
+    for pid in in_scope:
+        for s in plan[pid]["starts"]:
+            starts.setdefault(s, []).append(pid)
+
+    elements = [("node", n["id"], n["_provisional"]) for n in ov.nodes] + \
+               [("link", (ln["source"], ln["_type"], ln["target"]), ln["_provisional"]) for ln in ov.links]
+    home: dict[str, list[dict]] = {s: [] for s in starts}
+    groups: dict[str, list[dict]] = {g: [] for g in GROUPS}
+    enabler_nodes, enabler_links, frame_nodes = set(), set(), set()
+    enablers: dict[str, list[str]] = {}
+    for pid in in_scope:
+        frame_nodes |= plan[pid]["frame"]
+        for c in plan[pid]["missing"]:
+            enablers.setdefault(c, []).append(pid)
+            got, links = realisers(c)
+            enabler_nodes |= {c, *got}
+            enabler_links |= links | {(pid, "requires", c)}
+            for x in got:   # a realising process's own thread: what it uses, down to the data
+                if nodes.get(x, {}).get("_taxonomy") == "processes":
+                    enabler_nodes |= thread(x)["nodes"]
+                    enabler_links |= thread(x)["triples"]
+    for what, ref, pid in elements:
+        on = [s for s in starts if (ref in thread(s)["nodes"] if what == "node" else ref in thread(s)["triples"])]
+        item = {"id": pid, "element": what}
+        if len(on) == 1:
+            home[on[0]].append(item)
+        elif on:
+            groups["shared"].append({**item, "slices": [ov.name(s) for s in on]})
+        elif (ref in enabler_nodes) if what == "node" else (ref in enabler_links):
+            groups["required_not_reached"].append(item)
+        elif (ref in frame_nodes) if what == "node" else (ref[1] in FRAME_LINKS and (ref[0] in in_scope or ref[2] in in_scope)):
+            groups["frame"].append(item)
+        else:
+            groups["outside"].append(item)
+    groups["exceptions"] = [{"id": e["_provisional"], "element": "exception"} for e in ov.exceptions]
+
+    layer_of = dict(LAYERS)
+    items = []
+    for s, pids in starts.items():
+        t = thread(s)
+        by_layer = {name: [] for _, name in LAYERS}
+        for x in sorted({*t["live"], *t["reached"]}, key=key):
+            tax = (nodes.get(x) or {}).get("_taxonomy")
+            if tax in layer_of:
+                by_layer[layer_of[tax]].append(cell(x))
+        own = layer_of.get((nodes.get(s) or {}).get("_taxonomy"))
+        shown = [s, *t["live"], *t["reached"]]
+        items.append({
+            "start": cell(s), "axis": plan[pids[0]]["axis"], "products": [ov.name(p) for p in pids],
+            "descendants": [cell(d) for d in t["live"]],
+            "thread": by_layer, "empty": [name for name, xs in by_layer.items() if not xs and name != own],
+            "withdrawn": [{"from": ov.name(e["from"]), "rel": e["rel"], "to": ov.name(e["to"]), "state": e["state"]}
+                          for e in t["edges"] if not e["live"]],
+            "owners": sorted({o for o in ((nodes.get(x) or {}).get("owner") for x in shown) if o}),
+            "elements": home[s],
+        })
+    caps = [{"capability": cell(c), "required_by": [ov.name(p) for p in pids],
+             "realisers": [cell(x) for x in sorted(realisers(c)[0], key=key)]}
+            for c, pids in sorted(enablers.items(), key=lambda kv: key(kv[0]))]
+    in_slices = sum(len(i["elements"]) for i in items)
+    in_rest = sum(len(xs) for xs in groups.values())
+    return {
+        "walk": "thread", "register_rule": "A1", "children": True,
+        "products": [{"id": ov.name(p), "name": nodes[p].get("name", ""), "status": status(p), "axis": plan[p]["axis"],
+                      "journeys": [ov.name(j) for j in plan[p]["journeys"]],
+                      "processes": [ov.name(x) for x in plan[p]["axis_nodes"]] if plan[p]["axis"] == "process" else [],
+                      "slices": [ov.name(s) for s in plan[p]["starts"]], "not_walked": [ov.name(x) for x in plan[p]["not_walked"]],
+                      "required": [ov.name(c) for c in plan[p]["required"]], "reached": [ov.name(c) for c in plan[p]["reached"]],
+                      "required_not_reached": [ov.name(c) for c in plan[p]["missing"]],
+                      "reached_not_required": [ov.name(c) for c in plan[p]["extra"]],
+                      "alignment_by": "A1" if plan[p]["axis"] == "step" else "thread walk from the process slices"}
+                     for p in in_scope],
+        "map": items,
+        "remainder": [{"group": g, "why": why, "elements": groups[g], **({"capabilities": caps} if g == "required_not_reached" else {})}
+                      for g, why in GROUPS.items()],
+        "elements": {"denominator": len(elements) + len(ov.exceptions), "in_slices": in_slices, "in_remainder": in_rest},
+    }
+
+
 # ---- candidates D1 to D4 (D5 is a placement finding) ----
 
 def _id_fields(reg: dict) -> dict[str, str]:
@@ -583,6 +800,7 @@ def evaluate(proposal: dict, root: Path | None = None, today: dt.date | None = N
         "coverage": coverage(CR, base, read, ov, today),
         "reach": reach(T, base, read, ov, children),
         "rests_on": rests_on(T, read, ov),
+        "slices": slices(T, CR, read, ov),
         "keys": {"task": None, "scenario": None, "store": None, "gate": None, "by_node": keys},
         "unmapped": [{"id": n["_provisional"], "why": "no register-map row names it and no subject has asked about it: unmapped, not unknown"}
                      for n in ov.nodes if n["id"] not in mapped],
@@ -757,6 +975,19 @@ def render_text(r: dict) -> str:
         shown = [v["node"] + (" <- " + ",".join(v["realisers"] or ["nothing"]) if "realisers" in x["through"] else "") for v in x["via"]]
         lines.append(f"  {x['node']} rests on {shown or 'nothing'}"
                      f"{' (gap)' if x['gap'] else ''}")
+    sl = r["slices"]
+    for p in sl["products"]:
+        lines.append(f"  product {p['id']} ({p['status']}): slices by {p['axis']} {p['slices'] or 'none'}; required not reached "
+                     f"{p['required_not_reached'] or 'none'}; reached not required {p['reached_not_required'] or 'none'}")
+    for s in sl["map"]:
+        layers = "; ".join(f"{k} {','.join(c['id'] + ('*' if c['status'] != 'reused' else '') for c in v) or '-'}" for k, v in s["thread"].items())
+        lines.append(f"  slice {s['start']['id']} ({s['start']['status']} {s['axis']}): {layers}; holds {[e['id'] for e in s['elements']] or 'nothing'}")
+    for g in sl["remainder"]:
+        if g["elements"] or g.get("capabilities"):
+            caps = f" capabilities {[c['capability']['id'] for c in g['capabilities']]}" if g.get("capabilities") else ""
+            lines.append(f"  remainder {g['group']}:{caps} holds {[e['id'] for e in g['elements']] or 'nothing'}")
+    e = sl["elements"]
+    lines.append(f"  slices: {e['in_slices']} in slices, {e['in_remainder']} in the remainder, of {e['denominator']} overlay element(s)")
     for k in r["keys"]["by_node"]:
         lines.append(f"  {k['node']}: {len(k['keys'])} key(s)" + (
             f", levels {sorted({x['level'] for x in k['keys'] if 'level' in x})}" if any('level' in x for x in k["keys"]) else ""))
