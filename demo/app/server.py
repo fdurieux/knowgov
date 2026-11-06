@@ -203,6 +203,14 @@ def arms_enabled() -> bool:
     """The arms are on when the subject has an oracle to grade a reply and at least one row is
     available, its key variable set; no key, no call, nothing sent."""
     return _ps().subject.oracle_script() is not None and any(r["available"] for r in model_rows())
+
+
+def execution_view() -> dict:
+    """Whether model output may run now, as an arms run would find it: ``execution.refusal()``'s answer
+    (the instance guard, the backend, the worker's attestation), never a copy of its logic. The page's
+    Arms chip and button read it beside ``arms_enabled``, which counts keys only."""
+    why = execution.refusal()
+    return {"ok": why is None, "why": why}
 INDEX = (HERE / "index.html").read_bytes()
 
 # Saved Cypher for the store panel. Each runs in Neo4j Browser against the
@@ -853,7 +861,7 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
                 st = store_status()
                 return self._json({"scenarios": views.scenario_list(RUNS_DIR), "store": st,
                                    "page": {"title": _ps().subject.page.get("title", ""), "subtitle": _ps().subject.page.get("subtitle", "")},
-                                   "arms_enabled": arms_enabled(), "model_rows": model_rows(),
+                                   "arms_enabled": arms_enabled(), "execution": execution_view(), "model_rows": model_rows(),
                                    "record_model": _ps().record_model, "record_effort": _ps().record_effort,
                                    "deterministic_enabled": st["reachable"], "writes": writes_view(),
                                    "runs_dir": str(RUNS_DIR), "run": RUNNER.describe()})
