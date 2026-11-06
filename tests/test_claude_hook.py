@@ -264,3 +264,20 @@ def test_the_summary_names_a_declared_gaps_closing_unit():
     assert "k|p is declared gap (owner ORG-0002; closed by ORG-0004)" in text
     assert "k|r is declared gap (owner ORG-0002; closed by no unit of the register)" in text
     assert "k|q is absent (owner ORG-0002)" in text and "  route: r; ORG-0004 closes the declared gap g" in text
+
+
+def test_the_repository_and_managed_snippets_read_the_spec_commit_under_design_and_agree():
+    """Task-0114 (after task-0101): both mandatory snippets carry --task-for spec=design, the same
+    arguments in the same order (the managed one adds only --knowgov); the README says to keep it only
+    where every gated subject declares [tasks.design], and to drop it otherwise."""
+    load = lambda n: json.loads((DIR / n).read_text(encoding="utf-8"))  # noqa: E731
+    args = lambda s: [h for e in s["hooks"]["PreToolUse"] for h in e["hooks"]][0]["args"]  # noqa: E731
+    r, m = args(load("settings.json")), args(load("managed-settings.json"))
+    assert r[1:] == ["gate", "--task", "codegen", "--task-for", "spec=design"], r
+    assert m[:len(r)] == r and m[len(r):] == ["--knowgov", "/opt/knowgov"], m
+    assert "spec" in hook.STAGES
+    readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
+    sec = readme[readme.index("## A fail-closed hook for Claude Code"):]
+    for s in ("`--task-for spec=design`", "`[tasks.design]`", "drop the two arguments", "exit 2 at the spec commit"):
+        assert s in sec, s
+    assert "[tasks.design]" in (ROOT / "subjects" / "cargo_quote" / "subject.toml").read_text(encoding="utf-8")

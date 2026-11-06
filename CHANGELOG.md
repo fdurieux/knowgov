@@ -8,6 +8,16 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
+## Unreleased
+
+### Changes
+
+- **The hook's settings snippets read the spec commit under `design`** (task-0114, after task-0101).
+  `instance/ci/claude/settings.json` and `managed-settings.json` add `--task-for spec=design`, as the
+  pilot protocol does; the plan and the push stay `codegen`. Keep it only where every gated subject
+  declares `[tasks.design]`; elsewhere the spec commit's gate exits 2 and the mandatory hook blocks,
+  so drop the two arguments (instance README). The advisory snippet is unchanged.
+
 ## 0.7.0 — 2026-11-06
 
 The store, the HTTP boundary and code execution are hardened for an organisation's own instance,

@@ -1047,7 +1047,11 @@ Any other tool call gets no decision from it, and goes on through the normal per
 
 **What it does.** It runs `knowgov-gate.sh gate` with the task class the snippet names
 (`--task codegen`; `--task-for spec=CLASS` for another class at one stage), reads the report, and
-maps the exit code. Claude Code blocks a tool call when a hook exits 2 (exit 1 is only a warning there), so:
+maps the exit code. The repository and managed snippets carry `--task-for spec=design`: the spec
+commit is read under the `design` class, as the pilot protocol does. Keep it only where every subject
+the hook gates declares `[tasks.design]` in its `subject.toml`; a subject without that class makes
+the gate exit 2 at the spec commit, so the mandatory hook blocks it. Where no subject declares the
+class, drop the two arguments and the spec commit is read under `codegen` like the other stages. Claude Code blocks a tool call when a hook exits 2 (exit 1 is only a warning there), so:
 
 | Gate | Mandatory hook | Advisory profile (fail-open) |
 |---|---|---|

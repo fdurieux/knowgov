@@ -14,7 +14,9 @@
               "/opt/knowgov/instance/ci/claude/knowgov_hook.py",
               "gate",
               "--task",
-              "codegen"
+              "codegen",
+              "--task-for",
+              "spec=design"
             ],
             "timeout": 600,
             "onFailure": "block"
