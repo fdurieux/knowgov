@@ -18,10 +18,12 @@ the app to read as untrusted data. Nothing here opens the network or reads the a
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
 import re
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -152,11 +154,45 @@ def network(sys_root: str = "/sys", proc_root: str = "/proc") -> dict:
     return {"ok": ok, "interfaces": states if names is not None else None, "routes": routes, "cap_net_admin": net_admin}
 
 
-def attest(env=None, *, sys_root: str = "/sys", proc_root: str = "/proc") -> dict:
+AF_VSOCK, AF_PACKET = 40, 17
+OUTSIDE = ("192.0.2.1", 9)   # TEST-NET-1 (RFC 5737), the discard port: never routed, so nothing real is reached
+_NO_NETWORK = {errno.ENETUNREACH, errno.EPERM, errno.EACCES}
+
+
+def sockets(*, opener=None, connect=None, timeout: float = 0.5) -> dict:
+    """What ``no_socket_escape`` reads: whether this process can open an AF_VSOCK socket, which no network
+    namespace confines (on Docker Desktop the VM's host side answers on it), or an AF_PACKET one, or
+    reach an outside address. Each probe records how it ended, and the check holds only when every one
+    was refused. A connect that ends any other way than "no network" (connected, timed out, a port or a
+    router answering) counts as reaching out. Today the engine's default seccomp profile refuses the
+    two families; this proves it rather than assume it."""
+    opener = opener or socket.socket
+    connect = connect or (lambda: socket.create_connection(OUTSIDE, timeout=timeout).close())
+
+    def name(e: OSError) -> str:
+        return errno.errorcode.get(e.errno, type(e).__name__) if e.errno is not None else type(e).__name__
+    probes = {}
+    for label, family, kind in (("AF_VSOCK", AF_VSOCK, socket.SOCK_STREAM), ("AF_PACKET", AF_PACKET, socket.SOCK_RAW)):
+        try:
+            opener(family, kind).close()
+            probes[label] = "opened"
+        except OSError as e:
+            probes[label] = f"refused {name(e)}"
+    try:
+        connect()
+        probes["outside"] = "connected"
+    except OSError as e:
+        probes["outside"] = f"refused {name(e)}" if e.errno in _NO_NETWORK else f"reached {name(e)}"
+    return {"ok": all(v.startswith("refused ") for v in probes.values()), "probes": probes}
+
+
+def attest(env=None, *, sys_root: str = "/sys", proc_root: str = "/proc", socket_probe=None) -> dict:
     """The confinement checks, each True or False, and ok when all hold (decision-0012; the network
-    check's reading per ``network``)."""
+    check's reading per ``network``, the sockets' per ``sockets``). ``socket_probe`` stands in for
+    ``sockets`` in a test."""
     env = os.environ if env is None else env
     nw = network(sys_root, proc_root)
+    sk = (socket_probe or sockets)()
     try:
         ro = bool(os.statvfs("/").f_flag & os.ST_RDONLY)
     except OSError:
@@ -164,9 +200,10 @@ def attest(env=None, *, sys_root: str = "/sys", proc_root: str = "/proc") -> dic
     leaked = sorted(k for k in env if SECRET_NAMES.match(k))
     checks = {"loopback_only": nw["ok"], "no_secret_variables": not leaked, "read_only_root": ro,
               "uid_65534": os.getuid() == 65534, "no_docker_socket": not any(os.path.exists(s) for s in SOCKETS),
-              "write_confined": landlock_abi() >= 1}
+              "write_confined": landlock_abi() >= 1, "no_socket_escape": sk["ok"]}
     return {"ok": all(checks.values()), "checks": checks, "interfaces": nw["interfaces"], "routes": nw["routes"],
-            "cap_net_admin": nw["cap_net_admin"], "secret_names": leaked, "pid": os.getpid(), "heartbeat": time.time()}
+            "cap_net_admin": nw["cap_net_admin"], "sockets": sk["probes"], "secret_names": leaked,
+            "pid": os.getpid(), "heartbeat": time.time()}
 
 
 def _write_atomic(path: Path, data: dict) -> None:

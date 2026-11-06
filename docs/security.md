@@ -142,7 +142,7 @@ machines, under the same access controls as the documents, and delete them when 
 | With a key, the agent arm sends the same, and the model's tool calls write files into the run's folder only and run the subject's own test suite there | `KG_MODEL_BASE_URL`; the run folder | `harness/agent.py` (the safe-path check) | `tests/test_agent.py::test_safe_rel_and_the_tools_are_what_the_prompt_says` |
 | With a key, the transcript route sends the transcript's text and the keys asked about; without one it exits 2 | `KG_MODEL_BASE_URL` | `harness/transcript.py` | `tests/test_transcript.py::test_with_no_model_key_it_refuses_with_exit_2` |
 | The key is passed through the environment, never written into the image or the models table; the page names the variable, never the key | — | `demo/docker-compose.yml`, `demo/models.toml` | `tests/test_demo.py::test_compose_files_agree`, `tests/test_demo.py::test_models_table_rows_resolve_to_the_harness_variables_and_never_carry_a_key`, `tests/test_arms.py::test_the_page_names_the_endpoint_and_the_key_variable_never_the_key` |
-| No module of the harness, the page or the tools opens any other outbound connection: the model client and the Neo4j driver are the only clients (apart from two checks that ask only a local server: `demo/tools/check_impact_cypher.py`, the stack job's page, and `tools/check_mcp_server.py`'s HTTP client, the MCP server it started on loopback), and the page loads no script or style from elsewhere | — | the imports of `harness/`, `demo/app/`, `tools/` | `tests/test_security.py::test_nothing_reaches_the_network_but_the_model_client_and_the_store_driver` |
+| No module of the harness, the page or the tools opens any other outbound connection: the model client and the Neo4j driver are the only clients (apart from two checks that ask only a local server: `demo/tools/check_impact_cypher.py`, the stack job's page, and `tools/check_mcp_server.py`'s HTTP client, the MCP server it started on loopback; and the worker's attestation probe, `harness/worker.py` `sockets`, which tries `192.0.2.1:9`, TEST-NET-1 and never routed, to prove that it cannot connect), and the page loads no script or style from elsewhere | — | the imports of `harness/`, `demo/app/`, `tools/` | `tests/test_security.py::test_nothing_reaches_the_network_but_the_model_client_and_the_store_driver` |
 | The page, Neo4j Browser and bolt are published on `127.0.0.1` unless `KG_BIND` widens the bind; on a wider bind the stack refuses to start while the Neo4j password is the default | this machine only, by default | `demo/docker-compose.yml` (`${KG_BIND:-127.0.0.1}` on every published port), `demo/neo4j/bind-guard.sh` | `tests/test_demo.py::test_the_ports_bind_loopback_and_a_wider_bind_refuses_the_default_password`; CI: `demo.yml` reaches the stack on `localhost` from the runner |
 | Every request to the page or the MCP server names, in its Host, an authority the server answers for (from its configuration and listener, never the request: 421 otherwise), and an Origin, when sent, is one of the server's own (403 otherwise); each is checked on its own and apart from the token, and forwarded headers are never read (task-0141.03) | the configured authorities only | `harness/http_boundary.py`, `demo/app/server.py` `page_policy` and `Handler._boundary`, `harness/mcp_server.py` `http_policy` and `Handler._guard` | `tests/test_http_boundary.py::test_http_01_a_foreign_host_with_a_matching_foreign_origin_changes_nothing`, `tests/test_http_boundary.py::test_http_03_scheme_port_opaque_malformed_duplicate_and_deceptive_values_are_refused`, `tests/test_http_boundary.py::test_http_05_the_token_and_the_authority_are_independent_and_the_token_never_echoed`, `tests/test_http_boundary.py::test_http_06_forwarded_headers_never_stand_in_for_the_host` |
 | Both servers bound what a request may cost (task-0141.04): its framing is checked before a byte of the body is read (one Content-Length of digits, else 400; none, or a transfer encoding, 411; a content encoding or a type other than JSON, 415; above the body limit, 413), it must arrive whole within an absolute deadline however it is paced, the connections served at once are capped (more get 503 with Retry-After, no thread started), a page body is a JSON object with typed fields, and a run's `n` an integer from 1 to `KG_PAGE_MAX_RUNS` (5) | each server's own limits | `harness/http_boundary.py` (`Limits`, `read_body`, `BoundedServer`, `BoundedMixin`), `demo/app/server.py` `page_limits` and `run_request`, `harness/mcp_server.py` `mcp_limits` | `tests/test_http_limits.py::test_limit_01_framing_is_checked_before_a_byte_of_the_body_is_read`, `tests/test_http_limits.py::test_limit_04_a_body_that_never_completes_or_trickles_is_cut_at_the_absolute_deadline`, `tests/test_http_limits.py::test_limit_05_connections_over_capacity_get_503_without_a_thread_and_recover` |
@@ -247,25 +247,31 @@ writes there; `noexec` would bound nothing, as a job can run any Python. Each jo
 resource limits, a wall time (the whole group killed and reaped at it, a process that left the group
 included), and Linux Landlock rules that let it write only beneath its own folder, so it cannot forge a
 result or the worker's attestation. At start the worker attests its confinement (no interface but
-loopback up, no route beyond it and no `CAP_NET_ADMIN` to bring one up, decision-0015; no secret-shaped
-variable, read-only root, uid 65534, no engine socket, Landlock) and refuses to serve when any check fails; the app refuses a job without a fresh attestation, and reads the result as untrusted
+loopback up, no route beyond it and no `CAP_NET_ADMIN` to bring one up, decision-0015; no AF_VSOCK or
+AF_PACKET socket and no outside address reachable, which no network namespace confines and the engine's
+default seccomp profile refuses; no secret-shaped variable, read-only root, uid 65534, no engine socket,
+Landlock) and refuses to serve when any check fails; the app refuses a job without a fresh attestation, and reads the result as untrusted
 data, capped and checked against its shape. Without a worker nothing runs: there is no fall back to
 the host. The only escape is `KG_ALLOW_UNCONTAINED_EXECUTION=1`, which runs the code on the host,
 uncontained, as before. With an organisation's instance mounted, the interim guard (task-0141.07,
 `harness/execution_guard.py`) still refuses first: the worker sees only the public subjects. Supported:
 Linux with Landlock (kernel 5.13 or later, enabled) and a container engine that runs the compose
-service; elsewhere the worker refuses to serve and model output does not run. The worker starts only
+service; elsewhere the worker refuses to serve and model output does not run. That sentence was the
+fail-closed design, proven on GitHub's Ubuntu runners and a Linux kernel with Landlock only; the first
+evidence on another engine is the maintainer's Mac (2026-11-06), below. The worker starts only
 with `--profile arms` (decision-0015): the default `docker compose up` runs the rest of the stack, and
 every arms run is refused. Docker Desktop for Mac 4.48.0's kernel (6.10.14-linuxkit) is built without
 Landlock (`CONFIG_SECURITY_LANDLOCK` not set), so there the worker refuses to serve and exits 3; a later version may differ, unverified
-(task-0162). Evidence: `tests/test_worker.py` (the network check on a fake sysfs and procfs, the Mac's
-listing included),
+(task-0162). There, in the worker container under compose's settings, AF_VSOCK and AF_PACKET are refused
+(EPERM) and an outside address is unreachable (ENETUNREACH). Evidence: `tests/test_worker.py` (the network
+check on a fake sysfs and procfs, the Mac's listing included; the socket probes with stand-in sockets),
 `tests/test_execution.py::test_exec_07_no_backend_refuses_and_never_falls_back_to_the_host`,
 `tests/test_execution.py::test_exec_07_an_absent_stale_loosened_or_malformed_attestation_refuses_the_job`,
 `tests/test_execution.py::test_a_job_cannot_write_the_jobs_folder_so_it_cannot_forge_a_result_or_the_attestation`,
 `tests/test_execution.py::test_exec_04_a_symlink_at_any_step_of_an_agent_write_is_refused_and_the_target_untouched`,
 `tests/test_execution.py::test_exec_08_a_stalled_or_trickling_stream_stops_at_the_monotonic_deadline`; on the real
-container, `tools/check_worker.py` in `demo.yml` (EXEC-01 to EXEC-09, and a loosened worker refusing).
+container, `tools/check_worker.py` in `demo.yml` (EXEC-01 to EXEC-10, and loosened workers refusing: network on,
+a key in its environment, and the seccomp profile off where the runner's kernel has vsock).
 **Practice:** for the public demo, use a project key with a spending cap; keep the worker service as
 compose defines it, since loosening it makes it refuse.
 

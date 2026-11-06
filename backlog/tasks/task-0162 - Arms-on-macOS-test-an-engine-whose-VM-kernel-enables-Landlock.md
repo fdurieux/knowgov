@@ -4,7 +4,7 @@ title: 'Arms on macOS: test an engine whose VM kernel enables Landlock'
 status: To Do
 assignee: []
 created_date: '2026-11-06T07:22:00Z'
-updated_date: '2026-11-06T07:26:00Z'
+updated_date: '2026-11-06T08:25:00Z'
 labels:
   - worker
   - security
@@ -33,4 +33,6 @@ Docker Desktop for Mac 4.48.0 (kernel 6.10.14-linuxkit) gives a container no Lan
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-11-06, the maintainer's Mac: Docker Desktop 4.48.0's kernel 6.10.14-linuxkit is built without Landlock: /proc/config.gz reads '# CONFIG_SECURITY_LANDLOCK is not set', CONFIG_LSM="yama,loadpin,safesetid,integrity,bpf"; landlock_create_ruleset answers ENOSYS (38) with Docker's seccomp profile and with seccomp=unconfined. No setting on that engine enables it; another engine's VM kernel is what this task tests.
+
+The X1 session's view (session_01HTAA1UsSVF25SBM7XfjnqP, 2026-11-06), advice only. Separate uids for the worker (A) and the job (B) is the one alternative it would call equivalent to Landlock for the forging threat, and only with all of: (i) the worker keeps CAP_SETUID/SETGID and drops every capability before exec, with no-new-privs, so B holds none; (ii) /jobs not writable by B at all: mode 0770 with a group shared by the app and A only, not 1777 (the sticky bit stops replacing A's files, not creating new entries); (iii) B's only writable path is its own job folder; (iv) write_confined attested by trying, as B, to create, rename and replace a file in /jobs and a job folder, all failing; (v) the forging tests (tests/test_execution.py, result.json and attest.json) pass under that mode. Costs: cap_drop ALL becomes cap_drop ALL plus cap_add SETUID, SETGID; uid_65534 becomes a pair; the worker gains privilege, so the attestation also checks the job's CapEff empty after the drop. A per-job read-only mount needs mount privileges and a container per job the engine socket; decision-0012 rejected both. Its advice: Landlock where the kernel has it; separate uids only if built to (i)-(v); otherwise unsupported without Landlock. Not built.
 <!-- SECTION:NOTES:END -->
