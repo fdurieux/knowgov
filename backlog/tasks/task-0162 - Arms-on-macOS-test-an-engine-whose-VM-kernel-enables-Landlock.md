@@ -1,10 +1,10 @@
 ---
 id: TASK-0162
 title: 'Arms on macOS: test an engine whose VM kernel enables Landlock'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-06T07:22:00Z'
-updated_date: '2026-11-06T12:01:00Z'
+updated_date: '2026-11-06T12:04:00Z'
 labels:
   - worker
   - security
@@ -26,7 +26,7 @@ Docker Desktop for Mac 4.48.0 (kernel 6.10.14-linuxkit) gives a container no Lan
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 On a named macOS engine and version, the worker service started with --profile arms attests every check true, or the attestation that fails is recorded with the engine's version and kernel
-- [ ] #2 docs/security.md and demo/README.md name only engines whose attestation was recorded on a real machine
+- [x] #2 docs/security.md and demo/README.md name only engines whose attestation was recorded on a real machine
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -51,3 +51,9 @@ The X1 session's view (session_01HTAA1UsSVF25SBM7XfjnqP, 2026-11-06), advice onl
 
 The EC2 attestation was taken at knowgov main 5ce8262 (PR #301's merge).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Two hosts attested on real machines on 2026-11-06. Docker Desktop for Mac 4.48.0 (kernel 6.10.14-linuxkit) fails only write_confined, for lack of Landlock, so arms runs stay refused there. EC2 t3.large on Ubuntu 24.04 LTS (docker.io 29.1.3, kernel 7.0.0-1014-aws) attests every check true. demo/README.md adds 'The Arms mode on an EC2 instance': the default 127.0.0.1 bind and an SSH tunnel. docs/security.md names that host and no other, and the Mac quick start points to it. A CHANGELOG line sits under Unreleased. python tests/run_tests.py: 598/619 passed, 21 skipped. Colima on the Intel Mac is parked, untested. Whether a full arms run completes on the instance is reported separately.
+<!-- SECTION:FINAL_SUMMARY:END -->

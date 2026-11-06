@@ -34,6 +34,12 @@ names that section with the version.
   `worker` pin `ghcr.io/fdurieux/knowgov:v0.8.0` by its index digest, the first release image that carries
   the worker, so `docker compose --profile arms up -d --wait` from the published compose now serves arms
   runs, on Linux with Landlock. `docs/security.md`'s pins row names the release.
+- **The Arms mode on an EC2 instance, from a Mac** (task-0162). `demo/README.md` walks through running
+  the stack, the worker included, on an EC2 `t3.large` with Ubuntu Server 24.04 LTS and Ubuntu's own
+  Docker, the page reached through an SSH tunnel with the default `127.0.0.1` bind. The worker's
+  self-check attested every check true there on a real machine (kernel `7.0.0-1014-aws`, with Landlock);
+  Docker Desktop for Mac 4.48.0 still refuses it (no Landlock). `docs/security.md` names that host and no
+  other.
 
 - **The Arms chip and button say whether an Arms run can start** (task-0167). Before, the page showed
   "arms enabled" whenever a model key was set, even with no contained worker running, and the run was

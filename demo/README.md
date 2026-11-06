@@ -805,7 +805,10 @@ the model writes. It starts only when you add `--profile arms` to the
 kernel feature that stops that code writing outside its own folder (kernel
 5.13 or later, enabled). Docker Desktop for Mac 4.48.0 has no Landlock, so
 there the worker refuses to start and every Arms run is refused; the rest of
-the demo works as usual.
+the demo works as usual. To run the Arms mode from a Mac, start the stack on a
+Linux machine whose kernel has Landlock and open the page through an SSH
+tunnel: *The Arms mode on an EC2 instance* under *Start it elsewhere* walks
+through the one such machine recorded so far.
 
 The page tells you which case you are in. With a key set and no worker, the
 Arms chip reads **arms: no contained worker** and the Arms buttons stay
@@ -1027,6 +1030,67 @@ IP address** for ports 8080, 7474 and 7687: the demo page's reports have no
 login (only its runs ask for the token), and port 7474 is a live database console protected
 only by the password you set. Do not leave the instance reachable from the
 internet; stop or terminate it after the session.
+
+**The Arms mode on an EC2 instance.** This is the route to use when your own
+machine cannot run the worker, a Mac with Docker Desktop for instance. The
+stack keeps its default bind, `127.0.0.1`, so nothing but SSH is open, and you
+reach the page through a tunnel. It was recorded on a real machine on
+2026-11-06 (task-0162): a `t3.large` (two vCPUs, 8 GiB) on Ubuntu Server
+24.04 LTS, x86_64, with Ubuntu's own `docker.io` 29.1.3 and
+`docker-compose-v2` 2.40.3, kernel `7.0.0-1014-aws`, where the worker's
+self-check came back with every check true. Another image or engine may
+differ; the self-check in step 3 is what decides.
+
+1. *Launch.* In the EC2 console, launch an instance from **Ubuntu Server
+   24.04 LTS**, 64-bit (x86); the console may offer a newer release first,
+   which has not been recorded. Choose `t3.large`, create a key pair and keep
+   its `.pem` file on your own machine (`chmod 400` it), raise the root
+   volume to 30 GiB gp3, and let the security group allow **SSH from My IP
+   only**. Open no other port.
+
+2. *Install and clone.* Connect with
+   `ssh -i ~/.ssh/<key>.pem ubuntu@<public address>`, then:
+
+   ```bash
+   sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 git
+   sudo usermod -aG docker ubuntu
+   git clone https://github.com/fdurieux/knowgov ~/knowgov
+   ```
+
+   Log out and back in, so that `docker` works without `sudo`.
+
+3. *Check the worker can serve.* This needs no key. Every check must read
+   `true`, `write_confined` (Landlock) among them; if one does not, the Arms
+   mode is refused on this machine, and nothing weakens that.
+
+   ```bash
+   cat /sys/kernel/security/lsm    # should list landlock
+   cd ~/knowgov/demo && docker compose --profile arms run --rm --no-deps worker python harness/worker.py --attest-only
+   ```
+
+4. *Start the stack.* Set only the keys you use. `read -rs` takes each from
+   a silent prompt, so it stays in this shell, out of the history and off
+   the disk:
+
+   ```bash
+   read -rs OPENAI_API_KEY && export OPENAI_API_KEY
+   docker compose --profile arms up -d --build --wait
+   ```
+
+   For the Claude row, set `KG_ANTHROPIC_KEY` and `LITELLM_MASTER_KEY` the
+   same way and add `--profile claude`.
+
+5. *Open the page.* On your own machine, in a terminal you leave open:
+
+   ```bash
+   ssh -i ~/.ssh/<key>.pem -N -L 8080:localhost:8080 ubuntu@<public address>
+   ```
+
+   and browse to `http://localhost:8080`. Neo4j Browser comes the same way,
+   with `-L 7474:localhost:7474 -L 7687:localhost:7687` added.
+
+6. *Stop.* `docker compose down` on the instance, then stop the instance in
+   the console; a stopped instance costs only its disk.
 
 **The OpenAI key.** It is read from the environment of the shell that
 starts the stack and passed into the application container only. It is
