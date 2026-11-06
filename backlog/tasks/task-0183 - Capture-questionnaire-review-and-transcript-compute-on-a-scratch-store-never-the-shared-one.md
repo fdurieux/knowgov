@@ -3,11 +3,11 @@ id: TASK-0183
 title: >-
   Capture questionnaire, review and transcript compute on a scratch store, never
   the shared one
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-06T18:06:00Z'
-updated_date: '2026-11-06T18:09:00Z'
+updated_date: '2026-11-06T18:10:00Z'
 labels:
   - store
   - capture
@@ -70,12 +70,12 @@ The rule this records: *a command that computes an answer for a person loads int
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 harness/store.py has scratch_store(): an rdflib graph in this process's memory, never a file and never the store KG_STORE names; without rdflib it raises a clear error naming the install
-- [ ] #2 capture.py questionnaire, capture.py review and transcript.py load into scratch_store(); with rdflib absent they exit 2 with that message; their outputs are unchanged (the walkthroughs in harness.yml stay green)
-- [ ] #3 A test runs questionnaire and review with KG_STORE=rdflib and KG_RDFLIB_FILE pointing at a published store holding another scenario, and holds the file's bytes, its generation and its held scenario unchanged
-- [ ] #4 A test holds the three commands to scratch_store: none of them calls open_store
-- [ ] #5 Docs: instance/README.md's capture section says the commands load a private copy and leave the shared store as it is; the onboarding skill drops its KG_STORE=rdflib workaround (wizard --check stays fresh); CHANGELOG under Unreleased > Changes
-- [ ] #6 python tests/run_tests.py passes with rdflib installed
+- [x] #1 harness/store.py has scratch_store(): an rdflib graph in this process's memory, never a file and never the store KG_STORE names; without rdflib it raises a clear error naming the install
+- [x] #2 capture.py questionnaire, capture.py review and transcript.py load into scratch_store(); with rdflib absent they exit 2 with that message; their outputs are unchanged (the walkthroughs in harness.yml stay green)
+- [x] #3 A test runs questionnaire and review with KG_STORE=rdflib and KG_RDFLIB_FILE pointing at a published store holding another scenario, and holds the file's bytes, its generation and its held scenario unchanged
+- [x] #4 A test holds the three commands to scratch_store: none of them calls open_store
+- [x] #5 Docs: instance/README.md's capture section says the commands load a private copy and leave the shared store as it is; the onboarding skill drops its KG_STORE=rdflib workaround (wizard --check stays fresh); CHANGELOG under Unreleased > Changes
+- [x] #6 python tests/run_tests.py passes with rdflib installed
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -83,3 +83,15 @@ The rule this records: *a command that computes an answer for a person loads int
 <!-- SECTION:PLAN:BEGIN -->
 1. store.scratch_store(): rdflib in memory, ScratchUnavailable without rdflib. 2. capture questionnaire/review and transcript.py load into it. 3. tests/test_scratch_store.py: AST guard, unchanged published file, neo4j configured and unreachable, the missing-rdflib message. 4. instance/README capture section, onboarding skill, CHANGELOG. 5. Full suite with rdflib required; the review, transcript, pairing walkthroughs and harness.yml's capture step.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Verified: KG_TEST_REQUIRE=rdflib python tests/run_tests.py 669/671, 2 skipped (openai, hook-live), 0 failed. tests/test_scratch_store.py fails on the old capture.py (shared store changed; open_store named; Neo4j unreachable refused) and passes on the new. Walkthroughs green on rdflib: check_review_walkthrough.py, check_transcript_route.py, check_capture_pairing.py, harness.yml's capture step run verbatim. wizard.py --check fresh. Follow-up to weigh, not done: gate_cli.py without --no-load also reloads the configured store (its documented contract, CI's use); a person running it on a stack's host replaces the shared scenario too.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+capture.py questionnaire and review and transcript.py now load into store.scratch_store(), an rdflib graph in this process's memory, instead of wiping and reloading the store KG_STORE names (the stack's shared Neo4j). The gate's own resolution route therefore no longer replaces the scenario the page and the MCP servers read. Outputs unchanged; without rdflib the commands exit 2 naming the install. The opportunity canvas, fit/gap, SWOT and advice are in the description. Follow-up to weigh: gate_cli.py's default load has the same effect, by contract.
+<!-- SECTION:FINAL_SUMMARY:END -->
