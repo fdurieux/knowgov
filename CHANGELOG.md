@@ -59,6 +59,16 @@ names that section with the version.
   validates each answer, and `tools/check_mcp_server.py` validates every answer it reads, over
   stdio and HTTP. A field a schema does not name fails.
 
+- **A reader recovers from an abandoned Neo4j publication** (task-0175). Before, a writer killed between
+  raising the publication counter and committing left reads waiting `KG_NEO4J_READ_WAIT`, then
+  refusing, until the next writer took the lease.
+  - Now, once that writer's lease has run out, the next reader clears the raised counter under the
+    sequence lock and answers from the last committed generation, with no writer needed.
+  - The publication node records the abandoning writer (`abandoned_owner`, `abandoned_epoch`).
+  - While the lease is live, reads wait and refuse as before.
+  - `tools/check_snapshots.py` proves it as SNAP-08, on both stores: both orders of a reader and a writer,
+    and a race between them.
+  - This lifts 0.8.0's known limit on a writer killed mid-publication.
 - **The compose file runs the v0.8.0 release** (decision-0003). `demo/docker-compose.yml`'s `app` and
   `worker` pin `ghcr.io/fdurieux/knowgov:v0.8.0` by its index digest, the first release image that carries
   the worker, so `docker compose --profile arms up -d --wait` from the published compose now serves arms

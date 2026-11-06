@@ -87,13 +87,23 @@ publishes it whole, and a read answers from one published generation or refuses.
     over terminates its transaction. Recovery is automatic.
   - Supported on Neo4j 5 Community with one database; nothing assumes a second database.
 - **Retirement.** Neo4j keeps no earlier generation: a reader open across a publication is refused,
-  never answered from a retired one. A writer killed between raising the counter and committing makes
-  reads wait up to `KG_NEO4J_READ_WAIT` seconds (default 10), then refuse, until the next writer takes
-  the lease.
+  never answered from a retired one.
+- **An abandoned publication** (task-0175). A writer killed between raising the counter and committing
+  leaves the counter raised.
+  - While its lease is live, reads wait up to `KG_NEO4J_READ_WAIT` seconds (default 10), then refuse.
+  - Once the lease has run out, the next reader clears it. Under the same lock a writer takes, it puts
+    the counter back at the last committed generation, frees the lease and moves the epoch past the
+    dead writer, so that writer could never commit. It then answers from that generation, with no new
+    writer needed.
+  - The publication node records the abandoning writer: `abandoned_owner`, `abandoned_epoch`,
+    `abandoned_begin` and `recovered_at`. A role that may not write gets a refusal naming the writer's
+    epoch instead, and the next writer recovers it at its lease, as before.
+  - A writer that takes the lease first closes the gap itself, and the reader then finds nothing to
+    clear. The two never both act.
 - **Coordination.** The page decides a register projection under the same lock that starts a run, and
   a projection that finds another writer holding the store answers 409.
 - **When the retries run out.** A reader that meets a publication on every attempt, or a writer's
-  publication interrupted past `KG_NEO4J_READ_WAIT`, answers a refusal, never a mixed result:
+  publication in flight under a live lease past `KG_NEO4J_READ_WAIT`, answers a refusal, never a mixed result:
   - `gate_cli --no-load` exits 2, "cannot run";
   - the MCP server answers an error result naming the republished store;
   - the page's `/api/store` and `/api/gaps` answer 503 with `Retry-After: 1` and `"busy": true`;
@@ -125,7 +135,7 @@ publishes it whole, and a read answers from one published generation or refuses.
 | Writers are serialised from load to publication; no update is lost | `tests/test_store_persistence.py::test_st_04_a_second_writer_waits_for_the_first_and_starts_from_its_publication` |
 | A reader sees the whole old file or the whole new one; a failure keeps the old file | `tests/test_store_persistence.py::test_st_05_a_reader_during_a_publication_gets_the_whole_old_file_or_the_whole_new_one`, `tests/test_store_persistence.py::test_st_06_a_failed_serialisation_sync_or_replacement_keeps_the_previous_file_and_releases_the_lock`, `tests/test_store_persistence.py::test_st_07_a_writer_that_raises_publishes_nothing` |
 | A killed writer leaves the last publication and a recoverable lock; a corrupt file fails explicitly | `tests/test_store_persistence.py::test_st_08_a_writer_killed_before_publication_leaves_the_last_snapshot_and_a_recoverable_lock`, `tests/test_store_persistence.py::test_st_09_a_corrupt_file_fails_explicitly_and_is_never_replaced` |
-| A read answers from one published generation or refuses, on both stores; a half-staged load, a killed or failed publication, racing writers and a recovered lease never show a partial or mixed graph (SNAP-01 to SNAP-07) | CI: `tools/check_snapshots.py` in `harness.yml` (rdflib) and `demo.yml` (Neo4j); `tests/test_store_generations.py::test_a_read_handle_refuses_the_read_after_a_publication_and_never_answers_from_two_generations`, `tests/test_store_generations.py::test_snap_05_a_file_writer_whose_lock_file_was_replaced_publishes_nothing` |
+| A read answers from one published generation or refuses, on both stores; a half-staged load, a killed or failed publication, racing writers and a recovered lease never show a partial or mixed graph, and an abandoned publication is cleared by a reader once its lease ran out (SNAP-01 to SNAP-08) | CI: `tools/check_snapshots.py` in `harness.yml` (rdflib) and `demo.yml` (Neo4j); `tests/test_store_generations.py::test_a_read_handle_refuses_the_read_after_a_publication_and_never_answers_from_two_generations`, `tests/test_store_generations.py::test_snap_05_a_file_writer_whose_lock_file_was_replaced_publishes_nothing` |
 
 Because the store holds excerpts, treat it, its volume, `KG_RDFLIB_FILE` and `runs/` as being
 as sensitive as the documents they came from. **Practice:** keep them on the instance's

@@ -417,7 +417,7 @@ jobs:
           docker compose exec -T -e KG_STORE=neo4j -e KG_SUBJECT=/tmp/verdict/subjects/cargo_quote app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j --scenarios S6 --expect-preload
           docker compose exec -T -e KG_STORE=rdflib -e KG_SUBJECT=/tmp/verdict/subjects/cargo_quote app python tools/check_round_trip.py --chain rdflib,neo4j,rdflib --scenarios S6 --expect-preload
 
-      - name: "Store generations (task-0141.06, decision-0014) on the Neo4j store: SNAP-01 to SNAP-06, a half-staged load, a publication mid-read, a writer killed before and during publication, three racing writers, a recovered lease, restart and retirement; SNAP-07's round trips are the steps above"
+      - name: "Store generations (task-0141.06, decision-0014) on the Neo4j store: SNAP-01 to SNAP-06, a half-staged load, a publication mid-read, a writer killed before and during publication, three racing writers, a recovered lease, restart and retirement; SNAP-08, an abandoned publication a reader clears once its lease ran out; SNAP-07's round trips are the steps above"
         run: docker compose exec -T app python tools/check_snapshots.py --disposable --no-round-trip
       - name: The example instance mounted read-only (task-0006) replays and runs deterministically, and not one byte of it changes
         run: |

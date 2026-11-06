@@ -27,6 +27,8 @@ BROWSER = os.environ.get("KG_BROWSER_URL", "http://localhost:7474")
 # checks the pair after every read call. A writer owns the store from open to close by its lease
 # (``owner``, a fencing ``epoch``, ``expires``), renewed by a heartbeat; a writer whose lease another took
 # cannot raise ``begin`` or commit. Nothing that reads the evidence (wipe, export, the census) sees it.
+# A begin left raised by a writer whose lease has run out (killed between raising it and committing) is
+# cleared by the next reader under the same lock, and recorded on the node (task-0175).
 PUB = "_KgPublication"
 PUB_MATCH = f"MATCH (p:{PUB} {{id:'publication'}})"
 LEASE_S = 60.0          # the lease's default; KG_NEO4J_LEASE_SECONDS, KG_NEO4J_LOCK_TIMEOUT and KG_NEO4J_READ_WAIT in store.SETTINGS
@@ -348,6 +350,7 @@ class _Unit:
         self.token, self.epoch, self.lost = None, None, False
         self.beat_stop = threading.Event()
         self.pinned = None
+        self.recovered = None           # what this reader cleared at its pin: the abandoning writer (task-0175)
         self.lease_s = LEASE_S
 
     # ---- statements outside the unit
@@ -432,6 +435,30 @@ class _Unit:
         self.token = None
 
     # ---- the reader's pin
+    def state(self) -> dict | None:
+        """The publication as a reader finds it: the counter's pair, the owner and whether its lease ran out."""
+        with self.driver.session(default_access_mode=self.read_mode) as s:
+            r = s.run(f"{PUB_MATCH} RETURN p.begin AS b, p.end AS e, p.owner AS owner, p.epoch AS epoch, "
+                      "coalesce(p.expires < datetime(), true) AS expired").single()
+        return dict(r) if r else None
+
+    def recover(self) -> dict | None:
+        """Clear a publication its writer abandoned (task-0175): under the sequence lock, and only while
+        ``begin`` is still above ``end`` and no live lease holds the node, close the gap at the last
+        committed generation (``begin = end``), free the lease and move the epoch on, so the abandoning
+        writer, were it alive, can neither raise ``begin`` nor commit. A writer that took the lease first
+        closed the gap itself (``acquire``), so this finds nothing; one that comes after finds the lease
+        free. Returns what was cleared (the abandoning owner and epoch), or None when there was nothing."""
+        def clear(tx):
+            tx.run(f"{PUB_MATCH} SET p.lock_seq = coalesce(p.lock_seq, 0) + 1").consume()   # the node's write lock, then read
+            r = tx.run(f"{PUB_MATCH} WHERE p.begin <> p.end AND (p.owner IS NULL OR coalesce(p.expires < datetime(), true)) "
+                       "WITH p, p.owner AS owner, p.epoch AS epoch, p.begin AS begin "
+                       "SET p.begin = p.end, p.owner = null, p.expires = null, p.epoch = p.epoch + 1, "
+                       "p.abandoned_owner = owner, p.abandoned_epoch = epoch, p.abandoned_begin = begin, p.recovered_at = datetime() "
+                       "RETURN owner, epoch, begin, p.end AS end").single()
+            return dict(r) if r else None
+        return self.meta(clear)
+
     def generation(self) -> tuple[int, int] | None:
         """One autocommit read, unretried: an unreachable store fails at the connection timeout."""
         with self.driver.session(default_access_mode=self.read_mode) as s:
@@ -439,16 +466,30 @@ class _Unit:
         return (int(r["b"]), int(r["e"])) if r else None
 
     def pin(self, wait: float) -> None:
-        """The published generation this read handle answers from: begin == end, or none yet."""
+        """The published generation this read handle answers from: begin == end, or none yet. A
+        publication in flight under a live lease is waited out, then refused; one whose writer's lease
+        ran out is cleared here (``recover``) and the last committed generation answered (task-0175)."""
         deadline = time.monotonic() + max(0.0, wait)
         while True:
-            g = self.generation()
+            st = self.state()
+            g = None if st is None else (int(st["b"]), int(st["e"]))
             if g is None or g[0] == g[1]:
                 self.pinned = g
                 return
+            if st["owner"] is None or st["expired"]:
+                try:
+                    self.recovered = self.recover()
+                except Exception as e:  # noqa: BLE001 — a role that may not write: report the abandoning writer instead
+                    raise StoreBusy(f"{self.uri}: a publication was abandoned (generation {g[1]} to {g[0]}) by writer epoch "
+                                    f"{st['epoch']}, whose lease has run out, and this reader could not clear it "
+                                    f"({type(e).__name__}); the next writer recovers it") from None
+                if self.recovered is not None:
+                    continue   # cleared: read the pair again, now the last committed generation
+                # nothing to clear: a writer took the lease first and closes the gap itself; read again below
             if time.monotonic() >= deadline:
-                raise StoreBusy(f"{self.uri}: a publication is in flight or was interrupted (generation {g[1]} to {g[0]}); "
-                                "retry, or let the next writer recover it (KG_NEO4J_READ_WAIT sets the wait)")
+                raise StoreBusy(f"{self.uri}: a publication is in flight (generation {g[1]} to {g[0]}) under writer epoch "
+                                f"{st['epoch']}'s live lease; retry, or wait for that lease to run out "
+                                "(KG_NEO4J_READ_WAIT sets the wait)")
             time.sleep(0.05)
 
     def check(self) -> None:
@@ -1137,3 +1178,13 @@ class Neo4jStore(Store):
 
     def console_query(self, text: str) -> list[dict]:
         return _rows(self.run(text))
+
+
+def publication(uri: str = URI, auth: tuple[str, str] = AUTH) -> dict:
+    """The publication node's properties as they stand, read with the driver alone and no pin: the
+    counter, the lease and, after a reader cleared an abandoned publication, the abandoning writer
+    (task-0175). For diagnostics and tools/check_snapshots.py; a read handle never needs it."""
+    from neo4j import GraphDatabase
+    with GraphDatabase.driver(uri, auth=auth) as drv, drv.session() as sess:
+        r = sess.run(f"{PUB_MATCH} RETURN p {{.*}} AS p").single()
+    return dict(r["p"]) if r else {}
