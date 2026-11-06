@@ -318,6 +318,12 @@ check a release as of its cut date, or to rehearse a lapse before it falls due: 
 is BLOCKED, with a `lapsed` finding for each review past its months. The action takes it as the
 input `as-of`; the GitLab include as the variable `KG_AS_OF` (task-0089; `trace-register`, task-0093).
 
+The `gate` step computes on a private copy of the store and leaves the one `KG_STORE` names as it
+was (decision-0017). When a later step of the same pipeline reads that store, `trace-check` or
+`trace-register` after `gate`, set `KG_PUBLISH=1` on the gate step: it then loads into that store and
+publishes the load for the steps after it. The action takes it as the input `publish: "true"`; the
+GitLab include as the variable `KG_PUBLISH`. A pipeline that runs only the gate needs neither.
+
 - **GitHub Actions**: a composite action. It runs the knowgov tag you name in `uses:`, and maps the
   commit and the pull request's base for you:
 

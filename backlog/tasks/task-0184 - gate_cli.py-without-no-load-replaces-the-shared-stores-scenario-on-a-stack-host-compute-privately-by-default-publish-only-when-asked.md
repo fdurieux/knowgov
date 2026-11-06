@@ -3,10 +3,11 @@ id: TASK-0184
 title: >-
   gate_cli.py without --no-load replaces the shared store's scenario on a stack
   host: compute privately by default, publish only when asked
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-06T18:33:00Z'
-updated_date: '2026-11-06T18:39:00Z'
+updated_date: '2026-11-06T19:00:00Z'
 labels:
   - gate
   - store
@@ -58,6 +59,12 @@ In-process callers of `gate_cli._load` (`tools/check_round_trip.py`, `tools/chec
 - [ ] #4 Every caller listed in the description still passes, with the explicit flag where it needs the publish: demo.yml's stack steps, tools/check_mcp_server.py, instance/ci/knowgov-gate.sh and its wrappers, harness.yml
 - [ ] #5 demo/README.md, docs/guide.md and instance/README.md say which store the command writes, in the adopter register; the module docstring and CHANGELOG.md (under its contract heading if the contract changes) follow
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. gate_cli.py: --publish; default loads into store.scratch_store() and publishes nothing; --publish = today's path (open_store write, load-memory forecast, commit); --publish --no-load exit 2; ScratchUnavailable exit 2; stage 2 and --register-previous on the store loaded. 2. Report: store names the adapter computed on; additive optional 'published' (schema). Raised with the coordinator under decision-0017 §6. 3. Callers that read the store after the load pass --publish: demo.yml, harness.yml, check_mcp_server, check_snapshots, lighthouse_evidence, check_trace_walkthrough, knowgov-gate.sh KG_PUBLISH=1 (+ wrappers' docs). 4. Tests: shared rdflib file (and Neo4j where reachable) unchanged without --publish; report equal to --publish's but store/published; the flag pair refused; no rdflib exit 2. 5. Docs: demo/README 'The gate as a command', docs/guide.md, instance/README, docstring, store.py writer list, CHANGELOG contract changes. 6. Suite with rdflib; check_review_walkthrough, check_trace_walkthrough, check_mcp_server and lighthouse on rdflib; harness.yml gate steps.
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 

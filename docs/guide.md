@@ -628,8 +628,8 @@ A build needs the gate's answer as a command that stops it:
 python harness/gate_cli.py --scenario S2
 ```
 
-In plain English: the command loads the scenario, asks the gate for the task's keys and lists each
-finding on a five-step ladder: blocker, critical, major, minor, info. A key that is absent, a
+In plain English: the command loads the scenario into a private copy in its own memory, asks the
+gate for the task's keys and lists each finding on a five-step ladder: blocker, critical, major, minor, info. A key that is absent, a
 declared gap, disputed or invalidated is a blocker. A key below verified is major. Then it exits:
 
 - **0** when nothing is at or above the threshold. The default threshold is *blocker*: S1 exits 0,
@@ -637,6 +637,11 @@ declared gap, disputed or invalidated is a blocker. A key below verified is majo
 - **1** when something is. `--fail-on major` also fails a QUALIFIED answer: S3 then exits 1, with
   4 major and 9 minor findings.
 - **2** when it cannot run: no such subject, scenario or task, or no store.
+
+The private copy leaves the shared store alone: on a stack, the page and the assistants keep reading
+the scenario they were reading. `--publish` loads into the shared store instead and replaces what it
+holds, for a pipeline whose next step reads it (`trace.py check`, the MCP server, `--no-load`). The
+answer is the same either way (decision-0017).
 
 `--baseline record` fails only on a regression against the record: S2 is BLOCKED in the record
 too, so it exits 0 and still lists the blockers. `-f json` prints the report in the shape

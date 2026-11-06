@@ -2,12 +2,12 @@
 
     python harness/gate_cli.py [--subject DIR] [--scenario ID] [--task NAME]
                                [--fail-on blocker|critical|major|minor|info]
-                               [--baseline none|record|FILE] [--stage 1|2 [--reverify]] [--no-load]
+                               [--baseline none|record|FILE] [--stage 1|2 [--reverify]] [--no-load | --publish]
                                [--as-of today|record|YYYY-MM-DD]
                                [-f text|json] [-o FILE]
 
-It loads the scenario of a subject into the store (KG_STORE: neo4j by default, rdflib in memory),
-runs the rules, resolves the task's required keys through the same gate the arms read
+It loads the scenario of a subject into a store of its own (``store.scratch_store``: an rdflib graph
+in this process's memory, decision-0017), runs the rules, resolves the task's required keys through the same gate the arms read
 (harness/gate.py), and turns the result into findings on the contract's severity ladder:
 
     blocker   a required key at one of the task's block levels (absent, a declared gap, disputed,
@@ -61,12 +61,25 @@ record's before re-verification; ``--reverify`` adds the owner's recorded re-ver
 named keys first, the record's after. The report names the version loaded (``version``) and the
 change (``change``: the artefact, the statements invalidated, the re-verified, the derived output).
 
-``--no-load`` reads the store as it is, for a stack whose page has already loaded a scenario; the
-scenario named must be the one the store holds. A load wipes the store first, as a run does.
+Which store (decision-0017, task-0184). By default the load goes into the process's own scratch store
+and nothing is published: the store ``KG_STORE`` names (on a stack, the Neo4j the page, the runs and
+the MCP servers read) keeps the scenario it holds, so the command is safe to run by hand anywhere. The
+report's ``store`` names the adapter the gate computed on (``rdflib``), ``published`` is false. Without
+rdflib the command cannot run (exit 2) and names the install.
+
+``--publish`` loads into the store ``KG_STORE`` names instead, wiping it first as a run does, and
+publishes the load once the report is made, for a pipeline whose later step reads the store (a trace
+check, the MCP server, ``--no-load``). The Neo4j load-memory forecast (task-0176) is checked on this
+path only; ``published`` is true. A ``--no-load`` report carries no ``published``: it loaded nothing,
+and it stays the report the MCP server's ``gate_verdict`` gives. The report is otherwise the default's: the same load, the same
+verdict, findings, levels and exit code (``tools/check_round_trip.py --chain`` holds the adapters equal).
+
+``--no-load`` reads the store ``KG_STORE`` names as it is, for a stack whose page has already loaded a
+scenario; the scenario named must be the one the store holds. Refused with ``--publish``.
 
 ``--register-previous DIR`` (task-0122, harness/register_change.py): after the load, the register as
 it was before its update (DIR: the previous vendored tag, an instance's checkout before its pull) is
-compared with the register the gate reads (``KG_REGISTER``). Every node that became deprecated or
+compared with the register the gate reads (``KG_REGISTER``), on the store the load went to. Every node that became deprecated or
 retired and every link withdrawn marks the live statements on the keys resting on it invalidated, the
 reason its decision record, and the scenario's governed output in the subject's record, registered as
 derived, suspect: stale and suspect_derived findings, as a source change gives. ``register_change``
@@ -313,6 +326,8 @@ def run(args) -> dict:
         raise CannotRun(f"{SUBJECT.id}: no task {args.task!r}; the subject declares {sorted(TASKS) or 'none'}")
     if args.reverify and args.stage != 2:
         raise CannotRun("--reverify is a step of stage 2: add --stage 2")
+    if args.no_load and args.publish:
+        raise CannotRun("--publish publishes a load; --no-load reads the store as it is: drop one")
     if args.no_load and args.stage != 1:
         raise CannotRun("--stage 2 loads the change; --no-load reads the store as it is: drop one")
     cfg2 = SUBJECT.scenario(scenario).get("stage2") if args.stage == 2 else None
@@ -334,14 +349,19 @@ def run(args) -> dict:
             reg_change = rc.diff(previous, rc.ri.register_root())
         except Exception as e:  # noqa: BLE001 — a register that does not load is a cannot-run
             raise CannotRun(f"--register-previous: the registers do not compare: {type(e).__name__}: {e}") from e
-    from store import StoreChanged, open_store, read_attempts
+    from store import ScratchUnavailable, StoreChanged, open_store, read_attempts, scratch_store
     try:
         attempts = read_attempts() if args.no_load else 1
     except ValueError as e:
         raise CannotRun(str(e)) from e   # task-0141.06: a publication during a --no-load read reads again
     for attempt in range(attempts):
         try:
-            st = open_store(instance=SUBJECT.id, access="read" if args.no_load else "write")   # task-0141.02
+            if args.no_load or args.publish:   # the store KG_STORE names: read as it is, or loaded and published
+                st = open_store(instance=SUBJECT.id, access="read" if args.no_load else "write")   # task-0141.02
+            else:                              # decision-0017: the load stays in this process
+                st = scratch_store(instance=SUBJECT.id)
+        except ScratchUnavailable as e:
+            raise CannotRun(str(e)) from e
         except Exception as e:  # noqa: BLE001
             raise CannotRun(f"the store cannot be opened: {e}") from e
         try:
@@ -357,7 +377,8 @@ def run(args) -> dict:
 
 
 def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
-    """The gate on one store handle: read as it is (``--no-load``) or loaded, then published."""
+    """The gate on one store handle: read as it is (``--no-load``), loaded into the scratch store, or
+    loaded into the configured store and published (``--publish``)."""
     import load_memory
     from store import StoreChanged
     from tasks import TASKS
@@ -380,8 +401,9 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
         report = evaluate(st, subject=SUBJECT.id, scenario=scenario, task=args.task, spec=TASKS[args.task],
                           threshold=args.fail_on, baseline=base, loaded=not args.no_load, version=version, change=change,
                           as_of=on, register_change=reg_change)
-        if not args.no_load:
-            st.commit()   # the load and its change, published once the report is made; a failure publishes nothing
+        if not args.no_load:   # a read loads nothing, so it publishes nothing: its report stays the MCP server's
+            report["published"] = bool(args.publish)
+            st.commit()   # the load and its change, published once the report is made (a scratch store publishes nowhere)
         return report
     except (CannotRun, StoreChanged):
         raise
@@ -505,7 +527,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--stage", type=int, choices=[1, 2], default=1,
                     help="1 (default): the scenario as first loaded; 2: then its later version, the subject's [scenario.stage2] change, before re-verification")
     ap.add_argument("--reverify", action="store_true", help="with --stage 2: the owner's recorded re-verification of the named keys before the gate")
-    ap.add_argument("--no-load", action="store_true", help="read the store as it is instead of loading the scenario first")
+    ap.add_argument("--no-load", action="store_true", help="read the store KG_STORE names as it is instead of loading the scenario first")
+    ap.add_argument("--publish", action="store_true",
+                    help="load into the store KG_STORE names and publish the load (decision-0017); by default the load stays in this process")
     ap.add_argument("--register-previous", metavar="DIR",
                     help="the register before its update (task-0122): what the update withdrew from the register (KG_REGISTER) marks the statements resting on it stale")
     ap.add_argument("--as-of", default="today", metavar="DATE",

@@ -105,14 +105,14 @@ def main() -> None:
         sys.exit(f"FAIL: want S1 BLOCKED as of {LAPSE_DAY} with lapsed findings: {errs[:3]} {rep['verdict']} {rep['as_of']} {len(lapsed)}")
     print(f"    KG_AS_OF={LAPSE_DAY}: {rep['verdict']}, {len(lapsed)} lapsed finding(s)")
 
-    if job(env, "gate", KG_SCENARIO="S6") != 0:
+    if job(env, "gate", KG_SCENARIO="S6", KG_PUBLISH="1") != 0:   # trace-register reads this load (decision-0017)
         sys.exit("FAIL: the gate on S6's stage 1, want exit 0")
     if job(env, "trace-register", KG_FILES="reference_impl.py") != 0:
         sys.exit("FAIL: trace-register, want exit 0")
     [e] = json.loads((out / "ledger.json").read_text(encoding="utf-8"))["entries"]
     if (e["id"], e["app"], e.get("as_of")) != (f"derived:cargo-quote@{base}:reference_impl.py", "APP-0001", env["KG_TODAY"]):
         sys.exit(f"FAIL: the ledger entry names the GitLab project and commit: {e}")
-    if job(env, "gate", KG_SCENARIO="S6", KG_STAGE="2") != 1:
+    if job(env, "gate", KG_SCENARIO="S6", KG_STAGE="2", KG_PUBLISH="1") != 1:   # trace-check reads this load
         sys.exit("FAIL: the gate on S6's change, want exit 1")
     cq = sorted((i["check_name"], i["severity"]) for i in code_quality(out))
     want = {("knowgov-suspect_derived", "blocker"), ("knowgov-stale", "major"), ("knowgov-stale", "info"), ("knowgov-key", "blocker")}

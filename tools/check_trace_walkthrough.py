@@ -4,7 +4,8 @@ last one left).
 
     python tools/check_trace_walkthrough.py OUT_DIR
 
-1. Build the example instance under OUT_DIR; load S6's stage 1 (``gate_cli.py --scenario S6``).
+1. Build the example instance under OUT_DIR; load S6's stage 1 (``gate_cli.py --scenario S6 --publish``,
+   published since trace reads the store, decision-0017).
 2. ``trace.py register`` the reference code, as a merge would after the build: exit 0, one entry
    in the ledger, APP-0001 from code_map.toml.
    The entry records the date it read, the record's day (task-0093).
@@ -15,7 +16,7 @@ last one left).
    Two hand-written files under a new code-map row (task-0124): one registered with ``--keys`` on
    P2|surcharge, a key the change will invalidate, one ``--cited`` on the key its Java header names,
    shipper_id|present, which the change leaves alone; an unknown key is refused (exit 2).
-4. The decision table's change (``gate_cli.py --scenario S6 --stage 2``): a reload, so the store loses
+4. The decision table's change (``gate_cli.py --scenario S6 --stage 2 --publish``): a reload, so the store loses
    the registration; the ledger keeps it.
 5. ``trace.py check``: the registered build is suspect, built from statements the change invalidated,
    a blocker naming APP-0001; exit 1. The hand-written file on P2|surcharge is suspect as the built one
@@ -76,7 +77,7 @@ def main() -> None:
     inst = example_instance.build(out / "inst")
     env = cadence.pin_record(dict(os.environ, KG_SUBJECT=str(inst / "subjects" / "cargo_quote"), KG_RDFLIB_FILE=str(out / "store.ttl"),
                                     PYTHONDONTWRITEBYTECODE="1"))   # the record's day, the wall clock refused (task-0075)
-    code, text = run(env, "gate_cli.py", "--scenario", "S6")
+    code, text = run(env, "gate_cli.py", "--scenario", "S6", "--publish")   # trace reads this load (decision-0017)
     if code != 0:
         sys.exit(f"FAIL: S6 stage 1 exited {code}, want 0:\n{text}")
 
@@ -125,7 +126,7 @@ def main() -> None:
     if code != 0 or [r["state"] for r in rep["registered"]] != ["unchanged"] * 3 or rep["findings"]:
         sys.exit(f"FAIL: check at stage 1 with the hand-written files: want exit 0, three unchanged, no finding:\n{json.dumps(rep, indent=1)}")
 
-    code, text = run(env, "gate_cli.py", "--scenario", "S6", "--stage", "2")
+    code, text = run(env, "gate_cli.py", "--scenario", "S6", "--stage", "2", "--publish")
     if code != 1:
         sys.exit(f"FAIL: S6 stage 2 exited {code}, want 1:\n{text}")
 

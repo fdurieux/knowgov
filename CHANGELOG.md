@@ -12,6 +12,22 @@ names that section with the version.
 
 ### Contract changes
 
+- **The gate command leaves the shared store alone unless asked to publish** (decision-0017, task-0184).
+  Before, `harness/gate_cli.py` wiped the store `KG_STORE` names and loaded its scenario into it. On a stack
+  that is the Neo4j the page, the runs and the MCP servers read, and the adopter docs told people to run the
+  command there.
+  - **The default.** The command loads into a private in-memory store of its own (`store.scratch_store`, as
+    task-0183's capture commands do), answers from it, and publishes nothing. The verdict, findings, levels
+    and exit code are those of the loading command before. The report's `store` names the adapter it computed
+    on (`rdflib`), and a new optional field, `published`, reads `false`. Without rdflib it exits 2 and names
+    the install.
+  - **`--publish`** keeps the old behaviour: load into the configured store, publish once the report is made,
+    with the Neo4j load-memory forecast (task-0176). `published` reads `true`. `--publish --no-load` exits 2.
+    `--stage 2` and `--register-previous` act on whichever store the load went to.
+  - **Pipelines.** A pipeline whose later step reads the store (`trace-check` or `trace-register` after `gate`)
+    sets `KG_PUBLISH=1` on the gate step: the action's input `publish: "true"`, the GitLab include's variable
+    `KG_PUBLISH`. One that runs only the gate, and the Claude Code hook, need nothing.
+
 - **A Neo4j load that would not fit the server's transaction memory is refused before it starts**
   (task-0176). Before, such a load failed inside its transaction.
   - **The refusal.** The load forecasts its peak transaction memory from the statements it writes and
