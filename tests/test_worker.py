@@ -6,6 +6,7 @@ AF_VSOCK, AF_PACKET and an outside connect all refused pass; any that opens or r
 and demo.yml's loosened workers)."""
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -148,3 +149,24 @@ def test_the_attestation_carries_the_socket_probes_and_their_check():
                               socket_probe=lambda: worker.sockets(opener=_opens, connect=_refuse(errno.ENETUNREACH)))
     assert held["checks"]["no_socket_escape"] is True and held["sockets"]["AF_VSOCK"] == "refused EPERM", held
     assert open_["checks"]["no_socket_escape"] is False and not open_["ok"], open_
+
+
+def test_the_attestation_carries_the_host_facts_and_no_check_reads_them():
+    """task-0169: the worker's host as it reads it inside its container (uname and the engine's marker file),
+    additive: no check is added or changed, so ok is the checks' verdict alone."""
+    import collections
+    U = collections.namedtuple("U", "sysname nodename release version machine")
+    u = U("Linux", "box", "7.0.0-1014-aws", "#14", "x86_64")
+    with tempfile.TemporaryDirectory() as td:
+        assert worker.host_facts(u, td) == {"system": "Linux", "kernel": "7.0.0-1014-aws", "machine": "x86_64", "engine": "unknown"}
+        (Path(td) / ".dockerenv").write_text("")
+        assert worker.host_facts(u, td)["engine"] == "docker"
+        (Path(td) / ".dockerenv").unlink()
+        (Path(td) / "run").mkdir()
+        (Path(td) / "run" / ".containerenv").write_text("")
+        assert worker.host_facts(u, td)["engine"] == "podman"
+        a = worker.attest({}, sys_root=str(Path(td) / "nosys"), proc_root=str(Path(td) / "noproc"))
+    assert set(a["host"]) == {"system", "kernel", "machine", "engine"} and a["host"]["kernel"] == os.uname().release, a["host"]
+    assert "host" not in a["checks"] and a["ok"] == all(a["checks"].values())
+    import execution
+    assert set(a["checks"]) == set(execution.ATTEST_CHECKS), "the checks are unchanged"

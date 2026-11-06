@@ -91,6 +91,52 @@ def attested(jobs: Path, now: float | None = None) -> dict:
     return a
 
 
+# a cloud vendor's kernel flavour, by the suffix its distribution gives the release (Ubuntu's -aws, -azure,
+# -gcp, -oracle): a reading of a fact the worker attested, never a check and never asked of the network
+KERNEL_CLOUDS = {"aws": "AWS", "azure": "Azure", "gcp": "Google Cloud", "oracle": "Oracle Cloud"}
+HOST_FIELDS = ("system", "kernel", "machine", "engine")
+FACT_MAX = 128
+
+
+def _fact(v) -> str | None:
+    """One host fact as the page may show it: a printable string of at most FACT_MAX characters, else None
+    (the attestation is the worker's word, read as data)."""
+    if not isinstance(v, str):
+        return None
+    v = "".join(c for c in v if c.isprintable())[:FACT_MAX].strip()
+    return v or None
+
+
+def cloud_reading(kernel: str | None) -> dict | None:
+    """The cloud a kernel release names by its flavour suffix (``7.0.0-1014-aws`` reads AWS), labelled as
+    a reading, or None when it names none."""
+    suffix = (kernel or "").rsplit("-", 1)[-1].lower() if "-" in (kernel or "") else ""
+    name = KERNEL_CLOUDS.get(suffix)
+    return {"name": name, "basis": f"read from the kernel release's -{suffix} suffix, not checked"} if name else None
+
+
+def placement(env=None, now: float | None = None) -> dict:
+    """Where model output would run, as the worker attested it (task-0169): ``backend`` (``worker``,
+    ``host`` under the opt-in, or None), ``attested`` (the same ``attested()`` a job is refused by),
+    ``host`` (the worker's own host facts, sanitised) and ``cloud`` (``cloud_reading`` of its kernel),
+    or ``why`` it did not attest. The instance guard is ``refusal()``'s, not this."""
+    env = os.environ if env is None else env
+    try:
+        where = backend(env)
+    except ExecutionRefused as e:
+        return {"backend": None, "attested": False, "host": None, "cloud": None, "why": str(e)}
+    if where == "host":
+        return {"backend": "host", "attested": False, "host": None, "cloud": None,
+                "why": f"no contained worker: {execution_guard.OPT_IN}=1 runs model output on the app's host, uncontained"}
+    try:
+        a = attested(Path(env[JOBS_VAR]), now=now)
+    except ExecutionRefused as e:
+        return {"backend": "worker", "attested": False, "host": None, "cloud": None, "why": str(e)}
+    raw = a.get("host") if isinstance(a.get("host"), dict) else {}
+    host = {k: _fact(raw.get(k)) for k in HOST_FIELDS}
+    return {"backend": "worker", "attested": True, "host": host, "cloud": cloud_reading(host["kernel"]), "why": None}
+
+
 def collect(root: Path) -> dict[str, bytes]:
     """A directory's regular files by relative path, never following a symlink (a link, at any depth,
     is left out, as is anything not a regular file), bounded in count and bytes."""

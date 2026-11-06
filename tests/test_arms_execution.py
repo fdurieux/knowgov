@@ -179,3 +179,53 @@ def test_the_readme_names_the_field_and_the_self_check():
     assert '"execution": {"ok"' in readme and "/api/scenarios" in readme
     assert "docker compose --profile arms run --rm --no-deps worker python harness/worker.py --attest-only" in readme
     assert "`write_confined: false`" in readme
+
+
+def _worker_chip(worker) -> str:
+    """task-0169: the page's workerChip(), cut from index.html, against a status's worker field."""
+    node = shutil.which("node")
+    if not node:
+        skip("node", "node is not installed; the page's chip is drawn by its own script")
+    page = PAGE.read_text(encoding="utf-8")
+    script = "\n".join(["let STATE = {};"] + [_cut(page, n) for n in ("esc", "ENGINES", "workerChip")]
+                       + [f"const j = {json.dumps({} if worker is None else {'worker': worker})};",
+                          re.search(r"STATE\.worker = j\.worker \|\| null;", page).group(0),
+                          "console.log(JSON.stringify(workerChip()));"])
+    with tempfile.TemporaryDirectory() as td:
+        f = Path(td) / "page.js"
+        f.write_text(script, encoding="utf-8")
+        p = subprocess.run([node, str(f)], capture_output=True, text=True, timeout=60)
+    assert p.returncode == 0, p.stderr
+    return json.loads(p.stdout)
+
+
+def test_the_worker_chip_names_where_model_output_runs_as_the_worker_attested_it():
+    import server
+    src = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
+    body = src.split("def worker_view()", 1)[1].split("\ndef ", 1)[0]
+    assert "return execution.placement()" in body and "ATTEST" not in body, "call it, never copy its logic"
+    assert '"execution": execution_view(), "worker": worker_view()' in src
+    now = time.time()
+    aws = {"system": "Linux", "kernel": "7.0.0-1014-aws", "machine": "x86_64", "engine": "docker"}
+    with tempfile.TemporaryDirectory() as td:
+        with _env(**PUBLIC, KG_WORKER_JOBS=td):
+            absent = server.worker_view()
+            (Path(td) / execution.ATTEST).write_text(json.dumps({**FRESH, "heartbeat": now, "host": aws}), encoding="utf-8")
+            fresh = server.worker_view()
+            (Path(td) / execution.ATTEST).write_text(json.dumps({**FRESH, "heartbeat": now, "host": {**aws, "kernel": "6.8.0-48-generic"}}), encoding="utf-8")
+            plain = server.worker_view()
+    chip = _worker_chip(fresh)
+    assert 'class="chip ok"' in chip and "worker: attested · Docker · Linux 7.0.0-1014-aws (x86_64) · AWS (from the kernel release)" in chip, chip
+    assert "not checked" in chip and "-aws suffix" in chip, "the cloud is labelled a reading"
+    chip = _worker_chip(plain)
+    assert "worker: attested · Docker · Linux 6.8.0-48-generic (x86_64)<" in chip and "AWS" not in chip, chip
+    chip = _worker_chip(absent)
+    assert 'class="chip warn"' in chip and "worker: not attested" in chip and "has not attested" in chip, chip
+    assert "worker: not reported" in _worker_chip(None)
+    host = _worker_chip({"backend": "host", "attested": False, "host": None, "cloud": None, "why": "uncontained"})
+    assert 'class="chip bad"' in host and "uncontained on the app's host" in host, host
+    # the facts are escaped as the worker's word, never markup
+    chip = _worker_chip({**fresh, "host": {**aws, "kernel": "<b>x</b>"}, "cloud": None})
+    assert "<b>" not in chip and "&lt;b&gt;" in chip, chip
+    page = PAGE.read_text(encoding="utf-8")
+    assert "armsChip() + workerChip() +" in page
