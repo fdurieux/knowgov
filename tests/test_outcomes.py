@@ -123,3 +123,26 @@ def test_the_workflows_name_the_outcome_files():
         text = (wf / name).read_text(encoding="utf-8")
         assert "KG_TEST_REPORT" in text or "KG_OUTCOMES" in text, name
     assert "KG_OUTCOMES: ${KG_OUTCOMES:-}" in (ROOT / "demo" / "docker-compose.yml").read_text(encoding="utf-8")
+
+
+def test_the_coverage_denominator_is_declared_and_accounts_for_every_python_file():
+    """AC #1: every .py in the repository is counted or left out by a named rule with its reason, and a
+    file's statements and branches are read from its own compiled code."""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import fnmatch
+    import coverage_stdlib as cov
+    counted = {p.relative_to(ROOT).as_posix() for p in cov.counted_files()}
+    assert counted and all(not c.startswith(("tests/", "demo/model/", "demo/register/")) and "/vendor/" not in c for c in counted)
+    unaccounted = []
+    for p in ROOT.rglob("*.py"):
+        rel = p.relative_to(ROOT).as_posix()
+        if rel.startswith((".git/", "runs/")) or "__pycache__" in rel or rel in counted:
+            continue
+        if not any(fnmatch.fnmatch(rel, rule + "/*") or rel.startswith(rule + "/") for rule in cov.LEFT_OUT):
+            unaccounted.append(rel)
+    assert unaccounted == [], f"neither counted nor left out by a declared rule: {unaccounted[:10]}"
+    with tempfile.TemporaryDirectory() as td:
+        f = Path(td) / "m.py"
+        f.write_text("def f(x):\n    if x:\n        return 1\n    for i in x:\n        pass\n    return 2\n", encoding="utf-8")
+        lines, branches, _t = cov.denominator(f)
+        assert {2, 3, 4, 5, 6} <= lines and len(branches) == 4, (lines, branches)   # one if and one for, two outcomes each

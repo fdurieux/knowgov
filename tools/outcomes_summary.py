@@ -22,6 +22,11 @@ def summary(folder: Path) -> str:
             lines.append(f"- `{f.name}`: not readable")
             continue
         t = r.get("totals", {})
+        if r.get("schema") == "coverage":
+            lines.append(f"- coverage `{f.name}` ({r.get('scope', '')}): statements {t.get('statements_hit')}/{t.get('statements')} "
+                         f"({t.get('statement_pct')}%), branches {t.get('branches_hit')}/{t.get('branches')} ({t.get('branch_pct')}%), "
+                         f"{r['denominator']['files']} files counted")
+            continue
         lines.append(f"- tests `{f.name}`: {t.get('passed')}/{t.get('tests')} passed, {t.get('skipped')} skipped, {t.get('failed')} failed")
         for x in r.get("tests", []):
             if x.get("outcome") in ("fail", "skip"):
