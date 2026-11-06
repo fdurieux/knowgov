@@ -62,6 +62,40 @@ def test_annotations_never_change_the_exit_code_and_a_run_that_cannot_run_annota
         assert p.returncode == 2 and "no report to annotate" in p.stderr and not Path(td, "cq.json").exists(), p.stderr
 
 
+def _stub_python(td: str) -> tuple[str, Path]:
+    """An interpreter that answers the script's version probe as itself and records every other call's argv,
+    exiting 0: nothing behind it can refuse, so only the script itself can make the run fail."""
+    log = Path(td, "calls.log")
+    stub = Path(td, "python")
+    stub.write_text(f'#!/bin/sh\nif [ "$1" = -c ]; then echo "{stub}"; exit 0; fi\necho "$*" >> "{log}"\nexit 0\n', encoding="utf-8")
+    stub.chmod(0o755)
+    return str(stub), log
+
+
+def test_without_kg_subject_an_instance_of_zero_or_several_subjects_runs_nothing_and_exits_2():
+    """Fail-closed (0.7.0 and earlier ran the gate on the harness's default subject): subject()'s refusal
+    inside $(...) ended only the subshell, and an unmatched glob counted as one subject."""
+    for n in (0, 2):
+        with tempfile.TemporaryDirectory() as td:
+            inst = Path(td) / "inst"
+            (inst / "subjects").mkdir(parents=True)
+            for i in range(n):
+                (inst / "subjects" / f"s{i}").mkdir()
+                (inst / "subjects" / f"s{i}" / "subject.toml").write_text(f'[subject]\nid = "s{i}"\n', encoding="utf-8")
+            py, log = _stub_python(td)
+            for gate, extra in (("gate", {}), ("trace-check", {}), ("trace-register", {"KG_COMMIT": "abc"})):
+                env = {"PATH": "/usr/bin:/bin", "PYTHON": py, **extra}
+                p = subprocess.run(["sh", str(SCRIPT), str(ROOT), str(inst), gate], capture_output=True, text=True, env=env, cwd=td)
+                assert p.returncode == 2 and f"holds {n} subject(s)" in p.stderr, (n, gate, p.returncode, p.stderr)
+                assert not log.exists(), (n, gate, log.read_text())
+            # one subject: the script runs the core on it
+            if n == 2:
+                (inst / "subjects" / "s1" / "subject.toml").unlink()
+                p = subprocess.run(["sh", str(SCRIPT), str(ROOT), str(inst), "gate"], capture_output=True, text=True,
+                                   env={"PATH": "/usr/bin:/bin", "PYTHON": py}, cwd=td)
+                assert p.returncode == 0 and f"--subject {inst / 'subjects' / 's0'}" in log.read_text(), (p.stderr, log.read_text())
+
+
 def test_the_script_exits_2_on_an_unknown_gate_and_an_instance_without_one_subject():
     with tempfile.TemporaryDirectory() as td:
         inst = Path(td) / "inst"
