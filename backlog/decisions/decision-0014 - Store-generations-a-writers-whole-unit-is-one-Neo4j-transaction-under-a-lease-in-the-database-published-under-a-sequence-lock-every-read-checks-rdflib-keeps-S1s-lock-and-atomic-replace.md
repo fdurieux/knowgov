@@ -115,7 +115,7 @@ Option 2 on Neo4j; S1's design, plus a lock-file fence, on rdflib.
 - **Transaction memory.** One transaction per unit means Neo4j's transaction memory bounds a load.
   - The bounds: `db.memory.transaction.max` (unset) and `db.memory.transaction.total.max` (70% of the heap; the compose heap is 1 GiB).
   - Measured peak of the unit's estimated heap (`SHOW TRANSACTIONS`, sampled every 0.1 s): CargoQuote's whole seven-scenario deterministic run about 41 MiB; J-F's whole run about 64 MiB.
-  - A unit over the limit fails with `MemoryPoolOutOfMemoryError`. The previous generation is read whole and the sequence lock is closed. Shown with `db.memory.transaction.max=2m` (`check_snapshots --memory-limited`).
+  - A unit over the limit fails with `MemoryPoolOutOfMemoryError`. The previous generation is read whole and the sequence lock is closed. Shown with `db.memory.transaction.max=2m` (`check_snapshots --memory-limited`). That proof is local only: Community sets the limit only at server start, so CI does not run it.
 - **Exhausted retries are refusals.**
   - `gate_cli --no-load` exits 2 ("cannot run").
   - The MCP server answers an error result.
