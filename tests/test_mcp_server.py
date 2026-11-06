@@ -892,7 +892,7 @@ def test_the_remote_section_runs_the_local_command_over_ssh():
     import re
     s = _remote_section()
     for needle in ("BatchMode yes", "ssh -o BatchMode=no knowgov-ec2 true", "Never set `StrictHostKeyChecking no`",
-                   "/usr/bin/ssh", "`claude mcp add` changes Claude Code only", "`127.0.0.1` bind, no port is opened and no token is needed",
+                   "/usr/bin/ssh", "`claude mcp add` changes Claude Code only", "it never sees what `claude mcp add`", "`127.0.0.1` bind, no port is opened and no token is needed",
                    "`http://localhost:8080`, is the page on the server", "/mcp", "mcp-server-knowgov.log"):
         assert needle in s, needle
     tail = ["docker", "compose", "-f", "knowgov/demo/docker-compose.yml", "exec", "-T", "app", "python"]

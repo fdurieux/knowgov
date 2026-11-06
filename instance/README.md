@@ -1107,7 +1107,10 @@ claude mcp add knowgov-runs -s user -- ssh -T knowgov-ec2 docker compose -f know
 
 `ssh -T` asks for no terminal on the server, as `exec -T` does in the container: the protocol needs
 plain input and output end to end. `claude mcp list` then shows both as connected; in a session
-already open, `/mcp` and reconnect each.
+already open, `/mcp` and reconnect each. This holds for Claude Code running on your computer (in a
+terminal, or a local session of the desktop app's Code tab). A cloud session (claude.ai/code, or a
+Code-tab session marked with a cloud) runs on another machine: it never sees what `claude mcp add`
+registered on yours, and has neither your key nor an address the security group admits.
 
 **Claude Desktop.** In `claude_desktop_config.json` (where to find it is under *Connecting Claude
 Desktop*), the command is the full path to `ssh`, which on a Mac is `/usr/bin/ssh`. Add both entries
