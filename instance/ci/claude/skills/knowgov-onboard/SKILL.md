@@ -105,9 +105,9 @@ Derive and show everything else; do not ask for it. Work in this order, and show
    person who has read them attests in their own commit.
 6. **The questionnaires, last.** Fix in this order: spelling, then mapper fit, then attestation.
    Only then is a key still absent a question for its owner: from the knowgov checkout,
-   `KG_STORE=rdflib KG_SUBJECT=<instance>/subjects/<id> python harness/capture.py questionnaire
-   --scenario S0 --out questionnaires/` writes one per owning unit, and they go with the pull
-   request.
+   `KG_SUBJECT=<instance>/subjects/<id> python harness/capture.py questionnaire --scenario S0
+   --out questionnaires/` writes one per owning unit, from a private copy of the store, and they go
+   with the pull request.
 
 After every write, check: call `subject_check` with the proposed `subject.toml`,
 `register_map.toml`, `scenarios.toml` and the text of every document the manifest names (by the

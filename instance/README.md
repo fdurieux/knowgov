@@ -541,13 +541,19 @@ statement, without anyone having to write a document first.
 python harness/capture.py questionnaire --scenario S2 --out questionnaires/
 ```
 
-In plain English: this loads the scenario, asks the gate which keys are missing or weak, and
-writes one questionnaire per *owner*: the organisation unit your register names as owner of the
+In plain English: this loads the scenario into a private copy in memory, asks the gate which keys
+are missing or weak, and writes one questionnaire per *owner*: the organisation unit your register names as owner of the
 building blocks each key concerns. When several units own those building blocks, give the key's
 row in `register_map.toml` an `owner`, one of them, and only that unit is asked; otherwise each
 of them is, and two people may answer the same key. Each questionnaire says how many keys the owner has and how
 many need an answer. For each one it shows what the store holds now and asks one question. A key
 no register row covers goes to a questionnaire named `unassigned`, so nothing is dropped.
+
+The private copy is the point: the store your page and your assistants read (Neo4j in the stack)
+keeps the scenario it holds, so an owner can run this while others are reading, and nothing they
+see changes. The copy needs the harness's Python packages (`pip install -r demo/requirements.txt`;
+inside the stack's container they are there already); without them the command says so and exits 2.
+`capture.py review` and `harness/transcript.py` load the same way.
 
 The owner fills it in: a value in `answer`, or `nobody_knows = true` when no one can say. They
 add their *handle* and the date under `[answered]`. A handle is a short lower-case label such
@@ -615,7 +621,8 @@ Then rule:
 python harness/capture.py review review.toml
 ```
 
-In plain English: this loads the scenario, checks the review against what the store holds, and
+In plain English: this loads the scenario into a private copy, as the questionnaire does, checks
+the review against what that copy holds, and
 saves it in `captures/reviews/`. Every later load of that scenario applies it. An approved
 statement counts as *approved*; a rejected one, whether a person's answer or a document's
 sentence, stops counting but stays on record; a closed declared gap stops blocking. With every
