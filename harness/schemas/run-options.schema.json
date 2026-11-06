@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/run-options.schema.json",
  "title": "knowgov-runs run_options",
- "description": "What knowgov-runs' run_options returns (harness/mcp_runs.py RunTools.run_options; task-0172): the page's scenarios, the modes this server may start, whether model output may run (execution, task-0168) and where (worker, task-0169), the model rows without any key's value, and the run under way, as _run_view keeps it.",
+ "description": "What knowgov-runs' run_options returns (harness/mcp_runs.py RunTools.run_options; task-0172): the page's scenarios, the modes this server may start, whether model output may run (execution, task-0168) and where (worker, task-0169), the model rows without any key's value, each with its key check (task-0171), and the run under way, as _run_view keeps it.",
  "type": "object",
  "additionalProperties": false,
  "required": [
@@ -208,7 +208,8 @@
     "key_var",
     "key_set",
     "available",
-    "why"
+    "why",
+    "key_check"
    ],
    "properties": {
     "id": {
@@ -273,6 +274,62 @@
       "string",
       "null"
      ]
+    },
+    "key_check": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "additionalProperties": false,
+     "required": [
+      "state",
+      "status",
+      "checked_at",
+      "scope",
+      "model_listed",
+      "why"
+     ],
+     "description": "the endpoint's verdict on the row's key (task-0171, harness/key_check.py Checker.verdict): its model listing, no tokens; null from a page before task-0171",
+     "properties": {
+      "state": {
+       "enum": [
+        "accepted",
+        "refused",
+        "unreachable",
+        "unchecked"
+       ]
+      },
+      "status": {
+       "type": [
+        "integer",
+        "null"
+       ]
+      },
+      "checked_at": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "scope": {
+       "enum": [
+        "key",
+        "gateway"
+       ]
+      },
+      "model_listed": {
+       "type": [
+        "boolean",
+        "null"
+       ]
+      },
+      "why": {
+       "type": [
+        "string",
+        "null"
+       ]
+      }
+     }
     }
    }
   },

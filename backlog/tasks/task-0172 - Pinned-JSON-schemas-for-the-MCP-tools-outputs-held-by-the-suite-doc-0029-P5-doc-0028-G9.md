@@ -3,11 +3,11 @@ id: TASK-0172
 title: >-
   Pinned JSON schemas for the MCP tools' outputs, held by the suite (doc-0029
   P5, doc-0028 G9)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-06T13:03:00Z'
-updated_date: '2026-11-06T13:26:00Z'
+updated_date: '2026-11-06T13:46:00Z'
 labels:
   - mcp
   - contracts
@@ -46,4 +46,12 @@ New schemas: store-status, three-valued-answer, evidence-bundle, register-impact
 No output changes shape: 1813 answers recorded from check_mcp_server on every scenario of both subjects (stdio and HTTP) validate against them.
 Suites: stdlib 611/633, pinned 637/638, 0 failed; check_mcp_server rdflib holds on cargo_quote S1,S2,S6 and J-F C,D3 with every answer validated.
 run-options carries execution, arms_ready and worker (task-0169, #304); key_check (task-0171, #307) is added when it merges. MCP outputSchema left out (coordinator, 2026-11-06).
+
+2026-11-06: main merged after #307 (task-0171); run-options pins each model row's key_check (state, status, checked_at, scope, model_listed, why; null from an older page), exercised by the runs test with a refused verdict.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Every tool of the MCP reader (17) and knowgov-runs (3) names the schema of its structuredContent in its description; ten new schemas under harness/schemas/, every object closed, the other ten tools naming the ones they already returned. tests/test_mcp_output_schemas.py calls each tool on both public subjects (files-only stdlib, store-backed on rdflib, knowgov-runs on a stub page) and validates with harness/schema_check.py, a stray field refused; check_mcp_server validates every answer it reads over stdio and HTTP. No output changed shape (1813 recorded answers validate).
+<!-- SECTION:FINAL_SUMMARY:END -->

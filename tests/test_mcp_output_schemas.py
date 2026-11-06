@@ -214,3 +214,15 @@ def test_the_knowgov_runs_tools_conform_against_a_page():
                             "cloud": {"name": "AWS", "basis": "read from the kernel release's -aws suffix, not checked"}})
     with _Env(KG_MCP_RUN_MODES="deterministic"):
         assert call("run_options")["worker"]["cloud"]["name"] == "AWS"
+    verdict = {"state": "refused", "status": 401, "checked_at": "2026-11-06T13:00:00Z", "scope": "key", "model_listed": None,
+               "why": "the endpoint refused the key in OPENAI_API_KEY (401)"}
+    class Checked(StubPage):   # the page's rows as task-0171 serves them, each with its key check
+        def __call__(self, req, timeout=None):
+            resp = super().__call__(req, timeout)
+            body = json.loads(resp.read())
+            for row in body.get("model_rows") or []:
+                row["key_check"] = verdict
+            return type(resp)(resp.status, body)
+    page = Checked()
+    with _Env(KG_MCP_RUN_MODES="deterministic"):
+        assert call("run_options")["model_rows"][0]["key_check"] == verdict
