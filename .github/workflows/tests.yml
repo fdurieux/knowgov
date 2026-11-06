@@ -20,6 +20,9 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
-      - run: python tests/run_tests.py
+      - run: KG_TEST_REPORT=outcomes/tests-cargo_quote.json python tests/run_tests.py
       - name: The same suite under the second public subject
-        run: KG_SUBJECT=subjects/jef_data_load python tests/run_tests.py
+        run: KG_SUBJECT=subjects/jef_data_load KG_TEST_REPORT=outcomes/tests-jef_data_load.json python tests/run_tests.py
+      - name: The outcomes, machine-readable, in the job's summary (task-0159)
+        if: always()
+        run: python tools/outcomes_summary.py outcomes >> "$GITHUB_STEP_SUMMARY"

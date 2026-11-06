@@ -42,6 +42,8 @@ jobs:
       # CargoQuote's non-record steps (MCP, lighthouse) on a pull request: S1, S2 and S6 (S6 carries the
       # later version); its comparator and round trip always run whole, being the scored record
       KG_CQ_SCENARIOS: ${{ github.event_name == 'pull_request' && 'S1,S2,S6' || '' }}
+      # task-0159: every check tool appends its outcome here (tools/_outcomes.py); absolute, as steps cd
+      KG_OUTCOMES: ${{ github.workspace }}/outcomes/rdflib-checks.jsonl
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -49,7 +51,7 @@ jobs:
           python-version: "3.12"   # the interpreter the demo image and the J-F kit's pins name
       - run: pip install "pumllint==0.33.0" "pyyaml==6.0.3" "rdflib==7.6.0" "pyshacl==0.40.2" "openai==3.41.0" "pandas==3.0.5" "numpy==2.4.6" "requests==2.34.2" "pyarrow==25.0.1" "pytest==9.1.1" "pytest-bdd==9.0.1"
       - name: The stdlib suite with the pins, the tests resting on rdflib run here and a skip of one fails (task-0141.01)
-        run: KG_TEST_REQUIRE=rdflib python tests/run_tests.py
+        run: KG_TEST_REQUIRE=rdflib KG_TEST_REPORT=outcomes/tests-rdflib.json python tests/run_tests.py
       - name: S1 to S7 on the in-memory store match the record
         run: |
           cd harness && KG_STORE=rdflib python run.py --deterministic --out ../runs/rdflib && cd ..
@@ -416,3 +418,6 @@ jobs:
           KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_round_trip.py --chain rdflib,rdflib --expect-parts ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
       - name: "Store generations (task-0141.06, decision-0014) on a file-backed rdflib store: SNAP-01 to SNAP-07"
         run: KG_STORE=rdflib python tools/check_snapshots.py --disposable
+      - name: The outcomes, machine-readable, in the job's summary (task-0159)
+        if: always()
+        run: python tools/outcomes_summary.py outcomes >> "$GITHUB_STEP_SUMMARY"

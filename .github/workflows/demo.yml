@@ -48,6 +48,9 @@ jobs:
     env:
       # task-0084: the J-F subset on a pull request, empty (every scenario) on any other event
       KG_JF_SCENARIOS: ${{ github.event_name == 'pull_request' && 'C,D3' || '' }}
+      # task-0159: the check tools in the app container append their outcomes here (tools/_outcomes.py),
+      # passed by docker-compose.yml, on the runs volume, copied out at the end
+      KG_OUTCOMES: /repo/runs/outcomes/stack-checks.jsonl
     defaults:
       run:
         working-directory: demo
@@ -429,6 +432,12 @@ jobs:
           curl -fsS localhost:8080/api/run | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["status"]=="done", r["log_text"]; open("run_id","w").write(r["subject"] + "/" + r["id"])'
           docker compose $F exec -T -e KG_SUBJECT=/instance/subjects/cargo_quote app python demo/tools/compare_deterministic.py "runs/$(cat run_id)"
           test "$before" = "$(digest)" && echo "instance unchanged"
+
+      - name: The outcomes, machine-readable, in the job's summary (task-0159)
+        if: always()
+        run: |
+          rm -rf outcomes && docker compose cp app:/repo/runs/outcomes ./outcomes || mkdir -p outcomes
+          python3 ../tools/outcomes_summary.py outcomes >> "$GITHUB_STEP_SUMMARY"
 
       - name: Logs on failure
         if: failure()
