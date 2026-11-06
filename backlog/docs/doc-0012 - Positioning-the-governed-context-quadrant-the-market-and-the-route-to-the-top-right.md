@@ -5,14 +5,14 @@ title: >-
   top-right
 type: specification
 created_date: '2026-11-03T22:44:00Z'
-updated_date: '2026-11-06T11:15:00Z'
+updated_date: '2026-11-06T11:30:00Z'
 tags:
   - brief
   - positioning
   - market
   - quadrant
 ---
-*2026-11-03. Maintainer register. A study: nothing built, nothing queued. Trigger: the maintainer's question of this date, where knowgov, Legible and ieam-register sit on a Magic Quadrant, the market potential of "the governed knowledge layer of a declarative twin", and what moves the stack to the far top-right. Scored at knowgov `5af89c4`, ieam-register `71de2d0` (v0.2.3), pumllint `38c5679`; recorded on `main` at `e2902b8` (register v0.2.4, `docs/guide.md` #80, the three saved queries #81), which moves no score: the walk itself is unchanged. Method: pumllint `docs/positioning-quadrant.md` (2026-08-28). Validated the same day by two external models, blind then adversarial (§5). The artifact page "Governed Context Quadrant" (https://claude.ai/artifact/Jizk9X9Gt6hKKGwxsZo82m) is a view of this doc. One record per thing: the twin wording stays doc-0010's, the walk, process-mining and code-traceability fit-gaps doc-0011's; this doc adds the market reading and the scores.*
+*2026-11-03. Maintainer register. A study: nothing built, nothing queued. Trigger: the maintainer's question of this date, where knowgov, Legible and ieam-register sit on a Magic Quadrant, the market potential of "the governed knowledge layer of a declarative twin", and what moves the stack to the far top-right. Scored at knowgov `5af89c4`, ieam-register `71de2d0` (v0.2.3), pumllint `38c5679`; recorded on `main` at `e2902b8` (register v0.2.4, `docs/guide.md` #80, the three saved queries #81), which moves no score: the walk itself is unchanged. Method: pumllint `docs/positioning-quadrant.md` (2026-08-28). Validated the same day by two external models, blind then adversarial (§5). The artifact page "knowgov Quadrant Placement" (https://claude.ai/artifact/SMa3tgeKWrykqzyyaQGeac) is the view of this doc. The first view, "Governed Context Quadrant" of 2026-11-03, was retired on 2026-11-06 at the maintainer's word, by the coordinating session. One record per thing: the twin wording stays doc-0010's, the walk, process-mining and code-traceability fit-gaps doc-0011's; this doc adds the market reading and the scores.*
 
 ## Verdict
 
