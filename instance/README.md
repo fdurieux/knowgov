@@ -873,7 +873,8 @@ the folder you ran the command in, and a session started anywhere else does not 
 list` then shows `knowgov` as connected, and inside a session `/mcp` lists its tools.
 
 The compose file publishes the page and Neo4j, not the server's HTTP port (8765), so this stdio
-route is the one that works with the stack as it stands. For a stack started under another project
+route is the one that works with the stack as it stands. For a stack on another machine, see *The MCP servers when the stack runs on another
+machine*, below. For a stack started under another project
 name (`docker compose -p knowgov-jef`, as the compose file's notes show), add the same `-p` after
 `docker compose`. To ask about another subject than the one the server started on, name it on the
 call: every tool takes `subject`, an id `list_subjects` names (below).
@@ -1044,6 +1045,127 @@ claude mcp add knowgov-runs -s user -- docker compose -f /path/to/knowgov/demo/d
 The shipped `managed-mcp-allowlist.json` admits the read-only server only. An organisation that
 wants assistants to start runs adds `{"serverName": "knowgov-runs"}` to its own list. A tool that
 wipes the store should be approved call by call, not once for good.
+
+### The MCP servers when the stack runs on another machine
+
+When the stack runs on a server you reach over SSH, such as the EC2 instance in `demo/README.md`
+(*The Arms mode on an EC2 instance*), your own computer has no container to start the servers in,
+and the commands above find nothing. Start them over SSH instead. The assistant runs `ssh`, `ssh`
+runs the same `docker compose … exec` command on the server, and the protocol travels over the SSH
+connection's input and output, as it did over the local command's. Nothing new listens anywhere:
+the stack keeps its `127.0.0.1` bind, no port is opened and no token is needed. SSH, which you
+already use for the page's tunnel, is the lock.
+
+**What it needs first.** The assistant starts `ssh` with no terminal, so SSH must connect without
+asking anything: Claude Desktop cannot answer a password prompt or a *yes/no*.
+
+1. *A short name for the server.* Add a block to `~/.ssh/config` on your computer (create the file if
+   it is not there), with your instance's address and your key file:
+
+   ```text
+   Host knowgov-ec2
+       HostName <the instance's public address>
+       User ubuntu
+       IdentityFile ~/.ssh/<key>.pem
+       IdentitiesOnly yes
+       BatchMode yes
+       ServerAliveInterval 30
+   ```
+
+   `BatchMode yes` makes SSH fail with a message instead of waiting for an answer nobody can give.
+   The key file AWS creates has no passphrase. If yours has one, add it to the agent first (on a Mac,
+   `ssh-add --apple-use-keychain ~/.ssh/<key>.pem`, with `UseKeychain yes` and `AddKeysToAgent yes`
+   in the block).
+2. *The server's host key known.* Connect once in a terminal and answer `yes` when SSH asks whether
+   to trust the server:
+
+   ```bash
+   ssh -o BatchMode=no knowgov-ec2 true
+   ```
+
+   Never set `StrictHostKeyChecking no` to skip this: SSH would then talk to whichever machine
+   answers at that address.
+3. *Docker without `sudo` on the server*, for the user in the block (step 2 of the EC2 route does
+   it), and the stack running there.
+
+Check all three at once. This must print the `app` service as *healthy* and ask nothing:
+
+```bash
+ssh knowgov-ec2 docker compose -f knowgov/demo/docker-compose.yml ps app
+```
+
+The path `knowgov/demo/docker-compose.yml` is read on the server, from your home folder there (where
+the EC2 route cloned `~/knowgov`); it is not a path on your computer.
+
+**Claude Code.** Register both servers once. If you registered them for a local stack before, remove
+those first (`claude mcp remove knowgov -s user`, and the same for `knowgov-runs`):
+
+```bash
+claude mcp add knowgov -s user -- ssh -T knowgov-ec2 docker compose -f knowgov/demo/docker-compose.yml exec -T app python harness/mcp_server.py
+claude mcp add knowgov-runs -s user -- ssh -T knowgov-ec2 docker compose -f knowgov/demo/docker-compose.yml exec -T app python harness/mcp_runs.py
+```
+
+`ssh -T` asks for no terminal on the server, as `exec -T` does in the container: the protocol needs
+plain input and output end to end. `claude mcp list` then shows both as connected; in a session
+already open, `/mcp` and reconnect each.
+
+**Claude Desktop.** In `claude_desktop_config.json` (where to find it is under *Connecting Claude
+Desktop*), the command is the full path to `ssh`, which on a Mac is `/usr/bin/ssh`. Add both entries
+inside your `mcpServers`, beside any servers already there:
+
+```json
+{
+  "mcpServers": {
+    "knowgov": {
+      "command": "/usr/bin/ssh",
+      "args": ["-T", "knowgov-ec2", "docker", "compose", "-f", "knowgov/demo/docker-compose.yml",
+               "exec", "-T", "app", "python", "harness/mcp_server.py"]
+    },
+    "knowgov-runs": {
+      "command": "/usr/bin/ssh",
+      "args": ["-T", "knowgov-ec2", "docker", "compose", "-f", "knowgov/demo/docker-compose.yml",
+               "exec", "-T", "app", "python", "harness/mcp_runs.py"]
+    }
+  }
+}
+```
+
+Then quit Claude Desktop completely and reopen it. SSH finds `~/.ssh/config` and your key by itself;
+the rule that every path in this file is absolute concerns the paths on your computer, and the only
+one here is `/usr/bin/ssh`.
+
+**knowgov-runs needs nothing more.** It runs inside the `app` container on the server, so its default
+page, `http://localhost:8080`, is the page on the server, and the page's `KG_PAGE_TOKEN`, if you set
+one, is already in that container. The SSH tunnel to port 8080 is for your browser; neither server
+needs it.
+
+**Checking it.** From a terminal on your computer, this sends the server the protocol's opening and
+asks it which subjects it knows:
+
+```bash
+ssh -T knowgov-ec2 docker compose -f knowgov/demo/docker-compose.yml exec -T app python harness/mcp_server.py <<'END'
+{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "check", "version": "1"}}}
+{"jsonrpc": "2.0", "method": "notifications/initialized"}
+{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "list_subjects", "arguments": {}}}
+END
+```
+
+It prints two lines: the server's greeting, then the subjects, every one under the stack's
+`KG_SUBJECTS` (`cargo_quote` and `jef_data_load` on the public stack). Then ask the assistant
+"What does the knowgov store hold right now?" (`store_status`) and "Which subjects can I ask
+about?" (`list_subjects`).
+
+**When it does not connect.** Claude Desktop's log for the server
+(`~/Library/Logs/Claude/mcp-server-knowgov.log`) shows what SSH said:
+
+- `Permission denied (publickey)`: the block's `IdentityFile` or `User` is wrong.
+- `Host key verification failed`: step 2 has not been done, or the instance is new; do it again.
+- It hangs, then times out: the instance's address has changed (a stopped and started instance gets
+  a new one) or your own has (the security group admits *My IP* only). Put the new address in the
+  block's `HostName`, the one place both clients read it; an Elastic IP keeps it fixed.
+- `permission denied while trying to connect to the Docker daemon socket`: step 3.
+- `no such service: app`, or `open …docker-compose.yml: no such file`: the stack is not running, or
+  the path on the server is not where you cloned knowgov.
 
 ## Creating a subject with an assistant
 

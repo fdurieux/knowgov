@@ -779,6 +779,7 @@ def _commands(section: str) -> list[list[str]]:
 # checked against the tool's own --help and added here.
 EXTERNAL_FLAGS = {
     "claude mcp add": {"-s", "--scope", "-e", "--env", "-t", "--transport", "-H", "--header"},
+    "claude mcp remove": {"-s", "--scope"},
     "claude": set(),
     "docker compose": {"-f", "--file", "-p", "--project-name"},
     "docker compose exec": {"-T", "-e", "--env"},
@@ -811,7 +812,8 @@ def test_every_flag_the_assistant_section_names_exists():
                     program = argv[i + 1]
                     scripts.setdefault(program, _script_flags(program))
                 elif tok == "claude":
-                    program = "claude mcp add" if argv[i + 1:i + 3] == ["mcp", "add"] else "claude"
+                    program = {("mcp", "add"): "claude mcp add", ("mcp", "remove"): "claude mcp remove"}.get(
+                        tuple(argv[i + 1:i + 3]), "claude")
                 elif tok == "docker":
                     program = "docker compose"
                 elif tok == "exec":
@@ -874,3 +876,51 @@ def test_the_readmes_stateless_example_runs_against_the_server():
         day.__exit__()
         httpd.shutdown()
         httpd.server_close()
+
+
+# Task-0182: the servers over SSH stdio when the stack runs on another machine (EC2, task-0162).
+
+def _remote_section() -> str:
+    s = _assistant_section()
+    start = s.index("### The MCP servers when the stack runs on another machine")
+    end = s.find("\n### ", start + 1)
+    return s[start:] if end < 0 else s[start:end]
+
+
+def test_the_remote_section_runs_the_local_command_over_ssh():
+    """Each client's entry is the local exec command behind `ssh -T <alias>`, for both servers; nothing listens."""
+    import re
+    s = _remote_section()
+    for needle in ("BatchMode yes", "ssh -o BatchMode=no knowgov-ec2 true", "Never set `StrictHostKeyChecking no`",
+                   "/usr/bin/ssh", "`127.0.0.1` bind, no port is opened and no token is needed",
+                   "`http://localhost:8080`, is the page on the server", "/mcp", "mcp-server-knowgov.log"):
+        assert needle in s, needle
+    tail = ["docker", "compose", "-f", "knowgov/demo/docker-compose.yml", "exec", "-T", "app", "python"]
+    (block,) = _blocks(s, "json")
+    servers = json.loads(block)["mcpServers"]
+    assert set(servers) == {"knowgov", "knowgov-runs"}
+    for name, script in (("knowgov", "harness/mcp_server.py"), ("knowgov-runs", "harness/mcp_runs.py")):
+        assert servers[name] == {"command": "/usr/bin/ssh", "args": ["-T", "knowgov-ec2", *tail, script]}, name
+        assert f"claude mcp add {name} -s user -- ssh -T knowgov-ec2 {' '.join(tail)} {script}" in s, name
+    assert "KG_MCP_TOKEN" not in s and not re.search(r"-L \d", s), "the SSH route needs no token and no tunnel"
+    demo = (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
+    ec2 = " ".join(demo[demo.index("**The Arms mode on an EC2 instance.**"):].split())
+    assert "The MCP servers when the stack runs on another machine" in ec2, "demo/README's EC2 route links it"
+
+
+def test_the_remote_sections_check_answers_over_stdio():
+    """The check's JSON-RPC lines, fed to the server as ssh feeds them, get the greeting and the subjects."""
+    import re
+    import subprocess
+    block = next(b for b in _blocks(_remote_section(), "bash") if "<<'END'" in b)
+    lines = re.search(r"<<'END'\n(.*?)\nEND", block, re.S).group(1).splitlines()
+    env = {**os.environ, "KG_STORE": "rdflib", "KG_SUBJECT": str(ROOT / "subjects" / "cargo_quote"),
+           "KG_SUBJECTS": str(ROOT / "subjects"), "KG_TODAY": DAY}
+    env.pop("KG_RDFLIB_FILE", None)
+    out = subprocess.run([sys.executable, str(ROOT / "harness" / "mcp_server.py")], input="\n".join(lines) + "\n",
+                         capture_output=True, text=True, cwd=ROOT, env=env, timeout=120).stdout.splitlines()
+    assert len(out) == 2, out
+    greeting, subjects = (json.loads(line) for line in out)
+    assert greeting["result"]["serverInfo"]["name"] == "knowgov"
+    ids = {s["id"] for s in json.loads(subjects["result"]["content"][0]["text"])["subjects"]}
+    assert {"cargo_quote", "jef_data_load"} <= ids, ids

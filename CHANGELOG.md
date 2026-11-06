@@ -66,6 +66,13 @@ names that section with the version.
 
 ### Changes
 
+- **The MCP servers when the stack runs on another machine** (docs, task-0182). `instance/README.md`
+  shows how Claude Code and Claude Desktop start `knowgov` and `knowgov-runs` over SSH when the stack
+  runs on a server such as the EC2 instance of `demo/README.md`: the same `docker compose … exec`
+  command behind `ssh -T <alias>`, with the SSH setup it needs (a `~/.ssh/config` alias with
+  `BatchMode yes`, the host key accepted once) and a check from a terminal. Nothing new listens and
+  no token is needed.
+
 - **The page's Register view shows what a register update withdrew** (task-0178). Set
   `KG_REGISTER_PREVIOUS` to the register as it was before the update, and the view lists the nodes it
   deprecated or retired, the links it withdrew, each with its reason, and the subject's keys that rest
