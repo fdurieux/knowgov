@@ -306,6 +306,18 @@ SAVED_QUERIES = [
 ]
 
 
+def _distinct_rows(rows: list[dict]) -> list[dict]:
+    """``rows`` without repeats (a fragment matched twice), in their order."""
+    import json
+    seen, out = set(), []
+    for r in rows:
+        k = json.dumps(r, sort_keys=True, default=str)
+        if k not in seen:
+            seen.add(k)
+            out.append(r)
+    return out
+
+
 def _rows(result) -> list[dict]:
     return [dict(r) for r in result]
 
@@ -776,6 +788,31 @@ class Neo4jStore(Store):
 
     def all_derived(self) -> list[dict]:
         return _rows(self.run("MATCH (dv:Derived) RETURN dv.id AS id, dv.suspect AS suspect"))
+
+    def held_keys(self) -> list[dict]:
+        out: dict[str, dict] = {}
+        for r in _rows(self.run("MATCH (x:Assertion) WHERE x.key IS NOT NULL RETURN x.key AS key, x.status AS status, count(*) AS n")):
+            k = out.setdefault(r["key"], {"key": r["key"], "n": 0, "statuses": {}})
+            k["n"] += r["n"]
+            k["statuses"][r["status"]] = k["statuses"].get(r["status"], 0) + r["n"]
+        return [out[k] for k in sorted(out)]
+
+    def derived_outputs(self) -> list[dict]:
+        rows = _rows(self.run("""
+            MATCH (d:Derived) OPTIONAL MATCH (d)-[:USED_ASSERTION]->(x:Assertion)
+            RETURN d.id AS id, d.kind AS kind, d.sha256 AS sha256, coalesce(d.suspect, false) AS suspect,
+                   collect({id:x.id, key:x.key, status:x.status, artefact:x.artefact, version:x.version}) AS used"""))
+        return by_id([{**r, "used": by_id([u for u in r["used"] if u["id"]])} for r in rows])
+
+    def artefact_assertions(self, artefact) -> list[dict]:
+        rows = _rows(self.run("""
+            MATCH (x:Assertion) OPTIONAL MATCH (x)-[:SUPPORTED_BY]->(f:Fragment)
+            WITH x, [f IN collect(f) WHERE f.artefact = $a OR (right($a, 1) = '/' AND f.artefact STARTS WITH $a)] AS fs
+            WHERE x.artefact = $a OR (right($a, 1) = '/' AND x.artefact STARTS WITH $a) OR size(fs) > 0
+            RETURN x.id AS id, x.key AS key, x.value AS value, x.status AS status, x.basis AS basis,
+                   x.artefact AS artefact, x.version AS version,
+                   [f IN fs | {locator:f.locator, artefact:f.artefact}] AS fragments""", a=artefact))
+        return by_id([{**r, "fragments": by_content(_distinct_rows(r["fragments"]))} for r in rows])
 
     def record_preload(self, vid, verdict) -> None:
         props = {f"preload_{k}": verdict.get(k) for k in PRELOAD_FIELDS}

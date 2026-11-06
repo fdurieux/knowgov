@@ -12,6 +12,20 @@ names that section with the version.
 
 ### Contract changes
 
+- **`held_keys`, `derived_outputs` and `document_statements`, three new read-only MCP tools, on three
+  new reads of the store port** (task-0144, doc-0020 C3, additive). The port gains `held_keys`,
+  `derived_outputs` and `artefact_assertions`, on Neo4j and rdflib, in `store.READS`, answering by id
+  (`store.by_id`).
+  - `held_keys`: every key the held scenario holds, with its count by status, its level as
+    `gate_verdict` reads that key set, the task classes requiring it (a key no class asks for, which
+    `store_status` never showed, reads `required_by: []`) and the required keys it lacks.
+  - `derived_outputs`: with `key`, every derived output built on it, any state; with `derived`, that
+    one. Each used statement reads `live`, `stale`, `superseded` (with `superseded_by`) or `rejected`.
+  - `document_statements`: the statements a document yields, by version, and the outputs built on them.
+  - One read handle per call; refused mid-run and on another subject's scenario. Listed on stdio and
+    HTTP. Schemas `held-keys`, `derived-outputs`, `document-statements`, version 1;
+    `check_mcp_server.py` holds each equal to the port's read, `check_round_trip.py` across store kinds.
+
 - **Both servers check the request's authority and origin on every request** (task-0141.03). A
   request whose Host names an authority the server does not answer for gets 421, and a malformed or
   repeated Host 400. An Origin that is not one of the server's own gets 403, `null` included, on
