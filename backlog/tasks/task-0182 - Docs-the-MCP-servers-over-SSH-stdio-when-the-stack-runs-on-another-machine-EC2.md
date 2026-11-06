@@ -3,11 +3,11 @@ id: TASK-0182
 title: >-
   Docs: the MCP servers over SSH stdio when the stack runs on another machine
   (EC2)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-06T17:01:00Z'
-updated_date: '2026-11-06T17:10:00Z'
+updated_date: '2026-11-06T17:31:00Z'
 labels:
   - docs
   - mcp
@@ -44,7 +44,7 @@ The route: stdio over SSH. The client starts `ssh -T <alias> docker compose -f k
 - [x] #2 demo/README.md's EC2 section links the new section
 - [x] #3 tests/test_mcp_server.py holds the section: its commands' flags, its Desktop JSON and the check's JSON-RPC lines; python tests/run_tests.py passes
 - [x] #4 CHANGELOG.md has a line under Unreleased > Changes (docs)
-- [ ] #5 Verified from the maintainer's Mac against the EC2 instance: store_status answers and list_subjects lists both subjects, in Claude Desktop and in Claude Code
+- [x] #5 Verified from the maintainer's Mac against the EC2 instance: store_status answers and list_subjects lists both subjects, in Claude Desktop and in Claude Code
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -57,4 +57,12 @@ The route: stdio over SSH. The client starts `ssh -T <alias> docker compose -f k
 
 <!-- SECTION:NOTES:BEGIN -->
 Section at the end of instance/README.md's 'Letting an AI assistant ask the gate'; a pointer from the Claude Code paragraph; demo/README step 5 links it. Guard: tests/test_mcp_server.py test_the_remote_section_runs_the_local_command_over_ssh (both clients' entries are the local exec behind ssh -T <alias>, no token, no -L) and test_the_remote_sections_check_answers_over_stdio (the check's JSON-RPC lines fed to the server on stdin get the greeting and both subjects); the flag guard learnt 'claude mcp remove -s'. AC5 waits on the maintainer's check from the Mac.
+
+Verified 2026-11-06 from the maintainer's Mac against the EC2 instance (t3.large, Ubuntu 24.04, stack bound to 127.0.0.1). Claude Code: claude mcp list shows knowgov and knowgov-runs Connected over ssh -T knowgov-ec2. Claude Desktop: after its own config was replaced (it still ran the local /usr/local/bin/docker entry, log: service "app" is not running), the log shows /usr/bin/ssh, initialize, tools/list and prompts/list answered. store_status answered from the live Neo4j store: cargo_quote, S4, loaded 12:55 UTC, jef_data_load with nothing loaded. list_subjects listed cargo_quote (S1-S7) and jef_data_load (C, D1-D5). The tool answers were shown in one client's transcript; Claude Code connected through the same command. The one difference from the first draft, Claude Desktop's config being separate from claude mcp add, went into the troubleshooting list (f96e689).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+With the stack moved to EC2, both MCP servers start over SSH stdio: the local docker compose exec command behind ssh -T <alias>. No port, no token, KG_BIND unchanged. instance/README.md has a new section, 'The MCP servers when the stack runs on another machine' (SSH prerequisites, Claude Code and Claude Desktop entries for knowgov and knowgov-runs, a check from the terminal, troubleshooting), and demo/README's EC2 route links it. tests/test_mcp_server.py holds both clients' entries and runs the check's JSON-RPC against the server; the run passes 644/668 with 24 skipped and 0 failed. The maintainer verified it from the Mac: store_status and list_subjects answer from the instance. Streamable HTTP behind an -L tunnel with KG_MCP_TOKEN stays an undocumented fallback.
+<!-- SECTION:FINAL_SUMMARY:END -->
