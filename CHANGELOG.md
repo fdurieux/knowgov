@@ -206,6 +206,25 @@ names that section with the version.
 
 ### Changes
 
+- **A model call whose prompt the endpoint cut is marked, never scored** (task-0185, doc-0023). A model
+  server with a short context, such as Ollama at its defaults (4,096 tokens), can drop most of a long prompt
+  and still answer, with HTTP 200. The OpenAI API has no field for the context length, so knowgov cannot set
+  it; only the server can (`OLLAMA_CONTEXT_LENGTH` for Ollama). An Arms call, or a turn of an agent run, whose
+  reported prompt tokens are too few for the characters sent (more than 10 characters per token, on a prompt of
+  4,000 characters or more) is now recorded as a failed cell with a `prompt_cut` field and the reason. Its reply
+  is not graded, and the page's run table shows *prompt cut*. Before, the reply was graded as if the model had
+  read the whole prompt.
+
+- **A model reply sent as a list of parts is read as its text** (task-0186, doc-0023). Mistral documents that
+  at a high reasoning effort it sends the reply as a list, a thinking part and then the text. Such a reply
+  stopped an Arms call or an agent run with an error. The text parts are now joined and the thinking is
+  dropped. Replies sent as plain text read as before. Not yet tried against Mistral's own API.
+
+- **Only a temporary failure of a model call is retried** (task-0187, doc-0023). An Arms call used to retry any
+  error three times, waiting 5, 10 and 15 seconds: a request the endpoint refuses, such as an effort the model
+  does not accept, took 30 seconds to report. Now a 429, a 5xx, a dropped or timed-out connection, or a reply
+  that ended early is retried with the same waits, and any other error is reported at once.
+
 - **One clock: every lapse is decided on the gate's date** (task-0198, doc-0030 F4: H3, G4, G10, M8;
   decision-0005 points 3 and 5).
   - **A person's approval.** Before, its six-month lapse was decided when the store was loaded, against

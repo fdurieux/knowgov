@@ -212,7 +212,7 @@ def openai_responder(model: str | None = None):
                 continue
             delta = chunk.choices[0].delta
             if delta and delta.content:
-                parts.append(delta.content)
+                parts.append(arms.text_of(delta.content))   # a list of parts gives its text, the thinking dropped (task-0186)
             for tc in (delta.tool_calls or []) if delta else []:
                 # a call's pieces share its index (OpenAI) or arrive whole with no index (Gemini, which
                 # streams parallel calls under index None); a new id under the same key starts a new call
@@ -241,6 +241,19 @@ def openai_responder(model: str | None = None):
     return respond
 
 
+def sent_chars(messages: list[dict], tools: list[dict]) -> int:
+    """The characters a turn sends: every message's text, every tool call's name and arguments, and the
+    tool definitions, which the endpoint counts in the prompt too (task-0185)."""
+    n = len(json.dumps(tools, ensure_ascii=False)) if tools else 0
+    for m in messages:
+        c = m.get("content")
+        n += len(c) if isinstance(c, str) else 0
+        for tc in m.get("tool_calls") or []:
+            fn = tc.get("function") or {}
+            n += len(fn.get("name") or "") + len(fn.get("arguments") or "")
+    return n
+
+
 def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str, responder=None, limits: dict | None = None,
         readers: dict | None = None) -> dict:
     """The loop. ``read_text(path)`` serves read_document; ``feedback(sandbox_root, feature)`` serves
@@ -264,6 +277,7 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
     final: dict | None = None
     stopped_by: str | None = None
     nudges = 0
+    prompt_cut: dict | None = None   # task-0185: the mark of a turn the endpoint read short
     while final is None:
         elapsed = round(time.monotonic() - t0, 1)
         if tot["calls"] >= lim["calls"]:
@@ -297,6 +311,14 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
         trace.append({"turn": len(trace) + 1, "kind": "model", "tool_calls": [c["name"] for c in calls], "text": _clip(r.get("content") or "", 300),
                       "prompt_tokens": u.get("prompt_tokens", 0), "cached_tokens": u.get("cached_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
                       "hidden_tokens": u.get("hidden_tokens", 0) or 0, "seconds": r.get("seconds", 0), "at": round(time.monotonic() - t0, 1)})
+        # task-0185: a turn the endpoint read short (a server's context cut the conversation) ends the run
+        # before its reply is acted on; every responder is guarded, the default one included
+        cut = arms.prompt_cut(sent_chars(messages, tools), u)
+        if cut:
+            prompt_cut = cut
+            stopped_by = cut["why"]
+            trace.append({"turn": len(trace) + 1, "kind": "error", "text": cut["why"], "at": round(time.monotonic() - t0, 1)})
+            break
         if not calls:
             parsed = None
             try:
@@ -361,4 +383,4 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
         final_reply = final
     return {"parsed": final_reply, "finished": final is not None, "stopped_by": stopped_by, "trace": trace,
             "totals": {**tot, "seconds": round(time.monotonic() - t0, 1), "turns": len(trace)},
-            "files": box.files(), "ceiling": lim, "consulted": consulted}
+            "files": box.files(), "ceiling": lim, "consulted": consulted, "prompt_cut": prompt_cut}
