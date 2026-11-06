@@ -11,10 +11,10 @@
 # is copied into the image. The page lists the subjects under the same folder, instance/subjects/,
 # and none of the public ones (task-0032.02); KG_SUBJECT=/instance/subjects/<id> picks the one it
 # opens on. Each joins the register through its own register_map.toml.
-# Until task-0141.05 (X1) contains it, code a model writes would run in the app container beside the
-# mounted instance, with its environment: every arms run refuses while this overlay is in use
-# (task-0141.07). Do not set a model key here. KG_ALLOW_UNCONTAINED_EXECUTION=1 lifts the refusal
-# and accepts that risk; it is not containment.
+# Code a model writes runs in the contained worker (task-0141.05), which sees only the public subjects
+# that ship in the image, not this instance: every arms run refuses while this overlay is in use
+# (task-0141.07). Do not set a model key here. KG_ALLOW_UNCONTAINED_EXECUTION=1 runs it on the host
+# beside the instance, uncontained, and accepts that risk.
 # The layout, the check (tools/check_instance.py) and a public example (tools/example_instance.py)
 # are in instance/README.md (task-0006).
 services:

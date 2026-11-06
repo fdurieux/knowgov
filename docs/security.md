@@ -187,17 +187,32 @@ run's own folder and run the subject's test suite there. That executes model-wri
 the run folder, on the machine running the arm. It is not a business action. **Practice:** run the
 arms only on a machine or container that holds nothing the run should not touch.
 
-That code is not contained yet: it runs with the process's environment (the model key and the store's
-password among it) and can read what the process can. Containment is task-0141.05 (X1). Until it lands,
-a stopgap (task-0141.07, `harness/execution_guard.py`): with an organisation's instance mounted, that is
-`KG_SUBJECT`, `KG_SUBJECTS` or `KG_REGISTER` outside the knowgov checkout (as
-`demo/docker-compose.instance.yml` sets them), every path that runs model output refuses before it runs,
-naming X1. The arms run exits 2, the page refuses to start it, and nothing is graded.
-`KG_ALLOW_UNCONTAINED_EXECUTION=1` lifts the refusal and accepts the risk; it does not contain anything.
-**Practice:** never set a model key where an organisation's data is mounted until X1. For the public demo,
-use a project key with a spending cap. Evidence: `tests/test_execution_guard.py::test_every_execution_path_refuses_before_running_model_output`,
-`tests/test_execution_guard.py::test_run_py_refuses_an_arms_run_before_the_store_or_a_model_call_and_exits_2`,
-`tests/test_execution_guard.py::test_the_page_refuses_an_arms_run_with_an_instance_mounted_and_not_without`.
+That code runs contained (task-0141.05, decision-0012). Every path that runs model output, the
+single-reply grading, the agent's feedback suite and its final grading, goes through one route,
+`harness/execution.py`, to the worker: a sibling container of the same image (`worker` in
+`demo/docker-compose.yml`) with no network, a read-only root, no capabilities, no privilege escalation,
+uid 65534, bounded memory, processes and CPU, and no secret in its environment. It sees only what ships
+in the image and a jobs folder. Its work folder is a tmpfs mounted `exec`, since the oracle runs the launchers it
+writes there; `noexec` would bound nothing, as a job can run any Python. Each job runs as its own process group with an allowlisted environment,
+resource limits, a wall time (the whole group killed and reaped at it, a process that left the group
+included), and Linux Landlock rules that let it write only beneath its own folder, so it cannot forge a
+result or the worker's attestation. At start the worker attests its confinement (only loopback, no
+secret-shaped variable, read-only root, uid 65534, no engine socket, Landlock) and refuses to serve when
+any check fails; the app refuses a job without a fresh attestation, and reads the result as untrusted
+data, capped and checked against its shape. Without a worker nothing runs: there is no fall back to
+the host. The only escape is `KG_ALLOW_UNCONTAINED_EXECUTION=1`, which runs the code on the host,
+uncontained, as before. With an organisation's instance mounted, the interim guard (task-0141.07,
+`harness/execution_guard.py`) still refuses first: the worker sees only the public subjects. Supported:
+Linux with Landlock (kernel 5.13 or later, enabled) and a container engine that runs the compose
+service; elsewhere the worker refuses to serve and model output does not run. Evidence:
+`tests/test_execution.py::test_exec_07_no_backend_refuses_and_never_falls_back_to_the_host`,
+`tests/test_execution.py::test_exec_07_an_absent_stale_loosened_or_malformed_attestation_refuses_the_job`,
+`tests/test_execution.py::test_a_job_cannot_write_the_jobs_folder_so_it_cannot_forge_a_result_or_the_attestation`,
+`tests/test_execution.py::test_exec_04_a_symlink_at_any_step_of_an_agent_write_is_refused_and_the_target_untouched`,
+`tests/test_execution.py::test_exec_08_a_stalled_or_trickling_stream_stops_at_the_monotonic_deadline`; on the real
+container, `tools/check_worker.py` in `demo.yml` (EXEC-01 to EXEC-09, and a loosened worker refusing).
+**Practice:** for the public demo, use a project key with a spending cap; keep the worker service as
+compose defines it, since loosening it makes it refuse.
 
 Evidence per row:
 

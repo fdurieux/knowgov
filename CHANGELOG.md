@@ -10,6 +10,27 @@ names that section with the version.
 
 ## Unreleased
 
+### Contract changes
+
+- **Model-written code runs in a contained worker, or not at all** (task-0141.05, decision-0012). The
+  arms' single-reply grading, the agent's feedback suite and its final grading go through
+  `harness/execution.py` to the `worker` service, a sibling container of the same image with:
+  - no network and a read-only root;
+  - no capabilities and no privilege escalation, as uid 65534;
+  - bounded memory, processes and CPU, and no secret in its environment.
+
+  Each job runs as a killed-whole process group with an allowlisted environment and resource
+  limits. Landlock lets it write only to its own folder. The worker attests its confinement and
+  refuses to serve when a check fails; the app refuses a job without a fresh attestation, and reads
+  results as untrusted, capped data. The agent's sandbox writes refuse symlinks at any step. One
+  monotonic deadline bounds a run, the model's stream included, with an idle limit
+  (`KG_AGENT_IDLE_SECONDS`, 120 s). Compatibility: without a worker (`KG_WORKER_JOBS`), an arms run
+  refuses (exit 2; the page answers 400) instead of running on the host. `KG_ALLOW_UNCONTAINED_EXECUTION=1`
+  is the only escape. The published 0.7.0 image predates the worker, so arms run only from an image
+  that carries it. Limits: `KG_WORKER_MEMORY`, `KG_WORKER_PROCESSES`, `KG_WORKER_FILE_BYTES`,
+  `KG_WORKER_MAX_JOB_SECONDS` and `KG_WORKER_JOB_SECONDS`, and compose's `KG_WORKER_MEM` and
+  `KG_WORKER_CPUS`.
+
 ### Changes
 
 - **The owner's questionnaire names who closes a declared gap** (task-0113, after task-0110). An item

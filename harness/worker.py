@@ -1,0 +1,354 @@
+"""The contained worker (task-0141.05, X1; decision-0012): runs model output for the app, inside a sibling
+container of the same image that has no network, a read-only root, no capabilities, uid 65534, bounded
+memory, processes and CPU, and no secret in its environment (demo/docker-compose.yml, service worker).
+
+    python harness/worker.py [--jobs DIR] [--attest-only]
+
+At start it attests its own confinement and refuses to serve when any check fails: only the loopback
+interface, no secret-shaped variable in its environment, a read-only root filesystem, uid 65534, no
+container-engine socket. It writes the attestation to ``<jobs>/attest.json`` and refreshes its heartbeat
+there; the app (harness/execution.py) refuses a job unless the attestation holds and is fresh.
+
+Each job (``<jobs>/job-<id>/``, written by the app) runs as its own process group in a child
+(harness/worker_job.py) with an allowlisted environment, a private working folder, resource limits
+(address space, processes, file size, CPU) and a wall time; at the time, or when it ends, the whole
+group is killed and reaped. Its stdout is read up to a cap, and the result written beside the job for
+the app to read as untrusted data. Nothing here opens the network or reads the app's secrets: it has none.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
+HARNESS = Path(__file__).resolve().parent
+ROOT = HARNESS.parent
+SECRET_NAMES = re.compile(r"(^KG_.*KEY.*|.*_API_KEY$|.*PASSWORD.*|.*SECRET.*|.*_TOKEN$|^AWS_.*|^LITELLM_MASTER_KEY$)", re.I)
+SOCKETS = ("/var/run/docker.sock", "/run/docker.sock", "/run/containerd/containerd.sock", "/run/podman/podman.sock")
+OUTPUT_MAX = 1 << 20          # bytes of a job's stdout read
+JOB_MAX_SECONDS = 900.0       # the longest wall time a job may ask for, unless KG_WORKER_MAX_JOB_SECONDS says
+JOB_SPEC_MAX = 4 << 20        # bytes of job.json read (features text for the agent's feedback included)
+BEAT_S = 5.0
+
+
+# Landlock (Linux, unprivileged): the job's child may write only beneath its own folder, never the jobs
+# folder the worker answers through, so model output cannot forge a result or the attestation
+_SYS_CREATE, _SYS_ADD_RULE, _SYS_RESTRICT = 444, 445, 446
+_FS_WRITE = sum(1 << b for b in (1, 4, 5, 6, 7, 8, 9, 10, 11, 12))   # write file, remove, make char/dir/reg/sock/fifo/block/sym
+_REFER, _TRUNCATE, _SCOPE_SIGNAL = 1 << 13, 1 << 14, 1 << 1
+
+
+def landlock_abi() -> int:
+    """The kernel's Landlock ABI version, 0 when it has none (or a seccomp profile refuses it)."""
+    try:
+        import ctypes
+        libc = ctypes.CDLL(None, use_errno=True)
+        v = libc.syscall(_SYS_CREATE, None, ctypes.c_size_t(0), ctypes.c_uint32(1))
+        return max(int(v), 0)
+    except (OSError, AttributeError):
+        return 0
+
+
+def landlock_writes_only(paths: list[str]) -> None:
+    """Restrict this process and every process it starts: writes beneath ``paths`` only; reads are left
+    alone; on ABI 6 and later, no signal to a process outside this domain (the worker loop included).
+    Raises OSError when the kernel refuses, so a job never runs unconfined by mistake."""
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    abi = landlock_abi()
+    if abi < 1:
+        raise OSError("Landlock is not available")
+    handled = _FS_WRITE | (_REFER if abi >= 2 else 0) | (_TRUNCATE if abi >= 3 else 0)
+
+    class Ruleset(ctypes.Structure):
+        _fields_ = [("handled_access_fs", ctypes.c_uint64), ("handled_access_net", ctypes.c_uint64), ("scoped", ctypes.c_uint64)]
+
+    class PathBeneath(ctypes.Structure):
+        _pack_ = 1
+        _fields_ = [("allowed_access", ctypes.c_uint64), ("parent_fd", ctypes.c_int32)]
+    attr = Ruleset(handled, 0, _SCOPE_SIGNAL if abi >= 6 else 0)
+    size = ctypes.sizeof(Ruleset) if abi >= 6 else 8
+    rfd = libc.syscall(_SYS_CREATE, ctypes.byref(attr), ctypes.c_size_t(size), ctypes.c_uint32(0))
+    if rfd < 0:
+        raise OSError(ctypes.get_errno(), "landlock_create_ruleset")
+    try:
+        for p in paths:
+            fd = os.open(p, os.O_PATH | os.O_CLOEXEC)
+            try:
+                rights = handled if os.path.isdir(p) else handled & ((1 << 1) | _TRUNCATE)   # a file: write and truncate only
+                rule = PathBeneath(rights, fd)
+                if libc.syscall(_SYS_ADD_RULE, ctypes.c_int(rfd), ctypes.c_int(1), ctypes.byref(rule), ctypes.c_uint32(0)) < 0:
+                    raise OSError(ctypes.get_errno(), f"landlock_add_rule {p}")
+            finally:
+                os.close(fd)
+        if libc.prctl(38, 1, 0, 0, 0) != 0:   # PR_SET_NO_NEW_PRIVS, which Landlock requires
+            raise OSError(ctypes.get_errno(), "no_new_privs")
+        if libc.syscall(_SYS_RESTRICT, ctypes.c_int(rfd), ctypes.c_uint32(0)) < 0:
+            raise OSError(ctypes.get_errno(), "landlock_restrict_self")
+    finally:
+        os.close(rfd)
+
+
+def _num(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name) or default)
+    except ValueError:
+        return default
+
+
+def attest(env=None) -> dict:
+    """The confinement checks, each True or False, and ok when all hold (decision-0012)."""
+    env = os.environ if env is None else env
+    try:
+        ifaces = sorted(os.listdir("/sys/class/net"))
+    except OSError:
+        ifaces = None
+    try:
+        ro = bool(os.statvfs("/").f_flag & os.ST_RDONLY)
+    except OSError:
+        ro = False
+    leaked = sorted(k for k in env if SECRET_NAMES.match(k))
+    checks = {"loopback_only": ifaces == ["lo"], "no_secret_variables": not leaked, "read_only_root": ro,
+              "uid_65534": os.getuid() == 65534, "no_docker_socket": not any(os.path.exists(s) for s in SOCKETS),
+              "write_confined": landlock_abi() >= 1}
+    return {"ok": all(checks.values()), "checks": checks, "interfaces": ifaces, "secret_names": leaked,
+            "pid": os.getpid(), "heartbeat": time.time()}
+
+
+def _write_atomic(path: Path, data: dict) -> None:
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(data), encoding="utf-8")
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, path)
+
+
+def _limits(seconds: float, writable: list[str] | None = None):
+    """The child's resource limits and, with ``writable``, its Landlock domain, set before it runs (in
+    the child, after fork); a refusal there fails the job rather than run it unconfined."""
+    import resource
+    mem = int(_num("KG_WORKER_MEMORY", 4 << 30))
+    procs = int(_num("KG_WORKER_PROCESSES", 128))
+    fsize = int(_num("KG_WORKER_FILE_BYTES", 64 << 20))
+
+    def apply():
+        os.setsid()
+        resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
+        resource.setrlimit(resource.RLIMIT_NPROC, (procs, procs))
+        resource.setrlimit(resource.RLIMIT_FSIZE, (fsize, fsize))
+        cpu = int(seconds) + 5
+        resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu))
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        if writable is not None:
+            landlock_writes_only(writable)
+    return apply
+
+
+def _subreaper() -> bool:
+    """Become the reaper of every orphan a job leaves (Linux PR_SET_CHILD_SUBREAPER), so a process that
+    left the job's group with setsid is still this worker's child, and still killed after the job."""
+    try:
+        import ctypes
+        return ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) == 0
+    except (OSError, AttributeError):
+        return False
+
+
+def _children() -> set[int]:
+    me, kids = os.getpid(), set()
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            stat = Path(f"/proc/{pid}/stat").read_text()
+        except OSError:
+            continue
+        if int(stat.rsplit(")", 1)[1].split()[1]) == me:   # the ppid field, after the command name
+            kids.add(int(pid))
+    return kids
+
+
+def _group_settled(pgid: int, seconds: float = 5.0) -> bool:
+    """Wait until no process of the killed group is still running (a zombie has finished exiting, so
+    its children are already reparented to this subreaper): only then does a scan of this worker's
+    children see every escapee. False if one still runs at the bound."""
+    end = time.monotonic() + seconds
+    while True:
+        alive = False
+        for pid in os.listdir("/proc"):
+            if not pid.isdigit():
+                continue
+            try:
+                fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+            except OSError:
+                continue
+            if int(fields[2]) == pgid and fields[0] not in ("Z", "X"):   # state, then ppid, then pgrp
+                alive = True
+                break
+        if not alive:
+            return True
+        if time.monotonic() >= end:
+            return False
+        time.sleep(0.02)
+
+
+def _reap_orphans(before: set[int] = frozenset()) -> int:
+    """Kill and reap every child process this worker gained during the job (the job's escaped
+    descendants, reparented here); a child it had before the job is not the job's."""
+    killed = 0
+    for _ in range(50):
+        kids = _children() - set(before)
+        if not kids:
+            return killed
+        for pid in kids:
+            for fn in (lambda: os.killpg(pid, signal.SIGKILL), lambda: os.kill(pid, signal.SIGKILL)):
+                try:
+                    fn()
+                except OSError:
+                    pass
+            try:
+                os.waitpid(pid, 0)
+            except ChildProcessError:
+                pass
+            killed += 1
+    return killed
+
+
+def _subject_root(sid) -> Path | None:
+    """A job names its subject by id; only a subject this image ships answers (never a path)."""
+    if not isinstance(sid, str) or not re.fullmatch(r"[a-z0-9_]{1,64}", sid):
+        return None
+    root = ROOT / "subjects" / sid
+    return root if (root / "subject.toml").is_file() else None
+
+
+def run_job(jobdir: Path, workdir: Path, confine: bool = True) -> dict:
+    """One job, its result as a dict (an error or the child's answer)."""
+    try:
+        with open(jobdir / "job.json", "rb") as fh:
+            spec = json.loads(fh.read(JOB_SPEC_MAX))
+    except (OSError, ValueError) as e:
+        return {"error": f"unreadable job ({type(e).__name__})", "stage": "job"}
+    if not isinstance(spec, dict) or spec.get("kind") not in ("suite", "suite_dir", "feedback", "probe"):
+        return {"error": "unknown job kind", "stage": "job"}
+    sroot = _subject_root(spec.get("subject"))
+    if sroot is None:
+        return {"error": "the job names no subject this worker ships", "stage": "job"}
+    cap = _num("KG_WORKER_MAX_JOB_SECONDS", JOB_MAX_SECONDS)
+    try:
+        seconds = max(1.0, min(float(spec.get("seconds") or cap), cap))
+    except (TypeError, ValueError):
+        seconds = cap
+    before = _children()
+    import tempfile
+    workdir = Path(tempfile.mkdtemp(prefix="job-", dir=workdir))   # the job's own folder, the only place it may write
+    env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "LANG": "C.UTF-8", "HOME": str(workdir), "TMPDIR": str(workdir),
+           "PYTHONDONTWRITEBYTECODE": "1", "KG_SUBJECT": str(sroot), "KG_CLOCK": "pinned"}
+    proc = subprocess.Popen([sys.executable, "-I", str(HARNESS / "worker_job.py"), str(jobdir), str(workdir)],
+                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                            env=env, cwd=str(workdir), preexec_fn=_limits(seconds, [str(workdir), "/dev/null"] if confine else None),
+                            close_fds=True)
+    out = bytearray()
+    over = threading.Event()
+
+    def pump():
+        while True:
+            chunk = proc.stdout.read(65536)
+            if not chunk:
+                return
+            if len(out) < OUTPUT_MAX:
+                out.extend(chunk[:OUTPUT_MAX - len(out)])
+            else:
+                over.set()   # keep draining so the child is never blocked on a full pipe
+    t = threading.Thread(target=pump, daemon=True)
+    t.start()
+    stage = None
+    try:
+        proc.wait(timeout=seconds)
+    except subprocess.TimeoutExpired:
+        stage = "timeout"
+    finally:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)   # the whole group: a child it spawned and left goes too
+        except ProcessLookupError:
+            pass
+        proc.wait()
+        _group_settled(proc.pid)   # every killed member exited, so its escapees are this worker's children now
+        t.join(timeout=5)
+        _reap_orphans(before)   # and one that left the group, reparented here by the subreaper
+        import shutil
+        shutil.rmtree(workdir, ignore_errors=True)
+    if stage == "timeout":
+        return {"error": f"the job exceeded its {seconds:g} s", "stage": "timeout"}
+    if over.is_set():
+        return {"error": f"the job's output exceeded {OUTPUT_MAX} bytes", "stage": "output"}
+    if proc.returncode < 0:
+        return {"error": f"the job was killed by signal {-proc.returncode}", "stage": "killed"}
+    lines = [ln for ln in bytes(out).decode("utf-8", "replace").splitlines() if ln.strip()]
+    try:
+        return json.loads(lines[-1]) if lines else {"error": "the job answered nothing", "stage": "harness_error"}
+    except ValueError:
+        return {"error": "the job's answer is not JSON", "stage": "harness_error"}
+
+
+def serve(jobs: Path, workdir: Path, *, once: bool = False, attestation: dict | None = None, stop=None) -> int:
+    """Attest, then serve jobs until stopped. ``attestation`` stands in for the real checks in a test
+    on a machine that is not a confined worker (tests/test_worker.py); main() never passes one."""
+    jobs, workdir = Path(jobs), Path(workdir)
+    a = attest() if attestation is None else dict(attestation)
+    if not a["ok"]:
+        _write_atomic(jobs / "attest.json", a)
+        failed = [k for k, v in a["checks"].items() if not v]
+        print(f"worker: refusing to serve, not confined: {', '.join(failed)}", file=sys.stderr)
+        return 3
+    stop = stop or threading.Event()
+    _subreaper()
+
+    def beat():
+        while not stop.is_set():
+            _write_atomic(jobs / "attest.json", dict(attest() if attestation is None else a, heartbeat=time.time()))
+            stop.wait(BEAT_S)
+    _write_atomic(jobs / "attest.json", dict(a, heartbeat=time.time()))
+    threading.Thread(target=beat, daemon=True).start()
+    print(f"worker: confined ({', '.join(a['checks'])}), serving {jobs}", file=sys.stderr, flush=True)
+    try:
+        while not stop.is_set():
+            for jd in sorted(jobs.glob("job-*")):
+                try:
+                    os.mkdir(jd / "claimed")   # one worker takes a job, once
+                except OSError:
+                    continue
+                r = run_job(jd, workdir)
+                try:
+                    _write_atomic(jd / "result.json", r)
+                except OSError:
+                    pass   # the app gave up on it and removed the folder
+            if once:
+                return 0
+            stop.wait(0.05)
+        return 0
+    finally:
+        stop.set()
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--jobs", default=os.environ.get("KG_WORKER_JOBS", "/jobs"))
+    ap.add_argument("--work", default=os.environ.get("KG_WORKER_WORK", "/work"))
+    ap.add_argument("--attest-only", action="store_true", help="print the attestation and exit 0 when confined, else 3")
+    args = ap.parse_args(argv)
+    if args.attest_only:
+        a = attest()
+        print(json.dumps(a, indent=1))
+        return 0 if a["ok"] else 3
+    return serve(Path(args.jobs), Path(args.work))
+
+
+if __name__ == "__main__":
+    sys.exit(main())
