@@ -13,10 +13,11 @@ names that section with the version.
 ### Changes
 
 - **The hook's settings snippets read the spec commit under `design`** (task-0114, after task-0101).
-  `instance/ci/claude/settings.json` and `managed-settings.json` add `--task-for spec=design`, as the
-  pilot protocol does; the plan and the push stay `codegen`. Keep it only where every gated subject
-  declares `[tasks.design]`; elsewhere the spec commit's gate exits 2 and the mandatory hook blocks,
-  so drop the two arguments (instance README). The advisory snippet is unchanged.
+  The three snippets under `instance/ci/claude/` (repository, managed, advisory) add
+  `--task-for spec=design`, as the pilot protocol does; the plan and the push stay `codegen`. Keep it
+  only where every gated subject declares `[tasks.design]`; elsewhere the spec commit's gate exits 2,
+  which the mandatory hook blocks and the advisory one lets through, so drop the two arguments
+  (instance README).
 
 ## 0.7.0 — 2026-11-06
 

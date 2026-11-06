@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-04T14:55:00Z'
-updated_date: '2026-11-06T03:23:00Z'
+updated_date: '2026-11-06T03:28:00Z'
 labels:
   - ci
   - gate
@@ -41,10 +41,12 @@ Proposed by task-0101; chosen by the maintainer 2026-11-04. instance/ci/claude/ 
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-11-06: the advisory fail-open snippet is left as it was (the brief names the repository and managed snippets). A subject without [tasks.design]: gate_cli raises CannotRun 'no task' (exit 2), so the mandatory hook blocks at spec; the README says so. Evidence: tests/test_claude_hook.py test_the_repository_and_managed_snippets_read_the_spec_commit_under_design_and_agree (repo args gate --task codegen --task-for spec=design; managed the same plus --knowgov /opt/knowgov; the README phrases); the existing snippet tests still pass. run_tests.py 534/550 stdlib (16 skipped), 549/550 with rdflib/pyshacl pins and KG_TEST_REQUIRE=rdflib (1 skipped), 0 failed.
+
+2026-11-06, the coordinator's answer: the advisory fail-open snippet carries --task-for spec=design too (three snippets that differ invite drift; fail-open, so a subject without [tasks.design] costs it nothing). The test, renamed test_the_three_snippets_read_the_spec_commit_under_design_and_agree, holds all three to the same gate args (managed plus --knowgov, advisory plus --advisory); the README note covers all three. run_tests.py 534/550 stdlib, 549/550 pinned, 0 failed.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-The hook's repository and managed settings snippets add --task-for spec=design, so the spec commit is read under design as the pilot protocol does; plan and push stay codegen. The instance README says to keep it only where every gated subject declares [tasks.design], since without it the spec commit's gate exits 2 and the mandatory hook blocks, and to drop the two arguments otherwise. A test holds both snippets to the same arguments. The advisory snippet is unchanged. CHANGELOG Unreleased > Changes.
+The hook's three settings snippets (repository, managed, advisory) add --task-for spec=design, so the spec commit is read under design as the pilot protocol does; plan and push stay codegen. The instance README says to keep it only where every gated subject declares [tasks.design]: without it the spec commit's gate exits 2, which the mandatory hook blocks and the advisory one lets through; drop the two arguments otherwise. A test holds the three snippets to the same arguments. CHANGELOG Unreleased > Changes.
 <!-- SECTION:FINAL_SUMMARY:END -->

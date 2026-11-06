@@ -266,15 +266,16 @@ def test_the_summary_names_a_declared_gaps_closing_unit():
     assert "k|q is absent (owner ORG-0002)" in text and "  route: r; ORG-0004 closes the declared gap g" in text
 
 
-def test_the_repository_and_managed_snippets_read_the_spec_commit_under_design_and_agree():
-    """Task-0114 (after task-0101): both mandatory snippets carry --task-for spec=design, the same
-    arguments in the same order (the managed one adds only --knowgov); the README says to keep it only
-    where every gated subject declares [tasks.design], and to drop it otherwise."""
+def test_the_three_snippets_read_the_spec_commit_under_design_and_agree():
+    """Task-0114 (after task-0101): all three snippets carry --task-for spec=design, the same arguments
+    in the same order (the managed one adds only --knowgov, the advisory one only --advisory); the README
+    says to keep it only where every gated subject declares [tasks.design], and to drop it otherwise."""
     load = lambda n: json.loads((DIR / n).read_text(encoding="utf-8"))  # noqa: E731
     args = lambda s: [h for e in s["hooks"]["PreToolUse"] for h in e["hooks"]][0]["args"]  # noqa: E731
-    r, m = args(load("settings.json")), args(load("managed-settings.json"))
+    r, m, a = args(load("settings.json")), args(load("managed-settings.json")), args(load("settings.advisory-fail-open.json"))
     assert r[1:] == ["gate", "--task", "codegen", "--task-for", "spec=design"], r
     assert m[:len(r)] == r and m[len(r):] == ["--knowgov", "/opt/knowgov"], m
+    assert a[:len(r)] == r and a[len(r):] == ["--advisory"], a
     assert "spec" in hook.STAGES
     readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
     sec = readme[readme.index("## A fail-closed hook for Claude Code"):]
