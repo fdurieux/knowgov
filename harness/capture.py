@@ -11,7 +11,9 @@ TOML file per owner into DIR. An owner is the organisation unit the register nam
 the nodes a key concerns (the subject's ``register_map.toml``), or the one unit the row names as its
 ``owner`` when it names one of those (task-0043); a key no row maps goes to
 ``unassigned``. Each file lists every key of that owner that is absent, a declared gap, or below
-verified, with what the store holds on it, and the denominator: how many keys the owner has.
+verified, with what the store holds on it, and the denominator: how many keys the owner has. An
+item on a declared gap also names the unit that closes it (``closed_by``, ``capture.gap_closers``,
+the gate finding's ``closer``; task-0113), which ingest does not read.
 
 ``ingest`` checks an answered questionnaire and writes it, normalised, into the subject's capture
 folder (``[capture] dir`` in subject.toml, ``captures/`` by default). Every load reads that folder
@@ -174,6 +176,7 @@ def _q(s: str) -> str:
 def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, today: dt.date) -> dict[str, str]:
     """owner -> the questionnaire's TOML text; a key goes to its answering owner only."""
     own = answering_owners(subject, nodes)
+    closers = gap_closers(subject, {k: v.get("declared_gaps") or [] for k, v in res["keys"].items()})   # task-0113
     by_owner: dict[str, list[str]] = {}
     for key in res["keys"]:
         for o in own.get(key) or [UNASSIGNED]:
@@ -209,10 +212,17 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
             v = res["keys"][k]
             known = [f"{a['value']} ({a['status']}, {a['basis']}, {a['artefact']})" for a in v["assertions"]]
             gaps = [g["text"] for g in v["declared_gaps"]]
-            lines += ["", "[[item]]", f"key = {_q(k)}", f"level = {_q(v['level'])}",
+            c = closers.get(k)
+            lines += [""]
+            if c:   # task-0113: who closes the declared gap, as the gate's finding names it (task-0110)
+                lines.append(f"# {c['gap']} is closed by {c['unit'] + ' ' + c['name'] if c['unit'] else 'the owner its declaration names'}, "
+                             "by a review under a handle with the role closes; an answer here does not close it.")
+            lines += ["[[item]]", f"key = {_q(k)}", f"level = {_q(v['level'])}",
                       "known = [" + ", ".join(_q(x) for x in known) + "]",
-                      "declared_gaps = [" + ", ".join(_q(x) for x in gaps) + "]",
-                      f"question = {_q(question_for(k))}", 'answer = ""', "nobody_knows = false", 'note = ""']
+                      "declared_gaps = [" + ", ".join(_q(x) for x in gaps) + "]"]
+            if c:
+                lines += [f"gap = {_q(c['gap'])}", f"closed_by = {_q(c['unit'] or '')}", f"closed_by_name = {_q(c['name'])}"]
+            lines += [f"question = {_q(question_for(k))}", 'answer = ""', "nobody_knows = false", 'note = ""']
         out[owner] = "\n".join(lines) + "\n"
     return out
 
