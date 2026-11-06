@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-06T07:42:00Z'
-updated_date: '2026-11-06T09:38:00Z'
+updated_date: '2026-11-06T10:25:00Z'
 labels:
   - ci
 dependencies:
@@ -41,4 +41,11 @@ task-0159 measured the rdflib job over task-0084's 12-minute pull-request budget
 | harness wall clock | 26.9 | 15.5 (-42%) |
 Both jobs ran with 13 other workflow runs active, so this is not uncontended; no quiet slot was found. Biggest steps after: rdflib, the round trip 6.35, J-F record 2.18, the suite 2.10, SNAP 1.65, the oracle 1.23; rdflib-readers, the MCP server 6.68, the lighthouse 2.45, citations 0.97, gate 0.93, review 0.83. Neither half is yet under task-0084's 12 minutes. The readers' half should drop with task-0097's cache (#286), which takes the MCP step's parse. The record's half is led by the round trip, the record itself, which is never subset.
 AC #1: CI green; tests/test_rdflib_split.py holds every old step in exactly one job and the subsets as one workflow-level value. AC #3: 'rdflib-readers' given to the coordinator for the maintainer's ruleset; CLAUDE.md's CI paragraph names both jobs. AC #2 left open: it asks for the figures after task-0097 on an uncontended runner; the figures above are before it and under load.
+
+2026-11-06 re-measure with the split and task-0097's cache (#286, on main since 38ac517), PR runs from the GitHub API; 'overlapping' counts this repository's other workflow runs active during the job:
+| head | rdflib | rdflib-readers | overlapping runs |
+|---|---|---|---|
+| b590f9d (#292) | 8.4 min | 12.5 min | 21 |
+| 6bab643 (#292, main merged in) | 13.2 min | 13.9 min | 19 |
+The third run, this closing PR's own, follows.
 <!-- SECTION:NOTES:END -->
