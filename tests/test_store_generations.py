@@ -2,7 +2,7 @@
 checks after every read that the generation it pinned is still the published one and refuses
 (StoreChanged) when it is not; ``store.read`` and the MCP server run the logical read again on a fresh
 handle; a file-backed writer whose lock file was replaced publishes nothing (StoreFenced); the Neo4j
-adapter keeps its publication node out of everything that reads the evidence. SNAP-01 to SNAP-07 on a
+adapter keeps its publication node out of everything that reads the evidence. SNAP-01 to SNAP-08 on a
 real store are ``tools/check_snapshots.py``, run by both workflows."""
 from __future__ import annotations
 
@@ -169,6 +169,31 @@ def test_both_workflows_run_the_snapshot_checks_on_a_real_store():
     assert "docker compose exec -T app python tools/check_snapshots.py --disposable --no-round-trip" in demo
     # SNAP-07's round trips on Neo4j are the stack job's own steps, which must stay
     assert "check_round_trip.py --chain neo4j,rdflib,neo4j" in demo and "--expect-parts" in demo and "--expect-preload" in demo
+
+
+def test_a_reader_clears_an_abandoned_publication_only_under_the_lock_and_once_the_lease_ran_out():
+    """task-0175: the reader's clearing takes the publication node's write lock before it reads, acts
+    only while begin is above end and no live lease holds the node (so a writer that took the lease
+    first, and closed the gap itself, makes it a no-op), closes at the last committed generation, frees
+    the lease, moves the epoch past the abandoning writer and records it; pin calls it only when the
+    lease is free or has run out, and otherwise waits and refuses as before. SNAP-08 runs both orders
+    and a race on a real store."""
+    src = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")
+    rec = src.split("    def recover(self)", 1)[1].split("\n    def ", 1)[0]
+    lock, guard = rec.index("SET p.lock_seq = coalesce(p.lock_seq, 0) + 1"), rec.index("WHERE p.begin <> p.end AND")
+    assert lock < guard, "the lock is taken before the condition is read"
+    assert "(p.owner IS NULL OR coalesce(p.expires < datetime(), true))" in rec
+    for part in ("p.begin = p.end", "p.owner = null", "p.epoch = p.epoch + 1", "p.abandoned_owner = owner", "p.abandoned_epoch = epoch"):
+        assert part in rec, part
+    assert "self.meta(clear)" in rec, "one managed write transaction"
+    pin = src.split("    def pin(self", 1)[1].split("\n    def ", 1)[0]
+    assert pin.index('if st["owner"] is None or st["expired"]:') < pin.index("self.recover()") < pin.index("if time.monotonic() >= deadline:")
+    assert "live lease" in pin and "abandoned" in pin
+    # the writer's acquisition takes the same lock and closes a stale gap itself
+    acq = src.split("    def acquire(self", 1)[1].split("\n    def ", 1)[0]
+    assert "SET p.lock_seq = coalesce(p.lock_seq, 0) + 1" in acq and "p.end = p.begin" in acq
+    snaps = (ROOT / "tools" / "check_snapshots.py").read_text(encoding="utf-8")
+    assert "def snap_08(" in snaps and "snap_08(s1, s2, g1)" in snaps and "(writer first)" in snaps and "(race)" in snaps
 
 
 class _Moving(_Inner):

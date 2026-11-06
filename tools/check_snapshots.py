@@ -1,4 +1,4 @@
-"""Store generations, proven on a real store (task-0141.06, decision-0014): SNAP-01..SNAP-07.
+"""Store generations, proven on a real store (task-0141.06, decision-0014): SNAP-01..SNAP-08.
 
     python tools/check_snapshots.py --disposable                 # KG_STORE=neo4j: the database it names
     KG_STORE=rdflib python tools/check_snapshots.py --disposable  # a file-backed store in a temporary folder
@@ -25,6 +25,11 @@ read together: the held scenario, the census, the register's census and the gate
            left running by a restart is reconciled
   SNAP-07  the round trip through the other adapter, S6 with its later version and re-verification,
            holds every answer, and the publication metadata never reaches the exported Turtle
+  SNAP-08  a writer killed between raising the counter and committing (rdflib: in its atomic replace),
+           task-0175: while its lease is live a read waits, then refuses; once the lease has run out a
+           read answers the last committed generation with no new writer, the reader having cleared
+           the begin under the sequence lock and recorded the abandoning writer; the clearing and a
+           writer taking the lease, in either order or racing, never both act and never lose the writer
 
 Exit 0 when every check holds, 1 otherwise. No model is called; the clock is pinned.
 """
@@ -231,8 +236,9 @@ def snap_03(s1: str, s2: str, g1: dict) -> None:
         p = subprocess.run([sys.executable, "-c", code2], env={**os.environ, "KG_NEO4J_LEASE_SECONDS": "3"}, capture_output=True, text=True, timeout=600)
         check(p.returncode == 9, f"SNAP-03 a writer killed mid-publication (exit {p.returncode}) {p.stderr[-200:]}")
         import store
-        try:
-            store.read(snapshot, instance=_sid(), attempts=1)
+        try:   # at once, while the dead writer's lease is live (once it runs out a reader clears it: SNAP-08)
+            with _env(KG_NEO4J_READ_WAIT="0"):
+                store.read(snapshot, instance=_sid(), attempts=1)
             check(False, "SNAP-03 a read while a publication is interrupted is refused (StoreBusy), never a mixed graph")
         except store.StoreBusy:
             check(True, "SNAP-03 a read while a publication is interrupted is refused (StoreBusy), never a mixed graph")
@@ -240,6 +246,148 @@ def snap_03(s1: str, s2: str, g1: dict) -> None:
         with opener("write"):   # the next writer recovers at acquisition, publishing nothing
             pass
         check(read_now() == g1, "SNAP-03 once the next writer has recovered, the previous generation is read")
+
+
+class _env:
+    """Environment variables set for the block, then restored."""
+    def __init__(self, **kw):
+        self.kw = kw
+
+    def __enter__(self):
+        self.old = {k: os.environ.get(k) for k in self.kw}
+        os.environ.update(self.kw)
+
+    def __exit__(self, *exc):
+        for k, v in self.old.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+
+LEASE_08 = 4.0   # the killed writer's lease in SNAP-08, seconds
+
+
+def _abandon(s2: str) -> int:
+    """A writer process that loads ``s2`` and dies between raising the counter and committing (rdflib:
+    inside its atomic replace); returns its exit code, 9 when it died there."""
+    code = (f"import os, sys; sys.path[:0] = [{str(ROOT / 'harness')!r}, {str(ROOT / 'tools')!r}]\n"
+            "import check_snapshots as c, store_neo4j, store_rdflib\n"
+            "store_neo4j._on_publish = lambda w: os._exit(9)\n"
+            "store_rdflib._replace = lambda *a, **k: os._exit(9)\n"
+            "st = c.opener('write')\n"
+            f"c.load(st, {s2!r})\n"
+            "st.commit()\n"
+            "os._exit(3)   # it published: not the case this sets up\n")
+    p = subprocess.run([sys.executable, "-c", code], env={**os.environ, "KG_NEO4J_LEASE_SECONDS": f"{LEASE_08:g}"},
+                       capture_output=True, text=True, timeout=600)
+    if p.returncode != 9:
+        print(p.stderr[-400:], file=sys.stderr)
+    return p.returncode
+
+
+def _unit(handle):
+    """A Neo4j handle's publication unit, through the read view."""
+    return getattr(handle, "_inner", handle)._pub
+
+
+def _pub() -> dict:
+    """The publication node as it stands (Neo4j), read with the driver alone: a read handle would pin,
+    and pinning is what is under test."""
+    import store_neo4j
+    return store_neo4j.publication()
+
+
+def snap_08(s1: str, s2: str, g1: dict) -> None:
+    import store
+    publish(s1)
+    t0 = time.monotonic()
+    check(_abandon(s2) == 9, "SNAP-08 a writer died between raising the counter and committing")
+    if kind() == "rdflib":   # the lock dies with the process and the replace never ran: nothing to clear
+        check(read_now() == g1, "SNAP-08 on rdflib, a read with no new writer answers the last committed generation")
+        return
+    before = _pub()
+    check(before.get("begin") != before.get("end") and before.get("owner"),
+          f"SNAP-08 the counter is left raised under the dead writer's lease: begin {before.get('begin')}, end {before.get('end')}")
+    # AC 2: while the lease is live, a read waits KG_NEO4J_READ_WAIT and then refuses, as before
+    wait = 1.0
+    w0 = time.monotonic()
+    try:
+        with _env(KG_NEO4J_READ_WAIT=f"{wait:g}"):
+            store.read(snapshot, instance=_sid(), attempts=1)
+        check(False, "SNAP-08 while the lease is live a read waits, then refuses (StoreBusy)")
+    except store.StoreBusy as e:
+        took = time.monotonic() - w0
+        live = time.monotonic() - t0 < LEASE_08
+        check(live and took >= wait * 0.9 and "live lease" in str(e),
+              f"SNAP-08 while the lease is live a read waits {took:.1f} s, then refuses (StoreBusy): {str(e)[:120]}")
+    check(_pub().get("begin") != _pub().get("end"), "SNAP-08 the refused read cleared nothing while the lease was live")
+    # AC 1: once the lease has run out, a read answers the last committed generation, no writer opened
+    time.sleep(max(0.0, LEASE_08 + 0.5 - (time.monotonic() - t0)))
+    with opener("read") as rd:
+        cleared = _unit(rd).recovered
+    after = _pub()
+    check(read_now() == g1, "SNAP-08 once the lease has run out, a read with no new writer answers the last committed generation")
+    check(cleared is not None and cleared.get("epoch") == before.get("epoch") and cleared.get("owner") == before.get("owner"),
+          f"SNAP-08 the reader cleared the abandoned begin and names the abandoning writer: {cleared}")
+    check(after.get("begin") == after.get("end") == before.get("end") and after.get("owner") is None
+          and after.get("epoch") == before.get("epoch") + 1 and after.get("abandoned_epoch") == before.get("epoch"),
+          f"SNAP-08 the generation is the last committed one, the lease free and the epoch moved past the abandoning writer: {after}")
+    check(publish(s1) == g1, "SNAP-08 the next writer then takes the free lease and publishes")
+    _snap_08_orders(s1, s2, g1)
+
+
+def _snap_08_orders(s1: str, s2: str, g1: dict) -> None:
+    """AC 3: the reader's clearing and a writer taking the lease, in both orders and racing."""
+    # a writer first: its acquisition closes the gap; a reader's clearing then finds nothing and the writer keeps its lease
+    t0 = time.monotonic()
+    check(_abandon(s2) == 9, "SNAP-08 (writer first) another writer died mid-publication")
+    time.sleep(max(0.0, LEASE_08 + 0.5 - (time.monotonic() - t0)))
+    with opener("write") as w:
+        token = w._pub.token
+        with opener("read") as rd:
+            found = _unit(rd).recover()
+            snap = snapshot(rd)
+        p = _pub()
+        check(found is None and p.get("owner") == token and p.get("begin") == p.get("end"),
+              f"SNAP-08 (writer first) a reader's clearing finds nothing and leaves the writer's lease: {found} {p.get('owner') == token}")
+        check(snap == g1, "SNAP-08 (writer first) the reader answers the last committed generation beside the writer")
+        load(w, s1)
+    check(read_now() == g1, "SNAP-08 (writer first) the writer publishes after the reader")
+    # racing: readers pinning while a writer acquires, after an abandoned publication
+    t0 = time.monotonic()
+    check(_abandon(s2) == 9, "SNAP-08 (race) another writer died mid-publication")
+    time.sleep(max(0.0, LEASE_08 + 0.5 - (time.monotonic() - t0)))
+    barrier = threading.Barrier(5)
+    reads, cleared, errs, wrote = [], [], [], []
+
+    def reader():
+        barrier.wait()
+        try:
+            with opener("read") as rd:
+                if _unit(rd).recovered is not None:
+                    cleared.append(_unit(rd).recovered)
+                reads.append(snapshot(rd))
+        except Exception as e:  # noqa: BLE001
+            errs.append(f"{type(e).__name__}: {e}")
+
+    def writer():
+        barrier.wait()
+        try:
+            with opener("write") as w:
+                load(w, s1)
+            wrote.append(True)
+        except Exception as e:  # noqa: BLE001
+            errs.append(f"writer {type(e).__name__}: {e}")
+    ts = [threading.Thread(target=reader) for _ in range(4)] + [threading.Thread(target=writer)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join(600)
+    real = [e for e in errs if "StoreChanged" not in e]   # a reader the writer's publication overtook is refused, never mixed
+    check(wrote and not real, f"SNAP-08 (race) the writer published and every reader answered or was refused cleanly: {real[:2]}")
+    check(all(r == g1 for r in reads), f"SNAP-08 (race) every reader answered the last committed generation: {len(reads)} reads")
+    check(len(cleared) <= 1, f"SNAP-08 (race) at most one party cleared the abandoned begin: {len(cleared)} readers did")
+    p = _pub()
+    check(p.get("begin") == p.get("end") and p.get("owner") is None and read_now() == g1,
+          f"SNAP-08 (race) the end state is one published generation and a free lease: {p.get('begin')}, {p.get('end')}")
 
 
 def snap_04(s1: str, s2: str, states: set) -> None:
@@ -486,6 +634,7 @@ def main() -> int:
     snap_05(s1, s2, g1, g2)
     snap_06(s1, s2, g1, g2)
     snap_07(round_trip=not args.no_round_trip)
+    snap_08(s1, s2, g1)
     print(f"snapshots ({kind()}): " + ("every check holds" if not FAILURES else f"{len(FAILURES)} failure(s)"))
     if tmp:
         tmp.cleanup()
