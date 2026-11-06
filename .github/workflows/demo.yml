@@ -233,6 +233,19 @@ jobs:
           test "$s2 $s2b $s1 $s1n $s2n" = "1 0 0 0 2"
           python3 -c 'import json; r=json.load(open("gate.json")); assert r["store"]=="neo4j" and r["verdict"]=="PROCEED" and r["exit_code"]==0, r; print("gate on neo4j:", r["verdict"])'
 
+      - name: "The contained worker (task-0141.05, decision-0012): EXEC-01 to EXEC-09 on the real worker container, and a loosened worker, network on or a key in its environment, refuses to serve"
+        run: |
+          docker compose exec -T app python tools/check_worker.py
+          set +e
+          docker run --rm --user 65534:65534 --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            knowgov:local python harness/worker.py --attest-only > ../loose-net.json; net=$?
+          docker run --rm --network none --user 65534:65534 --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            -e OPENAI_API_KEY=not-a-key knowgov:local python harness/worker.py --attest-only > ../loose-key.json; key=$?
+          set -e
+          echo "network on: exit $net; a key in its environment: exit $key"
+          test "$net $key" = "3 3"
+          python3 -c 'import json; n=json.load(open("../loose-net.json")); k=json.load(open("../loose-key.json")); assert not n["checks"]["loopback_only"] and not k["checks"]["no_secret_variables"] and k["secret_names"]==["OPENAI_API_KEY"], (n["checks"], k["checks"]); print("loosened workers refuse:", [c for c,v in n["checks"].items() if not v], [c for c,v in k["checks"].items() if not v])'
+
       - name: The MCP server (task-0056) on the Neo4j store gives gate_cli's report and the record's three-valued answers, S6 after its change names superseded_by as the record does (task-0071), and writes nothing
         run: docker compose exec -T app python tools/check_mcp_server.py --scenarios S1,S2,S6
 

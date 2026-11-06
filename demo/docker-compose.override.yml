@@ -10,3 +10,8 @@ services:
     image: knowgov:local
     volumes:
       - ../runs:/repo/runs
+  worker:   # the same local image as the app (task-0141.05)
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile
+    image: knowgov:local

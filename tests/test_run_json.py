@@ -127,7 +127,14 @@ def test_run_json_carries_no_secret():
     server.models.resolve = lambda *a: (row, env, True)
     os.environ.update({key_var: key, "KG_PAGE_TOKEN": token})
     try:
-        with tempfile.TemporaryDirectory() as td:
+        with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as jobs:
+            # an arms run starts only with a confined worker attested (task-0141.05): one stands in here,
+            # the process being stubbed, so nothing runs
+            import time
+            import execution
+            (Path(jobs) / "attest.json").write_text(json.dumps({"ok": True, "heartbeat": time.time(),
+                                                                 "checks": {c: True for c in execution.ATTEST_CHECKS}}))
+            os.environ["KG_WORKER_JOBS"] = jobs
             rec, seen, _ = _run(Path(td), mode="arms", row="test-row")
             assert seen["env"].get(key_var) == key, "the process still gets the key through its environment"
             texts = [json.dumps(seen["at_start"]), (_folder(Path(td)) / "run.json").read_text(encoding="utf-8")]
