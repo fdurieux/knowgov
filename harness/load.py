@@ -59,6 +59,18 @@ def resolve_symbols(bags, symbols: dict[str, str]) -> list[dict]:
     return unresolved
 
 
+def part_digests(path: str, text: str, subject=None) -> dict[str, str]:
+    """Each file of a directory artefact as the scenario's kit holds it, by relative path (task-0094):
+    the SHA-256 of the file's raw bytes on disk when the kit's part is the file as bundled, unplanted
+    (task-0098: the bundle adds a newline a file lacks and reads text, so its part is not the bytes the
+    register digests); a part a plant changed has no bytes on disk, so its digest is its text's."""
+    subject = subject or SUBJECT
+    raw = subject.raw_part_digests(path)
+    on_disk = dict(bundle_parts(subject.artefact_text(path))) if raw else {}
+    return {rel: raw[rel] if rel in raw and on_disk.get(rel) == part else sha256(part)
+            for rel, part in bundle_parts(text) if rel}
+
+
 def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
                   version_tag: str = "v1", reingest: bool = False) -> dict:
     """Write artefacts, versions, fragments, entities, assertions and the
@@ -77,7 +89,7 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
         family, fmt = FAMILY[path]
         st.upsert_artefact_version(path, family, fmt, f"V:{path}:{version_tag}", sha256(text), len(text.encode()), ts, version_tag, aid)
         if path.endswith("/"):   # a directory artefact: its digest is the bundle's, so each file's is kept too (task-0094)
-            st.record_part_digests(f"V:{path}:{version_tag}", {rel: sha256(part) for rel, part in bundle_parts(text) if rel})
+            st.record_part_digests(f"V:{path}:{version_tag}", part_digests(path, text))
     preload = _record_preload(st, kit, version_tag)
     for bag in bags:
         art = next(p for p in kit if p in FAMILY and bag.artefact == short(p))
