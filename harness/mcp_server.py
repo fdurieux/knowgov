@@ -229,7 +229,10 @@ TOOLS.append(
                     "the newest landed export, authored), D3 (the same name as an approved node of the same kind, its links "
                     "offered, inferred; 'same step as JRN-...'), D4 (a pool of processes for an unsupported step, none "
                     "chosen), each with status proposed only; coverage C1-C3 before and after with denominators and the "
-                    "new gaps; the reach from every reused node before and after; what each new node rests on; each "
+                    "new gaps; the reach from every reused node before and after; what each new node rests on; the slice "
+                    "map, one vertical slice per journey step (per delivering process for a product no journey concerns) "
+                    "by the register's thread walk, every overlay element in one slice or a named remainder, with the "
+                    "denominator, facts only; each "
                     "reused node's keys as register_impact reads them (with a scenario held, their levels under the task "
                     "class on the same as_of); the new nodes left unmapped (never unknown); the approvals per owning unit. "
                     "Every overlay element is hypothetical; nothing is written to the register or the store.",
