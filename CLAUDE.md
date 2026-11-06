@@ -99,6 +99,11 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   `backlog/docs/` the briefs. Both are written through the `backlog` CLI,
   never by hand, so ids and metadata stay consistent. The maintainer's
   artifact pages quote them: they are views, never the record.
+- Every decision carries four parts, whoever drafts it and whatever its status (maintainer,
+  2026-11-06): an opportunity canvas, a fit/gap against what it must satisfy, a SWOT, and
+  advice, meaning a recommendation and its reasons. A proposed decision's advice is the drafter's
+  recommendation to the maintainer; a decision taken under a delegation states it as the reason
+  it was taken. An amendment that changes what a decision chooses carries the four parts too.
 - pumllint's ROADMAP records what concerns pumllint (the move, its trigger);
   ieam-register's `decisions/` records the register's. One record per thing.
 - The CargoQuote subject and the proof-of-concept record stay in pumllint and

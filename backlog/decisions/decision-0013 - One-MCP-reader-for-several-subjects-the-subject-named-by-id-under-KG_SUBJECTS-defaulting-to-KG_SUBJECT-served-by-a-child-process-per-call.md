@@ -4,7 +4,7 @@ title: >-
   One MCP reader for several subjects: the subject named by id under
   KG_SUBJECTS, defaulting to KG_SUBJECT, served by a child process per call
 date: '2026-11-06T04:53:00Z'
-status: proposed
+status: accepted
 ---
 ## Context
 
@@ -79,3 +79,39 @@ Proposed; the maintainer decides.
 - instance/README's "one subject per process" note changes.
 - `check_mcp_server.py` must hold a call routed to another subject equal to a server started on it.
 - The spike branch is deleted by the owner once this is taken.
+
+## Acceptance (2026-11-06)
+
+Accepted by the maintainer on 2026-11-06, with amendment A1: "approve decision-0013 with amendment A1". Before approving, the maintainer asked for a SWOT and an opportunity canvas on the shared-store gap; both are below, and A1 is what they recommended.
+
+### The gap, as checked at `main` `43ee83f`
+
+- The store holds one scenario of one subject at a time: a load wipes it. Neo4j Community serves one database; the rdflib store is one `KG_RDFLIB_FILE`.
+- The reader already refuses another subject's scenario, another scenario of its own subject, and an empty store (`mcp_server.py` `_check_scenario`); the spike showed the same refusal in a child. The gap is one of usefulness, not of correctness: a child never answers from another subject's data.
+- The port's `instance=` is passed (`SUBJECT.id`) and stored by both adapters but read by neither. The remedy this record named in its fit/gap, "the port's `instance=`", is therefore not built.
+- About half the tools read no store (`register_nodes`, `key_nodes`, `code_path`, `document_links`, `subject_check`, `scenario_runs`, `scenario_result`) and gain full multi-subject reach at once; the store-backed ones (`gate_verdict`, `three_valued_answer`, `evidence_bundle`, `held_keys`, `derived_outputs`, `document_statements`, `store_status`; `register_impact` and `proposal_impact` for their keys' status) answer only for the held subject and scenario.
+
+### SWOT, on the gap
+
+- **Strengths:** fails closed; the register and file tools are unaffected; the limit is the one users already meet within one subject (one scenario at a time); answer-equality across stores is already proven (`check_round_trip --chain`), which makes a snapshot remedy credible.
+- **Weaknesses:** the store-backed tools serve only the subject loaded last; this record's remedy pointer (`instance=`) names a no-op; Neo4j, the default store, cannot separate subjects without a rewrite.
+- **Opportunities:** per-subject read snapshots would also lift one-scenario-at-a-time for reads; `list_subjects` can show each subject's held scenario, so a refusal becomes a next step; the pilot can measure whether the gap matters.
+- **Threats:** "one registration for every subject" read as "every answer for every subject"; load-on-demand added later to silence refusals, making the read-only reader write and readers wipe each other (S2's lease would serialise them only by refusing); a stale snapshot presented as current.
+
+### Opportunity canvas
+
+- **Problem:** with one registration an assistant can name any subject, but store-backed answers exist only for the held scenario.
+- **Who, and when:** the demo, rarely; an organisation's CI, never (each job loads its own store); an organisation's assistant sessions across two or more subjects, sometimes (the lighthouse pilot's likely setting).
+- **Today:** one registration per subject, or a load through the page or a run first.
+- **Options:** O1 an actionable refusal (small, in B7; required); O2 one rdflib file per subject (moderate; rdflib only); O3 a read-only Turtle snapshot per subject and scenario after each committed run, read by the child whatever the live store (moderate; covers both stores and lifts one-scenario-at-a-time for reads; a second read path, so its own decision); O4 subject-scoped data in one Neo4j (rewrites the Cypher and changes D1; rejected, as S2 rejected it); O5 load on demand in the child (breaks "this server never loads"; rejected); O6 one Neo4j per subject (operational weight; rejected).
+- **Measures:** at the pilot, store refusals for another subject per assistant session, and fallbacks to a second registration; for O3, answer-equality between a snapshot and the live store by the existing round-trip check.
+
+### Amendment A1
+
+1. B7 (task-0157) includes O1:
+   - every tool is classed as store-backed or not, and the class is visible to a client;
+   - a store-backed tool naming a subject whose scenario the store does not hold refuses, naming the held subject and scenario and the next step (which run to start);
+   - `list_subjects` names, for each subject, its held scenario or none.
+2. The remedy for the shared store is per-subject read snapshots (O3), not the port's `instance=`. O3 is a separate task, parked until the pilot's measure shows the need, and needs its own decision before it is built: it adds a second read path, and every answer from a snapshot must carry its generation and date.
+3. Load-on-demand in a reader (O5) is rejected: the reader never writes.
+4. The port's `instance=` is recorded as a no-op today; B7 neither relies on it nor removes it.
