@@ -26,22 +26,26 @@ on:
 permissions:
   contents: read
 
+# One value each for both jobs (task-0084; task-0163 runs the steps that read them in two jobs)
+env:
+  # task-0084: the J-F subset on a pull request, empty (every scenario) on any other event
+  KG_JF_SCENARIOS: ${{ github.event_name == 'pull_request' && 'C,D3' || '' }}
+  # CargoQuote's non-record steps (MCP, lighthouse) on a pull request: S1, S2 and S6 (S6 carries the
+  # later version); its comparator and round trip always run whole, being the scored record
+  KG_CQ_SCENARIOS: ${{ github.event_name == 'pull_request' && 'S1,S2,S6' || '' }}
+
 jobs:
   rdflib:
+    # task-0163: the record and its round trip; the readers run beside it in rdflib-readers. The ruleset
+    # requires this job by name.
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write   # task-0116: the action's opt-in SARIF upload, this job only
-    timeout-minutes: 120   # task-0159: above the worst run seen (see tests/test_ci_hygiene.py), never the 12-minute budget
+    timeout-minutes: 45   # task-0159's rule: above this job's worst run (tests/test_ci_hygiene.py), never the 12-minute budget
     env:
       # task-0075: no step reads the wall clock; a command that asks today's date with no KG_TODAY
       # fails here (harness/review.py today()), so no outcome moves by the calendar
       KG_CLOCK: pinned
-      # task-0084: the J-F subset on a pull request, empty (every scenario) on any other event
-      KG_JF_SCENARIOS: ${{ github.event_name == 'pull_request' && 'C,D3' || '' }}
-      # CargoQuote's non-record steps (MCP, lighthouse) on a pull request: S1, S2 and S6 (S6 carries the
-      # later version); its comparator and round trip always run whole, being the scored record
-      KG_CQ_SCENARIOS: ${{ github.event_name == 'pull_request' && 'S1,S2,S6' || '' }}
       # task-0159: every check tool appends its outcome here (tools/_outcomes.py); absolute, as steps cd
       KG_OUTCOMES: ${{ github.workspace }}/outcomes/rdflib-checks.jsonl
     steps:
@@ -86,6 +90,47 @@ jobs:
           python tools/check_instance.py runs/instance | grep '^ABSENT stories/quote.md \[user-stories\]'
           cd harness && KG_STORE=rdflib KG_SUBJECT=../runs/instance/subjects/cargo_quote python run.py --deterministic --scenarios S1 --out ../runs/instance-unmapped && cd ..
           python3 -c 'import json; d=json.load(open("runs/instance-unmapped/S1/deterministic.json")); assert d["load"]["unmapped"]==["stories/quote.md"], d["load"]; print("load: unmapped", d["load"]["unmapped"])'
+      - name: The store survives a round trip (task-0070), every CargoQuote scenario and J-F's (the subset on a pull request) through Turtle into a fresh store, the same gate reports and three-valued answers
+        run: |
+          KG_STORE=rdflib python tools/check_round_trip.py --chain rdflib,rdflib
+          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_round_trip.py --chain rdflib,rdflib --expect-parts ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
+      - name: "Store generations (task-0141.06, decision-0014) on a file-backed rdflib store: SNAP-01 to SNAP-07"
+        run: KG_STORE=rdflib python tools/check_snapshots.py --disposable
+      - name: The outcomes, machine-readable, in the job's summary (task-0159)
+        if: always()
+        run: python tools/outcomes_summary.py outcomes >> "$GITHUB_STEP_SUMMARY"
+      - name: The outcome files kept as an artifact, 14 days, outcomes JSON only (task-0159)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: outcomes-rdflib
+          path: |
+            outcomes/*.json
+            outcomes/*.jsonl
+          if-no-files-found: warn
+          retention-days: 14
+
+  rdflib-readers:
+    # task-0163: the readers (MCP server, lighthouse, the gate, the wrappers, review, capture, transcript, ...),
+    # in parallel with rdflib; nothing of either is dropped or subset. Gates once the maintainer adds it to
+    # the ruleset's required checks.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # task-0116: the action's opt-in SARIF upload, this job only
+    timeout-minutes: 90   # task-0159's rule: above this job's worst run (tests/test_ci_hygiene.py), never the 12-minute budget
+    env:
+      # task-0075: no step reads the wall clock; a command that asks today's date with no KG_TODAY
+      # fails here (harness/review.py today()), so no outcome moves by the calendar
+      KG_CLOCK: pinned
+      # task-0159: every check tool appends its outcome here (tools/_outcomes.py); absolute, as steps cd
+      KG_OUTCOMES: ${{ github.workspace }}/outcomes/rdflib-readers-checks.jsonl
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"   # the interpreter the demo image and the J-F kit's pins name
+      - run: pip install "pumllint==0.33.0" "pyyaml==6.0.3" "rdflib==7.6.0" "pyshacl==0.40.2" "openai==3.41.0" "pandas==3.0.5" "numpy==2.4.6" "requests==2.34.2" "pyarrow==25.0.1" "pytest==9.1.1" "pytest-bdd==9.0.1"
       - name: The subject check (task-0135) with the mappers installed, the public subjects hold with their whole yield, doc-0018's probe is refused and its misspelt key named with the key the documents yield
         run: |
           python tools/check_subject.py subjects/cargo_quote | tee runs/check-cargo.txt
@@ -412,12 +457,6 @@ jobs:
           KG_STORE=rdflib python tools/lighthouse_evidence.py runs/lighthouse ${KG_JF_SCENARIOS:+--only "jef_data_load=$KG_JF_SCENARIOS"} ${KG_CQ_SCENARIOS:+--only "cargo_quote=$KG_CQ_SCENARIOS"}
       - name: Route (c), a transcript read by a stub model (task-0041), gives inferred candidates on S2's empty keys only, listed in the questionnaire; no key, exit 2
         run: KG_STORE=rdflib python tools/check_transcript_route.py runs/transcript
-      - name: The store survives a round trip (task-0070), every CargoQuote scenario and J-F's (the subset on a pull request) through Turtle into a fresh store, the same gate reports and three-valued answers
-        run: |
-          KG_STORE=rdflib python tools/check_round_trip.py --chain rdflib,rdflib
-          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_round_trip.py --chain rdflib,rdflib --expect-parts ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
-      - name: "Store generations (task-0141.06, decision-0014) on a file-backed rdflib store: SNAP-01 to SNAP-07"
-        run: KG_STORE=rdflib python tools/check_snapshots.py --disposable
       - name: The outcomes, machine-readable, in the job's summary (task-0159)
         if: always()
         run: python tools/outcomes_summary.py outcomes >> "$GITHUB_STEP_SUMMARY"
@@ -425,7 +464,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: outcomes-rdflib
+          name: outcomes-rdflib-readers
           path: |
             outcomes/*.json
             outcomes/*.jsonl

@@ -3,9 +3,11 @@ id: TASK-0163
 title: >-
   Split the rdflib job: the record and its round trip, and the readers, in
   parallel
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-06T07:42:00Z'
+updated_date: '2026-11-06T08:57:00Z'
 labels:
   - ci
 dependencies:
@@ -25,3 +27,9 @@ task-0159 measured the rdflib job over task-0084's 12-minute pull-request budget
 - [ ] #2 Each job measured after task-0097 on an uncontended runner, against task-0084's 12 minutes, the figures in the task notes
 - [ ] #3 The new job's name is given to the maintainer for the ruleset's required checks; CLAUDE.md's CI paragraph names both jobs
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-06: the maintainer approved option A, 'go ahead with the rdflib job split' (relayed by the coordinating session). Shape from the coordinator's brief: rdflib keeps its name (the ruleset requires it) and runs the record and its round trip; a second job runs the readers; nothing dropped or subset; each job self-standing; security-events: write only on the job running the action's SARIF step.
+<!-- SECTION:NOTES:END -->

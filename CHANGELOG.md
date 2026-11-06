@@ -74,6 +74,11 @@ names that section with the version.
 
 ### Changes
 
+- **The rdflib CI job runs as two parallel jobs** (task-0163). `rdflib` keeps the record and its round
+  trip, and `rdflib-readers` runs the readers (the MCP server, the lighthouse, the gate, the wrappers,
+  review, capture, transcript). Nothing is dropped or subset: a test holds that every step of the old job
+  runs in exactly one. `rdflib-readers` gates once it joins the ruleset's required checks.
+
 - **The worker's network check accepts the down tunnel devices Docker Desktop creates** (task-0161,
   decision-0015). `loopback_only` held only when `/sys/class/net` listed `lo` alone. A kernel with
   tunnel modules loaded puts `tunl0`, `gre0`, `sit0` and others, down, in every network namespace,
