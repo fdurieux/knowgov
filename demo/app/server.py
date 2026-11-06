@@ -57,6 +57,7 @@ import execution  # noqa: E402  (task-0141.05: model output runs in the containe
 import page_subject  # noqa: E402  (the subject as a value: task-0032.01)
 import http_boundary  # noqa: E402  (the HTTP trust boundary and limits, task-0141.03, task-0141.04)
 import runs_index  # noqa: E402  (the one reader of the run folders, shared with the MCP server: task-0128)
+import key_check  # noqa: E402  (task-0171: each row's key checked by the endpoint's model listing, no tokens)
 from subject import Subject  # noqa: E402
 _ps = page_subject.current   # the subject of the call in progress; the environment's when no call names one
 
@@ -193,10 +194,26 @@ BROWSER_URL = os.environ.get("KG_BROWSER_URL", "http://localhost:7474")
 PORT = int(os.environ.get("KG_DEMO_PORT", "8080"))
 
 
-def model_rows() -> list[dict]:
-    """The Arms call drop-down's rows as the page receives them: no key, no price (task-0029)."""
+def _key_verdict(row: dict) -> dict:
+    """A row's key verdict from the key check's cache, never a request (task-0171)."""
+    return key_check.CHECKER.verdict(row["base_url"], row["key_var"], row.get("model") or "", bool(row.get("gateway")))
+
+
+def check_keys(wait: float = key_check.WAIT_S, recheck: bool = False) -> None:
+    """Check every listed row's key not yet checked under its current value (each endpoint and key
+    once), and wait a bounded time for the checks in flight. Nothing is sent before main() enables
+    the checker, nor with KG_KEY_CHECK=off."""
     ps = _ps()
-    return [models.public(r) for r in models.rows(ps.record_model, ps.record_effort, ps.arm_kind)]
+    key_check.CHECKER.ensure(models.endpoints(models.listed_rows(ps.record_model, ps.record_effort)),
+                             wait=wait, recheck=recheck)
+
+
+def model_rows() -> list[dict]:
+    """The Arms call drop-down's rows as the page receives them: no key, no price (task-0029), each
+    with its key verdict (task-0171)."""
+    ps = _ps()
+    check_keys()
+    return [models.public(r) for r in models.rows(ps.record_model, ps.record_effort, ps.arm_kind, check=_key_verdict)]
 
 
 def arms_enabled() -> bool:
@@ -542,8 +559,11 @@ class Runner:
             if why:
                 raise ValueError(why)
             # the row and the effort are checked against the table: an unknown row, a row whose key
-            # is unset and an effort the row does not list are refused here, before anything runs
-            chosen, model_env, deviation = models.resolve(row, effort, ps.record_model, ps.record_effort, ps.arm_kind)
+            # is unset or was refused by its endpoint (task-0171: checked first when not yet checked)
+            # and an effort the row does not list are refused here, before anything runs
+            check_keys()
+            chosen, model_env, deviation = models.resolve(row, effort, ps.record_model, ps.record_effort, ps.arm_kind,
+                                                          check=_key_verdict)
         with self.lock:
             if self.current and self.current["status"] == "running":
                 raise RuntimeError("a run is already in progress; the store is one database")
@@ -972,6 +992,11 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
                 return self._json({"error": "neo4j driver not installed"}, 503)
             except Exception as e:  # noqa: BLE001 — the message is the status
                 return self._json({"error": str(e).splitlines()[0][:200]}, 503)
+        if parts == ["api", "models", "check"]:
+            # task-0171: check every row's key again (the listing, no tokens); behind the write guard, as
+            # it sends a request to each endpoint; the rows come back with their verdicts
+            check_keys(recheck=True)
+            return self._json({"model_rows": model_rows(), "arms_enabled": arms_enabled()})
         if parts == ["api", "run"]:
             try:
                 r = run_request(body)
@@ -990,6 +1015,13 @@ def main() -> None:
     host = listen_host()
     httpd = http_boundary.BoundedServer((host, PORT), Handler, page_limits())   # task-0141.04
     writes = "token required" if page_token() else (write_refusal() or "open on this machine")
+    # task-0171: the model rows' keys checked once each now, in the background, so the first page load
+    # finds them done; only the verdict and the HTTP status are ever kept or shown, never a key
+    key_check.CHECKER.enabled = True
+    if key_check.enabled_by_env():
+        for ps in SUBJECTS:
+            with page_subject.using(ps):
+                check_keys(wait=0)
     print(f"kg demo on http://{host}:{PORT}  published on {exposure()}  store {NEO4J_URI}  runs {RUNS_DIR}  writes: {writes}", flush=True)
     httpd.serve_forever()
 

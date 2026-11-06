@@ -49,6 +49,8 @@
 #   KG_MODELS          the models table the page's Arms call drop-down lists (default /repo/demo/models.toml):
 #                      provider, base URL, model, efforts and the NAME of the key variable per row, never a key
 #                      (task-0029); a row's key variable must be passed through to the app service below
+#   KG_KEY_CHECK       on (default): the page checks each model row's key when it starts, by the endpoint's model
+#                      listing, which spends no tokens, and greys a row whose key is refused (task-0171); off sends nothing
 #   KG_ARMS_MODEL      optional; with KG_MODEL_BASE_URL and KG_MODEL_API_KEY_VAR, an extra row in the drop-down,
 #                      "this instance's settings" (a deviation from the record, marked on every run)
 #   KG_ARMS_EFFORT     optional; the reasoning effort sent with every arm call (the API's literals: low,
@@ -111,6 +113,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}   # the Gemini row's key (demo/models.toml); passed through, never baked in
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}   # the Claude row's key: the gateway's own, which you choose (task-0035)
       KG_MODEL_BASE_URL: ${KG_MODEL_BASE_URL:-}
+      KG_KEY_CHECK: ${KG_KEY_CHECK:-on}   # task-0171: each row's key checked by its endpoint's model listing, no tokens; off sends nothing
       KG_MODEL_API_KEY_VAR: ${KG_MODEL_API_KEY_VAR:-OPENAI_API_KEY}
       KG_STORE: ${KG_STORE:-neo4j}
       KG_SUBJECT: ${KG_SUBJECT:-/repo/subjects/cargo_quote}
