@@ -174,6 +174,30 @@ def _children() -> set[int]:
     return kids
 
 
+def _group_settled(pgid: int, seconds: float = 5.0) -> bool:
+    """Wait until no process of the killed group is still running (a zombie has finished exiting, so
+    its children are already reparented to this subreaper): only then does a scan of this worker's
+    children see every escapee. False if one still runs at the bound."""
+    end = time.monotonic() + seconds
+    while True:
+        alive = False
+        for pid in os.listdir("/proc"):
+            if not pid.isdigit():
+                continue
+            try:
+                fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+            except OSError:
+                continue
+            if int(fields[2]) == pgid and fields[0] not in ("Z", "X"):   # state, then ppid, then pgrp
+                alive = True
+                break
+        if not alive:
+            return True
+        if time.monotonic() >= end:
+            return False
+        time.sleep(0.02)
+
+
 def _reap_orphans(before: set[int] = frozenset()) -> int:
     """Kill and reap every child process this worker gained during the job (the job's escaped
     descendants, reparented here); a child it had before the job is not the job's."""
@@ -255,6 +279,7 @@ def run_job(jobdir: Path, workdir: Path, confine: bool = True) -> dict:
         except ProcessLookupError:
             pass
         proc.wait()
+        _group_settled(proc.pid)   # every killed member exited, so its escapees are this worker's children now
         t.join(timeout=5)
         _reap_orphans(before)   # and one that left the group, reparented here by the subreaper
         import shutil

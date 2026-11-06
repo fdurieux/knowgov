@@ -192,7 +192,8 @@ single-reply grading, the agent's feedback suite and its final grading, goes thr
 `harness/execution.py`, to the worker: a sibling container of the same image (`worker` in
 `demo/docker-compose.yml`) with no network, a read-only root, no capabilities, no privilege escalation,
 uid 65534, bounded memory, processes and CPU, and no secret in its environment. It sees only what ships
-in the image and a jobs folder. Each job runs as its own process group with an allowlisted environment,
+in the image and a jobs folder. Its work folder is a tmpfs mounted `exec`, since the oracle runs the launchers it
+writes there; `noexec` would bound nothing, as a job can run any Python. Each job runs as its own process group with an allowlisted environment,
 resource limits, a wall time (the whole group killed and reaped at it, a process that left the group
 included), and Linux Landlock rules that let it write only beneath its own folder, so it cannot forge a
 result or the worker's attestation. At start the worker attests its confinement (only loopback, no

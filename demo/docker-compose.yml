@@ -145,7 +145,9 @@ services:
       KG_WORKER_JOBS: /jobs
       KG_WORKER_WORK: /work
     tmpfs:
-      - /work:size=1g,mode=1777
+      # exec: the oracle runs the launchers it writes into the job's folder (J-F's jef-data, daily.sh);
+      # Docker mounts a tmpfs noexec by default, and a job can run any Python anyway, so noexec bounds nothing
+      - /work:size=1g,mode=1777,exec
     volumes:
       - worker-jobs:/jobs
     healthcheck:

@@ -119,18 +119,23 @@ subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(600)', '{marker
 subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(600)', '{marker}'], start_new_session=True)
 time.sleep(600)""", seconds=5)
     check(r.get("stage") == "timeout" and time.monotonic() - t0 < 60, f"EXEC-05 a hanging job is killed at its time: {r}")
+    # the marker is assembled at run time: a probe runs as ``python -c <code>``, so a literal marker in
+    # this code would match the counting probe's own command line
+    head, tail = marker.split("-", 1)
     r = probe(f"""
 import os
+marker = {head!r} + '-' + {tail!r}
+mine = {{os.getpid(), os.getppid()}}
 left = []
 for pid in os.listdir('/proc'):
-    if pid.isdigit():
+    if pid.isdigit() and int(pid) not in mine:
         try:
-            if '{marker}' in open(f'/proc/{{pid}}/cmdline','rb').read().decode('latin-1'):
-                left.append(pid)
+            if marker in open(f'/proc/{{pid}}/cmdline','rb').read().decode('latin-1'):
+                left.append(pid + ' ' + open(f'/proc/{{pid}}/cmdline','rb').read().decode('latin-1').replace(chr(0), ' ')[:80])
         except OSError:
             pass
-print(len(left))""")
-    check((r.get("stdout") or "").strip().endswith("0"), f"EXEC-05 no descendant of the killed job is left: {r.get('stdout', '')[-80:]}")
+print(len(left), left)""")
+    check((r.get("stdout") or "").strip().startswith("0 "), f"EXEC-05 no descendant of the killed job is left: {(r.get('stdout') or '')[-300:]}")
 
     # EXEC-06
     r = probe("b = bytearray(16 * 1024 ** 3)\nprint('allocated')")
@@ -177,7 +182,10 @@ except OSError as e:
     check(r.get("ran") and r["passed"] == r["total"] > 0, f"EXEC-09 CargoQuote's reference code passes in the worker: {r.get('passed')}/{r.get('total')}")
     rebuild = ROOT / "subjects" / "jef_data_load" / "vendor" / "recreate_experiment" / "rebuilds" / "codex-2026-10-24"
     r = execution.submit(jobs, "suite_dir", {"scenario": "C"}, execution.collect(rebuild), subject="jef_data_load")
-    check(r.get("ran") and r["passed"] == r["total"] > 0, f"EXEC-09 the J-F reference rebuild passes in the worker: {r.get('passed')}/{r.get('total')}")
+    failed = {k: f"{v.get('stage')}: {v.get('detail')}" for k, v in (r.get("per_scenario") or {}).items() if not v.get("passed")}
+    check(r.get("ran") and r["passed"] == r["total"] > 0,
+          f"EXEC-09 the J-F reference rebuild passes in the worker: {r.get('passed')}/{r.get('total')}"
+          + "".join(f"\n       {k}: {v}" for k, v in failed.items()) + ("" if r.get("ran") else f"\n       {r}"))
 
     print("worker: " + ("every check holds" if not failures else f"{len(failures)} failure(s)"))
     return 1 if failures else 0

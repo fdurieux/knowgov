@@ -314,3 +314,16 @@ print(json.dumps(out))
         tried = json.loads(r["stdout"].strip().splitlines()[-1])
         assert tried and all(v == "PermissionError" for v in tried.values()), tried
         assert json.loads((jobs / "attest.json").read_text())["ok"] and not (jobs / "forged").exists()
+
+
+def test_the_worker_service_keeps_its_confinement_and_mounts_its_work_folder_exec():
+    """The compose worker as decision-0012 sets it; and /work exec, since Docker mounts a tmpfs noexec by
+    default and the oracle runs the launchers it writes there (J-F graded 1/12 under noexec)."""
+    text = (ROOT / "demo" / "docker-compose.yml").read_text(encoding="utf-8")
+    block = text.split("\n  worker:\n", 1)[1].split("\n  # ", 1)[0]
+    for line in ('user: "65534:65534"', "network_mode: none", "read_only: true", "cap_drop: [ALL]",
+                 '"no-new-privileges:true"', "mem_limit:", "pids_limit:", "cpus:"):
+        assert line in block, line
+    work = [ln.strip() for ln in block.splitlines() if ln.strip().startswith("- /work:")]
+    assert len(work) == 1 and "exec" in work[0].split(":", 1)[1].split(",") and "noexec" not in work[0], work
+    assert "privileged" not in block and "seccomp" not in block and "/var/run/docker.sock" not in block
