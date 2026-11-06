@@ -12,6 +12,16 @@ names that section with the version.
 
 ### Contract changes
 
+- **The pre-load report carries the layout check's problems** (task-0115, additive): `tools/preload_check.py
+  --layout` runs `tools/check_instance.py` on the same instance and adds an optional `layout` block
+  (`holds`, `exit_code`, `problems`, each with a severity, a kind, the file it concerns and `fails`)
+  to `harness/schemas/preload-report.schema.json`, version 1. `instance/ci/preload-check.sh` passes it
+  whenever `KG_REPORT` is set, so `KG_ANNOTATE` shows them: a layout error as an error at the file it
+  names or the subject's `subject.toml`; an unread or absent document, a subject's warning or note, an
+  unmapped code file or an unmatched code-map row as a warning or notice, never an error. The report's
+  `exit_code` stays the lint's, and the step's exit is unchanged: the layout's is still
+  `check_instance.py`'s.
+
 - **Model-written code runs in a contained worker, or not at all** (task-0141.05, decision-0012). The
   arms' single-reply grading, the agent's feedback suite and its final grading go through
   `harness/execution.py` to the `worker` service, a sibling container of the same image with:

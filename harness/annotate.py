@@ -17,7 +17,8 @@ or the pre-load check's (``preload_check.py -o``), read by its ``tool`` field.
 A finding at or above the report's threshold is an error (it is what made the command exit 1);
 below it, a warning, and ``info`` a notice. Where a finding points: a trace finding's ``path``
 under the code map's root (the report's ``code_root``, relative to ``--instance``); a pre-load
-finding's file and line (relative to ``--instance``); anything else (a key, a statement, the
+finding's file and line (relative to ``--instance``), and with its ``layout`` block each layout problem's
+file (task-0115; only a layout error is an error, the rest warnings and notices); anything else (a key, a statement, the
 task, a derived output) at the subject's ``subject.toml`` (``--subject``), since the report names
 statements, not their place in a document. Paths are written relative to ``--root`` (default the
 working directory, the repository's root in a CI job). Exit 0, or 2 when the report cannot be read.
@@ -70,6 +71,11 @@ def findings(rep: dict, instance: Path | None = None, subject: Path | None = Non
             if f["state"] in ("unchecked", "cannot_run") and not f["findings"]:
                 out.append({"severity": "info", "kind": f"preload:{f['state']}", "id": f["state"], "path": where, "line": 1,
                             "title": f"pre-load {f['state'].replace('_', ' ')}", "message": f["why"]})
+        for x in (rep.get("layout") or {}).get("problems", []):   # task-0115: the layout check's, with --layout
+            where = (_rel(instance / x["path"], root) if instance else x["path"]) if x["path"] else None
+            out.append({"severity": x["severity"], "kind": f"layout:{x['kind']}", "id": x["kind"], "path": where, "line": 1,
+                        "title": f"knowgov layout {x['kind']}", "message": x["message"],
+                        "held": not x["fails"]})   # only a layout error failed the step: the rest is never an error
         return out
     for f in rep["findings"]:
         path = f.get("path")

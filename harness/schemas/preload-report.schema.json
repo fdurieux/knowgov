@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/fdurieux/knowgov/harness/schemas/preload-report.schema.json",
   "title": "knowgov pre-load check report",
-  "description": "What `python tools/preload_check.py -f json` prints (task-0045): per document under an instance's artefacts/<kind>/, the state its kind's linter left it in at the threshold, the linters that ran, and the exit code of the programme's gate contract. Form, not knowledge: the knowgov gate's report is gate-report.schema.json. The optional baseline block and each finding's held flag appear only with --baseline (task-0065); sha256 per file since task-0064. Version 1; a change is additive or a new version.",
+  "description": "What `python tools/preload_check.py -f json` prints (task-0045): per document under an instance's artefacts/<kind>/, the state its kind's linter left it in at the threshold, the linters that ran, and the exit code of the programme's gate contract. Form, not knowledge: the knowgov gate's report is gate-report.schema.json. The optional baseline block and each finding's held flag appear only with --baseline (task-0065); sha256 per file since task-0064. The optional layout block appears only with --layout (task-0115). Version 1; a change is additive or a new version.",
   "type": "object",
   "required": ["schema_version", "tool", "instance", "scope", "threshold", "files", "linters", "counts", "exit_code", "note"],
   "additionalProperties": false,
@@ -51,6 +51,28 @@
         "file": {"type": "string"},
         "held": {"type": "integer", "minimum": 0},
         "new": {"type": "integer", "minimum": 0}
+      }
+    },
+    "layout": {
+      "type": "object",
+      "description": "with --layout (task-0115): tools/check_instance.py's problems on the same instance, for annotation; exit_code is check_instance.py's (1 when the layout does not hold) and leaves the report's own exit_code unchanged",
+      "required": ["holds", "exit_code", "problems"],
+      "additionalProperties": false,
+      "properties": {
+        "holds": {"type": "boolean"},
+        "exit_code": {"enum": [0, 1]},
+        "problems": {"type": "array", "items": {
+          "type": "object",
+          "required": ["severity", "kind", "path", "message", "fails"],
+          "additionalProperties": false,
+          "properties": {
+            "severity": {"enum": ["blocker", "critical", "major", "minor", "info"]},
+            "kind": {"type": "string", "description": "error, warning:<rule>, note, absent, unread, unmapped or unmatched"},
+            "path": {"type": ["string", "null"], "description": "the file it concerns, relative to the instance; null when it names none"},
+            "message": {"type": "string"},
+            "fails": {"type": "boolean", "description": "true for a layout error, which breaks the layout"}
+          }
+        }}
       }
     },
     "exit_code": {"enum": [0, 1, 2]},
