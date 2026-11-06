@@ -246,15 +246,20 @@ in the image and a jobs folder. Its work folder is a tmpfs mounted `exec`, since
 writes there; `noexec` would bound nothing, as a job can run any Python. Each job runs as its own process group with an allowlisted environment,
 resource limits, a wall time (the whole group killed and reaped at it, a process that left the group
 included), and Linux Landlock rules that let it write only beneath its own folder, so it cannot forge a
-result or the worker's attestation. At start the worker attests its confinement (only loopback, no
-secret-shaped variable, read-only root, uid 65534, no engine socket, Landlock) and refuses to serve when
-any check fails; the app refuses a job without a fresh attestation, and reads the result as untrusted
+result or the worker's attestation. At start the worker attests its confinement (no interface but
+loopback up, no route beyond it and no `CAP_NET_ADMIN` to bring one up, decision-0015; no secret-shaped
+variable, read-only root, uid 65534, no engine socket, Landlock) and refuses to serve when any check fails; the app refuses a job without a fresh attestation, and reads the result as untrusted
 data, capped and checked against its shape. Without a worker nothing runs: there is no fall back to
 the host. The only escape is `KG_ALLOW_UNCONTAINED_EXECUTION=1`, which runs the code on the host,
 uncontained, as before. With an organisation's instance mounted, the interim guard (task-0141.07,
 `harness/execution_guard.py`) still refuses first: the worker sees only the public subjects. Supported:
 Linux with Landlock (kernel 5.13 or later, enabled) and a container engine that runs the compose
-service; elsewhere the worker refuses to serve and model output does not run. Evidence:
+service; elsewhere the worker refuses to serve and model output does not run. The worker starts only
+with `--profile arms` (decision-0015): the default `docker compose up` runs the rest of the stack, and
+every arms run is refused. Docker Desktop for Mac 4.48.0's kernel (6.10.14-linuxkit) is built without
+Landlock (`CONFIG_SECURITY_LANDLOCK` not set), so there the worker refuses to serve and exits 3; a later version may differ, unverified
+(task-0162). Evidence: `tests/test_worker.py` (the network check on a fake sysfs and procfs, the Mac's
+listing included),
 `tests/test_execution.py::test_exec_07_no_backend_refuses_and_never_falls_back_to_the_host`,
 `tests/test_execution.py::test_exec_07_an_absent_stale_loosened_or_malformed_attestation_refuses_the_job`,
 `tests/test_execution.py::test_a_job_cannot_write_the_jobs_folder_so_it_cannot_forge_a_result_or_the_attestation`,

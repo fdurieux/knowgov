@@ -19,7 +19,8 @@
 #                      wider KG_BIND refuses them. Never committed, never baked in
 #   KG_NEO4J_PASSWORD  the store's password (default kgpoc2026, the harness default, refused on a wider KG_BIND)
 #   OPENAI_API_KEY     enables the arms mode; passed through to the app only, never baked in. Model-written code
-#                      runs in the worker service below, contained (task-0141.05), never in the app; for the
+#                      runs in the worker service below, contained (task-0141.05), never in the app, and the
+#                      worker starts only with `--profile arms` (decision-0015); for the
 #                      public demo use a project key with a spending cap. With an organisation's data mounted
 #                      (docker-compose.instance.yml) every arms run still refuses (task-0141.07)
 #   KG_MODEL_BASE_URL  the model endpoint (default api.openai.com): Google's compatible endpoint, or a
@@ -118,7 +119,7 @@ services:
       KG_MODELS: ${KG_MODELS:-/repo/demo/models.toml}
       KG_ARMS_MODEL: ${KG_ARMS_MODEL:-}   # optional: with the two KG_MODEL_* variables, the drop-down's "this instance's settings" row
       KG_ARMS_EFFORT: ${KG_ARMS_EFFORT:-}  # optional: the effort a harness run outside the page sends; the page sets its own per run
-      KG_WORKER_JOBS: /jobs   # task-0141.05: model output runs only in the worker below, through this folder
+      KG_WORKER_JOBS: /jobs   # task-0141.05: model output runs only in the worker below (profile arms), through this folder
     ports:
       - "${KG_BIND:-127.0.0.1}:${KG_PORT_APP:-8080}:8080"
     volumes:
@@ -130,7 +131,11 @@ services:
   # capabilities, no privilege escalation, uid 65534, bounded memory, processes and CPU, and no secret
   # in its environment. It attests that confinement at start (harness/worker.py) and the app refuses a
   # job without a fresh attestation. It sees only what ships in the image and the jobs folder.
+  # Started only with its profile (decision-0015): `docker compose --profile arms up -d --build --wait`,
+  # on Linux with Landlock; without it, every arms run is refused and the rest of the stack is unchanged.
+  # On an engine without Landlock (Docker Desktop for Mac 4.48.0) the worker refuses to serve and exits 3.
   worker:
+    profiles: ["arms"]
     image: ghcr.io/fdurieux/knowgov:v0.7.0@sha256:a2341bc607c62d29c233a09d698d2c1167b62f4b7c83a235c85c59d819b50605   # the app's; an image after 0.7.0 carries the worker
     command: ["python", "harness/worker.py"]
     user: "65534:65534"

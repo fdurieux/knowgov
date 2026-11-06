@@ -694,3 +694,22 @@ def test_the_claude_row_goes_through_a_pinned_gateway_started_only_by_its_profil
     assert row["arms"] == ["reply", "agent"] and not row["thinking_uncounted"]
     readme = (DEMO / "README.md").read_text(encoding="utf-8")
     assert "docker compose --profile claude up" in readme and "KG_ANTHROPIC_KEY" in readme and "LITELLM_MASTER_KEY" in readme
+
+
+def test_the_worker_starts_only_with_its_arms_profile_and_the_stack_job_passes_it():
+    """Decision-0015 (b): the worker is behind the profile "arms", so the default `up --wait` is green on an
+    engine where it cannot attest (Docker Desktop for Mac 4.48.0: no Landlock); the app and the store start
+    without it, and an arms run without a served worker is refused app-side (harness/execution.py). The
+    stack job starts it explicitly, so EXEC-01..09 and the loosened workers still run there."""
+    compose = (DEMO / "docker-compose.yml").read_text(encoding="utf-8")
+    worker = compose.split("\n  worker:\n", 1)[1].split("\n  # ", 1)[0]
+    assert 'profiles: ["arms"]' in worker, "the worker is opt-in"
+    neo4j = compose.split("\n  neo4j:\n", 1)[1].split("\n  app:\n", 1)[0]
+    app = compose.split("\n  app:\n", 1)[1].split("\n  # ", 1)[0]
+    assert "profiles:" not in neo4j and "profiles:" not in app, "the default set is the store and the app"
+    assert "depends_on:\n      worker" not in compose and "worker:\n        condition" not in compose, "nothing waits on it"
+    wf = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
+    assert "docker compose --profile arms up -d --build --wait" in wf, "the stack job starts the worker"
+    assert "docker compose --profile arms down -v" in wf and "docker compose --profile arms logs" in wf
+    readme = (DEMO / "README.md").read_text(encoding="utf-8")
+    assert "--profile arms" in readme and "Landlock" in readme, "the adopter is told how and where arms run"
