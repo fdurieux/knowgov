@@ -8,6 +8,16 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
+## Unreleased
+
+### Changes
+
+- **The owner's questionnaire names who closes a declared gap** (task-0113, after task-0110). An item
+  on a declared gap carries `gap`, `closed_by` and `closed_by_name`, the unit its declaration names, as
+  the gate's finding names it in `closer`, and a comment line saying an answer does not close it: S2's
+  questionnaire for ORG-0002 names ORG-0004 as closing OD-1. Ingest reads none of them; a questionnaire
+  written before still ingests to the same capture.
+
 ## 0.7.0 — 2026-11-06
 
 The store, the HTTP boundary and code execution are hardened for an organisation's own instance,
