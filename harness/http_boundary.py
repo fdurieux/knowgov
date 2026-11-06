@@ -180,20 +180,46 @@ class Refused(Exception):
         self.status, self.reason = status, reason
 
 
+RESPONSE_MIN, RESPONSE_MAX = 4 << 10, 1 << 30   # a response cap's bounds: above every refusal's body, at most 1 GiB
+
+
+def response_cap(var: str, default: int) -> int:
+    """A response-size cap in bytes (task-0177): ``var`` from the environment, else ``default``; a value that
+    is not an integer from RESPONSE_MIN to RESPONSE_MAX is refused with the variable's name."""
+    raw = os.environ.get(var)
+    if raw is None or raw == "":
+        return default
+    try:
+        v = int(raw)
+    except ValueError:
+        raise ValueError(f"{var} must be an int, not {raw!r}") from None
+    if not RESPONSE_MIN <= v <= RESPONSE_MAX:
+        raise ValueError(f"{var} must be from {RESPONSE_MIN} to {RESPONSE_MAX} bytes, not {raw!r}")
+    return v
+
+
+def over_cap(var: str, size: int, cap: int) -> str:
+    """The reason a response over its cap is refused: never truncated, the setting named."""
+    return (f"the response ({size} bytes) exceeds {var} ({cap} bytes) and was not sent; nothing is truncated: "
+            f"narrow the request or raise {var}")
+
+
 @dataclass
 class Limits:
     """Finite, configurable bounds (env ``<PREFIX>_MAX_BODY``, ``_READ_TIMEOUT``, ``_IDLE_TIMEOUT``,
-    ``_MAX_CONNECTIONS``). ``read_timeout`` is absolute: a request's line, headers and body must all
-    arrive within it, however the client paces them; ``idle_timeout`` bounds one silent wait on the
-    socket. A connection over ``max_connections`` is answered 503 and closed without a thread."""
+    ``_MAX_CONNECTIONS``, ``_MAX_RESPONSE``). ``read_timeout`` is absolute: a request's line, headers and
+    body must all arrive within it, however the client paces them; ``idle_timeout`` bounds one silent wait
+    on the socket. A connection over ``max_connections`` is answered 503 and closed without a thread.
+    ``max_response`` caps one response's body (task-0177): a larger one is refused, never truncated."""
     max_body: int
     read_timeout: float
     idle_timeout: float
     max_connections: int
+    max_response: int = 16 << 20
 
     @classmethod
     def from_env(cls, prefix: str, *, max_body: int, read_timeout: float = 10.0, idle_timeout: float = 5.0,
-                 max_connections: int = 32) -> "Limits":
+                 max_connections: int = 32, max_response: int = 16 << 20) -> "Limits":
         def num(name, default, kind):
             raw = os.environ.get(f"{prefix}_{name}")
             if raw is None or raw == "":
@@ -206,7 +232,8 @@ class Limits:
                 raise ValueError(f"{prefix}_{name} must be positive, not {raw!r}")
             return v
         return cls(num("MAX_BODY", max_body, int), num("READ_TIMEOUT", read_timeout, float),
-                   num("IDLE_TIMEOUT", idle_timeout, float), num("MAX_CONNECTIONS", max_connections, int))
+                   num("IDLE_TIMEOUT", idle_timeout, float), num("MAX_CONNECTIONS", max_connections, int),
+                   response_cap(f"{prefix}_MAX_RESPONSE", max_response))
 
 
 def read_body(handler, limits: Limits, *, required: bool = True) -> bytes:

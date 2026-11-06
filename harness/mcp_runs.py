@@ -296,7 +296,12 @@ def main(argv: list[str] | None = None) -> int:
         print("mcp_runs.py takes no arguments: stdio only; KG_PAGE_URL, KG_PAGE_TOKEN, KG_MCP_RUN_MODES configure it",
               file=sys.stderr)
         return 2
-    mcp_server.serve_stdio(make_server())
+    try:
+        server = make_server()
+    except ValueError as e:   # KG_MCP_MAX_RESPONSE out of its bounds (task-0177): refused at start, named
+        print(f"mcp_runs: {e}", file=sys.stderr)
+        return 2
+    mcp_server.serve_stdio(server)
     return 0
 
 

@@ -761,12 +761,16 @@ def write_guard(headers) -> tuple[int, str, dict] | None:
 
 # ------------------------------------------------------------------ HTTP
 
+PAGE_MAX_RESPONSE = 8 << 20   # task-0177: 21x the largest response measured, /api/results/S6 on CargoQuote (392 KB)
+
+
 def page_limits():
     """The page's bounds (task-0141.04): KG_PAGE_MAX_BODY bytes (default 65536; its largest request, a
     run, is under 1 KB), KG_PAGE_READ_TIMEOUT seconds for a request to arrive whole (10),
-    KG_PAGE_IDLE_TIMEOUT for one silent wait (5), KG_PAGE_MAX_CONNECTIONS at once (32; more get 503)."""
+    KG_PAGE_IDLE_TIMEOUT for one silent wait (5), KG_PAGE_MAX_CONNECTIONS at once (32; more get 503),
+    KG_PAGE_MAX_RESPONSE bytes in one response (8 MiB, task-0177; a larger one is a 500 naming it)."""
     import http_boundary
-    return http_boundary.Limits.from_env("KG_PAGE", max_body=65536)
+    return http_boundary.Limits.from_env("KG_PAGE", max_body=65536, max_response=PAGE_MAX_RESPONSE)
 
 
 MAX_RUNS = 5   # a run's n at most, unless KG_PAGE_MAX_RUNS says: the record's own count per arm and scenario
@@ -807,6 +811,13 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
 
     def _send(self, code: int, body: bytes, ctype: str = "application/json; charset=utf-8", cors: bool = False,
               extra: dict | None = None) -> None:
+        cap = self._limits().max_response
+        if len(body) > cap:   # task-0177: refused whole, never truncated, the setting named
+            import http_boundary
+            reason = http_boundary.over_cap("KG_PAGE_MAX_RESPONSE", len(body), cap)
+            sys.stderr.write(f"page: {self.path}: {reason}\n")
+            code, ctype, cors, extra = 500, "application/json; charset=utf-8", False, None
+            body = json.dumps({"error": reason, "setting": "KG_PAGE_MAX_RESPONSE", "limit": cap, "size": len(body)}).encode("utf-8")
         self.send_response(code)
         for k, v in (extra or {}).items():
             self.send_header(k, v)
