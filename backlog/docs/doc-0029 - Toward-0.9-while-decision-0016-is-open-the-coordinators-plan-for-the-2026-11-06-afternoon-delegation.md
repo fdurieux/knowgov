@@ -5,7 +5,7 @@ title: >-
   2026-11-06 afternoon delegation
 type: other
 created_date: '2026-11-06T13:02:00Z'
-updated_date: '2026-11-06T13:03:00Z'
+updated_date: '2026-11-06T13:46:00Z'
 ---
 *2026-11-06. Maintainer register. A choice taken under the maintainer's delegation of ~13:00 UTC: "I'll be off again for a few hours; continue unsupervised; use the swot, opportunity canvas, fit/gap, and derive an advise which you then document and execute." Drafted and executed by the coordinating session. It decides no record question: decision-0016 and decision-0011 stay the maintainer's, and nothing here accepts either.*
 
@@ -71,3 +71,33 @@ updated_date: '2026-11-06T13:03:00Z'
 4. **Mint P1 (task-0174)**, format versions on the instance's inputs, and plan it in the task: the scheme options, each with this doc's four parts, and the drafter's recommendation. No code until the maintainer has read it.
 5. **P4** waits for decision-0016's acceptance, as doc-0028 says.
 6. **Merge everything on green** (CLAUDE.md, maintainer 2026-11-06), and measure task-0163's budget in a quiet slot.
+
+## Second tranche, 2026-11-06 13:45 UTC
+
+Since this doc was written, the following merged: task-0172's base, task-0160 (#310), task-0171 (#307), task-0169, task-0162 and task-0170. The Known limits pass (task-0173, PR #312) minted four limits with no owner: task-0175 to task-0178.
+
+| Box | Content |
+|---|---|
+| Problem | Two of the four new limits carry security or availability weight. First, an unbounded response (K9, task-0177), the half of H2 that was left open. Second, a reader wedged behind one killed Neo4j writer until the next writer comes (K3, task-0175). |
+| Who, and when | An organisation's instance, once its data is larger than the public subjects', and the lighthouse pilot's operators. |
+| Today | Both are only listed as Known limits; neither has a test that fails today. |
+| Solution | task-0175 goes to the session that built S2 (session_01HTAA1UsSVF25SBM7XfjnqP) now. task-0177 goes to the session that fixed LIMIT-06 (session_01HTAA1RV7EhHr9LUbAviLXA) once #311 has merged. task-0176 (heap sizing) and task-0178 (the register panel) wait: one needs an instance's scale, and the other is a convenience. |
+| Measure | Each merged on its whole green matrix, with the Known limit removed from Unreleased in the same PR. |
+| Cost | Two sessions for a few hours. task-0177 adds a new refusal, a contract change gathered in Unreleased. |
+| Risk | task-0175 touches the publication code that decision-0014 rests on. |
+
+**Fit/gap.**
+- decision-0014 (whole publication) is kept: task-0175's clearing takes the sequence lock, its AC #3 holds both race orders, and SNAP-01 to SNAP-07 must stay green on both adapters.
+- H2's settings pattern (bounded, refused with the variable's name) is reused by task-0177. Its defaults sit above the largest measured response; the gap is that the measurement comes first.
+- Neither needs decision-0016.
+
+**SWOT.**
+- **Strengths:** two named limits close, and each fix reuses an existing pattern.
+- **Weaknesses:** task-0177 is a contract change, and task-0175 is delicate code.
+- **Opportunities:** 1.0's limits list gets shorter before the maintainer decides decision-0016.
+- **Threats:** a regression in publication, which SNAP and the stack job guard.
+
+**Advice, executed:**
+- dispatch task-0175 now;
+- dispatch task-0177 after #311;
+- leave task-0176 and task-0178 To Do.
