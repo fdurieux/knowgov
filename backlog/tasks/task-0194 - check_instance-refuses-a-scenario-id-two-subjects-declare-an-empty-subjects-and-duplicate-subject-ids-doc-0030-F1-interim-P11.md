@@ -3,11 +3,11 @@ id: TASK-0194
 title: >-
   check_instance refuses a scenario id two subjects declare, an empty subjects/
   and duplicate subject ids (doc-0030 F1 interim, P11)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-07T07:14:00Z'
-updated_date: '2026-11-07T07:38:00Z'
+updated_date: '2026-11-07T07:47:00Z'
 labels:
   - review
   - instance
@@ -43,4 +43,12 @@ The interim for H1, to ship now as a fix ahead of F1. The store records a held s
 
 <!-- SECTION:NOTES:BEGIN -->
 tools/check_instance.py: subjects/ empty -> error; ids -> roots, a repeated id -> error naming the roots; scenario id -> subjects, one declared by two -> error naming the id, the subjects and why (the store records a held scenario by its id alone, doc-0030 H1). A hyphenated <id>-S0 checked through gate_cli default, --publish and --no-load's held-scenario read. Fixture sweep: the repository's subjects/ and every tools/fixtures subject declare disjoint ids (C, D1-D5, S0-S7); tests/test_page_subject.py's rescan fixture built alpha and beta both with S0 (it passed, the page does not check ids) and now gives each <sid>-S0, as the skill tells adopters. tools/example_instance.py's instance (one subject) checks clean, unchanged. Suite: KG_TEST_REQUIRE=rdflib 691/693 (2 skipped), KG_SUBJECT=subjects/jef_data_load 690/693 (3 skipped), 0 failed, before the page-fixture change; rerun after.
+
+After the page-fixture change, rebased on 90a490b: KG_TEST_REQUIRE=rdflib 691/693 passed, 2 skipped, 0 failed; KG_SUBJECT=subjects/jef_data_load 690/693 passed, 3 skipped, 0 failed.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+tools/check_instance.py now exits 1 on a scenario id two subjects declare (naming the id, the subjects and why: the shared store records a held scenario by its id alone, doc-0030 H1), on an empty subjects/, and on two roots declaring one subject id. The onboarding skill and instance/README tell adopters to rename the copied S0 to <id>-S0; the page's rescan fixture follows. Interim for H1 ahead of F1.
+<!-- SECTION:FINAL_SUMMARY:END -->
