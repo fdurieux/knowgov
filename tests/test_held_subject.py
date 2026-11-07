@@ -71,12 +71,15 @@ def test_the_rule_every_reader_applies():
     with _Env(KG_SUBJECTS=str(ROOT / "subjects")):
         assert held_state.owner(legacy) is None
         assert "unknown subject" in held_state.refusal(legacy, "cargo_quote") and held_state.foreign(legacy, "cargo_quote")
-    # the instance's only subject, declaring the held scenario: it is that subject's
+    # the instance's only subject (the process's own is always listed, so the suite's), declaring the
+    # held scenario: it is that subject's
+    from subject import SUBJECT
+    mine = dict(legacy, scenario=SUBJECT.order[0])
     with tempfile.TemporaryDirectory() as td:
-        os.symlink(ROOT / "subjects" / "cargo_quote", Path(td) / "cargo_quote")
+        os.symlink(SUBJECT.root, Path(td) / Path(SUBJECT.root).name)
         with _Env(KG_SUBJECTS=td):
-            assert held_state.owner(legacy) == "cargo_quote" and held_state.refusal(legacy, "cargo_quote") is None
-            assert held_state.owner(dict(legacy, scenario="D3")) is None, "a scenario the only subject does not declare"
+            assert held_state.owner(mine) == SUBJECT.id and held_state.refusal(mine, SUBJECT.id) is None
+            assert held_state.owner(dict(mine, scenario="no-such-scenario")) is None, "a scenario the only subject does not declare"
 
 
 def test_the_load_records_its_subject_and_held_is_a_read_of_the_port_on_both_adapters():
