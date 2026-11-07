@@ -12,6 +12,23 @@ names that section with the version.
 
 ### Contract changes
 
+- **`harness/step_grid.py`: a grid of steps by scenarios over deterministic run folders** (task-0192,
+  doc-0024 J3). A new command and schema, `harness/schemas/step-grid.schema.json`. Additive.
+  - **The input.** One or more `run.py --deterministic` folders, or `--record`.
+  - **The rows.** The journey steps of `proposal_impact`'s scoped slices (task-0191, `--scope`; by
+    default every approved journey on which a step lands a key).
+  - **The columns.** The scenarios the folders hold.
+  - **Each cell.** The step's keys as that scenario's gate report in the folder has them, never
+    recomputed:
+    - levels by count, the keys unread, the lowest level, unknown and gaps;
+    - the gate's findings on those keys: blocked, below verified, flagged, stale statements,
+      suspect derived outputs, lapsed;
+    - for S6, the findings of its two later gates.
+  - **Conflicts** are counted per column, never keyed by gap id.
+  - **The keys on no step** are listed with their nodes, through `key_nodes`.
+  - **It never opens a store and never calls knowgov-runs.** A sweep through `start_run` would replace
+    what every viewer of the page reads. Facts only, never a score.
+
 - **`proposal_impact` reads a named journey or product on the approved register, with each slice's
   keys** (task-0191, doc-0024 J1). Additive.
   - **The scope.** A new `scope`, on the MCP tool and as `--scope ID` on the command, names an

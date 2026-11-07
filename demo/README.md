@@ -860,6 +860,24 @@ These are facts with their denominators, never a score. A product's id
 (`--scope PRD-0002`) gives its journeys' steps. An MCP client passes
 `scope` instead of, or beside, `proposal`.
 
+To see every step against every scenario at once, run the scenarios
+deterministically into a folder, on a scratch store of their own, then
+read the folder (task-0192):
+
+```bash
+docker compose exec -T -e KG_STORE=rdflib -e KG_RDFLIB_FILE=runs/sweep.ttl app sh -c 'python harness/run.py --deterministic --out runs/sweep && python harness/step_grid.py runs/sweep'
+```
+
+In plain English: the `-e` settings point the run at a scratch file
+instead of the page's Neo4j, so the sweep loads its scenarios there.
+
+`harness/step_grid.py` prints one row per step and one column per
+scenario. Each cell is the step's keys as that scenario's gate report
+has them: the lowest level, and how many keys are blocked, stale, lapsed
+or unread. `--record` reads the subject's own record instead. The grid
+itself reads only the folder's files and never opens a store. `-f json` prints
+the shape `harness/schemas/step-grid.schema.json` pins.
+
 ## Quick start on a Mac, step by step
 
 Six steps. Each block is ready to paste into Terminal (zsh) as a whole;

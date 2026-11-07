@@ -1,0 +1,363 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/step-grid.schema.json",
+ "title": "knowgov step_grid report",
+ "description": "A step-by-scenario grid over deterministic run folders (harness/step_grid.py, task-0192, doc-0024 J3). Rows: the journey steps of J1's slices (proposal_impact with a scope, task-0191), each with the register-map keys landing on its THREAD walk. Columns: the scenarios the folders hold. Each cell: the step's keys as that scenario's gate report in the folder has them, each key's level from gate_keys and the findings from D6_gate, never recomputed; a conflict is counted on its column, never keyed by gap id. No store opened, knowgov-runs never called. Facts only: denominators, no score.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "schema_version",
+  "tool",
+  "subject",
+  "register",
+  "store",
+  "stored",
+  "scopes",
+  "denominator",
+  "steps",
+  "columns",
+  "cells",
+  "off_steps",
+  "why"
+ ],
+ "properties": {
+  "schema_version": {
+   "const": 1
+  },
+  "tool": {
+   "const": "knowgov step_grid"
+  },
+  "subject": {
+   "type": "string"
+  },
+  "register": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "tag",
+    "commit"
+   ],
+   "properties": {
+    "tag": {
+     "type": "string"
+    },
+    "commit": {
+     "type": "string"
+    }
+   }
+  },
+  "store": {
+   "type": "null",
+   "description": "never opened"
+  },
+  "stored": {
+   "const": false
+  },
+  "scopes": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "denominator": {
+   "type": "integer",
+   "minimum": 0
+  },
+  "steps": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "id",
+     "name",
+     "kind",
+     "axis",
+     "scopes",
+     "products",
+     "of",
+     "keys",
+     "behind_withdrawn"
+    ],
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "kind": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "axis": {
+      "enum": [
+       "step",
+       "process"
+      ]
+     },
+     "scopes": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "products": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "of": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "keys": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "behind_withdrawn": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  },
+  "columns": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "id",
+     "scenario",
+     "source",
+     "as_of",
+     "as_of_from_run",
+     "task",
+     "verdict",
+     "why",
+     "conflicts",
+     "stage2"
+    ],
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "scenario": {
+      "type": "string"
+     },
+     "source": {
+      "type": "string"
+     },
+     "as_of": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "as_of_from_run": {
+      "type": "boolean"
+     },
+     "task": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "verdict": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "why": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "conflicts": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "stage2": {
+      "type": "boolean"
+     }
+    }
+   }
+  },
+  "cells": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "step",
+     "column",
+     "landed",
+     "levels",
+     "unread",
+     "worst",
+     "unknown",
+     "gaps",
+     "flags",
+     "findings",
+     "stage2"
+    ],
+    "properties": {
+     "step": {
+      "type": "string"
+     },
+     "column": {
+      "type": "string"
+     },
+     "landed": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "levels": {
+      "type": "object",
+      "additionalProperties": {
+       "type": "integer",
+       "minimum": 0
+      }
+     },
+     "unread": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "worst": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "unknown": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "gaps": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "flags": {
+      "type": "object",
+      "additionalProperties": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      }
+     },
+     "findings": {
+      "$ref": "#/$defs/findings"
+     },
+     "stage2": {
+      "type": [
+       "object",
+       "null"
+      ],
+      "additionalProperties": {
+       "$ref": "#/$defs/findings"
+      },
+      "description": "a stage-2 scenario's later gates (before and after re-verification): their findings on the cell's keys; those gates hold no per-key level"
+     }
+    }
+   }
+  },
+  "off_steps": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "key",
+     "nodes"
+    ],
+    "properties": {
+     "key": {
+      "type": "string"
+     },
+     "nodes": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  },
+  "why": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "string"
+   }
+  }
+ },
+ "$defs": {
+  "findings": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "blocked",
+    "below_verified",
+    "flagged",
+    "stale",
+    "suspect_derived",
+    "lapsed"
+   ],
+   "properties": {
+    "blocked": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "below_verified": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "flagged": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "stale": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "suspect_derived": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "lapsed": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "description": "the gate report's own findings (D6_gate) restricted to the cell's keys: blocked, below verified and flagged keys, the stale statements on them by id, the suspect derived outputs that used one, the keys whose review lapsed"
+  }
+ }
+}
