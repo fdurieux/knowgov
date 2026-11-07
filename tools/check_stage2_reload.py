@@ -134,6 +134,9 @@ def cargo_quote(st) -> list[str]:
     k1, k2 = kit_for("S6"), kit_for("S6", 2)
     ch = stage2(st, "S6", cfg6, k1, k2, reverify=False, derived=True)
     touched = {x["key"] for x in ch["D3_stale"]["invalidated"]}
+    held = st.held()   # task-0195: the stage-2 load stamps its subject, and held() reads v2 current through CURRENT
+    if not held or (held["subject"], held["scenario"], held["version"]) != (SUBJECT.id, "S6", "v2"):
+        errs.append(f"S6: after stage 2 the store reads held {held and {k: held[k] for k in ('subject', 'scenario', 'version')}}, not {SUBJECT.id} S6 v2")
     before = reports(st, "S6")
     from change import reverify as rever
     from load import pristine_values
