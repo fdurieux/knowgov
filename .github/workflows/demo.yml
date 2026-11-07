@@ -41,6 +41,12 @@ on:
 permissions:
   contents: read
 
+# task-0193, doc-0030 P6: every run step under bash -eo pipefail, so a command that fails before a pipe
+# (check_saved_queries.py | tee) fails its step instead of reporting the pipe's last exit
+defaults:
+  run:
+    shell: bash
+
 jobs:
   stack:
     runs-on: ubuntu-latest
@@ -199,7 +205,7 @@ jobs:
 
       - name: Its numbers match the record
         run: |
-          docker compose exec -T app python demo/tools/compare_deterministic.py "runs/$(cat run_id)"
+          docker compose exec -T app python demo/tools/compare_deterministic.py "runs/$(cat run_id)" --scenarios S1   # the page ran S1 alone
 
       - name: Every saved query the page lists runs in the store
         run: |
@@ -452,7 +458,7 @@ jobs:
             sleep 2
           done
           curl -fsS localhost:8080/api/run | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["status"]=="done", r["log_text"]; open("run_id","w").write(r["subject"] + "/" + r["id"])'
-          docker compose $F exec -T -e KG_SUBJECT=/instance/subjects/cargo_quote app python demo/tools/compare_deterministic.py "runs/$(cat run_id)"
+          docker compose $F exec -T -e KG_SUBJECT=/instance/subjects/cargo_quote app python demo/tools/compare_deterministic.py "runs/$(cat run_id)" --scenarios S1
           test "$before" = "$(digest)" && echo "instance unchanged"
 
       - name: The outcomes, machine-readable, in the job's summary (task-0159)

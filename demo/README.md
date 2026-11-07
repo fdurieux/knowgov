@@ -1447,11 +1447,13 @@ deterministically from the page, then compare the run folder with the
 record, leaf for leaf:
 
 ```bash
-python demo/tools/compare_deterministic.py runs/<the run's folder>
+python demo/tools/compare_deterministic.py runs/<the run's folder> --scenarios S1
 ```
 
-It exits 0 when nothing differs and prints every differing leaf either
-way. A scenario whose record also holds a deterministic-mode run (S6,
+Name the scenarios the run holds with `--scenarios`; without it, the
+command compares every scenario of the record, and one the run does not
+hold counts as a difference. It exits 0 when nothing differs and prints
+every differing leaf either way. A scenario whose record also holds a deterministic-mode run (S6,
 `results/d3check/S6`) is compared against that by default; pass
 `--record-for S6=subjects/cargo_quote/vendor/kg_experiment/results/S6` to
 compare a run that registered the derived output with the scored record,

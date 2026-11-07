@@ -44,6 +44,25 @@ def test_the_check_ignores_list_order_and_the_store_name_and_nothing_else():
     assert c.differences(base, {**base, "census": {"nodes": 2}}, "S")
 
 
+def test_every_part_answers_returns_is_compared_store_reads_included():
+    """task-0193, doc-0030 P5: differences() walks every part, so one differing only in store_reads, or in a
+    part added later, is reported; parts the check names itself keep their own message."""
+    import ast
+    import check_round_trip as c
+    reads = {"held_keys": {"keys": [{"key": "a|x", "level": "verified"}]}, "derived_outputs": [], "by_derived": {}, "documents": {}}
+    base = {"gate": {}, "three_valued": {}, "census": {"nodes": 3}, "parts": [], "store_reads": reads, "preload": {}}
+    assert c.differences(base, {**base, "store_reads": {**reads, "held_keys": {"keys": [{"key": "a|x", "level": "proposed"}]}}}, "S") \
+        == ["S: store_reads held_keys differs"]
+    assert c.differences(base, {**base, "store_reads": {**reads, "documents": {"spec.md": [{"id": "A:1"}]}}}, "S") \
+        == ["S: store_reads documents differs"]
+    assert c.differences(base, {**base, "later": 1}, "S") == ["S: later differs"]   # a part added later
+    # every key answers() returns is one the function walks: no part is listed by name for the walk
+    src = (ROOT / "tools" / "check_round_trip.py").read_text(encoding="utf-8")
+    fn = next(n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "answers")
+    ret = next(n for n in ast.walk(fn) if isinstance(n, ast.Return)).value
+    assert {k.value for k in ret.keys} == {"gate", "three_valued", "census", "parts", "store_reads", "preload"}
+
+
 def test_the_check_compares_the_preload_verdicts_bundle_and_findings():
     """task-0085: a Version's preload_* verdict, the gate's preload bundle and its info findings each
     count; a list's order still does not."""

@@ -34,6 +34,12 @@ env:
   # later version); its comparator and round trip always run whole, being the scored record
   KG_CQ_SCENARIOS: ${{ github.event_name == 'pull_request' && 'S1,S2,S6' || '' }}
 
+# task-0193, doc-0030 P6: every run step under bash -eo pipefail, so a command that fails before a pipe
+# (check_saved_queries.py | tee) fails its step instead of reporting the pipe's last exit
+defaults:
+  run:
+    shell: bash
+
 jobs:
   rdflib:
     # task-0163: the record and its round trip; the readers run beside it in rdflib-readers. The ruleset

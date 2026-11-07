@@ -2,8 +2,11 @@
 
     python compare_deterministic.py <run_dir> [<record_dir>] [--scenarios <id> ...]
 
-For every scenario present in <run_dir>, loads ``<S>/deterministic.json``
-from both trees and reports every leaf that differs, ignoring what cannot
+For every scenario named (``--scenarios``; by default every scenario of the
+subject's record), loads ``<S>/deterministic.json`` from both trees and reports
+every leaf that differs. A named scenario the run does not hold is itself a
+difference (task-0193), so a run that stopped after one scenario never reads
+as a match. The comparison ignores what cannot
 be equal across two executions: wall-clock timestamps (``at``,
 ``ingested_at``, ``invalidated_at``), the SHACL report's text sample
 (blank-node labels are fresh per run; its counts are compared), and the
@@ -116,7 +119,9 @@ def compare(run_dir: Path, record_dir: Path, scenarios: list[str], record_for: d
     for sc in scenarios:
         rec = (record_for or {}).get(sc) or record_dir / sc
         a, b = run_dir / sc / "deterministic.json", rec / "deterministic.json"
-        if not a.exists():
+        if not a.exists():   # task-0193, doc-0030 P7: a scenario asked for (or defaulted) and not run is a difference
+            lines.append(f"{sc}: not in the run, no {a}; name the scenarios the run holds with --scenarios")
+            n_diff += 1
             continue
         if not b.exists():
             lines.append(f"{sc}: no record at {b}")

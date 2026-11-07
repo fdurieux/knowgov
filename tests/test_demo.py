@@ -225,6 +225,30 @@ def test_compare_tool_command_line_reads_every_leaf():
         assert code == 1 and "DIFF: 3 differing" in text and text.count("valid_until") >= 3, text
 
 
+@on_cargo_quote
+def test_a_scenario_asked_for_and_not_run_is_a_difference():
+    """task-0193, doc-0030 P7: a run holding S1 alone, compared with the default seven, exits 1 naming the six
+    it lacks; named with --scenarios S1, it matches."""
+    import contextlib, io, shutil, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        run = Path(td) / "run"
+        (run / "S1").mkdir(parents=True)
+        shutil.copy(RESULTS / "S1" / "deterministic.json", run / "S1" / "deterministic.json")
+        n, lines = compare_deterministic.compare(run, RESULTS, compare_deterministic.SCENARIOS)
+        missing = [ln for ln in lines if "not in the run" in ln]
+        assert n == len(compare_deterministic.SCENARIOS) - 1 == len(missing) == 6, lines
+        argv = sys.argv
+        for extra, want in (([], 1), (["--scenarios", "S1"], 0)):
+            out = io.StringIO()
+            try:
+                sys.argv = ["compare_deterministic.py", str(run), *extra]
+                with contextlib.redirect_stdout(out):
+                    code = compare_deterministic.main()
+            finally:
+                sys.argv = argv
+            assert code == want, (extra, out.getvalue())
+
+
 def test_image_pins_the_versions_the_record_names():
     # pumllint docs/neo4j-governed-knowledge-evaluation.md §12, the record's versions
     named = {"neo4j": "6.4.1", "rdflib": "7.6.0", "pyshacl": "0.40.2", "openai": "3.41.0"}

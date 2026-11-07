@@ -3,9 +3,11 @@ id: TASK-0193
 title: >-
   Checks that compare by construction: the round trip, the comparator, pipefail,
   the network scan (doc-0030 F7)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-07T07:14:00Z'
+updated_date: '2026-11-07T08:10:00Z'
 labels:
   - review
   - ci
@@ -32,3 +34,9 @@ First in the tranche, because until it lands a regression of every later fix can
 - [ ] #4 test_security scans recursively (vendored folders excepted), names asyncio, ssl, socketserver, multiprocessing.connection, imaplib, poplib and nntplib, and flags import_module or __import__ of a network module; instance/ci/claude and subjects/*/oracle are scanned
 - [ ] #5 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. P5: check_round_trip.differences() walks every part answers() returns (store_reads included), first-seen order; tests for a store_reads-only difference and for answers()'s key set. 2. P7: compare_deterministic counts a named or defaulted scenario not in the run as a difference; demo.yml's two page-run comparisons and the README walkthrough name --scenarios S1. 3. P6: top-level defaults.run.shell bash in demo.yml and harness.yml; scan every pipe for an early-exit reader or a producer exiting non-zero on purpose; read the last main stack log for the saved-query and impact checks behind tee. 4. R11: test_security scans harness, demo/app, tools, demo/tools, instance/ci and subjects/*/oracle recursively, vendor/ excepted; adds asyncio, ssl, socketserver, imaplib, poplib, nntplib, multiprocessing.connection; reads import_module/__import__ of a literal. 5. The record: S1-S7 and J-F deterministic on rdflib, compared; suite both ways.
+<!-- SECTION:PLAN:END -->
