@@ -920,7 +920,7 @@
   "slices": {
    "type": "object",
    "additionalProperties": false,
-   "description": "The slice map (task-0152, doc-0022 K1, additive): the register's thread walk with parent descent (ieam-register decision 0018) from each approved step of a journey that concerns a product in scope (a touchpoint under no step is its own), or, for a product no journey concerns, from each process that delivers it. The capabilities a product requires and no slice reaches are the register's A1 finding. Every overlay node, link and exception is placed once: in the one slice whose thread holds it, or in a named remainder group; elements gives the denominator. Facts only: no planning label, estimate or rank.",
+   "description": "The slice map (task-0152, doc-0022 K1, additive): the register's thread walk with parent descent (ieam-register decision 0018) from each approved step of a journey that concerns a product in scope (a touchpoint under no step is its own), or, for a product no journey concerns, from each process that delivers it. The capabilities a product requires and no slice reaches are the register's A1 finding. Every overlay node, link and exception is placed once: in the one slice whose thread holds it, or in a named remainder group; elements gives the denominator. Facts only: no planning label, estimate or rank. With a scope (task-0191) the slices are the named journey's or product's own, the overlay may add nothing, and each slice carries its keys and cells.",
    "required": [
     "walk",
     "register_rule",
@@ -1048,7 +1048,9 @@
        "empty",
        "withdrawn",
        "owners",
-       "elements"
+       "elements",
+       "handoffs",
+       "keys"
       ],
       "properties": {
        "start": {
@@ -1160,6 +1162,203 @@
         "items": {
          "$ref": "#/$defs/placed"
         }
+       },
+       "handoffs": {
+        "type": "array",
+        "description": "each live thread edge whose two ends have different owners (task-0191): who hands over to whom along the slice",
+        "items": {
+         "type": "object",
+         "additionalProperties": false,
+         "required": [
+          "from",
+          "rel",
+          "to",
+          "owners"
+         ],
+         "properties": {
+          "from": {
+           "type": "string"
+          },
+          "rel": {
+           "type": "string"
+          },
+          "to": {
+           "type": "string"
+          },
+          "owners": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           }
+          }
+         }
+        }
+       },
+       "keys": {
+        "type": [
+         "object",
+         "null"
+        ],
+        "additionalProperties": false,
+        "description": "the slice's keys (task-0191, doc-0024 J1): the register-map rows register_impact's landed_rows gives for the slice's start, walked descendants and reached nodes, with the subject's key count as denominator; with a scenario held each row's level, stale, suspect and findings as register_impact's with_levels reads them, and the gate over the slice's keys; null when no register map was read",
+        "required": [
+         "of",
+         "landed",
+         "rows",
+         "behind_withdrawn",
+         "gate",
+         "cells"
+        ],
+        "properties": {
+         "of": {
+          "type": "integer",
+          "minimum": 0
+         },
+         "landed": {
+          "type": "integer",
+          "minimum": 0
+         },
+         "rows": {
+          "type": "array",
+          "items": {
+           "$ref": "#/$defs/key"
+          }
+         },
+         "behind_withdrawn": {
+          "type": "array",
+          "items": {
+           "type": "object",
+           "additionalProperties": false,
+           "required": [
+            "from",
+            "rel",
+            "to",
+            "state",
+            "keys",
+            "only_behind"
+           ],
+           "properties": {
+            "from": {
+             "type": "string"
+            },
+            "rel": {
+             "type": "string"
+            },
+            "to": {
+             "type": "string"
+            },
+            "state": {
+             "type": [
+              "string",
+              "null"
+             ]
+            },
+            "keys": {
+             "type": "array",
+             "items": {
+              "type": "string"
+             }
+            },
+            "only_behind": {
+             "type": "array",
+             "items": {
+              "type": "string"
+             }
+            }
+           }
+          }
+         },
+         "gate": {
+          "type": [
+           "object",
+           "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+           "task",
+           "verdict",
+           "why",
+           "exit_code"
+          ],
+          "properties": {
+           "task": {
+            "type": "string"
+           },
+           "verdict": {
+            "type": "string"
+           },
+           "why": {
+            "type": "string"
+           },
+           "exit_code": {
+            "type": "integer"
+           }
+          }
+         },
+         "cells": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+           "read",
+           "levels",
+           "unread",
+           "worst",
+           "unknown",
+           "gaps",
+           "lapsed",
+           "why"
+          ],
+          "description": "facts the slice's rows give, never a score: counts per level read, the keys unread, the lowest level by the gate's order, the keys at absent (unknown) and declared_gap, the lapsed ones",
+          "properties": {
+           "read": {
+            "type": "boolean"
+           },
+           "levels": {
+            "type": "object",
+            "additionalProperties": {
+             "type": "integer",
+             "minimum": 0
+            }
+           },
+           "unread": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            }
+           },
+           "worst": {
+            "type": [
+             "string",
+             "null"
+            ]
+           },
+           "unknown": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            }
+           },
+           "gaps": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            }
+           },
+           "lapsed": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            }
+           },
+           "why": {
+            "type": "object",
+            "additionalProperties": {
+             "type": "string"
+            }
+           }
+          }
+         }
+        }
        }
       }
      }
@@ -1245,6 +1444,40 @@
       "in_remainder": {
        "type": "integer",
        "minimum": 0
+      }
+     }
+    },
+    "scope": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "additionalProperties": false,
+     "required": [
+      "id",
+      "kind",
+      "taxonomy",
+      "name"
+     ],
+     "description": "the journey, step, touchpoint or product the slices are scoped by (task-0191), or null: the products the overlay touches",
+     "properties": {
+      "id": {
+       "type": "string"
+      },
+      "kind": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "taxonomy": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "name": {
+       "type": "string"
       }
      }
     }

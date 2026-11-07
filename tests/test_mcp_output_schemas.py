@@ -138,6 +138,7 @@ def test_the_files_only_tools_conform_on_both_subjects():
                 r.call("register_impact", {"node": m["rows"][0]["nodes"][0]})
                 r.call("register_impact", {"node": cap, "children": True})
                 r.call("proposal_impact", {"proposal": PROPOSAL})
+                r.call("proposal_impact", {"scope": "JRN-0001"})   # task-0191: the approved register alone, keys per slice
                 r.call("scenario_runs")
                 r.call("scenario_runs", {"scenario": scenarios[0], "limit": 1})
                 for sc in scenarios:
@@ -181,6 +182,8 @@ def test_the_store_backed_tools_conform_on_both_subjects():
                 r.call("evidence_bundle", {"keys": [key], "verbatim": False})
                 r.call("register_impact", {"node": m["rows"][0]["nodes"][0], "scenario": sc})
                 r.call("proposal_impact", {"proposal": PROPOSAL, "scenario": sc})
+                for scope in ("JRN-0001", "JRN-0005"):   # task-0191: each slice's keys read at their levels
+                    r.call("proposal_impact", {"scope": scope, "scenario": sc})
                 r.call("held_keys")
                 r.call("derived_outputs", {"key": key})
                 docs = sorted({s["artefact"] for s in statements if s.get("artefact")})

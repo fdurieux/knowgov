@@ -245,11 +245,19 @@ TOOLS.append(
                     "denominator, facts only; each "
                     "reused node's keys as register_impact reads them (with a scenario held, their levels under the task "
                     "class on the same as_of); the new nodes left unmapped (never unknown); the approvals per owning unit. "
+                    "With scope, a journey, step or product id, the slices are that scope's own and the proposal may be left "
+                    "out: the approved register read alone (task-0191). Each slice then lists its keys, the register-map rows "
+                    "register_impact lands on its thread, with the denominator, and with a scenario held their levels and the "
+                    "cells: levels by count, unread, the lowest level, unknown (absent), gaps, lapses, the keys behind an edge "
+                    "the thread does not follow, and the owner handoffs along it. Facts only, never a score. "
                     "Every overlay element is hypothetical; nothing is written to the register or the store.",
-     "inputSchema": {"type": "object", "additionalProperties": False, "required": ["proposal"], "properties": {
+     "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
          "proposal": {"type": "object", "description": "the overlay: nodes [{id, kind, name, parent, owner, source}], links "
                       "[{type, source, target, rationale, owner}], reused [{id, mode: as_is|changed}], exceptions "
-                      "[{rule, scope, expires, rationale}], title; ids are provisional, a link end is a register id or a proposed node's"},
+                      "[{rule, scope, expires, rationale}], title; ids are provisional, a link end is a register id or a proposed "
+                      "node's (required unless scope is given)"},
+         "scope": {"type": "string", "description": "an approved journey, step, touchpoint or product id: its slices only, each "
+                   "with its keys; with no proposal, the approved register read alone (task-0191)"},
          "children": {"type": "boolean", "description": "walk every approved descendant by parent too, as register_impact's children (default: false)"},
          "task": {"type": "string", "description": "the task class the reused nodes' keys are read under, as register_impact's (default: codegen)"},
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another (default: whatever it holds; with none held, the keys carry no level)"},
@@ -857,7 +865,10 @@ class Tools:
             raise ToolError(f"{SUBJECT.id}: no task {task!r}; the subject declares {sorted(TASKS) or 'none'}")
         on = self._as_of(args)
         try:
-            out = pi.evaluate(args.get("proposal"), today=pi._date(on, "as_of"), children=args.get("children", False))
+            if args.get("proposal") is None and args.get("scope") is None:
+                raise ToolError("give a proposal, a scope (a journey, step or product id), or both")
+            out = pi.evaluate(args.get("proposal"), today=pi._date(on, "as_of"), children=args.get("children", False),
+                              scope=args.get("scope"))
         except (pi.ProposalError, pi.ri.ImpactError) as e:
             raise ToolError(f"the proposal cannot be read: {e}") from e
 
