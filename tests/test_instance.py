@@ -237,3 +237,66 @@ def test_connectors_toml_names_the_registers_systems_and_a_string_id_attribute()
             errs = check_instance.check(out)["errors"]
             assert len(errs) == 1 and want in errs[0], (text, errs)
             assert check_instance.main([str(out)]) == 1, text
+
+
+# Task-0194, doc-0030 H1's interim: the shared store records a held scenario by its id alone, so two subjects
+# sharing one answer each other's gates. The instance check refuses it, an empty subjects/ and a repeated id.
+
+def _with_second_subject(out: Path, sid: str, scenarios: str | None = None) -> Path:
+    import shutil
+    src = out / "subjects" / "cargo_quote"
+    dst = out / "subjects" / f"copy_{sid}"
+    shutil.copytree(src, dst)
+    toml = (dst / "subject.toml").read_text(encoding="utf-8")
+    (dst / "subject.toml").write_text(re.sub(r'(?m)^id = "cargo_quote"$', f'id = "{sid}"', toml, count=1), encoding="utf-8")
+    if scenarios is not None:
+        (dst / "scenarios.toml").write_text(scenarios, encoding="utf-8")
+    return dst
+
+
+def test_a_scenario_id_two_subjects_declare_is_refused_naming_both_and_why():
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "inst"
+        example_instance.build(out)
+        _with_second_subject(out, "cargo_copy")
+        errs = [e for e in check_instance.check(out)["errors"] if "the scenario id" in e]
+        assert errs and all("cargo_copy, cargo_quote" in e and "by its id alone" in e for e in errs), errs
+        assert any("'S1'" in e for e in errs), errs
+        assert check_instance.main([str(out)]) == 1
+
+
+def test_distinct_scenario_ids_across_subjects_pass():
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "inst"
+        example_instance.build(out)
+        own = (out / "subjects" / "cargo_quote" / "scenarios.toml").read_text(encoding="utf-8")
+        _with_second_subject(out, "cargo_copy", re.sub(r'(?m)^id = "S(\d)"$', r'id = "Q\1"', own))
+        rep = check_instance.check(out)
+        assert not [e for e in rep["errors"] if "subjects/:" in e], rep["errors"]
+
+
+def test_an_empty_subjects_folder_and_a_repeated_subject_id_are_refused():
+    import shutil
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "inst"
+        example_instance.build(out)
+        own = (out / "subjects" / "cargo_quote" / "scenarios.toml").read_text(encoding="utf-8")
+        _with_second_subject(out, "cargo_quote", re.sub(r'(?m)^id = "S(\d)"$', r'id = "Q\1"', own))
+        errs = check_instance.check(out)["errors"]
+        assert any("the subject id 'cargo_quote' is declared by 2 roots (cargo_quote, copy_cargo_quote)" in e for e in errs), errs
+        for d in (out / "subjects").iterdir():
+            shutil.rmtree(d)
+        errs = check_instance.check(out)["errors"]
+        assert any(e.startswith("subjects/: empty;") for e in errs), errs
+        assert check_instance.main([str(out)]) == 1
+
+
+def test_the_public_subjects_declare_disjoint_scenario_ids():
+    """The public subjects keep the rule they would be held to in one instance."""
+    from subject import Subject
+    seen: dict[str, str] = {}
+    for root in sorted(p for p in (ROOT / "subjects").iterdir() if (p / "subject.toml").is_file()):
+        s = Subject(root)
+        for sc in s.order:
+            assert sc not in seen, f"{sc} is declared by {seen.get(sc)} and {s.id}"
+            seen[sc] = s.id

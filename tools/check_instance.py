@@ -140,16 +140,24 @@ def check(instance: Path, table: dict[str, dict] | None = None) -> dict:
                     present[f.relative_to(inst).as_posix()] = d.name
 
     read: dict[str, list[dict]] = {}   # file -> who reads it
+    ids: dict[str, list[str]] = {}         # subject id -> its roots (task-0194)
+    scenario_of: dict[str, list[str]] = {}  # scenario id -> the subjects declaring it (task-0194, doc-0030 H1)
     subs = inst / "subjects"
+    roots = sorted(p for p in subs.iterdir() if p.is_dir() and p.name not in SKIP) if subs.is_dir() else []
     if not subs.is_dir():
         errors.append("subjects/: missing; an instance holds at least one subject root there")
+    elif not roots:
+        errors.append("subjects/: empty; an instance holds at least one subject root there (subjects/<id>/subject.toml)")
     else:
-        for root in sorted(p for p in subs.iterdir() if p.is_dir() and p.name not in SKIP):
+        for root in roots:
             try:
                 s = Subject(root)
             except Exception as e:  # noqa: BLE001 — a subject that does not load is the finding
                 errors.append(f"subjects/{root.name}: does not load: {e}")
                 continue
+            ids.setdefault(s.id, []).append(root.name)
+            for sc in s.order:
+                scenario_of.setdefault(sc, []).append(s.id)
             srep = {"id": s.id, "root": root.relative_to(inst).as_posix(), "artefacts": [],
                     "record": s.record_dir.is_dir() and any(s.record_dir.iterdir())}
             for a in s.artefacts:
@@ -182,6 +190,15 @@ def check(instance: Path, table: dict[str, dict] | None = None) -> dict:
                 if f["level"] == "error" and f["rule"] not in ("path", "mapper"):
                     errors.append(f"subjects/{root.name}: {f['where']}: {f['message']}; fix: {f['fix']}")
             rep["subjects"].append(srep)
+        for sid, where in sorted(ids.items()):
+            if len(where) > 1:
+                errors.append(f"subjects/: the subject id {sid!r} is declared by {len(where)} roots ({', '.join(where)}); "
+                              "a subject is named by its id (KG_SUBJECTS, the MCP servers' subject argument), so each must be unique")
+        for sc, who in sorted(scenario_of.items()):
+            if len(set(who)) > 1:
+                errors.append(f"subjects/: the scenario id {sc!r} is declared by {len(set(who))} subjects ({', '.join(sorted(set(who)))}); "
+                              "the shared store records a held scenario by its id alone, so one subject's gate would answer from "
+                              "another's load: give each subject its own scenario ids (doc-0030 H1)")
 
     for folder, k in table.items():
         files = sorted(f for f, kd in present.items() if kd == folder)

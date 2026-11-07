@@ -48,7 +48,7 @@ Stop, and open the pull request, only when all three hold:
 
 1. the subject check exits 0 with no WARNING;
 2. the gate's dry run exits 0 or 1, never 2 (in Claude Code:
-   `KG_STORE=rdflib python harness/gate_cli.py --subject <instance>/subjects/<id> --scenario S0
+   `KG_STORE=rdflib python harness/gate_cli.py --subject <instance>/subjects/<id> --scenario <id>-S0
    --task <class>`, from the knowgov checkout; with no shell, say that no dry run was possible);
 3. every remaining finding is knowledge with an owner and a route: a key absent or proposed,
    with the unit that owns it and its questionnaire.
@@ -91,7 +91,10 @@ Derive and show everything else; do not ask for it. Work in this order, and show
    from the file's stem, unique in the subject; the check refuses a mapped artefact without
    `short`), `path` (`../../artefacts/<kind>/<file>`), `mapper`, and `family`, `format`, `label`,
    `format_label` from the kind and the mapper. Copy `scenarios.toml` with its pristine `S0` from
-   `subjects/minimal/`: the gate runs on a scenario and refuses a subject with none.
+   `subjects/minimal/`: the gate runs on a scenario and refuses a subject with none. Rename it
+   `<id>-S0`, and give every scenario an id no other subject of the instance declares: the shared
+   store records the scenario it holds by its id alone, so two subjects sharing one would answer each
+   other's gates. `tools/check_instance.py` refuses a scenario id two subjects declare.
 4. **The keys.** Write `[tasks.<class>] keys` from the task's own sources, with `block_levels`
    and `max_unverified_share` as `subjects/minimal/` has them unless the person says otherwise.
    Then read the check's yield beside them. A WARNING with a did-you-mean (`REQ-03|txt`, did you
@@ -105,7 +108,7 @@ Derive and show everything else; do not ask for it. Work in this order, and show
    person who has read them attests in their own commit.
 6. **The questionnaires, last.** Fix in this order: spelling, then mapper fit, then attestation.
    Only then is a key still absent a question for its owner: from the knowgov checkout,
-   `KG_SUBJECT=<instance>/subjects/<id> python harness/capture.py questionnaire --scenario S0
+   `KG_SUBJECT=<instance>/subjects/<id> python harness/capture.py questionnaire --scenario <id>-S0
    --out questionnaires/` writes one per owning unit, from a private copy of the store, and they go
    with the pull request.
 
@@ -151,9 +154,9 @@ its next request, with no restart, and both MCP servers answer for it by id, wit
 every tool takes `subject` (task-0157). Name the next steps with their arguments:
 
 1. check `list_subjects` names the new subject's id (it lists the subjects under `KG_SUBJECTS`);
-2. load `S0` with `start_run` on `knowgov-runs`, `subject` the new id, saying first that the load
+2. load `<id>-S0` with `start_run` on `knowgov-runs`, `subject` the new id, saying first that the load
    replaces what everyone else viewing that store sees;
-3. ask `gate_verdict` with `subject` the new id and `scenario` `S0` for the task class. A store-backed
+3. ask `gate_verdict` with `subject` the new id and `scenario` `<id>-S0` for the task class. A store-backed
    tool answers only for the subject whose scenario the store holds; it says so, and names the run.
 <!-- /part -->
 

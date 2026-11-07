@@ -119,6 +119,12 @@ names that section with the version.
 
 ### Changes
 
+- **The instance check refuses a scenario id two subjects share** (task-0194, doc-0030 H1's interim). The shared
+  store records the scenario it holds by its id alone, so two subjects both declaring `S0` would answer each
+  other's gates. `tools/check_instance.py` now exits 1 on a scenario id two subjects declare, naming the id,
+  the subjects and why; on an empty `subjects/`; and on two subject folders declaring the same id. The
+  onboarding skill and `instance/README.md` tell adopters to rename the copied `S0` to `<id>-S0`.
+
 - **The capture commands no longer reload the shared store** (task-0183). Before, `capture.py questionnaire`,
   `capture.py review` and `harness/transcript.py` wiped the store `KG_STORE` names and loaded their scenario
   into it. On a stack, that is the Neo4j the page and the MCP servers read, so an owner following the gate's
