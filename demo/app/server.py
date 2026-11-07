@@ -849,9 +849,8 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
         import http_boundary
         route = "guide" if self._guide_parts(urllib.parse.urlparse(self.path).path) else None
         refused = http_boundary.check(page_policy(self.server.server_address[1]), self.headers, route)
-        if refused:
-            self.close_connection = True
-            self._json({"error": refused[1]}, refused[0])
+        if refused:   # closed through the shared refusal (task-0196 M3)
+            self.refuse(lambda: self._json({"error": refused[1]}, refused[0]))
             return False
         return True
 
@@ -973,17 +972,16 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
         if not self._boundary():
             return
         refused = write_guard(self.headers)
-        if refused:
+        if refused:   # answered before the body is read: closed, so the body is never a second request (M3)
             code, why, extra = refused
-            return self._json({"error": why}, code, extra)
+            return self.refuse(lambda: self._json({"error": why}, code, extra))
         u = urllib.parse.urlparse(self.path)
         parts = [p for p in u.path.split("/") if p]
         try:   # framing before a byte is read, then a JSON object (task-0141.04); every POST sends one
             body = http_boundary.read_json_body(self, self._limits())
             self.arrived(body=True)
         except http_boundary.Refused as e:
-            self.close_connection = True
-            return self._json({"error": e.reason}, e.status)
+            return self.refuse(lambda: self._json({"error": e.reason}, e.status))
         q = urllib.parse.parse_qs(u.query)
         if body.get("subject") is not None and not isinstance(body["subject"], str):
             return self._json({"error": "subject must be a string"}, 400)

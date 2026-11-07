@@ -1331,18 +1331,20 @@ def make_handler(server: Server, token: str | None):
             self.wfile.write(data)
 
         def _guard(self) -> bool:
+            """Every refusal closes the connection (task-0196 M3): its body is never read, so it must not
+            be parsed as a second request on keep-alive."""
             if urlsplit(self.path).path != "/mcp":
-                self._send(404, _error(None, -32600, "the MCP endpoint is /mcp"))
+                self.refuse(lambda: self._send(404, _error(None, -32600, "the MCP endpoint is /mcp")))
                 return False
             import http_boundary
             refused = http_boundary.check(self.server.policy, self.headers)   # Host and Origin, each on its own (task-0141.03)
             if refused:
-                self._send(refused[0], _error(None, -32600, refused[1]))
+                self.refuse(lambda: self._send(refused[0], _error(None, -32600, refused[1])))
                 return False
             if token:
                 got = self.headers.get("Authorization", "")
                 if not (got.startswith("Bearer ") and hmac.compare_digest(got[7:].encode(), token.encode())):
-                    self._send(401, _error(None, -32600, "a bearer token is required"), {"WWW-Authenticate": "Bearer"})
+                    self.refuse(lambda: self._send(401, _error(None, -32600, "a bearer token is required"), {"WWW-Authenticate": "Bearer"}))
                     return False
             return True
 
@@ -1357,8 +1359,7 @@ def make_handler(server: Server, token: str | None):
                 data = http_boundary.read_body(self, self._limits())
                 self.arrived(body=True)
             except http_boundary.Refused as e:
-                self.close_connection = True
-                self._send(e.status, _error(None, -32600, e.reason))
+                self.refuse(lambda: self._send(e.status, _error(None, -32600, e.reason)))
                 return
             code, resp = server.handle_http(data.decode("utf-8", "replace"), self.headers)
             self._send(code, resp)

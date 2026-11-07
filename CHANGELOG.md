@@ -119,6 +119,15 @@ names that section with the version.
 
 ### Changes
 
+- **Two security fixes on the MCP reader's boundary** (task-0196, doc-0030 H7, M3). `subject_check`
+  now refuses a proposed manifest whose `[[artefact]] path`, `include`, `[reference] code`, `[oracle]
+  script`, `[verification] map`, `[record] dir` or any other path field is absolute or resolves outside
+  the call's temporary instance, before anything is written or read, so its report can no longer say
+  whether a server file exists or quote it; and it compares the documents' paths normalised, so
+  `x/../subject.toml` can no longer replace the manifest. Over HTTP, every refusal (404, 421, 403,
+  401, and the page's own) now closes the connection, so a refused request's body is never read as a
+  second request on the same keep-alive socket with a Host of its own.
+
 - **The deterministic comparator counts a scenario the run lacks as a difference** (task-0193, doc-0030 P7).
   Before, `demo/tools/compare_deterministic.py` skipped a named or defaulted scenario with no folder in the run,
   so a run that stopped after S1 matched the record at exit 0. Each missing scenario is now a difference

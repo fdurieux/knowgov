@@ -329,6 +329,14 @@ class BoundedMixin:
         ok = super().parse_request()
         return ok and not self._deadline.fired
 
+    def refuse(self, answer) -> None:
+        """Answer a refusal and end the connection (task-0196 M3, doc-0030): the refused request's body is
+        never read, so on keep-alive it would otherwise be parsed as the next request, with headers of its
+        own (a forged Host past the rebinding check). ``answer`` writes the response; nothing more is read
+        from the socket after it. The reader and the page both refuse through this."""
+        self.close_connection = True
+        answer()
+
     def arrived(self, body: bool = False):
         """Disarm the deadline: at once for a request without a body (its headers are in), or once the
         body is read (``body=True``), then Refused(408) when it fired first, so a body cut short is
