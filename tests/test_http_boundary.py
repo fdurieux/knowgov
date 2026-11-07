@@ -276,3 +276,56 @@ def test_the_policy_is_built_from_configuration_and_never_names_a_wildcard():
         except hb.BadAuthority:
             continue
         raise AssertionError(f"{bad!r} accepted as an authority")
+
+
+def _smuggle(port: int, method: str, path: str, outer: list[tuple[str, str]], inner: bytes) -> list[bytes]:
+    """A refused request whose body is a second complete request, on one keep-alive socket; every HTTP
+    status line the server writes back before it closes (task-0196, doc-0030 M3)."""
+    import socket
+    head = f"{method} {path} HTTP/1.1\r\n" + "".join(f"{k}: {v}\r\n" for k, v in outer)
+    head += f"Connection: keep-alive\r\nContent-Type: application/json\r\nContent-Length: {len(inner)}\r\n\r\n"
+    s = socket.create_connection(("127.0.0.1", port), timeout=10)
+    try:
+        s.sendall(head.encode() + inner)
+        got = b""
+        while True:
+            try:
+                chunk = s.recv(65536)
+            except (ConnectionResetError, TimeoutError, socket.timeout):
+                break
+            if not chunk:
+                break
+            got += chunk
+    finally:
+        s.close()
+    import re   # a second response follows the first's body directly, with no line break between them
+    return re.findall(rb"HTTP/1\.[01] \d{3}", got)
+
+
+def test_m3_a_refusal_closes_the_connection_so_its_body_never_runs_as_a_second_request():
+    """doc-0030 M3: the reader answered a refusal (404, 421, 403, 401) without reading the body or closing,
+    so on keep-alive the body ran as a request of its own with a forged Host (probe: 421, then a 200
+    tools/call). Every refusal now goes through http_boundary's refuse, shared with the page."""
+    with _mcp(token=SECRET) as (port, stub, _):
+        good = [("Host", f"127.0.0.1:{port}"), ("Authorization", f"Bearer {SECRET}")]
+        inner_body = INIT
+        inner = (f"POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer {SECRET}\r\n"
+                 f"Content-Type: application/json\r\nContent-Length: {len(inner_body)}\r\n\r\n").encode() + inner_body
+        for outer, path, want in ((
+                [("Host", f"evil.example:{port}"), ("Authorization", f"Bearer {SECRET}")], "/mcp", b"421"),
+                ([("Host", f"127.0.0.1:{port}"), ("Origin", "http://evil.example"), ("Authorization", f"Bearer {SECRET}")], "/mcp", b"403"),
+                ([("Host", f"127.0.0.1:{port}")], "/mcp", b"401"),
+                (good, "/elsewhere", b"404")):
+            lines = _smuggle(port, "POST", path, outer, inner)
+            assert len(lines) == 1 and want in lines[0], (path, outer, lines)
+        assert stub.calls == 0, "the smuggled request reached the server"
+        # the same socket's second request is still answered when the first is admitted: keep-alive works
+        lines = _smuggle(port, "POST", "/mcp", good, INIT + b"")
+        assert lines and b"200" in lines[0] and stub.calls == 1, lines
+    with _page() as (port, calls, _):
+        inner = f"GET /api/runs HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n".encode()
+        lines = _smuggle(port, "GET", "/api/runs", [("Host", f"evil.example:{port}")], inner)
+        assert len(lines) == 1 and b"421" in lines[0], lines
+        lines = _smuggle(port, "POST", "/api/run", [("Host", f"evil.example:{port}")], inner)
+        assert len(lines) == 1 and b"421" in lines[0], lines
+        assert calls == {"start": 0, "list_runs": 0}, calls

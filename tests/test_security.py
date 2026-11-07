@@ -146,7 +146,10 @@ LOCAL_CHECKS = {"demo/tools/check_impact_cypher.py": 'os.environ.get("KG_DEMO_UR
                 "harness/mcp_runs.py": 'DEFAULT_PAGE = "http://localhost:8080"'}
 # the worker's attestation probe (no_socket_escape): it tries to open AF_VSOCK and AF_PACKET sockets and to
 # connect to TEST-NET-1 (RFC 5737, never routed), and holds only when every attempt is refused
-PROBES = {"harness/worker.py": 'OUTSIDE = ("192.0.2.1", 9)'}
+PROBES = {"harness/worker.py": 'OUTSIDE = ("192.0.2.1", 9)',
+          # the MCP check's keep-alive probe of M3 (task-0196): a raw socket to the loopback server it started,
+          # since urllib always asks for the connection to close and so cannot send a second request on it
+          "tools/check_mcp_server.py": 'socket.create_connection(("127.0.0.1", port), timeout=15)'}
 
 
 def _scanned_files() -> list:
@@ -374,3 +377,20 @@ def test_the_workers_socket_use_is_only_the_probe_that_proves_it_cannot_reach_ou
     assert len(opened) == 1 and [a.id for a in opened[0].args] == ["family", "kind"]
     assert {n.name for n in tree.body if isinstance(n, ast.FunctionDef) and any(
         isinstance(m, ast.Name) and m.id == "socket" for m in ast.walk(n))} == {"sockets"}, "socket is used in sockets() only"
+
+
+def test_the_mcp_checks_socket_use_is_only_the_loopback_keep_alive_probe():
+    """The PROBES exception for tools/check_mcp_server.py (task-0196, M3), as tight as the worker's: socket is
+    imported and used inside check_refusal_closes only, for one create_connection to the literal 127.0.0.1
+    (the server the check started), never a lookup, a bind or another address."""
+    tree = ast.parse((ROOT / "tools" / "check_mcp_server.py").read_text(encoding="utf-8"))
+    users = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and any(
+        isinstance(m, ast.Name) and m.id == "socket" for m in ast.walk(n))}
+    assert users == {"check_refusal_closes"}, users
+    nodes = list(ast.walk(tree))
+    used = {n.attr for n in nodes if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == "socket"}
+    assert used == {"create_connection"}, used
+    (call,) = [n for n in nodes if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "create_connection"]
+    addr = call.args[0]
+    assert isinstance(addr, ast.Tuple) and isinstance(addr.elts[0], ast.Constant) and addr.elts[0].value == "127.0.0.1", ast.unparse(call)
+    assert not any(isinstance(n, ast.ImportFrom) and n.module == "socket" for n in nodes)

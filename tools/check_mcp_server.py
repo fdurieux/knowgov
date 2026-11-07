@@ -492,6 +492,37 @@ def check_nodes(client: "StdioClient", failures: list[str], label: str) -> None:
 PROBE = ROOT / "tools" / "fixtures" / "subject_probe"
 
 
+def check_refusal_closes(client: "HttpClient", failures: list[str]) -> None:
+    """M3 (task-0196): on the live HTTP server, a refused request (a foreign Host) whose body is a second,
+    admissible request, on one keep-alive socket, gets one answer, the refusal, and the socket closes. A raw
+    socket to the loopback server this check started, since urllib always asks for the connection to close."""
+    import socket
+    from urllib.parse import urlsplit
+    port = urlsplit(client.url).port
+    inner_body = json.dumps({"jsonrpc": "2.0", "id": 9, "method": "tools/list", "params": {}}).encode()
+    inner = (f"POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: application/json\r\n"
+             f"Content-Length: {len(inner_body)}\r\n\r\n").encode() + inner_body
+    outer = (f"POST /mcp HTTP/1.1\r\nHost: evil.example:{port}\r\nConnection: keep-alive\r\n"
+             f"Content-Type: application/json\r\nContent-Length: {len(inner)}\r\n\r\n").encode()
+    got = b""
+    with socket.create_connection(("127.0.0.1", port), timeout=15) as sock:   # the loopback server started above
+        sock.sendall(outer + inner)
+        while True:
+            try:
+                chunk = sock.recv(65536)
+            except OSError:
+                break
+            if not chunk:
+                break
+            got += chunk
+    import re   # a second response follows the first's body directly, with no line break between them
+    statuses = re.findall(rb"HTTP/1\.[01] \d{3}", got)
+    if len(statuses) != 1 or b"421" not in statuses[0]:
+        failures.append(f"HTTP: a refused request's body was answered as a second request (M3): {statuses}")
+    else:
+        print("HTTP: a refusal (421) closes the connection; its smuggled body gets no answer (M3)")
+
+
 def check_subject_tool(failures: list[str]) -> None:
     """subject_check (task-0146): listed over stdio and over Streamable HTTP, and on doc-0018's probe the
     report equal to ``tools/check_subject.py --json``'s on the same files, the store never read."""
@@ -517,7 +548,15 @@ def check_subject_tool(failures: list[str]) -> None:
             if got != cli:
                 diff = sorted(k for k in set(got) | set(cli) if got.get(k) != cli.get(k))
                 failures.append(f"subject_check over {kind.__name__}: differs from check_subject.py --json on {diff}")
+            # H7 (task-0196): a manifest naming a path outside the call is refused, with nothing of the server in it
+            escape = dict(args, subject_toml=args["subject_toml"].replace('path = "requirements.md"', f'path = "{ROOT / "README.md"}"'),
+                          documents={**args["documents"], "x/../subject.toml": "[subject]\nid = \"over\"\n"})
+            for bad in (dict(escape, documents=args["documents"]), dict(args, documents=escape["documents"])):
+                r = client.request("tools/call", {"name": "subject_check", "arguments": bad})["result"]
+                if not r.get("isError") or "structuredContent" in r:
+                    failures.append(f"subject_check over {kind.__name__}: a path outside the call was not refused (H7)")
             if kind is HttpClient:   # the stateless era over HTTP needs its headers; stdio carries it here
+                check_refusal_closes(client, failures)
                 continue
             stateless = client.modern("tools/call", {"name": "subject_check", "arguments": args})["result"]
             if stateless.get("structuredContent") != cli:
