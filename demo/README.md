@@ -703,6 +703,20 @@ statement replaces it, and info once one does: the record of the change.
 After S6's change and the owner's re-verification the verdict is PROCEED,
 and the command still exits 1 on `derived:S1:G:run1`.
 
+**What a later version re-reads.** Stage 2 reads the whole later set of
+documents, not only the changed file, so a symbol a diagram reads from the
+decision table resolves as it would at a fresh load. Only a document whose
+bytes changed gets a new version. A statement whose value or evidence
+changed gets a v2 successor, and the one it replaces is invalidated, also
+when only a symbol it reads changed. The rules then run across both
+versions: a v2 statement that contradicts another document reads
+*disputed*, as a fresh load of the same documents would. A review's acts
+stand: a declared gap a review closed stays closed, and a declared gap whose
+declaring statement the change invalidated is withdrawn.
+`tools/check_stage2_reload.py` holds a stage-2 gate equal to a fresh load of
+the later documents, plus the stale statements and suspect outputs the
+change leaves (task-0197).
+
 **A later version.** `--stage 2` brings in a scenario's changed artefact
 after the first stage, as the record's stage 2 does: S6's decision table
 as v2. Four statements are invalidated, and the gate is BLOCKED until the

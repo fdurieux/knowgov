@@ -314,6 +314,10 @@ jobs:
           PY
       - name: The gate brings in S6's later version (task-0049), BLOCKED on four invalidated statements, then after re-verification exits 1 on the suspect derived output (task-0048)
         run: KG_STORE=rdflib python tools/check_gate_after_change.py runs/gate-change
+      - name: Stage 2 as a whole re-load (task-0197), on rdflib, a stage-2 gate equal to a fresh load of the later documents plus its stale and suspect findings, S6 and the H2, H4, I5, G5 plants on CargoQuote, I6 on J-F
+        run: |
+          KG_STORE=rdflib python tools/check_stage2_reload.py
+          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_stage2_reload.py
       - name: knowgov-trace (task-0051) on the example instance, a registered build of APP-0001 turns suspect after S6's change and check exits 1 naming it
         run: rm -rf runs/trace && KG_STORE=rdflib python tools/check_trace_walkthrough.py runs/trace
       - name: A register change invalidates (task-0122), the fixture's deprecated CAP-0001 and withdrawn REL-06001 stale the keys resting on them and S1's output suspect, exit 1; no state change, nothing; the staleness survives the round trip

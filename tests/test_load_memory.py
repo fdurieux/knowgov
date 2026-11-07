@@ -145,7 +145,8 @@ def test_a_run_is_refused_whole_before_its_first_load():
 def test_the_load_gate_cli_and_run_py_take_the_refusal_before_any_write_and_exit_2():
     load = (ROOT / "harness" / "load.py").read_text(encoding="utf-8")
     body = load.split("def load_scenario(", 1)[1]
-    assert body.index("load_memory.note(st, load_memory.statements(bags))") < body.index("st.ensure_agents("), "before the first write"
+    # the statements of the bags the load writes (a stage-2 re-load writes only the changed ones, task-0197)
+    assert body.index("load_memory.note(st, load_memory.statements(") < body.index("st.ensure_agents("), "before the first write"
     neo = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")
     assert "load_memory.wiped(self)" in neo.split("    def wipe(self)", 1)[1].split("\n    def ", 1)[0]
     import gate_cli

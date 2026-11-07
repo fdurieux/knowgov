@@ -13,7 +13,8 @@ import threading
 import time
 import uuid
 
-from store import Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, held_from, part_list, part_rows, setting
+from store import (DEAD, DOCUMENT_BASES, Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, held_from, part_list, part_rows,
+                   setting, stem)
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
 
@@ -886,9 +887,10 @@ class Neo4jStore(Store):
             MATCH (a:Assertion)-[:ABOUT]->(e:Entity)<-[:ABOUT]-(b:Assertion)
             WHERE a.predicate = b.predicate AND a.id < b.id AND a.artefact <> b.artefact
               AND NOT a.status IN ['rejected','deprecated','invalidated'] AND NOT b.status IN ['rejected','deprecated','invalidated']
-              AND (a.version = b.version OR ($across IS NOT NULL AND (a.basis = $across) <> (b.basis = $across)))
+              AND (a.version = b.version OR (a.basis IN $docs AND b.basis IN $docs)
+                   OR ($across IS NOT NULL AND (a.basis = $across) <> (b.basis = $across)))
             RETURN a.id AS a, a.value AS va, a.basis AS ba, a.artefact AS aa, b.id AS b, b.value AS vb, b.basis AS bb,
-                   b.artefact AS ab, a.key AS key, a.predicate AS pred""", across=across))
+                   b.artefact AS ab, a.key AS key, a.predicate AS pred""", across=across, docs=list(DOCUMENT_BASES)))
 
     def corroborate(self, a, b, promote=True) -> None:
         self.run("""MATCH (a:Assertion {id:$a}), (b:Assertion {id:$b})
@@ -924,11 +926,15 @@ class Neo4jStore(Store):
         return _rows(self.run("MATCH (x:Assertion {unresolved:true}) RETURN x.id AS id, x.key AS key, x.raw_value AS sym"))
 
     def declared_open(self, predicate) -> list[dict]:
-        return _rows(self.run("MATCH (x:Assertion {predicate:$pred, value:'NONE'})-[:ABOUT]->(e:Entity) RETURN e.id AS entity, x.id AS id", pred=predicate))
+        return _rows(self.run("""MATCH (x:Assertion {predicate:$pred, value:'NONE'})-[:ABOUT]->(e:Entity) WHERE NOT x.status IN $dead
+                                 RETURN e.id AS entity, x.id AS id""", pred=predicate, dead=list(DEAD)))
 
     def add_declared_gap(self, gid, text, entity, assertion_id, scenario, key_entity, key) -> None:
         self.run("""MATCH (e:Entity {id:$req}), (x:Assertion {id:$id})
-                    MERGE (g:Gap {id:$gid}) SET g.kind='missing', g.declared=true, g.text=$gtext
+                    MERGE (g:Gap {id:$gid})
+                    SET g.declared = CASE WHEN g.kind = 'closed' THEN g.declared ELSE true END,
+                        g.text = CASE WHEN g.kind = 'closed' THEN g.text ELSE $gtext END,
+                        g.kind = CASE WHEN g.kind = 'closed' THEN g.kind ELSE 'missing' END
                     MERGE (g)-[:CONCERNS]->(e) MERGE (g)-[:CONCERNS]->(x)
                     WITH g MATCH (act:Activity) WHERE act.id STARTS WITH 'act:extract:' + $sc
                     MERGE (g)-[:RAISED_BY]->(act)
@@ -974,11 +980,32 @@ class Neo4jStore(Store):
             WITH DISTINCT x
             OPTIONAL MATCH (d:Derived)-[:USED_ASSERTION]->(x) SET d.suspect=true
             RETURN x.id AS id, x.key AS key, collect(DISTINCT d.id) AS derived""", tag=new_tag))
+        # task-0197 (I5, I6): an older statement with a live successor of the same id stem in the new version
+        succ = {stem(r["id"]) for r in self.run("MATCH (y:Assertion {version:$tag}) WHERE NOT y.status IN $dead RETURN y.id AS id",
+                                                 tag=new_tag, dead=list(DEAD))}
+        older = [r["id"] for r in self.run("MATCH (x:Assertion) WHERE x.version <> $tag AND NOT x.status IN $dead RETURN x.id AS id ORDER BY x.id",
+                                           tag=new_tag, dead=list(DEAD)) if stem(r["id"]) in succ]
+        if older:
+            inv += _rows(self.run("""
+                UNWIND $ids AS xid MATCH (x:Assertion {id:xid})
+                SET x.status='invalidated', x.invalidated_at=datetime().epochSeconds, x.invalidated_by=$tag
+                WITH DISTINCT x
+                OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x) SET v.valid_until=$tag
+                WITH DISTINCT x
+                OPTIONAL MATCH (d:Derived)-[:USED_ASSERTION]->(x) SET d.suspect=true
+                RETURN x.id AS id, x.key AS key, collect(DISTINCT d.id) AS derived""", ids=older, tag=new_tag))
         kept = _rows(self.run("""
             MATCH (x:Assertion)-[:SUPPORTED_BY]->(f:Fragment)<-[:HAS_FRAGMENT]-(old:Version)<-[:HAS_VERSION]-(a:Artefact)-[:CURRENT]->(cur:Version)
             WHERE old <> cur AND x.version <> $tag AND x.status <> 'invalidated'
             RETURN DISTINCT x.id AS id, x.key AS key, x.status AS status""", tag=new_tag))
-        return {"invalidated": inv, "kept": kept}
+        # task-0197 (G5): a declared gap whose declaring statements this re-ingestion invalidated, all of them, is withdrawn
+        withdrawn = [r["id"] for r in self.run("""
+            MATCH (g:Gap {kind:'missing', declared:true})-[:CONCERNS]->(x:Assertion) WHERE x.id IN $inv
+            WITH DISTINCT g
+            WHERE all(y IN [(g)-[:CONCERNS]->(z:Assertion) | z] WHERE y.status IN $dead)
+            SET g.kind='withdrawn', g.declared=false, g.withdrawn_by=$tag
+            RETURN g.id AS id ORDER BY g.id""", inv=[r["id"] for r in inv], dead=list(DEAD), tag=new_tag)]
+        return {"invalidated": inv, "kept": kept, **({"withdrawn": withdrawn} if withdrawn else {})}
 
     def invalidate_keys(self, reasons) -> dict:
         inv = _rows(self.run("""

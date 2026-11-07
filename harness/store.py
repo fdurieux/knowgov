@@ -43,6 +43,16 @@ import os
 from typing import Any
 
 
+DEAD = ("rejected", "deprecated", "invalidated")   # a statement in one of these states takes part in no rule
+DOCUMENT_BASES = ("extracted", "authored")         # a document's statements: they pair across versions (task-0197, H4)
+
+
+def stem(assertion_id: str) -> str:
+    """A statement's id without its version (``A:dt:P2|surcharge@v1`` -> ``A:dt:P2|surcharge``): the stage-2
+    re-load diffs statements by it (task-0197)."""
+    return assertion_id.rsplit("@", 1)[0]
+
+
 def part_list(parts: dict[str, str]) -> list[str]:
     """A directory artefact's file digests as a Version's ``part_sha256``: ``"<sha256>  <rel>"`` by path."""
     return [f"{sha}  {rel}" for rel, sha in sorted(parts.items())]

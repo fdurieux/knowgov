@@ -12,6 +12,7 @@ import re
 import tomllib
 
 from kitio import FAMILY, sha256, pristine
+from store import stem
 import load_memory
 from subject import SUBJECT
 from extract import extract_all, short, NONE
@@ -60,40 +61,69 @@ def resolve_symbols(bags, symbols: dict[str, str]) -> list[dict]:
     return unresolved
 
 
+def _artefact_of(kit: dict[str, str], bag) -> str:
+    return next(p for p in kit if p in FAMILY and bag.artefact == short(p))
+
+
 def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
-                  version_tag: str = "v1", reingest: bool = False) -> dict:
+                  version_tag: str = "v1", reingest: bool = False, changed: set[str] | None = None) -> dict:
     """Write artefacts, versions, fragments, entities, assertions and the
-    provenance activity. Returns counts and the unresolved symbols."""
+    provenance activity. Returns counts and the unresolved symbols.
+
+    ``reingest`` (stage 2, task-0197): ``kit`` is the whole later kit, extracted whole so a symbol resolves
+    from every document (I5); ``changed`` names the artefacts whose bytes changed (default: every one), and
+    only those get a new version and count their fragments. A statement is diffed by its id stem against the
+    one the store holds, whatever its status: unchanged in value and in fragment set, it writes nothing; else
+    it gets a successor in ``version_tag`` (I6), even on an artefact whose bytes did not change (a value
+    resolved through a changed symbol). R-STALE then invalidates what the successors replace."""
     code = SUBJECT.reference_code()
     bags = extract_all(kit, code)
-    load_memory.note(st, load_memory.statements(bags))   # task-0176: refused here, before the first write, when it would not fit
+    if reingest:
+        changed = set(kit) if changed is None else set(changed)
+        changed |= {_artefact_of(kit, b) for b in bags if not all(
+            st.find_fragment(_artefact_of(kit, b), f["locator"], sha256(f["text"])) for f in b.fragments)}   # a fragment the store lacks
+    mine = (lambda b: not reingest or _artefact_of(kit, b) in changed)   # noqa: E731 — the bags whose artefact gets a version
+    load_memory.note(st, load_memory.statements([b for b in bags if mine(b)]))   # task-0176: refused here, before the first write, when it would not fit
     unresolved = resolve_symbols(bags, symbol_table(kit))
+    if reingest:   # as before, the re-ingested files' own
+        own = {a["id"] for b in bags if mine(b) for a in b.assertions}
+        unresolved = [x for x in unresolved if x in own]
+    before = {}
+    if reingest:   # what the store holds, by id stem, before this load writes: the diff's other side
+        for p in kit:
+            if p in FAMILY and p in STORE:
+                for r in st.artefact_assertions(p):
+                    if r["artefact"] == p:
+                        before[stem(r["id"])] = r
     ts = now()
     aid = f"act:extract:{scenario}:{version_tag}"
     st.ensure_agents(TOOL, version_tag, HUMAN, LLM)
     st.create_activity(aid, "extraction", ts, TOOL, activity_note, "agent:harness", subject=SUBJECT.id, scenario=scenario)   # task-0195
     n_frag = n_ass = n_reused = 0
     for path, text in kit.items():
-        if path not in FAMILY or path not in STORE:
+        if path not in FAMILY or path not in STORE or (reingest and path not in changed):
             continue
         family, fmt = FAMILY[path]
         digest, size = SUBJECT.version_digest(path, text)   # a file artefact's raw bytes, as the register digests them (task-0160)
         st.upsert_artefact_version(path, family, fmt, f"V:{path}:{version_tag}", digest, size, ts, version_tag, aid)
         if path.endswith("/"):   # a directory artefact: its digest is the bundle's, so each file's is kept too (task-0094)
             st.record_part_digests(f"V:{path}:{version_tag}", SUBJECT.part_digests(path, text))
-    preload = _record_preload(st, kit, version_tag)
+    preload = _record_preload(st, {p: t for p, t in kit.items() if not reingest or p in changed}, version_tag)
     for bag in bags:
-        art = next(p for p in kit if p in FAMILY and bag.artefact == short(p))
+        art = _artefact_of(kit, bag)
+        versioned = mine(bag)   # an artefact whose bytes changed gets this version; another's fragments are its own still
         vid = f"V:{art}:{version_tag}"
         fmap: dict[str, str] = {}
         reused: set[str] = set()
+        locator = {f["id"]: f["locator"] for f in bag.fragments}
         for f in bag.fragments:
             existing = st.find_fragment(art, f["locator"], sha256(f["text"])) if reingest else None
             if existing:
-                st.link_fragment(vid, existing)
+                if versioned:
+                    st.link_fragment(vid, existing)
+                    n_reused += 1
                 fmap[f["id"]] = existing
                 reused.add(f["id"])
-                n_reused += 1
                 continue
             fid = f["id"] + f"@{version_tag}"
             st.create_fragment(vid, fid, f["locator"], sha256(f["text"]), f["text"], art)
@@ -103,7 +133,10 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
             st.ensure_entity(e["id"], e["kind"], e["name"])
         for a in bag.assertions:
             if reingest and a["fragments"] and all(f in reused for f in a["fragments"]):
-                continue  # the statement and its evidence are unchanged: no new assertion
+                prev = before.get(a["id"])
+                if prev is None or (prev["value"] == a["value"]
+                                    and {x["locator"] for x in prev["fragments"]} == {locator[f] for f in a["fragments"]}):
+                    continue  # the statement and its evidence are unchanged: no new assertion
             basis_agent = HUMAN["id"] if a["basis"] == "authored" else "agent:harness"
             st.create_assertion({"id": a["id"] + f"@{version_tag}", "predicate": a["predicate"], "value": a["value"],
                                  "raw_value": a.get("raw_value"), "text": a["text"], "basis": a["basis"], "status": "proposed",

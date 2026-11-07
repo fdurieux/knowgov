@@ -288,6 +288,10 @@ jobs:
 
       - name: The gate brings in S6's later version (task-0049) on the Neo4j store, BLOCKED, then exits 1 on the suspect derived output after re-verification
         run: docker compose exec -T app python tools/check_gate_after_change.py runs/gate-change
+      - name: Stage 2 as a whole re-load (task-0197) on the Neo4j store, a stage-2 gate equal to a fresh load of the later documents plus its stale and suspect findings, S6 and the plants on CargoQuote, I6 on J-F
+        run: |
+          docker compose exec -T app python tools/check_stage2_reload.py
+          docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_stage2_reload.py
 
       - name: A register change invalidates (task-0122) on the Neo4j store and on rdflib, the same reports; the staleness survives Neo4j to Turtle to rdflib and back
         run: |

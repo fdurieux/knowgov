@@ -138,6 +138,21 @@ names that section with the version.
 
 ### Changes
 
+- **Stage 2 re-reads the whole later kit and answers as a fresh load would** (task-0197, doc-0030 F3: H2, H4,
+  I5, I6, G5). `--stage 2` and a run's stage 2 used to re-ingest the one changed file alone. Five defects followed:
+  - a review's close of a declared gap reopened (H2);
+  - a v2 statement contradicting another document read *proposed* where a fresh load reads *disputed* (H4);
+  - symbols resolved from that file only, so re-ingesting a diagram flagged `ACCEPT_MAX` undefined, and a
+    changed `ACCEPT_MAX` invalidated nothing (I5);
+  - a statement that lost one of several fragments got no successor (I6);
+  - a declared gap outlived the statement that declared it (G5).
+
+  Now the whole later kit is extracted, and each statement is diffed against the store's by its id stem, on
+  value and fragment set. Only changed documents get a version. The rules run across versions. R-REQ never
+  reopens a closed gap, and R-STALE withdraws a declared gap whose declaration it invalidated.
+  `tools/check_stage2_reload.py` holds a stage-2 gate equal to a fresh load of the later documents plus the
+  stale and suspect findings, on both stores. The record (S1 to S7, S6's stage 2 included) is unchanged.
+
 - **Two security fixes on the MCP reader's boundary** (task-0196, doc-0030 H7, M3). `subject_check`
   now refuses a proposed manifest whose `[[artefact]] path`, `include`, `[reference] code`, `[oracle]
   script`, `[verification] map`, `[record] dir` or any other path field is absolute or resolves outside
