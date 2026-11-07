@@ -71,7 +71,7 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
     ts = now()
     aid = f"act:extract:{scenario}:{version_tag}"
     st.ensure_agents(TOOL, version_tag, HUMAN, LLM)
-    st.create_activity(aid, "extraction", ts, TOOL, activity_note, "agent:harness")
+    st.create_activity(aid, "extraction", ts, TOOL, activity_note, "agent:harness", subject=SUBJECT.id, scenario=scenario)   # task-0195
     n_frag = n_ass = n_reused = 0
     for path, text in kit.items():
         if path not in FAMILY or path not in STORE:

@@ -465,6 +465,8 @@ jobs:
           KG_STORE=rdflib python tools/lighthouse_evidence.py runs/lighthouse ${KG_JF_SCENARIOS:+--only "jef_data_load=$KG_JF_SCENARIOS"} ${KG_CQ_SCENARIOS:+--only "cargo_quote=$KG_CQ_SCENARIOS"}
       - name: Route (c), a transcript read by a stub model (task-0041), gives inferred candidates on S2's empty keys only, listed in the questionnaire; no key, exit 2
         run: KG_STORE=rdflib python tools/check_transcript_route.py runs/transcript
+      - name: "Two subjects sharing a scenario id never answer each other's gates (task-0195): the held subject on a file-backed rdflib store"
+        run: KG_STORE=rdflib python tools/check_held_subject.py --disposable
       - name: The outcomes, machine-readable, in the job's summary (task-0159)
         if: always()
         run: python tools/outcomes_summary.py outcomes >> "$GITHUB_STEP_SUMMARY"

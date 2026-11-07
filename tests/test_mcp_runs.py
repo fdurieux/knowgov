@@ -235,7 +235,8 @@ def test_the_reader_reads_a_runs_new_load_on_its_next_call():
             st = RdflibStore(path=path)
             st.wipe()
             st.create_node("agent:t", "Agent", {})
-            st.create_activity(f"act:extract:{sc}:v1", "extract", "2026-11-04T23:00:00+00:00", "t", "", "agent:t")
+            st.create_activity(f"act:extract:{sc}:v1", "extract", "2026-11-04T23:00:00+00:00", "t", "", "agent:t",
+                               subject=SUBJECT.id, scenario=sc)   # as a load records it (task-0195)
             st.commit()
             st.close()
         load(first)

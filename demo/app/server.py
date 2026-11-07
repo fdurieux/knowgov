@@ -422,12 +422,14 @@ def store_status() -> dict:
     out = {"store": kind, "uri": NEO4J_URI if kind == "neo4j" else "", "browser": BROWSER_URL if kind == "neo4j" else None,
            "reachable": False, "loaded": None, "loaded_subject": None, "census": None, "register": None, "error": None, "subject": _ps().id}
     try:
-        d, acts, c, reg = _read(lambda s: (s.describe(), s.extraction_activities(), s.census(), s.register_census()))
+        d, h, acts, c, reg = _read(lambda s: (s.describe(), s.held(), s.extraction_activities(), s.census(), s.register_census()))
         out.update(store=d.get("store", kind), uri=d.get("uri", out["uri"]), browser=d.get("browser"), reachable=True,
                    census={"nodes": c["nodes"], "relationships": c["relationships"], "assertions_by_status": c["assertions_by_status"]},
-                   loaded=(acts[0].split(":")[2] if acts else None), activities=acts, register=reg)
-        # the store holds one scenario; its id is its subject's own, so the scenario names the subject
-        out["loaded_subject"] = page_subject.scenario_subject(out["loaded"], SUBJECTS)
+                   loaded=(h["scenario"] if h else None), activities=acts, register=reg)
+        # whose load it is: the subject the load recorded (task-0195), never the scenario id, which two
+        # subjects may share; a store loaded before task-0195 reads unknown but for an only subject
+        import held as held_state
+        out["loaded_subject"] = held_state.owner(h)
     except ImportError:
         out["error"] = "store driver not installed: deterministic and arms modes need it"
         return out
@@ -458,13 +460,15 @@ def store_gaps(scenario: str) -> dict:
     """Every Gap node with what it concerns, from the running store, only when
     the scenario loaded there is the one on screen (one database, one scenario)."""
     out = {"scenario": scenario, "loaded": None, "match": False, "gaps": [], "error": None}
+    import held as held_state
+
     def read(s):
-        acts = s.extraction_activities()
-        loaded = acts[0].split(":")[2] if acts else None
-        return loaded, (s.gaps_with_concerns() if loaded == scenario else [])
+        h = s.held()   # task-0195: the page's subject's own load, by the subject the load recorded
+        mine = held_state.scenario_for(h, _ps().id)
+        return (h["scenario"] if h else None), mine, (s.gaps_with_concerns() if mine == scenario else [])
     try:
-        out["loaded"], out["gaps"] = _read(read)
-        out["match"] = out["loaded"] == scenario
+        out["loaded"], mine, out["gaps"] = _read(read)
+        out["match"] = mine == scenario
     except ImportError:
         out["error"] = "store driver not installed"
         return out

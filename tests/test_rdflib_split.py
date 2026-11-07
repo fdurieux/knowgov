@@ -65,6 +65,8 @@ OLD_STEPS = [
     "The outcomes, machine-readable, in the job's summary (task-0159)",
     'The outcome files kept as an artifact, 14 days, outcomes JSON only (task-0159)',
 ]
+# Steps added after the split, each in one job: the same rule holds them
+ADDED = ["Two subjects sharing a scenario id never answer each other's gates (task-0195): the held subject on a file-backed rdflib store"]
 SHARED = OLD_STEPS[:3] + ["The outcomes, machine-readable, in the job's summary (task-0159)",
                           "The outcome files kept as an artifact, 14 days, outcomes JSON only (task-0159)"]
 
@@ -94,7 +96,7 @@ def test_every_step_of_the_old_job_runs_in_exactly_one_of_the_two():
     own_r = [s for s in record if s not in SHARED]
     own_d = [s for s in readers if s not in SHARED]
     assert not set(own_r) & set(own_d), set(own_r) & set(own_d)
-    assert sorted(own_r + own_d + SHARED) == sorted(OLD_STEPS), sorted(set(OLD_STEPS) ^ set(own_r + own_d + SHARED))
+    assert sorted(own_r + own_d + SHARED) == sorted(OLD_STEPS + ADDED), sorted(set(OLD_STEPS + ADDED) ^ set(own_r + own_d + SHARED))
     # the record keeps the record: the suite, both subjects' record comparisons, the oracle, the round trip
     for must in ("The stdlib suite with the pins", "S1 to S7 on the in-memory store match the record",
                  "The J-F data-load subject, C and D1 to D5", "The J-F subject's oracle", "The store survives a round trip (task-0070)"):

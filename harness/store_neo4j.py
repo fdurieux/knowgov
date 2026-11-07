@@ -13,7 +13,7 @@ import threading
 import time
 import uuid
 
-from store import Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, part_list, part_rows, setting
+from store import Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, held_from, part_list, part_rows, setting
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
 
@@ -714,11 +714,14 @@ class Neo4jStore(Store):
     def ensure_person(self, aid: str, handle: str) -> None:
         self.run("MERGE (p:Agent {id:$id}) SET p.kind='human', p.name=$name", id=aid, name=handle).consume()
 
-    def create_activity(self, aid: str, kind: str, at: str, tool: str, note: str, agent_id: str) -> None:
+    def create_activity(self, aid: str, kind: str, at: str, tool: str, note: str, agent_id: str, *,
+                        subject: str | None = None, scenario: str | None = None) -> None:
+        held = {k: v for k, v in (("subject", subject), ("scenario", scenario)) if v is not None}   # task-0195
         self.run("""
             MATCH (ag:Agent {id:$agent})
             CREATE (act:Activity {id:$aid, kind:$kind, at:$ts, tool:$tool, note:$note})
-            MERGE (act)-[:ASSOCIATED_WITH]->(ag)""", aid=aid, kind=kind, ts=at, tool=tool, note=note, agent=agent_id).consume()
+            SET act += $held
+            MERGE (act)-[:ASSOCIATED_WITH]->(ag)""", aid=aid, kind=kind, ts=at, tool=tool, note=note, agent=agent_id, held=held).consume()
 
     def upsert_artefact_version(self, path, family, fmt, vid, sha, nbytes, ts, tag, aid) -> None:
         self.run("""
@@ -1126,6 +1129,13 @@ class Neo4jStore(Store):
 
     def extraction_activities(self) -> list[str]:
         return [r["id"] for r in self.run("MATCH (a:Activity) WHERE a.id STARTS WITH 'act:extract:' RETURN a.id AS id ORDER BY a.at, a.id")]   # two versions extracted in one second: the id decides, not store order (task-0070)
+
+    def held(self) -> dict | None:
+        acts = [dict(r) for r in self.run("MATCH (a:Activity) WHERE a.id STARTS WITH 'act:extract:' "
+                                          "RETURN a.id AS id, a.at AS at, a.subject AS subject, a.scenario AS scenario")]
+        current = [dict(r) for r in self.run("MATCH (a:Artefact)-[:CURRENT]->(v:Version) "
+                                             "RETURN a.id AS artefact, v.tag AS tag, COUNT { (a)-[:HAS_VERSION]->() } AS versions")]
+        return held_from(acts, current)
 
     def extraction_times(self) -> list[dict]:
         return [{"id": r["id"], "at": r["at"]} for r in self.run(
