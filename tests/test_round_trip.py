@@ -60,7 +60,10 @@ def test_every_part_answers_returns_is_compared_store_reads_included():
     src = (ROOT / "tools" / "check_round_trip.py").read_text(encoding="utf-8")
     fn = next(n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "answers")
     ret = next(n for n in ast.walk(fn) if isinstance(n, ast.Return)).value
-    assert {k.value for k in ret.keys} == {"gate", "three_valued", "census", "parts", "store_reads", "preload"}
+    assert {k.value for k in ret.keys} == {"gate", "three_valued", "census", "held", "parts", "store_reads", "preload"}
+    # task-0195: whose load is held is one of them, so a hop that lost the subject is reported
+    held = {"subject": "cargo_quote", "scenario": "S1", "version": "v1", "versions": {}, "loaded_at": "2026-11-07"}
+    assert c.differences({**base, "held": held}, {**base, "held": {**held, "subject": None}}, "S") == ["S: held subject differs"]
 
 
 def test_the_check_compares_the_preload_verdicts_bundle_and_findings():

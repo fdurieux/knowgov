@@ -71,6 +71,8 @@ def answers(st, scenario: str) -> dict:
     return {"gate": reports,
             "three_valued": {k: strip(tools.three_valued_answer({"key": k, "scenario": scenario})) for k in keys},
             "census": st.census(),
+            # task-0195: whose load the store holds, its scenario, each artefact's current version and when
+            "held": view.held(),
             # task-0094: the file digests a directory artefact's versions carry
             "parts": st.part_digests(),
             # task-0144: the store reads over MCP, the port's three and the tools on them, held equal across store kinds
