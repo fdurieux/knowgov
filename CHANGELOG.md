@@ -152,6 +152,7 @@ names that section with the version.
   reopens a closed gap, and R-STALE withdraws a declared gap whose declaration it invalidated.
   `tools/check_stage2_reload.py` holds a stage-2 gate equal to a fresh load of the later documents plus the
   stale and suspect findings, on both stores. The record (S1 to S7, S6's stage 2 included) is unchanged.
+
 - **Two security fixes on the MCP reader's boundary** (task-0196, doc-0030 H7, M3). `subject_check`
   now refuses a proposed manifest whose `[[artefact]] path`, `include`, `[reference] code`, `[oracle]
   script`, `[verification] map`, `[record] dir` or any other path field is absolute or resolves outside
