@@ -82,6 +82,16 @@ layout holds and 1 when it does not, for example with no register, a folder that
 or a subject that does not load. It exits 2 when it cannot run at all. Add `--json` for the
 report as data.
 
+Across your subjects it refuses three things, each exit 1:
+
+- an empty `subjects/` folder. An instance holds at least one subject;
+- two subject folders whose `subject.toml` declare the same `id`. A subject is named by its id
+  (the page's `?subject=`, the assistants' `subject` argument), so each must be unique;
+- a scenario id that two subjects declare, such as `S0` in both. The store your page and
+  assistants share records the scenario it holds by its id alone, so one subject's gate would
+  answer from the other subject's load. Give each subject its own scenario ids: `billing-S0`,
+  not `S0`.
+
 It also reads each subject's own files, the way the gate would, and says what the gate would only
 show you later, or not at all:
 
@@ -91,7 +101,8 @@ show you later, or not at all:
 - a task's missing or malformed settings: its `keys`, its `block_levels` and its
   `max_unverified_share`. A key is written `<entity>|<predicate>`, for example `REQ-01|text`;
 - a subject with a task and no scenario. The gate runs on a scenario, so it cannot run on such a
-  subject. Copy the pristine scenario `S0` from `subjects/minimal/scenarios.toml`;
+  subject. Copy the pristine scenario `S0` from `subjects/minimal/scenarios.toml` and rename it
+  `<id>-S0`;
 - a row of `register_map.toml` that names a node your register does not hold, or whose `owner`
   owns none of the row's nodes. Without the check, the questionnaire would quietly go to someone
   else;
@@ -1229,7 +1240,7 @@ carries the kinds table and what each mapper reads (`instance/mappers.toml`), so
 touches, `register_impact` for what rests on them and who owns it; `proposal_impact` first for a
 new product); then each document into its kind's folder, its mapper
 picked by what the check reports it yields (a document that yields nothing is the wrong mapper, not
-an empty document, and the check's *zero-yield* warning says so); then the manifest, with the pristine scenario `S0` from `subjects/minimal/`;
+an empty document, and the check's *zero-yield* warning says so); then the manifest, with the pristine scenario `S0` from `subjects/minimal/`, renamed `<id>-S0`;
 then the task's keys and the register map rows; then the attestation lines, written commented out
 with what their absence costs; and last, for a key still missing, the owners' questionnaires. After
 every write it checks (`subject_check`, or `tools/check_subject.py` and `tools/check_instance.py`
@@ -1242,7 +1253,7 @@ yield, form; per key: yielded or not, owner, level) and the questionnaires.
 
 **After the merge,** the page lists the new subject on its next request, with no restart, and both
 servers answer for it by id with no relaunch (every tool takes `subject`; see "One registration for
-every subject" below). One step is yours: load `S0` (on the page, or `start_run` on `knowgov-runs`
+every subject" below). One step is yours: load `<id>-S0` (on the page, or `start_run` on `knowgov-runs`
 with the subject's id), knowing the load replaces what everyone else viewing that store sees.
 
 **Claude Desktop's role, for now: asking the gate, not onboarding.** In Claude Desktop, use the

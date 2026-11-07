@@ -230,7 +230,8 @@ def test_a_subject_added_after_start_is_served_without_a_restart_and_a_removed_o
         m = (ROOT / "subjects" / "minimal" / "subject.toml").read_text(encoding="utf-8")
         (d / "subject.toml").write_text(text if text is not None else
                                         m.replace('id = "minimal"', f'id = "{sid}"').replace("listed = false", "listed = true"), encoding="utf-8")
-        shutil.copy(ROOT / "subjects" / "minimal" / "scenarios.toml", d / "scenarios.toml")
+        sc = (ROOT / "subjects" / "minimal" / "scenarios.toml").read_text(encoding="utf-8")   # each its own id (task-0194)
+        (d / "scenarios.toml").write_text(sc.replace('id = "S0"', f'id = "{sid}-S0"'), encoding="utf-8")
 
     add("alpha")
     saved = _env(KG_SUBJECTS=str(tmp))
@@ -241,7 +242,7 @@ def test_a_subject_added_after_start_is_served_without_a_restart_and_a_removed_o
         add("beta")
         assert ids() == ["alpha", "beta"]
         code, body = _get(base + "/api/scenarios?subject=beta")
-        assert code == 200 and [s["id"] for s in json.loads(body)["scenarios"]] == ["S0"], body
+        assert code == 200 and [s["id"] for s in json.loads(body)["scenarios"]] == ["beta-S0"], body
         add("broken", "[subject\n")
         assert ids() == ["alpha", "beta"], "a manifest that does not load is left out"
         shutil.rmtree(tmp / "beta")
