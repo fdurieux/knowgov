@@ -919,13 +919,15 @@ def with_levels(report: dict, st, *, task: str, as_of: str, scenario: str | None
     import gate_cli
     from subject import SUBJECT
     from tasks import TASKS
-    acts = st.extraction_activities()
-    held = acts[0].split(":")[2] if acts else None
+    import held as held_state
+    h = st.held()   # whose load and which scenario, as the load recorded them (task-0195)
     report["keys"]["store"] = st.name
-    if held is None:
+    if h is None:
         return report
-    if scenario and scenario != held:
-        raise ProposalError(f"the store holds {held}, not {scenario!r}")
+    why = held_state.refusal(h, SUBJECT.id, scenario)
+    if why:
+        raise ProposalError(why)
+    held = h["scenario"]
     report["keys"].update(task=task, scenario=held)
     verdicts = []
     for entry in report["keys"]["by_node"]:

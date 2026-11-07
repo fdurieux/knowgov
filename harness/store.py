@@ -84,7 +84,28 @@ READS = frozenset({
     "suspect_derived", "all_derived", "preload_verdicts", "census", "extraction_activities", "extraction_times",
     "gaps_with_concerns", "assertions_on_key", "assertion_rows", "supported_by", "candidate_for",
     "fragments_with_version", "requirements_verified_by", "register_census", "register_node_statements",
-    "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions"})
+    "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions", "held"})
+
+
+def held_from(acts: list[dict], current: list[dict]) -> dict | None:
+    """``held()`` from the extraction activities ({id, at, subject, scenario}) and each artefact's current
+    version ({artefact, tag, versions}), the same on both adapters (task-0195)."""
+    if not acts:
+        return None
+    subjects = {a.get("subject") for a in acts}
+    scenarios = {a.get("scenario") for a in acts}
+    # a store loaded before task-0195 recorded neither; its scenario is read from the activity id here,
+    # the one place, and its subject is unknown (None), which every reader refuses but for an only subject
+    if scenarios == {None}:
+        scenarios = {a["id"].split(":")[2] for a in acts if a["id"].count(":") >= 3}
+    versions = {c["artefact"]: c["tag"] for c in current}
+    reloaded = sorted({c["tag"] for c in current if int(c.get("versions") or 1) > 1})
+    tags = sorted(set(versions.values()))
+    version = reloaded[0] if len(reloaded) == 1 else (tags[0] if len(tags) == 1 else None)
+    return {"subject": next(iter(subjects)) if len(subjects) == 1 else None,
+            "scenario": next(iter(scenarios)) if len(scenarios) == 1 else None,
+            "version": version, "versions": dict(sorted(versions.items())),
+            "loaded_at": max((str(a["at"]) for a in acts if a.get("at") is not None), default=None)}
 
 
 def by_id(rows: list[dict]) -> list[dict]:
@@ -154,7 +175,11 @@ class Store:
         human named by an opaque handle, never a name."""
         raise NotImplementedError
 
-    def create_activity(self, aid: str, kind: str, at: str, tool: str, note: str, agent_id: str) -> None:
+    def create_activity(self, aid: str, kind: str, at: str, tool: str, note: str, agent_id: str, *,
+                        subject: str | None = None, scenario: str | None = None) -> None:
+        """An Activity. An extraction names the ``subject`` and ``scenario`` it loads (task-0195): the
+        held state, which ``held()`` reads; its id stays ``act:extract:<scenario>:<version>``, as the
+        record's run files name it."""
         raise NotImplementedError
 
     def upsert_artefact_version(self, path: str, family: str, fmt: str, vid: str, sha: str, nbytes: int, ts: str, tag: str, aid: str) -> None:
@@ -365,7 +390,17 @@ class Store:
         raise NotImplementedError
 
     def extraction_activities(self) -> list[str]:
-        """The extraction activity ids, oldest first: which scenario is loaded."""
+        """The extraction activity ids, oldest first. Which subject and scenario the store holds is
+        ``held()``'s, never these ids' (task-0195)."""
+        raise NotImplementedError
+
+    def held(self) -> dict | None:
+        """What the store holds (task-0195): ``{subject, scenario, version, versions, loaded_at}``, or None
+        when nothing is loaded. ``subject`` and ``scenario`` are what the extraction recorded (a store
+        loaded before task-0195 recorded no subject: None). ``versions`` is each artefact's current
+        version by its ``CURRENT`` edge, and ``version`` the held one: the current tag of an artefact
+        loaded more than once (a stage-2 change), else the one tag. ``loaded_at`` is the latest
+        extraction's time. Never the extraction activities' order (S5)."""
         raise NotImplementedError
 
     def extraction_times(self) -> list[dict]:

@@ -202,7 +202,7 @@ class _Moving(_Inner):
     def extraction_activities(self):
         raise store.StoreChanged("republished")
 
-    census = describe = extraction_activities
+    census = describe = held = extraction_activities
 
 
 def _env(**kv):

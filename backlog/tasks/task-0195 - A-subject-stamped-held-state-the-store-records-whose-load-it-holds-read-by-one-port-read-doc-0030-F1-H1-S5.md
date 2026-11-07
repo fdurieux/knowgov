@@ -3,9 +3,11 @@ id: TASK-0195
 title: >-
   A subject-stamped held state: the store records whose load it holds, read by
   one port read (doc-0030 F1, H1, S5)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-07T07:15:00Z'
+updated_date: '2026-11-07T08:35:00Z'
 labels:
   - review
   - store
@@ -33,3 +35,14 @@ H1 (high, three reviewers): the extraction activity is `act:extract:<scenario>:<
 - [ ] #4 CHANGELOG.md has the line under Unreleased's contract heading
 - [ ] #5 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. The load records its subject. create_activity takes keyword-only subject and scenario, on the port and both adapters. load_scenario passes SUBJECT.id and the scenario on the extraction activity. Its id is unchanged, because the record's run files name it. Export and import carry the properties.
+2. One port read, held(), in store.READS and the MCP view's READS. Both adapters read the extraction activities and each artefact's CURRENT version with its HAS_VERSION count. store.held_from returns {subject, scenario, version, versions, loaded_at}. version is the current tag of an artefact loaded more than once (stage 2), else the one tag, never activity order (S5). The one parse of an activity id is held_from's, for a store loaded before the subject was recorded.
+3. harness/held.py, the rule every reader applies: owner, scenario_for, foreign and refusal. An absent subject reads as unknown and fails closed, except for the instance's only subject when it declares the held scenario (the coordinator's suggestion).
+4. Replace the readers: gate_cli --no-load and held_version; mcp_server _held_any, _held, _foreign, _check_scenario, _held_detail and list_subjects; proposal_impact.with_levels; the page's store_status and store_gaps; check_snapshots' snapshot.
+5. tools/check_held_subject.py --disposable runs on both adapters. Two subjects share S1, and A's load is held: held() and its Turtle round trip; B's gate_cli --no-load exits 2; every store-backed tool for B refuses; the page for B serves no gaps; A answers. It runs in harness.yml (rdflib-readers) and demo.yml (the stack).
+6. Stdlib tests (tests/test_held_subject.py) and the stubs updated. CHANGELOG under Unreleased › Contract changes. The record, the deterministic run, the comparator, the round trips, check_mcp_server and the snapshot checks run on both stores.
+<!-- SECTION:PLAN:END -->

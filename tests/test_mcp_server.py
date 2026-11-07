@@ -53,6 +53,16 @@ class Stub:
     def extraction_activities(self):
         return [f"act:extract:{self.scenario}:v1"] if self.scenario else []
 
+    def held(self):
+        """As a store records it since task-0195: the load's own subject, the one declaring its scenario."""
+        if not self.scenario:
+            return None
+        from subject import SUBJECT
+        import subject_ids
+        owners = [SUBJECT.id] if self.scenario in SUBJECT.scenarios else subject_ids.declaring(self.scenario)
+        return {"subject": owners[0] if owners else "elsewhere", "scenario": self.scenario, "version": "v1",
+                "versions": {}, "loaded_at": "2026-11-04T19:45:00+00:00"}
+
     def extraction_times(self):
         return [{"id": a, "at": "2026-11-04T19:45:00+00:00"} for a in self.extraction_activities()]
 

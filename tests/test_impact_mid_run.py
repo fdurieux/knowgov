@@ -81,7 +81,8 @@ def test_on_an_rdflib_store_both_tools_refuse_live_and_answer_stale():
         path = str(Path(td) / "store.ttl")
         st = RdflibStore(path=path)
         st.create_node("agent:t", "Agent", {})
-        st.create_activity(f"act:extract:{SUBJECT.order[0]}:v1", "extract", "2026-11-04T21:00:00+00:00", "t", "", "agent:t")
+        st.create_activity(f"act:extract:{SUBJECT.order[0]}:v1", "extract", "2026-11-04T21:00:00+00:00", "t", "", "agent:t",
+                           subject=SUBJECT.id, scenario=SUBJECT.order[0])   # as a load records it (task-0195)
         st.commit()
         st.close()
 

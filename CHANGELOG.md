@@ -12,6 +12,25 @@ names that section with the version.
 
 ### Contract changes
 
+- **The store records whose load it holds, and no subject answers from another's** (task-0195, doc-0030
+  F1, H1 and S5; decision-0013 A1). Before, the store named only the held scenario, so two subjects
+  sharing a scenario id answered each other's gates.
+  - **The load records its subject.** The extraction activity now records the subject and the scenario it
+    loads. Its id stays `act:extract:<scenario>:<version>`, as the record's run files name it, and the
+    Turtle round trip carries both.
+  - **One port read, `held()`,** returns the subject, the scenario, each artefact's current version and
+    the time of the load. The version comes from the artefacts' current versions, no longer from the
+    order of the load activities, so a stage-2 change reads as current whatever its tag.
+  - **What refuses.** With one subject's load held, another subject's readers refuse it:
+    - `gate_cli --no-load` exits 2, naming the subject whose load is held;
+    - every store-backed tool of the MCP reader refuses, and `store_status` reports the held scenario
+      as another subject's;
+    - `proposal_impact` refuses;
+    - the page shows the load as its subject's, and serves the other subject no gaps.
+  - **A store loaded before this change** recorded no subject. It reads as unknown and is refused to
+    every subject, except an instance's only subject when that subject declares the held scenario.
+    Reload the scenario to read it.
+  - `tools/check_held_subject.py` proves it on both stores, in `harness.yml` and the stack.
 - **`harness/step_grid.py`: a grid of steps by scenarios over deterministic run folders** (task-0192,
   doc-0024 J3). A new command and schema, `harness/schemas/step-grid.schema.json`. Additive.
   - **The input.** One or more `run.py --deterministic` folders, or `--record`.

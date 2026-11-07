@@ -142,7 +142,7 @@ DEFAULT_HOST, DEFAULT_PORT = "127.0.0.1", 8765
 # The store port's reads this server may call (harness/store.py); anything else raises.
 READS = frozenset({"key_evidence", "declared_gaps_for_key", "conflict_gaps", "stale_on_keys", "suspect_derived",
                    "extraction_activities", "extraction_times", "assertions_on_key", "census", "preload_verdicts",
-                   "held_keys", "derived_outputs", "artefact_assertions"})   # task-0144
+                   "held_keys", "derived_outputs", "artefact_assertions", "held"})   # task-0144; held, task-0195
 
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
 
@@ -493,22 +493,25 @@ def open_read_only(open_store=None) -> ReadOnlyStore:
 
 def _held_any(st) -> str | None:
     """The scenario the store holds, whichever subject's: one store serves every subject."""
-    acts = st.extraction_activities()   # act:extract:<scenario>:<version>, as gate_cli --no-load reads it
-    return acts[0].split(":")[2] if acts else None
+    h = st.held()
+    return h["scenario"] if h else None
 
 
 def _held(st) -> str | None:
-    """The held scenario when it is the server's subject's, else None (task-0126)."""
+    """The held scenario when the held load is the server's subject's, by the subject the load recorded
+    (task-0195; task-0126), else None."""
+    import held as held_state
     from subject import SUBJECT
-    held = _held_any(st)
-    return held if held in SUBJECT.scenarios else None
+    return held_state.scenario_for(st.held(), SUBJECT.id)
 
 
 def _foreign(st) -> str | None:
-    """The held scenario when it is not the server's subject's: no tool reads it (task-0126)."""
+    """The held scenario when the held load is not the server's subject's, or its subject is unknown: no
+    tool reads it (task-0195; task-0126)."""
+    import held as held_state
     from subject import SUBJECT
-    held = _held_any(st)
-    return held if held is not None and held not in SUBJECT.scenarios else None
+    h = st.held()
+    return h["scenario"] if held_state.foreign(h, SUBJECT.id) else None
 
 
 def _start_run(sid: str, scenarios) -> str:
@@ -521,9 +524,14 @@ def _start_run(sid: str, scenarios) -> str:
 def _check_scenario(st, scenario: str | None) -> str:
     from subject import SUBJECT
     import subject_ids
-    foreign = _foreign(st)
+    import held as held_state
+    h = st.held()
+    foreign = h["scenario"] if held_state.foreign(h, SUBJECT.id) else None
     if foreign is not None:
-        owners = subject_ids.declaring(foreign)
+        who = held_state.owner(h)
+        if who is None:   # a store loaded before task-0195: whose load it is cannot be told, so nobody reads it
+            raise ToolError(f"{held_state.refusal(h, SUBJECT.id)}: {_start_run(SUBJECT.id, SUBJECT.order)}")
+        owners = [who]
         whose = (owners[0] if len(owners) == 1 else f"one of {owners}" if owners else "a subject not under KG_SUBJECTS")
         raise ToolError(f"the store holds {foreign}, a scenario of another subject ({whose}), not of {SUBJECT.id} (which declares "
                         f"{SUBJECT.order}); a store-backed tool reads the held subject and scenario only: "
@@ -600,15 +608,14 @@ class Tools:
 
     def _held_detail(self, st) -> dict | None:
         """The held scenario of this subject with its version, stage and the time it was loaded, else None."""
-        import gate_cli
-        held = _held(st)
+        import held as held_state
+        from subject import SUBJECT
+        h = st.held()   # task-0195: the subject, scenario, version and time the load recorded
+        held = held_state.scenario_for(h, SUBJECT.id)
         if held is None:
             return None
-        version = gate_cli.held_version(st)
-        times = st.extraction_times()
-        at = times[-1]["at"] if times else None
-        return {"scenario": held, "version": version, "stage": _stage(held, version),
-                "loaded_at": None if at is None else str(at)}
+        return {"scenario": held, "version": h["version"], "stage": _stage(held, h["version"]),
+                "loaded_at": h["loaded_at"]}
 
     def _with_store(self, fn):
         """``fn`` on one read handle, one published generation (task-0141.06): when a publication lands
@@ -645,15 +652,19 @@ class Tools:
         import subject_ids
         from subject import SUBJECT
         listed = subject_ids.subjects()
-        held, why = None, None
+        import held as held_state
+        h, why = None, None
         try:
             self._not_mid_run()
-            held = self._with_store(_held_any)
+            h = self._with_store(lambda st: st.held())
         except ToolError as e:
             why = str(e)
-        owners = subject_ids.declaring(held)
+        held = h["scenario"] if h else None
+        who = held_state.owner(h)   # task-0195: the subject the load recorded, never the scenario id's declarers
+        owners = [who] if who else []
         return {"default": SUBJECT.id,
-                "store": {"held_scenario": held, "held_by": owners, "unavailable": why},
+                "store": {"held_scenario": held, "held_by": owners, "unavailable": why,
+                          **({"held_subject_unknown": held_state.LEGACY} if h and who is None else {})},
                 "subjects": [{"id": x["id"], "name": x["name"], "default": x["id"] == SUBJECT.id, "scenarios": x["scenarios"],
                               "held": held if x["id"] in owners else None} for x in listed],
                 "store_backed": sorted(t["name"] for t in TOOLS if t["_meta"][META_STORE]),

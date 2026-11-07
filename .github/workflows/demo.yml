@@ -431,6 +431,8 @@ jobs:
 
       - name: "Store generations (task-0141.06, decision-0014) on the Neo4j store: SNAP-01 to SNAP-06, a half-staged load, a publication mid-read, a writer killed before and during publication, three racing writers, a recovered lease, restart and retirement; SNAP-08, an abandoned publication a reader clears once its lease ran out; SNAP-07's round trips are the steps above"
         run: docker compose exec -T app python tools/check_snapshots.py --disposable --no-round-trip
+      - name: "Two subjects sharing a scenario id never answer each other's gates (task-0195): the held subject on the Neo4j store"
+        run: docker compose exec -T app python tools/check_held_subject.py --disposable
       - name: The example instance mounted read-only (task-0006) replays and runs deterministically, and not one byte of it changes
         run: |
           # outside runs/, which the app container created as root

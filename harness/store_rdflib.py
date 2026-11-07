@@ -46,7 +46,7 @@ from urllib.parse import quote, unquote
 
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
 
-from store import Store, StoreBusy, StoreCorrupt, StoreFenced, StoreReadOnly, by_content, by_id, part_list, part_rows
+from store import Store, StoreBusy, StoreCorrupt, StoreFenced, StoreReadOnly, by_content, by_id, held_from, part_list, part_rows
 
 try:
     import fcntl
@@ -441,11 +441,12 @@ class RdflibStore(Store):
     def ensure_person(self, aid, handle) -> None:
         self.merge_node(aid, "Agent", props={"kind": "human", "name": handle})
 
-    def create_activity(self, aid, kind, at, tool, note, agent_id) -> None:
+    def create_activity(self, aid, kind, at, tool, note, agent_id, *, subject=None, scenario=None) -> None:
         ag = self.node(agent_id, "Agent")
         if ag is None:
             return
-        act = self.create_node(aid, "Activity", {"kind": kind, "at": at, "tool": tool, "note": note})
+        held = {k: v for k, v in (("subject", subject), ("scenario", scenario)) if v is not None}   # task-0195
+        act = self.create_node(aid, "Activity", {"kind": kind, "at": at, "tool": tool, "note": note, **held})
         self.merge_edge(act, "ASSOCIATED_WITH", ag)
 
     def upsert_artefact_version(self, path, family, fmt, vid, sha, nbytes, ts, tag, aid) -> None:
@@ -1009,6 +1010,13 @@ class RdflibStore(Store):
     def extraction_activities(self) -> list[str]:
         acts = [a for a in self.nodes("Activity") if self.nid(a).startswith("act:extract:")]
         return [self.nid(a) for a in sorted(acts, key=lambda a: (self.prop(a, "at") or "", self.nid(a)))]   # as the Neo4j adapter orders them
+
+    def held(self) -> dict | None:
+        acts = [{"id": self.nid(a), "at": self.prop(a, "at"), "subject": self.prop(a, "subject"), "scenario": self.prop(a, "scenario")}
+                for a in self.nodes("Activity") if self.nid(a).startswith("act:extract:")]
+        current = [{"artefact": self.nid(a), "tag": self.prop(v, "tag"), "versions": len(self.out(a, "HAS_VERSION"))}
+                   for a in self.nodes("Artefact") for v in self.out(a, "CURRENT")]
+        return held_from(acts, current)
 
     def extraction_times(self) -> list[dict]:
         acts = [a for a in self.nodes("Activity") if self.nid(a).startswith("act:extract:")]

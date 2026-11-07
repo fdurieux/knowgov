@@ -76,8 +76,8 @@ def snapshot(st) -> dict:
     """One logical read, as the page's store card and the gate read it."""
     import cadence
     from gate import resolve
-    acts = st.extraction_activities()
-    held = acts[0].split(":")[2] if acts else None
+    h = st.held()   # task-0195
+    held = h["scenario"] if h else None
     c = st.census()
     reg = st.register_census()
     verdict = resolve(st, "codegen", cadence.as_of("record").isoformat())["verdict"] if held else None

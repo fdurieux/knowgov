@@ -385,11 +385,12 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
     change = None
     try:
         if args.no_load:
-            acts = st.extraction_activities()   # act:extract:<scenario>:<version>, as the page reads it
-            loaded = acts[0].split(":")[2] if acts else None
-            if loaded != scenario:
-                raise CannotRun(f"the store holds {loaded or 'no scenario'}, not {scenario!r}; load it, or drop --no-load")
-            version = held_version(st)
+            import held as held_state
+            h = st.held()   # whose load and which scenario, as the load recorded them (task-0195)
+            why = held_state.refusal(h, SUBJECT.id, scenario)
+            if why:
+                raise CannotRun(f"{why}; load it, or drop --no-load")
+            version = h["version"]
         else:
             _load(st, scenario)
             version = "v1"
@@ -447,10 +448,10 @@ def _route_keys(task: str) -> set[str] | None:
 
 
 def held_version(st) -> str | None:
-    """The version of the last extraction the store holds (act:extract:<scenario>:<version>), as
-    ``--no-load`` reports it."""
-    acts = st.extraction_activities()
-    return acts[-1].split(":")[3] if acts else None
+    """The version the store holds, as ``--no-load`` reports it: ``held()``'s, from the artefacts'
+    current versions, not the extraction activities' order (task-0195, S5)."""
+    h = st.held()
+    return h["version"] if h else None
 
 
 def _change(st, subject, scenario: str, cfg2: dict, reverified: bool) -> dict:
