@@ -46,7 +46,8 @@ from urllib.parse import quote, unquote
 
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
 
-from store import Store, StoreBusy, StoreCorrupt, StoreFenced, StoreReadOnly, by_content, by_id, held_from, part_list, part_rows
+from store import (DEAD, DOCUMENT_BASES, Store, StoreBusy, StoreCorrupt, StoreFenced, StoreReadOnly, by_content, by_id, held_from,
+                   part_list, part_rows, stem)
 
 try:
     import fcntl
@@ -664,7 +665,8 @@ class RdflibStore(Store):
                         continue
                     if self.prop(a, "status") in dead or self.prop(b, "status") in dead:
                         continue
-                    if self.prop(a, "version") != self.prop(b, "version") and (
+                    docs = self.prop(a, "basis") in DOCUMENT_BASES and self.prop(b, "basis") in DOCUMENT_BASES   # any version (task-0197, H4)
+                    if self.prop(a, "version") != self.prop(b, "version") and not docs and (
                             across is None or (self.prop(a, "basis") == across) == (self.prop(b, "basis") == across)):
                         continue
                     out.append({"a": ida, "va": self.prop(a, "value"), "ba": self.prop(a, "basis"), "aa": self.prop(a, "artefact"),
@@ -733,6 +735,8 @@ class RdflibStore(Store):
     def declared_open(self, predicate) -> list[dict]:
         out = []
         for x in self.nodes("Assertion", predicate=predicate, value="NONE"):
+            if self.prop(x, "status") in DEAD:   # an invalidated declaration declares nothing (task-0197, G5)
+                continue
             for e in self.out(x, "ABOUT"):
                 if self.has_label(e, "Entity"):
                     out.append({"entity": self.nid(e), "id": self.nid(x)})
@@ -742,7 +746,9 @@ class RdflibStore(Store):
         e, x = self.node(entity, "Entity"), self.node(assertion_id, "Assertion")
         if e is None or x is None:
             return
-        g = self.merge_node(gid, "Gap", props={"kind": "missing", "declared": True, "text": text})
+        g = self.node(gid, "Gap")
+        if g is None or self.prop(g, "kind") != "closed":   # a review's close stands: R-REQ never reopens it (task-0197, H2)
+            g = self.merge_node(gid, "Gap", props={"kind": "missing", "declared": True, "text": text})
         self.merge_edge(g, "CONCERNS", e)
         self.merge_edge(g, "CONCERNS", x)
         acts = [a for a in self.nodes("Activity") if self.nid(a).startswith("act:extract:" + scenario)]
@@ -815,6 +821,15 @@ class RdflibStore(Store):
             if x not in inv_nodes:
                 inv_nodes.append(x)
             self.set_props(x, {"status": "invalidated", "invalidated_at": self._seq, "invalidated_by": new_tag})
+        # task-0197 (I5, I6): an older statement with a live successor of the same id stem in the new version is
+        # invalidated too, though its own fragments did not change (a value resolved through a changed symbol,
+        # a bundle that lost one of several fragments)
+        succ = {stem(self.nid(y)) for y in self.nodes("Assertion", version=new_tag) if self.prop(y, "status") not in DEAD}
+        for x in sorted(self.nodes("Assertion"), key=self.nid):
+            if self.prop(x, "version") == new_tag or self.prop(x, "status") in DEAD or x in inv_nodes or stem(self.nid(x)) not in succ:
+                continue
+            inv_nodes.append(x)
+            self.set_props(x, {"status": "invalidated", "invalidated_at": self._seq, "invalidated_by": new_tag})
         for x in inv_nodes:
             derived = []
             for v in self.inn(x, "VERIFIES"):
@@ -831,7 +846,14 @@ class RdflibStore(Store):
             if self.prop(x, "status") != "invalidated" and x not in seen:
                 seen.add(x)
                 kept.append({"id": self.nid(x), "key": self.prop(x, "key"), "status": self.prop(x, "status")})
-        return {"invalidated": inv, "kept": kept}
+        # task-0197 (G5): a declared gap whose declaring statements this re-ingestion invalidated, all of them, is withdrawn
+        withdrawn = []
+        for g in sorted(self.nodes("Gap", kind="missing", declared=True), key=self.nid):
+            xs = [x for x in self.out(g, "CONCERNS") if self.has_label(x, "Assertion")]
+            if xs and any(x in inv_nodes for x in xs) and all(self.prop(x, "status") in DEAD for x in xs):
+                self.set_props(g, {"kind": "withdrawn", "declared": False, "withdrawn_by": new_tag})
+                withdrawn.append(self.nid(g))
+        return {"invalidated": inv, "kept": kept, **({"withdrawn": withdrawn} if withdrawn else {})}
 
     def invalidate_keys(self, reasons) -> dict:
         inv = []

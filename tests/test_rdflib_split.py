@@ -61,6 +61,7 @@ OLD_STEPS = [
     "The lighthouse protocol's public evidence (task-0069), CargoQuote from the example instance and the J-F kit (the subset on a pull request), every item agreeing with the record",
     "Route (c), a transcript read by a stub model (task-0041), gives inferred candidates on S2's empty keys only, listed in the questionnaire; no key, exit 2",
     "The store survives a round trip (task-0070), every CargoQuote scenario and J-F's (the subset on a pull request) through Turtle into a fresh store, the same gate reports and three-valued answers",
+    "Stage 2 as a whole re-load (task-0197), on rdflib, a stage-2 gate equal to a fresh load of the later documents plus its stale and suspect findings, S6 and the H2, H4, I5, G5 plants on CargoQuote, I6 on J-F",
     'Store generations (task-0141.06, decision-0014) on a file-backed rdflib store: SNAP-01 to SNAP-08',
     "The outcomes, machine-readable, in the job's summary (task-0159)",
     'The outcome files kept as an artifact, 14 days, outcomes JSON only (task-0159)',

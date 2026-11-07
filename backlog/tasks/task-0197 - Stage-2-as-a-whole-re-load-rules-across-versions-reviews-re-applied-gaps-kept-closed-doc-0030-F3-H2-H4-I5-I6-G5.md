@@ -3,9 +3,11 @@ id: TASK-0197
 title: >-
   Stage 2 as a whole re-load: rules across versions, reviews re-applied, gaps
   kept closed (doc-0030 F3: H2, H4, I5, I6, G5)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-07T07:15:00Z'
+updated_date: '2026-11-07T09:24:00Z'
 labels:
   - review
   - load
@@ -33,3 +35,9 @@ H2 (high, two reviewers): change.apply_change re-runs every rule and never re-ap
 - [ ] #4 A statement whose value changed while some of its fragments were reused gets a v2 successor, and R-STALE withdraws a gap whose declaring statement it invalidated
 - [ ] #5 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. load.py re-ingest path: the whole later kit extracted (symbols from all documents, I5); a version only for artefacts whose bytes changed; each statement diffed by id stem against the store's, any status, on value and fragment set: unchanged writes nothing, else a v2 successor (I6, I5b). 2. change.apply_change loads kit2 whole with the changed set; kits injectable for plants. 3. Adapters (rdflib, Neo4j): candidate_pairs pairs document statements (extracted, authored) across versions (H4); R-REQ keeps a closed gap closed (H2); declared_open counts live statements only and R-STALE invalidates an older statement with a live same-stem successor and withdraws a declared gap whose declarations it invalidated (G5). 4. Reviews: not re-read at stage 2; their acts persist and no rule re-run undoes one (re-reading would refuse every close already applied, and F4 owns load_reviews). 5. tools/check_stage2_reload.py: S6 and plants equal to a fresh load plus stale/suspect, on rdflib and Neo4j; failing on the old code. 6. Record: S1-S7 on rdflib and Neo4j, J-F; check_gate_after_change, round trips, walkthroughs, MCP; suite both ways.
+<!-- SECTION:PLAN:END -->

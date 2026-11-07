@@ -1,9 +1,13 @@
 """A scenario's second stage (the subject's ``[scenario.stage2]``) in two steps, shared by
 ``run.py``'s ``stage2`` and the gate command's ``--stage 2`` (task-0049):
 
-1. ``apply_change``: register the earlier governed output as derived, re-ingest the changed
-   artefact as a new version, invalidate what rested on the changed fragments (R-STALE), run
-   R-STRUCT again. The gate after this step is the record's ``gate_before_reverification``.
+1. ``apply_change``: register the earlier governed output as derived, re-load the later kit whole as
+   a new version (task-0197: every document extracted, so symbols resolve from all of them; a version
+   written only for the artefacts whose bytes changed; each statement diffed by its id stem on value
+   and fragment set), invalidate what the change replaced (R-STALE, which also withdraws a declared gap
+   whose declaration it invalidated), and run the rules again across versions on the live statements.
+   A review's acts stand: no rule re-run undoes one (R-REQ never reopens a closed gap; a settled
+   dispute's rejected side is dead). The gate after this step is the record's ``gate_before_reverification``.
 2. ``reverify``: the owner stand-in's recorded re-verification of the new statements on the named
    keys, then the corroboration of the new version's statements against the pristine values. The
    gate after this step is the record's ``gate_after_reverification``.
@@ -21,18 +25,22 @@ def version_of(cfg2: dict) -> str:
     return cfg2.get("version", "v2")
 
 
-def apply_change(sc: str, cfg2: dict, s, derived_code: str | None, derived_ids: list[str]) -> dict:
-    """Step 1; returns {load_v2, D3_stale, R-STRUCT_after, kit2, derived}."""
+def apply_change(sc: str, cfg2: dict, s, derived_code: str | None, derived_ids: list[str],
+                 kit2: dict[str, str] | None = None, kit1: dict[str, str] | None = None) -> dict:
+    """Step 1; returns {load_v2, D3_stale, R-STRUCT_after, kit2, derived}. ``kit2`` and ``kit1`` default to the
+    scenario's later and first kits; a test passes its own to plant a change."""
     version = version_of(cfg2)
     derived = cfg2.get("derived", {})
     did = None
     if derived_code:
         did = derived.get("id", f"derived:{sc}")
         s.register_derived(did, derived.get("kind", "artefact"), sha256(derived_code), derived_ids)
-    kit2 = kit_for(sc, 2)
+    kit2 = kit_for(sc, 2) if kit2 is None else kit2
+    kit1 = kit_for(sc) if kit1 is None else kit1
     art = cfg2["artefact"]
-    load2 = load_scenario(s, sc, {art: kit2[art]}, activity_note=cfg2.get("note", f"{sc} stage 2: re-ingestion of the changed {art}"),
-                          version_tag=version, reingest=True)
+    changed = {p for p in kit2 if kit1.get(p) != kit2.get(p)} | {art}
+    load2 = load_scenario(s, sc, kit2, activity_note=cfg2.get("note", f"{sc} stage 2: re-ingestion of the changed {art}"),
+                          version_tag=version, reingest=True, changed=changed)
     stale = r_stale(s, version)
     return {"load_v2": load2, "D3_stale": stale, "R-STRUCT_after": run_all(s, sc)["R-STRUCT"], "kit2": kit2, "derived": did}
 
