@@ -116,21 +116,31 @@ def canonical(v):
 
 
 def differences(a: dict, b: dict, where: str) -> list[str]:
+    """Every part ``answers()`` returns, compared by construction (task-0193, doc-0030 P5): a part added
+    there is compared here without a line of its own. The gate and the three-valued answers name the
+    fields that differ; a part holding a dict names its keys that differ; any other part, itself."""
     out = []
     a, b = canonical(a), canonical(b)
-    for part in ("gate", "three_valued"):
-        for k in sorted(set(a[part]) | set(b[part])):
-            x, y = a[part].get(k), b[part].get(k)
-            if x != y:
-                fields = sorted(f for f in set(x or {}) | set(y or {}) if (x or {}).get(f) != (y or {}).get(f))
-                out.append(f"{where}: {part} {k} differs on {fields}")
-    for part in ("verdicts", "bundle", "findings"):
-        if a.get("preload", {}).get(part) != b.get("preload", {}).get(part):
-            out.append(f"{where}: preload {part} differs")
-    if a.get("parts") != b.get("parts"):
-        out.append(f"{where}: part digests differ: {len(a.get('parts') or [])} -> {len(b.get('parts') or [])}")
-    if a["census"] != b["census"]:
-        out.append(f"{where}: census {a['census']} != {b['census']}")
+    for part in dict.fromkeys([*a, *b]):   # answers()'s own order, then whatever only b holds
+        x, y = a.get(part), b.get(part)
+        if x == y:
+            continue
+        if part in ("gate", "three_valued"):
+            for k in sorted(set(x or {}) | set(y or {})):
+                u, v = (x or {}).get(k), (y or {}).get(k)
+                if u != v:
+                    fields = sorted(f for f in set(u or {}) | set(v or {}) if (u or {}).get(f) != (v or {}).get(f))
+                    out.append(f"{where}: {part} {k} differs on {fields}")
+        elif part == "census":
+            out.append(f"{where}: census {x} != {y}")
+        elif part == "parts":
+            out.append(f"{where}: part digests differ: {len(x or [])} -> {len(y or [])}")
+        elif isinstance(x, dict) and isinstance(y, dict):
+            for k in dict.fromkeys([*x, *y]):
+                if x.get(k) != y.get(k):
+                    out.append(f"{where}: {part} {k} differs")
+        else:
+            out.append(f"{where}: {part} differs")
     return out
 
 

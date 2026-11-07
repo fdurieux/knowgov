@@ -29,7 +29,7 @@ import compare_deterministic  # noqa: E402
 sys.path.insert(0, str(DEMO / "model"))
 import cascade_layout as slide  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _subject_pin import on_cargo_quote  # noqa: E402  (these tests are about CargoQuote's record; task-0032.01)
+from _subject_pin import CARGO_QUOTE, on_cargo_quote  # noqa: E402  (these tests are about CargoQuote's record; task-0032.01)
 
 
 @on_cargo_quote
@@ -144,8 +144,9 @@ def test_layout_tables_match_their_source_note():
 
 
 def test_compare_tool_finds_the_record_identical_to_itself():
-    n, lines = compare_deterministic.compare(RESULTS, RESULTS, compare_deterministic.SCENARIOS,
-                                             record_for={"S6": RESULTS / "S6"})
+    # CargoQuote's own scenarios, whatever subject the process runs: the comparator's default is the process
+    # subject's, and a scenario the run lacks is a difference (task-0193), so J-F's would all be missing here
+    n, lines = compare_deterministic.compare(RESULTS, RESULTS, CARGO_QUOTE.order, record_for={"S6": RESULTS / "S6"})
     assert n == 0, lines
     # and the deterministic-mode S6 record differs from the scored one by the Derived node and by
     # valid_until on the three ended verifications (the scored run's loader reset it, d3check/S6 is
@@ -223,6 +224,30 @@ def test_compare_tool_command_line_reads_every_leaf():
             sys.argv = argv
         text = out.getvalue()
         assert code == 1 and "DIFF: 3 differing" in text and text.count("valid_until") >= 3, text
+
+
+@on_cargo_quote
+def test_a_scenario_asked_for_and_not_run_is_a_difference():
+    """task-0193, doc-0030 P7: a run holding S1 alone, compared with the default seven, exits 1 naming the six
+    it lacks; named with --scenarios S1, it matches."""
+    import contextlib, io, shutil, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        run = Path(td) / "run"
+        (run / "S1").mkdir(parents=True)
+        shutil.copy(RESULTS / "S1" / "deterministic.json", run / "S1" / "deterministic.json")
+        n, lines = compare_deterministic.compare(run, RESULTS, CARGO_QUOTE.order)
+        missing = [ln for ln in lines if "not in the run" in ln]
+        assert n == len(CARGO_QUOTE.order) - 1 == len(missing) == 6, lines
+        argv = sys.argv
+        for extra, want in ((["--scenarios", *CARGO_QUOTE.order], 1), (["--scenarios", "S1"], 0)):
+            out = io.StringIO()
+            try:
+                sys.argv = ["compare_deterministic.py", str(run), str(RESULTS), *extra]   # CargoQuote's record, named
+                with contextlib.redirect_stdout(out):
+                    code = compare_deterministic.main()
+            finally:
+                sys.argv = argv
+            assert code == want, (extra, out.getvalue())
 
 
 def test_image_pins_the_versions_the_record_names():

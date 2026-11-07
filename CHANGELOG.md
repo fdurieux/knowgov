@@ -119,6 +119,16 @@ names that section with the version.
 
 ### Changes
 
+- **The deterministic comparator counts a scenario the run lacks as a difference** (task-0193, doc-0030 P7).
+  Before, `demo/tools/compare_deterministic.py` skipped a named or defaulted scenario with no folder in the run,
+  so a run that stopped after S1 matched the record at exit 0. Each missing scenario is now a difference
+  (`S2: not in the run`), exit 1. A run of fewer scenarios than the record names them: `--scenarios S1`. With
+  it, three of CI's checks now compare by construction: the round trip compares every part it collects
+  (`store_reads` included, P5); `demo.yml` and `harness.yml` run every step under `bash -eo pipefail`, so a
+  failing saved query fails its step instead of hiding behind `| tee` (P6); and the security test scans
+  recursively, `instance/ci` and each subject's oracle included, for more network modules and dynamic imports
+  of one (R11).
+
 - **The instance check refuses a scenario id two subjects share** (task-0194, doc-0030 H1's interim). The shared
   store records the scenario it holds by its id alone, so two subjects both declaring `S0` would answer each
   other's gates. `tools/check_instance.py` now exits 1 on a scenario id two subjects declare, naming the id,

@@ -128,8 +128,13 @@ def test_the_baseline_arm_sends_whole_documents():
 
 
 NETWORK = {"requests", "httpx", "urllib3", "aiohttp", "socket", "smtplib", "ftplib", "telnetlib", "websocket",
-           "websockets", "paramiko", "grpc", "boto3", "google", "anthropic", "pycurl"}
-NETWORK_DOTTED = {"urllib.request", "http.client", "xmlrpc.client"}
+           "websockets", "paramiko", "grpc", "boto3", "google", "anthropic", "pycurl",
+           # task-0193, doc-0030 R11: the standard library's other ways out
+           "asyncio", "ssl", "socketserver", "imaplib", "poplib", "nntplib"}
+NETWORK_DOTTED = {"urllib.request", "http.client", "xmlrpc.client", "multiprocessing.connection"}
+# where code runs: the harness, the page, the tools, the CI templates and hooks an instance copies, and every
+# subject's oracle, each scanned recursively; a vendored folder (vendor/) is another project's bytes, held by digest
+SCANNED = ("harness", "demo/app", "tools", "demo/tools", "instance/ci")
 # the model client: the two arms, and the key check (task-0171), which asks the row's own endpoint for its model
 # listing and nothing else (tests/test_key_check.py holds that)
 CLIENTS = {"openai": {"harness/arms.py", "harness/agent.py", "harness/key_check.py"}, "neo4j": {"harness/store_neo4j.py"}}
@@ -144,29 +149,52 @@ LOCAL_CHECKS = {"demo/tools/check_impact_cypher.py": 'os.environ.get("KG_DEMO_UR
 PROBES = {"harness/worker.py": 'OUTSIDE = ("192.0.2.1", 9)'}
 
 
+def _scanned_files() -> list:
+    roots = [ROOT / f for f in SCANNED] + sorted(ROOT.glob("subjects/*/oracle"))
+    return [p for r in roots for p in sorted(r.rglob("*.py")) if "vendor" not in p.relative_to(ROOT).parts]
+
+
+def _imports(tree) -> list[str]:
+    """Every module a tree imports: statements, and import_module/__import__ of a literal name (doc-0030 R11)."""
+    out = []
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            out += [a.name for a in n.names]
+        elif isinstance(n, ast.ImportFrom) and n.module and n.level == 0:
+            out += [n.module] + [f"{n.module}.{a.name}" for a in n.names]
+        elif isinstance(n, ast.Call) and getattr(n.func, "id", getattr(n.func, "attr", None)) in ("import_module", "__import__") \
+                and n.args and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str):
+            out.append(n.args[0].value)
+    return out
+
+
+def _network(m: str) -> bool:
+    return m.split(".")[0] in NETWORK or m in NETWORK_DOTTED
+
+
+def test_the_scan_reads_dynamic_imports_and_every_way_out():
+    src = "import importlib\nimportlib.import_module('socket')\n__import__('ssl')\nfrom multiprocessing import connection\nimport asyncio\n"
+    assert {m for m in _imports(ast.parse(src)) if _network(m)} == {"socket", "ssl", "multiprocessing.connection", "asyncio"}
+    files = {p.relative_to(ROOT).as_posix() for p in _scanned_files()}
+    assert "instance/ci/claude/knowgov_hook.py" in files and "subjects/jef_data_load/oracle/jef_suite.py" in files
+    assert any(f.count("/") >= 3 and f.startswith("instance/ci/") for f in files), "recursive: the CI templates' subfolders"
+    assert not any("/vendor/" in f for f in files)
+
+
 def test_nothing_reaches_the_network_but_the_model_client_and_the_store_driver():
     found: dict[str, set[str]] = {}
-    for folder in ("harness", "demo/app", "tools", "demo/tools"):
-        for path in sorted((ROOT / folder).glob("*.py")):
-            rel = path.relative_to(ROOT).as_posix()
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            for n in ast.walk(tree):
-                if isinstance(n, ast.Import):
-                    mods = [a.name for a in n.names]
-                elif isinstance(n, ast.ImportFrom) and n.module and n.level == 0:
-                    mods = [n.module] + [f"{n.module}.{a.name}" for a in n.names]
-                else:
-                    continue
-                for m in mods:
-                    if rel in LOCAL_CHECKS and m == "urllib.request":
-                        assert LOCAL_CHECKS[rel] in path.read_text(encoding="utf-8"), rel
-                        continue
-                    if rel in PROBES and m == "socket":
-                        assert PROBES[rel] in path.read_text(encoding="utf-8"), rel
-                        continue
-                    assert m.split(".")[0] not in NETWORK and m not in NETWORK_DOTTED, (rel, m)
-                    if m.split(".")[0] in CLIENTS:
-                        found.setdefault(m.split(".")[0], set()).add(rel)
+    for path in _scanned_files():
+        rel = path.relative_to(ROOT).as_posix()
+        for m in _imports(ast.parse(path.read_text(encoding="utf-8"))):
+            if rel in LOCAL_CHECKS and m == "urllib.request":
+                assert LOCAL_CHECKS[rel] in path.read_text(encoding="utf-8"), rel
+                continue
+            if rel in PROBES and m == "socket":
+                assert PROBES[rel] in path.read_text(encoding="utf-8"), rel
+                continue
+            assert not _network(m), (rel, m)
+            if m.split(".")[0] in CLIENTS:
+                found.setdefault(m.split(".")[0], set()).add(rel)
     assert found == CLIENTS, found
     page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
     assert not re.search(r"<(script|link|img|iframe)[^>]+(src|href)=[\"']https?://", page, re.I)
