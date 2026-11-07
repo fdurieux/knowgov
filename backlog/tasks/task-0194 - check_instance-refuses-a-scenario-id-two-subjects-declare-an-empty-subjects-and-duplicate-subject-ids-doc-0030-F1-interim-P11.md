@@ -3,9 +3,11 @@ id: TASK-0194
 title: >-
   check_instance refuses a scenario id two subjects declare, an empty subjects/
   and duplicate subject ids (doc-0030 F1 interim, P11)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-07T07:14:00Z'
+updated_date: '2026-11-07T07:38:00Z'
 labels:
   - review
   - instance
@@ -25,8 +27,20 @@ The interim for H1, to ship now as a fix ahead of F1. The store records a held s
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 tools/check_instance.py exits 1 when two of an instance's subjects declare one scenario id, naming the id, the subjects and why (doc-0030 H1)
-- [ ] #2 It exits 1 on an empty subjects/ and on a repeated subject id
-- [ ] #3 The public subjects and tools/example_instance.py's instance pass unchanged
-- [ ] #4 The onboarding skill tells an adopter to give each subject its own scenario ids, and harness/wizard.py --check stays fresh
+- [x] #1 tools/check_instance.py exits 1 when two of an instance's subjects declare one scenario id, naming the id, the subjects and why (doc-0030 H1)
+- [x] #2 It exits 1 on an empty subjects/ and on a repeated subject id
+- [x] #3 The public subjects and tools/example_instance.py's instance pass unchanged
+- [x] #4 The onboarding skill tells an adopter to give each subject its own scenario ids, and harness/wizard.py --check stays fresh
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. check_instance.check: an empty subjects/, a subject id two roots declare, a scenario id two subjects declare, each an error (exit 1) naming what and why. 2. Tests on the example instance with a copied subject; the public subjects' scenario ids disjoint. 3. Skill: rename the copied S0 to <id>-S0 and keep ids unique per instance; instance/README the same, and the three refusals listed; wizard --check. 4. Sweep the suite's multi-subject fixtures for a shared scenario id. 5. CHANGELOG under Changes; suite both ways.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+tools/check_instance.py: subjects/ empty -> error; ids -> roots, a repeated id -> error naming the roots; scenario id -> subjects, one declared by two -> error naming the id, the subjects and why (the store records a held scenario by its id alone, doc-0030 H1). A hyphenated <id>-S0 checked through gate_cli default, --publish and --no-load's held-scenario read. Fixture sweep: the repository's subjects/ and every tools/fixtures subject declare disjoint ids (C, D1-D5, S0-S7); tests/test_page_subject.py's rescan fixture built alpha and beta both with S0 (it passed, the page does not check ids) and now gives each <sid>-S0, as the skill tells adopters. tools/example_instance.py's instance (one subject) checks clean, unchanged. Suite: KG_TEST_REQUIRE=rdflib 691/693 (2 skipped), KG_SUBJECT=subjects/jef_data_load 690/693 (3 skipped), 0 failed, before the page-fixture change; rerun after.
+<!-- SECTION:NOTES:END -->
