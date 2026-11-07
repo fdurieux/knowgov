@@ -5,7 +5,7 @@ title: >-
   findings, eight refactorings, a hardening tranche before 0.9.0
 type: specification
 created_date: '2026-11-06T23:41:00Z'
-updated_date: '2026-11-06T23:42:00Z'
+updated_date: '2026-11-07T07:15:00Z'
 tags:
   - review
   - integrity
@@ -261,3 +261,37 @@ Left as single fixes, outside the eight: S1 (one loaded-mappers set), S3 (keep t
 2. Add H1 to H7 and M3 to doc-0028's G9 list, so that 0.9.0 is not cut over them? *Recommended: yes.* They decide what the frozen contracts mean.
 3. Ship the `check_instance` guard against shared scenario and subject ids now, as a fix, ahead of F1? *Recommended: yes.*
 4. F5's order contract renumbers the record's conflict gap ids: a decision of its own, after the tranche? *Recommended: yes.* Until then, fix only the order of `declared_gaps_for_key`, which numbers nothing.
+
+## Answered (2026-11-07)
+
+The maintainer: "accept the advise on all four". In force:
+
+1. **The tranche and its order.** Minted, in that order:
+   - F7, task-0193;
+   - the `check_instance` guard, task-0194;
+   - F1, task-0195;
+   - H7 and M3, task-0196;
+   - F3, task-0197;
+   - F4, task-0198;
+   - F2, task-0199;
+   - F6, task-0200;
+   - F5, task-0201;
+   - F8, task-0203.
+
+   The single fixes, by area:
+   - the two hook bypasses P2 and P4, task-0204;
+   - store and ingest (S1, S3, S6, S7, S8, I11, I12), task-0205;
+   - page and connector (P3, P10), task-0206;
+   - runs and trace (R6, R8, R12), task-0207;
+   - MCP (M7, M9, M11), task-0208;
+   - gate (G9, G11), task-0209.
+
+   Each task cites this doc's ids and keeps the record, the deterministic run and the comparator equal.
+2. **H1 to H7 and M3 join doc-0028's G9 list as G9-11.** 0.9.0 is not cut over them. They are carried by:
+   - H1: task-0195, with task-0194 as its interim;
+   - H2 and H4: task-0197;
+   - H3: task-0198;
+   - H5 and H6: task-0199;
+   - H7 and M3: task-0196.
+3. **The `check_instance` guard ships now, as a fix:** task-0194, ahead of task-0195.
+4. **The renumbering of the record's conflict gap ids is a decision of its own, after the tranche:** task-0202, which depends on task-0201. Until it is accepted, only `declared_gaps_for_key` is ordered, under task-0201.
