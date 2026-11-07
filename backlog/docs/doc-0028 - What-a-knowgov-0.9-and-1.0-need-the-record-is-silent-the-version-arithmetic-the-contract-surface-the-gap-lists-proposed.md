@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-06T13:26:00Z'
+updated_date: '2026-11-07T07:15:00Z'
 tags:
   - brief
   - release
@@ -87,6 +87,7 @@ Every item here is the maintainer's to meet.
 | G9-8 | The licence boundary | task-0058 is To Do; its AC #3 stamps a licence on every file under the boundary | task-0058 |
 | G9-9 | Accurate adopter docs | `docs/guide.md:321-324` says task-0037 is not built and that nothing takes S2 to PROCEED; task-0037 is Done, and its AC #5 shows that path. `README.md:25` and `demo/README.md:1024` say Python 3.13; the image is `python:3.12-slim` (`demo/Dockerfile:9`). #291 (open) fixes both. The external pass (doc-0012 §9) found them too, and a third: `docs/guide.md` describes a narrower impact walk than the register's three walks (dependants, realisers, thread) | P2 |
 | G9-10 | The upstream formats an instance may use | unstated | decision-0016 point 3 |
+| G9-11 | The code review's high findings fixed (doc-0030, the maintainer's acceptance of 2026-11-07) | Open at `8d80b2b`: H1 a held scenario matched by bare id; H2 stage 2 reopens a closed gap; H3 a person's approval lapses by the wall clock; H4 conflicts paired within one version; H5 rulings bound to positional ids; H6 trace misses a document edit; H7 subject_check reads any manifest-named path; M3 HTTP refusals smuggle a request | task-0195 (task-0194 its interim), task-0196, task-0197, task-0198, task-0199 |
 
 ## 5. 1.0: the contracts proven (proposed gap list)
 
