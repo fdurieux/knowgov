@@ -96,14 +96,18 @@ def _probe(code: str, seconds: float = 60) -> dict:
 
 def test_r4_a_deep_setsid_chain_is_killed_whole_after_its_job_within_the_bound():
     mark = worker_probes.marker()
-    with _worker():
+    with _worker() as (_jobs, pid):
+        # the worker's user may own more than the worker (a CI runner's user owns the runner and the tests):
+        # what it owned before the job is set aside, and every process born since must be gone
+        uid = next(int(line.split()[1]) for line in open(f"/proc/{pid}/status") if line.startswith("Uid:"))
+        before = worker_probes.user_processes(uid)
         t0 = time.monotonic()
         r = _probe(worker_probes.chain(mark), seconds=60)
         took = time.monotonic() - t0
         assert r.get("stage") == "ok" and r["stdout"].strip() == f"built {worker_probes.DEPTH}", r
-        marked, others = map(int, _probe(worker_probes.survivors(mark))["stdout"].split())
+        marked, others = map(int, _probe(worker_probes.survivors(mark, before))["stdout"].split())
     assert marked == 0, f"{marked} of the {worker_probes.DEPTH}-deep chain outlived its job"
-    assert others == 0, f"{others} other process(es) of the worker's user outlived the job"
+    assert others == 0, f"{others} process(es) of the worker's user born during the job outlived it"
     import worker
     assert took < 20 + worker.REAP_S, f"the job and its reaping took {took:.1f} s"
 

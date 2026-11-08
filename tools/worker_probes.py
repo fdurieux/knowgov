@@ -4,6 +4,7 @@ stack's worker; ``tests/test_worker_isolation.py`` to a worker loop on the test 
 each is fixture code, as hostile as a model's might be."""
 from __future__ import annotations
 
+import os
 import secrets
 
 DEPTH = 70   # the review's chain: the old reaper, one level a round for 50 rounds, left 21 of 70 alive
@@ -81,14 +82,36 @@ print('built', n)
 """
 
 
-def survivors(mark: str) -> str:
+def user_processes(uid: int) -> list[str]:
+    """``uid``'s live processes as ``pid:starttime``, the start time telling a reused pid apart: the set a
+    machine whose user owns more than the worker (a CI runner's) had before a job, for ``survivors``."""
+    found = []
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            with open(f"/proc/{d}/status") as f:
+                owner = next(int(line.split()[1]) for line in f if line.startswith("Uid:"))
+            with open(f"/proc/{d}/stat") as f:
+                fields = f.read().rsplit(")", 1)[1].split()
+        except (OSError, StopIteration, ValueError):
+            continue
+        if owner == uid and fields[0] not in ("Z", "X"):
+            found.append(f"{d}:{fields[19]}")
+    return found
+
+
+def survivors(mark: str, before: list[str] | None = None) -> str:
     """The next job's view: how many processes carry ``mark``, and how many of this user's processes are
-    neither this job's own ancestry nor the worker's health check. The marker is split in this code, so this
-    job's own command line does not carry it."""
+    neither this job's own ancestry nor the worker's health check, nor among ``before`` (``pid:starttime``,
+    from ``user_processes`` before the job; none by default, so in the worker's container, whose uid owns
+    nothing else, every other process counts). The marker is split in this code, so this job's own command
+    line does not carry it."""
     head, tail = mark[:8], mark[8:]
     return f"""
 import os
 MARK = ({head!r} + {tail!r}).encode()
+BEFORE = set({sorted(before or [])!r})
 me = os.getpid()
 def stat(p):
     return open('/proc/%d/stat' % p).read().rsplit(')', 1)[1].split()
@@ -108,14 +131,16 @@ for d in os.listdir('/proc'):
     try:
         cmd = open('/proc/%d/cmdline' % pid, 'rb').read()
         uid = next(int(l.split()[1]) for l in open('/proc/%d/status' % pid) if l.startswith('Uid:'))
-        state = stat(pid)[0]
+        fields = stat(pid)
+        state = fields[0]
     except (OSError, StopIteration, ValueError):
         continue
     if state in ('Z', 'X'):
         continue
     if MARK in cmd:
         marked += 1
-    if uid == os.getuid() and pid not in mine and b'--attest-only' not in cmd and MARK not in cmd:
+    if uid == os.getuid() and pid not in mine and b'--attest-only' not in cmd and MARK not in cmd \\
+            and '%d:%s' % (pid, fields[19]) not in BEFORE:
         others += 1
 print(marked, others)
 """
