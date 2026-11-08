@@ -3,9 +3,11 @@ id: TASK-0222
 title: >-
   Stage 2 re-reads the review files: an idempotent close (the maintainer,
   2026-11-08)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-08T11:18:00Z'
+updated_date: '2026-11-08T11:50:00Z'
 labels:
   - stage2
   - reviews
@@ -33,3 +35,9 @@ The maintainer, 2026-11-08 (Build it, as suggested): task-0197 (F3) made stage 2
 - [ ] #3 tools/check_stage2_reload.py gains the case and fails it on the old code
 - [ ] #4 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+review.check: a close of a gap already closed on the same digest is a no-op (gap_brief, a new port read); one closed on another declaration is set aside, changed. load_reviews(again=True) at stage 2: clear_act_findings (a new port write), then every review file read again, closes included, the review's activity kept when stage 1 recorded it. check_stage2_reload: R1 (a ruling written for v2 applies at stage 2, no act left from stage 1), R2 (an idempotent close through S2's own stage 2), R3 (a close of a restated declaration, changed at both stages).
+<!-- SECTION:PLAN:END -->
