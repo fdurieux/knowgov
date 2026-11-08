@@ -242,3 +242,45 @@ def test_every_page_route_the_docs_name_is_one_the_page_serves():
             if not _route_ok(segs, routes):
                 bad.append(f"{d}: /{m.group(1)}")
     assert not bad, f"a route the docs name that the page does not serve: {sorted(set(bad))}"
+
+
+# decision-0027 (task-0234): which KG_* settings are 1.0 contracts. decision-0016 point 3 makes a setting a
+# contract by documenting it in instance/README.md or docs/security.md; the maintainer chose these twenty.
+CONTRACT_DOCS = ("instance/README.md", "docs/security.md")
+CONTRACT_SETTINGS = {
+    # the CI-template and hook inputs
+    "KG_TASK": "instance/README.md", "KG_STAGE": "instance/README.md", "KG_NO_LOAD": "instance/README.md",
+    "KG_GATE": "instance/README.md", "KG_CODE_REPO": "instance/README.md", "KG_SUBJECT_IN": "instance/README.md",
+    "KG_HOME": "instance/README.md",
+    # the store
+    "KG_NEO4J_URI": "instance/README.md", "KG_NEO4J_USER": "instance/README.md",
+    # the worker limits: they bound contained code
+    "KG_WORKERS": "docs/security.md", "KG_WORKER_CPUS": "docs/security.md", "KG_WORKER_MEM": "docs/security.md",
+    "KG_WORKER_JOBS": "docs/security.md", "KG_WORKER_JOB_SECONDS": "docs/security.md", "KG_WORKER_WORK": "docs/security.md",
+    # cross-subject calls
+    "KG_SUBJECT_CALL_TIMEOUT": "instance/README.md",
+    # the model endpoint
+    "KG_ARMS_MODEL": "instance/README.md", "KG_MODEL_API_KEY_VAR": "instance/README.md",
+    "KG_MODEL_API_KEY": "instance/README.md", "KG_MODELS": "instance/README.md",
+}
+# The nineteen that stay out: internals, demo-stack knobs (demo/README.md keeps them), arms experiment knobs.
+NOT_CONTRACTS = ("KG_MUTANT", "KG_ROOT", "KG_NOW", "KG_TRACEBACK", "KG_OUTCOMES", "KG_DEMO_URL",
+                 "KG_DEMO_PORT", "KG_DEMO_RUNS", "KG_PAGE_LISTEN", "KG_PORT_BOLT", "KG_PORT_BROWSER", "KG_ANTHROPIC_KEY",
+                 "KG_ARMS_EFFORT", "KG_THINKING_UNCOUNTED", "KG_AGENT_IDLE_SECONDS", "KG_AGENT_MAX_CALLS",
+                 "KG_AGENT_MAX_SECONDS", "KG_AGENT_MAX_TOKENS", "KG_ARMS_MAX_TOKENS")
+
+
+def test_the_twenty_contract_settings_are_documented_where_decision_0027_puts_them_and_read_in_code():
+    assert len(CONTRACT_SETTINGS) == 20 and len(NOT_CONTRACTS) == 19 and not set(CONTRACT_SETTINGS) & set(NOT_CONTRACTS)
+    names = set(KG.findall(_code_text()))
+    docs = _docs()
+    missing = [f"{n} (in {where})" for n, where in CONTRACT_SETTINGS.items() if not re.search(rf"\b{n}\b", docs[where])]
+    unread = [n for n in CONTRACT_SETTINGS if n not in names]
+    assert not missing, f"a 1.0 contract setting its document does not name: {missing}"
+    assert not unread, f"a 1.0 contract setting no code reads: {unread}"
+
+
+def test_none_of_the_nineteen_is_named_in_a_contract_document():
+    docs = _docs()
+    named = [f"{d}: {n}" for d in CONTRACT_DOCS for n in NOT_CONTRACTS if re.search(rf"\b{n}\b", docs[d])]
+    assert not named, f"decision-0027 keeps these out of the contracts, so out of {CONTRACT_DOCS}: {named}"

@@ -132,3 +132,20 @@ def test_past_its_bound_the_reaper_raises_and_the_worker_stops_serving():
         raise AssertionError("the app took a job beside what the last one left")
     except execution.ExecutionRefused:
         pass
+
+
+def test_exec_14s_witness_is_blind_to_a_healthcheck_and_strict_for_a_chain():
+    """EXEC-14's round verdict (tools/check_worker.py ``quiet_round``): two consecutive one-second windows of the
+    worker's pid namespace. A healthcheck entered by docker exec (ppid 0, a handful of pids, once in ten seconds)
+    lands in at most one: the round main's stack job failed at ec4e693, 6 pids in one window, passes. A chain that
+    outlived its job forks hundreds in both, and any process carrying its mark fails the round."""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import check_worker
+    for healthcheck in (["6", "0", "0", "1"], ["0", "6", "0", "1"], ["3", "3", "0", "1"], ["0", "0", "0", "1"]):
+        assert check_worker.quiet_round(healthcheck), healthcheck
+    for chain in (["121", "118", "0", "1"], ["800", "790", "0", "1"], [str(check_worker.QUIET_PIDS + 1)] * 2 + ["0", "1"]):
+        assert not check_worker.quiet_round(chain), chain
+    assert not check_worker.quiet_round(["0", "0", "1", "1"]), "a process carrying the chain's mark fails the round"
+    for malformed in ([], ["6", "0", "1"], ["x", "0", "0", "1"]):
+        assert not check_worker.quiet_round(malformed), malformed
+    assert check_worker.QUIET_PIDS < 121, "a chain's slowest rate measured stays far above the bound"
