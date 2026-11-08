@@ -4,7 +4,7 @@ title: >-
   Conflict gap ids are content-derived, as person pairs already are, over a
   defined order: one id per conflict on every store
 date: '2026-11-08T11:46:00Z'
-status: proposed
+status: accepted
 ---
 ## Context
 
@@ -33,9 +33,9 @@ A person's ruling settles a dispute by assertion id, bound by content since task
 - **(b) Content-derived ids, as person pairs already have.** A conflict between two documents is `gap:conflict:<key>:<a>~<b>`, with its two assertion ids sorted. The id is the same on every store and on every run of the same statements, and a later version's statements, with their new assertion ids, name a new conflict. The order contract is still set, so that lists are stable.
 - **(c) No change.** Store order, two names for one conflict.
 
-## Proposed
+## Decision
 
-**(b)**, with (a)'s order contract under it. The maintainer decides; this record is proposed.
+**Accepted: (b)**, with (a)'s order contract under it, on the maintainer's word (2026-11-08: "accept decision-0020's advice"). It was drafted as proposed by the coordinator under the maintainer's autonomy window, and accepted the same day. A contract change, for 0.9.0 (decision-0016): doc-0028 G9-14 holds the cut until the build lands.
 
 ## Opportunity canvas
 
@@ -75,9 +75,9 @@ A person's ruling settles a dispute by assertion id, bound by content since task
 
 (a) alone would freeze positional ids into 0.9's contract and leave them to a later 0.10.0. The record stays equal through the comparator, because the vendored results are never edited and the comparator reads both forms. The cost is a deliberate re-pin of the bundle bytes where S4's document conflicts appear, named in its pull request.
 
-## If accepted: what the build does
+## Consequences: what the build does
 
-A task, minted on acceptance:
+task-0223, minted on acceptance:
 - **Ids.** `r_conflict` names a document conflict `gap:conflict:<key>:<a>~<b>`, with its assertion ids sorted.
 - **Order.** `candidate_pairs` and `conflict_gaps` are ordered by key, then by id, on both adapters.
 - **Comparator.** `compare_deterministic.py` normalises both forms per key.
