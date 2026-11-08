@@ -23,6 +23,7 @@ Only the store port's reads are used; nothing is written. Standard library only.
 """
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import re
 import subprocess
@@ -47,6 +48,31 @@ def register_root() -> Path:
     return cadence.register_root()
 
 
+@contextlib.contextmanager
+def no_bytecode():
+    """Python writes no ``__pycache__`` while the register's own modules load: they sit in ``KG_REGISTER``,
+    which an instance mounts read-only and the reader never writes (doc-0030 M11, task-0208). Covers the
+    modules they import in turn; the interpreter's own setting is restored after."""
+    global _nb_depth, _nb_before
+    with _nb_lock:   # counted, so two threads loading at once never restore it under each other
+        if _nb_depth == 0:
+            _nb_before = sys.dont_write_bytecode
+            sys.dont_write_bytecode = True
+        _nb_depth += 1
+    try:
+        yield
+    finally:
+        with _nb_lock:
+            _nb_depth -= 1
+            if _nb_depth == 0:
+                sys.dont_write_bytecode = _nb_before
+
+
+_nb_lock = threading.Lock()
+_nb_depth = 0
+_nb_before = False
+
+
 def load_tools(root: Path | None = None) -> dict:
     """The register's ``register`` and ``impact`` modules, imported once per root, by path, from the
     register itself (``impact.py`` imports ``register`` by name, so both are put in ``sys.modules``)."""
@@ -61,7 +87,8 @@ def load_tools(root: Path | None = None) -> dict:
                 spec = importlib.util.spec_from_file_location(name, tools / f"{name}.py")
                 mod = importlib.util.module_from_spec(spec)
                 sys.modules[name] = mod
-                spec.loader.exec_module(mod)
+                with no_bytecode():
+                    spec.loader.exec_module(mod)
                 mods[name] = mod
             _tools[str(root)] = mods
         return _tools[str(root)]
