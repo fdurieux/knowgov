@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-08T11:18:00Z'
-updated_date: '2026-11-08T14:34:00Z'
+updated_date: '2026-11-08T15:32:00Z'
 labels:
   - attestation
   - contract
@@ -58,4 +58,6 @@ Stage 2's reading (the coordinator's answer to the DECIDE, 2026-11-08: option (a
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 An attestation is bound to the Versions it attests (decision-0019). [verification] authored and approval list in versions the digest of each artefact Version they attest (raw-byte SHA-256, task-0160; a directory's file digests, task-0094); an unlisted Version's authored statements read proposed and nothing in it is approved by construction, on both stores. The gate's attestation finding names each unattested Version behind the keys (major) with the owner's route from capture.routing, and a declaration without a list at info (the read rule). check_subject refuses a digest of no Version and notes an unbound declaration, naming decision-0019. tools/check_attestation_binding.py fails 6 checks on the old code and holds on rdflib and Neo4j. On the maintainer's approval of 2026-11-08 (planted texts listed), cargo_quote and jef_data_load list every Version their scenarios load, as vendored at pumllint v0.35.0 and as planted, with their at dates unchanged; the scored record S1-S7 and J-F reads identical.
+
+Merged: #354 (608cf7d, ACs 1 to 6: the binding, the gate's attestation finding, check_subject, the probe, stage 2's withdraw_construction under decision-0019's text, the read rule and the CHANGELOG line) and #355 (AC 7: the public subjects' lists, planted texts included, on the maintainer's approval of 2026-11-08; the strict subject check restored; check_lint_gaps lists its planted Version through example_instance.attest, the one check whose measurement the lists touched). The record S1-S7 and J-F compares identical on main.
 <!-- SECTION:FINAL_SUMMARY:END -->
