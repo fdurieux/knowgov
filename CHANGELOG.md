@@ -335,6 +335,14 @@ names that section with the version.
 
 ### Changes
 
+- **A Neo4j writer's close no longer races its own heartbeat** (task-0229). A writer renews its lease from a
+  background thread. Closing the writer used to stop that thread without waiting for it, then close the driver,
+  so a renewal still being sent could meet the driver's goodbye on the same connection. The close then failed
+  with a `BufferError` from the driver; it was rare, and it reddened one stack run on `main`. The close now
+  waits for the renewal to finish first. A renewal still running past its own time bound fails the close with
+  `HeartbeatAlive` and leaves the driver open, so the lease runs out on its own. `tools/check_snapshots.py`
+  proves it as SNAP-10.
+
 - **`--stage 2 --baseline record` is refused, and review months take the default only when no kind is named**
   (task-0209, doc-0030 G9, G11). Two fixes; no record moves.
   - The record keeps stage 2's verdicts but not its keys' levels. So a stage-2 gate ratcheted against it was

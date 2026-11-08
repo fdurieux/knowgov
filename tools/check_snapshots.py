@@ -1,4 +1,4 @@
-"""Store generations, proven on a real store (task-0141.06, decision-0014): SNAP-01..SNAP-09.
+"""Store generations, proven on a real store (task-0141.06, decision-0014): SNAP-01..SNAP-10.
 
     python tools/check_snapshots.py --disposable                 # KG_STORE=neo4j: the database it names
     KG_STORE=rdflib python tools/check_snapshots.py --disposable  # a file-backed store in a temporary folder
@@ -33,6 +33,9 @@ read together: the held scenario, the census, the register's census and the gate
   SNAP-09  a writer that only read publishes nothing (doc-0030 S7): the generation and the store's file
            are those it found, and its readers keep their snapshot; on rdflib a publication keeps the
            file's mode, an operator's ``chmod 600`` included (S3)
+  SNAP-10  a writer closed while its lease heartbeat is in the middle of a send (task-0229): on Neo4j, ten
+           closes, each while a beat holds its connection's outbox, every one clean and the lease free after
+           it (the close joins the beat before the driver closes); on rdflib a writer starts no thread to race
 
 Exit 0 when every check holds, 1 otherwise. No model is called; the clock is pinned.
 """
@@ -162,6 +165,42 @@ def snap_09(s1: str, g1: dict) -> None:
         mode = os.stat(path).st_mode & 0o777
         check(mode == 0o600 and _generation() != before, f"SNAP-09 a publication keeps the file's mode, an operator's chmod 600: {oct(mode)}")
         os.chmod(path, 0o644)
+
+
+def snap_10() -> None:
+    if kind() == "rdflib":
+        before = {t.ident for t in threading.enumerate()}
+        with opener("write"):
+            pass
+        check({t.ident for t in threading.enumerate()} <= before, "SNAP-10 on rdflib a writer starts no thread its close could race")
+        return
+    from neo4j._sync.io._bolt import _common   # the driver's outbox: a beat's send holds it exported, as sendall does
+    flush = _common.Outbox.flush
+    in_send = threading.Event()
+
+    def slow_flush(self):
+        if threading.current_thread() is not threading.main_thread() and self._chunked_data:   # the heartbeat's thread
+            with memoryview(self._chunked_data):
+                in_send.set()
+                time.sleep(0.5)
+        return flush(self)
+    _common.Outbox.flush = slow_flush
+    raised, mid, free = [], 0, 0
+    try:
+        for _ in range(10):
+            in_send.clear()
+            st = opener("write", lease_seconds=1.0)   # a beat every third of a second
+            mid += in_send.wait(5)
+            try:
+                st.close()
+            except Exception as e:  # noqa: BLE001 — what the close raised is the finding
+                raised.append(f"{type(e).__name__}: {e}"[:160])
+            free += _pub().get("owner") is None
+    finally:
+        _common.Outbox.flush = flush
+    check(mid == 10, f"SNAP-10 each of the ten closes began while a beat was in the middle of a send: {mid}")
+    check(not raised, f"SNAP-10 a writer closed in the middle of its heartbeat's send closes cleanly, ten times: {raised[:2]}")
+    check(free == 10, f"SNAP-10 after each such close the lease is free: {free} of 10")
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -691,6 +730,7 @@ def main() -> int:
     snap_08(s1, s2, g1)
     publish(s1)
     snap_09(s1, g1)
+    snap_10()
     print(f"snapshots ({kind()}): " + ("every check holds" if not FAILURES else f"{len(FAILURES)} failure(s)"))
     if tmp:
         tmp.cleanup()

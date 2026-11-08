@@ -102,7 +102,7 @@ jobs:
         run: |
           KG_STORE=rdflib python tools/check_round_trip.py --chain rdflib,rdflib
           KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_round_trip.py --chain rdflib,rdflib --expect-parts ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
-      - name: "Store generations (task-0141.06, decision-0014) on a file-backed rdflib store: SNAP-01 to SNAP-09"
+      - name: "Store generations (task-0141.06, decision-0014) on a file-backed rdflib store: SNAP-01 to SNAP-10"
         run: KG_STORE=rdflib python tools/check_snapshots.py --disposable
       - name: The outcomes, machine-readable, in the job's summary (task-0159)
         if: always()
