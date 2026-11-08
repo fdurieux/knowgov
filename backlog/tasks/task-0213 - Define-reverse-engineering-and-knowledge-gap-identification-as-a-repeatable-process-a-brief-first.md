@@ -6,11 +6,16 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-07T09:25:00Z'
+updated_date: '2026-11-07T23:59:00Z'
 labels:
   - process
   - reverse-engineering
   - gaps
 dependencies: []
+documentation:
+  - >-
+    backlog/docs/doc-0032 -
+    Reverse-engineering-and-knowledge-gap-identification-as-a-repeatable-process-eight-steps-with-their-tools-and-gaps-the-bases-decision-0011-H7-and-what-F2-must-bind.-Opportunity-canvas-fit-gap-SWOT-advice.md
 priority: medium
 type: task
 ordinal: 213000
@@ -28,3 +33,13 @@ The maintainer, 2026-11-07: "I want the reverse engineering experiment to be rep
 - [ ] #2 The doc carries the four parts (opportunity canvas, fit/gap, SWOT, advice) and states how decision-0011 relates to it and where H7's drift question fits
 - [ ] #3 The maintainer's decision on the process is recorded before any task builds a step of it
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-07, sequencing: the brief drafted now, as a document only (doc-0032). The coordinating session decided it under the maintainer's delegation of 23:51 UTC ("opportunity, swot, fit/gap => decide"), and the testing-class session drafted it on that dispatch. The four parts:
+- Canvas: the decision gets lead time while the tranche runs, and F2 (task-0199) is shaped by what the process needs from it (doc-0032 §6) before it is dispatched.
+- Fit/gap: no code overlap with the tranche, since the brief changes nothing in harness/, tools/ or subjects/. The risk of going stale is mitigated by marking every step that depends on F2, F4, F5, F6 or F8 as provisional.
+- SWOT: the strengths are an idle session and a subject close to its doc-0031 work. The weakness is the provisional steps. The opportunity is that the brief feeds F2. The threats are staleness and drift against the tranche as it lands.
+- Advice: draft now, document only; no task minted, no step built before the maintainer's decision on the process (AC #3).
+<!-- SECTION:NOTES:END -->
