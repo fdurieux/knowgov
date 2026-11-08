@@ -187,7 +187,9 @@ def test_the_clean_example_instance_exits_0_and_lists_every_unchecked_kind_by_it
         assert states["artefacts/specification-prose/spec.md"] == ("unchecked", "markdownlint")
         assert states["artefacts/decision-tables/decision_table.md"] == ("unchecked", "dmnlint (small rule set)")
         assert states["artefacts/textual-requirements/requirements.md"] == ("unchecked", "StrictDoc, Doorstop, Sphinx-Needs, OpenFastTrace")
-        assert rep["counts"] == {"clean": 3, "findings": 0, "held": 0, "unchecked": 7, "cannot_run": 0, "skipped": 0}, rep["counts"]
+        # dmnlint not installed: the screening table is judged by step 4's DMN check alone (task-0217), its two gaps minor
+        assert states["artefacts/decision-tables/screening_decision.dmn"] == ("clean", "dmn gaps")
+        assert rep["counts"] == {"clean": 4, "findings": 0, "held": 0, "unchecked": 6, "cannot_run": 0, "skipped": 0}, rep["counts"]
         lts = {lt["tool"]: (lt["version"], lt["files"], lt["exit"]) for lt in rep["linters"]}
         assert lts == {"pumllint": ("0.0-standin", 2, 0), "Spectral": ("6.0.0-standin", 1, 0), "markdownlint": (None, 1, 2),
                        "gplint": (None, 1, 2), "bpmnlint": (None, 1, 2), "dmnlint": (None, 1, 2)}, lts
