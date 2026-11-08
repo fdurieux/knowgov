@@ -16,7 +16,7 @@ minor) that leaves the diagram's statements as they were. Then:
    finding is info and names who, when and the record. A review by a handle without the role is refused whole,
    and the gate says so.
 4. A slip. The diagram mended, a re-lint with ``--previous`` at the same tool versions shows the finding gone, a
-   slip; the load holds no lint gap, and the review's resolution, with nothing left to resolve, is info.
+   slip; the load holds no SEQ002 gap, and the review's resolution, with nothing left to resolve, is info.
 5. The Turtle round trip keeps every lint gap, on this store's adapter.
 
 Exit 0 when all hold, 1 on a failure. The store is the one ``KG_STORE`` names; the stack job runs it on Neo4j.
@@ -78,7 +78,8 @@ def instance(out: Path, name: str, plant: bool) -> tuple[Path, dict]:
 
 
 def lints(rep: dict, rule: str | None = None) -> list[dict]:
-    """The lint findings, or those of one rule (the example's own documents have findings of their own, task-0217)."""
+    """The lint findings, or those of one rule: where the Node linters are installed (CI), the example's own
+    documents have findings of their own, which every check here leaves aside."""
     return [f for f in rep["findings"] if f["kind"] == "lint" and rule in (None, f["lint"]["rule"])]
 
 
