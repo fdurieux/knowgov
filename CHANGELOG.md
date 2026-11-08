@@ -379,6 +379,16 @@ names that section with the version.
   - **An unchanged CRLF document reads checked (I12).** The load compared the pre-load report's digest of
     the raw bytes with a digest of the text, so a document with Windows line endings always read unchecked.
     It now compares raw bytes. A `knowgov-keys:` citation on line 1 after a byte-order mark is now read.
+- **The page names the knowgov it runs** (task-0227). A chip in the header gives knowgov's version, the
+  build's commit, and how far it is past the release tag when that is known: for example
+  `knowgov 0.8.0 + 277 (7e113f0)` from a checkout build, or `knowgov 0.8.0 (v0.8.0)` from a release image.
+  A part that cannot be known reads unknown. `GET /api/subjects` carries the same values as
+  `"knowgov": {"version", "commit", "describe"}`, each `null` when unknown. The server reads them once, at
+  start, from its own files: `VERSION`, a record the image build writes from two optional build arguments
+  (`KG_BUILD_COMMIT`, `KG_BUILD_DESCRIBE`; `release.yml` passes the tag's commit and the tag), and `.git`.
+  The image now keeps `.git`'s `HEAD`, `refs` and `packed-refs`, but none of its objects. So an image built
+  from a checkout without `KG_BUILD_DESCRIBE` names its commit but not its distance from the release.
+  `demo/README.md` shows how to compare the chip with `git describe --tags --always`.
 - **Three fixes to the MCP reader and its check** (task-0208, doc-0030 M7, M9, M11). `code_path`'s ledger
   leg reads `unchecked`, naming why, when the ledger holds an entry for the path but there is no code root to
   read the file from (no instance, or a code map that does not hold); before, it read `drift: false` for a
