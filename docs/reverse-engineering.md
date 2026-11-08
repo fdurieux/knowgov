@@ -131,14 +131,16 @@ file and its severity, and exits 1 if any finding is at or above the threshold (
 `--baseline`, it fails only on findings that were not there before. The report goes to the root of
 the instance, where step 5's load reads it; keep a copy in the run's folder as the first report.
 
-Two more checks belong to this step:
+After the linters, the same command runs three checks that read documents together:
 
 - `pumllint trace --features` joins the requirements to the scenarios that test them and the diagrams
   that show them. It lists requirements with no test, and tests citing a requirement that does not
   exist.
-- The pumllint experiment also ran a glossary check (terms used repeatedly and defined nowhere) and a
-  decision-table gap check (inputs no rule covers, inputs two rules claim). These are not yet part of
-  `preload_check` (task-0217).
+- A glossary check lists terms used in three or more requirements and defined nowhere in your
+  glossary.
+- A decision-table gap check lists inputs no rule covers and inputs two rules claim.
+
+Their findings are in the same report, each with the document it is about.
 
 Keep one more list here: the code's quirks. A quirk is a place where the code and its own comments
 disagree. In the experiment, for example, a comment said a time was in milliseconds while the code
