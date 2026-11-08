@@ -103,6 +103,10 @@ is printed.
 """
 from __future__ import annotations
 
+if __name__ == "__main__":   # task-0200: a failure while loading (a pin not installed) is exit 2, its cause in one line
+    import cli_exit
+    cli_exit.guard("gate")
+
 import argparse
 import json
 import os
@@ -397,11 +401,19 @@ def _baseline(arg: str, subject, scenario: str, task: str) -> tuple[dict, str] |
         p = subject.record_dir / rel / "deterministic.json"
         if not p.exists():
             raise CannotRun(f"no record for {scenario}: {p} does not exist")
-        return baseline_of(json.loads(p.read_text(encoding="utf-8"))), "record"
+        return _read_baseline(p), "record"
     p = Path(arg)
     if not p.exists():
         raise CannotRun(f"no baseline at {p}")
-    return baseline_of(json.loads(p.read_text(encoding="utf-8"))), str(p)
+    return _read_baseline(p), str(p)
+
+
+def _read_baseline(p: Path) -> dict:
+    """An earlier report or deterministic.json as a baseline; one that cannot be read is a cannot-run (G6)."""
+    try:
+        return baseline_of(json.loads(p.read_text(encoding="utf-8")))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
+        raise CannotRun(f"--baseline {p}: not a gate report or deterministic.json: {type(e).__name__}: {e}") from e
 
 
 def run(args) -> dict:
@@ -499,6 +511,8 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
                           as_of=on, register_change=reg_change)
         if not args.no_load:   # a read loads nothing, so it publishes nothing: its report stays the MCP server's
             report["published"] = bool(args.publish)
+        deliver(report, args)   # G7: validated and written before anything is published
+        if not args.no_load:
             st.commit()   # the load and its change, published once the report is made (a scratch store publishes nowhere)
         return report
     except (CannotRun, StoreChanged):
@@ -613,6 +627,21 @@ def _load(st, scenario: str) -> None:
     load_reviews(st, scenario)   # a person's rulings, after the rules (task-0037)
 
 
+def deliver(rep: dict, args) -> None:
+    """The report checked against its schema and written to ``-o``, before ``--publish`` commits (G7): a
+    report that does not match, or a file that cannot be written, is a cannot-run, and nothing is published."""
+    sys.path.insert(0, str(HERE))
+    from schema_check import load as load_schema, validate
+    errs = validate(rep, load_schema("gate-report"))
+    if errs:   # the report does not match its own schema: a defect here, never a pass
+        raise CannotRun("the report does not match its schema: " + "; ".join(errs[:5]))
+    if getattr(args, "output", None):
+        try:
+            Path(args.output).write_text(json.dumps(rep, indent=1) + "\n", encoding="utf-8")
+        except OSError as e:
+            raise CannotRun(f"-o {args.output}: cannot be written: {e}") from e
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="gate_cli.py", description="Resolve a task's required knowledge and exit 0, 1 or 2.")
     ap.add_argument("--subject", help="the subject root (default: KG_SUBJECT, else subjects/cargo_quote)")
@@ -638,17 +667,10 @@ def main(argv: list[str] | None = None) -> int:
     except CannotRun as e:
         print(f"gate: cannot run: {e}", file=sys.stderr)
         return 2
-    sys.path.insert(0, str(HERE))
-    from schema_check import load as load_schema, validate
-    errs = validate(rep, load_schema("gate-report"))
-    if errs:   # the report does not match its own schema: a defect here, never a pass
-        print("gate: cannot run: the report does not match its schema: " + "; ".join(errs[:5]), file=sys.stderr)
-        return 2
-    if args.output:
-        Path(args.output).write_text(json.dumps(rep, indent=1) + "\n", encoding="utf-8")
     print(json.dumps(rep, indent=1) if args.format == "json" else render(rep))
     return rep["exit_code"]
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import cli_exit   # task-0200 (doc-0030 F6): every failure to run is exit 2 with its cause, never 1
+    sys.exit(cli_exit.run(main, "gate"))

@@ -12,6 +12,13 @@ names that section with the version.
 
 ### Contract changes
 
+- **The MCP servers refuse an argument a tool does not take** (task-0200, doc-0030 M5). Every tool's
+  input schema says `additionalProperties: false`; both servers, `knowgov` and `knowgov-runs`, now keep
+  it, on stdio and HTTP and in both protocol eras. A call naming an argument the tool does not list
+  answers the JSON-RPC error -32602, naming the argument and the ones the tool takes, and runs nothing.
+  Before, only `register_nodes` refused one: `gate_verdict {"senario": "S4"}` answered for the store's
+  scenario unguarded, and `start_run`'s `n` was set to 1 in silence.
+
 - **Conflict gap ids name their two statements** (task-0223, decision-0020, doc-0030 S2). A conflict
   between two documents is now `gap:conflict:<key>:<a>~<b>`, by its two assertion ids sorted, the form a
   conflict with a person's statement already had; the positional `gap:conflict:<key>:<n>` is gone. One
@@ -279,6 +286,24 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+
+- **Uniform edges: every failure to run is exit 2, every hook's crash blocks** (task-0200, doc-0030 F6:
+  G6, G7, R9, M6, M10, P8, P9, G12).
+  - `gate_cli.py`, `trace.py`, `run.py` and `transcript.py` exit through one wrapper
+    (`harness/cli_exit.py`). A pinned run reading the wall clock, a malformed or unreadable `--baseline`,
+    an unwritable `-o`, a pin not installed and any other unexpected exception now exit 2 with its
+    cause in one line, never 1 (a finding's code) with a traceback. `KG_TRACEBACK=1` shows it.
+  - `gate_cli.py --publish` checks the report against its schema and writes `-o` before it publishes
+    the load, so a command that fails publishes nothing.
+  - The MCP servers answer a non-string tool or prompt name with -32602, and any other internal
+    failure with -32603, so the stdio loop and the HTTP connection survive it. `--host ::1` exits 2
+    (the HTTP transport binds IPv4 only), and a port that cannot be bound exits 2 too.
+  - Claude Code hooks: a gate report that is valid JSON but not an object is refused, and any exception
+    in a hook, the gate's, the attestation hook or knowgov's own, blocks in every profile, the advisory
+    one included. Before, it exited 1, which Claude Code reads as a non-blocking warning.
+  - `instance/ci/knowgov-gate.sh` exits 2 when the knowgov checkout or the instance does not resolve to a
+    directory; under a CI shell's `-e` it exited 1.
+  - `harness/schema_check.py`'s `enum` and `const` compare type as well as value: `true` is not `1`.
 
 - **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
   applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1

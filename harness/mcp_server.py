@@ -1120,6 +1120,16 @@ class Server:
         self.max_response = max_response()   # task-0177: one tools/call result at most, refused whole above it
 
     def handle(self, msg) -> dict | None:
+        """One message's response. Whatever escapes the dispatch is an internal error, -32603, never a raised
+        exception that would end the stdio loop or drop the HTTP connection (task-0200, doc-0030 M6)."""
+        try:
+            return self._handle(msg)
+        except Exception as e:  # noqa: BLE001
+            sys.stderr.write(f"mcp: internal error: {type(e).__name__}: {e}\n")
+            id_ = msg.get("id") if isinstance(msg, dict) and isinstance(msg.get("id"), (str, int)) else None
+            return _error(id_, -32603, f"internal error: {type(e).__name__}")
+
+    def _handle(self, msg) -> dict | None:
         if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0":
             return _error(msg.get("id") if isinstance(msg, dict) else None, -32600, "not a JSON-RPC 2.0 message")
         if "method" not in msg:
@@ -1152,6 +1162,8 @@ class Server:
         stamp = stamp or {}
         if method == "prompts/list":
             return _result(id_, {"prompts": self.prompts.listing(), **stamp, **(CACHE if stamp else {})})
+        if not isinstance(params.get("name"), str):
+            return _error(id_, -32602, "the prompt's name must be a string")
         try:
             got = self.prompts.get(params.get("name"), params.get("arguments"))
         except self.prompts.PromptError as e:
@@ -1164,10 +1176,19 @@ class Server:
         if method == "tools/list":
             return _result(id_, {"tools": self.table, **stamp, **(CACHE if stamp else {})})
         name, args = params.get("name"), params.get("arguments") or {}
-        if name not in {t["name"] for t in self.table}:
+        if not isinstance(name, str):   # M6: an unhashable name raised out of handle
+            return _error(id_, -32602, "the tool's name must be a string")
+        tool = next((t for t in self.table if t["name"] == name), None)
+        if tool is None:
             return _error(id_, -32602, f"unknown tool {name!r}")
         if not isinstance(args, dict):
             return _error(id_, -32602, "arguments must be an object")
+        schema = tool.get("inputSchema") or {}
+        if schema.get("additionalProperties") is False:   # M5: the schema's own promise, kept for every tool
+            unknown = sorted(set(args) - set(schema.get("properties") or {}))
+            if unknown:
+                return _error(id_, -32602, f"{name}: unknown argument(s) {', '.join(map(repr, unknown))}; "
+                                          f"it takes {', '.join(sorted(schema.get('properties') or {})) or 'none'}")
         if self.route is not None and "subject" in args:
             import subject_ids
             try:
@@ -1398,10 +1419,18 @@ def make_handler(server: Server, token: str | None):
     return Handler
 
 
+def ipv6_literal(host: str) -> bool:
+    """An IPv6 address as --host gives it (``::1``, ``[::1]``): the HTTP server binds IPv4 only (M10)."""
+    return ":" in host.strip("[]")
+
+
 def serve_http(server: Server, host: str, port: int, token: str | None) -> ThreadingHTTPServer:
     why = bind_check(host, token)
     if why:
         raise SystemExit(f"mcp_server: refusing to bind: {why}")
+    if ipv6_literal(host):
+        raise SystemExit(f"mcp_server: refusing to bind: {host} is an IPv6 address; the HTTP transport binds IPv4 only "
+                         "(use 127.0.0.1, or an IPv4 address with KG_MCP_TOKEN)")
     import http_boundary
     httpd = http_boundary.BoundedServer((host.strip("[]"), port), make_handler(server, token), mcp_limits())   # task-0141.04
     httpd.policy = http_policy(host, httpd.server_address[1])   # the port actually bound, port 0 included
@@ -1439,7 +1468,15 @@ def main(argv: list[str] | None = None) -> int:
     if why:
         print(f"mcp_server: refusing to bind: {why}", file=sys.stderr)
         return 2
-    httpd = serve_http(server, args.host, args.port, token)
+    if ipv6_literal(args.host):   # M10: refused before a bind, exit 2, not a crash with exit 1
+        print(f"mcp_server: refusing to bind: {args.host} is an IPv6 address; the HTTP transport binds IPv4 only "
+              "(use 127.0.0.1, or an IPv4 address with KG_MCP_TOKEN)", file=sys.stderr)
+        return 2
+    try:
+        httpd = serve_http(server, args.host, args.port, token)
+    except OSError as e:   # the port taken, the address not this machine's: cannot run
+        print(f"mcp_server: cannot bind {args.host}:{args.port}: {e}", file=sys.stderr)
+        return 2
     print(f"mcp_server: http://{args.host}:{httpd.server_address[1]}/mcp (read-only, as of {on} from {server.tools.as_of_from}"
           f"{', bearer token required' if token else ''})", file=sys.stderr)
     try:

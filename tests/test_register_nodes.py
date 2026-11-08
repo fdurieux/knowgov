@@ -107,9 +107,12 @@ def test_it_refuses_what_the_register_does_not_hold():
     for bad in ({"node": "CAP-9999"}, {"node": "cap-0001"}, {"node": "CAP-0002", "kind": "capability"},
                 {"kind": "nope"}, {"taxonomy": "capability"}, {"state": "live"}, {"owner": "CAP-0001"},
                 {"owner": "ORG-9999"}, {"parent": "CAP-9999"}, {"limit": 0}, {"limit": 5000}, {"offset": -1},
-                {"limit": True}, {"walk": "dependants"}):
+                {"limit": True}):
         r = _call(s, bad)
         assert r["isError"] is True, bad
+    # an argument outside the schema is the protocol's refusal now (task-0200, M5), before the tool runs: re-pinned
+    e = s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "register_nodes", "arguments": {"walk": "dependants"}}})
+    assert e["error"]["code"] == -32602 and "'walk'" in e["error"]["message"], e
 
 
 def test_the_command_prints_the_same_report():

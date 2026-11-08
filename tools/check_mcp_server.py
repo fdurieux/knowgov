@@ -691,7 +691,8 @@ def check_subjects(failures: list[str]) -> None:
 
 
 def check_transports(failures: list[str], ex: dict | None = None) -> None:
-    """doc-0020's tools served by the knowgov server on both transports (task-0142, task-0143): tools/list over
+    """doc-0020's tools served by the knowgov server on both transports (task-0142, task-0143), and an unknown
+    argument or a non-string tool name refused with -32602 on both (task-0200): tools/list over
     stdio and Streamable HTTP lists each, the same call answers the same on both, and the shipped managed
     allowlist admits the server by its name, so no client changes to reach them."""
     from subject import SUBJECT
@@ -708,6 +709,11 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
             if missing:
                 failures.append(f"{name}: tools/list lacks {missing}")
             answers[name] = [client.call(t, a) for t, a in calls]
+            # task-0200 (M5, M6): an argument outside the tool's schema and a non-string name are -32602 here too
+            for params in ({"name": "gate_verdict", "arguments": {"senario": "S4"}}, {"name": ["gate_verdict"]}):
+                err = client.request("tools/call", params).get("error") or {}
+                if err.get("code") != -32602:
+                    failures.append(f"{name}: tools/call {params} answered {err or 'a result'}, not -32602 (M5, M6)")
         finally:
             client.close()
     if answers.get("stdio") != answers.get("http"):

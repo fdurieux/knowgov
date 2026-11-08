@@ -48,6 +48,18 @@ def _type_ok(v: Any, t: str) -> bool:
             "number": isinstance(v, (int, float)) and not isinstance(v, bool)}[t]
 
 
+def same(a: Any, b: Any) -> bool:
+    """JSON equality, type included (task-0200, doc-0030 G12): ``true`` is not ``1`` and ``2.0`` is not ``2``,
+    as JSON Schema's enum and const read them; lists and objects compared item by item."""
+    if type(a) is not type(b):
+        return False
+    if isinstance(a, list):
+        return len(a) == len(b) and all(same(x, y) for x, y in zip(a, b))
+    if isinstance(a, dict):
+        return a.keys() == b.keys() and all(same(a[k], b[k]) for k in a)
+    return a == b
+
+
 def _check(v: Any, s: dict, root: dict, path: str, errors: list[str]) -> None:
     if "$ref" in s:
         ref = s["$ref"]
@@ -59,9 +71,9 @@ def _check(v: Any, s: dict, root: dict, path: str, errors: list[str]) -> None:
         if not any(_type_ok(v, t) for t in types):
             errors.append(f"{path}: {type(v).__name__} is not {'/'.join(types)}")
             return
-    if "enum" in s and v not in s["enum"]:
+    if "enum" in s and not any(same(v, e) for e in s["enum"]):
         errors.append(f"{path}: {v!r} is not one of {s['enum']}")
-    if "const" in s and v != s["const"]:
+    if "const" in s and not same(v, s["const"]):
         errors.append(f"{path}: {v!r} is not {s['const']!r}")
     if "minimum" in s and isinstance(v, (int, float)) and v < s["minimum"]:
         errors.append(f"{path}: {v} is below {s['minimum']}")
