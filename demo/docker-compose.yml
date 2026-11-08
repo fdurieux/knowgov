@@ -104,6 +104,7 @@ services:
       KG_PAGE_TOKEN: ${KG_PAGE_TOKEN:-}   # task-0096: the bearer token runs and projections must carry; passed through, never baked in
       KG_NEO4J_PASSWORD: ${KG_NEO4J_PASSWORD:-kgpoc2026}
       KG_BROWSER_URL: ${KG_BROWSER_URL:-http://localhost:7474}   # also the one other origin the impact guides admit (task-0141.03)
+      KG_PORT_BOLT: ${KG_PORT_BOLT:-7687}   # the bolt port published below, for the Browser links' connectURL (task-0230's notes)
       KG_PUBLIC_PORT: ${KG_PORT_APP:-8080}   # the port the page is published on: the Host it answers for (task-0141.03)
       KG_DEMO_HOST: ${KG_DEMO_HOST:-localhost}
       KG_PAGE_AUTHORITIES: ${KG_PAGE_AUTHORITIES:-}

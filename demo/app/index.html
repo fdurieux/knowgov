@@ -126,7 +126,7 @@ a{color:var(--teal)}
         <div class="why" id="pt-why"></div>
       </div>
       <div id="menu-list" class="small">loading…</div>
-      <div class="note">Replay shows the committed results (instant, no store). Deterministic re-executes D1–D6 against the container's Neo4j (offline, ~5 s). Arms re-executes the two model arms with <code>--n 1</code> against the configured endpoint and needs its key variable set (<code>OPENAI_API_KEY</code> by default); it writes into a dated folder under <code>runs/</code>, never over the record. A run's progress appears in a banner above the report; the clicked button shows running, done or failed, and the report switches to the run's results when it ends.</div>
+      <div class="note">Replay shows the committed results (instant, no store). Deterministic re-executes D1–D6 against the container's Neo4j (offline, ~5 s). Arms re-executes the two model arms with <code>--n 1</code> against the configured endpoint and needs its key variable set (<code>OPENAI_API_KEY</code> by default) and a contained worker, where the code the models write runs (the stack started with <code>--profile arms</code>, on Linux with Landlock); it writes into a dated folder under <code>runs/</code>, never over the record. A run's progress appears in a banner above the report; the clicked button shows running, done or failed, and the report switches to the run's results when it ends.</div>
     </div>
     <div class="card" style="margin-top:16px"><h2>The store</h2>
       <div id="store" class="small">…</div>
@@ -363,7 +363,7 @@ async function renderStore() {
   const neo = s.store === 'neo4j' || !s.store;   // another adapter has no console: no Browser link, no saved Cypher
   $('#browser-p').style.display = neo ? '' : 'none';
   $('#cypher-h').style.display = neo ? '' : 'none';
-  if (neo && s.browser) $('#browser-link').href = s.browser + '/browser/?connectURL=bolt://neo4j@' + (new URL(s.browser).hostname) + ':7687';
+  if (neo && s.browser_connect) $('#browser-link').href = s.browser_connect;   // the bolt port this stack publishes (KG_PORT_BOLT)
   $('#store').innerHTML = s.reachable
     ? `Loaded: <b>${esc(s.loaded || 'nothing yet')}</b> — ${s.census.nodes} nodes, ${s.census.relationships} relationships; assertions by status: ${esc(JSON.stringify(s.census.assertions_by_status))}`
     : `Unreachable: ${esc(s.error || '')}`;
@@ -630,7 +630,7 @@ function renderReport(v) {
     <div class="armstack">${armBox('generate', 'G', v.arms.G.generate)}${armBox('generate', 'B', v.arms.B.generate)}</div>
     <div class="armstack">${armBox('oracle', 'G', v.arms.G.oracle)}${armBox('oracle', 'B', v.arms.B.oracle)}</div></div>`;
   const strip2 = v.stage2 ? `<h3>${esc(v.stage2.label)}</h3><div class="strip">${v.stage2.stages.map(stageBox).join('')}</div>
-    <div class="small" style="margin-top:6px">Suspect <code>Derived</code> output: ${v.stage2.suspect_derived.length ? v.stage2.suspect_derived.map(d => `<code>${esc(d.id)}</code> suspect=${d.suspect}`).join(', ') : 'none registered in this source (deterministic mode creates no Derived node; the record\'s S6 and the re-run do)'}.
+    <div class="small" style="margin-top:6px">Suspect <code>Derived</code> output: ${v.stage2.suspect_derived.length ? v.stage2.suspect_derived.map(d => `<code>${esc(d.id)}</code> suspect=${d.suspect}`).join(', ') : 'none registered in this source (a stage 2 registers one only when it is given the earlier scenario\'s governed output: the record\'s S6 and the page\'s runs give it the record\'s)'}.
     Invalidated: ${v.stage2.invalidated.map(x => `<code>${esc(x.id)}</code>${x.derived && x.derived.length ? ' → used by ' + x.derived.map(esc).join(', ') : ''}`).join('; ')}.</div>` : '';
   const sys = v.systemic;
   const cascade = `<div class="two">

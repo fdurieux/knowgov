@@ -104,7 +104,7 @@ def test_the_npm_watch_list_is_the_linters_pins():
         assert f'"{pkg}@{version}"' in harness, pkg
 
 
-def test_dependabot_watches_the_four_ecosystems_weekly():
+def test_dependabot_watches_the_five_ecosystems_weekly():
     text = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
     entries = re.findall(r"- package-ecosystem: (\S+)\n\s+director(?:y|ies): (\S+)[^\n]*\n\s+schedule:\n\s+interval: (\w+)", text)
     found = {eco: (d, i) for eco, d, i in entries}

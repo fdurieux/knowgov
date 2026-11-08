@@ -194,6 +194,16 @@ RUNS_DIR = Path(os.environ.get("KG_DEMO_RUNS", str(ROOT / "runs")))
 NEO4J_URI = os.environ.get("KG_NEO4J_URI", "bolt://localhost:7687")
 NEO4J_PASSWORD = os.environ.get("KG_NEO4J_PASSWORD", "kgpoc2026")
 BROWSER_URL = os.environ.get("KG_BROWSER_URL", "http://localhost:7474")
+
+
+def bolt_port(env=None) -> int:
+    """The bolt port the stack publishes for the viewer's Browser (KG_PORT_BOLT, as docker-compose.yml maps
+    it), 7687 when unset or not a port: a second stack's links reach its own Neo4j, never the first's."""
+    raw = ((os.environ if env is None else env).get("KG_PORT_BOLT") or "").strip()
+    return int(raw) if raw.isdigit() and 0 < int(raw) < 65536 else 7687
+
+
+BOLT_PORT = bolt_port()   # read once at start
 PORT = int(os.environ.get("KG_DEMO_PORT", "8080"))
 
 
@@ -351,9 +361,18 @@ def browser_play_url(origin: str, path: str) -> str:
     """The store's Browser, connected as the page's own link connects, opening the guide at
     origin+path through the Browser manual's ?cmd=play&arg=<url>. The guide's host must be in the
     Browser's remote content allowlist: localhost by default, KG_DEMO_HOST in docker-compose.yml."""
-    host = urllib.parse.urlparse(BROWSER_URL).hostname or "localhost"
     return BROWSER_URL + "/browser/?" + urllib.parse.urlencode(
-        {"connectURL": f"bolt://neo4j@{host}:7687", "cmd": "play", "arg": origin + path}, quote_via=urllib.parse.quote)
+        {"connectURL": _bolt_url(), "cmd": "play", "arg": origin + path}, quote_via=urllib.parse.quote)
+
+
+def _bolt_url() -> str:
+    """bolt://neo4j@<the Browser's host>:<the bolt port the stack publishes>."""
+    return f"bolt://neo4j@{urllib.parse.urlparse(BROWSER_URL).hostname or 'localhost'}:{BOLT_PORT}"
+
+
+def browser_connect_url() -> str:
+    """The store panel's Browser link, connected to this stack's bolt port (task-0230's notes (c))."""
+    return BROWSER_URL + "/browser/?connectURL=" + _bolt_url()
 
 
 def node_statements(start: str) -> dict:
@@ -426,6 +445,7 @@ def store_status() -> dict:
     """What the store holds, through the driver when it is installed."""
     kind = (os.environ.get("KG_STORE") or "neo4j").lower()
     out = {"store": kind, "uri": NEO4J_URI if kind == "neo4j" else "", "browser": BROWSER_URL if kind == "neo4j" else None,
+           "browser_connect": browser_connect_url() if kind == "neo4j" else None,
            "reachable": False, "loaded": None, "loaded_subject": None, "census": None, "register": None, "error": None, "subject": _ps().id}
     try:
         d, h, acts, c, reg = _read(lambda s: (s.describe(), s.held(), s.extraction_activities(), s.census(), s.register_census()))

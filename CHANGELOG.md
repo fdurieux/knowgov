@@ -12,6 +12,10 @@ names that section with the version.
 
 ### Contract changes
 
+- **`GET /api/store` carries the store's Browser link** (task-0235, additive). A new `browser_connect` field
+  gives the Neo4j Browser link connected to the bolt port the stack publishes (`KG_PORT_BOLT`), or `null`
+  for a store with no Browser. The page's store panel uses it.
+
 - **Twenty `KG_*` settings are contracts from 1.0** (task-0234, decision-0027, decision-0016 point 3).
   `instance/README.md`'s new section "The settings an instance may rely on" documents fourteen of them,
   each with what it does, its default and who sets it:
@@ -380,6 +384,12 @@ names that section with the version.
   of the following that the code does not bear out: a `--flag`, a command's options, a `KG_*` setting,
   a repository path or link, a cited test or an `/api` route. `instance/README.md` ends with what stays
   stable from 1.0, quoting decision-0016 point 3. No code, contract or pin changes.
+- **Where the docs were right and the code was wrong** (task-0235; task-0230's docs pass). The store panel's
+  Neo4j Browser link and the impact guides' links now connect to the bolt port the stack publishes
+  (`KG_PORT_BOLT`), so a second stack's links reach its own Neo4j, not the first's. The page no longer says a deterministic run creates no `Derived` node (the
+  page's runs give stage 2 the record's output), and its Arms note names the contained worker. The MCP
+  reader's instructions say every tool but `list_subjects` takes `subject`. Two `docs/security.md` rows now
+  cite tests that prove them: where each store lives, and that the gate never rules.
 - **`tools/preload_check.py` exits 2 when it cannot write `-o`** (task-0228, doc-0030 F6). An unwritable
   report path (a missing folder) exited 1, the finding's code, with a traceback; it is now a failure to run,
   exit 2, one `cannot run: -o ...` line and no report. The command exits through the check tools' outcomes

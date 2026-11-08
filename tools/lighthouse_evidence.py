@@ -28,7 +28,8 @@ cite:
 Each subject is collected in a child process (a subject is fixed per process, KG_SUBJECT), each on
 its own store (KG_STORE as everywhere; rdflib gets a Turtle file under OUT_DIR). The instance is
 digested before and after: the collection writes nothing into it. OUT_DIR/evidence.json holds
-everything, OUT_DIR/evidence.md a summary per criterion. Exit 0 when every item was collected and
+everything, OUT_DIR/evidence.md a summary per subject (walk, gate, MCP, invalidation, export manifest,
+cost) that the protocol's criteria read. Exit 0 when every item was collected and
 agrees with the record, 1 when one does not, 2 when the collection could not run.
 
 The pilot half of the protocol is a checklist whose evidence stays in the pilot's private record;
