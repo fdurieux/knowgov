@@ -47,6 +47,11 @@ ACCEPT = "| accept | `risk_index <= 41` | quote issued | yes | yes (quote docume
 REVIEW = "| review | `42 <= risk_index <= 66` | held for manual review | **no** | **no** | `review_hold` |"
 
 
+def fresh(out: Path, name: str, decided: bool) -> dict:
+    """A new example instance under ``out``; its commands' env with today ON and the wall clock refused (task-0075)."""
+    return review.pinned(w.instance(out, name, decided), ON)
+
+
 def _gate(env: dict, *args: str) -> dict:
     p = subprocess.run([sys.executable, "gate_cli.py", "--as-of", ON, "-f", "json", *args], cwd=w.HARNESS, env=env,
                        capture_output=True, text=True)
@@ -104,7 +109,7 @@ def main(out: Path) -> int:
         os.environ.setdefault("KG_RDFLIB_FILE", str(out / "store.ttl"))
 
     print("== S1: a ruling records what it ruled on")
-    env = w.instance(out, "s1", decided=False)
+    env = fresh(out, "s1", decided=False)
     d = out / "s1"
     reviews = d / "subjects" / "cargo_quote" / "captures" / "reviews"
     got = w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-3", "S1", [(AID, "approved")])))
@@ -165,7 +170,7 @@ def main(out: Path) -> int:
     print(f"    {u[0]['severity'] if u else '-'}: {u[0]['message'] if u else 'no act finding'}")
 
     print("== item 8: employee-1's answers renumbered (S2'); the approvals follow their content")
-    env = w.instance(out, "s2-decided", decided=True)
+    env = fresh(out, "s2-decided", decided=True)
     d = out / "s2-decided"
     cap = w.answer(env, d)
     docs = [("A:oas:response|statuses@v1", "rejected"), ("A:spec:response|statuses@v1", "rejected")]
@@ -187,7 +192,7 @@ def main(out: Path) -> int:
     print(f"    {before['verdict']} -> {after['verdict']}; {w.OUT} approved on {sorted(moved)}")
 
     print("== item 7 at stage 2 (S6): a ruling on P2's surcharge, then the tariff change")
-    env = w.instance(out, "s6", decided=False)
+    env = fresh(out, "s6", decided=False)
     d = out / "s6"
     w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-3", "S6", [(P2_AID, "approved")])))
     one, two = gate(env, "S6"), gate(env, "S6", "--stage", "2")
@@ -197,7 +202,7 @@ def main(out: Path) -> int:
     print(f"    stage 1: {len(acts(one))} act(s); stage 2: {a[0]['message'] if a else 'no act finding'}")
 
     print("== I4: a model's statement is never approved by a ruling (S5)")
-    env = w.instance(out, "s5", decided=False)
+    env = fresh(out, "s5", decided=False)
     d = out / "s5"
     llm = "A:llm:QuoteAPI|on_screening_outage@v1"
     code, said = w.run(env, "capture.py", "review", str(w.write_review(d / "r-yes.toml", "employee-3", "S5", [(llm, "approved")])))
@@ -209,7 +214,7 @@ def main(out: Path) -> int:
         errs.append(f"I4: a rejection of the model's statement is refused as an approval: {said[-400:]}")
 
     print("== I9: an undated attestation is refused, and applied to nothing")
-    env = w.instance(out, "i9", decided=False)
+    env = fresh(out, "i9", decided=False)
     d = out / "i9"
     edit(d, "subjects/cargo_quote/subject.toml", 'authored = { at = "2026-10-30", ', "authored = { ")
     c = subprocess.run([sys.executable, str(ROOT / "tools" / "check_subject.py"), str(d / "subjects" / "cargo_quote"), "--json",
