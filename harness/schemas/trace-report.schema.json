@@ -257,6 +257,13 @@
       "type": "string"
      }
     },
+    "used_changed": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "task-0199: the statements the ledger recorded whose value or digest changed under their id since, or that are gone; absent when none"
+    },
     "successors": {
      "type": "array",
      "items": {

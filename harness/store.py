@@ -95,7 +95,7 @@ READS = frozenset({
     "gaps_with_concerns", "assertions_on_key", "assertion_rows", "supported_by", "candidate_for",
     "fragments_with_version", "requirements_verified_by", "register_census", "register_node_statements",
     "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions", "held",
-    "act_findings"})
+    "act_findings", "derived_rows"})
 
 
 def held_from(acts: list[dict], current: list[dict]) -> dict | None:
@@ -130,6 +130,72 @@ def by_content(rows: list[dict]) -> list[dict]:
     """``rows`` without an id (a fragment) in one order on every adapter: by their fields."""
     import json
     return sorted(rows, key=lambda r: json.dumps(r, sort_keys=True, default=str))
+
+
+def _sha(text: str) -> str:
+    import hashlib
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def content_digest(fragments) -> str:
+    """A statement's content digest beside its value (task-0199): the sha256 of its supporting fragments'
+    sha256s (each over the fragment's text, as the load digests it), sorted, one per line. A person's
+    answer has no fragment, so its digest is the empty text's and its value carries its content."""
+    return _sha("\n".join(sorted(_sha(f.get("text") or "") for f in fragments)))
+
+
+EVERY_STATUS = ("proposed", "validated", "verified", "approved", "disputed", "rejected", "invalidated")
+
+
+def statement_content(st, ids) -> dict[str, dict]:
+    """id -> {id, key, value, status, sha256} for each of ``ids`` the store holds, by the port's reads
+    (``assertion_brief``, ``key_evidence``); an id it does not hold is absent."""
+    out: dict[str, dict] = {}
+    by_key: dict[str, list[str]] = {}
+    for aid in dict.fromkeys(ids):
+        b = st.assertion_brief(aid)
+        if b is not None:
+            out[aid] = {"id": aid, "key": b["key"], "value": b["value"], "status": b["status"], "sha256": content_digest([])}
+            by_key.setdefault(b["key"], []).append(aid)
+    for key, mine in by_key.items():
+        for r in st.key_evidence(key, list(EVERY_STATUS)):
+            if r["id"] in out:
+                out[r["id"]]["sha256"] = content_digest(r.get("fragments") or [])
+    return out
+
+
+def suspicion(st, rows: list[dict]) -> list[dict]:
+    """The one rule for *suspect* (task-0199, doc-0030 R5, doc-0032 §6 item 6), which the gate
+    (``suspect_derived``), the MCP reader (``derived_outputs``) and trace share: a derived output is suspect
+    when a statement it used is invalidated, or, where its registration recorded what it used (``recorded``:
+    each statement's id, value and content digest, trace's ledger), when the statement of that id now holds
+    another value or digest, or is not held at all. Computed from the store's statuses and content, never from
+    a stored flag. ``rows``: each derived output's {id, kind, sha256, recorded (JSON text or None), used:
+    [{id, status}]}; returns them with ``used_invalidated`` and ``used_changed`` (ids, sorted) and ``suspect``."""
+    import json
+    rec = {r["id"]: json.loads(r["recorded"]) if r.get("recorded") else None for r in rows}
+    held = statement_content(st, [u["id"] for v in rec.values() for u in v or []])
+    out = []
+    for r in rows:
+        bad = sorted({u["id"] for u in r.get("used") or [] if u.get("id") and u.get("status") == "invalidated"}
+                     | {u["id"] for u in rec[r["id"]] or [] if held.get(u["id"], {}).get("status") == "invalidated"})
+        changed = sorted(u["id"] for u in rec[r["id"]] or [] if u["id"] not in held
+                         or (str(held[u["id"]]["value"]), held[u["id"]]["sha256"]) != (str(u.get("value")), u.get("sha256")))
+        out.append({**{k: v for k, v in r.items() if k not in ("recorded",)}, "used_invalidated": bad,
+                    "used_changed": [x for x in changed if x not in bad], "suspect": bool(bad or changed),
+                    "bound": rec[r["id"]] is not None})
+    return by_id(out)
+
+
+def suspect_rows(rows: list[dict]) -> list[dict]:
+    """``suspicion``'s suspect rows as ``suspect_derived`` answers them: {id, kind, sha256, used_invalidated},
+    and ``used_changed`` only where some statement changed under its id, so the record's rows read as before."""
+    return [{"id": r["id"], "kind": r["kind"], "sha256": r["sha256"], "used_invalidated": r["used_invalidated"], **changed_of(r)}
+            for r in rows if r["suspect"]]
+
+
+def changed_of(r: dict) -> dict:
+    return {"used_changed": r["used_changed"]} if r.get("used_changed") else {}
 
 
 class Store:
@@ -259,7 +325,10 @@ class Store:
         """Write ``valid_until`` on the verifications named, verification id -> YYYY-MM-DD."""
         raise NotImplementedError
 
-    def register_derived(self, did: str, kind: str, sha: str, assertion_ids: list[str]) -> None:
+    def register_derived(self, did: str, kind: str, sha: str, assertion_ids: list[str], recorded: list[dict] | None = None) -> None:
+        """A derived output ``did`` that used ``assertion_ids``. ``recorded`` (trace, task-0199): what it used as
+        its ledger records it, each statement's {id, key, value, sha256}, kept as JSON text in ``recorded`` so
+        ``suspicion`` sees a change under the same id; None (the record's stage 2) keeps none."""
         raise NotImplementedError
 
     # ---- the rules
@@ -361,11 +430,18 @@ class Store:
     def stale_on_keys(self, keys: list[str]) -> list[dict]:
         raise NotImplementedError
 
+    def derived_rows(self) -> list[dict]:
+        """Every derived output as ``suspicion`` reads it: {id, kind, sha256, recorded, used: [{id, status}]}
+        (task-0199); the rule's input, read by the three reads below."""
+        raise NotImplementedError
+
     def suspect_derived(self) -> list[dict]:
+        """The suspect derived outputs by ``suspicion``, the one rule: {id, kind, sha256, used_invalidated,
+        used_changed, ...}, by id (task-0199: no stored flag decides it)."""
         raise NotImplementedError
 
     def all_derived(self) -> list[dict]:
-        """Every derived output with its suspect flag."""
+        """Every derived output with ``suspect`` by ``suspicion`` (task-0199)."""
         raise NotImplementedError
 
     # ---- the store reads over MCP (task-0144, doc-0020 C3): each answers by id, as by_id orders it
@@ -375,7 +451,8 @@ class Store:
 
     def derived_outputs(self) -> list[dict]:
         """Every derived output, any state, by id: {id, kind, sha256, suspect, used: [{id, key, status,
-        artefact, version}]}, the statements it used (USED_ASSERTION) by id."""
+        artefact, version}]}, the statements it used (USED_ASSERTION) by id; ``suspect`` by ``suspicion``,
+        with ``used_changed`` (task-0199)."""
         raise NotImplementedError
 
     def artefact_assertions(self, artefact: str) -> list[dict]:

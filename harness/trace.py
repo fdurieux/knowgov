@@ -200,13 +200,14 @@ def register(st, *, instance: Path, ledger: Path, commit: str, files: list[str],
                 if head and sorted(head) != sorted(on):
                     raise CannotRun(f"{rel}: its header cites {', '.join(head)}, --keys names {', '.join(on)}: make them agree")
         e = {"id": f"derived:{repo}@{commit}:{rel}", "path": rel, "app": app, "sha256": _sha(p), "commit": commit,
-             "repo": repo, "kind": kind, "task": task, "assertions": file_ids}
+             "repo": repo, "kind": kind, "task": task, "assertions": file_ids,
+             "used": used_content(st, file_ids)}   # task-0199: what it was built on, so a change under an id reads suspect
         if on is not None:
             e["keys"] = on
         if as_of:
             e["as_of"] = as_of
         if e["id"] not in held:   # the same commit and path registered twice is one output
-            st.register_derived(e["id"], kind, e["sha256"], file_ids)
+            st.register_derived(e["id"], kind, e["sha256"], file_ids, e["used"])
         entries.append(e)
     named = {e["path"] for e in entries}
     led["entries"] = [e for e in led["entries"] if e["path"] not in named] + entries
@@ -221,6 +222,14 @@ def register(st, *, instance: Path, ledger: Path, commit: str, files: list[str],
             "gate": None, "findings": [], "counts": {s: 0 for s in SEVERITIES}, "threshold": None, "exit_code": 0}
 
 
+def used_content(st, ids: list[str]) -> list[dict]:
+    """Each statement ``ids`` names as the store holds it now: {id, key, value, sha256} (``store.content_digest``
+    of its fragments), the ledger's record of what an output was built on (task-0199, doc-0030 H6)."""
+    from store import statement_content
+    held = statement_content(st, ids)
+    return [{k: held[a][k] for k in ("id", "key", "value", "sha256")} for a in ids if a in held]
+
+
 def _finding(severity, kind, message, *, app=None, path=None, ref=None, related=()) -> dict:
     return {"severity": severity, "kind": kind, "app": app, "path": path, "ref": ref, "related": list(related), "message": message}
 
@@ -233,9 +242,13 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
     cm, root = read_map(instance)
     led = read_ledger(ledger, missing_ok=False)
     held = {d["id"] for d in st.all_derived()}
-    for e in led["entries"]:   # a load wiped the store since: the ledger is the record
+    for e in led["entries"]:   # a load wiped the store since: the ledger is the record, with what each output used
         if e["id"] not in held:
-            st.register_derived(e["id"], e.get("kind", "code"), e["sha256"], e["assertions"])
+            st.register_derived(e["id"], e.get("kind", "code"), e["sha256"], e["assertions"],
+                                e["used"] if isinstance(e.get("used"), list) else None)
+    # task-0199 (doc-0030 R5, doc-0032 §6 item 6): suspect by the port's one read, the gate's and the MCP reader's
+    sus = {d["id"]: d for d in st.suspect_derived()}
+    now = {}
     fs: list[dict] = []
     scope_apps: set[str] | None = None
     ch = [Path(c).as_posix() for c in changed] if changed is not None else None
@@ -257,13 +270,15 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
         p = root / e["path"]
         cur = _sha(p) if p.is_file() else None
         used = [b for b in (st.assertion_brief(a) for a in e["assertions"]) if b]
-        bad = sorted(b["id"] for b in used if b.get("status") == "invalidated")
+        bad = list(sus.get(e["id"], {}).get("used_invalidated") or [])
+        changed = list(sus.get(e["id"], {}).get("used_changed") or [])
         keys = sorted({b["key"] for b in used if b["id"] in bad and b.get("key")})
         succ = sorted({t["id"] for x in (st.stale_on_keys(keys) if keys else []) if x["id"] in bad
                        for t in x.get("successors") or [] if t.get("id")})
         state = "missing" if cur is None else ("drift" if cur != e["sha256"] else "unchanged")
         rows.append({"id": e["id"], "path": e["path"], "app": e["app"], "sha256": e["sha256"], "current_sha256": cur,
                      "state": state, "used": len(e["assertions"]), "used_invalidated": bad, "successors": succ,
+                     **({"used_changed": changed} if changed else {}),
                      **({"as_of": e["as_of"]} if isinstance(e.get("as_of"), str) else {}),
                      **({"keys": e["keys"]} if isinstance(e.get("keys"), list) else {})})
         if bad:
@@ -271,6 +286,20 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
             fs.append(_finding("blocker", "suspect", f"{e['path']} ({e['app']}), registered as {e['id']}{on} was built from {len(bad)} statement(s) "
                                f"now invalidated ({', '.join(bad)}); successors {', '.join(succ) or 'none'}: rebuild it from the current "
                                "statements and register it again", app=e["app"], path=e["path"], ref=e["id"], related=bad))
+        if changed:   # task-0199 (doc-0030 H6): the same id, another content, as after an edit and a reload
+            was = {u["id"]: u for u in e.get("used") or []}
+            if not now:
+                from store import statement_content
+                now.update(statement_content(st, [u["id"] for x in led["entries"] for u in x.get("used") or []]))
+            what = "; ".join(f"{a} {was[a]['value']!r} (sha256 {was[a]['sha256'][:12]}) now "
+                             + (f"{now[a]['value']!r} (sha256 {now[a]['sha256'][:12]})" if a in now else "no longer held") for a in changed)
+            fs.append(_finding("blocker", "suspect", f"{e['path']} ({e['app']}), registered as {e['id']}, was built on statement(s) that "
+                               f"changed under their id since: {what}: rebuild it from the current statements and register it again",
+                               app=e["app"], path=e["path"], ref=e["id"], related=changed))
+        if not isinstance(e.get("used"), list):   # the read rule: an entry written before 0.9.0
+            fs.append(_finding("info", "unbound", f"{e['path']} ({e['app']}), registered as {e['id']}, has a ledger entry from before 0.9.0: "
+                               "it records ids only, so a change under the same id is not seen; register it again to bind it to content",
+                               app=e["app"], path=e["path"], ref=e["id"]))
         if state == "missing":
             fs.append(_finding("major", "missing", f"{e['path']} ({e['app']}), registered as {e['id']}, no longer exists",
                                app=e["app"], path=e["path"], ref=e["id"]))
@@ -297,7 +326,7 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
                 continue
             fs.append(_finding(g["severity"], f"gate:{g['kind']}", f"{task}: {g['message']}",
                                app=", ".join(apps) or None, ref=g.get("ref") or g.get("key"), related=g.get("related") or []))
-    order = ["suspect", "unknown_key", "malformed_citation", "unmapped", "uncited", "missing", "drift", "uncitable"]
+    order = ["suspect", "unknown_key", "malformed_citation", "unmapped", "uncited", "missing", "drift", "uncitable", "unbound"]
     fs.sort(key=lambda f: (SEVERITIES.index(f["severity"]), order.index(f["kind"]) if f["kind"] in order else len(order), f["path"] or "", f["ref"] or ""))
     counts = {s: sum(1 for f in fs if f["severity"] == s) for s in SEVERITIES}
     fail = any(SEVERITIES.index(f["severity"]) <= SEVERITIES.index(fail_on) for f in fs)

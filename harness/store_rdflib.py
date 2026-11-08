@@ -47,7 +47,7 @@ from urllib.parse import quote, unquote
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
 
 from store import (DEAD, DOCUMENT_BASES, Store, StoreBusy, StoreCorrupt, StoreFenced, StoreReadOnly, by_content, by_id, held_from,
-                   part_list, part_rows, stem)
+                   changed_of, part_list, part_rows, stem, suspect_rows, suspicion)
 
 try:
     import fcntl
@@ -622,8 +622,11 @@ class RdflibStore(Store):
             if v is not None:
                 self.set_props(v, {"valid_until": d})
 
-    def register_derived(self, did, kind, sha, assertion_ids) -> None:
-        dv = self.create_node(did, "Derived", {"kind": kind, "sha256": sha, "suspect": False})
+    def register_derived(self, did, kind, sha, assertion_ids, recorded=None) -> None:
+        props = {"kind": kind, "sha256": sha, "suspect": False}
+        if recorded is not None:
+            props["recorded"] = json.dumps(recorded, ensure_ascii=False, sort_keys=True)
+        dv = self.create_node(did, "Derived", props)
         for aid in assertion_ids:
             x = self.node(aid, "Assertion")
             if x is not None:
@@ -959,16 +962,16 @@ class RdflibStore(Store):
                         "successors": by_id(_distinct(succ)) or [{"id": None, "value": None, "status": None}]})
         return by_id(out)
 
-    def suspect_derived(self) -> list[dict]:
-        out = []
-        for d in self.nodes("Derived", suspect=True):
-            used = [self.nid(x) for x in self.out(d, "USED_ASSERTION") if self.has_label(x, "Assertion") and self.prop(x, "status") == "invalidated"]
-            if used:
-                out.append({"id": self.nid(d), "kind": self.prop(d, "kind"), "sha256": self.prop(d, "sha256"), "used_invalidated": sorted(used)})
-        return by_id(out)
+    def derived_rows(self) -> list[dict]:
+        return [{"id": self.nid(d), "kind": self.prop(d, "kind"), "sha256": self.prop(d, "sha256"), "recorded": self.prop(d, "recorded"),
+                 "used": [{"id": self.nid(x), "status": self.prop(x, "status")} for x in self.out(d, "USED_ASSERTION") if self.has_label(x, "Assertion")]}
+                for d in self.nodes("Derived")]
+
+    def suspect_derived(self) -> list[dict]:   # task-0199: by suspicion, the one rule, never the stored flag
+        return suspect_rows(suspicion(self, self.derived_rows()))
 
     def all_derived(self) -> list[dict]:
-        return [{"id": self.nid(d), "suspect": self.prop(d, "suspect")} for d in self.nodes("Derived")]
+        return [{"id": r["id"], "suspect": r["suspect"]} for r in suspicion(self, self.derived_rows())]
 
     def held_keys(self) -> list[dict]:
         out: dict[str, dict] = {}
@@ -983,8 +986,9 @@ class RdflibStore(Store):
         return [out[k] for k in sorted(out)]
 
     def derived_outputs(self) -> list[dict]:
+        sus = {r["id"]: r for r in suspicion(self, self.derived_rows())}
         return by_id([{"id": self.nid(d), "kind": self.prop(d, "kind"), "sha256": self.prop(d, "sha256"),
-                       "suspect": bool(self.prop(d, "suspect")),
+                       "suspect": sus[self.nid(d)]["suspect"], **changed_of(sus[self.nid(d)]),
                        "used": by_id(_distinct([{"id": self.nid(x), "key": self.prop(x, "key"), "status": self.prop(x, "status"),
                                                  "artefact": self.prop(x, "artefact"), "version": self.prop(x, "version")}
                                                 for x in self.out(d, "USED_ASSERTION") if self.has_label(x, "Assertion")]))}

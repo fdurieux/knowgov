@@ -57,6 +57,7 @@ OLD_STEPS = [
     "The review step (task-0037, decision-0002), S2' from BLOCKED to PROCEED by command, S4 settled whole, the six-month lapse",
     "One clock (task-0198), on rdflib, one --as-of gives one report under two KG_TODAY values; a person's approval lapses to proposed against it, a review-file approval with no verification lapses, what is dated after it is not counted, three_valued_answer marks the lapse",
     "Acts bound to content (task-0199), on rdflib, a ruling records what it ruled on, an edit after it is an act finding not an approval, a reordered table and renumbered answers move no act, stage 2 never moves one onto a successor, I4 and I9 refused",
+    "Derived outputs bound to content (task-0199), on rdflib, the ledger records each used statement's value and digest, an edit and a reload under the same id reads suspect, the gate, MCP and trace read one rule",
     "The MCP server (task-0056) gives gate_cli's report for the same store, the record's three-valued answers, and writes nothing",
     "proposal_impact's branch mode (task-0132) through the CI template's step, doc-0017's worked example on a scratch branch of the public register, equal to the held overlay's report and the checkout unchanged",
     "A person's statement against the documents' (task-0038), on S2 a contradiction raises a conflict, an agreement corroborates and raises nothing",

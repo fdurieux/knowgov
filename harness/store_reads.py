@@ -74,6 +74,7 @@ def _states(st, used: list[dict]) -> list[dict]:
 def _output(st, d: dict) -> dict:
     used = _states(st, d["used"])
     return {"id": d["id"], "kind": d["kind"], "sha256": d["sha256"], "suspect": bool(d["suspect"]),
+            **({"used_changed": d["used_changed"]} if d.get("used_changed") else {}),   # task-0199
             "keys": sorted({u["key"] for u in used if u["key"]}), "used": used}
 
 

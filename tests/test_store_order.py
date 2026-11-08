@@ -48,8 +48,9 @@ def test_by_id_puts_rows_without_an_id_last_and_by_content_is_total():
 
 
 def test_neo4j_reads_answer_one_order_whatever_order_the_driver_returns():
-    suspect = [{"id": f"derived:{d}", "kind": "python module", "sha256": "0" * 64,
-                "used_invalidated": ["A:dt:P2|threshold@v1", "A:dt:P2|surcharge@v1", "A:dt:P3|order@v1"]} for d in "ba"]
+    suspect = [{"id": f"derived:{d}", "kind": "python module", "sha256": "0" * 64, "recorded": None,   # task-0199: store.suspicion's input
+                "used": [{"id": x, "status": "invalidated"} for x in ["A:dt:P2|threshold@v1", "A:dt:P2|surcharge@v1", "A:dt:P3|order@v1"]]}
+               for d in "ba"]
     stale = [{"id": f"A:k|{k}@v1", "key": f"k|{k}", "value": "1", "invalidated_by": "v2",
               "verifications": [{"id": f"ver:{k}:{i}", "valid_until": "v2"} for i in range(3)],
               "successors": [{"id": f"A:k|{k}#{i}@v2", "value": "2", "status": "proposed"} for i in range(3)]} for k in "cab"]

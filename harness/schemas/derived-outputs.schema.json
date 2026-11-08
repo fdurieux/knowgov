@@ -78,7 +78,15 @@
       ]
      },
      "suspect": {
-      "type": "boolean"
+      "type": "boolean",
+      "description": "task-0199: a statement it used is invalidated, or, for an output trace registered, one now holds another value or digest under its id, or is gone (store.suspicion, the gate's and trace's rule)"
+     },
+     "used_changed": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "task-0199: the statements whose value or digest changed under their id since trace registered the output, or that are gone; absent when none"
      },
      "keys": {
       "type": "array",
