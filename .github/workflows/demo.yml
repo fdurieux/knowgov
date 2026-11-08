@@ -99,6 +99,14 @@ jobs:
           import urllib.request, urllib.error
           subs = json.load(urllib.request.urlopen("http://localhost:8080/api/subjects"))
           assert [s["id"] for s in subs["subjects"]] == ["cargo_quote", "jef_data_load"] and subs["current"] == "cargo_quote", subs
+          # task-0227: the page names the knowgov it runs. This build is knowgov:local from the checkout with no build
+          # args: the commit from .git's HEAD (Dockerfile.dockerignore lets it in), and no describe (the checkout has no tags)
+          import subprocess
+          kg = subs["knowgov"]
+          assert kg["version"] == open("../VERSION").read().strip(), kg
+          assert kg["commit"] == subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip(), kg
+          assert kg["describe"] is None, kg
+          print("knowgov:", kg)
           jf = json.load(urllib.request.urlopen("http://localhost:8080/api/scenarios?subject=jef_data_load"))
           assert [s["id"] for s in jf["scenarios"]] == ["C", "D1", "D2", "D3", "D4", "D5"] and jf["record_model"] == "", [s["id"] for s in jf["scenarios"]]
           for path in ("/api/scenarios?subject=nope", "/?subject=nope"):

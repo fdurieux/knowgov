@@ -53,6 +53,7 @@ import models  # noqa: E402  (the models table behind the Arms call drop-down, t
 ROOT = HERE.parent.parent
 HARNESS = ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
+import build_identity  # noqa: E402  (task-0227: which knowgov this is, read once at start)
 import execution  # noqa: E402  (task-0141.05: model output runs in the contained worker, or nowhere)
 import page_subject  # noqa: E402  (the subject as a value: task-0032.01)
 import http_boundary  # noqa: E402  (the HTTP trust boundary and limits, task-0141.03, task-0141.04)
@@ -238,6 +239,7 @@ def worker_view() -> dict:
     app reads from its kernel release, labelled as a reading), never a copy of its logic (task-0169)."""
     return execution.placement()
 INDEX = (HERE / "index.html").read_bytes()
+KNOWGOV = build_identity.identity(ROOT)   # {version, commit, describe}, each None when unknown; once, at start (task-0227)
 NO_SUBJECT = ("no subject is served: KG_SUBJECTS names no subject.toml that loads, and an instance's page serves its own "
               "subjects only; the log names each one left out and why")
 
@@ -895,7 +897,7 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
         ps = subject_of_request(q)
         if ps is None and not SUBJECTS:   # task-0206: KG_SUBJECTS names no subject that loads; the page says so
             if parts in ([], ["index.html"], ["api", "subjects"]):
-                return self._send(200, INDEX, "text/html; charset=utf-8") if parts != ["api", "subjects"] else self._json({"subjects": [], "current": None})
+                return self._send(200, INDEX, "text/html; charset=utf-8") if parts != ["api", "subjects"] else self._json({"subjects": [], "current": None, "knowgov": KNOWGOV})
             return self._json({"error": NO_SUBJECT}, 404)
         if ps is None:   # every route, the page included: a subject this page does not serve is not found
             return self._json({"error": f"no subject {q['subject'][0]!r} here; /api/subjects lists them"}, 404)
@@ -905,7 +907,7 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
     def _get(self, u, q, parts) -> None:
         try:
             if parts == ["api", "subjects"]:
-                return self._json({"subjects": subjects_view(), "current": _ps().id})
+                return self._json({"subjects": subjects_view(), "current": _ps().id, "knowgov": KNOWGOV})
             if not parts or parts == ["index.html"]:
                 return self._send(200, INDEX, "text/html; charset=utf-8")
             if parts == ["health"]:

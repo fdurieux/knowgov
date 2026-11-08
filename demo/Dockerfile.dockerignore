@@ -1,5 +1,10 @@
 # Build context is the repository root; keep out what the demo never reads.
+# .git stays out but for the three things that name the commit (task-0227): HEAD, refs and packed-refs;
+# no objects, so the image can say its commit and a tag on it, not its distance from one
 .git
+!.git/HEAD
+!.git/refs
+!.git/packed-refs
 .github
 **/__pycache__
 **/*.pyc

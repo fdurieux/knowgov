@@ -7,6 +7,9 @@ services:
     build:
       context: ..
       dockerfile: demo/Dockerfile
+      args:   # task-0227: optional; KG_BUILD_DESCRIBE="$(git describe --tags --always)" gives the page the distance
+        KG_BUILD_COMMIT: ${KG_BUILD_COMMIT:-}
+        KG_BUILD_DESCRIBE: ${KG_BUILD_DESCRIBE:-}
     image: knowgov:local
     volumes:
       - ../runs:/repo/runs
@@ -14,4 +17,7 @@ services:
     build:
       context: ..
       dockerfile: demo/Dockerfile
+      args:   # task-0227: optional; KG_BUILD_DESCRIBE="$(git describe --tags --always)" gives the page the distance
+        KG_BUILD_COMMIT: ${KG_BUILD_COMMIT:-}
+        KG_BUILD_DESCRIBE: ${KG_BUILD_DESCRIBE:-}
     image: knowgov:local

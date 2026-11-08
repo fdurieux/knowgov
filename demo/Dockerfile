@@ -25,6 +25,15 @@ RUN pip install "pumllint==0.35.0" "neo4j==6.4.1" "pyyaml==6.0.3" "rdflib==7.6.0
 # the chain scenarios need bash and GNU timeout, which the base image has.
 RUN pip install "pandas==3.0.5" "numpy==2.4.6" "requests==2.34.2" "pyarrow==25.0.1" "pytest==9.1.1" "pytest-bdd==9.0.1"
 
+# task-0227: which knowgov this image is, as the page shows it (harness/build_identity.py). Both are
+# optional and recorded as given: release.yml passes the tag's commit and the tag; a local build from a
+# checkout may pass KG_BUILD_DESCRIBE="$(git describe --tags --always)" through docker-compose.override.yml.
+# Without them the page reads the commit from .git's HEAD and refs (Dockerfile.dockerignore lets those in),
+# and the distance from the release reads unknown. Last, so a new commit rebuilds only this layer.
+ARG KG_BUILD_COMMIT=""
+ARG KG_BUILD_DESCRIBE=""
+RUN python -c "import json, os; json.dump({'commit': os.environ.get('KG_BUILD_COMMIT') or None, 'describe': os.environ.get('KG_BUILD_DESCRIBE') or None}, open('/repo/.knowgov-build.json', 'w'))"
+
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=6 \
   CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health', timeout=2).status == 200 else 1)"
