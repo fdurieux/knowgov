@@ -52,6 +52,9 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "harness"))
+import formats  # noqa: E402  (task-0174: connectors.toml's format = N)
+
 DEFAULT_ID_ATTRIBUTE = "AT_ID"
 CONFIG = "connectors.toml"
 REGISTER_ID = re.compile(r"[A-Z][A-Z0-9]*-\d+")
@@ -85,7 +88,9 @@ def system_config(instance: Path, system: str) -> dict:
     p = instance / CONFIG
     if not p.is_file():
         raise FileNotFoundError(f"{p}: no connector configuration; the instance names its systems there")
-    cfg = tomllib.loads(p.read_text(encoding="utf-8")).get("system", {})
+    doc = tomllib.loads(p.read_text(encoding="utf-8"))
+    formats.version(doc, p.as_posix(), formats.CONNECTORS)   # task-0174: a newer one refused, exit 2 (a ValueError)
+    cfg = doc.get("system", {})
     if system not in cfg:
         raise Refused(f"{p}: no [system.{system}]; configured: {', '.join(sorted(cfg)) or 'none'}")
     out = dict(cfg[system])

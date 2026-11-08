@@ -2,6 +2,11 @@
 # directory. Written from the harness and the page as they stood at the move (decision-0001).
 # The format is documented in subjects/README.md.
 
+# The format this subject root is written in (task-0174, decision-0023): one version for subject.toml,
+# scenarios.toml, plants.toml, queries.toml and the register map; a knowgov that reads an older one refuses it.
+[format]
+version = 1
+
 [subject]
 id = "cargo_quote"
 name = "CargoQuote"

@@ -32,6 +32,11 @@ oracle (`oracle/jef_suite.py`, one scenario per feature file, run once per reply
 ## `subject.toml`
 
 ```toml
+[format]
+version = 1                   # the format of this subject root (task-0174, decision-0023): subject.toml,
+                              # scenarios.toml, plants.toml, queries.toml and the register map; missing reads
+                              # as the current one, a newer one is refused, exit 2 (instance/README.md, "Format versions")
+
 [subject]
 id = "cargo_quote"            # the directory name by default
 name = "CargoQuote"

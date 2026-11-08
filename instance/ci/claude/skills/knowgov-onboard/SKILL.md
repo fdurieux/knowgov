@@ -86,6 +86,7 @@ Derive and show everything else; do not ask for it. Work in this order, and show
    the person decides what to do; never rewrite their ids. Run the
    pre-load check on its form where a linter exists (`tools/preload_check.py`).
 3. **The manifest.** Write `subjects/<id>/subject.toml` from `subjects/minimal/subject.toml`:
+   `[format] version = 1` as copied (the format this knowgov writes; see the reference below),
    `[subject]` (id, name, a one-line description, `listed = false` until the person says), one
    `[[artefact]]` per document, and `[tasks.<class>]`. An artefact needs `key` and `short` (both
    from the file's stem, unique in the subject; the check refuses a mapped artefact without
@@ -204,4 +205,10 @@ What each mapper reads:
 - `requirements_json`: A folder (bundle) of JSON lists of `{id, kind, statement, basis}`; each item yields `<id>|statement`. Ids match `[rules] requirement_id_pattern`. An item's optional `claim` (`observed`, `inferred`, `intended`) says what the statement is; its `basis` is where it was read, not a claim.
 - `sequence`: A PlantUML sequence diagram, read by pumllint's parser; yields participants and `alt` branches.
 - `spec`: Markdown with a `## Flow order` numbered list and an `## API contract` section, in the CargoQuote kit's wording; yields the flow's order and the response's status set.
+
+The format versions a new file is written at (instance/README.md, "Format versions"):
+
+- `subject.toml`: `[format] version = 1`, covering the subject root's `scenarios.toml`, `plants.toml`, `queries.toml` and register map; keep it as copied from `subjects/minimal/`
+- `code_map.toml` and `connectors.toml`: a top-level `format = 1`
+- captures and review files: never written here; `harness/capture.py` stamps them
 <!-- /part -->

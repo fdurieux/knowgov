@@ -53,6 +53,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+import formats   # task-0174, decision-0023
+
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 DEFAULT_HANDLE = r"^[a-z][a-z0-9-]{1,39}$"   # ieam-register decision 0008, types.toml [elicited] handle
@@ -256,11 +258,12 @@ def _date(v) -> dt.date | None:
 
 
 def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
-                  handles: dict[str, dict] | None = None) -> tuple[list[str], dict]:
+                  handles: dict[str, dict] | None = None, where: str = "the answered questionnaire") -> tuple[list[str], dict]:
     """(errors, the normalised capture) for an answered questionnaire. ``handles`` is the register's
     issued list (harness/review.py ``issued_handles``, decision 0009): when it lists any, the handle
     must be on it, hold the role ``gives``, and be issued by the answer's date and not withdrawn by
     then (task-0091); when it lists none, the pattern alone applies."""
+    formats.version(doc, where, formats.CAPTURE)   # task-0174: the capture's source, a newer one refused
     errs = []
     q, a = doc.get("questionnaire", {}), doc.get("answered", {})
     handle = a.get("from", "")
@@ -307,7 +310,7 @@ def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
 def capture_toml(cap: dict, record: str) -> str:
     lines = ["# A capture: knowledge a person gave, from an answered questionnaire (task-0009). Read by every load.",
              "# from, on and record are ieam-register decision 0008's fields. Never edited after ingest: a correction is a new capture.",
-             "", "[capture]", f"subject = {_q(cap['subject'])}", f"scenario = {_q(cap['scenario'])}", f"task = {_q(cap['task'])}",
+             f"format = {formats.CURRENT[formats.CAPTURE]}", "", "[capture]", f"subject = {_q(cap['subject'])}", f"scenario = {_q(cap['scenario'])}", f"task = {_q(cap['task'])}",
              f"owner = {_q(cap['owner'])}", f"from = {_q(cap['from'])}", f"on = {cap['on'].isoformat()}", f"record = {_q(record)}"]
     for a in cap["answers"]:
         lines += ["", "[[answer]]", f"key = {_q(a['key'])}", f"value = {_q(a['value'])}", f"note = {_q(a['note'])}"]
@@ -325,11 +328,13 @@ def due_captures(capture_dir: Path, on: dt.date) -> list[dict]:
     files = sorted(capture_dir.glob("*.toml")) if capture_dir.is_dir() else []
     rejected = set()
     for p in sorted((capture_dir / "reviews").glob("*.toml")) if (capture_dir / "reviews").is_dir() else []:
-        rejected |= {str(r.get("assertion", "")) for r in tomllib.loads(p.read_text(encoding="utf-8")).get("ruling", [])
-                     if r.get("outcome") == "rejected"}
+        rv = tomllib.loads(p.read_text(encoding="utf-8"))
+        formats.version(rv, p.as_posix(), formats.REVIEW)   # task-0174: a newer review refused, never misread
+        rejected |= {str(r.get("assertion", "")) for r in rv.get("ruling", []) if r.get("outcome") == "rejected"}
     latest: dict[tuple[str, str], dict] = {}
     for p in files:
         c = tomllib.loads(p.read_text(encoding="utf-8"))
+        formats.version(c, p.as_posix(), formats.CAPTURE)
         cap = c.get("capture", {})
         when = _date(cap.get("on"))
         for i, a in enumerate(c.get("answer", []), 1):
@@ -482,7 +487,8 @@ def _ingest(args) -> int:
         raise CannotRun(f"{SUBJECT.id}: no task {task!r}")
     import review
     reg = register_root()
-    errs, cap = check_answers(doc, handle_pattern(reg), set(TASKS[task]["keys"]), review.today(), review.issued_handles(reg))
+    errs, cap = check_answers(doc, handle_pattern(reg), set(TASKS[task]["keys"]), review.today(), review.issued_handles(reg),
+                              where=args.answered.as_posix())
     if errs:
         for e in errs:
             print(f"refused: {e}", file=sys.stderr)
@@ -533,6 +539,7 @@ def _review(args) -> int:
         doc = tomllib.loads(args.review.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as e:
         raise CannotRun(f"{args.review}: {e}") from e
+    formats.version(doc, args.review.as_posix(), formats.REVIEW)   # task-0174: --show reads it too, so it refuses a newer one
     if args.show:
         print(show_rulings(doc, review.capture_index(SUBJECT.capture_dir)), end="")
         return 0
@@ -545,7 +552,7 @@ def _review(args) -> int:
         gate_cli._load(st, scenario)    # with the captures and the reviews already written
         errs, rv = review.check(doc, st, handles=review.issued_handles(reg), owners=owners_of(SUBJECT, register_nodes(reg)),
                                 units=review.organisation_units(reg), captures=review.capture_index(SUBJECT.capture_dir),
-                                now=review.today(), compatible=compatible)
+                                now=review.today(), compatible=compatible, where=args.review.as_posix())
     if errs:
         for e in errs:
             print(f"refused: {e}", file=sys.stderr)
@@ -563,4 +570,5 @@ def _review(args) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import cli_exit   # task-0174: a capture or review for a newer knowgov, like any failure to run, exits 2 (doc-0030 F6)
+    sys.exit(cli_exit.run(main, "capture"))

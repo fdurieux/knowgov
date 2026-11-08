@@ -3,10 +3,11 @@ id: TASK-0174
 title: >-
   Format versions on an instance's inputs: a plan, the scheme options with their
   four parts, no code (doc-0028 P1, G9-2; doc-0029)
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-11-06T13:03:00Z'
-updated_date: '2026-11-06T13:26:00Z'
+updated_date: '2026-11-08T19:53:00Z'
 labels:
   - contracts
   - instance
@@ -25,7 +26,12 @@ doc-0028 §9 P1, minted by doc-0029 advice 4 as a plan only. subject.toml, regis
 <!-- AC:BEGIN -->
 - [x] #1 The implementation plan names every input file in scope with its reader (module and function)
 - [x] #2 Two or three schemes, each with an opportunity canvas, a fit/gap, a SWOT and advice; a recommendation
-- [ ] #3 No code change; the task stays To Do with the plan, for the maintainer
+- [x] #3 No code change; the task stays To Do with the plan, for the maintainer
+- [x] #4 harness/formats.py holds the one rule: missing reads current until 1.0, equal or lower read, higher refused FormatTooNew; every reader answers it with exit 2 naming the file, its version and the reader's
+- [x] #5 subject.toml [format] version is read by Subject.__init__, tools/check_subject.py check (its report carries format) and the MCP subject_check; code_map.toml and connectors.toml format by harness/code_map.py, tools/connector.py and tools/check_instance.py
+- [x] #6 Captures and review files carry format = 1, stamped by capture_toml and review_toml, read by load_captures, check_answers, due_captures, capture_index, load_reviews and review.check
+- [x] #7 The writers stamp it (the wizard skill and harness/wizard.py, tools/example_instance.py, the subject_check report) and the public subjects carry [format] version = 1; the attestation hook passes a format key
+- [x] #8 Each reader's refusal is held by tests/test_formats.py, failing on main; instance/README.md documents the keys and the refusal; CHANGELOG under Unreleased > Contract changes
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -165,6 +171,12 @@ The files carry nothing:
 - the deterministic record's results are unchanged (the comparator).
 <!-- SECTION:PLAN:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+AC #3 (no code until the maintainer had read the plan) is met by decision-0023, accepted 2026-11-08 on the maintainer's word ("go with the recommended mix, in 0.9.0"); the build follows it.
+<!-- SECTION:NOTES:END -->
+
 ## Comments
 
 <!-- COMMENTS:BEGIN -->
@@ -176,3 +188,9 @@ Plan filed by the coordinating session under the maintainer's delegation (doc-00
 
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Built decision-0023's mixed scheme. harness/formats.py holds the one rule (CURRENT per kind, all 1; version(doc, where, kind): missing reads current, equal or lower read, higher FormatTooNew, a non-version FormatError, both ValueErrors, named in cli_exit.OWN and mapped to exit 2 by tools/_outcomes.run). Readers: Subject.__init__ (Subject.format), tools/check_subject.py check (report field format, schema subject-check gains an optional format; [format] in TABLES, its fields checked; main exit 2), harness/subject_check.py (SubjectCheckError naming the caller's label), harness/code_map.py code_map, tools/connector.py system_config, tools/check_instance.py (connectors, a subject's FormatError propagated to exit 2 rather than 'does not load', format per subject in the report and text), harness/load.py load_captures and load_reviews (before the scenario filter), harness/review.py capture_index and check (where=), harness/capture.py check_answers (where=), due_captures (captures and reviews) and review --show; capture.py now exits through cli_exit.run. Writers: capture_toml and review_toml stamp format = 1; harness/wizard.py's generated reference names the versions and the skill's step 3 keeps [format] as copied (--check fresh); tools/example_instance.py stamps code_map.toml and the manifest when it lacks one; cargo_quote, jef_data_load and minimal carry [format] version = 1 (none vendored; no SOURCE note lists subject.toml). Docs: instance/README.md 'Format versions', subjects/README.md, CLAUDE.md; CHANGELOG under Unreleased > Contract changes. tests/test_formats.py, seven tests: every reader and writer test fails on main with the helper copied in. run_tests 861/863 with the pins, 814/863 without yaml (skips only); comparator identical on CargoQuote S1-S7 and J-F's six scenarios on rdflib, the run's SHA256SUMS listing subjects/cargo_quote/subject.toml at its new digest (64ec3c41..., was aa338f14...) as expected; check_instance on the example instance holds; check_mcp_server holds on CargoQuote S1,S2,S6 and J-F C,D3. The J-F oracle (pandas) not run locally; its code is unchanged.
+<!-- SECTION:FINAL_SUMMARY:END -->

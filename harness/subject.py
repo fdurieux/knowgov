@@ -111,6 +111,8 @@ class Subject:
             raise FileNotFoundError(f"{self.root} holds no subject.toml")
         self.stamp = stamp(self.root)   # read before the files, so an edit while they are read leaves it stale
         m = _toml(self.root / "subject.toml")
+        import formats   # task-0174, decision-0023: one version for the root's configuration, a newer one refused
+        self.format: int = formats.version(m, (self.root / "subject.toml").as_posix(), formats.SUBJECT)
         self.manifest = m
         s = m.get("subject", {})
         self.id: str = s.get("id", self.root.name)
