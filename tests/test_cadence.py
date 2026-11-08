@@ -269,7 +269,9 @@ def test_what_is_dated_after_the_as_of_date_is_not_counted():
 
 def test_the_load_reads_no_clock():
     """H3: load_reviews decides no lapse and reads no today; the gate does, against its as-of."""
-    import inspect
-    import load
-    src = inspect.getsource(load.load_reviews)
+    import ast
+    text = (Path(__file__).resolve().parent.parent / "harness" / "load.py").read_text(encoding="utf-8")   # never imported: the stdlib job has no yaml
+    fn = next((n for n in ast.walk(ast.parse(text)) if isinstance(n, ast.FunctionDef) and n.name == "load_reviews"), None)
+    assert fn is not None, "load_reviews not found in harness/load.py: a rename must fail this test, not pass it"
+    src = ast.get_source_segment(text, fn)
     assert "today()" not in src and "until is not None and now > until" not in src
