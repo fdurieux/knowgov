@@ -271,8 +271,13 @@ uid 65534, bounded memory, processes and CPU, and no secret in its environment. 
 in the image and a jobs folder. Its work folder is a tmpfs mounted `exec`, since the oracle runs the launchers it
 writes there; `noexec` would bound nothing, as a job can run any Python. Each job runs as its own process group with an allowlisted environment,
 resource limits, a wall time (the whole group killed and reaped at it, a process that left the group
-included), and Linux Landlock rules that let it write only beneath its own folder, so it cannot forge a
-result or the worker's attestation. At start the worker attests its confinement (no interface but
+included: after each job the worker kills every process below it at any depth at once, round after round,
+within 10 s, so even a deep chain of processes each in its own session ends with its job; task-0203), and
+Linux Landlock rules that let it write only beneath its own folder, so it cannot forge a result or the
+worker's attestation. The job's runner is non-dumpable and answers on a descriptor no process it starts
+inherits or can open through `/proc`, so model code cannot forge its answer through the runner's output
+either (task-0203). A job whose time runs out, or that is killed at a bound, is the kind's failed cell, as
+on the host, and the run goes on (task-0203). At start the worker attests its confinement (no interface but
 loopback up, no route beyond it and no `CAP_NET_ADMIN` to bring one up, decision-0015; no AF_VSOCK or
 AF_PACKET socket and no outside address reachable, which no network namespace confines and the engine's
 default seccomp profile refuses; no secret-shaped variable, read-only root, uid 65534, no engine socket,
@@ -286,7 +291,9 @@ service, and the worker has no network to ask. Without a worker nothing runs: th
 the host. The only escape is `KG_ALLOW_UNCONTAINED_EXECUTION=1`, which runs the code on the host,
 uncontained, as before. With an organisation's instance mounted, the interim guard (task-0141.07,
 `harness/execution_guard.py`) still refuses first: the worker sees only the public subjects. Supported:
-Linux with Landlock (kernel 5.13 or later, enabled) and a container engine that runs the compose
+Linux with Landlock at ABI 3 or later (Linux 6.2 or later, enabled; task-0203: below ABI 3 Landlock does not
+confine truncation, so `write_confined` is not attested: the worker refuses to serve, the page's worker chip
+reads *worker: not attested · Landlock ABI N, 3 needed*, and every arms run is refused) and a container engine that runs the compose
 service; elsewhere the worker refuses to serve and model output does not run. That sentence was the
 fail-closed design, proven on GitHub's Ubuntu runners and a Linux kernel with Landlock only; the first
 evidence on another engine is the maintainer's Mac (2026-11-06), below. The worker starts only
@@ -304,9 +311,12 @@ check on a fake sysfs and procfs, the Mac's listing included; the socket probes 
 `tests/test_execution.py::test_exec_07_an_absent_stale_loosened_or_malformed_attestation_refuses_the_job`,
 `tests/test_execution.py::test_a_job_cannot_write_the_jobs_folder_so_it_cannot_forge_a_result_or_the_attestation`,
 `tests/test_execution.py::test_exec_04_a_symlink_at_any_step_of_an_agent_write_is_refused_and_the_target_untouched`,
-`tests/test_execution.py::test_exec_08_a_stalled_or_trickling_stream_stops_at_the_monotonic_deadline`; on the real
-container, `tools/check_worker.py` in `demo.yml` (EXEC-01 to EXEC-10, and loosened workers refusing: network on,
-a key in its environment, and the seccomp profile off where the runner's kernel has vsock).
+`tests/test_execution.py::test_exec_08_a_stalled_or_trickling_stream_stops_at_the_monotonic_deadline`,
+`tests/test_worker_isolation.py` (task-0203: a 70-deep `setsid` chain killed whole, the forge refused, a timed-out
+job a failed cell, `write_confined` only from Landlock ABI 3, a reused run folder carrying nothing over; on a
+worker loop as uid 65534 under its Landlock domain when the tests run as root); on the real container,
+`tools/check_worker.py` in `demo.yml` (EXEC-01 to EXEC-13, and loosened workers refusing: network on, a key in
+its environment, and the seccomp profile off where the runner's kernel has vsock).
 **Practice:** for the public demo, use a project key with a spending cap; keep the worker service as
 compose defines it, since loosening it makes it refuse.
 

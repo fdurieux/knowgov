@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -40,6 +41,11 @@ RESULTS = SUBJECT.record_dir       # the subject's record, vendored and never wr
 RUNS = ROOT / "runs"               # where a run lands unless --out says otherwise
 ORDER = SUBJECT.order_keys         # the baseline arm concatenates the documents in this order
 SCENARIOS = SUBJECT.order
+
+
+# The code files this invocation wrote (task-0203, R3): stage 2 reads its derived output from here, or from
+# --stage2-derived, never from a file an earlier attempt left in a reused --out
+WRITTEN: set[Path] = set()
 
 
 def dump(path: Path, obj) -> None:
@@ -190,9 +196,11 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
         (out_dir / f"run{i}_{arm}.raw.json").write_text(r["raw"], encoding="utf-8")
         if code:
             (out_dir / f"run{i}_{arm}.py").write_text(code, encoding="utf-8")
+            WRITTEN.add((out_dir / f"run{i}_{arm}.py").resolve())
         return rec
     def one_agent(i: int) -> dict:
         box = out_dir / f"run{i}_{arm}_sandbox"
+        shutil.rmtree(box, ignore_errors=True)   # task-0203, R3: a fresh cell starts from an empty sandbox, never an earlier attempt's
         res = agent.run(system, user, sandbox=box, read_text=read_text, feedback=feedback, tag=f"{sc}/{arm}/{i}", readers=readers)
         p = res["parsed"]
         cut = res.get("prompt_cut")   # task-0185: a turn the endpoint read short; the run is marked and never graded
@@ -228,6 +236,7 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
         dump(out_dir / f"run{i}_{arm}.trace.json", res["trace"])
         if code_text:
             (out_dir / f"run{i}_{arm}.py").write_text(code_text, encoding="utf-8")
+            WRITTEN.add((out_dir / f"run{i}_{arm}.py").resolve())
         return rec
 
     with ThreadPoolExecutor(max_workers=int(__import__("os").environ.get("KG_WORKERS", "5"))) as ex:
@@ -248,7 +257,10 @@ def main() -> None:
     ap.add_argument("--n", type=int, default=5)
     ap.add_argument("--deterministic", action="store_true")
     ap.add_argument("--out", default=str(RUNS))
-    ap.add_argument("--resume", action="store_true", help="skip cells whose run json exists")
+    ap.add_argument("--resume", action="store_true", help="skip cells whose run json exists; usage.json then adds to the earlier one")
+    ap.add_argument("--stage2-derived", metavar="FILE",
+                    help="stage 2's derived output (the code an earlier scenario built, which the change marks suspect): "
+                         "this file; by default the one this invocation wrote, never a file left in a reused --out (task-0203)")
     ap.add_argument("--as-of", default="record",
                     help="the date review currency is read on (decision-0005): 'record' (the subject's pinned date, "
                          "the default, which the comparator reads), 'today' or YYYY-MM-DD; the run records it as as_of")
@@ -275,7 +287,7 @@ def main() -> None:
         sys.exit(2)
     d.commit()   # task-0141.02: published once every scenario ran; an exception above publishes nothing
     d.close()
-    _write_usage(out_root, summary)
+    _write_usage(out_root, summary, resume=args.resume)
 
 
 def _run_all(args, d, pv, as_of, out_root, summary) -> None:
@@ -291,8 +303,8 @@ def _run_all(args, d, pv, as_of, out_root, summary) -> None:
             # output if it exists, in both modes: the file is an input of the deterministic stage 2,
             # not an arm call (pumllint's record under d3check shows the state before that held)
             derived = cfg["stage2"].get("derived", {})
-            code_path = out_root / derived.get("from_scenario", sc) / derived.get("file", "run1_G.py")
-            derived_code = code_path.read_text(encoding="utf-8") if code_path.exists() else None
+            code_path = stage2_derived(args, out_root, sc, derived)
+            derived_code = code_path.read_text(encoding="utf-8") if code_path is not None and code_path.exists() else None
             derived_ids = [a["id"] for v in gate["keys"].values() for a in v["assertions"]] if derived_code else []
             s2, gate, kit = stage2(sc, cfg["stage2"], pv, d, derived_code, derived_ids, as_of)
             det["stage2"] = s2
@@ -310,9 +322,20 @@ def _run_all(args, d, pv, as_of, out_root, summary) -> None:
                        "runs": {arm: [{k: r[k] for k in ("run", "M1_decision", "M2_code", "M3_flagged", "M4_targets", "outage_status", "M5_refs", "M6_noncompliance")} | {"suite": f"{r['M4_suite']['passed']}/{r['M4_suite']['total']}"} for r in rs] for arm, rs in runs.items()}}
 
 
-def _write_usage(out_root, summary) -> None:
+def stage2_derived(args, out_root: Path, sc: str, derived: dict) -> Path | None:
+    """Stage 2's derived output (task-0203, doc-0030 R3): the file ``--stage2-derived`` names, else the one
+    this invocation wrote for the scenario the subject names (or, under ``--resume``, its earlier attempt's,
+    whose cells are this run's), never a file an earlier attempt left in a reused ``--out``."""
+    if getattr(args, "stage2_derived", None):
+        return Path(args.stage2_derived)
+    path = out_root / derived.get("from_scenario", sc) / derived.get("file", "run1_G.py")
+    return path if path.resolve() in WRITTEN or getattr(args, "resume", False) else None
+
+
+def _write_usage(out_root, summary, resume: bool = False) -> None:
     dump(out_root / "summary.json", summary)
-    prev_usage = json.loads((out_root / "usage.json").read_text()) if (out_root / "usage.json").exists() else None
+    # task-0203, R3: an earlier attempt's usage adds only under --resume; a fresh run in a reused --out is its own
+    prev_usage = json.loads((out_root / "usage.json").read_text()) if resume and (out_root / "usage.json").exists() else None
     u = arms.usage()
     if prev_usage:
         u = {"calls": prev_usage["calls"] + u["calls"], "tokens": prev_usage.get("tokens", 0) + u["tokens"],
