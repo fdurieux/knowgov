@@ -1018,10 +1018,13 @@ class RdflibStore(Store):
         self.merge_node(row["id"], "ActFinding", props={k: row[k] for k in self.ACT_FIELDS})
 
     def record_attestation(self, row) -> None:
-        self.merge_node(row["id"], "Attestation", props={k: row[k] for k in self.ATTESTATION_FIELDS})
+        a = self.node(row["attester"], "Agent")
+        if a is not None:
+            self.set_props(a, {f"attestation_{row['declaration']}": json.dumps({k: row[k] for k in ("id", *self.ATTESTATION_FIELDS)}, sort_keys=True)})
 
     def attestations(self) -> list[dict]:
-        return by_id([{"id": self.nid(a), **{k: self.prop(a, k) for k in self.ATTESTATION_FIELDS}} for a in self.nodes("Attestation")])
+        return by_id([json.loads(self.prop(a, f"attestation_{d}")) for a in self.nodes("Agent") for d in ("approval", "authored")
+                      if self.prop(a, f"attestation_{d}")])
 
     def clear_act_findings(self) -> None:
         for a in list(self.nodes("ActFinding")):

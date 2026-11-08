@@ -1156,12 +1156,14 @@ class Neo4jStore(Store):
     def record_act_finding(self, row) -> None:
         self.run("MERGE (a:ActFinding {id:$id}) SET a += $props", id=row["id"], props={k: row[k] for k in self.ACT_FIELDS}).consume()
 
-    def record_attestation(self, row) -> None:
-        self.run("MERGE (a:Attestation {id:$id}) SET a += $props", id=row["id"], props={k: row[k] for k in self.ATTESTATION_FIELDS}).consume()
+    def record_attestation(self, row) -> None:   # on the attester's Agent node, never a node of its own (store.py)
+        self.run("MATCH (a:Agent {id:$aid}) SET a += $props", aid=row["attester"],
+                 props={f"attestation_{row['declaration']}": json.dumps({k: row[k] for k in ("id", *self.ATTESTATION_FIELDS)}, sort_keys=True)}).consume()
 
     def attestations(self) -> list[dict]:
-        cols = ", ".join(f"a.{k} AS {k}" for k in self.ATTESTATION_FIELDS)
-        return by_id(_rows(self.run(f"MATCH (a:Attestation) RETURN a.id AS id, {cols}")))
+        rows = _rows(self.run("MATCH (a:Agent) WHERE a.attestation_approval IS NOT NULL OR a.attestation_authored IS NOT NULL "
+                              "RETURN a.attestation_approval AS approval, a.attestation_authored AS authored"))
+        return by_id([json.loads(r[d]) for r in rows for d in ("approval", "authored") if r[d]])
 
     def clear_act_findings(self) -> None:
         self.run("MATCH (a:ActFinding) DETACH DELETE a").consume()

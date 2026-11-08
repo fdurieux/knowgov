@@ -503,10 +503,12 @@ class Store:
     ATTESTATION_FIELDS = ("declaration", "bound", "attester", "unattested")
 
     def record_attestation(self, row: dict) -> None:
-        """Keep, as an ``Attestation`` node of id ``row["id"]`` (``attest:authored``, ``attest:approval``), how the
-        load read a ``[verification]`` declaration (decision-0019, task-0221): ``bound`` (it lists Versions) and,
-        as JSON text in ``unattested``, the stored artefacts it did not attest, each {artefact, sha256, parts}.
-        Writing one id again replaces it, so stage 2 records what its later documents read."""
+        """Keep how the load read a ``[verification]`` declaration (decision-0019, task-0221), ``row`` of id
+        ``attest:authored`` or ``attest:approval``: ``bound`` (it lists Versions) and, as JSON text in ``unattested``,
+        the stored artefacts it did not attest, each {artefact, sha256, parts}. It is kept on the attester's Agent node
+        (``row["attester"]``), as the property ``attestation_<declaration>``, never as a node of its own, so a bound
+        declaration that attests every Version leaves the store, and the record's census, as the read rule does.
+        Writing one declaration again replaces it, so stage 2 records what its later documents read."""
         raise NotImplementedError
 
     def attestations(self) -> list[dict]:
