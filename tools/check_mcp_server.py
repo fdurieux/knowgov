@@ -10,8 +10,8 @@ key for key. Then ask ``three_valued_answer`` for every key the subject names an
 answer the record's deterministic run gives (D5), with provenance on every asserted statement.
 Then ask ``evidence_bundle`` for the codegen task as of the record and require the text the governed
 arm reads: ``gate.render_bundle`` over ``gate.resolve(store, "codegen")`` with the policy and the
-task's verbatim documents from the scenario's kit, exactly as ``harness/run.py``'s ``arm_runs`` builds
-it (task-0080); and for a key set, the same over ``resolve_spec`` on those keys.
+task's verbatim documents from the scenario's kit, named by the scenario's prompts (``scenarios.toml``'s
+``prompts``, doc-0030 M9), exactly as ``harness/run.py``'s ``arm_runs`` builds it (task-0080); and for a key set, the same over ``resolve_spec`` on those keys.
 Then ask ``register_impact`` from the first node of the subject's first register-map row and require
 every key it lands on at the level ``gate_verdict`` gives that key set (task-0111); and, when that node
 has a parent, from the parent with ``children`` (the register's decision 0014, task-0118): every key the
@@ -249,8 +249,11 @@ def arms_bundle(sc: str, stage: int, keys: list[str] | None = None) -> tuple[str
     from gate import render_bundle, resolve, resolve_spec
     from kitio import kit_for, verbatim_documents
     from store import open_store
+    from subject import SUBJECT
     from tasks import TASKS
-    task = "task_codegen"   # the runner passes the prompt prefix; verbatim_documents strips it to the class
+    # the scenario's prompts, as harness/run.py's _run_all passes them (doc-0030 M9): the prompt prefix, which
+    # verbatim_documents strips to the class
+    task = SUBJECT.scenario(sc).get("prompts", "task_codegen")
     with open_store(access="read") as st:   # never published (task-0141.02)
         gate = resolve(st, "codegen") if keys is None else resolve_spec(st, "keys", dict(TASKS["codegen"], keys=keys))
         bundle = render_bundle(gate, arms.policy(), verbatim_documents(kit_for(sc, stage), task))

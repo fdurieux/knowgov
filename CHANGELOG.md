@@ -351,6 +351,12 @@ names that section with the version.
   - **An unchanged CRLF document reads checked (I12).** The load compared the pre-load report's digest of
     the raw bytes with a digest of the text, so a document with Windows line endings always read unchecked.
     It now compares raw bytes. A `knowgov-keys:` citation on line 1 after a byte-order mark is now read.
+- **Three fixes to the MCP reader and its check** (task-0208, doc-0030 M7, M9, M11). `code_path`'s ledger
+  leg reads `unchecked`, naming why, when the ledger holds an entry for the path but there is no code root to
+  read the file from (no instance, or a code map that does not hold); before, it read `drift: false` for a
+  file it never looked at. The reader no longer writes `__pycache__` into `KG_REGISTER/tools` when it loads
+  the register's own modules, so a register mounted read-only stays unwritten. `tools/check_mcp_server.py`
+  builds the arms' bundle from each scenario's prompts, as the runner does, not a fixed `task_codegen`.
 - **An agent run stopped by its seconds ceiling reads as the ceiling, not as an API error** (task-0207,
   doc-0030 R6). When the run's deadline cut a model's answer mid-stream, or the client's timeout fired at
   it, the run was recorded as an API error, so `--resume` ran the cell again and paid for it again. It now
