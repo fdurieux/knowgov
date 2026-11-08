@@ -156,12 +156,13 @@ def r_unverified(st) -> int:
     return st.mark_unverified()
 
 
-def r_stale(st, new_tag: str) -> dict:
+def r_stale(st, new_tag: str, at: str | None = None) -> dict:
     """After a re-ingestion: an assertion of an older version whose
     supporting fragment's digest differs from the current fragment at the
     same locator (or whose locator vanished) is invalidated; its
-    verifications end; derived outputs that used it become suspect."""
-    return st.invalidate_stale(new_tag)
+    verifications end; derived outputs that used it become suspect.
+    ``at`` is the change's instant, recorded as ``invalidated_at``."""
+    return st.invalidate_stale(new_tag, at)
 
 
 def run_all(st, scenario: str) -> dict:
