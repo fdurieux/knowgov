@@ -31,7 +31,7 @@ Raised as the reconciliation's D5.
 ## Options
 
 - **(a) Amend decision-0016 point 4** to require A01–A18 and the F/P/R exit criteria.
-- **(b) Keep point 4 as accepted.** The matrix becomes the lighthouse's acceptance protocol instead: A07–A14 and AT01–AT12 go into `docs/lighthouse-evaluation.md`, task-0057's pre-registration and task-0062's pilot plan. Only the contract-bearing items go forward before the cut (D1–D4, decided the same night: decision-0023 A1 and decision-0028 to decision-0030).
+- **(b) Keep point 4 as accepted.** The matrix becomes the lighthouse's acceptance protocol instead: A07–A14 and AT01–AT12 go into `docs/lighthouse-evaluation.md`, task-0057's pre-registration and task-0062's pilot plan. Only the contract-bearing items go forward before the cut (D1–D4, proposed the same night: decision-0023 A1 and decision-0028 to decision-0030).
 - **(c) Record the matrix only**, as a reference, with no protocol change.
 
 ## Decision (proposed)

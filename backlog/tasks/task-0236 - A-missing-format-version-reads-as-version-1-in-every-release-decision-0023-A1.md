@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-08T23:46:00Z'
+updated_date: '2026-11-08T23:53:00Z'
 labels:
   - formats
   - contracts
@@ -18,7 +19,7 @@ ordinal: 231000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-decision-0023 Amendment A1 (2026-11-08, taken under the maintainer's overnight delegation): a file that names no format version reads as version 1, in every release, not as the current one until 1.0. At 0.9.0 every input's current version is 1, so no behaviour changes now; the rule is what decision-0016 point 4 needs, no change of meaning at 1.0.0. harness/formats.py holds the missing version apart from CURRENT; instance/README.md's "Format versions" section and its contracts row, harness/formats.py's docstring and the CHANGELOG's task-0174 line (Unreleased) drop "until 1.0".
+decision-0023 Amendment A1 (proposed 2026-11-08, parked for the maintainer): what a file that names no format version means after 0.9.0. "The current one until 1.0" would change a contract at 1.0.0, against decision-0016 point 4. R1 (recommended): a missing version reads as version 1, in every release, with an optional tools/check_instance.py note never a failure. R0: a missing version is refused from 0.9.0, exit 2, naming the key. The build is prepared for R1 and its PR waits for the maintainer's word; if R0 is chosen, the ACs are restated. Either way instance/README.md's "Format versions" section and contracts row, harness/formats.py's docstring and the CHANGELOG's Unreleased task-0174 line drop "until 1.0".
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

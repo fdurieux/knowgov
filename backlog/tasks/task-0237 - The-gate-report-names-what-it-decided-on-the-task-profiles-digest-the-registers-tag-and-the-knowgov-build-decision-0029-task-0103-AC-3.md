@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-08T23:46:00Z'
+updated_date: '2026-11-08T23:53:00Z'
 labels:
   - gate
   - contracts
@@ -19,7 +20,7 @@ ordinal: 232000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-decision-0029 (2026-11-08, taken under the maintainer's overnight delegation) brings task-0103 AC #3 into 0.9.0, doc-0014 C9 option B: the gate report carries what was relied on. Additive fields on harness/schemas/gate-report.schema.json (additionalProperties false, so a schema version move under the project's convention): task_profile, the sha256 of the canonical JSON of the subject's [tasks.<class>] table read; register, the register's tag and commit (KG_REGISTER's SOURCE.md when vendored, else the checkout's git HEAD read without network, else null with the reason); knowgov, task-0231's build identity (version, commit, describe). The scored record does not move: if the comparator cannot pass without re-freezing it, stop and report a DECIDE. task-0103 AC #1 and #2 stay at m-8.
+decision-0029 (proposed 2026-11-08, parked for the maintainer) would bring task-0103 AC #3 into 0.9.0, doc-0014 C9 option B: the gate report carries what was relied on. Additive fields on harness/schemas/gate-report.schema.json (additionalProperties false, so a schema version move under the project's convention): task_profile, the sha256 of the canonical JSON of the subject's [tasks.<class>] table read; register, the register's tag and commit (KG_REGISTER's SOURCE.md when vendored, else the checkout's git HEAD read without network, else null with the reason); knowgov, task-0231's build identity (version, commit, describe). The scored record does not move: if the comparator cannot pass without re-freezing it, stop and report a DECIDE. The build is prepared overnight and its PR waits for the maintainer's word on decision-0029; if it is declined, this task is archived. task-0103 AC #1 and #2 stay at m-8.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

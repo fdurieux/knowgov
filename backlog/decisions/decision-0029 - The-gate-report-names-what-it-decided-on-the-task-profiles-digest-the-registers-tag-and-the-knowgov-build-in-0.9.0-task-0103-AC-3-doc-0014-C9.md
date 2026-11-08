@@ -4,7 +4,7 @@ title: >-
   The gate report names what it decided on: the task profile's digest, the
   register's tag and the knowgov build, in 0.9.0 (task-0103 AC 3, doc-0014 C9)
 date: '2026-11-08T23:45:00Z'
-status: accepted
+status: proposed
 ---
 ## Context
 
@@ -16,7 +16,7 @@ After the 0.9.0 cut, adding a field is a contract change: 0.10.0, and a restarte
 
 Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0` (its D3; A04, A09).
 
-*Taken by the coordinating session under the maintainer's overnight delegation (2026-11-08: "continue working autonomously … before you make the call that I am needed, perform a swot, fit/gap, opportunity, and if you cannot call a clear decision then, park it for me to review").*
+*Drafted by the coordinating session during the maintainer's overnight delegation (2026-11-08) and **parked for the maintainer**: it adds to 0.9.0's scope an item doc-0028 G1-6 placed at the pilot, and every addition to 0.9.0 this cycle (G9-11 to G9-15) was the maintainer's word. The advice below is the drafter's recommendation; the maintainer's word decides.*
 
 ## Options
 
@@ -24,9 +24,9 @@ Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0`
 - **(b) All of task-0103 at the pilot.** AC #3 is then 0.10.0.
 - **(c) Not built.** A retained report stays without its identity.
 
-## Decision
+## Decision (proposed)
 
-**(a).** The gate report gains, additively:
+**(a)**, the drafter's recommendation. The gate report gains, additively:
 - **`task_profile`**: the sha256 of the canonical JSON of the subject's `[tasks.<class>]` table the gate read.
 - **`register`**: the register's tag and commit, read from `KG_REGISTER`'s `SOURCE.md` when it is vendored. For an instance's own checkout, they come from its git `HEAD` read without the network, or are `null` with the reason.
 - **`knowgov`**: the build identity task-0231 already reports (`version`, `commit`, `describe`).
@@ -64,9 +64,10 @@ The scored record does not move. If the comparator cannot pass without re-freezi
 
 ## Advice
 
-(a). It is small, additive, and the kind of change decision-0016 makes expensive after the cut. The cut already waits on the maintainer's Desktop test, so it costs no time. The call is clear, so it is taken under the delegation.
+(a). It is small, additive, and the kind of change decision-0016 makes expensive after the cut. The cut already waits on the maintainer's Desktop test, so it costs no time. It is parked because 0.9.0's scope is the maintainer's to widen.
 
 ## Consequences
 
-- **task-0237** builds it, depending on task-0103. task-0103 AC #3 is checked when it merges, and AC #1 and #2 stay at m-8.
-- **doc-0028**: "Left before the cut" lists it.
+- **If accepted**, task-0237 builds it, depending on task-0103. The build is prepared overnight, and its pull request waits for the maintainer's word. task-0103 AC #3 is checked when it merges, and AC #1 and #2 stay at m-8.
+- **If not**, task-0237 is archived, and AC #3 stays at the pilot, as a 0.10.0 when it is built.
+- **doc-0028**: "Left before the cut" lists it as the maintainer's.

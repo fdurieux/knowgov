@@ -4,7 +4,7 @@ title: >-
   The page's HTTP API at 1.0 is the four routes demo/README.md documents; every
   other route serves the page and may change (decision-0016 point 3)
 date: '2026-11-08T23:45:00Z'
-status: accepted
+status: proposed
 ---
 ## Context
 
@@ -27,7 +27,7 @@ At `main` `4c7fcb0`, `demo/README.md` documents four routes:
 
 Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0` (its D4; A02).
 
-*Taken by the coordinating session under the maintainer's overnight delegation (2026-11-08: "continue working autonomously … before you make the call that I am needed, perform a swot, fit/gap, opportunity, and if you cannot call a clear decision then, park it for me to review").*
+*Drafted by the coordinating session during the maintainer's overnight delegation (2026-11-08) and **parked for the maintainer**: it fixes the membership of a contract decision-0016 point 3 named, as decision-0027 did for settings on the maintainer's word. The advice below is the drafter's recommendation; the maintainer's word decides.*
 
 ## Options
 
@@ -35,9 +35,9 @@ Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0`
 - **(b) (a), plus a run's status and results** (`GET /api/run`, `GET /api/runs`, `GET /api/results/<scenario>`), documented as contracts.
 - **(c) Every route.**
 
-## Decision
+## Decision (proposed)
 
-**(a).** This is decision-0016 point 3 read literally, with decision-0027's accepted principle applied to routes: a route is a contract by being documented for an adopter, and the rest are the page's own.
+**(a)**, the drafter's recommendation. This is decision-0016 point 3 read literally, with decision-0027's accepted principle applied to routes: a route is a contract by being documented for an adopter, and the rest are the page's own.
 - `demo/README.md` gains one sentence naming the four as the page's HTTP API at 1.0, and saying that every other route serves the page and may change in any release.
 - A test holds the guide's list to the routes `server.py` serves, so none is invented and none is named that does not exist.
 - The CHANGELOG's `browser_connect` line moves from "Contract changes" to "Changes".
@@ -72,9 +72,9 @@ Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0`
 
 ## Advice
 
-(a). Freezing the page's view model would tie every later change to its panels to a minor release. The scripting routes a pilot needs already exist as contracts (the gate command, the MCP servers, `instance/ci/`). If the maintainer wants a script to follow a run over HTTP, `GET /api/run`'s status joins before the cut. That is the one extension worth weighing, and it is named here so it is not lost. The call is clear on the record's own principle, so it is taken under the delegation.
+(a). Freezing the page's view model would tie every later change to its panels to a minor release. The scripting routes a pilot needs already exist as contracts (the gate command, the MCP servers, `instance/ci/`). If the maintainer wants a script to follow a run over HTTP, `GET /api/run`'s status joins before the cut. That is the one extension worth weighing, and it is named here so it is not lost. It is parked because a contract's membership is the maintainer's to set, as it was for settings.
 
 ## Consequences
 
-- **task-0181's build** writes the sentence, the test and the changelog move. Its acceptance criteria gain one through the CLI.
-- **doc-0028**: A02's inventory question is closed by this record.
+- **If accepted**, task-0181's build writes the sentence, the test and the changelog move (its AC #6). The build is prepared overnight, and its pull request waits for the maintainer's word.
+- **doc-0028**: A02's inventory question closes when this record is accepted.

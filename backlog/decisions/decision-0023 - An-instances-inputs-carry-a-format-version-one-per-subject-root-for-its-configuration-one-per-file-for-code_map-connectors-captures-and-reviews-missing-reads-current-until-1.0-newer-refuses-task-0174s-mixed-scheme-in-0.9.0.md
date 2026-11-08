@@ -82,47 +82,52 @@ The mixed scheme, the drafter's recommendation, which the maintainer took:
 - **`instance/README.md`** documents the key in the adopter register.
 - **doc-0028** G9-2 reads met once task-0174 merges.
 
-## Amendment A1 (2026-11-08): a missing version reads as version 1, in every release
+## Amendment A1 (2026-11-08, proposed): what a missing version means after 0.9.0
 
-*Taken by the coordinating session under the maintainer's overnight delegation (2026-11-08: "continue working autonomously … before you make the call that I am needed, perform a swot, fit/gap, opportunity, and if you cannot call a clear decision then, park it for me to review"). Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0` (its D1). It changes what this record chooses, so it carries the four parts.*
+*Drafted by the coordinating session during the maintainer's overnight delegation (2026-11-08) and **parked for the maintainer**. It would change the choice of a decision the maintainer accepted in their own words, and it has two coherent options. Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0` (its D1). The advice is the drafter's recommendation; the maintainer's word decides. This record's status stays accepted for everything else.*
 
-**What changes.** The Decision's fourth bullet, "A missing version reads as the current one until 1.0", becomes **"A missing version reads as version 1, in every release."** At 0.9.0 every input's current version is 1, so no reader's behaviour changes now. When an input moves to version 2, a file that names no version is still read as 1, the version it was written under. It is never reinterpreted as 2. The rest of the Decision stands: a higher version is refused with exit 2, naming the file and both versions, and a lower one is read.
+**The problem.** The Decision's fourth bullet says "A missing version reads as the current one until 1.0", which schedules a change of meaning at 1.0.0. decision-0016 point 4 cuts 1.0.0 only once the lighthouse has run on the 0.9 contracts with no contract change. Point 2 makes any contract change after 0.9.0 a 0.10.0 that restarts the freeze. As written, 1.0.0 would either break point 4 or leave the rule undefined. The rule therefore has to be settled before the 0.9.0 cut.
 
-**Why.** "Until 1.0" schedules a change of meaning at 1.0.0. decision-0016 point 4 cuts 1.0.0 only once the lighthouse has run on the 0.9 contracts with no contract change, and point 2 makes any contract change after 0.9.0 a 0.10.0 that restarts the freeze. As written, 1.0.0 would either break point 4 or leave the rule undefined.
+### Options
 
-### Opportunity canvas
+- **(R1) A missing version reads as version 1, in every release.** Nothing changes at 0.9.0, since every input's current version is 1. After a format moves to 2, an unstamped file is still read as 1, the version it was written under. A variant has `tools/check_instance.py` note an unstamped file, but never fail on one.
+- **(R0) A missing version is refused from 0.9.0.** It exits 2 and names the key to add. Every file then states its version, for good. Since task-0174, the public subjects and every writer already stamp their output. No lighthouse instance exists yet.
+- **(R2) As written: missing reads current until 1.0, then refused.** This breaks decision-0016 point 4.
+
+### Opportunity canvas (of R1)
 
 | Element | Content |
 |---|---|
 | Problem | The read rule for an unstamped file expires at the release that must not change a contract |
-| Users | Every instance whose files predate task-0174, the lighthouse's first; the readers in `harness/formats.py` |
-| Proposal | A missing version is version 1, permanently |
-| Unique value | An old file's meaning is fixed for good. No reader reinterprets it when a format moves |
-| Cost | One constant held apart from `CURRENT` in `harness/formats.py`; the "Format versions" text and the contracts row in `instance/README.md`; the CHANGELOG line (Unreleased, task-0174's); one test that moves `CURRENT` to 2 |
-| Risk | None at 0.9; at a version 2, an unstamped file written for 2 would be misread, which every writer stamping its output prevents (requirement 5 above) |
+| Users | An organisation writing `subject.toml`, `code_map.toml` and `connectors.toml` by hand; the readers in `harness/formats.py` |
+| Proposal | R1 |
+| Unique value | An old file's meaning is fixed for good, and a hand-written file needs no key to load |
+| Cost | One constant held apart from `CURRENT`; the "Format versions" text and contracts row in `instance/README.md`; the CHANGELOG's Unreleased task-0174 line; one test that moves `CURRENT` to 2 (task-0236) |
+| Risk | When version 2 exists, a file written for 2 that forgets its key is read as 1. Every writer stamps, so this is a hand-written file only |
 
 ### Fit/gap
 
-| Must satisfy | Reads as 1 | Refused from 0.9.0 | Refused from 1.0.0 |
+| Must satisfy | R1: reads as 1 | R0: refused from 0.9.0 | R2: as written |
 |---|---|---|---|
-| decision-0016 point 4: no contract change from 0.9.0 to 1.0.0 | Fit | Fit | **Gap**: a change at 1.0.0 |
-| No adopter file breaks at the freeze | Fit | **Gap**: every unstamped file refused at 0.9.0 | Fit until 1.0.0 |
-| A record keeps the version it was written under | Fit: an unstamped record is fixed at 1 | Fit | Fit |
-| task-0174 §2 requirement 1 (missing reads current until 1.0) | Fit: current is 1 through 0.9.x | Gap | Fit |
+| decision-0016 point 4: no contract change from 0.9.0 to 1.0.0 | Fit | Fit | **Gap** |
+| A record keeps the version it was written under | Fit: an unstamped record is fixed at 1 | Fit: every record names its version | Fit |
+| A hand-written file loads without ceremony | Fit | **Gap**: a missing key exits 2, with a message naming it | Fit until 1.0 |
+| The files that exist today | Fit | Fit: the public subjects are stamped, and no lighthouse instance exists yet | Fit |
+| task-0174 §2 requirement 1 (missing reads current until 1.0) | Fit: current is 1 through 0.9.x | **Gap** | Fit |
 
-### SWOT (of "reads as 1")
+### SWOT
 
 | | Helpful | Harmful |
 |---|---|---|
-| **Internal** | **S:** the meaning of old input is fixed forever; no behaviour change now; one constant | **W:** unstamped files persist, and a reader cannot tell "written before versions" from "written at 1" |
-| **External** | **O:** a format 2 needs no migration for unstamped files | **T:** a future writer that forgets to stamp, which the writers' tests catch |
+| **R1** | **S:** no behaviour change; an old file's meaning fixed forever. **O:** a format 2 needs no migration for unstamped files | **W:** a reader cannot tell "written before versions" from "written at 1". **T:** an unstamped hand-written file meant for 2 |
+| **R0** | **S:** no ambiguity, ever; every file self-describes. **O:** the freeze is the cheapest moment, with nothing in the field | **W:** one more key an adopter must remember when writing by hand. **T:** an adopter copying an old example gets exit 2, though the message names the fix |
 
 ### Advice
 
-"Reads as 1". It is the only option that keeps both accepted decisions and breaks no adopter's file, and it costs one constant and a test. That makes the call clear, so it is taken under the delegation. The maintainer can reverse it before publishing the 0.9.0 Release.
+The drafter recommends **R1**, with the `check_instance.py` note. The leniency costs nothing until a version 2 exists, and the inputs adopters write most often are hand-written. R0 is the coherent alternative if the maintainer prefers strictness at the freeze, which is the cheapest moment for it. R2 is not open, because of decision-0016 point 4.
 
 ### Consequences
 
-- **task-0236** builds it. `harness/formats.py` reads a missing version as 1, and a test moves `CURRENT` to 2 and still reads an unstamped file as 1.
-- `instance/README.md` ("Format versions" and the contracts row) and the CHANGELOG's task-0174 line drop "until 1.0".
-- doc-0028 G9-2 stays met.
+- **If R1**, task-0236 builds it. The build is prepared overnight, and its pull request waits for the maintainer's word.
+- **If R0**, task-0236's acceptance criteria are restated through the CLI: refuse a missing version, keep the message naming the key, and stamp the remaining fixtures.
+- **Either way**, `instance/README.md`, `harness/formats.py`'s docstring and the CHANGELOG's task-0174 line drop "until 1.0", and doc-0028 G9-2 stays met.
