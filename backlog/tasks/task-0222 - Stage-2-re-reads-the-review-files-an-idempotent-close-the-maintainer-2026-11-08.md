@@ -3,9 +3,11 @@ id: TASK-0222
 title: >-
   Stage 2 re-reads the review files: an idempotent close (the maintainer,
   2026-11-08)
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-11-08T11:18:00Z'
+updated_date: '2026-11-08T12:07:00Z'
 labels:
   - stage2
   - reviews
@@ -28,8 +30,26 @@ The maintainer, 2026-11-08 (Build it, as suggested): task-0197 (F3) made stage 2
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Closing an already-closed gap whose declaration digest matches is a no-op; one whose text changed is not applied and is an act finding (task-0199)
-- [ ] #2 Stage 2 re-reads every review file, and a review written for the later version applies in the same run, on both stores
-- [ ] #3 tools/check_stage2_reload.py gains the case and fails it on the old code
-- [ ] #4 The scored record (S1 to S7), the deterministic run and the comparator stay equal
+- [x] #1 Closing an already-closed gap whose declaration digest matches is a no-op; one whose text changed is not applied and is an act finding (task-0199)
+- [x] #2 Stage 2 re-reads every review file, and a review written for the later version applies in the same run, on both stores
+- [x] #3 tools/check_stage2_reload.py gains the case and fails it on the old code
+- [x] #4 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+review.check: a close of a gap already closed on the same digest is a no-op (gap_brief, a new port read); one closed on another declaration is set aside, changed. load_reviews(again=True) at stage 2: clear_act_findings (a new port write), then every review file read again, closes included, the review's activity kept when stage 1 recorded it. check_stage2_reload: R1 (a ruling written for v2 applies at stage 2, no act left from stage 1), R2 (an idempotent close through S2's own stage 2), R3 (a close of a restated declaration, changed at both stages).
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+R3 is the reachable case of a changed declaration: a gap's text comes from the subject's declared_gap_text, never the document's wording, so rewording REQ-06 at stage 2 leaves the closed gap's text as it was; R3 restates the template after the close and reads the close changed at both stages. R2 and R3 pass on the old code (it skipped closes at stage 2); they hold the new full re-read to the idempotent close. R1 fails on the old code. Also: stage 2 no longer warns about an attestation for a change with no reverify_keys.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Stage 2 reads every review file again (task-0222). change.apply_change calls load_reviews(again=True): the acts stage 1 recorded are cleared (clear_act_findings, a new port write), then every ruling and close binds again to what the change left current. A review written for the later version applies in the same --stage 2 run, on both stores; a close of a gap stage 1 closed on the same declaration is a no-op (review.check reads it through gap_brief, a new port read); one whose declaration changed is not applied and is an act finding. tools/check_stage2_reload.py gains R1 to R3, R1 failing on the old code (the stage-1 act left reported). The record S1-S7 and J-F, the deterministic run and the comparator are unchanged; the suites, the round trips on both stores and the walkthroughs green.
+<!-- SECTION:FINAL_SUMMARY:END -->
