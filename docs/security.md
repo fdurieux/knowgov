@@ -111,7 +111,7 @@ publishes it whole, and a read answers from one published generation or refuses.
   publication in flight under a live lease past `KG_NEO4J_READ_WAIT`, answers a refusal, never a mixed result:
   - `gate_cli --no-load` exits 2, "cannot run";
   - the MCP server answers an error result naming the republished store;
-  - the page's `/api/store` and `/api/gaps` answer 503 with `Retry-After: 1` and `"busy": true`;
+  - the page's `/api/store` and `/api/gaps/<scenario>` answer 503 with `Retry-After: 1` and `"busy": true`;
   - `/api/scenarios`, which the page boots from, keeps 200 and carries the same `busy` and `error` in
     its `store`.
 - **Settings.** Each is a number within bounds, and anything else is refused with the variable's name:

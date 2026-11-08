@@ -89,7 +89,7 @@ record: a deterministic or arms run wipes the whole store, so the
 projection vanishes with it and the chip says *register not projected*
 until you load it again. Eight saved Cypher queries read it: which tag
 is projected, the impact walk from the register's default start as rows
-and as paths (the walk `tools/impact.py` makes, which the impact panel
+and as paths (the walk `register/tools/impact.py` makes, which the impact panel
 also carries for the id you typed, with a copy button), coverage rule C1
 with the exception joined, and the links that cite a kit document joined
 to the harness's own `Artefact` by path, the one query that crosses the
@@ -98,11 +98,13 @@ the walk does not: what rests on a capability, what touches an
 information node, and from an application or module to the documents its
 approved links cite, their assertions and the code derived from them
 (the adopter's guide, [`docs/guide.md`](../docs/guide.md), section 8,
-explains each). The impact panel offers the register's two walks,
+explains each). The impact panel offers two of the register's three walks,
 *dependants* (what rests on a node) and *realisers* (what implements a
 capability), each with or without *children*, the walk also started from
-every approved descendant by parent (`tools/impact.py --walk`,
-`--children`); three saved queries carry the other three: the walk with
+every approved descendant by parent (`register/tools/impact.py --walk`,
+`--children`). The third, *thread* (what a journey step uses, down to the
+data), runs from the command line only
+(`python demo/register/tools/impact.py --from JRN-0002 --walk thread`); three saved queries carry the other three: the walk with
 children, the realiser walk, and the realiser walk with children. Every saved query
 carries a marker, *runs now* or *needs S6 loaded deterministically*,
 *needs S4 loaded*, *needs the register projected*: the store holds one
@@ -417,7 +419,7 @@ the baseline arm (B) the one that received the documents only.
 
 1. You click a scenario card.
 2. The web server opens the committed result files of that scenario
-   under the vendored record, `subjects/cargo_quote/kg_experiment/results/`.
+   under the vendored record, `subjects/cargo_quote/vendor/kg_experiment/results/`.
 3. It renders them as the report view: the plain-English block, the
    pipeline picture, the systemic model, the bundle, the generated code
    and the oracle's grades.

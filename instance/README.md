@@ -1445,3 +1445,40 @@ What it does not see: a shell command that writes the same file (`harness/captur
 `review` are such commands, run by the person whose act they record), and anything written outside
 the assistant. The hook guards the assistant's file tools; the pull request, reviewed by someone
 other than its author, guards the rest.
+
+## What stays stable from 1.0: the contracts
+
+A **contract** is a part of knowgov your instance is allowed to depend on: a flag your pipeline
+passes, a file name it writes, a report field it reads. knowgov follows version numbers that say
+when one changes. Release 0.9.0 freezes the contracts, and 1.0.0 promises to keep them. Which
+parts count is decided in the project's record, decision-0016, point 3, quoted here as accepted on
+2026-11-06:
+
+> **The contracts at 1.0** are decision-0003 §2's list (the gate command's exit codes and flags, the JSON shapes under `harness/schemas/`, the instance layout, the store port, the subject manifest format), and also:
+> - the MCP reader's and the runs server's tools, prompts, and their inputs and outputs;
+> - the `KG_*` settings that `instance/README.md` or `docs/security.md` documents (an undocumented setting is not a contract);
+> - the page's HTTP API, as `demo/README.md` documents it;
+> - the inputs and outputs of `instance/ci/`: the action, the GitLab include, the shell wrappers, the hooks' settings snippets;
+> - the image's name and tag scheme (decision-0003 §3);
+> - the format versions of the instance's inputs, and the ieam-register format versions an instance's register may be in.
+
+In plain English, and where each is described:
+
+| You can rely on | Described in |
+|---|---|
+| the gate command's flags and its exit codes: 0 no finding at or above `--fail-on`, 1 a finding at or above it, 2 the gate could not run | "Running the gates in your pipeline", above |
+| the shape of every JSON report, each pinned by a schema | `harness/schemas/` |
+| the folders and files of your instance | "The layout", at the top |
+| what a store must offer the platform (the store port) | `harness/store.py` |
+| the fields of `subject.toml` | the [subjects guide](../subjects/README.md) |
+| the tools and prompts of both assistant servers (the reader and the runs server), what they take and what they return | "Letting an AI assistant ask the gate", above |
+| the `KG_*` settings this file or [`docs/security.md`](../docs/security.md) names | here and there |
+| the page's `/api/*` routes | the [demo's guide](../demo/README.md) |
+| the CI action, the GitLab include, the shell wrappers and the hooks' settings files | "Running the gates in your pipeline" and "A fail-closed hook for Claude Code", above |
+| the image's name and tags: `ghcr.io/fdurieux/knowgov:<tag>` for a release, `:latest` for the last main | the [README](../README.md) |
+| the format version each of your input files declares, and which register format versions your register may be in | not yet: the format versions are planned for 0.9.0 |
+
+Two things follow from the quoted text. A `KG_*` setting that neither this file nor
+`docs/security.md` names is not a contract, so do not build on it. A setting the demo's guide
+alone describes is a convenience of the demo, not a promise. And the page's HTTP API is the
+contract only as far as the demo's guide documents it.
