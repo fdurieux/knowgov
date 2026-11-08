@@ -10,7 +10,8 @@ documents say. It reads and never writes; it opens no store.
   `[tasks.<class>]` and `[record]`, is one the loader reads; an unknown one is named with the
   nearest known name (`[task.codegen]`: did you mean `[tasks]`?). An artefact has `key`, `family`
   and `format`, keys are unique, and an artefact without a `path` is one a plant adds. A task has
-  `keys` (a non-empty list), `block_levels` (gate levels) and `max_unverified_share` (0 to 1).
+  `keys` (a non-empty list), `block_levels` (gate levels) and `max_unverified_share` (0 to 1), and
+  `require_approved`, when given, true or false (task-0215).
   A key, in a task, in `[three_valued]` or in a map row, is `<entity>|<predicate>`.
 - **A scenario** (F3). A subject that declares a task declares at least one scenario: the gate
   runs on one and exits 2 on a subject that has none. `subjects/minimal/` declares the pristine `S0`.
@@ -62,7 +63,7 @@ TABLES = {"subject", "artefact", "reference", "oracle", "provenance", "verificat
 SUBJECT_FIELDS = {"id", "name", "description", "record_model", "record_effort", "listed"}
 ARTEFACT_FIELDS = {"key", "short", "family", "format", "label", "format_label", "path", "include", "mapper", "store"}
 ARTEFACT_REQUIRED = ("key", "family", "format")
-TASK_FIELDS = {"keys", "block_levels", "max_unverified_share", "verbatim", "rationale"}
+TASK_FIELDS = {"keys", "block_levels", "max_unverified_share", "verbatim", "rationale", "require_approved"}
 TASK_REQUIRED = ("keys", "block_levels", "max_unverified_share")
 RECORD_FIELDS = {"dir", "as_of"}
 LEVELS = ("absent", "declared_gap", "disputed", "invalidated", "proposed", "validated", "verified", "approved")   # harness/gate.py ORDER
@@ -213,6 +214,9 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
                 near = _near(str(lv), LEVELS)
                 rep.error("block-level", where, f"block level {lv!r} is not a gate level",
                           f"use {near!r}" if near else f"use one of {', '.join(LEVELS)}")
+        if "require_approved" in t and not isinstance(t["require_approved"], bool):   # task-0215: the intended bar
+            rep.error("require-approved", where, f"require_approved {t['require_approved']!r} is not true or false",
+                      "write require_approved = true for a class whose keys a person must have approved, or leave it out")
         share = t.get("max_unverified_share")
         if "max_unverified_share" in t and (isinstance(share, bool) or not isinstance(share, (int, float)) or not 0 <= share <= 1):
             rep.error("share", where, f"max_unverified_share {share!r} is not a number from 0 to 1", "write a share such as 0.25")

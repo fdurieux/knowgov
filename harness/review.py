@@ -323,6 +323,14 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
         gid = str(c.get("gap", ""))
         where = f"closes {i} ({gid})"
         g = st.declared_gap(gid)
+        if g is None and not strict:   # task-0222: a close a load already applied (stage 2 re-reads every file)
+            b = st.gap_brief(gid)
+            if b is not None and b["kind"] == "closed" and (c.get("sha256") is None or str(c["sha256"]) == _sha(b["text"] or "")):
+                closes.append({"gap": gid, "note": str(c.get("note", "")), "sha256": _sha(b["text"] or ""), "keys": b["keys"], "n": i,
+                               "unbound": c.get("sha256") is None, "already": True})   # the same declaration, closed: a no-op
+                continue
+            if b is not None and b["kind"] == "closed":
+                g = b   # closed, but on another declaration than the one this close read: changed
         held = _sha(g["text"] or "") if g is not None else None
         if g is None or (c.get("sha256") is not None and str(c["sha256"]) != held):
             why = "gone" if g is None else "changed"
@@ -335,7 +343,7 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
                                 "to": [] if g is None else [{"id": gid, "value": g["text"], "sha256": held}]})
             continue
         closes.append({"gap": gid, "note": str(c.get("note", "")), "sha256": held, "keys": sorted(g["keys"]), "n": i,
-                       "unbound": c.get("sha256") is None and not strict})
+                       "unbound": c.get("sha256") is None and not strict, "already": False})
         if h is None:
             continue
         if "closes" not in roles:
