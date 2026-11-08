@@ -3,9 +3,11 @@ id: TASK-0219
 title: >-
   H7's two mutants as the re-run step's first probe on jef_data_load
   (decision-0018 point 8)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-08T11:18:00Z'
+updated_date: '2026-11-08T14:51:00Z'
 labels:
   - process
   - reverse-engineering
@@ -38,3 +40,16 @@ decision-0018 point 8 (doc-0032 §5). H7 (pumllint openwiki-2026-10-27/PREREGIST
 - [ ] #2 The run records, per mutant, what R-STALE, trace drift and the suite report, against the expected table
 - [ ] #3 Nothing of J-F's private code is read, copied or committed
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Pre-register with task-0218's template: subjects/jef_data_load/probes/h7/PREREGISTRATION.md, committed alone (370b76d) before any mutant or instrument runs. It names the mutants, the code they apply to (the public codex rebuild, temporary copies), the three instruments and the expected table.
+2. tools/check_h7_probe.py: m1 and m2 as exact-text edits of the rebuild's sync.py, refused if the text is not there once, plus an unmutated control. On each of the three:
+   - R-STALE: C loaded on rdflib, then apply_change over each of the five documents, counting invalidated statements; the gate's verdict on C recorded beside it.
+   - trace drift: a temporary instance whose code_map maps jef/** to APP-0005; C published to a file store; sync.py registered from the control, then check --changed on each variant.
+   - the suite: oracle/jef_suite.py under the J-F pins on CPython 3.12.
+   Writes results.json; exits 1 on any cell against expectation.
+3. Run it under the pins; write RESULTS.md beside the pre-registration, with each cell against the table, the suite's failing cases by feature and the gate's verdicts.
+4. Tests and CI as the existing check tools need (test_clock's pinned rule; rdflib split if a CI step is added). J-F's private code is never read.
+<!-- SECTION:PLAN:END -->
