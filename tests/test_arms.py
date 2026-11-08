@@ -294,3 +294,131 @@ def test_usage_fields_keep_the_total_and_the_hidden_remainder_and_flag_uncounted
     n = arms.usage_fields(NS(prompt_tokens=10, completion_tokens=5, prompt_tokens_details=None), "localhost:4000")
     assert n["total_tokens"] is None and n["hidden_tokens"] == 0 and arms.tokens_of(n) == 15
     assert arms.tokens_of({"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 3}) == 15, "a total below the sum never lowers the count"
+
+
+def _stub_openai(create):
+    """A stand-in of the openai module for arms.call (imported lazily, so a module in sys.modules stands in):
+    its client's chat.completions.create is the test's own."""
+    from types import SimpleNamespace as NS
+
+    class _Client:
+        def __init__(self, **kw):
+            self.chat = NS(completions=NS(create=create))
+    return NS(OpenAI=_Client)
+
+
+def _with_stub(create, fn):
+    """Run fn() with the stub client in place and a fresh call count, the process's own restored after."""
+    saved_mod, saved_state = sys.modules.get("openai"), dict(arms._state)
+    sys.modules["openai"] = _stub_openai(create)
+    arms._state.clear(); arms._state.update({"calls": 0, "tokens": 0, "usage": []})
+    try:
+        return fn()
+    finally:
+        arms._state.clear(); arms._state.update(saved_state)
+        if saved_mod is not None:
+            sys.modules["openai"] = saved_mod
+        else:
+            sys.modules.pop("openai", None)
+
+
+def _stream(contents, prompt_tokens=10, completion_tokens=5):
+    from types import SimpleNamespace as NS
+    return [NS(usage=None, model="stub-model", choices=[NS(delta=NS(content=c, tool_calls=None))]) for c in contents] + \
+           [NS(usage=NS(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, prompt_tokens_details=None), model="stub-model", choices=[])]
+
+
+def test_a_prompt_the_endpoint_read_short_is_marked_never_parsed():
+    """Task-0185 (doc-0023 defect 1): Ollama at its defaults cut an 11,877-token prompt to 2,050 tokens and
+    still answered. A call whose reported prompt tokens are too few for the characters sent is marked on
+    its usage record and raised as PromptCut, its reply never read; a whole prompt passes as before."""
+    assert arms.prompt_cut(56_145, {"prompt_tokens": 11_877}) is None, "4.7 characters per token: whole"
+    m = arms.prompt_cut(56_145, {"prompt_tokens": 2_050})
+    assert m and m["prompt_tokens"] == 2_050 and m["chars_per_token"] == 27.4 and m["threshold"] == arms.CUT_CHARS_PER_TOKEN, m
+    assert m["why"].startswith("prompt cut by the endpoint") and "context length" in m["why"], m["why"]
+    assert arms.prompt_cut(56_145, {"prompt_tokens": 0}) is None, "no prompt tokens reported: nothing to compare"
+    assert arms.prompt_cut(3_999, {"prompt_tokens": 10}) is None, "under CUT_MIN_CHARS the ratio is the tokenizer's overhead"
+    assert arms.prompt_cut(56_145, {"prompt_tokens": 300, "cached_tokens": 11_500}) is None, "a cached prefix counted apart is not a cut"
+    user = "A quote is valid for 30 minutes. " + "Clause: the carrier records the reference. " * 1300
+
+    def cut():
+        try:
+            arms.call("Reply with JSON.", user, tag="t/cut")
+        except arms.PromptCut as e:
+            return e, arms.usage()
+        raise AssertionError("a cut prompt was read as an answer")
+    e, u = _with_stub(lambda **kw: iter(_stream(['{"valid": true}'], prompt_tokens=2_050)), cut)
+    assert e.detail["prompt_tokens"] == 2_050 and e.usage["prompt_cut"] == e.detail, e.detail
+    assert u["per_call"][0]["prompt_cut"]["chars"] == len("Reply with JSON.") + len(user) and u["tokens"] == 2_055, u
+    whole = _with_stub(lambda **kw: iter(_stream(['{"decision": "generate"}'], prompt_tokens=11_877)),
+                       lambda: arms.call("Reply with JSON.", user, tag="t/whole"))
+    assert whole["parsed"] == {"decision": "generate"} and "prompt_cut" not in whole["usage"], whole["usage"]
+
+
+def test_list_shaped_content_gives_its_text_and_strings_are_unchanged():
+    """Task-0186 (doc-0023 defect 2): Mistral at reasoning_effort high sends content as a list, a thinking
+    part, then text; streamed, a list while it thinks, a list closing the thinking with the first text, then
+    strings. The pinned SDK keeps the list, which "".join refused with TypeError; text_of keeps the text
+    parts only, dicts or objects, and a string as it is."""
+    from types import SimpleNamespace as NS
+    think = {"type": "thinking", "thinking": [{"type": "text", "text": "the user wants JSON"}]}
+    assert arms.text_of([think, {"type": "text", "text": '{"a": 1}'}]) == '{"a": 1}', "a non-streamed list content"
+    assert arms.text_of([NS(type="thinking", thinking=[]), NS(type="text", text="ok")]) == "ok", "SDK objects"
+    assert arms.text_of("plain") == "plain" and arms.text_of(None) == "" and arms.text_of(["a", "b"]) == "ab"
+    stream = [[think], [{"type": "thinking", "thinking": [], "closed": True}, {"type": "text", "text": '{"decision": '}], '"generate"}']
+    r = _with_stub(lambda **kw: iter(_stream(stream)), lambda: arms.call("s", "u", tag="t/mistral"))
+    assert r["raw"] == '{"decision": "generate"}' and r["parsed"] == {"decision": "generate"} and r["parse_error"] is None, r
+    r = _with_stub(lambda **kw: iter(_stream(['{"decision": ', '"abstain"}'])), lambda: arms.call("s", "u", tag="t/strings"))
+    assert r["raw"] == '{"decision": "abstain"}', "string streams join as before"
+
+
+def test_only_a_429_a_5xx_or_a_dropped_connection_is_retried():
+    """Task-0187: arms.call retried every exception four times (5, 10, 15 s): a 400 for an effort the model
+    refuses cost 30 s before it was reported. A 400 or any 4xx but 429 is raised at once; a 429, a 5xx, a
+    connection or timeout failure, a stream without its usage and an error event inside a stream are
+    retried with the same waits. The waits are recorded here, not slept."""
+    class APIStatusError(Exception):
+        def __init__(self, status):
+            super().__init__(f"Error code: {status}")
+            self.status_code = status
+
+    class APIConnectionError(Exception):
+        pass
+
+    class APIError(Exception):
+        pass
+    for e, want in ((APIStatusError(400), False), (APIStatusError(401), False), (APIStatusError(404), False), (APIStatusError(422), False),
+                    (APIStatusError(429), True), (APIStatusError(500), True), (APIStatusError(502), True), (APIStatusError(529), True),
+                    (APIConnectionError("reset"), True), (TimeoutError(), True), (ConnectionResetError(), True),
+                    (arms.IncompleteStream("no usage"), True), (APIError("overloaded inside the stream"), True),
+                    (ValueError("bad"), False), (TypeError("x"), False)):
+        assert arms.transient(e) is want, (type(e).__name__, getattr(e, "status_code", None))
+    slept, real_sleep = [], arms.time.sleep
+    arms.time.sleep = slept.append
+    try:
+        def failing(errors, then):
+            seq = iter(errors)
+
+            def create(**kw):
+                err = next(seq, None)
+                if err is not None:
+                    raise err
+                return iter(_stream([then]))
+            return create
+        try:
+            _with_stub(failing([APIStatusError(400)], "{}"), lambda: arms.call("s", "u", tag="t/400"))
+            raise AssertionError("a 400 was swallowed")
+        except APIStatusError as e:
+            assert e.status_code == 400 and slept == [], ("a 400 is reported at once, no wait", slept)
+        r = _with_stub(failing([APIStatusError(429), APIStatusError(502), APIConnectionError("reset")], '{"ok": 1}'),
+                       lambda: (arms.call("s", "u", tag="t/429"), arms.usage()))
+        assert r[0]["parsed"] == {"ok": 1} and r[0]["usage"]["attempts"] == 4 and slept == [5, 10, 15], (r[0]["usage"], slept)
+        assert [x["attempt"] for x in r[1]["retries"]] == [1, 2, 3], r[1]["retries"]
+        slept.clear()
+        try:
+            _with_stub(failing([APIStatusError(503)] * 4, "{}"), lambda: arms.call("s", "u", tag="t/503"))
+            raise AssertionError("four 503s were swallowed")
+        except APIStatusError as e:
+            assert e.status_code == 503 and slept == [5, 10, 15], slept
+    finally:
+        arms.time.sleep = real_sleep

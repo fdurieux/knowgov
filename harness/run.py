@@ -165,6 +165,9 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
                    "M4_targets": {}, "outage_status": None, "M5_refs": {"total": 0, "resolved": 0, "share": None},
                    "M6_noncompliance": False, "questions": None, "assumptions": None, "claims": None,
                    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "attempts": 4}}
+            if isinstance(e, arms.PromptCut):   # task-0185: the endpoint read the prompt short; marked, never scored
+                rec["prompt_cut"] = e.detail
+                rec["usage"] = e.usage or rec["usage"]
             dump(done, rec)
             return rec
         p = r["parsed"] if isinstance(r["parsed"], dict) else None
@@ -192,7 +195,8 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
         box = out_dir / f"run{i}_{arm}_sandbox"
         res = agent.run(system, user, sandbox=box, read_text=read_text, feedback=feedback, tag=f"{sc}/{arm}/{i}", readers=readers)
         p = res["parsed"]
-        suite = measures.run_suite_dir(box, sc) if res["files"] else {"ran": False, "passed": 0, "total": measures.SUITE_TOTAL, "per_scenario": {}}
+        cut = res.get("prompt_cut")   # task-0185: a turn the endpoint read short; the run is marked and never graded
+        suite = measures.run_suite_dir(box, sc) if res["files"] and not cut else {"ran": False, "passed": 0, "total": measures.SUITE_TOTAL, "per_scenario": {}}
         code_text = agent.Sandbox(box).text() if res["files"] else None
         tt = res["totals"]
         rec = {"scenario": sc, "arm": arm, "run": i, "parse_error": None,
@@ -218,6 +222,8 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
                                             for k in gate.get("below_verified", [])}}}
         if res["stopped_by"] and res["stopped_by"].startswith("api error"):
             rec["api_error"] = res["stopped_by"]
+        if cut:
+            rec.update(unscored(), api_error=res["stopped_by"], prompt_cut=cut)
         dump(out_dir / f"run{i}_{arm}.json", rec)
         dump(out_dir / f"run{i}_{arm}.trace.json", res["trace"])
         if code_text:
@@ -226,6 +232,14 @@ def arm_runs(sc: str, arm: str, n: int, kit: dict, gate: dict, task_name: str, o
 
     with ThreadPoolExecutor(max_workers=int(__import__("os").environ.get("KG_WORKERS", "5"))) as ex:
         return list(ex.map(one, range(1, n + 1)))
+
+
+def unscored() -> dict:
+    """The measures of a cell that holds no answer to score (task-0185): no decision, no code, no grade."""
+    return {"M1_decision": None, "M2_code": False, "M3_flagged": {"flagged": False, "hits": []},
+            "M4_suite": {"ran": False, "passed": 0, "total": measures.SUITE_TOTAL, "per_scenario": {}}, "M4_targets": {},
+            "outage_status": None, "M5_refs": {"total": 0, "resolved": 0, "share": None}, "M6_noncompliance": False,
+            "M7_adopted": None, "questions": None, "assumptions": None, "claims": None}
 
 
 def main() -> None:
