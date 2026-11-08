@@ -12,6 +12,13 @@ names that section with the version.
 
 ### Contract changes
 
+- **Under `--baseline`, the gate's held findings are no longer annotated as errors** (task-0207,
+  doc-0030 R8). With a baseline the gate exits on a regression only, yet `harness/annotate.py` marked
+  every finding at the threshold an error, though the gate exited 0. Each finding of a report with a
+  baseline now carries `held`: false for the regression's own findings (a key whose level fell, a derived
+  output newly suspect, and with a worse verdict the task finding and every blocker), true for the rest.
+  annotate shows a held finding as a warning at most, titled "held by the baseline". Additive and optional in
+  `gate-report.schema.json`: not required, absent without `--baseline`.
 - **Conflict gap ids name their two statements** (task-0223, decision-0020, doc-0030 S2). A conflict
   between two documents is now `gap:conflict:<key>:<a>~<b>`, by its two assertion ids sorted, the form a
   conflict with a person's statement already had; the positional `gap:conflict:<key>:<n>` is gone. One
@@ -286,13 +293,6 @@ names that section with the version.
   ends with `stopped_by: "ceiling: <n> seconds"`, a `ceiling` turn in its trace, and no `api_error`, so
   `--resume` keeps it. A stream that falls silent for the idle limit before the deadline is still an API
   error.
-- **Under `--baseline`, the gate's held findings are no longer annotated as errors** (task-0207,
-  doc-0030 R8). With a baseline the gate exits on a regression only, yet `harness/annotate.py` marked
-  every finding at the threshold an error, though the gate exited 0. Each finding of a report with a
-  baseline now carries `held`: false for the regression's own findings (a key whose level fell, a derived
-  output newly suspect, and with a worse verdict the task finding and every blocker), true for the rest.
-  annotate shows a held finding as a warning at most, titled "held by the baseline". Additive in
-  `gate-report.schema.json`, not required, absent without a baseline.
 - **Route (c) records the model that answered** (task-0207, doc-0030 R12). A transcript's proposals file
   named the configured model (`KG_ARMS_MODEL`); it now names the model the endpoint answered with, as the
   stream named it, which a gateway or an alias can make differ.
