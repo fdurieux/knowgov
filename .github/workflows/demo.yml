@@ -270,7 +270,7 @@ jobs:
           echo "held before: $before"; echo "held after:  $after"; test "$before" = "$after"
           python3 -c 'import json; r=json.load(open("gate.json")); assert r["store"]=="neo4j" and r["published"] and r["verdict"]=="PROCEED" and r["exit_code"]==0, r; p=json.load(open("gate-s2.json")); assert p["store"]=="rdflib" and not p["published"] and p["verdict"]=="BLOCKED", p; print("gate on neo4j:", r["verdict"], "published; S2 on its own store:", p["verdict"])'
 
-      - name: "The contained worker (task-0141.05, decision-0012): EXEC-01 to EXEC-13 on the real worker container (task-0203: a 70-deep setsid chain killed whole, no forged answer, a timed-out job a failed cell, write_confined at Landlock ABI 3 or later), and a loosened worker, network on or a key in its environment, refuses to serve"
+      - name: "The contained worker (task-0141.05, decision-0012): EXEC-01 to EXEC-14 on the real worker container (task-0203: a 70-deep setsid chain killed whole, no forged answer, a timed-out job a failed cell, write_confined at Landlock ABI 3 or later; task-0233: a fast fork chain ends with its job), and a loosened worker, network on or a key in its environment, refuses to serve"
         run: |
           docker compose exec -T app python tools/check_worker.py
           set +e

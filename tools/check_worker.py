@@ -27,6 +27,8 @@ reads what came back as untrusted data:
   EXEC-13  (R2) a job whose time runs out comes back as the kind's failed cell (nothing passed, the stage
            and the error kept), not an exception that would end the run
   attest   (R10) write_confined is attested with the kernel's Landlock ABI, and only from ABI 3
+  EXEC-14  (task-0233) a hostile job's fast fork chain, each process living a millisecond in a session of its
+           own, ends with its job: the next job finds the worker's pid namespace quiet and no process of it
 A loosened worker (network on, a key in its environment) refusing to serve is run by the workflow,
 which can start containers: ``python harness/worker.py --attest-only`` exits 3 there.
 Exit 0 when every check holds, 1 otherwise; nothing here calls a model.
@@ -249,8 +251,33 @@ except OSError as e:
     check(isinstance(a.get("landlock_abi"), int) and a["landlock_abi"] >= worker.LANDLOCK_MIN_ABI and a["checks"]["write_confined"] is True,
           f"R10 write_confined is attested at Landlock ABI {a.get('landlock_abi')}, {worker.LANDLOCK_MIN_ABI} or later")
 
+    exec_14(check)
+
     print("worker: " + ("every check holds" if not failures else f"{len(failures)} failure(s)"))
     return 1 if failures else 0
+
+
+QUIET_PIDS = 5   # pids the worker's namespace may allocate in a quiet second: a healthcheck's docker exec, not a chain's hundreds
+
+
+def exec_14(check, rounds: int = 5) -> None:
+    """EXEC-14 (task-0233): a hostile job leaves a fast fork chain in a session of its own, each process living
+    a millisecond, and the worker's reaper still ends it with its job. The witness is the next job's: the worker's
+    pid namespace allocates almost nothing in the second after, and no process carries the chain's mark."""
+    import worker_probes
+    seen = []
+    for _ in range(rounds):
+        mark = worker_probes.marker()
+        r = probe(worker_probes.fork_chain(mark), seconds=30)
+        q = (probe(worker_probes.ns_quiet(mark), seconds=30).get("stdout") or "").split()
+        seen.append(((r.get("stdout") or "").strip(), q))
+    started = all(s == "started" for s, _ in seen)
+    quiet = all(len(q) == 3 and int(q[0]) <= QUIET_PIDS and q[1] == "0" for _, q in seen)
+    init = all(len(q) == 3 and q[2] == "1" for _, q in seen)
+    check(started and init, f"EXEC-14 each hostile job started its chain, and the worker is the init of its own pid namespace, "
+                            f"where its reaper confirms quiet by the namespace's counter: {seen}")
+    check(quiet, f"EXEC-14 no chain outlives its job: in the second after each, the namespace allocated at most {QUIET_PIDS} pids "
+                 f"and no process carries the chain's mark (allocated, marked, init): {[q for _, q in seen]}")
 
 
 if __name__ == "__main__":

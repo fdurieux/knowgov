@@ -49,6 +49,7 @@ _REFER, _TRUNCATE, _SCOPE_SIGNAL = 1 << 13, 1 << 14, 1 << 1
 # job could truncate a file it may only read (task-0203, doc-0030 R10)
 LANDLOCK_MIN_ABI = 3
 REAP_S = 10.0   # how long after a job ends every process it left is killed (task-0203, R4)
+QUIET_SCANS = 5   # outside a pid namespace of its own: the empty scans in a row the reaper needs (task-0233)
 
 
 def landlock_abi() -> int:
@@ -327,13 +328,39 @@ def _descendants(root: int, tree: dict[int, tuple[int, str]]) -> set[int]:
     return out
 
 
+class ReapIncomplete(RuntimeError):
+    """What a job left was not confirmed gone within REAP_S (task-0233): the worker stops serving rather than
+    run the next job beside it. As its container's init, its exit takes every process of the namespace with it,
+    and the app refuses a job without a fresh attestation."""
+
+
+def _ns_counter() -> int | None:
+    """The pid namespace's last allocated pid (``/proc/sys/kernel/ns_last_pid``), when this worker is the init
+    of a pid namespace of its own, as in its container: every fork in the namespace moves it. None elsewhere
+    (a worker loop on a host), where the counter is the whole machine's and never settles (task-0233)."""
+    if os.getpid() != 1:   # pid 1 only as the init of a namespace of its own: a host's pid 1 is its own init
+        return None
+    try:
+        return int(Path("/proc/sys/kernel/ns_last_pid").read_text())
+    except (OSError, ValueError):
+        return None
+
+
 def _reap_orphans(before: set[int] = frozenset(), seconds: float = REAP_S) -> int:
     """Kill and reap every process the job left (task-0203, R4): each round kills every descendant of this
     worker at any depth at once, not one level a round, and reaps the dead, until none is left or the bound
     passes. A job's escapee that left its group with setsid is still a descendant: this worker is its
     subreaper. A process this worker had before the job (``before``, with its own descendants) is not the
-    job's. Returns how many were killed; a process still alive at the bound is logged."""
-    me, killed = os.getpid(), set()
+    job's. Returns how many were killed; past the bound, ReapIncomplete.
+
+    "None is left" is never one empty scan (task-0233): a /proc listing is no snapshot, and a process that
+    forks and exits between the listing and its read leaves a child the scan never saw, so under load a fast
+    fork chain could read as gone and outlive its job. In its container (the init of its own pid namespace)
+    the worker takes an empty scan only when the namespace's pid counter did not move across it: a process
+    alive after it was either listed and read, or forked after the first read of the counter, which moved it.
+    Elsewhere (a worker loop on a host, the test path) it takes QUIET_SCANS empty scans in a row, which is
+    weaker."""
+    me, killed, quiet = os.getpid(), set(), 0
     end = time.monotonic() + seconds
     while True:
         while True:   # reap whatever has died, so a zombie is not counted again
@@ -343,16 +370,25 @@ def _reap_orphans(before: set[int] = frozenset(), seconds: float = REAP_S) -> in
                 break
             if pid == 0:
                 break
+        c1 = _ns_counter()
         tree = _tree()
         keep = set(before)
         for b in before:
             keep |= _descendants(b, tree)
         live = {p for p in _descendants(me, tree) - keep if tree.get(p, (0, "X"))[1] not in ("Z", "X")}
         if not live:
-            return len(killed)
+            if c1 is not None:
+                if _ns_counter() == c1:
+                    return len(killed)   # nothing forked during an empty scan: nothing is left
+            else:
+                quiet += 1
+                if quiet >= QUIET_SCANS:
+                    return len(killed)
+        else:
+            quiet = 0
         if time.monotonic() >= end:
-            print(f"worker: {len(live)} process(es) the job left are still alive after {seconds:g} s", file=sys.stderr, flush=True)
-            return len(killed)
+            raise ReapIncomplete(f"{len(live)} process(es) the job left are still alive after {seconds:g} s" if live else
+                                 f"after {seconds:g} s no scan of what the job left was confirmed empty")
         for pid in live:
             try:
                 os.kill(pid, signal.SIGKILL)
@@ -457,7 +493,8 @@ def serve(jobs: Path, workdir: Path, *, once: bool = False, attestation: dict | 
             _write_atomic(jobs / "attest.json", dict(attest() if attestation is None else a, heartbeat=time.time()))
             stop.wait(BEAT_S)
     _write_atomic(jobs / "attest.json", dict(a, heartbeat=time.time()))
-    threading.Thread(target=beat, daemon=True).start()
+    beating = threading.Thread(target=beat, daemon=True)
+    beating.start()
     print(f"worker: confined ({', '.join(a['checks'])}), serving {jobs}", file=sys.stderr, flush=True)
     try:
         while not stop.is_set():
@@ -466,7 +503,20 @@ def serve(jobs: Path, workdir: Path, *, once: bool = False, attestation: dict | 
                     os.mkdir(jd / "claimed")   # one worker takes a job, once
                 except OSError:
                     continue
-                r = run_job(jd, workdir)
+                try:
+                    r = run_job(jd, workdir)
+                except ReapIncomplete as e:   # fail closed (task-0233): no next job beside what this one left
+                    stop.set()
+                    beating.join(BEAT_S + 30)   # no heartbeat lands after the refusal
+                    why = f"the worker stopped serving: {e}"
+                    for path, body in ((jd / "result.json", {"error": why, "stage": "harness_error"}),
+                                       (jobs / "attest.json", dict(a, ok=False, heartbeat=time.time(), refused=why))):
+                        try:
+                            _write_atomic(path, body)
+                        except OSError:
+                            pass
+                    print(f"worker: {why}", file=sys.stderr, flush=True)
+                    return 4
                 try:
                     _write_atomic(jd / "result.json", r)
                 except OSError:
