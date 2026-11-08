@@ -69,7 +69,7 @@ def _artefact_of(kit: dict[str, str], bag) -> str:
     first taken (doc-0030 I11; ``tools/check_subject.py`` refuses the manifest)."""
     found = [p for p in kit if p in FAMILY and SHORTS.get(p) == bag.artefact]   # an unmapped document may have no short
     if len(found) > 1:
-        from extract import DocumentUnreadable
+        from kitio import DocumentUnreadable
         raise DocumentUnreadable(f"{', '.join(found)}: one short, {bag.artefact!r}, names {len(found)} artefacts, "
                                  "so their statements cannot be told apart; give each its own short")
     return found[0]

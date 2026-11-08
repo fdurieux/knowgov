@@ -56,6 +56,7 @@ class Bag:
         return a
 
 
+from kitio import DocumentUnreadable  # the load's named document error (doc-0030 I11), raised here
 from subject import SUBJECT, BUNDLE_MARK_RE, bundle_parts as _subject_bundle_parts
 
 _SHORT = SUBJECT.shorts   # artefact key -> the short name assertion ids carry (the subject manifest)
@@ -639,12 +640,6 @@ _CLAIM_LINE = re.compile(r"^[ \t]*claim:[ \t]*(\S+)[ \t]*$", re.I | re.M)       
 _CLAIM_IN_TEXT = re.compile(r"\bclaim:[ \t]*([A-Za-z_-]+)", re.I)                      # dmn_decisions descriptions
 _CLAIM_COMMENT = re.compile(r"^[ \t]*'[ \t]*claim:[ \t]*(\S+)[ \t]*$", re.I | re.M)   # plantuml_realises
 _CLAIM_TAG = "@claim:"                                                                 # gherkin_tagged
-
-
-class DocumentUnreadable(ValueError):
-    """A document its mapper cannot read, or whose statements collide (two fragments at one locator): the
-    message names the document, so a load that fails on it reads as the document's fault, never the store's
-    (doc-0030 I11). ``tools/check_subject.py`` refuses both before a load."""
 
 
 class UnknownClaim(ValueError):

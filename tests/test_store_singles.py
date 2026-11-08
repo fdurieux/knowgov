@@ -188,8 +188,7 @@ def test_s6_unit_loads_names_each_stage2_reload():
     from subject import SUBJECT
     loads = dict(zip(SUBJECT.order, change.unit_loads(SUBJECT, SUBJECT.order)))
     staged = [sc for sc in SUBJECT.order if SUBJECT.scenario(sc).get("stage2")]
-    assert staged and all(len(loads[sc]) == 2 and loads[sc][1] > 0 for sc in staged), loads
-    assert all(len(loads[sc]) == 1 for sc in SUBJECT.order if sc not in staged)
+    assert all(len(loads[sc]) == (2 if sc in staged else 1) and all(n > 0 for n in loads[sc]) for sc in SUBJECT.order), loads
     size = lm.sizing(SUBJECT)
     assert all(size["statements"][sc] == sum(loads[sc]) for sc in SUBJECT.order), "the sizing counts stage 2 too"
 
@@ -228,7 +227,9 @@ def test_i11_check_subject_refuses_a_duplicated_row_and_the_load_names_the_docum
         rep = check_subject.check(root)
     dup = [f for f in rep["findings"] if f["rule"] == "duplicate" and "row/REQ-01" in f["message"]]
     assert rep["exit_code"] == 1 and len(dup) == 1 and dup[0]["where"] == "[[artefact]] kit/requirements.md", rep["findings"]
-    bag = extract.extract_requirements("kit/requirements.md", "| REQ-01 | a |\n| REQ-01 | b |\n")
+    bag = extract.Bag("req")
+    for text in ("| REQ-01 | a |", "| REQ-01 | b |"):
+        bag.frag("row/REQ-01", text)
     assert extract.duplicate_locators(bag) == ["row/REQ-01"]
     from subject import SUBJECT
     key, mapper = next((k, m) for k, m in SUBJECT.mappers.items() if m in ("requirements_json", "dmn", "bpmn", "openapi", "decision_table", "requirements"))

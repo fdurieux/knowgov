@@ -475,7 +475,7 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
     """The gate on one store handle: read as it is (``--no-load``), loaded into the scratch store, or
     loaded into the configured store and published (``--publish``)."""
     import load_memory
-    from extract import DocumentUnreadable
+    from kitio import DocumentUnreadable
     from store import StoreChanged
     from tasks import TASKS
     change = None
