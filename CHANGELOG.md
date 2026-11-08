@@ -12,6 +12,16 @@ names that section with the version.
 
 ### Contract changes
 
+- **The worker attests `write_confined` only from Landlock ABI 3, and `run.py` takes stage 2's derived input
+  explicitly** (task-0203, doc-0030 F8: R10, R3). Two contract changes, and a raised platform floor.
+  - **The attestation.** The worker's attestation gains `landlock_abi`, the kernel's Landlock version.
+    `write_confined` is now true only at ABI 3 or later, Linux 6.2, the first version where Landlock also
+    stops a job truncating a file it may only read. Below that, the worker refuses to serve. The page's
+    worker chip names the ABI found and the 3 needed. Arms now need Linux 6.2 or later, where they needed
+    5.13.
+  - **`harness/run.py --stage2-derived FILE`** names stage 2's derived output, the code an earlier scenario
+    built. By default it is the file this invocation wrote, or, under `--resume`, its earlier attempt's.
+    It is never a file left in a reused `--out` folder. A deterministic run in a fresh folder is unchanged.
 - **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
   with one additive field.
   - **One successor set (G3).** The gate's level drops an invalidated statement only when its own verified or
@@ -206,6 +216,18 @@ names that section with the version.
 
 ### Changes
 
+- **Worker job isolation and a run folder that starts clean** (task-0203, doc-0030 F8: R2, R3, R4, R7).
+  - **No process outlives its job.** After each job the worker kills every process below it, at any depth,
+    within 10 seconds. A 70-deep chain of processes, each in its own session, used to leave 20 alive; it
+    now leaves none.
+  - **A job cannot forge its answer.** The job's runner can no longer be reached through `/proc`, and it
+    answers on a channel nothing it starts inherits, so model code cannot write a forged answer through it.
+  - **A job's own failure no longer ends the run.** A job that runs out of time or is killed at a bound is
+    now that arm's failed cell, as on the host, and the run goes on to write its `summary.json`,
+    `usage.json` and `SHA256SUMS`.
+  - **A reused `--out` folder carries nothing over.** A fresh agent cell starts from an empty sandbox, and
+    `usage.json` adds an earlier attempt's only under `--resume`.
+  - `tools/check_worker.py` proves the first three on the real worker (EXEC-11 to EXEC-13).
 - **One clock: every lapse is decided on the gate's date** (task-0198, doc-0030 F4: H3, G4, G10, M8;
   decision-0005 points 3 and 5).
   - **A person's approval.** Before, its six-month lapse was decided when the store was loaded, against

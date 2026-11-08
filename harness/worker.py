@@ -45,6 +45,10 @@ BEAT_S = 5.0
 _SYS_CREATE, _SYS_ADD_RULE, _SYS_RESTRICT = 444, 445, 446
 _FS_WRITE = sum(1 << b for b in (1, 4, 5, 6, 7, 8, 9, 10, 11, 12))   # write file, remove, make char/dir/reg/sock/fifo/block/sym
 _REFER, _TRUNCATE, _SCOPE_SIGNAL = 1 << 13, 1 << 14, 1 << 1
+# write_confined is attested only from ABI 3 (Linux 6.2), where Landlock also handles truncation: below it a
+# job could truncate a file it may only read (task-0203, doc-0030 R10)
+LANDLOCK_MIN_ABI = 3
+REAP_S = 10.0   # how long after a job ends every process it left is killed (task-0203, R4)
 
 
 def landlock_abi() -> int:
@@ -213,8 +217,8 @@ def attest(env=None, *, sys_root: str = "/sys", proc_root: str = "/proc", socket
     leaked = sorted(k for k in env if SECRET_NAMES.match(k))
     checks = {"loopback_only": nw["ok"], "no_secret_variables": not leaked, "read_only_root": ro,
               "uid_65534": os.getuid() == 65534, "no_docker_socket": not any(os.path.exists(s) for s in SOCKETS),
-              "write_confined": landlock_abi() >= 1, "no_socket_escape": sk["ok"]}
-    return {"ok": all(checks.values()), "checks": checks, "interfaces": nw["interfaces"], "routes": nw["routes"],
+              "write_confined": landlock_abi() >= LANDLOCK_MIN_ABI, "no_socket_escape": sk["ok"]}
+    return {"ok": all(checks.values()), "checks": checks, "landlock_abi": landlock_abi(), "interfaces": nw["interfaces"], "routes": nw["routes"],
             "cap_net_admin": nw["cap_net_admin"], "sockets": sk["probes"], "secret_names": leaked,
             "host": host_facts(), "pid": os.getpid(), "heartbeat": time.time()}
 
@@ -295,26 +299,67 @@ def _group_settled(pgid: int, seconds: float = 5.0) -> bool:
         time.sleep(0.02)
 
 
-def _reap_orphans(before: set[int] = frozenset()) -> int:
-    """Kill and reap every child process this worker gained during the job (the job's escaped
-    descendants, reparented here); a child it had before the job is not the job's."""
-    killed = 0
-    for _ in range(50):
-        kids = _children() - set(before)
-        if not kids:
-            return killed
-        for pid in kids:
-            for fn in (lambda: os.killpg(pid, signal.SIGKILL), lambda: os.kill(pid, signal.SIGKILL)):
-                try:
-                    fn()
-                except OSError:
-                    pass
+def _tree() -> dict[int, tuple[int, str]]:
+    """Every process this worker can see: pid -> (ppid, state)."""
+    out = {}
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+        except OSError:
+            continue
+        out[int(pid)] = (int(fields[1]), fields[0])
+    return out
+
+
+def _descendants(root: int, tree: dict[int, tuple[int, str]]) -> set[int]:
+    """Every process below ``root`` at any depth, by the ppid links."""
+    kids: dict[int, list[int]] = {}
+    for pid, (ppid, _state) in tree.items():
+        kids.setdefault(ppid, []).append(pid)
+    out, todo = set(), [root]
+    while todo:
+        for k in kids.get(todo.pop(), []):
+            if k not in out:
+                out.add(k)
+                todo.append(k)
+    return out
+
+
+def _reap_orphans(before: set[int] = frozenset(), seconds: float = REAP_S) -> int:
+    """Kill and reap every process the job left (task-0203, R4): each round kills every descendant of this
+    worker at any depth at once, not one level a round, and reaps the dead, until none is left or the bound
+    passes. A job's escapee that left its group with setsid is still a descendant: this worker is its
+    subreaper. A process this worker had before the job (``before``, with its own descendants) is not the
+    job's. Returns how many were killed; a process still alive at the bound is logged."""
+    me, killed = os.getpid(), set()
+    end = time.monotonic() + seconds
+    while True:
+        while True:   # reap whatever has died, so a zombie is not counted again
             try:
-                os.waitpid(pid, 0)
+                pid, _ = os.waitpid(-1, os.WNOHANG)
             except ChildProcessError:
+                break
+            if pid == 0:
+                break
+        tree = _tree()
+        keep = set(before)
+        for b in before:
+            keep |= _descendants(b, tree)
+        live = {p for p in _descendants(me, tree) - keep if tree.get(p, (0, "X"))[1] not in ("Z", "X")}
+        if not live:
+            return len(killed)
+        if time.monotonic() >= end:
+            print(f"worker: {len(live)} process(es) the job left are still alive after {seconds:g} s", file=sys.stderr, flush=True)
+            return len(killed)
+        for pid in live:
+            try:
+                os.kill(pid, signal.SIGKILL)
+                killed.add(pid)
+            except OSError:
                 pass
-            killed += 1
-    return killed
+        time.sleep(0.01)
 
 
 def _subject_root(sid) -> Path | None:
