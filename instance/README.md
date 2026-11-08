@@ -142,6 +142,57 @@ python tools/check_subject.py /path/to/your/instance/subjects/<id> --register /p
 It prints the same findings, each with its fix, and exits 0, 1 or 2 like the layout check. Add
 `--json` for the report as data, pinned by `harness/schemas/subject-check.schema.json`.
 
+### Format versions
+
+Each file you keep in your instance says which version of its format it is written in, so a
+knowgov never misreads a file written for a newer one. There are three places the number goes:
+
+- **A subject**: `subject.toml` carries one number for the whole subject root. It covers
+  `subject.toml` itself, `scenarios.toml`, `plants.toml`, `queries.toml` and the register map it
+  names:
+
+  ```toml
+  [format]
+  version = 1
+  ```
+
+- **`code_map.toml` and `connectors.toml`**: each carries its own number, at the top of the file,
+  before any table:
+
+  ```toml
+  format = 1
+  ```
+
+- **Captures and review files**: each carries its own `format = 1` at the top. `harness/capture.py`
+  writes it when it stores an answer or a review. These files are records that are never edited,
+  so each keeps the version it was written in, whatever happens to the subject's number later.
+
+In plain English:
+
+- **A file with no number is read as the current version.** This holds until knowgov 1.0, so
+  nothing you wrote before 0.9.0 breaks.
+- **A file at the current version, or an older one, is read.**
+- **A file with a newer number is refused.** Every reader stops with exit 2, "cannot run", and
+  names the file, the version it carries and the version this knowgov reads. That covers the gate,
+  the trace, the capture and review commands, the connector, the MCP server's `subject_check` and
+  the two checks above. For example:
+
+  ```text
+  cannot run: subjects/billing/subject.toml: [format] version = 2, and this knowgov reads subject format 1 and earlier
+  ```
+
+  Upgrade knowgov to a release that reads that version, or keep the file at the version yours
+  reads. A number that is not a whole number of 1 or more is refused the same way.
+
+The wizard (`instance/ci/claude/skills/knowgov-onboard/`), `tools/example_instance.py` and
+`subjects/minimal/subject.toml`, which every new subject is copied from, all write the current
+numbers. `tools/check_instance.py` lists each subject's version beside its name, and
+`check_subject.py --json` reports it as `format`.
+
+The first time a number moves, the CHANGELOG says what changed and how to bring an older file up to
+date. Adding `[format]` or `format = 1` to a file attests nothing, so the attestation hook below lets
+it through.
+
 ## Mapping code to the register
 
 Your register lists applications and their modules (`APP-` ids under `register/applications/`);

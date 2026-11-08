@@ -65,6 +65,8 @@ import re
 import tomllib
 from pathlib import Path
 
+import formats   # task-0174, decision-0023
+
 OUTCOMES = ("approved", "rejected", "referred")
 RESOLUTIONS = ("choice", "exception", "open")   # task-0216: a lint gap's resolution by review; a slip is a new version
 PERSON = "elicited"          # the basis a capture's statements carry (harness/load.py load_captures)
@@ -224,6 +226,7 @@ def capture_index(capture_dir: Path) -> dict[str, dict]:
     out = {}
     for p in sorted(capture_dir.glob("*.toml")) if capture_dir.is_dir() else []:
         c = tomllib.loads(p.read_text(encoding="utf-8"))
+        formats.version(c, p.as_posix(), formats.CAPTURE)
         cap = c.get("capture", {})
         for i, a in enumerate(c.get("answer", []), 1):
             out[f"A:cap:{p.stem}:{i}@capture"] = {"from": cap.get("from"), "on": _date(cap.get("on")),
@@ -232,7 +235,8 @@ def capture_index(capture_dir: Path) -> dict[str, dict]:
 
 
 def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], units: dict[str, str],
-          captures: dict[str, dict], now: dt.date, compatible, strict: bool = True) -> tuple[list[str], dict]:
+          captures: dict[str, dict], now: dt.date, compatible, strict: bool = True,
+          where: str = "the review") -> tuple[list[str], dict]:
     """(reasons for refusal, the normalised review). ``st`` is a loaded store; ``owners`` key -> the
     units owning its register nodes; ``compatible`` is rules.compatible.
 
@@ -241,6 +245,7 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
     refuse; without it (a load) the act is set aside in ``norm["skipped"]``, with how it failed to bind, and the
     rest is checked and applied. The normalised rulings carry ``key``, ``value`` and ``sha256`` from the store and
     ``statement``, the id they land on; ``unbound`` marks one bound by id under the read rule."""
+    formats.version(doc, where, formats.REVIEW)   # task-0174: a newer review refused (FormatTooNew), never misread
     errs: list[str] = []
     r = doc.get("review", {})
     by, on, record = str(r.get("by", "")), _date(r.get("on")), str(r.get("record", "")).strip()
@@ -412,7 +417,7 @@ def review_toml(norm: dict) -> str:
     q = lambda s: json.dumps(s, ensure_ascii=False)  # noqa: E731 — JSON's escaping is TOML's
     lines = ["# A review: a person's rulings on what the store holds (task-0037, decision-0002). Read by every load",
              "# of its scenario. Never edited after it is written: a change of mind is a new review.",
-             "", "[review]", f"by = {q(norm['by'])}", f"on = {norm['on'].isoformat()}", f"record = {q(norm['record'])}"]
+             f"format = {formats.CURRENT[formats.REVIEW]}", "", "[review]", f"by = {q(norm['by'])}", f"on = {norm['on'].isoformat()}", f"record = {q(norm['record'])}"]
     if norm["scenario"]:
         lines.append(f"scenario = {q(norm['scenario'])}")
     for ru in norm["rulings"]:   # bound to content (task-0199): what was ruled on, as the store held it

@@ -52,7 +52,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   ledger, since a load wipes the store; `--as-of` as `check`'s, each entry recording the date read, task-0093), `check` reports suspect, drift, missing, unmapped and the
   task's gate under the same exit contract, JSON pinned by `harness/schemas/trace-report.schema.json`;
   the APP comes from the instance's `code_map.toml` (`harness/code_map.py`, task-0050); hand-written code by the keys its header cites (`harness/citation.py`, Python and Java; `register --keys`/`--cited`; `uncited` only where `code_map.toml`'s `[citations]` requires it; task-0124); S6 shown by
-  `tools/check_trace_walkthrough.py`. `KG_SUBJECT` selects the root; nothing in `harness/` or
+  `tools/check_trace_walkthrough.py`. Format versions (task-0174, decision-0023, `harness/formats.py`, one rule for every reader): `subject.toml`'s `[format] version` for its root's configuration, a top-level `format` in `code_map.toml`, `connectors.toml`, each capture and review file (stamped by `capture_toml`/`review_toml`); missing reads current until 1.0, a higher one `FormatTooNew`, exit 2 through `cli_exit`/`_outcomes`, naming the file and both versions; `tests/test_formats.py`. `KG_SUBJECT` selects the root; nothing in `harness/` or
   `demo/` names a subject, a document or a scenario (task-0002). Two public
   subjects: `cargo_quote` (the proof of concept, seven scenarios, the scored
   record; a `design` task class beside the record's `codegen`, task-0101) and `jef_data_load` (the recreation experiment's kit, the degradation

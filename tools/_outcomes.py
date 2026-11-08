@@ -5,6 +5,9 @@ to it per invocation: the tool, its arguments, its exit code and what that means
 cannot run 2, under the gate contract the tools share), its seconds, and, for a tool that reports its
 checks one by one through ``check()`` and ``skip()``, each check with pass, fail or skip and the skip's
 reason. Without ``KG_OUTCOMES`` nothing is written and the tool behaves exactly as before.
+
+An input written for a newer knowgov (``harness/formats.py`` ``FormatError``, task-0174) is a failure to run: the
+cause on stderr in one line and exit 2, recorded as such, never a traceback and exit 1.
 """
 from __future__ import annotations
 
@@ -44,6 +47,10 @@ def run(main) -> int:
         code = e.code if isinstance(e.code, int) or e.code is None else 1   # sys.exit("FAIL: ...") exits 1
         raise
     except BaseException as e:
+        if any(k.__name__ == "FormatError" for k in type(e).__mro__):   # task-0174: an input for a newer knowgov, cannot run
+            print(f"cannot run: {e}", file=sys.stderr)
+            code = 2
+            return code
         error = f"{type(e).__name__}: {str(e).splitlines()[0][:300] if str(e) else ''}"
         raise
     finally:
