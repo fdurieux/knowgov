@@ -319,6 +319,21 @@ def compare(res: dict, base: dict, source: str) -> dict:
             "worse_verdict": worse, "regressed_keys": regressed, "new_suspect": new_suspect}
 
 
+def mark_held(fs: list[dict], baseline: dict) -> None:
+    """Under --baseline the gate exits on a regression only, so every other finding is one the baseline
+    held: it did not fail the command (task-0207, doc-0030 R8). Each finding gets ``held``: false for a
+    finding that is the regression (a key whose level fell, a derived output newly suspect; with a worse
+    verdict, the task finding and every blocker, what makes a verdict), true for the rest. CI annotations
+    read it, so a held finding is never shown as an error."""
+    fell = {r["key"] for r in baseline.get("regressed_keys") or []}
+    new_suspect = set(baseline.get("new_suspect") or [])
+    worse = bool(baseline.get("worse_verdict"))
+    for f in fs:
+        regressed = ((f["kind"] == "key" and f["key"] in fell) or (f["kind"] == "suspect_derived" and f["ref"] in new_suspect)
+                     or (worse and (f["kind"] == "task" or f["severity"] == "blocker")))
+        f["held"] = not regressed
+
+
 def superseded_map(res: dict) -> dict[str, list[str]]:
     from gate import superseded_map as m
     return m(res)
@@ -340,6 +355,8 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
         return questionnaire_route(subject, scenario, rt, unit, files) if route_keys is None or key in route_keys else None
     fs = findings(res, block_levels, owners, route, closers)
     fail = baseline["regression"] if baseline is not None else bool(at_or_above(fs, threshold))
+    if baseline is not None:
+        mark_held(fs, baseline)
     return {"schema_version": SCHEMA_VERSION, "tool": "knowgov gate", "subject": subject, "scenario": scenario, "task": task,
             "store": store, "loaded": loaded, "version": version, "change": change, "verdict": res["verdict"], "why": res["why"], "threshold": threshold,
             "findings": fs, "counts": counts(fs),

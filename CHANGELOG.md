@@ -280,6 +280,22 @@ names that section with the version.
 
 ### Changes
 
+- **An agent run stopped by its seconds ceiling reads as the ceiling, not as an API error** (task-0207,
+  doc-0030 R6). When the run's deadline cut a model's answer mid-stream, or the client's timeout fired at
+  it, the run was recorded as an API error, so `--resume` ran the cell again and paid for it again. It now
+  ends with `stopped_by: "ceiling: <n> seconds"`, a `ceiling` turn in its trace, and no `api_error`, so
+  `--resume` keeps it. A stream that falls silent for the idle limit before the deadline is still an API
+  error.
+- **Under `--baseline`, the gate's held findings are no longer annotated as errors** (task-0207,
+  doc-0030 R8). With a baseline the gate exits on a regression only, yet `harness/annotate.py` marked
+  every finding at the threshold an error, though the gate exited 0. Each finding of a report with a
+  baseline now carries `held`: false for the regression's own findings (a key whose level fell, a derived
+  output newly suspect, and with a worse verdict the task finding and every blocker), true for the rest.
+  annotate shows a held finding as a warning at most, titled "held by the baseline". Additive in
+  `gate-report.schema.json`, not required, absent without a baseline.
+- **Route (c) records the model that answered** (task-0207, doc-0030 R12). A transcript's proposals file
+  named the configured model (`KG_ARMS_MODEL`); it now names the model the endpoint answered with, as the
+  stream named it, which a gateway or an alias can make differ.
 - **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
   applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1
   could not apply stayed reported. Stage 2 clears the acts stage 1 recorded, then binds every ruling and close to
