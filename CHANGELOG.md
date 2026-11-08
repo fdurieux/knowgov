@@ -138,6 +138,22 @@ names that section with the version.
 
 ### Changes
 
+- **One clock: every lapse is decided on the gate's date** (task-0198, doc-0030 F4: H3, G4, G10, M8;
+  decision-0005 points 3 and 5).
+  - **A person's approval.** Before, its six-month lapse was decided when the store was loaded, against
+    today, so one `--as-of` read PROCEED or QUALIFIED by the calendar, and the report named a date it had not
+    read. The load now applies the approval with its end date, and the gate decides as of `--as-of`: past its
+    six months the statement reads *proposed*, with a *lapsed* finding. One `--as-of` gives one report
+    whatever the day.
+  - **No verification.** A review-file approval of a statement with no verification now lapses at its date
+    plus the key's review months.
+  - **After the date.** A review or approval dated after the date read is not counted; the finding says so.
+  - **The MCP answer.** `three_valued_answer` marks a statement no longer current as of the server's date
+    (`lapsed`, and an `as_of`).
+  - **Additive.** A lapse entry names the status it reads (`to`), and an approval its `until`.
+
+  `tools/check_one_clock.py` proves it on both stores. The record is unchanged.
+
 - **Stage 2 re-reads the whole later kit and answers as a fresh load would** (task-0197, doc-0030 F3: H2, H4,
   I5, I6, G5). `--stage 2` and a run's stage 2 used to re-ingest the one changed file alone. Five defects followed:
   - a review's close of a declared gap reopened (H2);

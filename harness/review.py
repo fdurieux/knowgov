@@ -173,7 +173,7 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
     h = handles.get(by)
     if on is None:
         errs.append(f"review.on {r.get('on')!r} is not a date (YYYY-MM-DD)")
-    elif on > now:
+    elif now is not None and on > now:   # a load passes none (task-0198): a later date is simply not counted yet
         errs.append(f"review.on {on} is in the future")
     if not record:
         errs.append("review.record is empty: name where the reasons are kept (decision-0002 point 1)")

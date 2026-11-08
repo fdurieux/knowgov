@@ -335,7 +335,7 @@ Know three limits before you rely on it:
   value, so the key still needs an answer, or the gate reads it as absent and still blocks.
 - An approval lapses six months after the answer was given. The statement then reads *proposed*
   again until someone asks again (`python harness/capture.py due`) and a reviewer approves the new
-  answer.
+  answer. The gate decides the lapse on the date it reads (`--as-of`), not on the day of the load.
 
 ## 7. Reading the dashboard
 

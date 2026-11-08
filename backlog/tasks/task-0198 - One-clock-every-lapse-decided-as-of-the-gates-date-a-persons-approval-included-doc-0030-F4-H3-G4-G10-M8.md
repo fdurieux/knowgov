@@ -3,9 +3,11 @@ id: TASK-0198
 title: >-
   One clock: every lapse decided as of the gate's date, a person's approval
   included (doc-0030 F4: H3, G4, G10, M8)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-07T07:15:00Z'
+updated_date: '2026-11-08T00:01:00Z'
 labels:
   - review
   - cadence
@@ -32,3 +34,9 @@ H3 (high, two reviewers): a person's six-month approval lapses at load against r
 - [ ] #4 three_valued_answer marks a lapsed statement as of the session date
 - [ ] #5 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. load_reviews reads no clock: every accepted approval applied with its until (six months after the answer); the future-date refusal only where a caller passes now (capture.py review). 2. cadence.lapse decides every lapse against on: review verifications and review-file approvals counted only when dated on or before on (G10); a person's approval current until its until (H3), reading proposed after; a document statement's review-file approval current for the key's months from its date, with or without a verification (G4); approved only after the date reads verified. The lapse names the status it reads (to). 3. key_evidence returns an approval's until on both adapters; gate.resolve applies to; findings and the bundle say why (the plain review lapse renders as before, the bundle's bytes pinned). 4. three_valued_answer marks lapses as of the session date (M8), as_of in its output, schema additive. 5. tools/check_one_clock.py on the example instance, both stores; CI and a suite test; unit tests in test_cadence. 6. Record, walkthroughs, stage-2 check, round trips; suite both ways.
+<!-- SECTION:PLAN:END -->

@@ -78,6 +78,10 @@
   },
   "why": {
    "type": "string"
+  },
+  "as_of": {
+   "type": "string",
+   "description": "the date review currency is read on, the server's (task-0100); a statement not current by then carries lapsed (task-0198)"
   }
  },
  "$defs": {
@@ -237,9 +241,24 @@
          "string",
          "null"
         ]
+       },
+       "until": {
+        "type": [
+         "string",
+         "null"
+        ],
+        "description": "a person's approval: the last day it is current, six months after the answer (decision-0002); null otherwise (task-0198)"
        }
       }
      }
+    },
+    "lapsed": {
+     "type": "object",
+     "description": "the statement is not current as of the server's as_of (task-0198, doc-0030 M8): what it was (from), what it reads (to, its status here) and why; absent while it is current",
+     "required": [
+      "from",
+      "to"
+     ]
     },
     "gaps": {
      "type": "array",

@@ -55,6 +55,7 @@ OLD_STEPS = [
     "The action's preload failed with exit 1, its report on the changed diagram alone, as a GitHub error on its line; the layout's problems beside it (task-0115)",
     'The capture path (task-0009), questionnaire, answers, the gate after, and nothing above proposed',
     "The review step (task-0037, decision-0002), S2' from BLOCKED to PROCEED by command, S4 settled whole, the six-month lapse",
+    "One clock (task-0198), on rdflib, one --as-of gives one report under two KG_TODAY values; a person's approval lapses to proposed against it, a review-file approval with no verification lapses, what is dated after it is not counted, three_valued_answer marks the lapse",
     "The MCP server (task-0056) gives gate_cli's report for the same store, the record's three-valued answers, and writes nothing",
     "proposal_impact's branch mode (task-0132) through the CI template's step, doc-0017's worked example on a scratch branch of the public register, equal to the held overlay's report and the checkout unchanged",
     "A person's statement against the documents' (task-0038), on S2 a contradiction raises a conflict, an agreement corroborates and raises nothing",

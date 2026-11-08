@@ -314,17 +314,19 @@ def load_reviews(st, scenario: str, now: dt.date | None = None) -> dict:
     decision-0002), after the rules have run: harness/review.py checks each file against the loaded
     store and refuses it whole, with its reasons on stderr; an accepted one applies its rulings
     (approved, rejected), settles the conflicts of the keys whose dispute it settled, and closes the
-    declared gaps it names. An approval of a person's statement past its six months is not applied."""
+    declared gaps it names. It reads no clock (task-0198, doc-0030 H3): an approval of a person's statement
+    keeps its ``until``, six months after the answer, and the gate decides as of its date whether it is
+    current (``cadence.lapse``), so one ``--as-of`` gives one report whatever the day of the load. ``now``,
+    when given, refuses a review dated after it, as ``capture.py review`` does on the day it is written."""
     import sys
     import capture
     import review
     from rules import compatible
     rdir = SUBJECT.capture_dir / "reviews"
     files = sorted(rdir.glob("*.toml")) if rdir.is_dir() else []
-    counts = {"files": [], "refused": [], "approved": 0, "rejected": 0, "referred": 0, "lapsed": 0, "closed": 0, "settled": 0}
+    counts = {"files": [], "refused": [], "approved": 0, "rejected": 0, "referred": 0, "closed": 0, "settled": 0}
     if not files:
         return counts
-    now = now or review.today()
     reg = capture.register_root()
     handles, units = review.issued_handles(reg), review.organisation_units(reg)
     owners = capture.owners_of(SUBJECT, capture.register_nodes(reg))
@@ -351,11 +353,8 @@ def load_reviews(st, scenario: str, now: dt.date | None = None) -> dict:
             until = review.until_for(b, caps)
             if b["status"] == "disputed":
                 settled.add(b["key"])   # the review settled the dispute whole (review.check), lapse or not
-            if outcome == "approved" and until is not None and now > until:
-                counts["lapsed"] += 1   # the approval lapsed: the statement reads proposed until it is re-asked
-                if b["status"] == "disputed":   # a person's statement against a document's (task-0038)
-                    st.apply_ruling(b["id"], "lapsed", rid, person, on, rv["record"], "")
-                continue
+            # task-0198 (H3): applied whatever the day; the approval keeps its until, six months after the answer,
+            # and the gate reads it lapsed as of its date (cadence.lapse), never the load's day
             st.apply_ruling(b["id"], outcome, rid, person, on, rv["record"], until.isoformat() if until else "")
             counts[outcome] += 1
         for key in sorted(settled):

@@ -22,7 +22,7 @@ import os
 import tomllib
 from pathlib import Path
 
-from review import add_months, pinned, today
+from review import LAPSE_MONTHS, add_months, pinned, today
 from subject import ROOT, SUBJECT
 
 FALLBACK_MONTHS = 12      # a register with no lifecycle.toml [review] default_months (the vendored one says 12)
@@ -148,29 +148,64 @@ def as_of(value=None, subject=None) -> dt.date:
 
 
 def lapse(row: dict, key: str, on: dt.date, subject=None) -> dict | None:
-    """A statement's lapse as of ``on``, or None while it is current. Lapsed: it is verified or approved,
-    every verification it holds is dated (a review), the latest of those dates is before ``on``, and no
-    approval in a person's review file after the latest review renewed it (such an approval is a new
-    review: it is current for the key's months from its own date; decision-0005 point 4)."""
-    if row.get("status") not in CURRENT or row.get("basis") == "elicited":
+    """A statement's lapse as of ``on``, or None while it is current as of ``on`` (task-0198, doc-0030 H3, G4,
+    G10; decision-0005). Only ``on`` decides: never the day the store was loaded, never today.
+
+    - Counted: a review verification and an approval from a person's review file (``RULING``), each only when
+      dated on or before ``on`` (G10: what happened after the date is not counted).
+    - Current until: a review verification's ``valid_until``; a document statement's ruling approval its date
+      plus the key's months (it renews the review, decision-0005 point 4; with no verification at all, G4); a
+      person's approval its ``until``, six months after the answer (decision-0002), stored by the load (H3).
+    - Not current: a document statement reads ``validated``; a person's statement reads ``proposed``. A
+      statement approved only by a ruling dated after ``on``, its verification current, reads ``verified``.
+
+    An execution verification carries no date and is current whatever ``on``; a source change's version tag
+    is not ours to judge. The result names ``to``, the status the statement reads as of ``on``."""
+    status = row.get("status")
+    if status not in CURRENT:
         return None
-    vers = row.get("verifications") or []
-    if not vers:
-        return None
-    dates = [_date(v.get("valid_until")) for v in vers]
-    if any(v.get("valid_until") is None for v in vers) or not all(dates):
+    person = row.get("basis") == "elicited"
+    vers = [] if person else (row.get("verifications") or [])
+    if any(v.get("valid_until") is None for v in vers) or not all(_date(v.get("valid_until")) for v in vers):
         return None   # an undated verification (execution) is current; a version tag is a source change's
-    until = max(dates)
-    last_review = max((_date(v.get("at")) for v in vers if _date(v.get("at"))), default=None)
-    for ap in row.get("approvals") or []:
-        if not str(ap.get("id") or "").startswith(RULING):
-            continue   # the load's own approval rests on the verification; it renews nothing
-        a = _date(ap.get("at"))
-        if a and last_review and a > last_review:
-            until = max(until, add_months(a, months_for(key, subject)))
-    if on <= until:
-        return None
-    return {"id": row["id"], "key": key, "from": row["status"], "valid_until": until.isoformat(),
-            "lapsed_on": (until + dt.timedelta(days=1)).isoformat(),   # the first day it reads validated
-            "months": months_for(key, subject), "kind": kind_for(key, subject),
+    rulings = [ap for ap in row.get("approvals") or [] if str(ap.get("id") or "").startswith(RULING)]
+    if not vers and not rulings:
+        return None   # nothing a date governs
+    counted = lambda e: _date(e.get("at")) is None or _date(e.get("at")) <= on   # noqa: E731
+    ends = [_date(v["valid_until"]) for v in vers if counted(v)]
+    for ap in rulings:
+        if not counted(ap):
+            continue
+        if person:
+            ends.append(_date(ap.get("until")) or dt.date.max)   # no capture date to count from: it does not lapse
+        elif _date(ap.get("at")):
+            ends.append(add_months(_date(ap["at"]), months_for(key, subject)))
+    until = max(ends, default=None)
+    months = LAPSE_MONTHS if person else months_for(key, subject)
+    base = {"id": row["id"], "key": key, "from": status, "months": months, "kind": "elicited" if person else kind_for(key, subject),
             "verifications": sorted(v["id"] for v in vers if v.get("id"))}
+    if until is not None and on <= until:
+        others = [ap for ap in row.get("approvals") or [] if ap not in rulings]
+        if status == "approved" and rulings and not any(counted(ap) for ap in rulings) and not others:
+            first = min(_date(ap.get("at")) for ap in rulings)
+            return {**base, "to": "verified", "valid_until": None, "after": first.isoformat()}   # approved only after the date
+        return None
+    if until is None:   # every dated event is after the date: none of it counts yet
+        first = min(d for d in [*(_date(v.get("at")) for v in vers), *(_date(ap.get("at")) for ap in rulings)] if d)
+        return {**base, "to": "proposed" if person else "validated", "valid_until": None, "after": first.isoformat()}
+    return {**base, "to": "proposed" if person else "validated", "valid_until": until.isoformat(),
+            "lapsed_on": (until + dt.timedelta(days=1)).isoformat()}   # the first day it reads as no longer current
+
+
+def describe(x: dict, on) -> str:
+    """One lapse in words, as of ``on``: what it was, why it is not current, and what it reads."""
+    x = {"to": "validated", **x}   # an entry from before task-0198 named no ``to``: a review lapse read validated
+    if x.get("after"):
+        what = "approval" if x["to"] == "verified" else "review"
+        return (f"was {x['from']}; its {what} is dated {x['after']}, after the as-of date {on}, so it is not counted: "
+                f"it reads {x['to']} as of then (task-0198)")
+    if x.get("kind") == "elicited":
+        return (f"was {x['from']}; its approval was current until {x['valid_until']}, {x['months']} months after the answer "
+                f"(decision-0002), and has lapsed as of {on}: it reads {x['to']} until it is asked again")
+    return (f"was {x['from']}; its review was current until {x['valid_until']} and has lapsed as of {on}: "
+            f"it reads {x['to']} until a new review (decision-0005)")

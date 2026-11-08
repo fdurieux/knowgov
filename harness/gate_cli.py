@@ -137,6 +137,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
     (task-0102); without them the findings are version 2's as first published. With ``closers`` too
     (key -> {unit, name, gap}, ``capture.gap_closers``), a key finding on a declared gap also names the
     unit that closes it (``closer``) and its route says so (task-0110)."""
+    import cadence
     out = []
     for key, v in res["keys"].items():
         lvl, flags = v["level"], v["flags"]
@@ -165,9 +166,8 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
         out.append(_finding("blocker", "suspect_derived", f"{d['id']} ({d.get('kind') or 'derived output'}) used {len(used)} statement(s) now invalidated "
                             f"({', '.join(used)}): it may not be reused as it is: regenerate it from the current statements", ref=d["id"], related=used))
     for x in res.get("lapsed") or []:
-        out.append(_finding("major", "lapsed", f"{x['id']} on {x['key']} was {x['from']}; its review was current until {x['valid_until']} "
-                            f"and has lapsed as of {res.get('as_of')}: it reads validated until a new review (decision-0005)",
-                            key=x["key"], level="validated", ref=x["id"], related=x["verifications"]))
+        out.append(_finding("major", "lapsed", f"{x['id']} on {x['key']} {cadence.describe(x, res.get('as_of'))}",
+                            key=x["key"], level=x.get("to", "validated"), ref=x["id"], related=x["verifications"]))
     for d in res.get("preload") or []:   # task-0064: form unchecked, or findings, on a document behind the keys
         what = {"unchecked": "its form was not checked before the load", "findings": "the pre-load check found findings in it",
                 "held": "the pre-load check holds findings in it against a baseline"}[d["state"]]

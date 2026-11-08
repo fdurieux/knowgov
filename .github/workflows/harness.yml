@@ -455,6 +455,8 @@ jobs:
           PY
       - name: The review step (task-0037, decision-0002), S2' from BLOCKED to PROCEED by command, S4 settled whole, the six-month lapse
         run: KG_STORE=rdflib python tools/check_review_walkthrough.py runs/review
+      - name: One clock (task-0198), on rdflib, one --as-of gives one report under two KG_TODAY values; a person's approval lapses to proposed against it, a review-file approval with no verification lapses, what is dated after it is not counted, three_valued_answer marks the lapse
+        run: rm -rf runs/one-clock && KG_STORE=rdflib python tools/check_one_clock.py runs/one-clock
       - name: The MCP server (task-0056) gives gate_cli's report for the same store, the record's three-valued answers, and writes nothing
         run: |
           KG_STORE=rdflib python tools/check_mcp_server.py ${KG_CQ_SCENARIOS:+--scenarios "$KG_CQ_SCENARIOS"}
