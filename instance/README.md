@@ -1514,6 +1514,51 @@ What it does not see: a shell command that writes the same file (`harness/captur
 the assistant. The hook guards the assistant's file tools; the pull request, reviewed by someone
 other than its author, guards the rest.
 
+## The settings an instance may rely on
+
+Most of what you configure is in files: `subject.toml`, `code_map.toml`, the CI templates. A few things
+are *environment variables*, set in the shell, the CI job or the compose file before a command starts.
+This section lists the ones that are contracts from 1.0 (decision-0027). The others this guide names,
+such as `KG_STORE`, `KG_SUBJECT` or `KG_PUBLISH`, are described where they are used. The limits of the
+worker that runs model-written code are in [`docs/security.md`](../docs/security.md). A setting that
+neither file names is not a contract.
+
+**The CI templates and the Claude Code hook.** Each of these is read by
+`instance/ci/knowgov-gate.sh`, the GitHub action, the GitLab include or the hook:
+
+| Setting | What it does | Default | Who sets it |
+|---|---|---|---|
+| `KG_GATE` | which gate the job runs: `preload`, `gate`, `trace-check` or `trace-register` | `gate` in the GitLab include | you, as a variable of the GitLab include; the GitHub action sets it from its `gate` input |
+| `KG_TASK` | the task class the gate and the trace read. `keys` is refused with exit 2: a pipeline checks a task class, never a key set an assistant chose | `codegen` | you, in the job's environment; the GitHub action from its `task` input; the hook, per stage, from its settings snippet |
+| `KG_STAGE` | `2` brings in the scenario's later version (the gate's `--stage 2`) | none: the first stage | you; the GitHub action from its `stage` input |
+| `KG_NO_LOAD` | `1` makes the gate read the store as your instance's load left it, instead of loading a private copy (the gate's `--no-load`) | none: the gate loads a private copy | you, in the job's environment |
+| `KG_CODE_REPO` | the name of your code repository, in the id `trace-register` gives each file it registers | `code`. The GitHub action fills in the repository's name, and the GitLab include the project's | you, or the GitHub action's `code-repo` input |
+| `KG_SUBJECT_IN` | the GitHub action's own carrier for its `subject` input: when it is set, the action passes it on as `KG_SUBJECT` | none: the instance's only subject | the GitHub action, from its `subject` input. You set the input, not this variable |
+| `KG_HOME` | where the Claude Code hook finds the knowgov checkout | the checkout the hook file is in; the hook's `--knowgov` option overrides both | the hook's settings snippets, as `/opt/knowgov`: change it to your checkout's path |
+
+**The store.** Read by `harness/store_neo4j.py`, and by the page for its store chip:
+
+| Setting | What it does | Default | Who sets it |
+|---|---|---|---|
+| `KG_NEO4J_URI` | the address of the Neo4j store, as a bolt URL | `bolt://localhost:7687`. The image and the compose file set `bolt://neo4j:7687`, the stack's own Neo4j | you, for a Neo4j outside the stack |
+| `KG_NEO4J_USER` | the Neo4j user name. Its password is `KG_NEO4J_PASSWORD` ([`docs/security.md`](../docs/security.md)) | `neo4j` | you, when your Neo4j has another user |
+
+**Asking about another subject.** Read by `harness/mcp_server.py`:
+
+| Setting | What it does | Default | Who sets it |
+|---|---|---|---|
+| `KG_SUBJECT_CALL_TIMEOUT` | how many seconds the MCP reader lets one call for another subject take. That call runs in a process of its own; past the time it ends, and the tool answers with an error naming the subject | `300` | you, in the server's environment |
+
+**The model endpoint.** Only the Arms mode and the transcript route call a model. Read by
+`harness/arms.py` and the page's model table, `demo/app/models.py`:
+
+| Setting | What it does | Default | Who sets it |
+|---|---|---|---|
+| `KG_ARMS_MODEL` | the model the arms call | the subject's record model, else `gpt-5.5` | you; each row of the model table names its own model |
+| `KG_MODEL_API_KEY_VAR` | the *name* of the environment variable that holds the model key, never the key itself | `OPENAI_API_KEY` | you |
+| `KG_MODEL_API_KEY` | a variable the compose file passes into the page, for a key, so that `KG_MODEL_API_KEY_VAR` or a row's key variable can name it | none | you, in your shell before `docker compose up`, never in a file you commit |
+| `KG_MODELS` | the table of model rows the page's Arms drop-down lists | `demo/models.toml` (inside the container, `/repo/demo/models.toml`) | you, to list your own endpoints |
+
 ## What stays stable from 1.0: the contracts
 
 A **contract** is a part of knowgov your instance is allowed to depend on: a flag your pipeline

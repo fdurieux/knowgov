@@ -12,6 +12,19 @@ names that section with the version.
 
 ### Contract changes
 
+- **Twenty `KG_*` settings are contracts from 1.0** (task-0234, decision-0027, decision-0016 point 3).
+  `instance/README.md`'s new section "The settings an instance may rely on" documents fourteen of them,
+  each with what it does, its default and who sets it:
+  - the CI-template and hook inputs: `KG_GATE`, `KG_TASK`, `KG_STAGE`, `KG_NO_LOAD`, `KG_CODE_REPO`,
+    `KG_SUBJECT_IN` and `KG_HOME`;
+  - the store: `KG_NEO4J_URI` and `KG_NEO4J_USER`;
+  - `KG_SUBJECT_CALL_TIMEOUT`;
+  - the model endpoint: `KG_ARMS_MODEL`, `KG_MODEL_API_KEY_VAR`, `KG_MODEL_API_KEY` and `KG_MODELS`.
+  `docs/security.md` documents the worker's six limits: `KG_WORKER_CPUS`, `KG_WORKER_MEM`,
+  `KG_WORKER_JOB_SECONDS`, `KG_WORKER_JOBS`, `KG_WORKER_WORK` and `KG_WORKERS`.
+  None of them changes behaviour; each is now a promise. Nineteen other settings stay out of the contracts,
+  and `tests/test_adopter_docs.py` holds both lists.
+
 - **Format versions on an instance's inputs** (task-0174, decision-0023, doc-0028 G9-2). `subject.toml` carries
   `[format] version = 1`, covering its subject root's `scenarios.toml`, `plants.toml`, `queries.toml` and register
   map; `code_map.toml` and `connectors.toml` each a top-level `format = 1`; each capture and review file its own
