@@ -127,6 +127,21 @@ def test_the_ledger_entry_carries_the_derived_id_keys_commit_and_digest_and_drif
         assert none["status"] == "read" and none["entry"] is None   # read: the ledger holds no entry for it
 
 
+def test_a_ledger_entry_with_no_code_root_reads_unchecked_never_drift_false():
+    """doc-0030 M7, task-0208: with no code root (no instance, or a code map that does not hold) the file was
+    never looked at, so its ledger entry cannot say whether it drifted: the leg reads unchecked, naming why."""
+    entry = {"id": "derived:code@abc123:a.py", "path": "a.py", "app": "APP-0001", "sha256": "0" * 64,
+             "commit": "abc123", "assertions": []}
+    with tempfile.TemporaryDirectory() as d:
+        led = Path(d) / "ledger.json"
+        led.write_text(json.dumps({"tool": "knowgov trace ledger", "schema_version": 1, "entries": [entry]}), encoding="utf-8")
+        for inst in (None, Path(d)):   # no instance configured; an instance with no code_map.toml
+            rep = _valid(upward.code_path("a.py", {"instance": None if inst is None else str(inst), "ledger": str(led)}), CODE)
+            got = rep["ledger"]
+            assert got["status"] == "unchecked" and got["entry"] is None, got
+            assert "no code root" in got["reason"] and "drift" in got["reason"], got["reason"]
+
+
 def test_cited_keys_unknown_ones_flagged_and_an_uncovered_or_malformed_header_unchecked():
     if not SAME:
         return

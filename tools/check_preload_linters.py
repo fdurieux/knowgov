@@ -17,6 +17,11 @@ is missing exits 2 naming it (this proof never passes on an unchecked kind).
 3. A broken file of each kind planted and committed: the script exits 1; preload_check.py -f json names
    each tool with the rule it broke, every finding major, and the report is valid against
    harness/schemas/preload-report.schema.json.
+4. Step 4's checks (task-0217), each finding its planted defect, each finding in the report with its tool:
+   the feature trace, on the harness's pinned pumllint (0.35.0 or later: an older one is cannot-run here, this
+   proof never passing on an unchecked check), a diagram and a scenario citing ids no requirement holds; the glossary, a term in three requirements the
+   glossary does not define (and none once it does); the DMN check, the example's own table's two gaps, then
+   a table whose rules overlap under UNIQUE and leave an output untyped.
 """
 from __future__ import annotations
 
@@ -31,6 +36,8 @@ sys.path[:0] = [str(ROOT / "harness"), str(ROOT / "tools")]
 import example_instance  # noqa: E402
 import preload_check  # noqa: E402
 import schema_check  # noqa: E402
+import step4_checks  # noqa: E402
+
 
 KINDS = {"specification-prose": "markdownlint", "acceptance-scenarios": "gplint",
          "bpmn-process-models": "bpmnlint", "decision-tables": "dmnlint"}
@@ -100,6 +107,13 @@ def main(argv: list[str]) -> int:
     if missing:
         print(f"cannot run: not installed here: {', '.join(missing)}", file=sys.stderr)
         return 2
+    trace = step4_checks.trace_cmd()
+    ver = subprocess.run(trace + ["--version"], capture_output=True, text=True) if trace else None
+    have = step4_checks._version(ver.stdout + ver.stderr) if ver and ver.returncode == 0 else None
+    if have is None or have < step4_checks.TRACE_NEEDS:
+        print(f"cannot run: the feature trace needs pumllint {'.'.join(map(str, step4_checks.TRACE_NEEDS))} or later; "
+              f"here: {'.'.join(map(str, have)) if have else 'none'}", file=sys.stderr)
+        return 2
     out = Path(argv[0])
     shutil.rmtree(out, ignore_errors=True)
     inst = out / "instance"
@@ -150,7 +164,87 @@ def main(argv: list[str]) -> int:
         assert any(f["rule"] == rule and f["severity"] == "major" for f in r["findings"]), (rule, r["findings"])
         print(f"broken: {r['file']} {r['tool']} {rule}: {r['why']}")
     print("broken: exit 1")
+    step4(out)
     return 0
+
+
+def _findings(rep: dict, tool: str) -> dict[str, list[tuple[str, str]]]:
+    got: dict[str, list[tuple[str, str]]] = {}
+    for r in rep["files"]:
+        for f in r["findings"]:
+            if f.get("tool") == tool:
+                got.setdefault(r["file"], []).append((f["rule"], f["severity"]))
+    return got
+
+
+def step4(out: Path) -> None:
+    schema = schema_check.load("preload-report")
+    inst = out / "step4"
+    example_instance.build(inst)
+    checks = lambda rep: {c["check"]: c for c in rep["checks"]}  # noqa: E731
+
+    # the trace, on the pinned pumllint: the planted ids found
+    (inst / "pumllint.toml").write_text('[rules.requirement-link]\npattern = "REQ-\\\\d+"\n', encoding="utf-8")
+    diagram = inst / "artefacts" / "plantuml-models" / "quote_flow.puml"
+    feature = inst / "artefacts" / "acceptance-scenarios" / "acceptance.feature"
+    rep = preload_check.check(inst)
+    assert checks(rep)[step4_checks.TRACE]["state"] == "ran", f"cannot run: {checks(rep)[step4_checks.TRACE]['why']}"
+    before = _findings(rep, step4_checks.TRACE)
+    assert not any(r.startswith("TRACE-UNKNOWN") for fs in before.values() for r, _ in fs), before
+    text = diagram.read_text(encoding="utf-8")
+    diagram.write_text(text.replace("\n", "\ntitle Quote flow REQ-01 REQ-99\n", 1), encoding="utf-8")
+    lines = feature.read_text(encoding="utf-8").splitlines(keepends=True)
+    at = next(i for i, x in enumerate(lines) if x.lstrip().startswith("Scenario"))
+    lines.insert(at, " " * (len(lines[at]) - len(lines[at].lstrip())) + "@REQ-01 @REQ-98\n")
+    feature.write_text("".join(lines), encoding="utf-8")
+    rep = preload_check.check(inst)
+    assert not schema_check.validate(rep, schema), schema_check.validate(rep, schema)
+    got = _findings(rep, step4_checks.TRACE)
+    d, f = diagram.relative_to(inst).as_posix(), feature.relative_to(inst).as_posix()
+    assert ("TRACE-UNKNOWN-REF", "major") in got.get(d, []) and ("TRACE-UNKNOWN-FEATURE-REF", "major") in got.get(f, []), got
+    print(f"trace {checks(rep)[step4_checks.TRACE]['version']}: REQ-99 in {d} and REQ-98 in {f}, major; "
+          f"{sum(map(len, got.values()))} trace findings in all")
+
+    # the glossary: three requirements naming a term the glossary lacks; none once it has a row
+    (inst / "artefacts" / "glossary").mkdir(exist_ok=True)
+    gloss = inst / "artefacts" / "glossary" / "glossary.md"
+    gloss.write_text("# Glossary\n\n| term | definition |\n|---|---|\n| quote | a priced offer |\n", encoding="utf-8")
+    reqs = inst / "artefacts" / "textual-requirements" / "planted.md"
+    reqs.write_text("| id | requirement |\n|---|---|\n" + "".join(
+        f"| PL-{i} | the **chargeable mass** decides step {i} |\n" for i in (1, 2, 3)), encoding="utf-8")
+    rep = preload_check.check(inst)
+    got = _findings(rep, step4_checks.GLOSSARY)
+    r = reqs.relative_to(inst).as_posix()
+    assert got.get(r) == [("GLOSSARY-UNDEFINED", "minor")], got
+    gloss.write_text(gloss.read_text(encoding="utf-8") + "| chargeable mass | the greater of the gross and the volumetric mass |\n",
+                     encoding="utf-8")
+    assert not _findings(preload_check.check(inst), step4_checks.GLOSSARY).get(r), "the defined term is still a finding"
+    print(f"glossary: 'chargeable mass' in three requirements of {r}, undefined: minor; defined: none")
+
+    # the DMN check: the example's own table's two gaps, then a planted overlap and untyped output
+    own = "artefacts/decision-tables/screening_decision.dmn"
+    got = _findings(rep, step4_checks.DMN)
+    assert got.get(own) == [("DMN-GAP", "minor"), ("DMN-GAP", "minor")], got
+    dmn = inst / "artefacts" / "decision-tables" / "planted.dmn"
+    dmn.write_text("""<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" id="p" name="Planted" namespace="http://example.org/x">
+  <decision id="band" name="Band">
+    <decisionTable id="t_band" hitPolicy="UNIQUE">
+      <input id="i" label="mass"><inputExpression typeRef="number"><text>mass</text></inputExpression></input>
+      <output id="o_band" label="band" typeRef="string"/>
+      <output id="o_note" label="note"/>
+      <rule id="r_low"><inputEntry><text>&lt; 10</text></inputEntry><outputEntry><text>"low"</text></outputEntry><outputEntry><text>"a"</text></outputEntry></rule>
+      <rule id="r_mid"><inputEntry><text>[5..20]</text></inputEntry><outputEntry><text>"mid"</text></outputEntry><outputEntry><text>"b"</text></outputEntry></rule>
+      <rule id="r_high"><inputEntry><text>&gt; 20</text></inputEntry><outputEntry><text>"high"</text></outputEntry><outputEntry><text></text></outputEntry></rule>
+    </decisionTable>
+  </decision>
+</definitions>
+""", encoding="utf-8")
+    rep = preload_check.check(inst)
+    assert not schema_check.validate(rep, schema), schema_check.validate(rep, schema)
+    got = _findings(rep, step4_checks.DMN).get(dmn.relative_to(inst).as_posix(), [])
+    assert ("DMN-OVERLAP", "major") in got and got.count(("DMN-UNTYPED-OUTPUT", "minor")) == 2 and ("DMN-GAP", "minor") not in got, got
+    print(f"dmn: {own} two gaps, minor; planted.dmn {', '.join(sorted({r for r, _ in got}))}")
 
 
 if __name__ == "__main__":
