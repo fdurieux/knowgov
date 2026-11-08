@@ -12,6 +12,25 @@ names that section with the version.
 
 ### Contract changes
 
+- **An attestation is bound to the Versions it attests** (task-0221, decision-0019; decision-0009 option (c)).
+  Before, `[verification] authored` and `approval` attested whatever the documents held at each load, so an edit
+  made after the attestation inherited it.
+  - **The subject format.** Each declaration may list, in `versions`, the digest of every artefact Version it
+    attests: a file's raw-byte SHA-256 (task-0160) and, for a directory, each of its files' (task-0094; a directory
+    is attested when every file is listed). `authored = { at = "...", scope = "...", versions = ["<sha256>", ...] }`.
+  - **An unlisted Version is not attested.** Its authored statements read `proposed`, and none of its statements is
+    approved by construction. A test's verification of it still counts.
+  - **The gate names it.** A new finding kind, `attestation`: each artefact Version a bound declaration does not
+    attest, behind the task's keys, at `major`, with the keys' owner and a route (the attester lists its digest, or
+    the owner's questionnaire, `capture.routing`). New port write and read `record_attestation` and `attestations`
+    (in `store.READS`), on both adapters and through the Turtle round trip; `verify_authored` and `approve_verified`
+    take the attested artefacts.
+  - **Read rule for declarations written before this change.** A declaration with no `versions` attests per load,
+    as decision-0009 (a) has it. The gate lists it at `info` (`attestation`, not bound), and `tools/check_subject.py`
+    notes it, naming decision-0019. The public subjects keep their declarations without lists, so the scored record
+    is unchanged; listing their Versions is the maintainer's own attestation, in a pull request held for it.
+  - `tools/check_subject.py` refuses a listed digest that is no Version of the subject (its files, and the texts
+    its plants make of them). `tools/check_attestation_binding.py` proves it on both stores.
 - **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
   with one additive field.
   - **One successor set (G3).** The gate's level drops an invalidated statement only when its own verified or

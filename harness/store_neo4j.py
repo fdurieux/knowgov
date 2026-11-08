@@ -835,21 +835,22 @@ class Neo4jStore(Store):
             SET x.status = CASE WHEN x.status IN ['proposed','validated'] THEN 'verified' ELSE x.status END
             RETURN count(x) AS n""", key=key, vals=values, at=at, scope=scope, hid=agent_id).single()["n"]
 
-    def verify_authored(self, at, scope, agent_id) -> int:
+    def verify_authored(self, at, scope, agent_id, artefacts=None) -> int:   # artefacts: decision-0019's attested Versions
         return self.run("""
             MATCH (x:Assertion) WHERE x.basis='authored' AND x.status='proposed' AND x.value <> 'NONE'
+              AND ($arts IS NULL OR x.artefact IN $arts)
             MATCH (h:Agent {id:$hid})
             MERGE (v:Verification {id:'ver:review:' + x.id})
               SET v.method='review', v.outcome='pass', v.at=$at, v.valid_until=null, v.scope=$scope
             MERGE (v)-[:VERIFIES]->(x) MERGE (v)-[:PERFORMED_BY]->(h)
-            SET x.status='verified' RETURN count(x) AS n""", at=at, scope=scope, hid=agent_id).single()["n"]
+            SET x.status='verified' RETURN count(x) AS n""", at=at, scope=scope, hid=agent_id, arts=artefacts).single()["n"]
 
-    def approve_verified(self, at, record, agent_id) -> int:
+    def approve_verified(self, at, record, agent_id, artefacts=None) -> int:
         return self.run("""
-            MATCH (x:Assertion {status:'verified'}), (h:Agent {id:$hid})
+            MATCH (x:Assertion {status:'verified'}), (h:Agent {id:$hid}) WHERE $arts IS NULL OR x.artefact IN $arts
             MERGE (ap:Approval {id:'appr:' + x.id}) SET ap.at=$at, ap.record=$record
             MERGE (ap)-[:APPROVES]->(x) MERGE (ap)-[:BY]->(h)
-            SET x.status='approved' RETURN count(x) AS n""", at=at, record=record, hid=agent_id).single()["n"]
+            SET x.status='approved' RETURN count(x) AS n""", at=at, record=record, hid=agent_id, arts=artefacts).single()["n"]
 
     def reverify(self, version, keys, agent_id, ts, scope, record) -> list[str]:
         return self.run("""
@@ -1154,6 +1155,13 @@ class Neo4jStore(Store):
 
     def record_act_finding(self, row) -> None:
         self.run("MERGE (a:ActFinding {id:$id}) SET a += $props", id=row["id"], props={k: row[k] for k in self.ACT_FIELDS}).consume()
+
+    def record_attestation(self, row) -> None:
+        self.run("MERGE (a:Attestation {id:$id}) SET a += $props", id=row["id"], props={k: row[k] for k in self.ATTESTATION_FIELDS}).consume()
+
+    def attestations(self) -> list[dict]:
+        cols = ", ".join(f"a.{k} AS {k}" for k in self.ATTESTATION_FIELDS)
+        return by_id(_rows(self.run(f"MATCH (a:Attestation) RETURN a.id AS id, {cols}")))
 
     def act_findings(self) -> list[dict]:
         cols = ", ".join(f"a.{k} AS {k}" for k in self.ACT_FIELDS)

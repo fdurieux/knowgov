@@ -136,6 +136,40 @@ def _short(sha: str) -> str:
     return (sha or "")[:12] or "none"
 
 
+def attestation_findings(rows: list[dict], owners: dict | None, route) -> list[dict]:
+    """decision-0019 (task-0221): a declaration that lists no Version is the read rule's, at info; each artefact a
+    bound declaration does not attest, behind the task's keys, is major (its authored statements read proposed and
+    nothing in it is approved by construction, so the keys behind it fall below verified, and the attester or the
+    keys' owner has to act). It names the keys' owner and route (``capture.routing``) when they share one."""
+    out = []
+    for r in rows:
+        if not r["bound"]:
+            out.append(_finding("info", "attestation", f"[verification] {r['declaration']} lists no Version: it attests what the documents "
+                                "hold at each load (decision-0009 (a), the read rule); list the digest of each Version it attests "
+                                "(decision-0019) to bind it", ref=f"attest:{r['declaration']}"))
+    merged: dict[str, dict] = {}
+    for r in rows:
+        for u in r["unattested"] if r["bound"] else []:
+            m = merged.setdefault(u["artefact"], {**u, "declarations": [], "attester": r["attester"]})
+            m["declarations"].append(r["declaration"])
+    for art, u in sorted(merged.items()):
+        decls = " and ".join(u["declarations"])
+        digests = ", ".join(x[:12] for x in u["parts"]) if u["parts"] else u["sha256"][:12]
+        f = _finding("major", "attestation", f"{art} (sha256 {digests}), behind {len(u['keys'])} required key(s), is not attested: "
+                     f"[verification] {decls} list(s) no digest of this Version, so its authored statements read proposed and "
+                     "nothing in it is approved by construction (decision-0019)", ref=art, related=u["keys"])
+        if owners is not None:
+            units = {(owners.get(k) or {}).get("unit") for k in u["keys"]}
+            unit = units.pop() if len(units) == 1 else None
+            f["owner"] = unit
+            how = (f"{u['attester'] or 'the attester'} reads the document and lists sha256 {u['sha256']} under [verification] "
+                   f"{decls} versions in subject.toml (decision-0019)")
+            q = route(unit, u["keys"][0]) if route and unit else None
+            f["route"] = how + (f"; or {q}" if q else "")
+        out.append(f)
+    return out
+
+
 def act_finding(a: dict) -> dict:
     """One act the load did not apply as written (``gate.acts_not_applied``) as a finding of kind ``act``."""
     who = f"{a['review']}: {a['act']} {a['n']} by {a['by']} on {a['on']}" if a["act"] != "review" else f"{a['review']} by {a['by']} on {a['on']}"
@@ -212,6 +246,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                             + (f" ({d['tool']})" if d.get("tool") else "") + (f"; {d['why']}" if d.get("why") else ""),
                             ref=f"{d['artefact']}@{d['version']}", related=d["keys"]))
     out += [act_finding(a) for a in res.get("acts") or []]
+    out += attestation_findings(res.get("attestation") or [], owners, route)
     if owners is not None:
         for f in out:
             if f["kind"] in OWNED and (f["kind"] != "act" or f["key"]):
@@ -224,7 +259,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                     f["closer"] = c["unit"]
                     if f["route"]:
                         f["route"] += closing_route(c["gap"], c["unit"])
-    kinds = ["task", "key", "suspect_derived", "stale", "lapsed", "act", "preload"]
+    kinds = ["task", "key", "suspect_derived", "stale", "lapsed", "act", "attestation", "preload"]
     return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), kinds.index(f["kind"]), f["key"] or "", f["ref"] or ""))
 
 

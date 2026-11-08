@@ -563,9 +563,10 @@ class RdflibStore(Store):
             self._verify(x, f"ver:review:{self.nid(x)}", h, {"method": "review", "outcome": "pass", "at": at, "valid_until": None, "scope": scope})
         return len(xs)
 
-    def verify_authored(self, at, scope, agent_id) -> int:
+    def verify_authored(self, at, scope, agent_id, artefacts=None) -> int:
         h = self.node(agent_id, "Agent")
-        xs = [x for x in self.nodes("Assertion", basis="authored", status="proposed") if self.prop(x, "value") != "NONE"]
+        xs = [x for x in self.nodes("Assertion", basis="authored", status="proposed") if self.prop(x, "value") != "NONE"
+              and (artefacts is None or self.prop(x, "artefact") in artefacts)]   # decision-0019: the Versions attested
         if h is None:
             return 0
         for x in xs:
@@ -575,9 +576,9 @@ class RdflibStore(Store):
             self.set_props(x, {"status": "verified"})
         return len(xs)
 
-    def approve_verified(self, at, record, agent_id) -> int:
+    def approve_verified(self, at, record, agent_id, artefacts=None) -> int:
         h = self.node(agent_id, "Agent")
-        xs = self.nodes("Assertion", status="verified")
+        xs = [x for x in self.nodes("Assertion", status="verified") if artefacts is None or self.prop(x, "artefact") in artefacts]
         if h is None:
             return 0
         for x in xs:
@@ -1015,6 +1016,12 @@ class RdflibStore(Store):
 
     def record_act_finding(self, row) -> None:
         self.merge_node(row["id"], "ActFinding", props={k: row[k] for k in self.ACT_FIELDS})
+
+    def record_attestation(self, row) -> None:
+        self.merge_node(row["id"], "Attestation", props={k: row[k] for k in self.ATTESTATION_FIELDS})
+
+    def attestations(self) -> list[dict]:
+        return by_id([{"id": self.nid(a), **{k: self.prop(a, k) for k in self.ATTESTATION_FIELDS}} for a in self.nodes("Attestation")])
 
     def act_findings(self) -> list[dict]:
         return by_id([{"id": self.nid(a), **{k: self.prop(a, k) for k in self.ACT_FIELDS}} for a in self.nodes("ActFinding")])

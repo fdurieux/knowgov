@@ -1,10 +1,11 @@
 ---
 id: TASK-0221
 title: An attestation bound to the Versions it attests (decision-0019)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-08T11:18:00Z'
-updated_date: '2026-11-08T11:18:00Z'
+updated_date: '2026-11-08T11:56:00Z'
 labels:
   - attestation
   - contract
@@ -36,3 +37,9 @@ decision-0019 (the maintainer, 2026-11-08: Build it in 0.9; decision-0009 option
 - [ ] #6 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 - [ ] #7 A second pull request lists cargo_quote's and jef_data_load's attested Versions with S6's measured effect, held for the maintainer's approval
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+load.attested_artefacts reads [verification] authored and approval versions (raw-byte Version digests; a directory's part digests); verify_authored and approve_verified take the attested artefacts on both adapters (None under the read rule); record_attestation keeps the reading per declaration. The gate's attestation finding: info for a declaration with no list, major for each unattested Version behind the keys, owner and route by capture.routing. check_subject: a listed digest that is no Version of the subject is an error, no list a note naming decision-0019. tools/check_attestation_binding.py. Then a held PR listing the public subjects' Versions, with S6 and every scenario measured.
+<!-- SECTION:PLAN:END -->

@@ -88,7 +88,9 @@ approval = { at = "2026-08-06", record = "..." }    # the owner's approval of ev
                               # decision-0009 (a): no default stands in for a person; without authored, authored
                               # statements stay proposed, and without approval nothing is approved; each needs its
                               # own at and [provenance] human an id, refused otherwise by check_subject and applied
-                              # to nothing by the load (task-0199, doc-0030 I9)
+                              # to nothing by the load (task-0199, doc-0030 I9); authored and approval may list in
+                              # versions = ["<sha256>", ...] the Versions they attest (decision-0019): an unlisted
+                              # Version then reads proposed; without the list they attest per load (the read rule)
 
 [arms]                        # optional; absent means kind = "reply": one JSON reply per run (harness/arms.py)
 kind = "agent"                # a loop of turns with tools over a sandbox (harness/agent.py, task-0022)

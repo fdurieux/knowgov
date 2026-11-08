@@ -143,7 +143,7 @@ DEFAULT_HOST, DEFAULT_PORT = "127.0.0.1", 8765
 # The store port's reads this server may call (harness/store.py); anything else raises.
 READS = frozenset({"key_evidence", "declared_gaps_for_key", "conflict_gaps", "stale_on_keys", "suspect_derived",
                    "extraction_activities", "extraction_times", "assertions_on_key", "census", "preload_verdicts",
-                   "held_keys", "derived_outputs", "artefact_assertions", "held", "act_findings"})   # task-0144; held, task-0195; acts, task-0199
+                   "held_keys", "derived_outputs", "artefact_assertions", "held", "act_findings", "attestations"})   # task-0144; held, task-0195; acts, task-0199
 
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
 
