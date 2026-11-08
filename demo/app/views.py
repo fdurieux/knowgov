@@ -120,7 +120,7 @@ def _run_view(r: dict) -> dict:
             "targets": r.get("M4_targets") or {}, "outage_status": r.get("outage_status"),
             "refs": r.get("M5_refs"), "noncompliance": r.get("M6_noncompliance"), "adopted": r.get("M7_adopted"),
             "questions": r.get("questions") or [], "assumptions": r.get("assumptions") or [],
-            "claims_n": len(r.get("claims") or []), "api_error": r.get("api_error"),
+            "claims_n": len(r.get("claims") or []), "api_error": r.get("api_error"), "prompt_cut": r.get("prompt_cut"),
             "parse_error": r.get("parse_error"), "code_text": r.get("code_text"), "usage": r.get("usage"),
             "agent": r.get("agent"), "trace": r.get("trace")}
 

@@ -625,7 +625,7 @@ function renderReport(v) {
     return `<table><thead><tr><th>suite scenario</th>${rs.map(r => `<th>${arm}${r.run}</th>`).join('')}</tr></thead><tbody>
       ${v.suite_order.map(s => `<tr><td>${esc(s)}</td>${rs.map(r => { const p = r.per_scenario[s]; const cls = r.code ? (p ? 'p' : 'f') : 'n'; return `<td class="${cls}">${r.code ? (p ? '✓' : '✗') : '—'}</td>`; }).join('')}</tr>`).join('')}
       <tr><th>suite</th>${rs.map(r => `<th>${esc(r.suite || '—')}</th>`).join('')}</tr>
-      <tr><th>decision</th>${rs.map(r => `<td>${esc(r.decision || (r.api_error ? 'api error' : '—'))}</td>`).join('')}</tr>
+      <tr><th>decision</th>${rs.map(r => `<td>${esc(r.decision || (r.prompt_cut ? 'prompt cut' : r.api_error ? 'api error' : '—'))}</td>`).join('')}</tr>
       <tr><th>model</th>${rs.map(r => `<td${r.model && !r.model.startsWith(v.record_model) ? ' style="color:var(--red)"' : ''}>${esc(r.model || '—')}</td>`).join('')}</tr>
       <tr class="wrap"><th>flagged (M3)</th>${rs.map(r => `<td>${r.flagged ? 'yes: ' + esc(r.hits.join(', ')) : 'no'}</td>`).join('')}</tr>
       <tr><th>refs resolvable (M5)</th>${rs.map(r => `<td>${r.refs && r.refs.share !== null ? r.refs.resolved + '/' + r.refs.total : '—'}</td>`).join('')}</tr>

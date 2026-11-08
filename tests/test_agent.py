@@ -289,3 +289,65 @@ def test_hidden_tokens_are_recorded_and_counted_against_the_ceiling():
     assert tot["prompt_tokens"] + tot["completion_tokens"] == 300, "prompt plus completion alone would have run on"
     assert tot["hidden_tokens"] == 20_000 and tot["counted_tokens"] == 20_300 and not tot["thinking_uncounted"]
     assert [t.get("hidden_tokens") for t in r["trace"] if t["kind"] == "model"] == [10_000, 10_000]
+
+
+def test_a_turn_the_endpoint_read_short_ends_the_run_marked_before_its_reply_is_acted_on():
+    """Task-0185 (doc-0023 defect 1): every turn's characters (messages, tool calls, tool definitions) are
+    held against the prompt tokens the endpoint reports; a turn read short ends the run with the mark and
+    its reason, before any tool the reply asks for runs. A whole conversation finishes as before."""
+    big = "Clause: the carrier records the reference. " * 1500
+    seen = []
+    with tempfile.TemporaryDirectory() as d:
+        res = agent.run("s", big, sandbox=Path(d), read_text=lambda p: "doc", feedback=_feedback(seen), tag="t/cut",
+                        responder=_scripted([_turn([_call("write_file", path="a.py", content="x = 1")], pt=2_050)]))
+        assert res["prompt_cut"] and res["prompt_cut"]["prompt_tokens"] == 2_050, res["prompt_cut"]
+        assert res["stopped_by"].startswith("prompt cut by the endpoint") and not res["finished"] and res["files"] == [], res
+        assert res["parsed"]["decision"] == "abstain" and [t["kind"] for t in res["trace"]] == ["model", "error"], res["trace"]
+    assert agent.sent_chars([{"role": "user", "content": "abc"}, {"role": "assistant", "content": None,
+                              "tool_calls": [{"function": {"name": "f", "arguments": "{}"}}]}], []) == 3 + 1 + 2
+    with tempfile.TemporaryDirectory() as d:
+        res = agent.run("s", big, sandbox=Path(d), read_text=lambda p: "doc", feedback=_feedback(seen), tag="t/whole",
+                        responder=_scripted([_turn([_call("finish", decision="abstain")], pt=15_000)]))
+        assert res["prompt_cut"] is None and res["finished"], res["stopped_by"]
+
+
+def test_openai_responder_joins_the_text_of_list_shaped_content():
+    """Task-0186 (doc-0023 defect 2), in task-0033's shape: a stub stream whose content is a list while the
+    model thinks, then a list closing the thinking with text, then a string, gives the text only; the
+    joined list raised TypeError before, which ended the agent run as an api error."""
+    from types import SimpleNamespace as NS
+    think = {"type": "thinking", "thinking": [{"type": "text", "text": "plan the module"}]}
+    chunks = [NS(usage=None, model="mistral-x", choices=[NS(delta=NS(content=[think], tool_calls=None))]),
+              NS(usage=None, model="mistral-x", choices=[NS(delta=NS(content=[{"type": "thinking", "thinking": []}, {"type": "text", "text": '{"decision": '}], tool_calls=None))]),
+              NS(usage=None, model="mistral-x", choices=[NS(delta=NS(content='"abstain"}', tool_calls=None))]),
+              NS(usage=NS(prompt_tokens=10, completion_tokens=5, prompt_tokens_details=None), model="mistral-x", choices=[])]
+
+    class _Client:
+        def __init__(self, **kw):
+            self.chat = NS(completions=NS(create=lambda **kw: iter(chunks)))
+    saved = sys.modules.get("openai")
+    sys.modules["openai"] = NS(OpenAI=_Client)
+    try:
+        r = agent.openai_responder("mistral-x")([{"role": "user", "content": "u"}], [])
+    finally:
+        if saved is not None:
+            sys.modules["openai"] = saved
+        else:
+            sys.modules.pop("openai", None)
+    assert r["content"] == '{"decision": "abstain"}' and r["tool_calls"] == [], r
+
+
+def test_the_page_reads_a_cut_cell_as_prompt_cut_with_no_decision():
+    """Task-0185: run.py records a cut call as a failed cell carrying prompt_cut and no score; the page's
+    view passes the mark through, so the run table reads "prompt cut" in place of a decision."""
+    sys.path.insert(0, str(ROOT / "demo" / "app"))
+    import views
+    cut = arms.prompt_cut(56_145, {"prompt_tokens": 2_050})
+    rec = {"scenario": "X", "arm": "B", "run": 1, "api_error": cut["why"], "prompt_cut": cut, "M1_decision": None, "M2_code": False,
+           "M3_flagged": {"flagged": False, "hits": []}, "M4_suite": {"ran": False, "passed": 0, "total": 11, "per_scenario": {}},
+           "M4_targets": {}, "outage_status": None, "M5_refs": {"total": 0, "resolved": 0, "share": None}, "M6_noncompliance": False,
+           "questions": None, "assumptions": None, "claims": None, "usage": {"prompt_tokens": 2_050, "completion_tokens": 5}}
+    v = views._run_view(rec)
+    assert v["prompt_cut"] == cut and v["decision"] is None and v["api_error"].startswith("prompt cut") and v["model"] is None, v
+    page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
+    assert "r.prompt_cut ? 'prompt cut' : r.api_error ? 'api error'" in page, "the run table names the cut"
