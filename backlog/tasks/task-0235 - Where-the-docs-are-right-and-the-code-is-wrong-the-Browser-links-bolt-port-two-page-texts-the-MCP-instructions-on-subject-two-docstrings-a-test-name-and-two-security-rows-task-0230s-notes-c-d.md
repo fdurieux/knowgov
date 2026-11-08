@@ -8,7 +8,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-08T21:19:00Z'
-updated_date: '2026-11-08T21:19:00Z'
+updated_date: '2026-11-08T21:24:00Z'
 labels:
   - page
   - mcp
@@ -49,6 +49,8 @@ task-0230's adopter docs pass (#384) listed, for the maintainer, the places wher
 
 <!-- SECTION:NOTES:BEGIN -->
 All seven tests in tests/test_docs_code_fixes.py failed on main f7c37a5 first; for the gate row, the invariant already held (gate.py and gate_cli.py call no ruling write; ruling writes are load.py's, change.py's and rules.py's; --no-load opens a read handle) and the failure was the row citing tests that proved less; so both security rows are proven by a test, neither relabelled Practice. The neo4j-data row's test reads the compose file's volume mount and declaration and the rdflib adapter's in-memory default. Local: run_tests stdlib 827/875, bare venv without yaml 820/875, pins 874/875, each 0 failed; KG_STORE=rdflib check_mcp_server S1,S2,S6 (check_transports, stdio and HTTP) every check holds. The page tests (test_page_subject, test_register_view, test_arms_execution, test_build_identity) pass in each run. The stack job proves the Browser link on the real stack only as far as its own default port.
+
+Coordinator, 2026-11-08: /api/store's browser_connect is an additive change to the page's HTTP API, a 1.0 contract under decision-0016 point 3 (as task-0227's /api/subjects field was), so it has its own CHANGELOG line under Unreleased > Contract changes; the rest stays under Changes.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
