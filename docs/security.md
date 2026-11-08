@@ -338,6 +338,25 @@ worker loop as uid 65534 under its Landlock domain when the tests run as root),
 the real container,
 `tools/check_worker.py` in `demo.yml` (EXEC-01 to EXEC-14, and loosened workers refusing: network on, a key in
 its environment, and the seccomp profile off where the runner's kernel has vsock).
+
+**The worker's limits.** These six settings are contracts from 1.0 (decision-0027). The operator sets
+them in the shell before `docker compose up`, or in the compose file. Each item gives what the setting
+bounds, its default, and what reads it.
+
+- `KG_WORKER_CPUS`: the worker container's CPUs. Default `2`. Read by `demo/docker-compose.yml` (`cpus`).
+- `KG_WORKER_MEM`: the worker container's memory. Default `4g`. Read by `demo/docker-compose.yml`
+  (`mem_limit`).
+- `KG_WORKER_JOB_SECONDS`: the wall time one job may take. At it, the job's whole process group is
+  killed. Default `900` seconds. Read by `harness/execution.py`.
+- `KG_WORKER_JOBS`: the jobs folder the app and the worker share. The app writes a job there and reads its
+  result. The app has no default: unset, no contained worker is configured, and every run of model code
+  is refused. The compose file sets `/jobs`, and the worker itself defaults to `/jobs`. Read by
+  `harness/execution.py` and `harness/worker.py`.
+- `KG_WORKER_WORK`: the worker's own work folder, where each job runs. Default `/work`. Read by
+  `harness/worker.py`.
+- `KG_WORKERS`: how many of an arm's runs the harness makes at once. It bounds the model calls in
+  flight, not the worker container. Default `5`; the page passes `2` to the runs it starts. Read by
+  `harness/run.py` and `demo/app/server.py`.
 **Practice:** for the public demo, use a project key with a spending cap; keep the worker service as
 compose defines it, since loosening it makes it refuse.
 
