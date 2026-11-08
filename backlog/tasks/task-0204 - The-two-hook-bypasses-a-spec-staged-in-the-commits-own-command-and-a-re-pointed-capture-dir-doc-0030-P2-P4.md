@@ -3,9 +3,11 @@ id: TASK-0204
 title: >-
   The two hook bypasses: a spec staged in the commit's own command, and a
   re-pointed capture dir (doc-0030 P2, P4)
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-11-07T07:15:00Z'
+updated_date: '2026-11-08T18:04:00Z'
 labels:
   - review
   - hooks
@@ -26,6 +28,12 @@ P2: knowgov_hook.py's spec-commit transition reads `git diff --cached` before th
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A git commit whose command stages or names a spec path is gated, or the hook fails closed; git is matched on a word boundary, /usr/bin/git, bash -c and git -C included
-- [ ] #2 A change to [capture] dir, and capture-shaped content written anywhere, are blocked as review files are, by tests on both writes
+- [x] #1 A git commit whose command stages or names a spec path is gated, or the hook fails closed; git is matched on a word boundary, /usr/bin/git, bash -c and git -C included
+- [x] #2 A change to [capture] dir, and capture-shaped content written anywhere, are blocked as review files are, by tests on both writes
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+knowgov_hook.py reads git from the command's tokens (git_calls: shlex with punctuation, git by basename so /usr/bin/git, global options -C/-c skipped, a quoted bash -c/sh -c string read recursively, across &&, ; and pipes); push is any git push so read. A commit is the spec transition when what is staged carries a spec file (as before), or when its own command stages or names one before it runs (_stages_spec: a named spec path, a folder, '.', ':/' or a glob holding a changed one per git status, or -A/-u/-a/-i while one is changed); a command that cannot be tokenised falls back to the pattern and a commit fails closed to spec, as does a worktree git cannot read. attestation_paths.py adds [capture] to the subject.toml tables compared parsed before against after (a re-pointed or added dir blocked, removal passes since captures/ stays guarded) and blocks capture-shaped TOML anywhere (_is_capture: [[answer]], [[unknown]], [capture], an [answered] naming a handle or date; a textual fallback when half-written; a blank questionnaire passes). Tests: test_claude_hook's word-boundary/staging test and test_attestation_hook's capture test, each failing on the code before; run_tests 841/843 with the pins, 795/843 without yaml, skips only. README, CLAUDE.md and CHANGELOG (Unreleased > Changes) updated.
+<!-- SECTION:FINAL_SUMMARY:END -->
