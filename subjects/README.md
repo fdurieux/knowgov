@@ -107,6 +107,14 @@ verbatim = ["contracts/cli.md"]      # optional: kit files the governed bundle c
 block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
 max_unverified_share = 0.25
 rationale = "..."                    # optional: why these keys; store_status reports it (task-0101)
+require_approved = true              # optional, default false: the intended bar (task-0215, decision-0018 point 4).
+                                     # A key verified but not approved then reads below the class's bar: an
+                                     # "intended" finding (major) names its owner and route (capture.routing),
+                                     # and the verdict counts it as the class counts a key below verified
+                                     # (QUALIFIED, or BLOCKED past max_unverified_share). A behaviour verified
+                                     # by execution on the original is shown to hold, not intended by anyone.
+                                     # Such a key never blocks outright: a class that wants it to block lowers
+                                     # max_unverified_share (0 blocks on the first one)
 
 [three_valued]
 keys = ["S-review|notified", "..."]   # D5, measured on the scenario that asks for it
@@ -251,7 +259,8 @@ text = "MATCH ..."
 `tools/check_subject.py <subject root> [--register DIR] [--json]` reads a root before it is loaded,
 and `tools/check_instance.py` runs it on every subject of an instance (task-0135, doc-0018 F2 to
 F5). It refuses (exit 1) a table or field this file does not document, a task without `keys`,
-`block_levels` or `max_unverified_share`, a key that is not `<entity>|<predicate>`, a task with no
+`block_levels` or `max_unverified_share`, a `require_approved` that is not true or false, a key that
+is not `<entity>|<predicate>`, a task with no
 scenario, a `register_map.toml` node the register does not hold or an `owner` of none of its row's
 nodes, and a mapper that cannot read its document. It warns on a required key no document yields
 when they yield a near one, the documents' yield taken from the load's own mappers in a child

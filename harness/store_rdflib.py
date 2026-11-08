@@ -1016,6 +1016,17 @@ class RdflibStore(Store):
     def record_act_finding(self, row) -> None:
         self.merge_node(row["id"], "ActFinding", props={k: row[k] for k in self.ACT_FIELDS})
 
+    def clear_act_findings(self) -> None:
+        for a in list(self.nodes("ActFinding")):
+            self.delete_node(a)
+
+    def gap_brief(self, gid) -> dict | None:
+        g = self.node(gid, "Gap")
+        if g is None:
+            return None
+        keys = sorted(self.prop(e, "key") for e, _t in self.edges_out(g, "CONCERNS_KEY") if self.prop(e, "key") is not None)
+        return {"id": gid, "kind": self.prop(g, "kind"), "declared": self.prop(g, "declared"), "text": self.prop(g, "text"), "keys": keys}
+
     def record_lint_gap(self, row) -> None:
         self.merge_node(row["id"], "LintGap", props={k: row.get(k) for k in self.LINT_FIELDS})
 

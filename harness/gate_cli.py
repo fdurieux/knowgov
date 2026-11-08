@@ -14,7 +14,9 @@ in this process's memory, decision-0017), runs the rules, resolves the task's re
               invalidated), or the task as a whole when too many keys are below verified;
               a registered derived output (generated code) that used a statement now invalidated:
               it may not be reused as it is, whatever the verdict on the keys (task-0048)
-    major     a required key below verified (proposed or validated); a stale statement on a
+    major     a required key below verified (proposed or validated); under a class that requires
+              approved (``require_approved``, task-0215), a key verified but not approved (``intended``);
+              a stale statement on a
               required key that no verified or approved successor replaces (task-0048); a statement
               whose review has lapsed (``lapsed``, decision-0005): it reads validated until a new review
     minor     a verified or approved key carrying a flag (ambiguous, inferred, assumed)
@@ -126,7 +128,7 @@ def _finding(severity: str, kind: str, message: str, *, key=None, level=None, fl
             "ref": ref, "related": list(related), "message": message}
 
 
-OWNED = ("key", "stale", "lapsed", "act")   # the finding kinds that name the key's owner and the route (task-0102, task-0199)
+OWNED = ("key", "intended", "stale", "lapsed", "act")   # the finding kinds that name the key's owner and the route (task-0102, task-0199)
 # task-0199: an act whose statement changed is major (the owner must rule again; the key's own finding carries
 # what it now reads), one read under the 0.9.0 rule or a refused file info (nothing it ruled on moved)
 ACT_SEVERITY = {"changed": "major", "gone": "major", "ambiguous": "major", "unbound": "info", "refused": "info"}
@@ -216,6 +218,11 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                                 key=key, level=lvl, flags=flags))
         elif flags:
             out.append(_finding("minor", "key", f"{key} is {lvl} but flagged {', '.join(flags)}", key=key, level=lvl, flags=flags))
+    for key in res.get("unintended") or []:   # task-0215: the intended bar, decision-0018 point 4
+        v = res["keys"][key]
+        out.append(_finding("major", "intended", f"{key} is verified but not approved, and the task class requires approved: "
+                            "a behaviour shown to hold is not yet one a person intends; its owner approves it or rules otherwise",
+                            key=key, level=v["level"], flags=v["flags"]))
     if res["verdict"] == "BLOCKED" and not res["blocked_keys"]:
         out.append(_finding("blocker", "task", res["why"]))
     for x in res.get("stale") or []:
@@ -272,7 +279,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                     f["closer"] = c["unit"]
                     if f["route"]:
                         f["route"] += closing_route(c["gap"], c["unit"])
-    kinds = ["task", "key", "suspect_derived", "stale", "lapsed", "act", "lint", "preload"]
+    kinds = ["task", "key", "intended", "suspect_derived", "stale", "lapsed", "act", "lint", "preload"]
     return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), kinds.index(f["kind"]), f["key"] or "", f["ref"] or ""))
 
 
@@ -336,7 +343,8 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
     return {"schema_version": SCHEMA_VERSION, "tool": "knowgov gate", "subject": subject, "scenario": scenario, "task": task,
             "store": store, "loaded": loaded, "version": version, "change": change, "verdict": res["verdict"], "why": res["why"], "threshold": threshold,
             "findings": fs, "counts": counts(fs),
-            "keys": {"total": len(res["keys"]), "below_verified": len(res["below_verified"]), "flagged": len(res["flagged"])},
+            "keys": {"total": len(res["keys"]), "below_verified": len(res["below_verified"]), "flagged": len(res["flagged"]),
+                     **({"unintended": len(res["unintended"])} if "unintended" in res else {})},
             "conflicts": len(res.get("conflicts") or []),
             "stale": [x["id"] for x in res.get("stale") or []],                    # the statements, by id (a count in version 1)
             "superseded_by": superseded_map(res),                                     # task-0071: the stale ones a settled successor supersedes

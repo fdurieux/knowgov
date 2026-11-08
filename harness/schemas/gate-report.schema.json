@@ -77,7 +77,8 @@
       "properties": {
         "total": {"type": "integer", "minimum": 0},
         "below_verified": {"type": "integer", "minimum": 0},
-        "flagged": {"type": "integer", "minimum": 0}
+        "flagged": {"type": "integer", "minimum": 0},
+        "unintended": {"type": "integer", "minimum": 0, "description": "keys verified but not approved under a class that requires approved (task-0215); present only then"}
       }
     },
     "conflicts": {"type": "integer", "minimum": 0},
@@ -125,7 +126,7 @@
       "additionalProperties": false,
       "properties": {
         "severity": {"$ref": "#/$defs/severity"},
-        "kind": {"enum": ["key", "task", "stale", "suspect_derived", "lapsed", "act", "lint", "preload"], "description": "key: a required key's level or flags; task: the task as a whole; stale: an invalidated statement on a required key; suspect_derived: a derived output that used an invalidated statement; lapsed: a statement on a required key whose review has lapsed (decision-0005), its verifications in related; act: a person's act a load did not apply as written (task-0199, doc-0032 §6): a ruling or close whose statement changed or vanished (major), a review file refused whole or one from before 0.9.0 bound by id only (info), the statements the store holds instead in related; lint: one finding the pre-load check gave a document version behind the keys, kept as a gap (task-0216, decision-0018 point 5): the linter's severity at most major, info when the baseline holds it or a review resolved it as a choice or an exception, naming the document's owner and route; it never lowers a key's level; preload: a document behind the keys whose form the pre-load check left unchecked or found findings in (info, task-0064)"},
+        "kind": {"enum": ["key", "intended", "task", "stale", "suspect_derived", "lapsed", "act", "lint", "preload"], "description": "key: a required key's level or flags; intended: under a task class that requires approved (require_approved, task-0215, decision-0018 point 4), a key verified but not approved, major, naming its owner and route; task: the task as a whole; stale: an invalidated statement on a required key; suspect_derived: a derived output that used an invalidated statement; lapsed: a statement on a required key whose review has lapsed (decision-0005), its verifications in related; act: a person's act a load did not apply as written (task-0199, doc-0032 §6): a ruling or close whose statement changed or vanished (major), a review file refused whole or one from before 0.9.0 bound by id only (info), the statements the store holds instead in related; lint: one finding the pre-load check gave a document version behind the keys, kept as a gap (task-0216, decision-0018 point 5): the linter's severity at most major, info when the baseline holds it or a review resolved it as a choice or an exception, naming the document's owner and route; it never lowers a key's level; preload: a document behind the keys whose form the pre-load check left unchecked or found findings in (info, task-0064)"},
         "key": {"type": ["string", "null"], "description": "the required key; null for a finding on the task as a whole or on a derived output"},
         "level": {"type": ["string", "null"], "description": "the key's level; a stale statement's own status (invalidated)"},
         "flags": {"type": "array", "items": {"type": "string"}},
