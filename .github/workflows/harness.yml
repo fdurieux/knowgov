@@ -163,8 +163,9 @@ jobs:
           python3 -c 'import json; r=json.load(open("runs/probe-load/gate.json")); lv=r["levels"]; assert lv == {"REQ-01|text": "proposed", "REQ-02|txt": "absent"}, lv; print("probe:", r["verdict"], lv)'
       - name: A register node to the statements its cited anchor names (task-0046), through the rdflib port, S6 with the S1 code as derived
         run: |
-          rm -rf runs/anchor && mkdir -p runs/anchor/S1 && cp subjects/cargo_quote/vendor/kg_experiment/results/S1/run1_G.py runs/anchor/S1/
-          cd harness && KG_STORE=rdflib KG_RDFLIB_FILE=../runs/anchor/store.ttl python run.py --deterministic --scenarios S6 --out ../runs/anchor > /dev/null && cd ..
+          rm -rf runs/anchor && mkdir -p runs/anchor
+          # the derived input named explicitly: run.py never takes a file it finds in --out (task-0203, R3)
+          cd harness && KG_STORE=rdflib KG_RDFLIB_FILE=../runs/anchor/store.ttl python run.py --deterministic --scenarios S6 --out ../runs/anchor --stage2-derived ../subjects/cargo_quote/vendor/kg_experiment/results/S1/run1_G.py > /dev/null && cd ..
           KG_STORE=rdflib KG_RDFLIB_FILE=runs/anchor/store.ttl python3 - <<'PY'
           import sys
           sys.path[:0] = ["harness", "demo/app"]
@@ -329,6 +330,10 @@ jobs:
         run: rm -rf runs/ledger-binding && KG_STORE=rdflib python tools/check_ledger_binding.py runs/ledger-binding
       - name: One definition per concept (task-0201), on rdflib, one successor set for the gate, the stale finding, superseded_by and the bundle, disputed statements read, one owner and route, one uniqueness rule
         run: rm -rf runs/one-definition && KG_STORE=rdflib python tools/check_one_definition.py runs/one-definition
+      - name: Pre-load findings as routed gaps (task-0216), on rdflib, the example instance's planted SEQ002 a lint gap with its owner and route and no level moved, held by the baseline, resolved by its owner, a slip in the re-lint delta, kept by the round trip
+        run: rm -rf runs/lint-gaps && KG_STORE=rdflib python tools/check_lint_gaps.py runs/lint-gaps
+      - name: The kit's claim (task-0214), on rdflib, the probe kit's five mappers read observed, inferred and intended into the basis, an inferred statement stays proposed and a ruling approving it is refused, an unknown claim is refused by the subject check
+        run: KG_STORE=rdflib python tools/check_claim_probe.py
       - name: A register change invalidates (task-0122), the fixture's deprecated CAP-0001 and withdrawn REL-06001 stale the keys resting on them and S1's output suspect, exit 1; no state change, nothing; the staleness survives the round trip
         run: |
           rm -rf runs/regchange && KG_STORE=rdflib python tools/check_register_change.py runs/regchange

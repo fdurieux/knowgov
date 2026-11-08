@@ -29,13 +29,14 @@ documents say. It reads and never writes; it opens no store.
   the fix its file's stem, since the mappers index by it (G5). A key with no near match is a note: the gate will read it absent
   unless a person's answer supplies it. A document whose statements are authored, in a subject that
   declares no `[verification] authored`, is a note too: they load proposed until a person attests
-  them (decision-0009). The mappers need PyYAML; without it the yield is unchecked, and the report
-  says so.
+  them (decision-0009). A kit statement whose claim is not observed, inferred or intended is refused
+  (rule `claim`, task-0214): the load would fail on it. The mappers need PyYAML; without it the yield
+  is unchecked, and the report says so.
 
 Exit 0 when nothing is refused (warnings and notes are for reading), 1 when the manifest is refused
 (an unknown table or field, a missing required field or a mapped artefact's ``short``, no scenario for a task, a key that is not
 `<entity>|<predicate>`, a map row naming a node the register does not hold or an owner of none of
-its nodes, a mapper that cannot read its document), 2 when the check cannot run (no such directory,
+its nodes, a mapper that cannot read its document, an unknown claim), 2 when the check cannot run (no such directory,
 no subject.toml). The report as JSON (`--json`) is pinned by harness/schemas/subject-check.schema.json.
 Standard library only; the yield's child process needs what the harness's mappers need.
 """
@@ -327,7 +328,7 @@ def yield_only(root: Path) -> dict:
         code = SUBJECT.reference_code()
     except (OSError, StopIteration, KeyError):
         code = ""
-    arts, failed, authored, missing_mod = {}, {}, [], None
+    arts, failed, claims, authored, missing_mod = {}, {}, {}, [], None
     for key, p in SUBJECT.kit_files:
         mapper = SUBJECT.mappers.get(key)
         if not mapper or not p.exists() or key not in SUBJECT.shorts:   # no short: refused by the manifest check (G5)
@@ -338,13 +339,16 @@ def yield_only(root: Path) -> dict:
         except ModuleNotFoundError as e:
             missing_mod = e.name
             continue
+        except extract.UnknownClaim as e:   # task-0214: a claim the kit format does not know
+            claims[key] = str(e)
+            continue
         except Exception as e:  # noqa: BLE001 — a mapper that cannot read its document is the finding
             failed[key] = f"{type(e).__name__}: {e}"
             continue
         arts[key] = sorted({f"{a['entity']}|{a['predicate']}" for a in bag.assertions})
         if any(a.get("basis") == "authored" for a in bag.assertions):
             authored.append(key)
-    out = {"state": "checked", "why": None, "artefacts": arts, "failed": failed, "authored": authored}
+    out = {"state": "checked", "why": None, "artefacts": arts, "failed": failed, "claims": claims, "authored": authored}
     if missing_mod:
         out["why"] = f"some mappers need {missing_mod}, which is not installed here; their artefacts are unchecked"
     return out
@@ -377,6 +381,10 @@ def check_yield(rep: Report, m: dict, root: Path) -> dict:
     for key, why in sorted(y.get("failed", {}).items()):
         rep.error("mapper-failed", f"[[artefact]] {key}", f"its mapper cannot read it: {why}; the load fails on it",
                   "fix the document, or give the artefact the mapper of its convention (instance/kinds.toml)")
+    for key, why in sorted(y.get("claims", {}).items()):   # task-0214, decision-0018 point 3
+        rep.error("claim", f"[[artefact]] {key}", f"{why}; the load fails on it rather than guess what the statement is",
+                  "write observed, inferred or intended, or leave the claim out so the statement loads as before "
+                  "(subjects/README.md, \"The claim\")")
     yielded = set().union(*arts.values()) if arts else set()
     mapper_of = {a.get("key"): a.get("mapper") for a in m.get("artefact", []) if isinstance(a, dict)}
     conv = conventions()

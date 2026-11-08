@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-11-08T13:08:00Z'
-updated_date: '2026-11-08T14:19:00Z'
+updated_date: '2026-11-08T14:27:00Z'
 labels:
   - pins
   - record
@@ -58,4 +58,6 @@ Proof, each under CPython 3.12 venvs with the record's pins, one with pumllint 0
 - tests/run_tests.py: with the pins and KG_TEST_REQUIRE=rdflib,node,openai 765/766, 1 skipped, 0 failed; without pyyaml (system python 3.13) 729/766, 37 skipped, 0 failed. check_round_trip --chain rdflib,rdflib on CargoQuote exit 0. check_preload_linters exit 0 (Node 22 here; CI uses 24).
 
 Further checks under 0.35.0: check_round_trip --chain rdflib,rdflib --expect-parts on J-F's full set (C, D1-D5) exit 0, every answer survives; check_mcp_server on rdflib, CargoQuote S1-S7 and J-F C, D1-D5 (the full sets), exit 0 both, every check holds. AC #6 not triggered: nothing moved. AC #2 waits on the PR's stack job (demo.yml rebuilds the image from demo/Dockerfile with the new pin).
+
+Merged origin/main at ccbc4ae (task-0216's lint gaps, task-0214's claim probe); tests/test_rdflib_split.py's ADDED keeps both sides. Re-run: run_tests with the pins 785/786, 1 skipped, 0 failed; without pyyaml 747/786, 39 skipped, 0 failed. tools/check_lint_gaps.py (real pumllint, the planted SEQ002) under 0.33.0 and 0.35.0: exit 0 both, output identical but for the version; tools/check_claim_probe.py exit 0. tests/test_lint_gaps.py's 0.33.0 is fixture data for a version change, not a pin, and stays.
 <!-- SECTION:NOTES:END -->

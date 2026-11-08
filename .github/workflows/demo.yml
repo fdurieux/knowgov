@@ -262,7 +262,7 @@ jobs:
           echo "held before: $before"; echo "held after:  $after"; test "$before" = "$after"
           python3 -c 'import json; r=json.load(open("gate.json")); assert r["store"]=="neo4j" and r["published"] and r["verdict"]=="PROCEED" and r["exit_code"]==0, r; p=json.load(open("gate-s2.json")); assert p["store"]=="rdflib" and not p["published"] and p["verdict"]=="BLOCKED", p; print("gate on neo4j:", r["verdict"], "published; S2 on its own store:", p["verdict"])'
 
-      - name: "The contained worker (task-0141.05, decision-0012): EXEC-01 to EXEC-09 on the real worker container, and a loosened worker, network on or a key in its environment, refuses to serve"
+      - name: "The contained worker (task-0141.05, decision-0012): EXEC-01 to EXEC-13 on the real worker container (task-0203: a 70-deep setsid chain killed whole, no forged answer, a timed-out job a failed cell, write_confined at Landlock ABI 3 or later), and a loosened worker, network on or a key in its environment, refuses to serve"
         run: |
           docker compose exec -T app python tools/check_worker.py
           set +e
@@ -308,6 +308,10 @@ jobs:
         run: docker compose exec -T app sh -c 'rm -rf runs/ledger-binding && python tools/check_ledger_binding.py runs/ledger-binding'
       - name: One definition per concept (task-0201) on the Neo4j store, one successor set, disputed statements read, one owner and route, a duplicate Derived refused
         run: docker compose exec -T app sh -c 'rm -rf runs/one-definition && python tools/check_one_definition.py runs/one-definition'
+      - name: Pre-load findings as routed gaps (task-0216) on the Neo4j store, a lint gap with its owner and route and no level moved, held, resolved, a slip in the re-lint delta, kept by the round trip
+        run: docker compose exec -T app sh -c 'rm -rf runs/lint-gaps && python tools/check_lint_gaps.py runs/lint-gaps'
+      - name: The kit's claim (task-0214) on the Neo4j store, the probe kit's five mappers read observed, inferred and intended into the basis, an inferred statement stays proposed and a ruling approving it is refused
+        run: docker compose exec -T app python tools/check_claim_probe.py
 
       - name: A person's statement against the documents' (task-0038) on the Neo4j store, on S2 a contradiction raises a conflict, an agreement corroborates
         run: docker compose exec -T app python tools/check_capture_pairing.py runs/pairing
@@ -321,7 +325,7 @@ jobs:
 
       - name: A register node to the statements its cited anchor names (task-0046), on Neo4j, S6 with the S1 code as derived, equal to the rdflib port
         run: |
-          docker compose exec -T app sh -c 'rm -rf runs/anchor && mkdir -p runs/anchor/S1 && cp subjects/cargo_quote/vendor/kg_experiment/results/S1/run1_G.py runs/anchor/S1/ && python harness/run.py --deterministic --scenarios S6 --out runs/anchor > /dev/null'
+          docker compose exec -T app sh -c 'rm -rf runs/anchor && mkdir -p runs/anchor && python harness/run.py --deterministic --scenarios S6 --out runs/anchor --stage2-derived subjects/cargo_quote/vendor/kg_experiment/results/S1/run1_G.py > /dev/null'
           docker compose exec -T app python3 - <<'PY'
           import sys
           sys.path[:0] = ["harness", "demo/app"]

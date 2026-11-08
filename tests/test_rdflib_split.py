@@ -72,7 +72,10 @@ OLD_STEPS = [
 ]
 # Steps added after the split, each in one job: the same rule holds them
 ADDED = ["Two subjects sharing a scenario id never answer each other's gates (task-0195): the held subject on a file-backed rdflib store",
-         "pumllint's trace --features runs from the installed library (task-0224, for task-0217): the J-F kit's diagrams against its requirements and features, every requirement covered and verified"]
+         "pumllint's trace --features runs from the installed library (task-0224, for task-0217): the J-F kit's diagrams against its requirements and features, every requirement covered and verified",
+         "Pre-load findings as routed gaps (task-0216), on rdflib, the example instance's planted SEQ002 a lint gap with its owner and "
+         "route and no level moved, held by the baseline, resolved by its owner, a slip in the re-lint delta, kept by the round trip",
+         "The kit's claim (task-0214), on rdflib, the probe kit's five mappers read observed, inferred and intended into the basis, an inferred statement stays proposed and a ruling approving it is refused, an unknown claim is refused by the subject check"]
 SHARED = OLD_STEPS[:3] + ["The outcomes, machine-readable, in the job's summary (task-0159)",
                           "The outcome files kept as an artifact, 14 days, outcomes JSON only (task-0159)"]
 

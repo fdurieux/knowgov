@@ -1,0 +1,11 @@
+# One scenario, nothing planted: the probe's kit as written.
+[[scenario]]
+id = "C"
+title = "the kit as written"
+represented = "Five requirements in five layers, each statement observed, inferred, intended or saying nothing."
+gate = "QUALIFIED"
+defect = "Nothing planted: the inferred statements are what the probe shows, held at proposed."
+plant = "Nothing was planted."
+plain = "The kit says which of its statements were observed, inferred or intended. The inferred ones stay proposed."
+extraction = "pristine"
+verifications = true
