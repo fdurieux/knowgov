@@ -244,6 +244,13 @@ names that section with the version.
   does not accept, took 30 seconds to report. Now a 429, a 5xx, a dropped or timed-out connection, or a reply
   that ended early is retried with the same waits, and any other error is reported at once.
 
+- **A key the endpoint never checks is no longer marked accepted** (task-0188, doc-0023). The page checks each
+  model row's key by asking its endpoint for the list of models. Some endpoints list their models to anyone:
+  OpenRouter answered with an invalid key, and Ollama holds no keys. Such a row read *key accepted*
+  whatever its key. The page now asks first with a placeholder that is no key. If the endpoint answers that, the
+  row reads *key unchecked* with the reason, and your key is not sent. Otherwise it asks with your key, as
+  before. The check stays free; it makes two requests at most.
+
 - **One clock: every lapse is decided on the gate's date** (task-0198, doc-0030 F4: H3, G4, G10, M8;
   decision-0005 points 3 and 5).
   - **A person's approval.** Before, its six-month lapse was decided when the store was loaded, against
