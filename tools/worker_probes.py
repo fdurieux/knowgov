@@ -102,14 +102,21 @@ def user_processes(uid: int) -> list[str]:
 
 
 def survivors(mark: str, before: list[str] | None = None) -> str:
-    """The next job's view: how many processes carry ``mark``, and how many of this user's processes are
-    neither this job's own ancestry nor the worker's health check, nor among ``before`` (``pid:starttime``,
-    from ``user_processes`` before the job; none by default, so in the worker's container, whose uid owns
-    nothing else, every other process counts). The marker is split in this code, so this job's own command
-    line does not carry it."""
+    """The next job's view: how many processes carry ``mark``, and how many other processes of this user are
+    alive, neither this job's own ancestry nor among ``before`` (``pid:starttime``, from ``user_processes``
+    before the job; none by default, so in the worker's container, whose uid owns nothing else, every other
+    process counts). Its first line is ``<marked> <others>``; then one ``OTHER pid ppid state cmdline`` line per
+    other counted. The marker is split in this code, so this job's own command line does not carry it.
+
+    task-0232: an other counts only when a second full scan about a second after the first also finds one,
+    whichever pid it is (each scan a quarter-second window of scans, so a fast fork chain is not missed): a process caught exiting (its command line already empty, not yet a zombie) drops out,
+    while a lingerer or a chain of short-lived forks is found by both. No command line is trusted, since a job
+    writes its own: a process whose parent is outside the pid namespace (ppid 0, what ``docker exec`` brings in,
+    the healthcheck among them) is not the job's, for every job process descends from the worker, the
+    container's init, and an orphan reparents to it."""
     head, tail = mark[:8], mark[8:]
     return f"""
-import os
+import os, time
 MARK = ({head!r} + {tail!r}).encode()
 BEFORE = set({sorted(before or [])!r})
 me = os.getpid()
@@ -123,26 +130,46 @@ while p > 1:
     except OSError:
         break
 mine.add(1)
-marked = others = 0
-for d in os.listdir('/proc'):
-    if not d.isdigit():
-        continue
-    pid = int(d)
-    try:
-        cmd = open('/proc/%d/cmdline' % pid, 'rb').read()
-        uid = next(int(l.split()[1]) for l in open('/proc/%d/status' % pid) if l.startswith('Uid:'))
-        fields = stat(pid)
-        state = fields[0]
-    except (OSError, StopIteration, ValueError):
-        continue
-    if state in ('Z', 'X'):
-        continue
-    if MARK in cmd:
-        marked += 1
-    if uid == os.getuid() and pid not in mine and b'--attest-only' not in cmd and MARK not in cmd \\
-            and '%d:%s' % (pid, fields[19]) not in BEFORE:
-        others += 1
-print(marked, others)
+def scan():
+    marked, found = 0, []
+    for d in os.listdir('/proc'):
+        if not d.isdigit():
+            continue
+        pid = int(d)
+        try:
+            cmd = open('/proc/%d/cmdline' % pid, 'rb').read()
+            uid = next(int(l.split()[1]) for l in open('/proc/%d/status' % pid) if l.startswith('Uid:'))
+            fields = stat(pid)
+        except (OSError, StopIteration, ValueError):
+            continue
+        state, ppid = fields[0], int(fields[1])
+        if state in ('Z', 'X'):
+            continue
+        if MARK in cmd:
+            marked += 1
+        elif uid == os.getuid() and pid not in mine and ppid != 0 and '%d:%s' % (pid, fields[19]) not in BEFORE:
+            found.append((pid, ppid, state, cmd))
+    return marked, found
+def window():
+    # scans for a quarter of a second, every 20 ms: a /proc listing is no snapshot, and a process that forks and
+    # exits between the listing and its read leaves a child the listing never had, so one scan can miss a fast
+    # fork chain; a process any scan of the window finds is counted, once
+    marked, seen, end = 0, {{}}, time.monotonic() + 0.25
+    while True:
+        m, found = scan()
+        marked = max(marked, m)
+        for f in found:
+            seen.setdefault(f[0], f)
+        if time.monotonic() >= end:
+            return marked, list(seen.values())
+        time.sleep(0.02)
+marked, others = window()
+if others:   # counted only if a second window, a second later, still finds an other
+    time.sleep(1.0)
+    _, others = window()
+print(marked, len(others))
+for pid, ppid, state, cmd in others:
+    print('OTHER', pid, ppid, state, ' '.join(cmd.replace(b'\\0', b' ').decode('utf-8', 'replace').split())[:120])   # one line each
 """
 
 
