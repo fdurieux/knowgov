@@ -94,7 +94,8 @@ READS = frozenset({
     "suspect_derived", "all_derived", "preload_verdicts", "census", "extraction_activities", "extraction_times",
     "gaps_with_concerns", "assertions_on_key", "assertion_rows", "supported_by", "candidate_for",
     "fragments_with_version", "requirements_verified_by", "register_census", "register_node_statements",
-    "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions", "held"})
+    "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions", "held",
+    "act_findings"})
 
 
 def held_from(acts: list[dict], current: list[dict]) -> dict | None:
@@ -393,6 +394,21 @@ class Store:
     def preload_verdicts(self) -> list[dict]:
         """Every version that carries a verdict: artefact, version (tag), state, tool, tool_version,
         digest, report, why; sorted by artefact and version. Empty when no load recorded one."""
+        raise NotImplementedError
+
+    # ---- a person's acts the load did not apply as written (task-0199, doc-0030 H5, doc-0032 §6)
+    ACT_FIELDS = ("review", "by", "on", "act", "n", "statement", "outcome", "key", "why", "from_value", "from_sha256",
+                  "to", "reasons")
+
+    def record_act_finding(self, row: dict) -> None:
+        """Keep, as an ``ActFinding`` node of id ``row["id"]``, one act of a review file the load did not apply as
+        written (``load.load_reviews``): a ruling or close whose statement changed or vanished, a refused file, a
+        file from before 0.9.0 bound by id. Its fields are ``ACT_FIELDS``, scalars (``to`` and ``reasons`` JSON
+        text); writing one id again replaces it, so stage 2's recheck never doubles one."""
+        raise NotImplementedError
+
+    def act_findings(self) -> list[dict]:
+        """Every ``ActFinding``: id and ``ACT_FIELDS``, by id. Empty when every act applied as written."""
         raise NotImplementedError
 
     # ---- the census and the page

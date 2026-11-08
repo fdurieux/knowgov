@@ -3,9 +3,11 @@ id: TASK-0199
 title: >-
   Bind every person's act and every derived output to content (doc-0030 F2: H5,
   H6, R5, I4, I9)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-07T07:15:00Z'
+updated_date: '2026-11-08T07:39:00Z'
 labels:
   - review
   - reviews
@@ -34,4 +36,6 @@ H5 (high): a ruling binds to a positional assertion id with no value or digest (
 - [ ] #4 authored, approval, review and a stage-2 reverify require `at` and an attester, refused otherwise by check_subject; a ruling other than rejected or referred on an inferred, assumed or hypothesised statement is refused
 - [ ] #5 CHANGELOG.md has the line under Unreleased's contract heading, with the read rule for existing review files and ledgers
 - [ ] #6 The scored record (S1 to S7), the deterministic run and the comparator stay equal
+- [ ] #7 A re-run neither loses nor misplaces an act (doc-0032 §6): an act (ruling, review approval, gap close, attestation) whose statement is unchanged re-applies after a reload or a re-extraction; one whose statement changed is not applied and is a gate finding naming the act, its author's handle, the change (old value and digest to new) and the owning unit's route from register_map.toml; never silent, never stderr only
+- [ ] #8 Statements pair by content across two extractions of one document at two commits (doc-0032 §6): a test with a reordered table or a renumbered fragment shows that no act moves onto another statement
 <!-- AC:END -->

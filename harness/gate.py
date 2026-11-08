@@ -85,7 +85,21 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
     form = preload_behind(s, keys)
     if form is not None:   # only when a load recorded verdicts (task-0064); absent otherwise, so the record reads as before
         out["preload"] = form
+    acts = acts_not_applied(s)
+    if acts:   # task-0199: a person's act the load did not apply as written; absent otherwise, so the record reads as before
+        out["acts"] = acts
     return out
+
+
+def acts_not_applied(s) -> list[dict]:
+    """The store's ``act_findings`` with ``to`` and ``reasons`` read back from their JSON text; empty on a store
+    view without the read."""
+    import json
+    try:
+        rows = s.act_findings()
+    except (AttributeError, NotImplementedError):
+        return []
+    return [{**r, "to": json.loads(r.get("to") or "[]"), "reasons": json.loads(r.get("reasons") or "[]")} for r in rows]
 
 
 def preload_behind(s, keys: dict) -> list[dict] | None:

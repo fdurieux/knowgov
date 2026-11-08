@@ -287,6 +287,8 @@ jobs:
         run: docker compose exec -T app python tools/check_review_walkthrough.py runs/review
       - name: One clock (task-0198) on the Neo4j store, one --as-of gives one report under two KG_TODAY values, every lapse decided against it
         run: docker compose exec -T app sh -c 'rm -rf runs/one-clock && python tools/check_one_clock.py runs/one-clock'
+      - name: Acts bound to content (task-0199) on the Neo4j store, the act findings read back from the store, a reordered table and renumbered answers move no act, stage 2 never moves one onto a successor
+        run: docker compose exec -T app sh -c 'rm -rf runs/act-binding && python tools/check_act_binding.py runs/act-binding'
 
       - name: The gate brings in S6's later version (task-0049) on the Neo4j store, BLOCKED, then exits 1 on the suspect derived output after re-verification
         run: docker compose exec -T app python tools/check_gate_after_change.py runs/gate-change

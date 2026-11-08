@@ -457,6 +457,8 @@ jobs:
         run: KG_STORE=rdflib python tools/check_review_walkthrough.py runs/review
       - name: One clock (task-0198), on rdflib, one --as-of gives one report under two KG_TODAY values; a person's approval lapses to proposed against it, a review-file approval with no verification lapses, what is dated after it is not counted, three_valued_answer marks the lapse
         run: rm -rf runs/one-clock && KG_STORE=rdflib python tools/check_one_clock.py runs/one-clock
+      - name: Acts bound to content (task-0199), on rdflib, a ruling records what it ruled on, an edit after it is an act finding not an approval, a reordered table and renumbered answers move no act, stage 2 never moves one onto a successor, I4 and I9 refused
+        run: rm -rf runs/act-binding && KG_STORE=rdflib python tools/check_act_binding.py runs/act-binding
       - name: The MCP server (task-0056) gives gate_cli's report for the same store, the record's three-valued answers, and writes nothing
         run: |
           KG_STORE=rdflib python tools/check_mcp_server.py ${KG_CQ_SCENARIOS:+--scenarios "$KG_CQ_SCENARIOS"}

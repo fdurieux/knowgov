@@ -86,7 +86,9 @@ review = { at = "2026-08-06", scope = "..." }       # the dated human review; it
 authored = { at = "2026-10-30", scope = "..." }     # authored statements: reviewed by construction, only when declared
 approval = { at = "2026-08-06", record = "..." }    # the owner's approval of every verified assertion, only when declared
                               # decision-0009 (a): no default stands in for a person; without authored, authored
-                              # statements stay proposed, and without approval nothing is approved
+                              # statements stay proposed, and without approval nothing is approved; each needs its
+                              # own at and [provenance] human an id, refused otherwise by check_subject and applied
+                              # to nothing by the load (task-0199, doc-0030 I9)
 
 [arms]                        # optional; absent means kind = "reply": one JSON reply per run (harness/arms.py)
 kind = "agent"                # a loop of turns with tools over a sandbox (harness/agent.py, task-0022)
@@ -200,7 +202,7 @@ note = "..."
 reverify_keys = ["P2|threshold", "P2|surcharge", "P3|order"]
 reverify_scope = "..."
 reapproval_record = "..."
-at = "2026-10-30"
+at = "2026-10-30"                # the re-verification's day: required with reverify_keys (task-0199)
 [scenario.stage2.derived]     # the earlier governed output registered as derived
 id = "derived:S1:G:run1"
 kind = "python module"

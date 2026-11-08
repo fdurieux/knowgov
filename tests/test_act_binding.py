@@ -1,0 +1,160 @@
+"""Task-0199, doc-0030 F2 (H5, I4, I9) and doc-0032 §6 items 7 and 8: a person's act binds to what it ruled on.
+tools/check_act_binding.py holds it end to end on the example instance; it runs here on rdflib, and in CI on
+rdflib (harness.yml) and on Neo4j (demo.yml's stack job). The unit tests below need no store."""
+from __future__ import annotations
+
+import ast
+import datetime as dt
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path[:0] = [str(ROOT / "harness"), str(ROOT / "tools"), str(Path(__file__).resolve().parent)]
+from _skip import need_rdflib  # noqa: E402
+import review  # noqa: E402
+
+TOOL = "tools/check_act_binding.py"
+KEY = "S-accept|max"
+
+
+class Store:
+    """What review.bind reads: assertion_brief and key_evidence, over rows with fragments."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def assertion_brief(self, aid):
+        r = next((x for x in self.rows if x["id"] == aid), None)
+        return None if r is None else {k: r[k] for k in ("id", "key", "value", "basis", "status")} | {"agent": "harness"}
+
+    def key_evidence(self, key, live):
+        return [x for x in self.rows if x["key"] == key and x["status"] in live]
+
+
+def _row(aid, value, text, key=KEY, status="verified"):
+    return {"id": aid, "key": key, "value": value, "basis": "extracted", "status": status, "fragments": [{"text": text, "locator": "row 1"}]}
+
+
+ROW = "| accept | `risk_index <= 41` | quote issued |"
+
+
+def _ruling(aid="A:dt:S-accept|max@v1", value="41", text=ROW):
+    return {"assertion": aid, "key": KEY, "value": value, "sha256": review.content_digest([{"text": text}]), "outcome": "approved"}
+
+
+def test_a_ruling_binds_to_its_statement_while_it_holds_its_content():
+    b, how = review.bind(Store([_row("A:dt:S-accept|max@v1", "41", ROW)]), _ruling())
+    assert b["id"] == "A:dt:S-accept|max@v1" and how["why"] == "content" and b["sha256"] == _ruling()["sha256"]
+
+
+def test_an_edit_under_the_same_id_is_changed_and_names_what_the_store_holds():
+    b, how = review.bind(Store([_row("A:dt:S-accept|max@v1", "40", ROW.replace("41", "40"))]), _ruling())
+    assert b is None and how["why"] == "changed" and [t["value"] for t in how["to"]] == ["40"], how
+
+
+def test_a_successor_with_other_content_is_changed_never_bound():
+    st = Store([_row("A:dt:S-accept|max@v1", "41", ROW, status="invalidated"), _row("A:dt:S-accept|max@v2", "40", ROW.replace("41", "40"))])
+    b, how = review.bind(st, _ruling())
+    assert b is None and how["why"] == "changed" and [t["id"] for t in how["to"]] == ["A:dt:S-accept|max@v2"], how
+
+
+def test_the_same_content_under_another_id_is_repaired_and_another_content_under_the_old_id_is_not_ruled():
+    """Item 8: a renumbering puts the statement ruled on at another id, and another statement at its old one."""
+    st = Store([_row("A:x:2", "41", ROW), _row("A:x:1", "17", "other", key="S-review|min")])
+    b, how = review.bind(st, _ruling(aid="A:x:1"))
+    assert b["id"] == "A:x:2" and how["why"] == "repaired", (b, how)
+
+
+def test_a_vanished_statement_is_gone_and_two_holders_of_one_content_are_ambiguous():
+    assert review.bind(Store([]), _ruling())[1]["why"] == "gone"
+    st = Store([_row("A:x:2", "41", ROW), _row("A:x:3", "41", ROW)])
+    assert review.bind(st, _ruling(aid="A:x:1")) == (None, {"why": "ambiguous", "to": []})
+
+
+def test_the_read_rule_binds_a_file_from_before_by_id():
+    b, how = review.bind(Store([_row("A:dt:S-accept|max@v1", "40", ROW)]), {"assertion": "A:dt:S-accept|max@v1", "outcome": "approved"})
+    assert b["id"] == "A:dt:S-accept|max@v1" and how["why"] == "unbound"
+
+
+def test_the_written_file_carries_the_content_it_was_checked_on():
+    import tomllib
+    norm = {"by": "employee-3", "on": dt.date(2026, 11, 3), "record": "m.md", "scenario": "S1", "closes": [],
+            "rulings": [{"assertion": "A:dt:S-accept|max@v1", "key": KEY, "value": "41", "sha256": "ab" * 32, "outcome": "approved", "note": ""}]}
+    ru = tomllib.loads(review.review_toml(norm))["ruling"][0]
+    assert (ru["key"], ru["value"], ru["sha256"]) == (KEY, "41", "ab" * 32)
+
+
+def test_a_lapse_with_no_date_at_all_is_unreachable_and_says_why():
+    """The F4 edge: min() of nothing. Every person's act now carries its date, so it is an assertion, not a crash."""
+    import cadence
+    row = {"id": "A:x@v1", "status": "approved", "basis": "extracted", "verifications": [],
+           "approvals": [{"id": f"{cadence.RULING}r:A:x@v1", "at": None}]}
+    try:
+        cadence.lapse(row, KEY, dt.date(2026, 11, 3))
+    except AssertionError as e:
+        assert "task-0199" in str(e), e
+    else:
+        raise AssertionError("an undated approval read as if it had a date")
+
+
+def test_the_load_never_dates_an_attestation_by_its_own_day_nor_defaults_its_attester():
+    src = (ROOT / "harness" / "load.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "load_verifications")
+    body = ast.get_source_segment(src, fn)
+    assert '.get("at", ts)' not in body and 'HUMAN["id"]' not in body and "ATTESTER" in body, "I9"
+    change = (ROOT / "harness" / "change.py").read_text(encoding="utf-8")
+    assert 'cfg2.get("at", "")' not in change and "attestation(" in change
+
+
+def test_the_act_port_is_a_read_on_both_adapters_and_in_the_mcp_view():
+    import store
+    assert "act_findings" in store.READS and "record_act_finding" not in store.READS
+    for name in ("store_rdflib.py", "store_neo4j.py"):
+        src = (ROOT / "harness" / name).read_text(encoding="utf-8")
+        assert "def record_act_finding(self" in src and "def act_findings(self" in src, name
+    assert '"act_findings"' in (ROOT / "harness" / "mcp_server.py").read_text(encoding="utf-8")
+
+
+def test_the_check_holds_on_rdflib():
+    need_rdflib()
+    with tempfile.TemporaryDirectory() as td:
+        env = {**os.environ, "KG_STORE": "rdflib", "PYTHONDONTWRITEBYTECODE": "1"}
+        env.pop("KG_RDFLIB_FILE", None)
+        p = subprocess.run([sys.executable, str(ROOT / TOOL), str(Path(td) / "out")], env=env, cwd=ROOT,
+                           capture_output=True, text=True, timeout=1500)
+        assert p.returncode == 0 and "every check holds" in p.stdout, p.stdout[-3000:] + p.stderr[-1500:]
+
+
+def test_ci_runs_it_on_both_stores():
+    assert f"KG_STORE=rdflib python {TOOL} runs/act-binding" in (ROOT / ".github" / "workflows" / "harness.yml").read_text(encoding="utf-8")
+    assert f"python {TOOL} runs/act-binding" in (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
+
+
+def _check(rulings, rows, strict):
+    reg = ROOT / "demo" / "register"
+    doc = {"review": {"by": "employee-3", "on": "2026-11-03", "record": "m.md"}, "ruling": rulings}
+    return review.check(doc, Store(rows), handles=review.issued_handles(reg), owners={KEY: ["ORG-0001"]},
+                        units=review.organisation_units(reg), captures={}, now=dt.date(2026, 11, 3),
+                        compatible=lambda a, b, _p="": "equal" if a == b else "conflict", strict=strict)
+
+
+def test_i4_a_model_statement_is_rejected_or_referred_never_approved():
+    llm = [{**_row("A:llm:x@v1", "41", ROW), "basis": "inferred", "status": "proposed"}]
+    for outcome, refused in (("approved", True), ("rejected", False), ("referred", False)):
+        errs, _ = _check([{"assertion": "A:llm:x@v1", "outcome": outcome}], llm, strict=True)
+        assert any("never approve it" in e for e in errs) is refused, (outcome, errs)
+
+
+def test_a_load_sets_aside_the_act_that_no_longer_binds_and_applies_the_rest():
+    rows = [_row("A:dt:S-accept|max@v1", "40", ROW.replace("41", "40")), _row("A:dt:S-accept|max@v9", "7", "seven")]
+    keep = {"assertion": "A:dt:S-accept|max@v9", "key": KEY, "value": "7", "sha256": review.content_digest([{"text": "seven"}]),
+            "outcome": "approved"}
+    errs, rv = _check([_ruling(), keep], rows, strict=False)
+    assert not errs and [r["statement"] for r in rv["rulings"]] == ["A:dt:S-accept|max@v9"], (errs, rv["rulings"])
+    assert [(x["n"], x["why"], x["value"]) for x in rv["skipped"]] == [(1, "changed", "41")], rv["skipped"]
+    errs, _ = _check([_ruling(), keep], rows, strict=True)   # the day it is written, the same file is refused
+    assert any("no longer holds what the ruling records" in e for e in errs), errs

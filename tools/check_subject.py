@@ -220,10 +220,47 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
     for k in tv.get("keys", []) if isinstance(tv, dict) else []:
         _key(rep, "[three_valued] keys", k)
 
+    check_attestations(rep, m, root)
+
     if tasks and not _toml(root / "scenarios.toml").get("scenario"):
         rep.error("scenario", "scenarios.toml",
                   f"the subject declares task(s) {', '.join(sorted(tasks))} and no scenario: the gate runs on a scenario and exits 2 on this subject",
                   "add scenarios.toml with the pristine scenario subjects/minimal/scenarios.toml declares (S0, extraction = \"pristine\")")
+
+
+ATTESTATIONS = ("authored", "approval", "review")   # [verification]: a person's acts by construction (decision-0009)
+
+
+def _dated(v) -> bool:
+    import datetime as dt
+    if isinstance(v, dt.date):
+        return True
+    try:
+        dt.date.fromisoformat(str(v)[:10])
+        return True
+    except ValueError:
+        return False
+
+
+def check_attestations(rep: Report, m: dict, root: Path) -> None:
+    """task-0199, doc-0030 I9: an attestation names its day and the subject its attester. The load applies an
+    undated one, or one with no attester, to nothing (no load day and no default stands in for a person), so
+    each is refused here: ``[verification] authored``, ``approval`` and ``review``, and a stage-2 re-verification."""
+    ver = m.get("verification") if isinstance(m.get("verification"), dict) else {}
+    prov = m.get("provenance") if isinstance(m.get("provenance"), dict) else {}
+    human = prov.get("human") if isinstance(prov.get("human"), dict) else {}
+    stage2 = [(f"scenarios.toml [scenario.stage2] of {sc.get('id', '#' + str(i + 1))}", sc["stage2"])
+              for i, sc in enumerate(_toml(root / "scenarios.toml").get("scenario", []) or [])
+              if isinstance(sc, dict) and isinstance(sc.get("stage2"), dict) and sc["stage2"].get("reverify_keys")]
+    acts = [(f"[verification] {n}", ver[n]) for n in ATTESTATIONS if n in ver] + stage2
+    for where, a in acts:
+        if not isinstance(a, dict) or not _dated(a.get("at")):
+            rep.error("attestation", where, "no 'at': an attestation is a person's act on a day, and the load neither dates it "
+                      "by its own day nor applies it undated (doc-0030 I9)", 'add at = "YYYY-MM-DD", the day the person attested it')
+    if acts and not human.get("id"):
+        rep.error("attestation", "[provenance] human", f"{', '.join(w for w, _ in acts)} attest(s) with no attester: the manifest names "
+                  "no [provenance] human id, and no default stands in for a person (decision-0009, doc-0030 I9)",
+                  'add [provenance] human = { id = "agent:<who>", name = "..." }, the person who attests')
 
 
 def check_map(rep: Report, m: dict, root: Path, register: Path | None) -> None:

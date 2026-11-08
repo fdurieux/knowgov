@@ -191,7 +191,11 @@ def lapse(row: dict, key: str, on: dt.date, subject=None) -> dict | None:
             return {**base, "to": "verified", "valid_until": None, "after": first.isoformat()}   # approved only after the date
         return None
     if until is None:   # every dated event is after the date: none of it counts yet
-        first = min(d for d in [*(_date(v.get("at")) for v in vers), *(_date(ap.get("at")) for ap in rulings)] if d)
+        dated = [d for d in [*(_date(v.get("at")) for v in vers), *(_date(ap.get("at")) for ap in rulings)] if d]
+        # unreachable since task-0199: a ruling's approval carries its review's date (review.check refuses a file without
+        # one) and an attestation its own ``at`` (load.attestation applies none without), so something here is dated
+        assert dated, f"{row['id']}: an approval or review with no date (task-0199: every person's act carries its at)"
+        first = min(dated)
         return {**base, "to": "proposed" if person else "validated", "valid_until": None, "after": first.isoformat()}
     return {**base, "to": "proposed" if person else "validated", "valid_until": until.isoformat(),
             "lapsed_on": (until + dt.timedelta(days=1)).isoformat()}   # the first day it reads as no longer current
