@@ -4,7 +4,7 @@ instance built under OUT_DIR:
 
     python tools/check_attestation_binding.py OUT_DIR
 
-1. The read rule: the subject's ``[verification] authored`` and ``approval`` as committed, with no ``versions``:
+1. The read rule: the subject's ``[verification] authored`` and ``approval`` with no ``versions`` (any list removed):
    S1 attests per load, PROCEED, the gate lists each declaration at info as not bound, and check_subject notes them.
 2. Bound: both declarations list the digest of every artefact Version S1 loads. S1 reads as under the read rule,
    level for level, with no attestation finding beyond none at info.
@@ -84,6 +84,8 @@ def main(out: Path) -> int:
                                     KG_RDFLIB_FILE=str(out / "store.ttl"), PYTHONDONTWRITEBYTECODE="1"))   # task-0075
 
     print("== 1. the read rule: no versions listed")
+    mf = subject / "subject.toml"   # the read rule, whatever the subject as committed lists
+    mf.write_text(re.sub(r"versions = \[[^\]]*\], ", "", mf.read_text(encoding="utf-8")), encoding="utf-8")
     rule = gate(env)
     info = [f for f in rule["findings"] if f["kind"] == "attestation"]
     if rule["verdict"] != "PROCEED" or sorted(f["ref"] for f in info) != ["attest:approval", "attest:authored"] \
@@ -101,7 +103,6 @@ def main(out: Path) -> int:
                          "    out.add(SUBJECT.version_digest(path, text)[0])\n"
                          "    out |= set(SUBJECT.part_digests(path, text).values()) if path.endswith('/') else set()\n"
                          "print(json.dumps(sorted(out)))")
-    mf = subject / "subject.toml"
     text = mf.read_text(encoding="utf-8")
     listed = ", ".join(json.dumps(d) for d in digests)
     bound, n = re.subn(r'^((?:authored|approval) = \{ at = "[^"]*", )', rf'\1versions = [{listed}], ', text, flags=re.M)
