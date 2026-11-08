@@ -88,7 +88,9 @@ approval = { at = "2026-08-06", record = "..." }    # the owner's approval of ev
                               # decision-0009 (a): no default stands in for a person; without authored, authored
                               # statements stay proposed, and without approval nothing is approved; each needs its
                               # own at and [provenance] human an id, refused otherwise by check_subject and applied
-                              # to nothing by the load (task-0199, doc-0030 I9)
+                              # to nothing by the load (task-0199, doc-0030 I9); authored and approval may list in
+                              # versions = ["<sha256>", ...] the Versions they attest (decision-0019): an unlisted
+                              # Version then reads proposed; without the list they attest per load (the read rule)
 
 [arms]                        # optional; absent means kind = "reply": one JSON reply per run (harness/arms.py)
 kind = "agent"                # a loop of turns with tools over a sandbox (harness/agent.py, task-0022)
@@ -141,6 +143,13 @@ title = "..."
 text = "..."
 numbers = { planted = 15, reached_code = 6 }
 ```
+
+**Conflict gap ids in a record** (decision-0020, task-0223). A conflict between two statements is named
+`gap:conflict:<key>:<a>~<b>`, by its two assertion ids sorted, whether a person's statement is one side or
+both are documents'. A record written before took `gap:conflict:<key>:<n>` for two documents, numbered in the
+store's order: the vendored CargoQuote results keep that form (S4's `:0` to `:3`) and are never edited.
+`demo/tools/compare_deterministic.py` reads both forms as one per key, so a run compares equal to such a
+record; the page and the gate name a conflict by its statements on every store.
 
 ## `scenarios.toml`
 
@@ -254,6 +263,37 @@ title = "..."
 text = "MATCH ..."
 ```
 
+## The claim
+
+A kit written by reverse engineering (decision-0018, doc-0032 §3) may say, statement by statement, what each
+statement is (task-0214):
+
+| claim | what it says | basis it loads with | how far it can rise |
+|---|---|---|---|
+| `observed` | what the pinned original does | `extracted` | `verified` by execution, then `approved` |
+| `inferred` | a proposed explanation or generalised rule | `inferred` | never above `proposed`: nothing verifies it, a ruling may reject or refer it but never approve it (`harness/review.py`, task-0199 I4), and a `verified_by` link it carries derives no execution |
+| `intended` | behaviour the responsible authority accepted | `authored` | `approved` only under `[verification] authored` and `approval` (decision-0009) |
+
+A statement with no claim loads as before: `extracted` for `requirements_json`'s statements, `authored` for the
+other four mappers' links and structure. The public kits carry no claim, so they and the record do not move.
+Where each bundle mapper reads it:
+
+| mapper | where the claim is written | scope |
+|---|---|---|
+| `requirements_json` | `"claim": "<value>"` on an item (its `basis` field is where the statement was read: code logic, prose or both, not a claim) | the item's statement |
+| `contracts_markdown` | a line `Claim: <value>` in a part | the part's citations |
+| `dmn_decisions` | `claim: <value>` in a decision's or a rule's `<description>` | the decision's rules, a rule's own winning |
+| `gherkin_tagged` | a tag `@claim:<value>` on the Feature, a Rule or a Scenario | the scenarios under it, the nearest winning |
+| `plantuml_realises` | a comment line `' claim: <value>` | the diagram's statements |
+
+An assertion resting on statements of different claims, such as a requirement two contract parts cite, takes the
+most conservative: `inferred` before `extracted` before `authored`, a statement with no claim counting as the
+mapper's own basis. An unknown value (`guessed`) is refused by `tools/check_subject.py` (rule `claim`), and the
+load fails on it rather than read the statement as something it did not say. The SHACL shape for an inferred
+assertion (`harness/shacl.py`) accepts one that rests on the kit fragment stating it, beside one linked to the gap
+it proposes to fill. `tools/fixtures/claim_probe` carries
+every mapping, and `tools/check_claim_probe.py` holds it on the store `KG_STORE` names.
+
 ## Checking a subject
 
 `tools/check_subject.py <subject root> [--register DIR] [--json]` reads a root before it is loaded,
@@ -262,7 +302,8 @@ F5). It refuses (exit 1) a table or field this file does not document, a task wi
 `block_levels` or `max_unverified_share`, a `require_approved` that is not true or false, a key that
 is not `<entity>|<predicate>`, a task with no
 scenario, a `register_map.toml` node the register does not hold or an `owner` of none of its row's
-nodes, and a mapper that cannot read its document. It warns on a required key no document yields
+nodes, a mapper that cannot read its document, and a claim that is not `observed`, `inferred` or
+`intended` (task-0214). It warns on a required key no document yields
 when they yield a near one, the documents' yield taken from the load's own mappers in a child
 process, with no store. `tools/fixtures/subject_probe` carries every refusal on purpose; the report
 is pinned by `harness/schemas/subject-check.schema.json`.

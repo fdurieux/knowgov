@@ -12,6 +12,49 @@ names that section with the version.
 
 ### Contract changes
 
+- **An attestation is bound to the Versions it attests** (task-0221, decision-0019; decision-0009 option (c)).
+  Before, `[verification] authored` and `approval` attested whatever the documents held at each load, so an edit
+  made after the attestation inherited it.
+  - **The subject format.** Each declaration may list, in `versions`, the digest of every artefact Version it
+    attests: a file's raw-byte SHA-256 (task-0160) and, for a directory, each of its files' (task-0094; a directory
+    is attested when every file is listed). `authored = { at = "...", scope = "...", versions = ["<sha256>", ...] }`.
+  - **An unlisted Version is not attested.** Its authored statements read `proposed`, and none of its statements is
+    approved by construction. A test's verification of it still counts.
+  - **The gate names it.** A new finding kind, `attestation`: each artefact Version a bound declaration does not
+    attest, behind the task's keys, at `major`, with the keys' owner and a route (the attester lists its digest, or
+    the owner's questionnaire, `capture.routing`). New port write and read `record_attestation` and `attestations`
+    (in `store.READS`), on both adapters and through the Turtle round trip; `verify_authored` and `approve_verified`
+    take the attested artefacts.
+  - **Read rule for declarations written before this change.** A declaration with no `versions` attests per load,
+    as decision-0009 (a) has it. The gate lists it at `info` (`attestation`, not bound), and `tools/check_subject.py`
+    notes it, naming decision-0019.
+  - **The public subjects list their Versions** (the maintainer's approval, 2026-11-08). `cargo_quote` and
+    `jef_data_load` list every Version their scenarios load, as vendored at pumllint v0.35.0 and each planted
+    text, so no scenario's attestation changes and the scored record is unchanged. CI's subject check fails
+    again on any note, so a fall back to the read rule is caught.
+  - `tools/check_subject.py` refuses a listed digest that is no Version of the subject (its files, and the texts
+    its plants make of them). `tools/check_attestation_binding.py` proves it on both stores.
+- **Conflict gap ids name their two statements** (task-0223, decision-0020, doc-0030 S2). A conflict
+  between two documents is now `gap:conflict:<key>:<a>~<b>`, by its two assertion ids sorted, the form a
+  conflict with a person's statement already had; the positional `gap:conflict:<key>:<n>` is gone. One
+  conflict therefore has one id on rdflib and on Neo4j (the default gate's scratch store and the page's
+  store no longer disagree), and a new conflict on a key no longer renames the others. `conflict_gaps`
+  answers ordered by id, `candidate_pairs` by key then id, on both adapters. The gate report's
+  `conflicts`, its text and the arms' bundle carry the new ids. A record written before keeps its
+  `:<n>` ids; `compare_deterministic.py` reads both forms as one per key, so the scored record still
+  compares equal.
+- **The worker attests `write_confined` only from Landlock ABI 3, and `run.py` takes stage 2's derived input
+  explicitly** (task-0203, doc-0030 F8: R10, R3). Two contract changes, and a raised platform floor.
+  - **The attestation.** The worker's attestation gains `landlock_abi`, the kernel's Landlock version.
+    `write_confined` is now true only at ABI 3 or later, Linux 6.2, the first version where Landlock also
+    stops a job truncating a file it may only read. Below that, the worker refuses to serve. The page's
+    worker chip names the ABI found and the 3 needed.
+  - **Known limit: Arms now need Linux 6.2 or later**, where they needed 5.13. On a kernel between the two the
+    worker refuses to serve, the page's worker chip reads *Landlock ABI N, 3 needed*, and every Arms run is
+    refused; Replay and Deterministic are unaffected.
+  - **`harness/run.py --stage2-derived FILE`** names stage 2's derived output, the code an earlier scenario
+    built. By default it is the file this invocation wrote, or, under `--resume`, its earlier attempt's.
+    It is never a file left in a reused `--out` folder. A deterministic run in a fresh folder is unchanged.
 - **A task class may require approved: the intended bar** (task-0215, decision-0018 point 4). A contract
   change to the subject format and the gate report, opt-in.
   - **The field.** `require_approved = true` under `[tasks.<class>]`.
@@ -44,6 +87,26 @@ names that section with the version.
   - **The delta.** `tools/preload_check.py --previous REPORT` reports what a re-lint changed, at the same tool
     versions only: new, gone (a slip when the bytes changed) and kept.
   - **Proof.** `tools/check_lint_gaps.py` proves it on the example instance, on rdflib and on Neo4j.
+
+- **A kit statement says what it is: the claim** (task-0214, decision-0018 point 3, doc-0032 §3). A change to the
+  kit format the five bundle mappers read, and an additive rule in the subject check's report.
+  - **The field.** A statement may carry `claim`: `observed` (what the pinned original does), `inferred` (a
+    proposed explanation or generalised rule) or `intended` (accepted by the responsible authority). They load
+    as `extracted`, `inferred` and `authored`. `requirements_json` reads an item's `"claim"`, `contracts_markdown`
+    a part's `Claim:` line, `dmn_decisions` `claim:` in a decision's or rule's description, `gherkin_tagged` an
+    `@claim:` tag on the Feature, a Rule or a Scenario, and `plantuml_realises` a `' claim:` comment line
+    (`subjects/README.md`, "The claim"; `instance/mappers.toml`).
+  - **Inferred stays proposed.** Nothing verifies it, a ruling may never approve it (task-0199 I4), and a
+    `verified_by` link claimed inferred derives no execution, so it raises no other statement either. An
+    assertion resting on statements of different claims takes the most conservative.
+  - **No claim, no change.** A statement without one loads as before, so the public kits and the scored record
+    do not move.
+  - **Refused when unknown.** `tools/check_subject.py` refuses an unknown claim under a new rule, `claim`
+    (`harness/schemas/subject-check.schema.json`, additive), and the load fails on it rather than guess.
+  - The SHACL shape for an inferred assertion accepts one that rests on the kit fragment stating it, beside one
+    linked to the gap it proposes to fill.
+  - `tools/fixtures/claim_probe` carries every mapping. `tools/check_claim_probe.py` proves it on both stores, in
+    `harness.yml` and the stack.
 
 - **Step 4's checks in the pre-load check** (task-0217, decision-0018 point 1). A contract change to the
   pre-load report, additive.
@@ -258,6 +321,23 @@ names that section with the version.
 
 ### Changes
 
+- **pumllint 0.35.0 is the record's pin** (task-0224, the maintainer, 2026-11-08). The image, both
+  `harness.yml` jobs, `demo/requirements.txt` and the CI templates (`instance/ci/preload-check.yml`'s
+  `PUMLLINT`, the GitLab include's `KNOWGOV_PIP`) install pumllint 0.35.0 in place of 0.33.0, so the
+  pre-load check, the sequence-diagram mappers and the image run one version, the first with
+  `pumllint trace --features` (task-0217 builds on it; a CI step runs it on the J-F kit). Nothing a
+  reader sees moves: the scored record (S1 to S7) and J-F's run equal under the comparator on rdflib
+  and Neo4j; the two mappers that import the parser yield the same statements, value for value; the
+  pre-load check's pumllint findings on the example instance and on every `.puml` of both subjects are
+  the same. The parser gains a field (`declared_line` on participants) that no mapper reads. Not a
+  contract change: an instance that copied the CI template moves its `PUMLLINT` when it moves its
+  knowgov tag.
+- **A guide to reverse-engineering a code base and finding its knowledge gaps** (task-0218, decision-0018
+  points 1 and 2). `docs/reverse-engineering.md` walks the eight steps for an adopter, from scoping at a named
+  commit to re-running on change. For each step it gives the tool that runs it today, the record it leaves and
+  where that record lives. `docs/reverse-engineering-preregistration.md` is step 1's template, with the
+  pumllint experiment's first run on J-F filled in as the example. `tests/test_reverse_engineering_guide.py`
+  holds every option, path and flag the two pages name to a real one.
 - **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
   applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1
   could not apply stayed reported. Stage 2 clears the acts stage 1 recorded, then binds every ruling and close to
@@ -290,6 +370,19 @@ names that section with the version.
   whatever its key. The page now asks first with a placeholder that is no key. If the endpoint answers that, the
   row reads *key unchecked* with the reason, and your key is not sent. Otherwise it asks with your key, as
   before. The check stays free; it makes two requests at most.
+
+- **Worker job isolation and a run folder that starts clean** (task-0203, doc-0030 F8: R2, R3, R4, R7).
+  - **No process outlives its job.** After each job the worker kills every process below it, at any depth,
+    within 10 seconds. A 70-deep chain of processes, each in its own session, used to leave 20 alive; it
+    now leaves none.
+  - **A job cannot forge its answer.** The job's runner can no longer be reached through `/proc`, and it
+    answers on a channel nothing it starts inherits, so model code cannot write a forged answer through it.
+  - **A job's own failure no longer ends the run.** A job that runs out of time or is killed at a bound is
+    now that arm's failed cell, as on the host, and the run goes on to write its `summary.json`,
+    `usage.json` and `SHA256SUMS`.
+  - **A reused `--out` folder carries nothing over.** A fresh agent cell starts from an empty sandbox, and
+    `usage.json` adds an earlier attempt's only under `--resume`.
+  - `tools/check_worker.py` proves the first three on the real worker (EXEC-11 to EXEC-13).
 
 - **One clock: every lapse is decided on the gate's date** (task-0198, doc-0030 F4: H3, G4, G10, M8;
   decision-0005 points 3 and 5).

@@ -27,7 +27,7 @@ from subject import Subject  # noqa: E402
 
 def _report(inst: Path, rows: list[dict]) -> dict:
     return {"schema_version": 1, "tool": "knowgov preload check", "instance": "/elsewhere/when/the/ci/ran", "scope": "all",
-            "threshold": "major", "files": rows, "linters": [{"kind": "plantuml-models", "tool": "pumllint", "version": "0.33.0",
+            "threshold": "major", "files": rows, "linters": [{"kind": "plantuml-models", "tool": "pumllint", "version": "0.35.0",
                                                               "files": 2, "exit": 0, "error": None}],
             "counts": {"clean": 1, "findings": 1, "unchecked": 1, "cannot_run": 0, "skipped": 0}, "exit_code": 1, "note": "form"}
 
@@ -55,7 +55,7 @@ def test_a_verdict_holds_only_for_the_bytes_it_judged():
         ])
         assert schema_check.validate(rep, schema_check.load("preload-report")) == []
         v = preload.verdicts(sub, kit, [flow, cont, spec, oas], rep, "preload-report.json")
-        assert v[flow]["state"] == "clean" and v[flow]["tool_version"] == "0.33.0" and v[flow]["digest"] == sha256(kit[flow])
+        assert v[flow]["state"] == "clean" and v[flow]["tool_version"] == "0.35.0" and v[flow]["digest"] == sha256(kit[flow])
         assert v[cont]["state"] == "unchecked" and "differ" in v[cont]["why"], "a digest that is not the bytes loaded is never clean"
         assert v[spec]["state"] == "unchecked" and v[spec]["tool"] == "Vale, markdownlint"
         assert v[oas]["state"] == "unchecked" and "does not cover" in v[oas]["why"]

@@ -204,9 +204,9 @@ pre-load check never call a model. A pilot can run with no key at all.
 
 | What | Pinned where | Pinned how | Evidence |
 |---|---|---|---|
-| Python packages of the image (pumllint 0.33.0, neo4j 6.4.1, pyyaml 6.0.3, rdflib 7.6.0, pyshacl 0.40.2, openai 3.41.0; the J-F oracle's pandas 3.0.5, numpy 2.4.6, requests 2.34.2, pyarrow 25.0.1, pytest 9.1.1, pytest-bdd 9.0.1) | `demo/Dockerfile`, `.github/workflows/harness.yml` | exact versions | `tests/test_demo.py::test_image_pins_the_versions_the_record_names` |
+| Python packages of the image (pumllint 0.35.0, neo4j 6.4.1, pyyaml 6.0.3, rdflib 7.6.0, pyshacl 0.40.2, openai 3.41.0; the J-F oracle's pandas 3.0.5, numpy 2.4.6, requests 2.34.2, pyarrow 25.0.1, pytest 9.1.1, pytest-bdd 9.0.1) | `demo/Dockerfile`, `.github/workflows/harness.yml` | exact versions | `tests/test_demo.py::test_image_pins_the_versions_the_record_names` |
 | The MCP server adds no package | `harness/mcp_server.py` | standard library only | `tests/test_demo.py::test_the_mcp_server_adds_no_dependency_to_the_image` |
-| The pre-load linters (Spectral 6.17.0, markdownlint-cli2 0.24.0, gplint 2.6.1, bpmnlint 12.0.0, dmnlint 2.0.0, pumllint 0.33.0) | `instance/ci/preload-check.yml`, `.github/workflows/harness.yml` | exact versions, the same in both | `tests/test_preload.py::test_every_runner_names_the_tool_its_kind_names_and_the_ci_template_runs_the_script` |
+| The pre-load linters (Spectral 6.17.0, markdownlint-cli2 0.24.0, gplint 2.6.1, bpmnlint 12.0.0, dmnlint 2.0.0, pumllint 0.35.0) | `instance/ci/preload-check.yml`, `.github/workflows/harness.yml` | exact versions, the same in both | `tests/test_preload.py::test_every_runner_names_the_tool_its_kind_names_and_the_ci_template_runs_the_script` |
 | The LiteLLM gateway image | `demo/docker-compose.yml` | tag and SHA-256 digest | `tests/test_demo.py::test_the_claude_row_goes_through_a_pinned_gateway_started_only_by_its_profile` |
 | The vendored register, the Legible model and the subjects' bytes | `demo/register/SOURCE.md`, `demo/model/SOURCE.md`, each subject's `vendor/SOURCE.md` | an upstream tag and a digest per file | `tests/test_demo.py::test_vendored_register_matches_its_source_note_and_checks_clean`, `tests/test_demo.py::test_vendored_model_matches_its_source_note`, `tests/test_vendor_subject.py::test_every_vendored_subject_matches_its_note` |
 | GitHub Actions | `.github/workflows/`, `instance/ci/preload-check.yml` | by full commit SHA, the version in a comment, one SHA per action across every file | `tests/test_pins.py::test_every_remote_action_is_pinned_by_commit_sha_with_its_version`, `tests/test_pins.py::test_each_action_and_image_has_one_pin_everywhere` |
@@ -271,8 +271,13 @@ uid 65534, bounded memory, processes and CPU, and no secret in its environment. 
 in the image and a jobs folder. Its work folder is a tmpfs mounted `exec`, since the oracle runs the launchers it
 writes there; `noexec` would bound nothing, as a job can run any Python. Each job runs as its own process group with an allowlisted environment,
 resource limits, a wall time (the whole group killed and reaped at it, a process that left the group
-included), and Linux Landlock rules that let it write only beneath its own folder, so it cannot forge a
-result or the worker's attestation. At start the worker attests its confinement (no interface but
+included: after each job the worker kills every process below it at any depth at once, round after round,
+within 10 s, so even a deep chain of processes each in its own session ends with its job; task-0203), and
+Linux Landlock rules that let it write only beneath its own folder, so it cannot forge a result or the
+worker's attestation. The job's runner is non-dumpable and answers on a descriptor no process it starts
+inherits or can open through `/proc`, so model code cannot forge its answer through the runner's output
+either (task-0203). A job whose time runs out, or that is killed at a bound, is the kind's failed cell, as
+on the host, and the run goes on (task-0203). At start the worker attests its confinement (no interface but
 loopback up, no route beyond it and no `CAP_NET_ADMIN` to bring one up, decision-0015; no AF_VSOCK or
 AF_PACKET socket and no outside address reachable, which no network namespace confines and the engine's
 default seccomp profile refuses; no secret-shaped variable, read-only root, uid 65534, no engine socket,
@@ -286,7 +291,9 @@ service, and the worker has no network to ask. Without a worker nothing runs: th
 the host. The only escape is `KG_ALLOW_UNCONTAINED_EXECUTION=1`, which runs the code on the host,
 uncontained, as before. With an organisation's instance mounted, the interim guard (task-0141.07,
 `harness/execution_guard.py`) still refuses first: the worker sees only the public subjects. Supported:
-Linux with Landlock (kernel 5.13 or later, enabled) and a container engine that runs the compose
+Linux with Landlock at ABI 3 or later (Linux 6.2 or later, enabled; task-0203: below ABI 3 Landlock does not
+confine truncation, so `write_confined` is not attested: the worker refuses to serve, the page's worker chip
+reads *worker: not attested · Landlock ABI N, 3 needed*, and every arms run is refused) and a container engine that runs the compose
 service; elsewhere the worker refuses to serve and model output does not run. That sentence was the
 fail-closed design, proven on GitHub's Ubuntu runners and a Linux kernel with Landlock only; the first
 evidence on another engine is the maintainer's Mac (2026-11-06), below. The worker starts only
@@ -304,9 +311,12 @@ check on a fake sysfs and procfs, the Mac's listing included; the socket probes 
 `tests/test_execution.py::test_exec_07_an_absent_stale_loosened_or_malformed_attestation_refuses_the_job`,
 `tests/test_execution.py::test_a_job_cannot_write_the_jobs_folder_so_it_cannot_forge_a_result_or_the_attestation`,
 `tests/test_execution.py::test_exec_04_a_symlink_at_any_step_of_an_agent_write_is_refused_and_the_target_untouched`,
-`tests/test_execution.py::test_exec_08_a_stalled_or_trickling_stream_stops_at_the_monotonic_deadline`; on the real
-container, `tools/check_worker.py` in `demo.yml` (EXEC-01 to EXEC-10, and loosened workers refusing: network on,
-a key in its environment, and the seccomp profile off where the runner's kernel has vsock).
+`tests/test_execution.py::test_exec_08_a_stalled_or_trickling_stream_stops_at_the_monotonic_deadline`,
+`tests/test_worker_isolation.py` (task-0203: a 70-deep `setsid` chain killed whole, the forge refused, a timed-out
+job a failed cell, `write_confined` only from Landlock ABI 3, a reused run folder carrying nothing over; on a
+worker loop as uid 65534 under its Landlock domain when the tests run as root); on the real container,
+`tools/check_worker.py` in `demo.yml` (EXEC-01 to EXEC-13, and loosened workers refusing: network on, a key in
+its environment, and the seccomp profile off where the runner's kernel has vsock).
 **Practice:** for the public demo, use a project key with a spending cap; keep the worker service as
 compose defines it, since loosening it makes it refuse.
 

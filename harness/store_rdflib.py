@@ -563,9 +563,10 @@ class RdflibStore(Store):
             self._verify(x, f"ver:review:{self.nid(x)}", h, {"method": "review", "outcome": "pass", "at": at, "valid_until": None, "scope": scope})
         return len(xs)
 
-    def verify_authored(self, at, scope, agent_id) -> int:
+    def verify_authored(self, at, scope, agent_id, artefacts=None) -> int:
         h = self.node(agent_id, "Agent")
-        xs = [x for x in self.nodes("Assertion", basis="authored", status="proposed") if self.prop(x, "value") != "NONE"]
+        xs = [x for x in self.nodes("Assertion", basis="authored", status="proposed") if self.prop(x, "value") != "NONE"
+              and (artefacts is None or self.prop(x, "artefact") in artefacts)]   # decision-0019: the Versions attested
         if h is None:
             return 0
         for x in xs:
@@ -575,9 +576,9 @@ class RdflibStore(Store):
             self.set_props(x, {"status": "verified"})
         return len(xs)
 
-    def approve_verified(self, at, record, agent_id) -> int:
+    def approve_verified(self, at, record, agent_id, artefacts=None) -> int:
         h = self.node(agent_id, "Agent")
-        xs = self.nodes("Assertion", status="verified")
+        xs = [x for x in self.nodes("Assertion", status="verified") if artefacts is None or self.prop(x, "artefact") in artefacts]
         if h is None:
             return 0
         for x in xs:
@@ -675,7 +676,7 @@ class RdflibStore(Store):
                     out.append({"a": ida, "va": self.prop(a, "value"), "ba": self.prop(a, "basis"), "aa": self.prop(a, "artefact"),
                                 "b": idb, "vb": self.prop(b, "value"), "bb": self.prop(b, "basis"), "ab": self.prop(b, "artefact"),
                                 "key": self.prop(a, "key"), "pred": self.prop(a, "predicate")})
-        return out
+        return sorted(out, key=lambda r: (str(r["key"]), r["a"], r["b"]))   # decision-0020: key, then id
 
     def _bump(self, x, frm, to) -> None:
         if self.prop(x, "status") == frm:
@@ -903,7 +904,8 @@ class RdflibStore(Store):
         return by_id(out)   # task-0201 (doc-0030 S2): by id on both adapters
 
     def conflict_gaps(self) -> list[dict]:
-        return [{"id": self.nid(g), "text": self.prop(g, "text")} for g in self.nodes("Gap", kind="conflict")]
+        return sorted(({"id": self.nid(g), "text": self.prop(g, "text")} for g in self.nodes("Gap", kind="conflict")),
+                      key=lambda r: r["id"])   # decision-0020: by id, the key then the pair
 
     def assertion_brief(self, assertion_id) -> dict | None:
         x = self.node(assertion_id, "Assertion")
@@ -1015,6 +1017,36 @@ class RdflibStore(Store):
 
     def record_act_finding(self, row) -> None:
         self.merge_node(row["id"], "ActFinding", props={k: row[k] for k in self.ACT_FIELDS})
+
+    def withdraw_construction(self, artefacts) -> int:
+        n = 0
+        for x in list(self.nodes("Assertion")):
+            if self.prop(x, "artefact") not in artefacts:
+                continue
+            xid, hit = self.nid(x), False
+            for nid in (f"ver:review:{xid}", f"appr:{xid}"):
+                node = self._nodes.get(nid)
+                if node is not None:
+                    self.delete_node(node)
+                    hit = True
+            if not hit or self.prop(x, "status") not in ("approved", "verified"):
+                continue
+            aps = [a for a in self.inn(x, "APPROVES") if self.has_label(a, "Approval")]
+            vs = [v for v in self.inn(x, "VERIFIES") if self.has_label(v, "Verification")]
+            status = "approved" if aps else "verified" if vs else "proposed"
+            if status != self.prop(x, "status"):
+                self.set_props(x, {"status": status})
+                n += 1
+        return n
+
+    def record_attestation(self, row) -> None:
+        a = self.node(row["attester"], "Agent")
+        if a is not None:
+            self.set_props(a, {f"attestation_{row['declaration']}": json.dumps({k: row[k] for k in ("id", *self.ATTESTATION_FIELDS)}, sort_keys=True)})
+
+    def attestations(self) -> list[dict]:
+        return by_id([json.loads(self.prop(a, f"attestation_{d}")) for a in self.nodes("Agent") for d in ("approval", "authored")
+                      if self.prop(a, f"attestation_{d}")])
 
     def clear_act_findings(self) -> None:
         for a in list(self.nodes("ActFinding")):

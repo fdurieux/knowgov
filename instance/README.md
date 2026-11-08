@@ -570,8 +570,23 @@ does. That is on purpose: a requirements file drafted with an assistant and read
 reach the gate as approved. The layout check notes such a subject (*NOTE [verification]*), naming
 its documents with authored statements. One limit remains. A declaration covers the documents as
 they are at each load, so after an edit, re-read the documents before the next load, or remove the
-declaration until someone has. A later decision may bind each attestation to the version of the
-document it covers.
+declaration until someone has.
+
+Since 0.9.0 a declaration can name the versions it covers (decision-0019). List in `versions` the
+digest of each document version the person read: a file's SHA-256 over its bytes, and for a folder,
+the SHA-256 of each file in it.
+
+```toml
+authored = { at = "2026-11-04", scope = "...", versions = ["3f2a...", "9c41..."] }
+approval = { at = "2026-11-04", record = "...", versions = ["3f2a...", "9c41..."] }
+```
+
+In plain English: once a document changes, its new version is no longer listed. Its statements load
+as *proposed* again, and nothing in it is approved by the declaration. The gate names the document
+and the keys resting on it, and the route back: the person reads it and adds its new digest. A test
+that verifies one of its statements still counts. The layout check refuses a digest that matches none
+of your documents. A declaration without `versions` keeps the old meaning, covering whatever the
+documents hold at each load; the gate lists it at info and the layout check notes it.
 
 Each declaration needs its own `at`, and `[provenance] human` needs an `id`. A stage-2
 re-verification in `scenarios.toml` needs its `at` too. The layout check refuses a declaration

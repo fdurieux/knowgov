@@ -104,16 +104,15 @@ def r_corroborate(st) -> int:
 
 
 def r_conflict(st, scenario: str) -> list[dict]:
-    out, n = [], 0
+    out = []
     for p, person in pairs(st):
         if compatible(p["va"], p["vb"], p["pred"]) == "conflict":
-            if person:
-                gid = f"gap:conflict:{p['key']}:{p['a']}~{p['b']}"
-                text = (f"a person and a document state different values for {p['key']}: "
-                        f"{p['aa']} says {p['va']}; {p['ab']} says {p['vb']}")
-            else:
-                gid, text = f"gap:conflict:{p['key']}:{n}", None
-                n += 1
+            # decision-0020: every conflict is named by its two statements, sorted, a person's or two documents';
+            # the id is the same on every store and every run of the same statements
+            lo, hi = sorted((p["a"], p["b"]))
+            gid = f"gap:conflict:{p['key']}:{lo}~{hi}"
+            text = (f"a person and a document state different values for {p['key']}: "
+                    f"{p['aa']} says {p['va']}; {p['ab']} says {p['vb']}") if person else None
             st.mark_conflict(p["a"], p["b"], gid, p["key"], scenario, text)
             out.append({"key": p["key"], "a": p["a"], "va": p["va"], "b": p["b"], "vb": p["vb"]})
     return out

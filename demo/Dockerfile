@@ -19,7 +19,7 @@ COPY . /repo
 # pumllint docs/neo4j-governed-knowledge-evaluation.md §12: neo4j 6.4.1, pyyaml, rdflib 7.6.0,
 # pyshacl 0.40.2, openai 3.41.0. pumllint itself is a library here: the sequence-diagram mapper
 # (harness/extract.py) imports its parser; the released package from PyPI, pinned.
-RUN pip install "pumllint==0.33.0" "neo4j==6.4.1" "pyyaml==6.0.3" "rdflib==7.6.0" "pyshacl==0.40.2" "openai==3.41.0" \
+RUN pip install "pumllint==0.35.0" "neo4j==6.4.1" "pyyaml==6.0.3" "rdflib==7.6.0" "pyshacl==0.40.2" "openai==3.41.0" \
  && mkdir -p /repo/runs
 # The J-F subject's oracle: its kit's suite (pytest-bdd) over its runtime pins (contracts/pins.md);
 # the chain scenarios need bash and GNU timeout, which the base image has.

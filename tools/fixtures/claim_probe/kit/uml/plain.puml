@@ -1,0 +1,8 @@
+@startuml plain
+title Refusing a negative value
+actor Caller
+participant Service
+Caller -> Service : submit -1
+Service --> Caller : refused
+footer realises CLM-001
+@enduml

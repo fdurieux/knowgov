@@ -16,7 +16,7 @@ HARNESS = ROOT / ".github" / "workflows" / "harness.yml"
 OLD_STEPS = [
     'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
     'actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e',
-    'pip install "pumllint==0.33.0" "pyyaml==6.0.3" "rdflib==7.6.',
+    'pip install "pumllint==0.35.0" "pyyaml==6.0.3" "rdflib==7.6.',
     'The stdlib suite with the pins, the tests resting on rdflib run here and a skip of one fails (task-0141.01)',
     'S1 to S7 on the in-memory store match the record',
     'The J-F data-load subject, C and D1 to D5, matches its record (D1 skipped across store kinds)',
@@ -59,6 +59,7 @@ OLD_STEPS = [
     "Acts bound to content (task-0199), on rdflib, a ruling records what it ruled on, an edit after it is an act finding not an approval, a reordered table and renumbered answers move no act, stage 2 never moves one onto a successor, I4 and I9 refused",
     "Derived outputs bound to content (task-0199), on rdflib, the ledger records each used statement's value and digest, an edit and a reload under the same id reads suspect, the gate, MCP and trace read one rule",
     "One definition per concept (task-0201), on rdflib, one successor set for the gate, the stale finding, superseded_by and the bundle, disputed statements read, one owner and route, one uniqueness rule",
+    "Attestations bound to their Versions (task-0221, decision-0019), on rdflib, the read rule at info, a listed Version attested, an edited unlisted one proposed and named, a digest of nothing refused",
     "The MCP server (task-0056) gives gate_cli's report for the same store, the record's three-valued answers, and writes nothing",
     "proposal_impact's branch mode (task-0132) through the CI template's step, doc-0017's worked example on a scratch branch of the public register, equal to the held overlay's report and the checkout unchanged",
     "A person's statement against the documents' (task-0038), on S2 a contradiction raises a conflict, an agreement corroborates and raises nothing",
@@ -72,8 +73,11 @@ OLD_STEPS = [
 ]
 # Steps added after the split, each in one job: the same rule holds them
 ADDED = ["Two subjects sharing a scenario id never answer each other's gates (task-0195): the held subject on a file-backed rdflib store",
+         "pumllint's trace --features runs from the installed library (task-0224, for task-0217): the J-F kit's diagrams against its requirements and features, every requirement covered and verified",
+         "One id per conflict (task-0223, decision-0020), every CargoQuote scenario loaded fresh twice, each conflict gap:conflict:<key>:<a>~<b>, ordered, S4's shown",
          "Pre-load findings as routed gaps (task-0216), on rdflib, the example instance's planted SEQ002 a lint gap with its owner and "
-         "route and no level moved, held by the baseline, resolved by its owner, a slip in the re-lint delta, kept by the round trip"]
+         "route and no level moved, held by the baseline, resolved by its owner, a slip in the re-lint delta, kept by the round trip",
+         "The kit's claim (task-0214), on rdflib, the probe kit's five mappers read observed, inferred and intended into the basis, an inferred statement stays proposed and a ruling approving it is refused, an unknown claim is refused by the subject check"]
 SHARED = OLD_STEPS[:3] + ["The outcomes, machine-readable, in the job's summary (task-0159)",
                           "The outcome files kept as an artifact, 14 days, outcomes JSON only (task-0159)"]
 

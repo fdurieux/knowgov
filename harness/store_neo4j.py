@@ -835,21 +835,22 @@ class Neo4jStore(Store):
             SET x.status = CASE WHEN x.status IN ['proposed','validated'] THEN 'verified' ELSE x.status END
             RETURN count(x) AS n""", key=key, vals=values, at=at, scope=scope, hid=agent_id).single()["n"]
 
-    def verify_authored(self, at, scope, agent_id) -> int:
+    def verify_authored(self, at, scope, agent_id, artefacts=None) -> int:   # artefacts: decision-0019's attested Versions
         return self.run("""
             MATCH (x:Assertion) WHERE x.basis='authored' AND x.status='proposed' AND x.value <> 'NONE'
+              AND ($arts IS NULL OR x.artefact IN $arts)
             MATCH (h:Agent {id:$hid})
             MERGE (v:Verification {id:'ver:review:' + x.id})
               SET v.method='review', v.outcome='pass', v.at=$at, v.valid_until=null, v.scope=$scope
             MERGE (v)-[:VERIFIES]->(x) MERGE (v)-[:PERFORMED_BY]->(h)
-            SET x.status='verified' RETURN count(x) AS n""", at=at, scope=scope, hid=agent_id).single()["n"]
+            SET x.status='verified' RETURN count(x) AS n""", at=at, scope=scope, hid=agent_id, arts=artefacts).single()["n"]
 
-    def approve_verified(self, at, record, agent_id) -> int:
+    def approve_verified(self, at, record, agent_id, artefacts=None) -> int:
         return self.run("""
-            MATCH (x:Assertion {status:'verified'}), (h:Agent {id:$hid})
+            MATCH (x:Assertion {status:'verified'}), (h:Agent {id:$hid}) WHERE $arts IS NULL OR x.artefact IN $arts
             MERGE (ap:Approval {id:'appr:' + x.id}) SET ap.at=$at, ap.record=$record
             MERGE (ap)-[:APPROVES]->(x) MERGE (ap)-[:BY]->(h)
-            SET x.status='approved' RETURN count(x) AS n""", at=at, record=record, hid=agent_id).single()["n"]
+            SET x.status='approved' RETURN count(x) AS n""", at=at, record=record, hid=agent_id, arts=artefacts).single()["n"]
 
     def reverify(self, version, keys, agent_id, ts, scope, record) -> list[str]:
         return self.run("""
@@ -903,7 +904,8 @@ class Neo4jStore(Store):
               AND (a.version = b.version OR (a.basis IN $docs AND b.basis IN $docs)
                    OR ($across IS NOT NULL AND (a.basis = $across) <> (b.basis = $across)))
             RETURN a.id AS a, a.value AS va, a.basis AS ba, a.artefact AS aa, b.id AS b, b.value AS vb, b.basis AS bb,
-                   b.artefact AS ab, a.key AS key, a.predicate AS pred""", across=across, docs=list(DOCUMENT_BASES)))
+                   b.artefact AS ab, a.key AS key, a.predicate AS pred
+            ORDER BY key, a, b""", across=across, docs=list(DOCUMENT_BASES)))   # decision-0020: key, then id
 
     def corroborate(self, a, b, promote=True) -> None:
         self.run("""MATCH (a:Assertion {id:$a}), (b:Assertion {id:$b})
@@ -1062,7 +1064,7 @@ class Neo4jStore(Store):
             RETURN g.id AS id, g.text AS text""", key=key)))
 
     def conflict_gaps(self) -> list[dict]:
-        return _rows(self.run("MATCH (g:Gap {kind:'conflict'}) RETURN g.id AS id, g.text AS text"))
+        return _rows(self.run("MATCH (g:Gap {kind:'conflict'}) RETURN g.id AS id, g.text AS text ORDER BY id"))   # decision-0020
 
     def assertion_brief(self, assertion_id) -> dict | None:
         rows = _rows(self.run("""
@@ -1154,6 +1156,29 @@ class Neo4jStore(Store):
 
     def record_act_finding(self, row) -> None:
         self.run("MERGE (a:ActFinding {id:$id}) SET a += $props", id=row["id"], props={k: row[k] for k in self.ACT_FIELDS}).consume()
+
+    def withdraw_construction(self, artefacts) -> int:
+        self.run("""
+            MATCH (x:Assertion) WHERE x.artefact IN $arts
+            OPTIONAL MATCH (v:Verification {id:'ver:review:' + x.id}) DETACH DELETE v""", arts=list(artefacts)).consume()
+        self.run("""
+            MATCH (x:Assertion) WHERE x.artefact IN $arts
+            OPTIONAL MATCH (ap:Approval {id:'appr:' + x.id}) DETACH DELETE ap""", arts=list(artefacts)).consume()
+        return self.run("""
+            MATCH (x:Assertion) WHERE x.artefact IN $arts AND x.status IN ['approved', 'verified']
+            OPTIONAL MATCH (a:Approval)-[:APPROVES]->(x) WITH x, count(a) AS aps
+            OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x) WITH x, aps, count(v) AS vs
+            WITH x, CASE WHEN aps > 0 THEN 'approved' WHEN vs > 0 THEN 'verified' ELSE 'proposed' END AS status
+            WHERE status <> x.status SET x.status = status RETURN count(x) AS n""", arts=list(artefacts)).single()["n"]
+
+    def record_attestation(self, row) -> None:   # on the attester's Agent node, never a node of its own (store.py)
+        self.run("MATCH (a:Agent {id:$aid}) SET a += $props", aid=row["attester"],
+                 props={f"attestation_{row['declaration']}": json.dumps({k: row[k] for k in ("id", *self.ATTESTATION_FIELDS)}, sort_keys=True)}).consume()
+
+    def attestations(self) -> list[dict]:
+        rows = _rows(self.run("MATCH (a:Agent) WHERE a.attestation_approval IS NOT NULL OR a.attestation_authored IS NOT NULL "
+                              "RETURN a.attestation_approval AS approval, a.attestation_authored AS authored"))
+        return by_id([json.loads(r[d]) for r in rows for d in ("approval", "authored") if r[d]])
 
     def clear_act_findings(self) -> None:
         self.run("MATCH (a:ActFinding) DETACH DELETE a").consume()

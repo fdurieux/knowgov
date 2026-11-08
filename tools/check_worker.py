@@ -19,6 +19,14 @@ reads what came back as untrusted data:
            read inside its container, and adds no check (task-0169)
   EXEC-09  the CargoQuote reference code and the J-F reference rebuild grade in the worker as the
            record says (all pass), no model called
+  EXEC-11  (task-0203, R4) a 70-deep chain of processes, each in its own session, is killed whole once its
+           job ends: the next job sees none of it and no other process of the worker's user but its own
+           ancestry, within the job's time and the worker's reaping bound
+  EXEC-12  (R7) a job that opens its runner's descriptors through /proc and has a detached child write a
+           forged answer after it exits opens none, and the answer is the job's own
+  EXEC-13  (R2) a job whose time runs out comes back as the kind's failed cell (nothing passed, the stage
+           and the error kept), not an exception that would end the run
+  attest   (R10) write_confined is attested with the kernel's Landlock ABI, and only from ABI 3
 A loosened worker (network on, a key in its environment) refusing to serve is run by the workflow,
 which can start containers: ``python harness/worker.py --attest-only`` exits 3 there.
 Exit 0 when every check holds, 1 otherwise; nothing here calls a model.
@@ -215,6 +223,30 @@ except OSError as e:
     check(r.get("ran") and r["passed"] == r["total"] > 0,
           f"EXEC-09 the J-F reference rebuild passes in the worker: {r.get('passed')}/{r.get('total')}"
           + "".join(f"\n       {k}: {v}" for k, v in failed.items()) + ("" if r.get("ran") else f"\n       {r}"))
+
+    # EXEC-11, EXEC-12, EXEC-13, R10 (task-0203, doc-0030 F8): fixture code, never a model
+    import worker
+    import worker_probes
+    mark = worker_probes.marker()
+    t0 = time.monotonic()
+    r = probe(worker_probes.chain(mark), seconds=60)
+    took = time.monotonic() - t0
+    check((r.get("stdout") or "").strip() == f"built {worker_probes.DEPTH}", f"EXEC-11 the job built its {worker_probes.DEPTH}-deep setsid chain: {r}")
+    left = (probe(worker_probes.survivors(mark)).get("stdout") or "").split()
+    check(left == ["0", "0"] and took < 60 + worker.REAP_S,
+          f"EXEC-11 none of the chain and no other process of the worker's user outlives the job, within {60 + worker.REAP_S:g} s "
+          f"({took:.1f} s): marked, others = {left}")
+    genuine = "genuine-" + worker_probes.marker()
+    r = probe(worker_probes.forge(genuine), seconds=30)
+    out = (r.get("stdout") or "").split()
+    check(out[:2] == [genuine, "0"] and "FORGED" not in json.dumps(r),
+          f"EXEC-12 the job opens none of its runner's descriptors and cannot forge its answer: {r}")
+    r = execution.run("suite", {"scenario": "S1"}, {"artifact.py": b"import time\ntime.sleep(600)\n"}, deadline=time.monotonic() + 5)
+    check(r.get("ran") is True and r.get("passed") == 0 and r.get("stage") in execution.MODEL_STAGES and r.get("error"),
+          f"EXEC-13 a job whose time ran out is the suite's failed cell, the run going on: {r}")
+    a = execution.attested(jobs)
+    check(isinstance(a.get("landlock_abi"), int) and a["landlock_abi"] >= worker.LANDLOCK_MIN_ABI and a["checks"]["write_confined"] is True,
+          f"R10 write_confined is attested at Landlock ABI {a.get('landlock_abi')}, {worker.LANDLOCK_MIN_ABI} or later")
 
     print("worker: " + ("every check holds" if not failures else f"{len(failures)} failure(s)"))
     return 1 if failures else 0
