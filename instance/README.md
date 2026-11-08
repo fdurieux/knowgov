@@ -474,14 +474,11 @@ names its check as its `tool`, and the report's `checks` block says whether each
 | `glossary` | `textual-requirements`, `glossary` | a term (a code span or a bold phrase) in three or more requirements with no glossary row |
 | `dmn gaps` | `decision-tables` (`.dmn`) | input values no rule matches; rules that overlap under hit policy `UNIQUE` (`major`), or under `ANY` with different outputs; an output with no type, or a rule leaving one empty |
 
-- **What the trace needs.** It needs **pumllint 0.35.0 or later**, the first release whose `trace`
-  reads `--features`, and the requirement-id pattern in a `pumllint.toml` at your instance's root:
-  `[rules.requirement-link]` with `pattern = "REQ-\\d+"`, say. The harness itself pins pumllint
-  0.33.0, the record's version, which the sequence-diagram mapper imports.
-- **Installing the trace's pumllint.** Install 0.35.0 into a prefix of its own, such as
-  `python -m venv .pumllint-trace && .pumllint-trace/bin/pip install "pumllint==0.35.0"`. Then
-  name its command in `KG_PUMLLINT_TRACE` (`.pumllint-trace/bin/pumllint`).
-- **When it cannot run.** Without 0.35.0, or without a pattern, the trace is listed as
+- **What the trace needs.** It runs the same pumllint as the `plantuml-models` check, the version
+  the harness pins. That must be **0.35.0 or later**, the first release whose `trace` reads
+  `--features`. It also needs the requirement-id pattern in a `pumllint.toml` at your instance's
+  root: `[rules.requirement-link]` with `pattern = "REQ-\\d+"`, say.
+- **When it cannot run.** With an older pumllint, or without a pattern, the trace is listed as
   *unchecked* and says which of the two is missing. A check whose documents your instance lacks is
   unchecked too: the glossary check with no glossary, say.
 - **Documents no linter reads.** A document whose kind has no linter here, but which a check read,

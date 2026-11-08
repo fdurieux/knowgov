@@ -18,16 +18,14 @@ is missing exits 2 naming it (this proof never passes on an unchecked kind).
    each tool with the rule it broke, every finding major, and the report is valid against
    harness/schemas/preload-report.schema.json.
 4. Step 4's checks (task-0217), each finding its planted defect, each finding in the report with its tool:
-   the feature trace, with pumllint 0.35.0 installed into its own prefix under OUT_DIR (KG_PUMLLINT_TRACE
-   names another; the record's pin, which lacks --features, leaves the trace unchecked naming 0.35.0), a
-   diagram and a scenario citing ids no requirement holds; the glossary, a term in three requirements the
+   the feature trace, on the harness's pinned pumllint (0.35.0 or later: an older one is cannot-run here, this
+   proof never passing on an unchecked check), a diagram and a scenario citing ids no requirement holds; the glossary, a term in three requirements the
    glossary does not define (and none once it does); the DMN check, the example's own table's two gaps, then
    a table whose rules overlap under UNIQUE and leave an output untyped.
 """
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -40,7 +38,6 @@ import preload_check  # noqa: E402
 import schema_check  # noqa: E402
 import step4_checks  # noqa: E402
 
-TRACE_PIN = "pumllint==0.35.0"   # the first pumllint whose trace reads --features; the record's pin stays 0.33.0
 
 KINDS = {"specification-prose": "markdownlint", "acceptance-scenarios": "gplint",
          "bpmn-process-models": "bpmnlint", "decision-tables": "dmnlint"}
@@ -110,6 +107,13 @@ def main(argv: list[str]) -> int:
     if missing:
         print(f"cannot run: not installed here: {', '.join(missing)}", file=sys.stderr)
         return 2
+    trace = step4_checks.trace_cmd()
+    ver = subprocess.run(trace + ["--version"], capture_output=True, text=True) if trace else None
+    have = step4_checks._version(ver.stdout + ver.stderr) if ver and ver.returncode == 0 else None
+    if have is None or have < step4_checks.TRACE_NEEDS:
+        print(f"cannot run: the feature trace needs pumllint {'.'.join(map(str, step4_checks.TRACE_NEEDS))} or later; "
+              f"here: {'.'.join(map(str, have)) if have else 'none'}", file=sys.stderr)
+        return 2
     out = Path(argv[0])
     shutil.rmtree(out, ignore_errors=True)
     inst = out / "instance"
@@ -164,16 +168,6 @@ def main(argv: list[str]) -> int:
     return 0
 
 
-def _trace_prefix(out: Path) -> str:
-    """KG_PUMLLINT_TRACE, else pumllint 0.35.0 installed into a prefix of its own under OUT_DIR."""
-    if os.environ.get("KG_PUMLLINT_TRACE"):
-        return os.environ["KG_PUMLLINT_TRACE"]
-    venv = out / "pumllint-trace"
-    subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True, capture_output=True)
-    subprocess.run([str(venv / "bin" / "python"), "-m", "pip", "install", "-q", TRACE_PIN], check=True, capture_output=True)
-    return str(venv / "bin" / "pumllint")
-
-
 def _findings(rep: dict, tool: str) -> dict[str, list[tuple[str, str]]]:
     got: dict[str, list[tuple[str, str]]] = {}
     for r in rep["files"]:
@@ -189,22 +183,12 @@ def step4(out: Path) -> None:
     example_instance.build(inst)
     checks = lambda rep: {c["check"]: c for c in rep["checks"]}  # noqa: E731
 
-    # the trace: unchecked without pumllint 0.35.0, naming it; with it, the planted ids found
-    saved = os.environ.pop("KG_PUMLLINT_TRACE", None)
-    try:
-        rep = preload_check.check(inst)
-    finally:
-        if saved is not None:
-            os.environ["KG_PUMLLINT_TRACE"] = saved
-    c = checks(rep)[step4_checks.TRACE]
-    assert c["state"] == "unchecked" and "0.35.0" in c["why"], c
-    print(f"trace without 0.35.0: unchecked: {c['why']}")
-    os.environ["KG_PUMLLINT_TRACE"] = _trace_prefix(out)
+    # the trace, on the pinned pumllint: the planted ids found
     (inst / "pumllint.toml").write_text('[rules.requirement-link]\npattern = "REQ-\\\\d+"\n', encoding="utf-8")
     diagram = inst / "artefacts" / "plantuml-models" / "quote_flow.puml"
     feature = inst / "artefacts" / "acceptance-scenarios" / "acceptance.feature"
     rep = preload_check.check(inst)
-    assert checks(rep)[step4_checks.TRACE]["state"] == "ran", checks(rep)[step4_checks.TRACE]
+    assert checks(rep)[step4_checks.TRACE]["state"] == "ran", f"cannot run: {checks(rep)[step4_checks.TRACE]['why']}"
     before = _findings(rep, step4_checks.TRACE)
     assert not any(r.startswith("TRACE-UNKNOWN") for fs in before.values() for r, _ in fs), before
     text = diagram.read_text(encoding="utf-8")

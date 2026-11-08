@@ -17,8 +17,8 @@ linter is not installed here, are reported *unchecked*, naming the tool (or sayi
 none): an unchecked file does not fail the check, and it is never passed silently.
 
 After the kinds' linters, step 4's checks (task-0217, decision-0018 point 1; tools/step4_checks.py) read
-documents together: pumllint's trace with --features (pumllint 0.35.0 or later, KG_PUMLLINT_TRACE or the
-linter's own pumllint; an older one leaves the trace unchecked, naming 0.35.0), the glossary check and the DMN
+documents together: pumllint's trace with --features (the linter's own pumllint, 0.35.0 or later; an older
+one leaves the trace unchecked, naming 0.35.0), the glossary check and the DMN
 gap check. Each finding names its check as its ``tool``; the report's ``checks`` block says whether each ran; a
 document its kind's linter left unchecked and a check read is judged by that check alone, and says so. A check
 that is installed and fails is cannot-run, exit 2. Provisional on task-0200 (F6): a check's own failure is caught

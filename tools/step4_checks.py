@@ -1,8 +1,8 @@
 """Step 4's checks (decision-0018 point 1, task-0217): what a reverse-engineering pass reads across documents,
 beside each kind's own linter in tools/preload_check.py.
 
-- ``pumllint trace``: pumllint's requirement-coverage matrix with ``--features`` (pumllint 0.35.0 or later, a
-  released library this repository calls and never copies): a requirement no diagram realises, one realised and
+- ``pumllint trace``: pumllint's requirement-coverage matrix with ``--features`` (pumllint 0.35.0 or later, the
+  harness's pinned library, called and never copied; an older one leaves the trace unchecked, naming 0.35.0): a requirement no diagram realises, one realised and
   verified by no feature, a reference to an id the inventory lacks, a diagram, feature or scenario that cites none.
 - ``glossary``: a term (a code span or a bold phrase) recurring in three or more requirements with no row in the
   instance's glossary.
@@ -23,9 +23,7 @@ from __future__ import annotations
 import itertools
 import json
 import math
-import os
 import re
-import shlex
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
@@ -60,11 +58,8 @@ def _line_of(text: str, needle: str) -> int:
 # ---------------------------------------------------------------- pumllint trace --features
 
 def trace_cmd() -> list[str] | None:
-    """KG_PUMLLINT_TRACE (a command line), else the pumllint preload_check's linter runs, or None."""
-    v = os.environ.get("KG_PUMLLINT_TRACE", "").strip()
-    if v:
-        return shlex.split(v)
-    import preload_check   # the linter's own discovery: the harness's pin, else pumllint on PATH
+    """The pumllint preload_check's linter runs (the harness's pin, else pumllint on PATH), or None."""
+    import preload_check
     return preload_check.pumllint_cmd()
 
 
@@ -87,14 +82,14 @@ def run_trace(inst: Path) -> dict:
         return out
     cmd = trace_cmd()
     if cmd is None:
-        out["why"] = f"pumllint is not installed here; the trace needs pumllint {need} or later (KG_PUMLLINT_TRACE names its command)"
+        out["why"] = f"pumllint is not installed here; the trace needs pumllint {need} or later"
         return out
     ver = subprocess.run(cmd + ["--version"], cwd=inst, capture_output=True, text=True)
     v = _version(ver.stdout + ver.stderr) if ver.returncode == 0 else None
     out["version"] = ".".join(map(str, v)) if v else None
     if v is None or v < TRACE_NEEDS:
         out["why"] = (f"trace --features needs pumllint {need} or later; the one here is {out['version'] or 'of no readable version'} "
-                      "(KG_PUMLLINT_TRACE names another; the record's pin stays where demo/Dockerfile holds it)")
+                      "(the harness pins it in demo/Dockerfile)")
         return out
     args = [_rel(p, inst) for p in diagrams] + ["--features", "artefacts/acceptance-scenarios"]
     if reqs:

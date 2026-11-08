@@ -4,8 +4,8 @@ glossary check and the DMN gap check across the kinds they read, each finding in
 Stdlib, on temporary instances and stand-in commands: the DMN check finds gaps (an integral input's open interval
 with no integer in it is none), overlaps under UNIQUE (under ANY only when the outputs differ, never under FIRST)
 and untyped outputs, and says when it cannot read an entry; the glossary check finds a term in three requirements
-the glossary does not define; the trace is unchecked, naming 0.35.0, when the pumllint it would run is older, and
-maps a 0.35.0 report's lists to findings; a check that cannot run here leaves the kind unchecked, as before; a
+the glossary does not define; the trace, on the harness's pumllint, is unchecked, naming 0.35.0, when that one is
+older, and maps a 0.35.0 report's lists to findings; a check that cannot run here leaves the kind unchecked, as before; a
 document no linter of its kind judged and a check read is judged by the check alone, its findings becoming lint
 gaps named by the check. The real pumllint 0.35.0 and the Node linters are tools/check_preload_linters.py's."""
 from __future__ import annotations
@@ -84,12 +84,12 @@ def test_the_glossary_check_wants_a_row_for_a_term_in_three_requirements():
     assert s4.glossary_terms("- **chargeable mass**: the greater\n## Tariff\n`band` - a band\n") == {"chargeable mass", "tariff", "band"}
 
 
-def _stand_in(d: Path, version: str, report: dict | None) -> str:
+def _stand_in(d: Path, version: str, report: dict | None) -> list[str]:
     script = d / "pumllint_stand_in.py"
     script.write_text("import json, sys\nargs = sys.argv[1:]\n"
                       f"if args == ['--version']:\n    print('pumllint {version}')\n    sys.exit(0)\n"
                       f"open(args[args.index('-o') + 1], 'w').write({json.dumps(json.dumps(report))})\n", encoding="utf-8")
-    return f"{sys.executable} {script}"
+    return [sys.executable, str(script)]
 
 
 def test_the_trace_needs_pumllint_0_35_and_maps_its_report_to_findings():
@@ -97,9 +97,9 @@ def test_the_trace_needs_pumllint_0_35_and_maps_its_report_to_findings():
              "acceptance-scenarios/a.feature": "Feature: A\n  @REQ-8\n  Scenario: one\n    Given x\n",
              "textual-requirements/r.md": "| id | r |\n|---|---|\n| REQ-1 | one |\n| REQ-2 | two |\n"}
     inst = instance(files)
-    old = os.environ.get("KG_PUMLLINT_TRACE")
+    real = preload_check.pumllint_cmd
     try:
-        os.environ["KG_PUMLLINT_TRACE"] = _stand_in(inst, "0.33.0", None)
+        preload_check.pumllint_cmd = lambda: _stand_in(inst, "0.33.0", None)   # the pumllint the harness would run
         got = s4.run_trace(inst)
         assert got["state"] == "unchecked" and "needs pumllint 0.35.0" in got["why"] and "0.33.0" in got["why"]
         cite = {"file": "artefacts/plantuml-models/flow.puml", "name": "flow", "line": 2}
@@ -108,28 +108,29 @@ def test_the_trace_needs_pumllint_0_35_and_maps_its_report_to_findings():
                   "unknownFeatureReferences": [{"id": "REQ-8", "citedBy": [{"file": "artefacts/acceptance-scenarios/a.feature", "line": 1,
                                                                             "scenario": "one", "scenarioLine": 3}]}],
                   "unlinkedDiagrams": [], "unlinkedFeatures": [], "unlinkedScenarios": []}
-        os.environ["KG_PUMLLINT_TRACE"] = _stand_in(inst, "0.35.0", report)
+        preload_check.pumllint_cmd = lambda: _stand_in(inst, "0.35.0", report)
         got = s4.run_trace(inst)
         assert got["state"] == "ran" and got["version"] == "0.35.0"
         assert sorted((f["file"].split("/")[1], f["rule"], f["severity"], f["line"]) for f in got["findings"]) == [
             ("acceptance-scenarios", "TRACE-UNKNOWN-FEATURE-REF", "major", 3), ("plantuml-models", "TRACE-UNKNOWN-REF", "major", 2),
             ("textual-requirements", "TRACE-UNCOVERED", "minor", 4), ("textual-requirements", "TRACE-UNVERIFIED", "minor", 3)]
     finally:
-        os.environ.pop("KG_PUMLLINT_TRACE", None)
-        if old is not None:
-            os.environ["KG_PUMLLINT_TRACE"] = old
+        preload_check.pumllint_cmd = real
 
 
 def test_a_document_only_a_check_judged_is_judged_by_it_and_its_findings_are_lint_gaps_named_by_it():
     bands = [("&lt;= 41", ['"a"']), ("[42..66]", ['"b"']), ("&gt;= 67", ['"c"'])]
     inst = instance({"decision-tables/t.dmn": dmn(bands), "decision-tables/t.md": "| a | b |\n"})
-    old = {k: os.environ.pop(k, None) for k in ("KG_DMNLINT", "KG_PUMLLINT_TRACE")}
+    old = {k: os.environ.pop(k, None) for k in ("KG_DMNLINT",)}
+    real = preload_check.pumllint_cmd
+    preload_check.pumllint_cmd = lambda: None   # no pumllint either: the trace unchecked
     path = os.environ.get("PATH", "")
     os.environ["PATH"] = ""   # no dmnlint here: the kind's own linter cannot run
     try:
         rep = preload_check.check(inst)
     finally:
         os.environ["PATH"] = path
+        preload_check.pumllint_cmd = real
         for k, v in old.items():
             if v is not None:
                 os.environ[k] = v
@@ -145,10 +146,8 @@ def test_a_document_only_a_check_judged_is_judged_by_it_and_its_findings_are_lin
     assert [g["tool"] for g in gaps] == ["dmn gaps"] * 2 and gaps[0]["text"].startswith("dmn gaps DMN-GAP (minor)")
 
 
-def test_the_changelog_names_it_and_the_proof_installs_its_own_pumllint():
+def test_the_changelog_names_it_and_the_trace_runs_on_the_pinned_pumllint():
     log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
     assert "task-0217" in log
-    proof = (ROOT / "tools" / "check_preload_linters.py").read_text(encoding="utf-8")
-    assert 'TRACE_PIN = "pumllint==0.35.0"' in proof
-    assert "pumllint==0.33.0" in (ROOT / "demo" / "Dockerfile").read_text(encoding="utf-8")   # the record's pin is unchanged
-    assert "KG_PUMLLINT_TRACE" in (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
+    for f in ("tools/step4_checks.py", "tools/check_preload_linters.py", "instance/README.md"):
+        assert "KG_PUMLLINT_TRACE" not in (ROOT / f).read_text(encoding="utf-8"), f   # no side install: the pin is the trace's

@@ -54,14 +54,15 @@ names that section with the version.
   - **The report.** Each finding names its check as `tool`, and a new `checks` block says whether each one
     ran. A document no linter of its kind read, but a check did, is judged by that check alone.
   - **Through the load.** Each finding reaches the load as a lint gap, routed as task-0216 routes them.
-  - **The trace needs pumllint 0.35.0 or later**, with `KG_PUMLLINT_TRACE` naming its command, and the
-    instance's requirement-id pattern. Without either, it is listed as unchecked, naming what is missing.
-    The record's pin stays 0.33.0.
+  - **The trace needs pumllint 0.35.0 or later**, the harness's pin since task-0224, and the instance's
+    requirement-id pattern. Without either, it is listed as unchecked, naming what is missing.
   - **The example instance.** The DMN check finds two minor gaps in its screening table, at 41 to 42 and
     66 to 67 on a `number` input. A lint finding never lowers a key's level, so every verdict reads as
     before.
-  - **Proof.** `tools/check_preload_linters.py` proves each check on its planted defect, with pumllint
-    0.35.0 installed into its own prefix.
+  - **Found, not fixed.** The two DMN gaps are reported as found. The example is built from CargoQuote's
+    vendored kit, which is never edited by hand.
+  - **Proof.** `tools/check_preload_linters.py` proves each check on its planted defect, the trace on the
+    pinned pumllint.
 
 - **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
   with one additive field.
