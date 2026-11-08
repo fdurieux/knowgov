@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" id="probe" name="probe" namespace="urn:probe">
+  <decision id="value_gate" name="value_gate">
+    <description>claim: intended</description>
+    <decisionTable id="t" hitPolicy="FIRST">
+      <input id="i"><inputExpression id="ie" typeRef="number"><text>value</text></inputExpression></input>
+      <output id="o" name="outcome" typeRef="string"/>
+      <rule id="r1"><description>claim: observed CLM-001</description><inputEntry id="r1i"><text>&lt; 0</text></inputEntry><outputEntry id="r1o"><text>"refused"</text></outputEntry></rule>
+      <rule id="r2"><description>claim: inferred CLM-002</description><inputEntry id="r2i"><text>0</text></inputEntry><outputEntry id="r2o"><text>"accepted"</text></outputEntry></rule>
+      <rule id="r3"><description>CLM-003</description><inputEntry id="r3i"><text>-</text></inputEntry><outputEntry id="r3o"><text>"reported"</text></outputEntry></rule>
+    </decisionTable>
+  </decision>
+</definitions>

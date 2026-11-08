@@ -1,0 +1,9 @@
+@startuml inferred
+' claim: inferred
+title Zero, as read into the code
+actor Caller
+participant Service
+Caller -> Service : submit 0
+Service --> Caller : accepted
+footer realises CLM-002
+@enduml

@@ -1189,6 +1189,19 @@ class Neo4jStore(Store):
                    [k IN collect(c.key) WHERE k IS NOT NULL] AS keys""", gid=gid))
         return {**rows[0], "keys": sorted(rows[0]["keys"])} if rows else None
 
+    def record_lint_gap(self, row) -> None:
+        props = {k: row.get(k) for k in self.LINT_FIELDS if row.get(k) is not None}
+        self.run("MERGE (g:LintGap {id:$id}) SET g += $props", id=row["id"], props=props).consume()
+
+    def resolve_lint_gap(self, gid, resolution, review_id, by, on, record, note) -> None:
+        self.run("MATCH (g:LintGap {id:$id}) SET g.resolution=$res, g.review=$rid, g.resolved_by=$by, g.resolved_on=$on, "
+                 "g.record=$record, g.note=$note", id=gid, res=resolution, rid=review_id, by=by, on=on, record=record,
+                 note=note).consume()
+
+    def lint_gaps(self) -> list[dict]:
+        cols = ", ".join(f"g.{k} AS {k}" for k in self.LINT_FIELDS)
+        return by_id(_rows(self.run(f"MATCH (g:LintGap) RETURN g.id AS id, {cols}")))
+
     def act_findings(self) -> list[dict]:
         cols = ", ".join(f"a.{k} AS {k}" for k in self.ACT_FIELDS)
         return by_id(_rows(self.run(f"MATCH (a:ActFinding) RETURN a.id AS id, {cols}")))

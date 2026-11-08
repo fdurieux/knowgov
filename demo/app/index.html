@@ -178,7 +178,9 @@ function workerChip() {
     return `<span class="chip ok" title="${esc(title)}">worker: attested · ${esc(facts.filter(Boolean).join(' · '))}</span>`;
   }
   if (w.backend === 'host') return `<span class="chip bad" title="${esc(w.why)}">worker: none · runs uncontained on the app's host</span>`;
-  return `<span class="chip warn" title="${esc(w.why || '')}">worker: not attested</span>`;
+  // task-0203: a kernel whose Landlock is below ABI 3 cannot confine truncation, and the worker does not claim it
+  const abi = /Landlock is ABI (\d+)/.exec(w.why || '');
+  return `<span class="chip warn" title="${esc(w.why || '')}">worker: not attested${abi ? ' · Landlock ABI ' + abi[1] + ', 3 needed' : ''}</span>`;
 }
 // why the arms are off: no row is available; the key variables to set, by name, never a value
 function armsOffWhy() { const vars = [...new Set(STATE.modelRows.filter(r => !r.key_set).map(r => r.key_var))]; return vars.length ? 'set ' + vars.join(' or ') + " in the app's environment" : 'no model row serves this subject'; }

@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-08T11:57:00Z'
+updated_date: '2026-11-08T13:08:00Z'
 tags:
   - brief
   - release
@@ -91,6 +91,7 @@ Every item here is the maintainer's to meet.
 | G9-12 | The reverse-engineering process's contract changes (decision-0018, the maintainer, 2026-11-08: "include in 0.9") | Not built: the kit's `claim` field, the intended bar, lint findings as routed gaps | task-0214, task-0215, task-0216 |
 | G9-13 | An attestation bound to the Versions it attests (decision-0019, the maintainer, 2026-11-08: "Build it in 0.9") | Not built; K12 below is decided for 0.9.0 by this row | task-0221 |
 | G9-14 | One id per conflict on every store (decision-0020, the maintainer, 2026-11-08: "accept decision-0020's advice") | Not built: document conflicts are numbered in store order (doc-0030 S2) | task-0223 |
+| G9-15 | pumllint 0.35.0 as the record's pin, so the image runs step 4's feature trace (G9-4; the maintainer, 2026-11-08: "bump pumllint to 0.35.0") | 0.33.0 pinned; trace --features first in 0.35.0 | task-0224, then task-0217 |
 
 ## 5. 1.0: the contracts proven (proposed gap list)
 

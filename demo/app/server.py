@@ -586,6 +586,7 @@ class Runner:
                 k += 1
             out_dir.mkdir(parents=True)
             derived = ps.subject.scenarios.get(scenario, {}).get("stage2", {}).get("derived")
+            stage2_derived = None
             if derived:
                 # the record's stage 2 registers an earlier scenario's governed output as the
                 # Derived artefact; give the re-run the same object to invalidate, in both
@@ -596,7 +597,10 @@ class Runner:
                 if src.exists():
                     (out_dir / derived["from_scenario"]).mkdir()
                     shutil.copy(src, out_dir / derived["from_scenario"] / derived["file"])
+                    # named explicitly: the harness never takes a file it finds in --out (task-0203, R3)
+                    stage2_derived = out_dir / derived["from_scenario"] / derived["file"]
             cmd = [sys.executable, "run.py", "--scenarios", scenario, "--out", str(out_dir)]
+            cmd += ["--stage2-derived", str(stage2_derived)] if stage2_derived else []
             cmd += ["--deterministic"] if mode == "deterministic" else ["--n", str(n)]
             cmd += ["--as-of", as_of] if as_of else []
             env = {**os.environ, "KG_SUBJECT": str(ps.root), "KG_NEO4J_URI": NEO4J_URI, "KG_NEO4J_PASSWORD": NEO4J_PASSWORD,

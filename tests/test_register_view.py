@@ -309,6 +309,8 @@ def test_runner_gives_s6_the_derived_output_in_both_modes():
     server = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
     assert "if derived:" in server and 'ps.record_dir / derived["from_scenario"] / derived["file"]' in server and "mode == \"arms\"" not in server.split("if derived:")[1].split("cmd = ")[0]
     assert (ROOT / "subjects" / "cargo_quote" / "vendor" / "kg_experiment" / "results" / "S1" / "run1_G.py").exists()
+    # named to run.py explicitly, which never takes a file it finds in --out (task-0203, R3)
+    assert 'cmd += ["--stage2-derived", str(stage2_derived)] if stage2_derived else []' in server
     # and the harness reads that file in both modes: the deterministic branch used to pass none
     run_py = (ROOT / "harness" / "run.py").read_text(encoding="utf-8")
     assert "s6_stage2(d, None, [])" not in run_py and 'derived_ids = [a["id"] for v in gate["keys"].values() for a in v["assertions"]] if derived_code else []' in run_py

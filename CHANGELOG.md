@@ -31,6 +31,18 @@ names that section with the version.
     is unchanged; listing their Versions is the maintainer's own attestation, in a pull request held for it.
   - `tools/check_subject.py` refuses a listed digest that is no Version of the subject (its files, and the texts
     its plants make of them). `tools/check_attestation_binding.py` proves it on both stores.
+- **The worker attests `write_confined` only from Landlock ABI 3, and `run.py` takes stage 2's derived input
+  explicitly** (task-0203, doc-0030 F8: R10, R3). Two contract changes, and a raised platform floor.
+  - **The attestation.** The worker's attestation gains `landlock_abi`, the kernel's Landlock version.
+    `write_confined` is now true only at ABI 3 or later, Linux 6.2, the first version where Landlock also
+    stops a job truncating a file it may only read. Below that, the worker refuses to serve. The page's
+    worker chip names the ABI found and the 3 needed.
+  - **Known limit: Arms now need Linux 6.2 or later**, where they needed 5.13. On a kernel between the two the
+    worker refuses to serve, the page's worker chip reads *Landlock ABI N, 3 needed*, and every Arms run is
+    refused; Replay and Deterministic are unaffected.
+  - **`harness/run.py --stage2-derived FILE`** names stage 2's derived output, the code an earlier scenario
+    built. By default it is the file this invocation wrote, or, under `--resume`, its earlier attempt's.
+    It is never a file left in a reused `--out` folder. A deterministic run in a fresh folder is unchanged.
 - **A task class may require approved: the intended bar** (task-0215, decision-0018 point 4). A contract
   change to the subject format and the gate report, opt-in.
   - **The field.** `require_approved = true` under `[tasks.<class>]`.
@@ -45,6 +57,44 @@ names that section with the version.
   - **Without the field, nothing changes.** Every class reads as before, and the scored record is
     unchanged: no public class declares it. `tools/check_subject.py` refuses a value that is not true
     or false.
+
+- **Each pre-load finding on a loaded document is a gap with an owner and a route** (task-0216, decision-0018
+  point 5). A contract change to the store, the gate report, the review file and the pre-load report.
+  - **The gap.** The load keeps every finding the pre-load report gave a version's exact bytes as a `LintGap`
+    (port write `record_lint_gap`, read `lint_gaps`). Its id is the finding's own, never the store's order. A
+    finding the baseline holds is kept, marked `held`.
+  - **The finding.** The gate lists the lint gaps on the documents behind the task's keys as findings of kind
+    `lint`. The severity is the linter's, at most major. It is info when held or resolved as a choice or an
+    exception.
+  - **Owner and route.** Each names the document's owner and route from `capture.routing`, over the keys
+    behind it. When several units own those keys, it names each one's route.
+  - **A key's level never moves for a lint gap.** It is the document's form, not the knowledge, so every
+    verdict reads as before. task-0064's info listing stays.
+  - **Resolutions.** A review's new `[[resolves]]` (`choice`, `exception`, `open`) is bound to the finding's
+    text by digest. Only the document's owners may make it, under the role `closes`. A slip is a new version.
+  - **The delta.** `tools/preload_check.py --previous REPORT` reports what a re-lint changed, at the same tool
+    versions only: new, gone (a slip when the bytes changed) and kept.
+  - **Proof.** `tools/check_lint_gaps.py` proves it on the example instance, on rdflib and on Neo4j.
+
+- **A kit statement says what it is: the claim** (task-0214, decision-0018 point 3, doc-0032 §3). A change to the
+  kit format the five bundle mappers read, and an additive rule in the subject check's report.
+  - **The field.** A statement may carry `claim`: `observed` (what the pinned original does), `inferred` (a
+    proposed explanation or generalised rule) or `intended` (accepted by the responsible authority). They load
+    as `extracted`, `inferred` and `authored`. `requirements_json` reads an item's `"claim"`, `contracts_markdown`
+    a part's `Claim:` line, `dmn_decisions` `claim:` in a decision's or rule's description, `gherkin_tagged` an
+    `@claim:` tag on the Feature, a Rule or a Scenario, and `plantuml_realises` a `' claim:` comment line
+    (`subjects/README.md`, "The claim"; `instance/mappers.toml`).
+  - **Inferred stays proposed.** Nothing verifies it, a ruling may never approve it (task-0199 I4), and a
+    `verified_by` link claimed inferred derives no execution, so it raises no other statement either. An
+    assertion resting on statements of different claims takes the most conservative.
+  - **No claim, no change.** A statement without one loads as before, so the public kits and the scored record
+    do not move.
+  - **Refused when unknown.** `tools/check_subject.py` refuses an unknown claim under a new rule, `claim`
+    (`harness/schemas/subject-check.schema.json`, additive), and the load fails on it rather than guess.
+  - The SHACL shape for an inferred assertion accepts one that rests on the kit fragment stating it, beside one
+    linked to the gap it proposes to fill.
+  - `tools/fixtures/claim_probe` carries every mapping. `tools/check_claim_probe.py` proves it on both stores, in
+    `harness.yml` and the stack.
 
 - **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
   with one additive field.
@@ -272,6 +322,19 @@ names that section with the version.
   whatever its key. The page now asks first with a placeholder that is no key. If the endpoint answers that, the
   row reads *key unchecked* with the reason, and your key is not sent. Otherwise it asks with your key, as
   before. The check stays free; it makes two requests at most.
+
+- **Worker job isolation and a run folder that starts clean** (task-0203, doc-0030 F8: R2, R3, R4, R7).
+  - **No process outlives its job.** After each job the worker kills every process below it, at any depth,
+    within 10 seconds. A 70-deep chain of processes, each in its own session, used to leave 20 alive; it
+    now leaves none.
+  - **A job cannot forge its answer.** The job's runner can no longer be reached through `/proc`, and it
+    answers on a channel nothing it starts inherits, so model code cannot write a forged answer through it.
+  - **A job's own failure no longer ends the run.** A job that runs out of time or is killed at a bound is
+    now that arm's failed cell, as on the host, and the run goes on to write its `summary.json`,
+    `usage.json` and `SHA256SUMS`.
+  - **A reused `--out` folder carries nothing over.** A fresh agent cell starts from an empty sandbox, and
+    `usage.json` adds an earlier attempt's only under `--resume`.
+  - `tools/check_worker.py` proves the first three on the real worker (EXEC-11 to EXEC-13).
 
 - **One clock: every lapse is decided on the gate's date** (task-0198, doc-0030 F4: H3, G4, G10, M8;
   decision-0005 points 3 and 5).

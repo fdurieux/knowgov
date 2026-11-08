@@ -191,17 +191,17 @@ What each mapper reads:
 
 - `bpmn`: A BPMN 2.0 XML process (tasks, exclusive gateways, start and end events, sequence flows) in the CargoQuote kit's task wording; yields the flow's order and each branch's outcome.
 - `containers`: A C4-PlantUML container diagram: `Container(...)`, `ContainerDb(...)`, `System_Ext(...)`, `Person(...)` and `Rel(a, b, "...")` lines.
-- `contracts_markdown`: A folder of prose contracts that cite requirement ids (`Requirements: JDL-045, ...`, ranges, inline); yields `<req>|elaborated_by`.
+- `contracts_markdown`: A folder of prose contracts that cite requirement ids (`Requirements: JDL-045, ...`, ranges, inline); yields `<req>|elaborated_by`. A part's optional `Claim: observed|inferred|intended` line says what its citations are (subjects/README.md, The claim).
 - `decision_table`: Markdown with `## DT-V`, `## DT-S`, `## DT-P` sections in the CargoQuote kit's table layout (validation rows `| Vn | `field` | rule |`, screening rows `| accept/review/refuse | ... |`).
 - `dmn`: A DMN 1.3 file in the CargoQuote kit's shape: rules with ids `<x>_<row>`, numeric conditions (`<= n`, `[a..b]`, `>= n`); yields `S-<row>|min`/`max` and outputs.
-- `dmn_decisions`: A folder of DMN 1.3 files; one `decision_table` entity per decision with its rule count, and `<req>|decided_by` for each requirement a rule's description cites.
+- `dmn_decisions`: A folder of DMN 1.3 files; one `decision_table` entity per decision with its rule count, and `<req>|decided_by` for each requirement a rule's description cites. An optional `claim: observed|inferred|intended` in a decision's or a rule's description says what its rules are, the rule's winning.
 - `gherkin`: A `.feature` file whose scenarios are titled `Scenario: Gn - ...`; yields each scenario's expected response status.
-- `gherkin_tagged`: A folder of `.feature` files whose scenarios carry `@<req>` tags; yields `<req>|verified_by`.
+- `gherkin_tagged`: A folder of `.feature` files whose scenarios carry `@<req>` tags; yields `<req>|verified_by`. An optional `@claim:observed|inferred|intended` tag on the Feature, a Rule or a Scenario says what the scenarios under it are, the nearest winning.
 - `links`: A TOML file of `[[implements]]` (`requirement`, `code_unit`) and `[[verifies]]` (`requirement`, `scenario`) rows, joined to the subject's reference code.
 - `openapi`: An OpenAPI YAML with `components.schemas.QuoteRequest` and `QuoteResponse`; yields each request field's `min`, `max`, `present` and the response's status values.
-- `plantuml_realises`: A folder of PlantUML diagrams whose footer lists `realises` requirement ids; yields one `diagram` per file and `<req>|realised_by`.
+- `plantuml_realises`: A folder of PlantUML diagrams whose footer lists `realises` requirement ids; yields one `diagram` per file and `<req>|realised_by`. An optional `' claim: observed|inferred|intended` comment line says what the diagram's statements are.
 - `requirements`: Markdown table rows `| REQ-nn | text |`, the id literally `REQ-` and digits; each row yields `REQ-nn|text` (authored). Other id prefixes yield nothing.
-- `requirements_json`: A folder (bundle) of JSON lists of `{id, kind, statement, basis}`; each item yields `<id>|statement`. Ids match `[rules] requirement_id_pattern`.
+- `requirements_json`: A folder (bundle) of JSON lists of `{id, kind, statement, basis}`; each item yields `<id>|statement`. Ids match `[rules] requirement_id_pattern`. An item's optional `claim` (`observed`, `inferred`, `intended`) says what the statement is; its `basis` is where it was read, not a claim.
 - `sequence`: A PlantUML sequence diagram, read by pumllint's parser; yields participants and `alt` branches.
 - `spec`: Markdown with a `## Flow order` numbered list and an `## API contract` section, in the CargoQuote kit's wording; yields the flow's order and the response's status set.
 <!-- /part -->
