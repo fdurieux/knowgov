@@ -280,6 +280,29 @@ names that section with the version.
 
 ### Changes
 
+- **Seven store and load fixes** (task-0205, doc-0030 S1, S3, S6, S7, S8, I11, I12). The scored record is
+  unchanged.
+  - **A document kept out of the store stays out (S1).** An artefact with a `mapper` and `store = false` used
+    to have its statements loaded anyway, without a version: they could pair, dispute and block, and the
+    fragment count was more than the store held. Now the load, the pristine values and the execution map
+    read only the artefacts the store holds, and the counts match the nodes.
+  - **The store file keeps its mode (S3).** Every rdflib publication used to reset `KG_RDFLIB_FILE` to 0644,
+    undoing an operator's `chmod 600`. A publication now keeps the file's mode; a first one is 0644.
+  - **The heap forecast counts stage 2 (S6).** `harness/run.py`'s check before the first load, and
+    `harness/load_memory.py`'s sizing, now count each scenario's stage-2 re-load. Before, a run could be
+    refused at S7 after six scenarios had run.
+  - **A writer that wrote nothing publishes nothing (S7).** On both stores, a writer that only read used to
+    publish a new generation, so every reader read the store again. `tools/check_snapshots.py` proves it as
+    SNAP-09.
+  - **`invalidated_at` has one meaning (S8).** It was epoch seconds on Neo4j and a node counter on rdflib.
+    It is now the ISO 8601 instant of the change that invalidated the statement, on both stores.
+  - **A subject's mistakes are named before the load (I11).** `tools/check_subject.py` now refuses two
+    artefacts with one `short` (the load used to give the first all their statements) and a document with a
+    duplicated row (the load used to fail with "the store did not answer"). A document a mapper cannot
+    read now fails the load with its own name.
+  - **An unchanged CRLF document reads checked (I12).** The load compared the pre-load report's digest of
+    the raw bytes with a digest of the text, so a document with Windows line endings always read unchecked.
+    It now compares raw bytes. A `knowgov-keys:` citation on line 1 after a byte-order mark is now read.
 - **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
   applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1
   could not apply stayed reported. Stage 2 clears the acts stage 1 recorded, then binds every ruling and close to

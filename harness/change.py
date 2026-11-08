@@ -19,12 +19,32 @@ The store port only; nothing here names a subject, a scenario or a document.
 from __future__ import annotations
 
 from kitio import kit_for, sha256
-from load import ATTESTER, attestation, load_reviews, load_scenario, load_verifications
+from load import ATTESTER, attestation, load_reviews, load_scenario, load_verifications, now, statements_of
 from rules import r_stale, run_all
 
 
 def version_of(cfg2: dict) -> str:
     return cfg2.get("version", "v2")
+
+
+def changed_artefacts(kit1: dict[str, str], kit2: dict[str, str], art: str) -> set[str]:
+    """The artefacts stage 2 re-loads as a new version: those whose bytes the change moved, and the one it names."""
+    return {p for p in kit2 if kit1.get(p) != kit2.get(p)} | {art}
+
+
+def unit_loads(subject, scenarios) -> list[list[int]]:
+    """Each scenario's loads in a run's one unit (``load_memory.preflight``), as the loads note them: its
+    wiped first load, then its stage-2 re-load when it has one, which adds to that graph (doc-0030 S6)."""
+    out = []
+    for sc in scenarios:
+        kit1 = kit_for(sc)
+        steps = [statements_of(kit1)]
+        cfg2 = subject.scenario(sc).get("stage2")
+        if cfg2:
+            kit2 = kit_for(sc, 2)
+            steps.append(statements_of(kit2, changed_artefacts(kit1, kit2, cfg2["artefact"])))
+        out.append(steps)
+    return out
 
 
 def apply_change(sc: str, cfg2: dict, s, derived_code: str | None, derived_ids: list[str],
@@ -40,10 +60,10 @@ def apply_change(sc: str, cfg2: dict, s, derived_code: str | None, derived_ids: 
     kit2 = kit_for(sc, 2) if kit2 is None else kit2
     kit1 = kit_for(sc) if kit1 is None else kit1
     art = cfg2["artefact"]
-    changed = {p for p in kit2 if kit1.get(p) != kit2.get(p)} | {art}
+    changed = changed_artefacts(kit1, kit2, art)
     load2 = load_scenario(s, sc, kit2, activity_note=cfg2.get("note", f"{sc} stage 2: re-ingestion of the changed {art}"),
                           version_tag=version, reingest=True, changed=changed)
-    stale = r_stale(s, version)
+    stale = r_stale(s, version, at=now())   # invalidated_at: the instant of this change (doc-0030 S8)
     struct = run_all(s, sc)["R-STRUCT"]
     # task-0199 (doc-0032 §6 item 7), task-0222: every review file again, against what the change left current, as a
     # fresh load of the later documents reads it: a ruling whose statement the change replaced is not applied to its

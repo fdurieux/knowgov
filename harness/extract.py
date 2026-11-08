@@ -641,6 +641,12 @@ _CLAIM_COMMENT = re.compile(r"^[ \t]*'[ \t]*claim:[ \t]*(\S+)[ \t]*$", re.I | re
 _CLAIM_TAG = "@claim:"                                                                 # gherkin_tagged
 
 
+class DocumentUnreadable(ValueError):
+    """A document its mapper cannot read, or whose statements collide (two fragments at one locator): the
+    message names the document, so a load that fails on it reads as the document's fault, never the store's
+    (doc-0030 I11). ``tools/check_subject.py`` refuses both before a load."""
+
+
 class UnknownClaim(ValueError):
     """A claim value the kit format does not know: tools/check_subject.py refuses it, and a load fails on it
     rather than read the statement as something it did not say."""
@@ -881,17 +887,36 @@ EXTRACTORS = {   # mapper name (the subject manifest's) -> the deterministic map
 }
 
 
+def duplicate_locators(bag: Bag) -> list[str]:
+    """The locators two or more of a document's fragments share (a duplicated row): the load would write
+    one fragment id twice, so it is refused, by ``tools/check_subject.py`` and by ``extract_all``."""
+    seen, dup = set(), []
+    for f in bag.fragments:
+        if f["locator"] in seen and f["locator"] not in dup:
+            dup.append(f["locator"])
+        seen.add(f["locator"])
+    return dup
+
+
 def extract_all(kit: dict[str, str], code_text: str) -> list[Bag]:
     bags = []
     mappers = SUBJECT.mappers
     for path, text in kit.items():
         mapper = mappers.get(path)
-        if mapper == "links":
-            bags.append(extract_links(path, text, code_text))
-        elif mapper in EXTRACTORS:
-            bags.append(EXTRACTORS[mapper](path, text))
-        elif mapper:
+        if not mapper:
+            continue
+        if mapper != "links" and mapper not in EXTRACTORS:
             raise KeyError(f"{path}: no mapper named {mapper!r}; the harness has {sorted(EXTRACTORS) + ['links']}")
+        try:
+            bag = extract_links(path, text, code_text) if mapper == "links" else EXTRACTORS[mapper](path, text)
+        except (UnknownClaim, ImportError):   # a claim names its own place; a missing library is the machine's
+            raise
+        except Exception as e:  # noqa: BLE001 — whatever the mapper raised, the document is named (I11)
+            raise DocumentUnreadable(f"{path}: its mapper {mapper!r} cannot read it: {type(e).__name__}: {e}") from e
+        if dup := duplicate_locators(bag):
+            raise DocumentUnreadable(f"{path}: {len(dup)} locator(s) appear twice ({', '.join(dup[:5])}): "
+                                     "a duplicated row; each statement's evidence needs its own place")
+        bags.append(bag)
     return bags
 
 

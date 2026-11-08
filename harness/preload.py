@@ -13,13 +13,11 @@ reads exactly as before. Standard library, plus the harness's schema checker.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
 
-import hashlib
-
-from kitio import sha256
 
 DEFAULT_NAME = "preload-report.json"
 JUDGED = {"clean", "findings", "held"}     # states a linter gave; anything else is unchecked
@@ -74,7 +72,7 @@ def verdicts(subject, kit: dict[str, str], keys, report: dict, name: str) -> dic
             v.update(tool=row.get("tool"), why=f"the report left it {row['state'].replace('_', ' ')}: {row.get('why', '')}".rstrip(": "))
         elif not row.get("sha256"):
             v.update(tool=row.get("tool"), why="the report holds no digest of the bytes it judged")
-        elif row["sha256"] != sha256(kit[key]):
+        elif row["sha256"] != subject.version_digest(key, kit[key])[0]:   # I12: the raw bytes, as the report digests them
             v.update(tool=row.get("tool"), digest=row["sha256"], why="the bytes loaded differ from the bytes the report judged")
         else:
             v.update(state=row["state"], tool=row.get("tool"), tool_version=tools.get(row.get("tool")), digest=row["sha256"],
