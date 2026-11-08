@@ -111,7 +111,8 @@ def check_module(root: Path):
         if str(root) not in _checks:
             spec = importlib.util.spec_from_file_location(f"check_register_{len(_checks)}", root / "tools" / "check_register.py")
             mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
+            with ri.no_bytecode():   # the register's file, never written (doc-0030 M11)
+                spec.loader.exec_module(mod)
             _checks[str(root)] = mod
         return _checks[str(root)]
 

@@ -17,7 +17,9 @@ Two single hops, each read from files, never a walk and never the store:
                it, and the trace ledger's entry for the path (``trace.read_ledger``: derived id, keys
                used, statements, commit, digest, and the file's digest now). Each of the three legs
                says ``read`` or ``unchecked`` with the reason: no instance configured, no code map or
-               one that does not hold, no ledger configured, missing or malformed. Unchecked is never
+               one that does not hold, no ledger configured, missing or malformed; the ledger leg also
+               when it holds an entry but there is no code root to read the file's digest from, never
+               ``drift: false`` for a file not looked at (doc-0030 M7). Unchecked is never
                empty: ``app``, ``keys`` and ``entry`` are null then, and an empty list or a null entry
                under ``read`` means the file cites nothing or the ledger holds no entry for it.
 
@@ -174,8 +176,9 @@ def code_path(path, cfg: dict | None = None) -> dict:
     out = {"schema_version": SCHEMA_VERSION, "tool": "code_path", "path": rel,
            "instance": cfg["instance"], "ledger_file": cfg["ledger"]}
     file = None
+    no_root = None   # why there is no code root to read the file from, when there is none (doc-0030 M7)
     if cfg["instance"] is None:
-        why = "no instance configured (KG_INSTANCE or --instance)"
+        no_root = why = "no instance configured (KG_INSTANCE or --instance)"
         out["code_map"] = _unchecked(why, app=None, node=None)
         out["citation"] = _unchecked(why + ", so no code root to read the file from", keys=None)
     else:
@@ -185,6 +188,7 @@ def code_path(path, cfg: dict | None = None) -> dict:
         if rep is None or errors:
             why = (f"no instance at {inst}" if not inst.is_dir() else f"{inst}/code_map.toml: missing" if rep is None
                    else "code_map.toml does not hold: " + "; ".join(errors))
+            no_root = why
             out["code_map"] = _unchecked(why, app=None, node=None)
             out["citation"] = _unchecked(why + ", so no code root to read the file from", keys=None)
         else:
@@ -214,11 +218,14 @@ def code_path(path, cfg: dict | None = None) -> dict:
                 else:
                     known = _known()
                     out["citation"] = {"status": "read", "keys": keys, "unknown": [k for k in keys if k not in known]}
-    out["ledger"] = _ledger(cfg["ledger"], rel, file)
+    out["ledger"] = _ledger(cfg["ledger"], rel, file, no_root)
     return out
 
 
-def _ledger(ledger: str | None, rel: str, file: Path | None) -> dict:
+def _ledger(ledger: str | None, rel: str, file: Path | None, no_root: str | None = None) -> dict:
+    """The ledger's entry for ``rel`` with the file's digest now. With no code root (``no_root``, the reason)
+    the file was never looked at, so an entry the ledger holds cannot say whether it drifted: the leg reads
+    unchecked rather than ``drift: false`` (doc-0030 M7, task-0208)."""
     import trace
     if ledger is None:
         return _unchecked("no ledger configured (KG_LEDGER or --ledger)", entry=None)
@@ -229,6 +236,9 @@ def _ledger(ledger: str | None, rel: str, file: Path | None) -> dict:
     hit = [e for e in led["entries"] if e.get("path") == rel]
     if not hit:
         return {"status": "read", "entries": len(led["entries"]), "entry": None}
+    if no_root is not None:
+        return _unchecked(f"{no_root}, so no code root to read the file from: the ledger holds an entry for {rel}, "
+                          "but its drift cannot be read", entries=len(led["entries"]), entry=None)
     e = {k: hit[-1][k] for k in LEDGER_FIELDS if k in hit[-1]}
     cur = hashlib.sha256(file.read_bytes()).hexdigest() if file is not None else None
     return {"status": "read", "entries": len(led["entries"]),

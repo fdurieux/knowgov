@@ -302,6 +302,12 @@ names that section with the version.
 
 ### Changes
 
+- **Three fixes to the MCP reader and its check** (task-0208, doc-0030 M7, M9, M11). `code_path`'s ledger
+  leg reads `unchecked`, naming why, when the ledger holds an entry for the path but there is no code root to
+  read the file from (no instance, or a code map that does not hold); before, it read `drift: false` for a
+  file it never looked at. The reader no longer writes `__pycache__` into `KG_REGISTER/tools` when it loads
+  the register's own modules, so a register mounted read-only stays unwritten. `tools/check_mcp_server.py`
+  builds the arms' bundle from each scenario's prompts, as the runner does, not a fixed `task_codegen`.
 - **pumllint 0.35.0 is the record's pin** (task-0224, the maintainer, 2026-11-08). The image, both
   `harness.yml` jobs, `demo/requirements.txt` and the CI templates (`instance/ci/preload-check.yml`'s
   `PUMLLINT`, the GitLab include's `KNOWGOV_PIP`) install pumllint 0.35.0 in place of 0.33.0, so the
