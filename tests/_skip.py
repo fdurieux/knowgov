@@ -6,7 +6,8 @@ installs a prerequisite proves the tests resting on it rather than reporting the
 Prerequisites: rdflib (the pins), hook-live (KG_HOOK_LIVE=1, the live hook against a store) and
 register-rows (a subject whose register_map.toml has rows; J-F has none) and node (the page's own script,
 run by tests/test_arms_execution.py; the rdflib job requires it) and openai (the model client's own listing
-against a loopback stand-in, tests/test_key_check.py; the rdflib job requires it)."""
+against a loopback stand-in, tests/test_key_check.py; the rdflib job requires it) and yaml (PyYAML, which harness/load.py's
+mappers import; the tests job installs none, tests/test_formats.py)."""
 import importlib
 
 

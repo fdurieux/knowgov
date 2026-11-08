@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "harness"), str(ROOT / "tools")]
 import formats  # noqa: E402
+from tests._skip import skip  # noqa: E402
 
 MINIMAL = ROOT / "subjects" / "minimal"
 PUBLIC = ("cargo_quote", "jef_data_load", "minimal")
@@ -157,28 +158,28 @@ def _review(fmt: int | None) -> str:
     return head + '[review]\nby = "employee-2"\non = 2026-11-02\nrecord = "r.md"\n\n[[ruling]]\nassertion = "A:x"\noutcome = "approved"\n'
 
 
+def _captures(tmp: Path, cap, rev=None) -> Path:
+    d = tmp / "captures"
+    (d / "reviews").mkdir(parents=True, exist_ok=True)
+    (d / "2026-11-01-ORG-1-employee-1.toml").write_text(_capture(cap), encoding="utf-8")
+    if rev is not None:
+        (d / "reviews" / "2026-11-02-employee-2.toml").write_text(_review(rev), encoding="utf-8")
+    return d
+
+
 def test_captures_and_reviews_for_a_newer_knowgov_are_refused_by_every_reader():
+    """The readers that need no PyYAML: the capture index, the due list, review.check, the answered questionnaire
+    and capture.py's own exit. The load's two readers are the next test's, which needs the mappers' yaml."""
     import capture
-    import load
     import review
     with tempfile.TemporaryDirectory() as t:
-        d = Path(t) / "captures"
-        (d / "reviews").mkdir(parents=True)
-        (d / "2026-11-01-ORG-1-employee-1.toml").write_text(_capture(None), encoding="utf-8")
+        d = _captures(Path(t), None)
         assert len(review.capture_index(d)) == 1 and capture.due_captures(d, dt.date(2027, 6, 1))
-        (d / "2026-11-01-ORG-1-employee-1.toml").write_text(_capture(2), encoding="utf-8")
+        d = _captures(Path(t), 2)
         _raises(lambda: review.capture_index(d), formats.FormatTooNew, "employee-1.toml", "format = 2", "capture format 1")
         _raises(lambda: capture.due_captures(d, dt.date(2027, 6, 1)), formats.FormatTooNew, "format = 2")
-        saved = load.SUBJECT.capture_dir
-        try:
-            load.SUBJECT.capture_dir = d
-            _raises(lambda: load.load_captures(None, "S2"), formats.FormatTooNew, "employee-1.toml", "format = 2")
-            (d / "2026-11-01-ORG-1-employee-1.toml").write_text(_capture(1), encoding="utf-8")
-            (d / "reviews" / "2026-11-02-employee-2.toml").write_text(_review(3), encoding="utf-8")
-            _raises(lambda: load.load_reviews(None, "S2"), formats.FormatTooNew, "employee-2.toml", "format = 3", "review format 1")
-            _raises(lambda: capture.due_captures(d, dt.date(2027, 6, 1)), formats.FormatTooNew, "format = 3")
-        finally:
-            load.SUBJECT.capture_dir = saved
+        d = _captures(Path(t), 1, rev=3)
+        _raises(lambda: capture.due_captures(d, dt.date(2027, 6, 1)), formats.FormatTooNew, "employee-2.toml", "format = 3", "review format 1")
         doc = tomllib.loads(_review(2))
         _raises(lambda: review.check(doc, None, handles=None, owners={}, units={}, captures={}, now=dt.date(2026, 11, 8),
                                      compatible=None, where="r.toml"), formats.FormatTooNew, "r.toml", "format = 2")
@@ -190,6 +191,23 @@ def test_captures_and_reviews_for_a_newer_knowgov_are_refused_by_every_reader():
         rv.write_text(_review(2), encoding="utf-8")
         p = _py(ROOT / "harness" / "capture.py", "review", rv, "--show", env={"KG_CLOCK": "pinned"})
         assert p.returncode == 2 and "format = 2" in p.stderr and "Traceback" not in p.stderr, (p.returncode, p.stderr)
+
+
+def test_the_loads_capture_and_review_readers_refuse_a_newer_file():
+    """harness/load.py's load_captures and load_reviews: the load imports the mappers, which need PyYAML, so the
+    stdlib job skips this half and every job with the pins runs it."""
+    if importlib.util.find_spec("yaml") is None:
+        skip("yaml", "harness/load.py imports the mappers, which need PyYAML; the stdlib job has none")
+    import load
+    with tempfile.TemporaryDirectory() as t:
+        saved = load.SUBJECT.capture_dir
+        try:
+            load.SUBJECT.capture_dir = _captures(Path(t), 2)
+            _raises(lambda: load.load_captures(None, "S2"), formats.FormatTooNew, "employee-1.toml", "format = 2", "capture format 1")
+            load.SUBJECT.capture_dir = _captures(Path(t), 1, rev=3)
+            _raises(lambda: load.load_reviews(None, "S2"), formats.FormatTooNew, "employee-2.toml", "format = 3", "review format 1")
+        finally:
+            load.SUBJECT.capture_dir = saved
 
 
 def test_the_writers_stamp_the_version_they_write():

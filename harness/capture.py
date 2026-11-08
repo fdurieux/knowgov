@@ -530,10 +530,7 @@ def _due(args) -> int:
 
 
 def _review(args) -> int:
-    import gate_cli
     import review
-    from rules import compatible
-    from store import scratch_store
     from subject import SUBJECT
     try:
         doc = tomllib.loads(args.review.read_text(encoding="utf-8"))
@@ -543,6 +540,9 @@ def _review(args) -> int:
     if args.show:
         print(show_rulings(doc, review.capture_index(SUBJECT.capture_dir)), end="")
         return 0
+    import gate_cli   # the load's imports, after the file is read and its format checked (task-0174)
+    from rules import compatible
+    from store import scratch_store
     scenario = args.scenario or str(doc.get("review", {}).get("scenario", "")) or (SUBJECT.order[0] if SUBJECT.order else "")
     if scenario not in SUBJECT.scenarios:
         raise CannotRun(f"{SUBJECT.id}: no scenario {scenario!r}")
