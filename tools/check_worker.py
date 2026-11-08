@@ -257,13 +257,29 @@ except OSError as e:
     return 1 if failures else 0
 
 
-QUIET_PIDS = 5   # pids the worker's namespace may allocate in a quiet second: a healthcheck's docker exec, not a chain's hundreds
+# EXEC-14's witness, two consecutive one-second windows of the worker's pid namespace (task-0233). A chain that
+# outlived its job forks in every window: 121 to 800 pids a second in the emulated container, at 1 to 10 ms a
+# process, under load too. The worker itself forks nothing while idle. What else may allocate pids there is a
+# process entered from outside, Docker's healthcheck (``docker exec`` every 10 s, a handful of pids: 6 once, on
+# main's stack job at ec4e693), and it runs once in ten seconds, so it lands in at most one of two windows. So a
+# round fails when both windows allocate more than QUIET_PIDS, or when any process carries the chain's mark: a
+# chain fails both, a healthcheck at most one.
+QUIET_PIDS = 20
+
+
+def quiet_round(witness: list[str]) -> bool:
+    """One round's verdict from ``ns_quiet``'s line (two windows' allocations, the marked count, init)."""
+    if len(witness) != 4 or not all(w.lstrip("-").isdigit() for w in witness):
+        return False
+    first, second, marked = (int(w) for w in witness[:3])
+    return marked == 0 and not (first > QUIET_PIDS and second > QUIET_PIDS)
 
 
 def exec_14(check, rounds: int = 5) -> None:
     """EXEC-14 (task-0233): a hostile job leaves a fast fork chain in a session of its own, each process living
     a millisecond, and the worker's reaper still ends it with its job. The witness is the next job's: the worker's
-    pid namespace allocates almost nothing in the second after, and no process carries the chain's mark."""
+    pid namespace is quiet in at least one of two consecutive seconds after (``quiet_round``), and no process
+    carries the chain's mark."""
     import worker_probes
     seen = []
     for _ in range(rounds):
@@ -272,13 +288,12 @@ def exec_14(check, rounds: int = 5) -> None:
         q = (probe(worker_probes.ns_quiet(mark), seconds=30).get("stdout") or "").split()
         seen.append(((r.get("stdout") or "").strip(), q))
     started = all(s == "started" for s, _ in seen)
-    quiet = all(len(q) == 3 and int(q[0]) <= QUIET_PIDS and q[1] == "0" for _, q in seen)
-    init = all(len(q) == 3 and q[2] == "1" for _, q in seen)
+    init = all(len(q) == 4 and q[3] == "1" for _, q in seen)
     check(started and init, f"EXEC-14 each hostile job started its chain, and the worker is the init of its own pid namespace, "
                             f"where its reaper confirms quiet by the namespace's counter: {seen}")
-    check(quiet, f"EXEC-14 no chain outlives its job: in the second after each, the namespace allocated at most {QUIET_PIDS} pids "
-                 f"and no process carries the chain's mark (allocated, marked, init): {[q for _, q in seen]}")
-
+    check(all(quiet_round(q) for _, q in seen),
+          f"EXEC-14 no chain outlives its job: in one of the two seconds after each, the namespace allocated at most {QUIET_PIDS} "
+          f"pids, and no process carries the chain's mark (allocated, allocated, marked, init): {[q for _, q in seen]}")
 
 if __name__ == "__main__":
     sys.exit(_outcomes.run(main))

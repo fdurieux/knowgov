@@ -234,12 +234,13 @@ print('started')
 """
 
 
-def ns_quiet(mark: str, seconds: float = 1.0) -> str:
-    """The next job's witness (task-0233), in the worker's own pid namespace: ``<allocated> <marked> <init>``,
-    the pids the namespace allocated over ``seconds`` (a chain still running forks hundreds), the processes
-    carrying ``mark`` seen over that time, and whether the worker is the namespace's init (its pid 1, where
-    its reaper confirms quiet by this same counter). The marker is split in this
-    code, so this job's own command line does not carry it."""
+def ns_quiet(mark: str, seconds: float = 1.0, windows: int = 2) -> str:
+    """The next job's witness (task-0233), in the worker's own pid namespace:
+    ``<allocated per window...> <marked> <init>``, the pids the namespace allocated in each of ``windows``
+    consecutive windows of ``seconds`` (a chain still running forks hundreds in every one), the processes carrying
+    ``mark`` seen over them all, and whether the worker is the namespace's init (its pid 1, where its reaper
+    confirms quiet by this same counter). The marker is split in this code, so this job's own command line does
+    not carry it."""
     head, tail = mark[:8], mark[8:]
     return f"""
 import os, time
@@ -256,9 +257,12 @@ def marked():
                 pass
     return n
 init = b'worker.py' in open('/proc/1/cmdline', 'rb').read()   # the worker is this namespace's pid 1
-a, most, end = counter(), 0, time.monotonic() + {float(seconds)}
-while time.monotonic() < end:
-    most = max(most, marked())
-    time.sleep(0.005)
-print(counter() - a, most, int(init))
+allocated, most = [], 0
+for _ in range({int(windows)}):
+    a, end = counter(), time.monotonic() + {float(seconds)}
+    while time.monotonic() < end:
+        most = max(most, marked())
+        time.sleep(0.005)
+    allocated.append(counter() - a)
+print(*allocated, most, int(init))
 """
