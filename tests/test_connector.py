@@ -283,3 +283,33 @@ def test_a_folder_landed_before_decision_0010_still_gives_its_register_ids():
     new = {"ids": {"g-1": "Quote process", "g-2": "an event"}, "register_ids": {"g-1": "PROC-0001"}, "bpmn_ids": {"PROC-0002": "x"}}
     assert connector.carried_register_ids(old) == {"PROC-0001"}
     assert connector.carried_register_ids(new) == {"PROC-0001", "PROC-0002"}
+
+
+def test_two_inputs_that_map_to_one_relative_path_are_refused():
+    """task-0206 (doc-0030 P10): two export files that share a basename, or a file and a folder entry at
+    the same relative path, used to keep one and drop the other silently. Now refused, naming both."""
+    first = sorted(p for p in (FIX / "first").rglob("*") if p.is_file())[0]
+    tmp = Path(tempfile.mkdtemp(prefix="kg-p10-"))
+    try:
+        (tmp / "a").mkdir()
+        (tmp / "b").mkdir()
+        twin_a, twin_b = tmp / "a" / first.name, tmp / "b" / first.name
+        shutil.copy(first, twin_a)
+        shutil.copy(first, twin_b)
+        for inputs in ([twin_a, twin_b], [FIX / "first", twin_a]):
+            try:
+                connector.read_export(inputs, "AT_ID")
+            except connector.Refused as e:
+                assert first.name in str(e) and "two inputs" in str(e), e
+            else:
+                raise AssertionError(f"{inputs}: two inputs at {first.name} were not refused")
+        d = _mini()
+        before = _digests(d / "register" / "exports") if (d / "register" / "exports").exists() else {}
+        assert connector.main([str(d), "--system", "aris", str(twin_a), str(twin_b)]) == 1, "the command refuses, exit 1"
+        after = _digests(d / "register" / "exports") if (d / "register" / "exports").exists() else {}
+        assert after == before, "nothing landed"
+        shutil.rmtree(d)
+        # one file named twice is one input, not two: nothing is lost, and it is read as before
+        assert list(connector.read_export([twin_a, twin_a], "AT_ID")["files"]) == [first.name]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)

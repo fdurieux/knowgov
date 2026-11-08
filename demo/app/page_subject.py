@@ -26,7 +26,7 @@ sys.path.insert(0, str(HERE.parent.parent / "harness"))
 import subject as subject_mod  # noqa: E402  (Subject, and the process default the environment names)
 
 _CURRENT: contextvars.ContextVar = contextvars.ContextVar("page_subject", default=None)
-_CACHE: dict[str, "PageSubject"] = {}
+_CACHE: dict[str, tuple] = {}   # root -> (its manifests' stamp, its PageSubject)
 
 
 def _systemic(s: dict) -> dict:
@@ -84,13 +84,20 @@ class PageSubject:
 
 
 def of(s) -> PageSubject:
-    """The page's tables for a Subject (or a PageSubject, returned as it is), built once per root."""
+    """The page's tables for a Subject (or a PageSubject, returned as it is), built once per root and
+    rebuilt when its subject.toml or scenarios.toml moves (task-0206, doc-0030 P3): a Subject read
+    before the edit is read again from its root, so the edit is served on the next request."""
     if isinstance(s, PageSubject):
         return s
-    key = str(Path(s.root).resolve())
-    if key not in _CACHE:
-        _CACHE[key] = PageSubject(s)
-    return _CACHE[key]
+    root = Path(s.root).resolve()
+    now = subject_mod.stamp(root)
+    hit = _CACHE.get(str(root))
+    if hit is not None and hit[0] == now:
+        return hit[1]
+    fresh = s if getattr(s, "stamp", None) == now else subject_mod.Subject(root)
+    ps = PageSubject(fresh)
+    _CACHE[str(root)] = (fresh.stamp, ps)
+    return ps
 
 
 def current() -> PageSubject:

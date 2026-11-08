@@ -256,7 +256,7 @@ def test_image_pins_the_versions_the_record_names():
     dockerfile = (DEMO / "Dockerfile").read_text(encoding="utf-8")
     for pkg, ver in named.items():
         assert f'"{pkg}=={ver}"' in dockerfile, (pkg, ver)
-    assert "pip install -e ." not in dockerfile and '"pumllint==0.33.0"' in dockerfile, "pumllint is a pinned library here, not a checkout"
+    assert "pip install -e ." not in dockerfile and '"pumllint==0.35.0"' in dockerfile, "pumllint is a pinned library here, not a checkout"
     # the J-F subject's oracle: its kit's pins (contracts/pins.md) and the suite's tooling, on the interpreter the kit names
     assert "FROM python:3.12-slim" in dockerfile
     for pkg, ver in {"pandas": "3.0.5", "numpy": "2.4.6", "requests": "2.34.2", "pyarrow": "25.0.1", "pytest": "9.1.1", "pytest-bdd": "9.0.1"}.items():
@@ -493,7 +493,7 @@ def test_generated_prose_keeps_to_the_glossary_and_the_length_limits():
         d = Path(td) / "demo-runs" / "2026-11-04-0100" / "S2"; d.mkdir(parents=True)
         j = json.loads((RESULTS / "S2" / "deterministic.json").read_text(encoding="utf-8"))
         j["load"]["preload"] = {"report": "preload-report.json", "documents": [
-            {"artefact": "behavior/quote_flow.puml", "version": "v1", "state": "clean", "tool": "pumllint", "tool_version": "0.33.0", "why": "no finding at or above major"},
+            {"artefact": "behavior/quote_flow.puml", "version": "v1", "state": "clean", "tool": "pumllint", "tool_version": "0.35.0", "why": "no finding at or above major"},
             {"artefact": "contract/spec.md", "version": "v1", "state": "unchecked", "tool": None, "tool_version": None, "why": "the report does not cover this document"}]}
         (d / "deterministic.json").write_text(json.dumps(j), encoding="utf-8")
         builds.append(("S2", "demo-runs/2026-11-04-0100", Path(td) / "demo-runs"))

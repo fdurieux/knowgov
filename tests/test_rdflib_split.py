@@ -16,7 +16,7 @@ HARNESS = ROOT / ".github" / "workflows" / "harness.yml"
 OLD_STEPS = [
     'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
     'actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e',
-    'pip install "pumllint==0.33.0" "pyyaml==6.0.3" "rdflib==7.6.',
+    'pip install "pumllint==0.35.0" "pyyaml==6.0.3" "rdflib==7.6.',
     'The stdlib suite with the pins, the tests resting on rdflib run here and a skip of one fails (task-0141.01)',
     'S1 to S7 on the in-memory store match the record',
     'The J-F data-load subject, C and D1 to D5, matches its record (D1 skipped across store kinds)',
@@ -73,6 +73,7 @@ OLD_STEPS = [
 ]
 # Steps added after the split, each in one job: the same rule holds them
 ADDED = ["Two subjects sharing a scenario id never answer each other's gates (task-0195): the held subject on a file-backed rdflib store",
+         "pumllint's trace --features runs from the installed library (task-0224, for task-0217): the J-F kit's diagrams against its requirements and features, every requirement covered and verified",
          "One id per conflict (task-0223, decision-0020), every CargoQuote scenario loaded fresh twice, each conflict gap:conflict:<key>:<a>~<b>, ordered, S4's shown",
          "Pre-load findings as routed gaps (task-0216), on rdflib, the example instance's planted SEQ002 a lint gap with its owner and "
          "route and no level moved, held by the baseline, resolved by its owner, a slip in the re-lint delta, kept by the round trip",
