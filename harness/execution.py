@@ -83,7 +83,11 @@ def attested(jobs: Path, now: float | None = None) -> dict:
         raise ExecutionRefused("refused: the worker's attestation is malformed")
     failed = [c for c in ATTEST_CHECKS if a["checks"].get(c) is not True]
     if failed or a.get("ok") is not True:
-        raise ExecutionRefused(f"refused: the worker is not confined: {', '.join(failed) or 'it says so'} (decision-0012)")
+        abi = a.get("landlock_abi")
+        why = (f"; write_confined: this kernel's Landlock is ABI {abi}, and the worker attests writes confined only from "
+               "ABI 3 (Linux 6.2), where truncation is confined too (task-0203)"
+               if "write_confined" in failed and isinstance(abi, int) and not isinstance(abi, bool) and 0 < abi < 3 else "")
+        raise ExecutionRefused(f"refused: the worker is not confined: {', '.join(failed) or 'it says so'} (decision-0012){why}")
     beat = a.get("heartbeat")
     now = time.time() if now is None else now
     if not isinstance(beat, (int, float)) or abs(now - beat) > HEARTBEAT_S:
@@ -267,6 +271,24 @@ def _remove(p: Path) -> None:
     shutil.rmtree(p, ignore_errors=True)
 
 
+# The worker's job stages that are the model output's own outcome (task-0203, doc-0030 R2): its time ran
+# out, it was killed (a bound it hit), its output overran, or what it ran broke the job's answer. Each is the
+# kind's failed cell, as the host records a crash, and the run goes on; a stage the worker reports about the
+# job itself ("job": unreadable, unknown kind, no subject) is the app's fault and still raises.
+MODEL_STAGES = ("timeout", "killed", "output", "harness_error")
+
+
+def failed_cell(kind: str, r: dict) -> dict:
+    """The kind's failed result for a job-stage error ``r`` ({error, stage}): nothing passed, the error kept."""
+    err = {"error": str(r.get("error") or "")[:500], "stage": str(r.get("stage") or "error")[:40]}
+    if kind in ("suite", "suite_dir"):
+        import measures
+        return {"ran": True, "passed": 0, "total": measures.SUITE_TOTAL, "per_scenario": {}, **err}
+    if kind == "feedback":
+        return {"features": {}, "passed": 0, "total": 0, **err}
+    return {"exit": -1, "stdout": "", **err}
+
+
 def run(kind: str, payload: dict, files: dict[str, bytes], deadline: float | None = None) -> dict:
     """Model output run on the one path: refused, or in the worker, or on the host under the opt-in.
     ``deadline`` (monotonic, the agent's run) caps the job's time to what remains of the run."""
@@ -280,6 +302,8 @@ def run(kind: str, payload: dict, files: dict[str, bytes], deadline: float | Non
             seconds = min(seconds, float(os.environ.get("KG_WORKER_JOB_SECONDS") or JOB_SECONDS))
         r = submit(Path(os.environ[JOBS_VAR]), kind, payload, files, seconds=seconds)
         if "error" in r:
+            if r.get("stage") in MODEL_STAGES:   # task-0203, R2: what the model's code did, a failed cell as on the host
+                return failed_cell(kind, r)
             raise RuntimeError(f"the worker could not run the job: {r['error']}")
         return r
     return run_here(kind, payload, files)

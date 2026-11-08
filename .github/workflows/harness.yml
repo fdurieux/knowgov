@@ -160,8 +160,9 @@ jobs:
           python3 -c 'import json; r=json.load(open("runs/probe-load/gate.json")); lv=r["levels"]; assert lv == {"REQ-01|text": "proposed", "REQ-02|txt": "absent"}, lv; print("probe:", r["verdict"], lv)'
       - name: A register node to the statements its cited anchor names (task-0046), through the rdflib port, S6 with the S1 code as derived
         run: |
-          rm -rf runs/anchor && mkdir -p runs/anchor/S1 && cp subjects/cargo_quote/vendor/kg_experiment/results/S1/run1_G.py runs/anchor/S1/
-          cd harness && KG_STORE=rdflib KG_RDFLIB_FILE=../runs/anchor/store.ttl python run.py --deterministic --scenarios S6 --out ../runs/anchor > /dev/null && cd ..
+          rm -rf runs/anchor && mkdir -p runs/anchor
+          # the derived input named explicitly: run.py never takes a file it finds in --out (task-0203, R3)
+          cd harness && KG_STORE=rdflib KG_RDFLIB_FILE=../runs/anchor/store.ttl python run.py --deterministic --scenarios S6 --out ../runs/anchor --stage2-derived ../subjects/cargo_quote/vendor/kg_experiment/results/S1/run1_G.py > /dev/null && cd ..
           KG_STORE=rdflib KG_RDFLIB_FILE=runs/anchor/store.ttl python3 - <<'PY'
           import sys
           sys.path[:0] = ["harness", "demo/app"]
