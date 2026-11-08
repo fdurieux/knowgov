@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-08T16:23:00Z'
+updated_date: '2026-11-08T18:09:00Z'
 tags:
   - brief
   - release
@@ -92,6 +92,32 @@ Every item here is the maintainer's to meet.
 | G9-13 | An attestation bound to the Versions it attests (decision-0019, the maintainer, 2026-11-08: "Build it in 0.9") | Not built; K12 below is decided for 0.9.0 by this row | task-0221 |
 | G9-14 | One id per conflict on every store (decision-0020, the maintainer, 2026-11-08: "accept decision-0020's advice") | Not built: document conflicts are numbered in store order (doc-0030 S2) | task-0223 |
 | G9-15 | pumllint 0.35.0 as the record's pin, so the image runs step 4's feature trace (G9-4; the maintainer, 2026-11-08: "bump pumllint to 0.35.0") | 0.33.0 pinned; trace --features first in 0.35.0 | task-0224, then task-0217 |
+
+### Status at `main` `73a41da` (2026-11-08)
+
+*Filed by the coordinating session. The table above is the list as accepted; this records where each row stands. decision-0016 point 1 cuts 0.9.0 when G9-1 to G9-10 are met; G9-11 to G9-15 were added to the list since.*
+
+| # | state | evidence |
+|--:|---|---|
+| G9-1 | met | decision-0016, accepted 2026-11-06 |
+| G9-2 | **open** | task-0174 (P1, the format-version plan), To Do |
+| G9-3 | **open: one task** | task-0157 and task-0160 Done; task-0148 In Progress, its AC #5 waiting on the maintainer's Claude Desktop test (K10) |
+| G9-4 | met for 0.8.0; met again at the cut | v0.8.0 published (tag `0c629d8`), the compose file pins its digest; 0.9.0's image is the release's own build, carrying pumllint 0.35.0 (G9-15) and naming its commit (task-0227, #375) |
+| G9-5 | met | task-0163 Done (rdflib and rdflib-readers in parallel). rdflib-readers is not yet a required check, which is the maintainer's to add |
+| G9-6 | **open: the maintainer's naming** | P3 done (task-0173). The proposed 1.0 limits of §10 wait to be named (decision-0016 point 1); K21 is a 1.0 limit by decision-0021 |
+| G9-7 | **open: the maintainer's** | task-0061, To Do |
+| G9-8 | **open: the maintainer's** | task-0058, To Do |
+| G9-9 | **open** | #291 (merged 2026-11-06) fixed the two stale claims. The pass holding every adopter-facing claim against the code (P2) is not run; `docs/reverse-engineering.md` (#361) and `tests/test_reverse_engineering_guide.py` hold one guide's commands and flags |
+| G9-10 | met | decision-0016 point 3 names the contracts at 1.0 and the formats an instance may use |
+| G9-11 | met | H1–H7 and M3: task-0194 to task-0199 Done; the tranche F1–F8 and the singles 0205–0209 merged (task-0204 open as #376, task-0228 as #377) |
+| G9-12 | met | task-0214 (#356), task-0215 (#352), task-0216 (#357); step 4's checks, task-0217 (#371) |
+| G9-13 | met | task-0221 (#354, #355) |
+| G9-14 | met | task-0223 (#359) |
+| G9-15 | met | task-0224 (#362); `pumllint trace --features` smoke step in rdflib-readers |
+
+**Left before the cut:**
+- work: G9-2 (task-0174) and G9-9's adopter-docs pass;
+- the maintainer's: G9-3's Desktop test, G9-6's naming, G9-7 and G9-8.
 
 ## 5. 1.0: the contracts proven (proposed gap list)
 
