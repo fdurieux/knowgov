@@ -1,10 +1,11 @@
 ---
 id: TASK-0221
 title: An attestation bound to the Versions it attests (decision-0019)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-08T11:18:00Z'
-updated_date: '2026-11-08T11:18:00Z'
+updated_date: '2026-11-08T14:33:00Z'
 labels:
   - attestation
   - contract
@@ -28,11 +29,25 @@ decision-0019 (the maintainer, 2026-11-08: Build it in 0.9; decision-0009 option
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A declaration's digest list is read by the load: a listed Version is attested as today, an unlisted one reads proposed with nothing approved by construction, on both stores
-- [ ] #2 The gate names each unattested Version behind its keys with its owner and route; a declaration without a digest list reads per load and is listed at info as not bound
-- [ ] #3 tools/check_subject.py checks the list (each digest an artefact Version of the subject) and notes a declaration without one, naming decision-0019
-- [ ] #4 A probe shows an edited, unlisted Version reading proposed on rdflib and Neo4j, and failing on the old code
-- [ ] #5 CHANGELOG.md carries the line under Unreleased's contract heading, with the read rule
-- [ ] #6 The scored record (S1 to S7), the deterministic run and the comparator stay equal
+- [x] #1 A declaration's digest list is read by the load: a listed Version is attested as today, an unlisted one reads proposed with nothing approved by construction, on both stores
+- [x] #2 The gate names each unattested Version behind its keys with its owner and route; a declaration without a digest list reads per load and is listed at info as not bound
+- [x] #3 tools/check_subject.py checks the list (each digest an artefact Version of the subject) and notes a declaration without one, naming decision-0019
+- [x] #4 A probe shows an edited, unlisted Version reading proposed on rdflib and Neo4j, and failing on the old code
+- [x] #5 CHANGELOG.md carries the line under Unreleased's contract heading, with the read rule
+- [x] #6 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 - [ ] #7 A second pull request lists cargo_quote's and jef_data_load's attested Versions with S6's measured effect, held for the maintainer's approval
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+load.attested_artefacts reads [verification] authored and approval versions (raw-byte Version digests; a directory's part digests); verify_authored and approve_verified take the attested artefacts on both adapters (None under the read rule); record_attestation keeps the reading per declaration. The gate's attestation finding: info for a declaration with no list, major for each unattested Version behind the keys, owner and route by capture.routing. check_subject: a listed digest that is no Version of the subject is an error, no list a note naming decision-0019. tools/check_attestation_binding.py. Then a held PR listing the public subjects' Versions, with S6 and every scenario measured.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Severity: an unattested Version behind the task's keys is major (its authored statements read proposed and nothing in it is approved by construction, so the keys behind it fall below verified, and the attester or the keys' owner has to act); a declaration without versions is info. The read rule writes nothing to the store (a declaration without versions is read from the manifest by gate.attestation_behind), and the record's D6_gate leaves the attestation entry out (run.gate_summary), so the record S1-S7 and J-F is unchanged. A test's verification of an unattested Version still counts: the probe's edited table reads verified, not proposed, on its execution-verified statements; its authored statements read proposed. AC 7: the held pull request, claude/task-0221-public-digests.
+
+Stage 2's reading (the coordinator's answer to the DECIDE, 2026-11-08: option (a)), decision-0019's text, quoted: "An unlisted Version is not attested: its authored statements read proposed, and nothing in it is approved by construction". It covers the unchanged statements of a changed, unlisted Version. So when stage 2 re-reads a subject whose bound declarations do not list a Version it now loads, load.load_verifications withdraws the by-construction acts (ver:review and appr: of that Version's statements, changed or not) through the new port write withdraw_construction on both adapters, then re-runs r_corroborate and r_unverified; a test's verification still counts. tools/check_stage2_reload.py passes on both stores without setting attestation aside. CI's subject-check step admits exactly the read rule's note (grep -v on '(decision-0019)'), failing on any other NOTE, WARNING or ERROR; #355, whose lists make the note disappear, restores the strict form.
+<!-- SECTION:NOTES:END -->
