@@ -883,7 +883,8 @@ class RdflibStore(Store):
             frags = [{"locator": self.prop(f, "locator"), "text": self.prop(f, "text"), "artefact": self.prop(f, "artefact")} for f in self.out(x, "SUPPORTED_BY") if self.has_label(f, "Fragment")]
             vers = [{"id": self.nid(v), "method": self.prop(v, "method"), "scope": self.prop(v, "scope"), "at": self.prop(v, "at"), "valid_until": self.prop(v, "valid_until")}
                     for v in self.inn(x, "VERIFIES") if self.has_label(v, "Verification")]
-            aps = [{"id": self.nid(a), "at": self.prop(a, "at"), "record": self.prop(a, "record")} for a in self.inn(x, "APPROVES") if self.has_label(a, "Approval")]
+            aps = [{"id": self.nid(a), "at": self.prop(a, "at"), "record": self.prop(a, "record"), "until": self.prop(a, "until") or None}   # task-0198
+                   for a in self.inn(x, "APPROVES") if self.has_label(a, "Approval")]
             gaps = [{"id": self.nid(g), "kind": self.prop(g, "kind"), "declared": self.prop(g, "declared"), "text": self.prop(g, "text")} for g in self.inn(x, "CONCERNS") if self.has_label(g, "Gap")]
             rows.append({"id": self.nid(x), "value": self.prop(x, "value"), "text": self.prop(x, "text"), "basis": self.prop(x, "basis"), "status": self.prop(x, "status"),
                          "artefact": self.prop(x, "artefact"), "agent": agent, "fragments": by_content(_distinct(frags)),

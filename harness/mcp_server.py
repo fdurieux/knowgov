@@ -111,6 +111,7 @@ the body (``-32020``) and an error is a 400, or a 404 for an unknown method. A r
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hmac
 import ipaddress
 import json
@@ -1002,6 +1003,7 @@ class Tools:
             st, subject=SUBJECT.id, scenario=sc, document=args.get("document"), version=args.get("version")))
 
     def three_valued_answer(self, args: dict) -> dict:
+        import cadence
         from gate import THREE_VALUED_STATUSES, invalidated_on_key, three_valued
         from subject import SUBJECT
         key = args.get("key")
@@ -1015,8 +1017,13 @@ class Tools:
             ans = three_valued(st, key)
             prov = {r["id"]: r for r in st.key_evidence(key, THREE_VALUED_STATUSES)}
             statements = [prov.get(r["id"], r) for r in ans.get("assertions", [])]
+            on = self.session_as_of()
+            for r in statements:   # task-0198 (doc-0030 M8): currency as of the session's date, as gate_verdict reads it
+                gone = cadence.lapse(r, key, dt.date.fromisoformat(on))   # resolved once, by _resolve
+                if gone:
+                    r["status"], r["lapsed"] = gone["to"], gone
             out = {"subject": SUBJECT.id, "store": st.name, "scenario": scenario, "key": key, "answer": ans["answer"],
-                   "statements": statements, "invalidated": invalidated_on_key(st, key)}
+                   "as_of": on, "statements": statements, "invalidated": invalidated_on_key(st, key)}
             if "why" in ans:
                 out["why"] = ans["why"]
             return out

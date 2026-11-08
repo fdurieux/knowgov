@@ -1033,13 +1033,13 @@ class Neo4jStore(Store):
                    x.artefact AS artefact, ag.name AS agent,
                    collect(DISTINCT {locator:f.locator, text:f.text, artefact:f.artefact}) AS fragments,
                    collect(DISTINCT {id:v.id, method:v.method, scope:v.scope, at:v.at, valid_until:v.valid_until}) AS verifications,
-                   collect(DISTINCT {id:ap.id, at:ap.at, record:ap.record}) AS approvals,
+                   collect(DISTINCT {id:ap.id, at:ap.at, record:ap.record, until:ap.until}) AS approvals,
                    collect(DISTINCT {id:g.id, kind:g.kind, declared:g.declared, text:g.text}) AS gaps
             ORDER BY x.id""", key=key, live=live))
         for r in rows:   # each collect in one order, as the rdflib adapter gives it: collect() is store order
             r["fragments"] = by_content([f for f in r["fragments"] if f["locator"]])
             r["verifications"] = by_id([v for v in r["verifications"] if v["id"]])
-            r["approvals"] = by_id([a for a in r["approvals"] if a["id"]])
+            r["approvals"] = by_id([{**a, "until": a.get("until") or None} for a in r["approvals"] if a["id"]])   # task-0198
             r["gaps"] = by_id([g for g in r["gaps"] if g["id"]])
         return by_id(rows)
 

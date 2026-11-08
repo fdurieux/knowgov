@@ -736,8 +736,9 @@ def _currency_section(on: dict, lapsed: list, C) -> dict:
           "After that, the review is lapsed and the assertion reads validated until a new review.")]
     if not lapsed:
         return {"heading": C("Review currency: no review lapsed"), "text": " ".join(text + [C("No review had lapsed by that date.")])}
-    rows = [(x["id"], x["key"], x["from"], x["valid_until"], x.get("lapsed_on", ""), x.get("months", ""), x.get("kind") or "default")
-            for x in sorted(lapsed, key=lambda x: (x.get("lapsed_on", ""), x["key"]))]
+    rows = [(x["id"], x["key"], x["from"], x.get("valid_until") or f"dated {x.get('after', '')}, after the date", x.get("lapsed_on") or "",
+             x.get("months", ""), x.get("kind") or "default")
+            for x in sorted(lapsed, key=lambda x: (x.get("lapsed_on") or "", x["key"]))]
     keys = len({x["key"] for x in lapsed})
     return {"heading": C(f"Review currency: {_plural(len(lapsed), 'review')} on {_plural(keys, 'key')} lapsed by {on['date']}"), "text": " ".join(text),
             "table": _table(["assertion", "key", "was", "current until", "lapsed on", "review months", "kind"], rows)}

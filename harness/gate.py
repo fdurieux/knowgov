@@ -31,7 +31,7 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
         for r in rows:
             gone = cadence.lapse(r, key, on)
             if gone:
-                r["status"], r["lapsed"] = "validated", gone
+                r["status"], r["lapsed"] = gone["to"], gone   # what it reads as of the date (task-0198)
                 lapsed.append(gone)
         ent = key.split("|")[0]
         declared = s.declared_gaps_for_key(key)
@@ -138,6 +138,16 @@ def invalidated_on_key(s, key: str) -> list[dict]:
             for x in sorted(s.stale_on_keys([key]), key=lambda x: x["id"])]
 
 
+def _plain(x: dict) -> bool:
+    """A document's review lapse, the one kind before task-0198: its lines render as they always did (the bundle's bytes)."""
+    return not x.get("after") and x.get("kind") != "elicited"
+
+
+def _lapse_note(x: dict) -> str:
+    return (f"{x['from']} until {x['valid_until']}, now validated (decision-0005)" if _plain(x)
+            else cadence.describe(x, "the date read"))
+
+
 def three_valued(s, key: str) -> dict:
     """The three-valued answer for one key (D5): ``unknown`` when no assertion exists,
     ``documented_absent`` when every live assertion says NONE, else ``asserted``."""
@@ -168,7 +178,7 @@ def render_key(key: str, v: dict, form: str = "full") -> list[str]:
     for a in v["assertions"]:
         out.append(f"  [{a['id']}] value={a['value']!r} basis={a['basis']} status={a['status']} source={a['artefact']} by={a['agent']}"
                    + ("  PENDING REVIEW: not counted in the level (decision-0004)" if a["id"] in v.get("pending_review", ()) else "")
-                   + (f"  REVIEW LAPSED: {a['lapsed']['from']} until {a['lapsed']['valid_until']}, now validated (decision-0005)" if a.get("lapsed") else ""))
+                   + (f"  REVIEW LAPSED: {_lapse_note(a['lapsed'])}" if a.get("lapsed") else ""))
         if full:
             out.append(f"      text: {a['text'][:300]}")
             for f in a["fragments"][:2]:
@@ -250,7 +260,8 @@ def render_bundle(res: dict, policy: str, verbatim: dict[str, str] | None = None
     if res.get("lapsed"):
         out.append(f"\nREVIEW LAPSED as of {res['as_of']} (decision-0005: a review falls due after its key's review months; each reads validated until a new review):")
         for x in res["lapsed"]:
-            out.append(f"  [{x['id']}] key={x['key']} was {x['from']}, review current until {x['valid_until']}; verifications: {', '.join(x['verifications'])}")
+            out.append(f"  [{x['id']}] key={x['key']} was {x['from']}, review current until {x['valid_until']}; verifications: {', '.join(x['verifications'])}"
+                       if _plain(x) else f"  [{x['id']}] key={x['key']} {cadence.describe(x, res['as_of'])}; verifications: {', '.join(x['verifications']) or 'none'}")
     if res.get("suspect_derived"):
         out.append("\nDERIVED OUTPUTS MARKED SUSPECT (they used assertions that are now invalidated; they may not be reused as they are):")
         for d in res["suspect_derived"]:

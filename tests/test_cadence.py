@@ -110,7 +110,7 @@ def test_a_review_lapses_the_day_after_its_due_date_and_execution_never_does():
         got = cadence.lapse(json.loads(json.dumps(row)), row["id"][2:], D(on), CARGO_QUOTE)
         assert bool(got) == gone, (row["id"], on, got)
     got = cadence.lapse(rev, "k|rev", D("2027-08-07"), CARGO_QUOTE)
-    assert got == {"id": "A:k|rev", "key": "k|rev", "from": "approved", "valid_until": "2027-08-06",
+    assert got == {"id": "A:k|rev", "key": "k|rev", "from": "approved", "to": "validated", "valid_until": "2027-08-06",
                    "lapsed_on": "2027-08-07", "months": 12, "kind": None, "verifications": ["ver:review:A:k|rev"]}   # task-0076: the page's columns
     both = dict(rev, verifications=rev["verifications"] + exe["verifications"])
     assert cadence.lapse(both, "k|rev", D("2030-01-01"), CARGO_QUOTE) is None, "an execution verification keeps it current"
@@ -227,3 +227,51 @@ def test_the_comparator_holds_a_run_to_the_record_date():
             (run / "S1" / "deterministic.json").write_text(json.dumps({**rec, "as_of": on}), encoding="utf-8")
             n, lines = cd.compare(run, record, ["S1"])
             assert n == want, (on, lines)
+
+
+# task-0198 (doc-0030 F4): every lapse decided against the as-of date, a person's approval included
+
+def test_a_persons_approval_lapses_against_the_date_read_never_the_load_day():
+    """H3: a person's statement approved by a review file keeps its until, six months after the answer; it
+    reads approved on that day and proposed the day after, with what it was and the months, whatever today is."""
+    row = {"id": "A:cap:x:1@capture", "basis": "elicited", "status": "approved", "verifications": [],
+           "approvals": [{"id": "appr:review:2026-11-03-employee-2:A:cap:x:1@capture", "at": "2026-11-03", "record": "r", "until": "2027-05-02"}]}
+    assert cadence.lapse(row, "k|v", D("2027-05-02"), CARGO_QUOTE) is None
+    got = cadence.lapse(row, "k|v", D("2027-05-03"), CARGO_QUOTE)
+    assert (got["from"], got["to"], got["valid_until"], got["lapsed_on"], got["months"], got["kind"]) == \
+        ("approved", "proposed", "2027-05-02", "2027-05-03", 6, "elicited"), got
+    assert "asked again" in cadence.describe(got, "2027-05-03")
+    assert cadence.lapse(dict(row, approvals=[]), "k|v", D("2030-01-01"), CARGO_QUOTE) is None, "nothing a date governs"
+
+
+def test_a_review_file_approval_with_no_verification_lapses_at_its_date_plus_the_months():
+    """G4: a document statement approved by a review file, no verification at all, lapses like a review."""
+    ap = {"id": "appr:review:2026-11-03-employee-3:A:k|rev", "at": "2026-11-03", "record": "r"}
+    row = dict(_row("k|rev"), verifications=[], approvals=[ap])
+    months = cadence.months_for("k|rev", CARGO_QUOTE)
+    due = cadence.add_months(D("2026-11-03"), months)
+    assert cadence.lapse(row, "k|rev", due, CARGO_QUOTE) is None
+    got = cadence.lapse(row, "k|rev", due + dt.timedelta(days=1), CARGO_QUOTE)
+    assert got["to"] == "validated" and got["valid_until"] == due.isoformat(), got
+
+
+def test_what_is_dated_after_the_as_of_date_is_not_counted():
+    """G10: a review verification or a review file's approval dated after the date does not count as of it."""
+    rev = dict(_row("k|rev"), verifications=[dict(_row("k|rev")["verifications"][0], valid_until="2027-08-06")])
+    got = cadence.lapse(rev, "k|rev", D("2026-08-05"), CARGO_QUOTE)
+    assert (got["to"], got["valid_until"], got["after"]) == ("validated", None, "2026-08-06"), got
+    assert "after the as-of date" in cadence.describe(got, "2026-08-05")
+    ruled = dict(rev, approvals=[{"id": "appr:review:2027-01-01-employee-3:A:k|rev", "at": "2027-01-01", "record": "r"}])
+    got = cadence.lapse(ruled, "k|rev", D("2026-12-31"), CARGO_QUOTE)
+    assert (got["to"], got["after"]) == ("verified", "2027-01-01"), "approved only later: verified as of the date"
+    assert cadence.lapse(ruled, "k|rev", D("2027-01-01"), CARGO_QUOTE) is None
+
+
+def test_the_load_reads_no_clock():
+    """H3: load_reviews decides no lapse and reads no today; the gate does, against its as-of."""
+    import ast
+    text = (Path(__file__).resolve().parent.parent / "harness" / "load.py").read_text(encoding="utf-8")   # never imported: the stdlib job has no yaml
+    fn = next((n for n in ast.walk(ast.parse(text)) if isinstance(n, ast.FunctionDef) and n.name == "load_reviews"), None)
+    assert fn is not None, "load_reviews not found in harness/load.py: a rename must fail this test, not pass it"
+    src = ast.get_source_segment(text, fn)
+    assert "today()" not in src and "until is not None and now > until" not in src

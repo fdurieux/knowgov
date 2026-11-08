@@ -660,9 +660,11 @@ from the review itself, and the command refuses a review that breaks a rule, nam
   The example register has one since its v0.2.6: CargoQuote's OD-1 names compliance, which is
   ORG-0004 there (a stand-in, its decision 0011), and only `employee-4` of that unit closes it.
 - **An approved answer lapses** six months after it was given: the statement reads *proposed*
-  again until someone re-asks and a reviewer approves again. Set `KG_TODAY=YYYY-MM-DD` for a
-  reproducible date, and `KG_CLOCK=pinned` in a pipeline so a command that would read the wall clock
-  fails instead (task-0075).
+  again until someone re-asks and a reviewer approves again. The gate decides this on the date it
+  reads (`--as-of`, today by default), never on the day the store was loaded, so one `--as-of` gives
+  one answer whatever day you run it (task-0198). Set `KG_TODAY=YYYY-MM-DD` for a reproducible today,
+  and `KG_CLOCK=pinned` in a pipeline so a command that would read the wall clock fails instead
+  (task-0075).
 
 **When a document's review falls due.** A statement a document's review verified is current for
 the review months of the kind its key concerns, from your register's `metamodel/lifecycle.toml`:
@@ -673,9 +675,12 @@ statement reads *validated*, its approval with it, and `gate_cli.py` lists a *la
 Read as of today, which is the default, your `--baseline` pipeline then reports the key as
 `verified -> validated`, a regression. Renew it by a review: a reviewer of an owning unit approves the
 statement in a review file, as above (a document's statement needs the role `closes`), and it is
-current again for the key's months from the review's `on`. A verification by execution does not lapse by date. `--as-of YYYY-MM-DD` reads as of another
+current again for the key's months from the review's `on`. A statement a review file approved with no
+verification at all lapses the same way, the key's months after the review's `on`. A verification by
+execution does not lapse by date. `--as-of YYYY-MM-DD` reads as of another
 date, to see what falls due when; `--as-of record` reads as of your subject's `[record] as_of`, if you
-pinned one.
+pinned one. What is dated after the date read does not count yet: read as of a day before a review, the
+statement reads as it did before it, and the *lapsed* finding says why.
 
 A review copied into `captures/reviews/` by hand is checked again on every load: one that breaks
 a rule is skipped, and the load prints why. The rules are knowgov's decision-0002; the handles
