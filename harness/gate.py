@@ -70,14 +70,22 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
     blocked_keys = [k for k, v in keys.items() if v["level"] in spec["block_levels"]]
     below = [k for k, v in keys.items() if ORDER.index(v["level"]) < ORDER.index("verified")]
     flagged = [k for k, v in keys.items() if v["flags"]]
+    # the intended bar (task-0215, decision-0018 point 4): a class that requires approved reads a key verified
+    # but not approved, an observed behaviour nobody has intended, below its bar, under the same blocking rule
+    # as a key below verified; a class that does not declare it reads as before
+    intended = spec.get("require_approved") is True
+    unintended = [k for k, v in keys.items() if v["level"] == "verified"] if intended else []
+    under = below + unintended
+    bar = "approved" if intended else "verified"
     if blocked_keys:
         verdict, why = "BLOCKED", f"{len(blocked_keys)} required key(s) at a blocking level: " + ", ".join(f"{k} ({keys[k]['level']})" for k in blocked_keys)
-    elif len(below) / n > spec["max_unverified_share"]:
-        verdict, why = "BLOCKED", f"{len(below)} of {n} required keys ({len(below)/n:.0%}) are below verified; the bar is {spec['max_unverified_share']:.0%}"
-    elif below or flagged:
-        verdict, why = "QUALIFIED", f"{len(below)} key(s) below verified, {len(flagged)} flagged: " + ", ".join(sorted(set(below) | set(flagged)))
+    elif len(under) / n > spec["max_unverified_share"]:
+        verdict, why = "BLOCKED", f"{len(under)} of {n} required keys ({len(under)/n:.0%}) are below {bar}; the bar is {spec['max_unverified_share']:.0%}"
+    elif under or flagged:
+        verdict, why = "QUALIFIED", f"{len(under)} key(s) below {bar}, {len(flagged)} flagged: " + ", ".join(sorted(set(under) | set(flagged)))
     else:
-        verdict, why = "PROCEED", f"all {n} required keys verified or approved, none flagged"
+        verdict, why = "PROCEED", (f"all {n} required keys approved, none flagged" if intended
+                                   else f"all {n} required keys verified or approved, none flagged")
     conflicts = s.conflict_gaps()
     # staleness: invalidated assertions on required keys (superseded or not), the verifications
     # their invalidation ended, and the derived outputs that used them (S6; added after the first
@@ -87,6 +95,8 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
     out = {"task": task, "verdict": verdict, "why": why, "keys": keys, "conflicts": conflicts,
            "blocked_keys": blocked_keys, "below_verified": below, "flagged": flagged,
            "stale": stale, "suspect_derived": suspect, "lapsed": lapsed, "as_of": on.isoformat()}
+    if intended:   # task-0215: only when the class declares the bar, so every other class and the record read as before
+        out["unintended"] = unintended
     form = preload_behind(s, keys)
     if form is not None:   # only when a load recorded verdicts (task-0064); absent otherwise, so the record reads as before
         out["preload"] = form

@@ -689,6 +689,7 @@ class Tools:
                     "scenarios": list(SUBJECT.order),
                     "tasks": {n: {"keys": t["keys"], "block_levels": sorted(t["block_levels"]),
                                   "max_unverified_share": t["max_unverified_share"],
+                                  **({"require_approved": True} if t.get("require_approved") else {}),
                                   **({"rationale": t["rationale"]} if t["rationale"] else {})} for n, t in TASKS.items()},
                     "three_valued_keys": list(SUBJECT.three_valued)}
         return self._with_store(go)

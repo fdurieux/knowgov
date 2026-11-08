@@ -31,6 +31,21 @@ names that section with the version.
     is unchanged; listing their Versions is the maintainer's own attestation, in a pull request held for it.
   - `tools/check_subject.py` refuses a listed digest that is no Version of the subject (its files, and the texts
     its plants make of them). `tools/check_attestation_binding.py` proves it on both stores.
+- **A task class may require approved: the intended bar** (task-0215, decision-0018 point 4). A contract
+  change to the subject format and the gate report, opt-in.
+  - **The field.** `require_approved = true` under `[tasks.<class>]`.
+  - **What it does.** A key that reads `verified` but not `approved` then sits below the class's bar.
+    That is a behaviour shown to hold, perhaps by execution on the original, that no person has yet
+    intended.
+  - **The finding.** Each such key gets an `intended` finding, major, naming its owner and route from
+    `capture.routing`. The report's `keys` counts them as `unintended`, and `store_status` shows the
+    field.
+  - **The verdict.** It counts these keys as the class counts a key below verified: QUALIFIED, or
+    BLOCKED past `max_unverified_share`. PROCEED then needs every key approved.
+  - **Without the field, nothing changes.** Every class reads as before, and the scored record is
+    unchanged: no public class declares it. `tools/check_subject.py` refuses a value that is not true
+    or false.
+
 - **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
   with one additive field.
   - **One successor set (G3).** The gate's level drops an invalidated statement only when its own verified or
