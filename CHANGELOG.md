@@ -280,6 +280,14 @@ names that section with the version.
 
 ### Changes
 
+- **The reverse-engineering process, for adopters** (task-0218, decision-0018 points 1 and 2).
+  `docs/reverse-engineering.md` walks the eight steps: scope at a named commit, reverse-engineer into a kit,
+  gather the existing artefacts, lint both, load as a subject, address, optionally rebuild and grade, re-run on
+  change. Each step names the tool that runs it today, the record it leaves and where that lives in the
+  instance, and section 5 lists what is not built yet. `docs/reverse-engineering-preregistration.md` is step 1's
+  template: fifteen fields, each with what to write and J-F's first run as the worked example, and a skeleton to
+  copy. `tests/test_docs_flags.py` holds every flag the two pages name to a real option of a knowgov script.
+  Documentation only: no command, report or record changes.
 - **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
   applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1
   could not apply stayed reported. Stage 2 clears the acts stage 1 recorded, then binds every ruling and close to

@@ -10,6 +10,9 @@ four other files, and this guide links to them:
 - [`subjects/README.md`](../subjects/README.md): a subject's manifest, field by field;
 - [`demo/GLOSSARY.md`](../demo/GLOSSARY.md): the words the page uses, one per concept.
 
+To write down what a working program does, and turn what is missing or contradictory about it into gaps
+with owners, read [`docs/reverse-engineering.md`](reverse-engineering.md) after this guide.
+
 The brief behind this guide is `backlog/docs/doc-0008`. Every number quoted below comes from the
 public, synthetic content in this repository: the CargoQuote kit and J-F's data load.
 
