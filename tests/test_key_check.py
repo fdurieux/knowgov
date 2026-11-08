@@ -59,7 +59,8 @@ def _checker(by_base):
 def test_each_verdict_with_its_status_and_reason():
     by = {"https://a/v1": OK, "https://r/v1": {"state": "refused", "status": 401, "models": None},
           "https://u/v1": {"state": "unreachable", "status": None, "models": None},
-          "https://n/v1": {"state": "unchecked", "status": 404, "models": None}}
+          "https://n/v1": {"state": "unchecked", "status": 404, "models": None},
+          "https://o/v1": {"state": "unchecked", "status": 200, "models": ["openai/gpt-5.5"], "open": True}}
     c = _checker(by)
     with _env(OPENAI_API_KEY=FAKE):
         c.ensure([(b, "OPENAI_API_KEY") for b in by])
@@ -73,6 +74,10 @@ def test_each_verdict_with_its_status_and_reason():
         assert c.verdict("https://u/v1", "OPENAI_API_KEY")["state"] == "unreachable"
         n = c.verdict("https://n/v1", "OPENAI_API_KEY")
         assert n["state"] == "unchecked" and n["status"] == 404 and n["model_listed"] is None, n
+        o = c.verdict("https://o/v1", "OPENAI_API_KEY", "gpt-5.5")   # task-0188: a listing open without a key
+        assert o["state"] == "unchecked" and o["status"] == 200 and o["model_listed"] is True, o
+        assert o["why"] == "the endpoint lists its models without a key, so the listing says nothing of the key in OPENAI_API_KEY", o["why"]
+        assert set(o) == set(a), ("no new field in the page's answer", set(o) ^ set(a))
     with _env():
         assert c.verdict("https://a/v1", "OPENAI_API_KEY")["why"] == "set OPENAI_API_KEY", "no key, nothing known"
 
@@ -202,20 +207,25 @@ def test_the_check_is_the_model_clients_listing_and_nothing_else():
 
 
 class _Listing(BaseHTTPRequestHandler):
-    """A stand-in of an endpoint's GET /v1/models: the status the test asks for, a body quoting the key
-    the way OpenAI's 401 does, so the test sees that no provider message leaves the check."""
+    """A stand-in of an endpoint's GET /v1/models, a body quoting the key the way OpenAI's 401 does, so
+    the test sees that no provider message leaves the check. ``status`` answers every bearer, as an
+    open listing does (OpenRouter's, Ollama's) or a broken one; with ``keyed`` set, the listing answers
+    200 to that bearer only and ``status`` to any other, as Mistral's does (task-0188)."""
     status = 200
+    keyed: str | None = None
+    ids = ("gpt-5.5",)
     seen: list = []
 
     def do_GET(self):  # noqa: N802
         type(self).seen.append({"path": self.path, "auth": self.headers.get("Authorization") or ""})
         auth = self.headers.get("Authorization") or ""
-        if type(self).status == 200:
-            body = {"object": "list", "data": [{"id": "gpt-5.5", "object": "model", "created": 0, "owned_by": "x"}]}
+        status = 200 if type(self).keyed and auth == "Bearer " + type(self).keyed else type(self).status
+        if status == 200:
+            body = {"object": "list", "data": [{"id": i, "object": "model", "created": 0, "owned_by": "x"} for i in type(self).ids]}
         else:
             body = {"error": {"message": f"Incorrect API key provided: {auth[7:14]}...{auth[-4:]}", "type": "invalid_request_error"}}
         raw = json.dumps(body).encode()
-        self.send_response(type(self).status)
+        self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
@@ -231,9 +241,11 @@ class _Listing(BaseHTTPRequestHandler):
 
 
 def test_no_key_and_no_provider_message_leaves_the_check():
-    """The real model client against a loopback stand-in of the listing: 200 accepted, 401 and 403
-    refused, 404 unchecked, a closed port unreachable; one GET of /v1/models each, the key sent as a
-    bearer token to the endpoint and nowhere in the verdict."""
+    """The real model client against a loopback stand-in of the listing (task-0171, task-0188). The listing
+    is read first with NO_KEY. A Mistral-shaped listing, which refuses it, is then read with the key:
+    accepted for the key, refused (401, 403) for another; a 404 to both reads unchecked. An OpenRouter- or
+    Ollama-shaped listing, which answers any bearer, reads unchecked after the first request, the key never
+    sent. A closed port is unreachable. The key appears in no verdict, nor does the provider's message."""
     try:
         import openai  # noqa: F401
     except ModuleNotFoundError:
@@ -242,16 +254,27 @@ def test_no_key_and_no_provider_message_leaves_the_check():
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
     t.start()
     base = f"http://127.0.0.1:{httpd.server_address[1]}/v1"
+    first = {"path": "/v1/models", "auth": "Bearer " + key_check.NO_KEY}
+    keyed = {"path": "/v1/models", "auth": "Bearer " + FAKE}
     try:
-        for status, state in ((200, "accepted"), (401, "refused"), (403, "refused"), (404, "unchecked")):
-            _Listing.status, _Listing.seen = status, []
-            got = key_check.probe(base, FAKE)
-            assert got["state"] == state and got["status"] == status, (status, got)
-            assert _Listing.seen == [{"path": "/v1/models", "auth": "Bearer " + FAKE}], _Listing.seen
+        # Mistral-shaped: no key refused, the key accepted, another key refused; then a refusal or no listing at all
+        for keyed_to, status, key, state, want in ((FAKE, 401, FAKE, "accepted", 200), (FAKE, 401, "sk-another-0188-WXYZ", "refused", 401),
+                                                     (None, 403, FAKE, "refused", 403), (None, 404, FAKE, "unchecked", 404)):
+            _Listing.keyed, _Listing.status, _Listing.ids, _Listing.seen = keyed_to, status, ("mistral-medium-3-5",), []
+            got = key_check.probe(base, key)
+            assert got["state"] == state and got["status"] == want and "open" not in got, (status, key[-4:], got)
+            assert _Listing.seen == [first, {"path": "/v1/models", "auth": "Bearer " + key}], _Listing.seen
             assert FAKE not in json.dumps(got) and FAKE[-4:] not in json.dumps(got) and "Incorrect" not in json.dumps(got), got
-            if status == 200:
-                assert got["models"] == ["gpt-5.5"]
+            if state == "accepted":
+                assert got["models"] == ["mistral-medium-3-5"]
+        # OpenRouter- and Ollama-shaped: any bearer listed, so the listing says nothing of the key, which is never sent
+        for ids in (("openai/gpt-5.5", "mistralai/mistral-large-4-0"), ("qwen3.5:2b", "ministral-3:3b")):
+            _Listing.keyed, _Listing.status, _Listing.ids, _Listing.seen = None, 200, ids, []
+            got = key_check.probe(base, FAKE)
+            assert got == {"state": "unchecked", "status": 200, "models": list(ids), "open": True}, got
+            assert _Listing.seen == [first] and keyed not in _Listing.seen, _Listing.seen
     finally:
+        _Listing.keyed, _Listing.status, _Listing.ids = None, 200, ("gpt-5.5",)
         httpd.shutdown()
         httpd.server_close()
     got = key_check.probe(base, FAKE)   # the port is closed now
