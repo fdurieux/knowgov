@@ -72,6 +72,7 @@ def instance(out: Path, name: str, plant: bool) -> tuple[Path, dict]:
     if plant:
         d = inst / DIAGRAM
         d.write_text(d.read_text(encoding="utf-8").replace("@enduml", "participant Idle\n@enduml", 1), encoding="utf-8")
+        example_instance.attest(inst, d)   # the planted Version attested, so only the lint gap differs (decision-0019)
     env = cadence.pin_record(dict(os.environ, KG_SUBJECT=str(inst / "subjects" / "cargo_quote"), KG_REGISTER=str(inst / "register"),
                                     KG_RDFLIB_FILE=str(out / name / "store.ttl"), PYTHONDONTWRITEBYTECODE="1"))
     return inst, env

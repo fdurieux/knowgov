@@ -85,7 +85,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   Each rewrites its `SOURCE.md`; a test holds every file to its digest. The demo README's "Keeping the demo current"
   section is the adopter-facing walkthrough.
 - The record's versions are pinned in `demo/Dockerfile` (neo4j 6.4.1, rdflib
-  7.6.0, pyshacl 0.40.2, openai 3.41.0) with pumllint 0.33.0 from PyPI, the
+  7.6.0, pyshacl 0.40.2, openai 3.41.0) with pumllint 0.35.0 from PyPI, the
   library the sequence-diagram mapper imports, and the J-F subject's oracle
   pins (pandas 3.0.5, numpy 2.4.6, requests 2.34.2, pyarrow 25.0.1, pytest
   9.1.1, pytest-bdd 9.0.1) on CPython 3.12, the interpreter its kit names;
