@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-08T13:08:00Z'
+updated_date: '2026-11-08T16:23:00Z'
 tags:
   - brief
   - release
@@ -176,6 +176,7 @@ No released `CHANGELOG.md` section is edited.
 | K18 | The page's register panel does not show what a register change withdrew (0.7.0, the same entry as K17) | to mint | no module under `demo/app` reads a previous register. Minted as task-0178 (T-d) |
 | K19 | The GitLab include is proven by shell, not on a GitLab runner (0.7.0) | tasked | task-0108, at the pilot |
 | K20 | The hooks see Edit and Write, not a shell command writing the same file (0.7.0) | proposed 1.0 limit | Claude Code's PreToolUse hook on Bash sees a command string, not the files it writes, and parsing shell is unreliable. The pre-load check, the review files and the pull request remain the backstop (task-0147) |
+| K21 | An execution verification is not bound to the code the suite last passed on: its digest is the reference code's at load, so a changed reference code loads verified (Unreleased, task-0219's H7 probe) | **1.0 limit** (decision-0021, the maintainer, 2026-11-08: "Agreed") | `load.py` `load_verifications` records `sha256(SUBJECT.reference_code())` at load. Nothing records the code the oracle passed on. The probe's two mutants read PROCEED (#366). The guard is `trace check --fail-on minor`, named in the guide's step 8. task-0225 proposes the binding at m-8 with the lighthouse's instance |
 | U1 | A store-backed tool answers only for the subject whose scenario the store holds; for another subject it refuses, naming the run that would load it (Unreleased, task-0157) | tasked | task-0164, per-subject read snapshots, parked until the pilot and needing its own decision (decision-0013 A1) |
 | U2 | A call naming another subject runs a child process: about 0.4 s a call on Neo4j (p95 0.51 s), bounded by `KG_SUBJECT_CALL_TIMEOUT` (Unreleased) | proposed 1.0 limit | the isolation decision-0013 chose: one process per other-subject call, with no shared state. A latency fact, not a defect |
 | U3 | A page older than task-0167, which reports no `execution`, reads as refused to `knowgov-runs` (Unreleased) | proposed 1.0 limit | a compatibility rule between two components, fail-closed by design. It lapses once every page reports `execution` |
