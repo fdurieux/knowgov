@@ -283,7 +283,12 @@ in the image and a jobs folder. Its work folder is a tmpfs mounted `exec`, since
 writes there; `noexec` would bound nothing, as a job can run any Python. Each job runs as its own process group with an allowlisted environment,
 resource limits, a wall time (the whole group killed and reaped at it, a process that left the group
 included: after each job the worker kills every process below it at any depth at once, round after round,
-within 10 s, so even a deep chain of processes each in its own session ends with its job; task-0203), and
+within 10 s, so even a deep chain of processes each in its own session ends with its job; task-0203. It
+never takes one empty scan of `/proc` for "nothing is left", since a listing is no snapshot and a fast fork
+chain could slip between a listing and its reads and outlive its job, as it did once in 260 hostile jobs
+under load: in its container, the init of its own pid namespace, it takes an empty scan only when the
+namespace's pid counter did not move across it; on a host, the test path, it takes `QUIET_SCANS` empty
+scans in a row, a weaker rule; task-0233), and
 Linux Landlock rules that let it write only beneath its own folder, so it cannot forge a result or the
 worker's attestation. The job's runner is non-dumpable and answers on a descriptor no process it starts
 inherits or can open through `/proc`, so model code cannot forge its answer through the runner's output
@@ -325,8 +330,10 @@ check on a fake sysfs and procfs, the Mac's listing included; the socket probes 
 `tests/test_execution.py::test_exec_08_a_stalled_or_trickling_stream_stops_at_the_monotonic_deadline`,
 `tests/test_worker_isolation.py` (task-0203: a 70-deep `setsid` chain killed whole, the forge refused, a timed-out
 job a failed cell, `write_confined` only from Landlock ABI 3, a reused run folder carrying nothing over; on a
-worker loop as uid 65534 under its Landlock domain when the tests run as root); on the real container,
-`tools/check_worker.py` in `demo.yml` (EXEC-01 to EXEC-13, and loosened workers refusing: network on, a key in
+worker loop as uid 65534 under its Landlock domain when the tests run as root),
+`tests/test_reaper_quiescence.py` (task-0233: a scan made to miss a listed process does not end the reaping); on
+the real container,
+`tools/check_worker.py` in `demo.yml` (EXEC-01 to EXEC-14, and loosened workers refusing: network on, a key in
 its environment, and the seccomp profile off where the runner's kernel has vsock).
 **Practice:** for the public demo, use a project key with a spending cap; keep the worker service as
 compose defines it, since loosening it makes it refuse.

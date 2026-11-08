@@ -360,6 +360,12 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **A job's processes can no longer outlast the worker's clean-up under load** (task-0233). After each job the
+  worker kills every process the job left. It used to stop at the first look at the process table that found
+  none, but a process can fork and exit between the moment the table is listed and the moment it is read, so a
+  hostile job's fast chain of processes could be missed and keep running: once in 260 such jobs on a loaded
+  machine. In its container the worker now stops only when nothing forked during a look that found none, and
+  `tools/check_worker.py` proves it as EXEC-14.
 - **The adopter docs held against the code** (task-0230, doc-0028 G9-9 and P4). The nine adopter-facing
   documents were checked against the code, and every stale claim found is corrected: commands, flags,
   settings, paths, routes, counts, defaults and described behaviour, in the READMEs, `docs/guide.md`,

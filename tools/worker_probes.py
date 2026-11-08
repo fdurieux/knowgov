@@ -175,3 +175,63 @@ if os.fork() == 0:
     os._exit(0)
 print({answer_mark!r}, len(fds))
 """
+
+
+def fork_chain(mark: str, life_ms: float = 1.0, seconds: float = 20.0) -> str:
+    """The reaper's adversary (task-0233): a double fork into a session of its own, its pipes released so the
+    job answers while it runs on, then a chain whose every process lives ``life_ms``, forks the next, takes a
+    new session and exits, for ``seconds``. No pid lives long; the chain does, unless the worker ends it."""
+    return f"""
+import os, time
+MARK = {mark!r}
+if os.fork() == 0:
+    os.setsid()
+    null = os.open(os.devnull, os.O_RDWR)
+    for fd in (0, 1, 2):
+        os.dup2(null, fd)
+    if os.fork() == 0:
+        end = time.time() + {float(seconds)}
+        while time.time() < end:
+            try:
+                if os.fork():
+                    os._exit(0)
+            except OSError:
+                time.sleep(0.001)
+                continue
+            os.setsid()
+            time.sleep({float(life_ms) / 1000})
+        os._exit(0)
+    os._exit(0)
+time.sleep(0.3)
+print('started')
+"""
+
+
+def ns_quiet(mark: str, seconds: float = 1.0) -> str:
+    """The next job's witness (task-0233), in the worker's own pid namespace: ``<allocated> <marked> <init>``,
+    the pids the namespace allocated over ``seconds`` (a chain still running forks hundreds), the processes
+    carrying ``mark`` seen over that time, and whether the worker is the namespace's init (its pid 1, where
+    its reaper confirms quiet by this same counter). The marker is split in this
+    code, so this job's own command line does not carry it."""
+    head, tail = mark[:8], mark[8:]
+    return f"""
+import os, time
+MARK = ({head!r} + {tail!r}).encode()
+def counter():
+    return int(open('/proc/sys/kernel/ns_last_pid').read())
+def marked():
+    n = 0
+    for d in os.listdir('/proc'):
+        if d.isdigit():
+            try:
+                n += MARK in open('/proc/%s/cmdline' % d, 'rb').read()
+            except OSError:
+                pass
+    return n
+init = b'worker.py' in open('/proc/1/cmdline', 'rb').read()   # the worker is this namespace's pid 1
+a, most, end = counter(), 0, time.monotonic() + {float(seconds)}
+while time.monotonic() < end:
+    most = max(most, marked())
+    time.sleep(0.005)
+print(counter() - a, most, int(init))
+"""
