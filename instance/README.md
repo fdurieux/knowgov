@@ -30,9 +30,11 @@ needs. The [subjects guide](../subjects/README.md) describes it field by field.
                        (see "Mirroring an export from a system of record")
 ```
 
-The platform reads this folder and never writes to it: the compose file mounts it read-only,
-and every run lands in the platform's own `runs/` folder. The one tool that writes is the
-connector, which you run yourself, in your own checkout, to add an export to your register.
+The stack reads this folder and never writes to it: the compose file mounts it read-only, and
+every run lands in the platform's own `runs/` folder. Only commands you run yourself, in your own
+checkout, write to it. The connector adds an export to your register. `harness/capture.py ingest`
+and `review`, and `harness/transcript.py`, add answers, reviews and suggestions to a subject's
+`captures/`. You commit what they write like any other change.
 
 ## Kinds of document, and which ones the platform reads
 
@@ -126,8 +128,9 @@ To read what your documents yield, the check runs the same mappers the load runs
 It needs the same Python packages the load needs: PyYAML, and pumllint for PlantUML. Where they are
 not installed, the check says the yield was not checked; it never passes it quietly. A key that no
 document yields, and that has no close match, is a *NOTE*. The gate will report it absent unless a
-person's answer supplies it, which can be right. The first four problems in the list are layout
-errors: the check exits 1, as it does for a missing document. Warnings and notes do not change the
+person's answer supplies it, which can be right. The first four problems in the list, and the last
+(a document with a mapper and no `short`), are layout errors: the check exits 1, as it does for a
+missing document. Warnings and notes do not change the
 exit code. The check opens no store and writes nothing.
 
 To check one subject on its own:
@@ -566,8 +569,11 @@ load; neither replaces the other. And both pass documents that are consistently 
 Every load then records on each document version what the report said about those exact bytes:
 tool, version, state and digest. A document the report does not cover, or one edited since it
 was checked, is recorded as *unchecked*, never as clean. The page's ingest panel shows the verdict
-per document, and the gate lists the documents behind a task's keys whose form was unchecked or
-had findings, as `info` findings that change the exit only under `--fail-on info`. Without a
+per document. The gate lists the documents behind a task's keys whose form was unchecked as `info`
+findings, which change the exit only under `--fail-on info`. Each finding the report holds on such a
+document is listed too, as a `lint` finding at the linter's own severity, at most `major`. It drops
+to `info` when your baseline holds it or a review has resolved it. So a document with a major
+finding changes the exit under `--fail-on major`, though never at the default `blocker`. Without a
 report, nothing is recorded.
 
 **Starting from documents that already have findings.** Run the check once with
@@ -751,7 +757,8 @@ the review against what that copy holds, and
 saves it in `captures/reviews/`. Every later load of that scenario applies it. An approved
 statement counts as *approved*; a rejected one, whether a person's answer or a document's
 sentence, stops counting but stays on record; a closed declared gap stops blocking. With every
-key approved or verified, the gate says PROCEED.
+key approved or verified, and none flagged, the gate says PROCEED. A task class that sets
+`require_approved = true` (the [subjects guide](../subjects/README.md)) needs every key approved.
 
 Who may do what comes from your register's list of issued handles (`people/handles.toml`), never
 from the review itself, and the command refuses a review that breaks a rule, naming it:
@@ -850,8 +857,10 @@ a load needs is about
 
     1.25 × (24.4 MiB + 9.4 KiB × statements written + 9.4 KiB × statements deleted)
 
-- A gate load replaces the previous load, so for a scenario of *N* statements it writes *N* and
-  deletes about *N*: roughly 30.5 MiB + 23.4 KiB × *N*.
+- A published gate load (`harness/gate_cli.py --publish`, or `KG_PUBLISH=1` for the CI script)
+  replaces the previous load, so for a scenario of *N* statements it writes *N* and deletes about
+  *N*: roughly 30.5 MiB + 23.4 KiB × *N*. Without `--publish` the gate loads into a private copy in
+  memory, which never touches Neo4j.
 - A full run (`harness/run.py --deterministic`, or the page's Deterministic and Arms buttons) loads
   every scenario in one transaction, so it needs the sum over the scenarios.
 
@@ -886,7 +895,7 @@ in `demo/docker-compose.yml` (1 GiB, so about 717 MiB of transaction memory). So
 A full run of several scenarios needs more, as `harness/load_memory.py` prints.
 
 **When a load would not fit.** It is refused before it writes anything, so the store keeps what it
-held. The gate command and a run exit 2, and the message names the setting and both figures, for
+held. A run, and a gate with `--publish`, exit 2, and the message names the setting and both figures, for
 example: *the server allows 717.0 MiB (dbms.memory.transaction.total.max = 717.00MiB)*. Raise the
 heap, or the setting it names.
 
@@ -918,7 +927,7 @@ be read is left out of the list, and the page's log says why, while the others s
 An AI coding assistant can ask knowgov the gate's question itself, before it writes anything:
 *may I build on this?* It does so through MCP, the Model Context Protocol, a standard way for an
 assistant to call tools a local program offers. `harness/mcp_server.py` is that program. It offers
-sixteen tools, and all of them only read:
+seventeen tools, and all of them only read:
 
 | Tool | What the assistant asks | What it gets back |
 |---|---|---|
@@ -937,6 +946,7 @@ sixteen tools, and all of them only read:
 | `document_statements` | What does this document say, and what was built on it? | the statements the loaded scenario holds from a document (an artefact path; a folder by its path ending in `/`), each with its key, value, status, version and the document's fragments it rests on, and the derived outputs that used it; the versions held, and with `version` only that one's; refused while a run loads the store |
 | `scenario_runs` | Which scenarios have been run, in which mode, and what did they show? | every scenario of your subject with its title and card line; what the record holds for it (deterministic results and the gate's verdict, the arms with how many runs and which model, the extra sources the subject declares); its runs newest first, each as its folder's `run.json` describes it (mode, model, as-of date, who started it, `page` or `mcp`, start, end, status, and the verdict of its results), or inferred, flagged `inferred`, for a folder from before `run.json`; the scenario the store holds and when it was loaded; and the run loading the store now, if any. Replay is not a run: it is the record shown, and nothing records it |
 | `scenario_result` | What did this record or this run show? | what the page's Replay shows for one source that `scenario_runs` lists (the record, an extra source, or a run): the gate's verdict and why, the date it read reviews on, every required key's level, and each arm's runs with its decision and oracle result. It reads that source's files, never the store, and says so: it is not what the store holds now |
+| `list_subjects` | Which subjects can I ask about? | every subject under `KG_SUBJECTS` by its id, the scenario the shared store holds for each, and which tools are store-backed; the one tool that takes no `subject` |
 | `subject_check` | Would this subject I am scaffolding load, and do its keys match what its documents say? | the report `tools/check_subject.py` prints for the same files, made by that tool's own functions against your register: unknown tables and fields, a task with no scenario, a key that is not `entity\|predicate`, a `register_map.toml` row naming a node your register does not hold or an owner of none of its nodes, and what each document yields, with a *did you mean* for a required key no document yields. The assistant passes the proposed `subject.toml`, `register_map.toml`, `scenarios.toml` and the text of every document the manifest names (by the path the manifest gives, at most `../../` up from the subject folder). A proposed manifest that names a file outside that, by an absolute path or by climbing further, is refused before anything is read. The files exist only for the call, in a temporary folder removed afterwards; nothing is stored. A call carries at most 64 documents and 1 MB of text. It is for an assistant with no shell, such as Claude Desktop; in Claude Code, `tools/check_subject.py` on the branch does the same |
 
 While a run of your subject is loading the store (its `run.json` reads `running` and the page has
@@ -984,8 +994,10 @@ client asks `server/discover` and every request is self-contained, and the older
 **Which subject it answers for.** The server answers for one subject, the one `KG_SUBJECT` names.
 `KG_SUBJECT` is the *path* to the subject's folder (its root, the folder holding `subject.toml`),
 not the subject's id: `subjects/cargo_quote` from a knowgov checkout, `/repo/subjects/cargo_quote`
-inside the container, never the bare `cargo_quote`. Inside the stack's container it is already set
-to the subject the page opens on.
+inside the container, never the bare `cargo_quote`. On the public stack it is already set to the
+subject the page opens on. On your instance's stack it still names the public CargoQuote subject,
+which your page does not list. Start the stack with `KG_SUBJECT=/instance/subjects/<id>` or name
+your subject's id in each call (`subject`).
 
 **Which scenario it reads.** The server reads whatever scenario the store holds: the one the page
 or a run loaded last. Have the assistant pass `scenario` (for example `"S1"`) in every call to
@@ -1018,12 +1030,12 @@ route is the one that works with the stack as it stands. For a stack on another 
 machine*, below. For a stack started under another project
 name (`docker compose -p knowgov-jef`, as the compose file's notes show), add the same `-p` after
 `docker compose`. To ask about another subject than the one the server started on, name it on the
-call: every tool takes `subject`, an id `list_subjects` names (below).
+call: every tool but `list_subjects` takes `subject`, an id `list_subjects` names (below).
 
 ### One registration for every subject
 
 One registration of each server answers for every subject under `KG_SUBJECTS` (task-0157,
-decision-0013). Every tool of the reader and of `knowgov-runs` takes an optional `subject`: the id
+decision-0013). Every tool of the reader but `list_subjects`, and every tool of `knowgov-runs`, takes an optional `subject`: the id
 in a subject's `subject.toml`, never a path, resolved under `KG_SUBJECTS` as the page resolves
 `?subject=`. A call that names none answers as before, for `KG_SUBJECT`. `list_subjects` names
 every subject, the scenario the shared store holds for each, and which tools are store-backed.
@@ -1438,7 +1450,7 @@ spec commit is read under `codegen` like the other stages. Claude Code blocks a 
 |---|---|---|
 | 0, PROCEED | the action goes ahead | the action goes ahead |
 | 1, a finding | **blocked**, naming the findings and the route to approval: the key's owner answers it, a reviewer who is not the author settles it | **blocked**, the same |
-| 2, cannot run (store unreachable, no subject, a timeout) | **blocked**, naming the gate as unavailable | goes ahead, with a warning that says FAIL-OPEN |
+| 2, cannot run (no subject, rdflib missing, a timeout; for a gate that uses the store, an unreachable store) | **blocked**, naming the gate as unavailable | goes ahead, with a warning that says FAIL-OPEN |
 | a report for another task, or for `keys` | **refused**, blocked | **refused**, blocked |
 
 A report for `keys` is one the MCP server's `gate_verdict` gives for a set of keys the assistant chose
@@ -1449,11 +1461,12 @@ that hit it: the route is the owner's answer, or an exception from whoever owns 
 
 **Its settings.** The store, the subject, the scenario and the date are the gate's own `KG_*`
 variables, as "Running the gates in your pipeline" lists them, in the environment Claude Code starts
-with (the managed settings' `env` key, or the engineer's shell). Keep one store per worktree:
-the gate loads the scenario before it reads, so two sessions sharing one Neo4j would overwrite each
-other's load. Use rdflib in memory (`KG_STORE=rdflib` and no `KG_RDFLIB_FILE`: every run loads its
-own), a `KG_RDFLIB_FILE` inside each worktree, or one compose project per worktree; and pass the MCP
-tools' `scenario` argument, so a read of another session's load is refused.
+with (the managed settings' `env` key, or the engineer's shell). The hook's gate loads the scenario
+into a private copy in memory and leaves the store `KG_STORE` names as it was, so two sessions can
+share one Neo4j. The exception is a gate set to use that store: `KG_PUBLISH=1` in that environment,
+or one told to read the store as the instance left it. Then keep one store per worktree: rdflib in memory (`KG_STORE=rdflib` and no `KG_RDFLIB_FILE`: every run
+loads its own), a `KG_RDFLIB_FILE` inside each worktree, or one compose project per worktree. Either
+way, pass the MCP tools' `scenario` argument, so a read of another session's load is refused.
 
 `python3 knowgov_hook.py run -- COMMAND` maps any other check under the gate contract the same way,
 and `decide()` is the mapping for a script that imports it. This repository's tests run the script
@@ -1500,3 +1513,41 @@ What it does not see: a shell command that writes the same file (`harness/captur
 `review` are such commands, run by the person whose act they record), and anything written outside
 the assistant. The hook guards the assistant's file tools; the pull request, reviewed by someone
 other than its author, guards the rest.
+
+## What stays stable from 1.0: the contracts
+
+A **contract** is a part of knowgov your instance is allowed to depend on: a flag your pipeline
+passes, a file name it writes, a report field it reads. knowgov follows version numbers that say
+when one changes. Release 0.9.0 freezes the contracts, and 1.0.0 promises to keep them. Which
+parts count is decided in the project's record, decision-0016, point 3, quoted here as accepted on
+2026-11-06:
+
+> **The contracts at 1.0** are decision-0003 §2's list (the gate command's exit codes and flags, the JSON shapes under `harness/schemas/`, the instance layout, the store port, the subject manifest format), and also:
+> - the MCP reader's and the runs server's tools, prompts, and their inputs and outputs;
+> - the `KG_*` settings that `instance/README.md` or `docs/security.md` documents (an undocumented setting is not a contract);
+> - the page's HTTP API, as `demo/README.md` documents it;
+> - the inputs and outputs of `instance/ci/`: the action, the GitLab include, the shell wrappers, the hooks' settings snippets;
+> - the image's name and tag scheme (decision-0003 §3);
+> - the format versions of the instance's inputs, and the ieam-register format versions an instance's register may be in.
+
+In plain English, and where each is described:
+
+| You can rely on | Described in |
+|---|---|
+| the gate command's flags and its exit codes: 0 no finding at or above `--fail-on`, 1 a finding at or above it, 2 the gate could not run | "Running the gates in your pipeline", above |
+| the shape of every JSON report, each pinned by a schema | `harness/schemas/` |
+| the folders and files of your instance | "The layout", at the top |
+| what a store must offer the platform (the store port) | `harness/store.py` |
+| the fields of `subject.toml` | the [subjects guide](../subjects/README.md) |
+| the tools and prompts of both assistant servers (the reader and the runs server), what they take and what they return | "Letting an AI assistant ask the gate", above |
+| the `KG_*` settings this file or [`docs/security.md`](../docs/security.md) names | here and there |
+| the page's `/api/*` routes | the [demo's guide](../demo/README.md) |
+| the CI action, the GitLab include, the shell wrappers and the hooks' settings files | "Running the gates in your pipeline" and "A fail-closed hook for Claude Code", above |
+| the image's name and tags: `ghcr.io/fdurieux/knowgov:<tag>` for a release, `:latest` for the last main | the [README](../README.md) |
+| the format version each of your input files declares (built: decision-0023, task-0174): "A file with no number is read as the current version. This holds until knowgov 1.0", "A file at the current version, or an older one, is read", and "A file with a newer number is refused" | "Format versions", above |
+| which ieam-register format versions your register may be in | not yet stated |
+
+Two things follow from the quoted text. A `KG_*` setting that neither this file nor
+`docs/security.md` names is not a contract, so do not build on it. A setting the demo's guide
+alone describes is a convenience of the demo, not a promise. And the page's HTTP API is the
+contract only as far as the demo's guide documents it.

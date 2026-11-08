@@ -87,22 +87,24 @@ node labelled `Register` plus one of `RegNode`, `RegLink`, `RegType`,
 the digest of the TOML file each came from. It is derived, never the
 record: a deterministic or arms run wipes the whole store, so the
 projection vanishes with it and the chip says *register not projected*
-until you load it again. Eight saved Cypher queries read it: which tag
-is projected, the impact walk from the register's default start as rows
-and as paths (the walk `tools/impact.py` makes, which the impact panel
-also carries for the id you typed, with a copy button), coverage rule C1
-with the exception joined, and the links that cite a kit document joined
-to the harness's own `Artefact` by path, the one query that crosses the
-two namespaces and the reason to share one database. Three more go where
-the walk does not: what rests on a capability, what touches an
-information node, and from an application or module to the documents its
-approved links cite, their assertions and the code derived from them
-(the adopter's guide, [`docs/guide.md`](../docs/guide.md), section 8,
-explains each). The impact panel offers the register's two walks,
+until you load it again. Twelve saved Cypher queries read it. Four read the
+register alone: which tag is projected, the impact walk from the register's
+default start as rows and as paths (the walk `register/tools/impact.py` makes,
+which the impact panel also carries for the id you typed, with a copy button),
+and coverage rule C1 with the exception joined. Three cross into the harness's
+own nodes, the reason to share one database: the links that cite a kit
+document, joined to the harness's own `Artefact` by path; from an application
+or module to the documents its approved links cite, their assertions and the
+code derived from them; and from an information node to the statements its
+cited anchors name. Two more go where the walk does not: what rests on a
+capability, and what touches an information node (the adopter's guide,
+[`docs/guide.md`](../docs/guide.md), section 8, explains each). The impact panel offers two of the register's three walks,
 *dependants* (what rests on a node) and *realisers* (what implements a
 capability), each with or without *children*, the walk also started from
-every approved descendant by parent (`tools/impact.py --walk`,
-`--children`); three saved queries carry the other three: the walk with
+every approved descendant by parent (`register/tools/impact.py --walk`,
+`--children`). The third, *thread* (what a journey step uses, down to the
+data), runs from the command line only
+(`python demo/register/tools/impact.py --from JRN-0002 --walk thread`); three saved queries carry the other three: the walk with
 children, the realiser walk, and the realiser walk with children. Every saved query
 carries a marker, *runs now* or *needs S6 loaded deterministically*,
 *needs S4 loaded*, *needs the register projected*: the store holds one
@@ -236,8 +238,8 @@ reaches its Neo4j Browser by. With the default stack already running on
 cd "$HOME/knowgov/demo" && KG_SUBJECT=/repo/subjects/jef_data_load KG_PORT_APP=8081 KG_PORT_BROWSER=7475 KG_PORT_BOLT=7688 KG_BROWSER_URL=http://localhost:7475 docker compose -p knowgov-jef up -d --build --wait && open http://localhost:8081
 ```
 
-In plain English: the first three variables pick the subject the page
-opens on and move the three ports by one so nothing collides; the fourth
+In plain English: the first four variables pick the subject the page
+opens on and move the three ports by one so nothing collides; the fifth
 tells the page where its Browser links should point; `-p knowgov-jef`
 names the second stack so Docker keeps its containers and its database
 apart from the first. The J-F page then opens on port 8081, its Browser
@@ -308,12 +310,13 @@ agent. It loads verifications and approvals, matching the kit's test
 scenarios to the statements they exercise and the maintainer's dated
 review to the rest, which moves matched assertions to *verified* and then
 *approved*. Scenario S5 also adds one model-proposed assertion, attributed
-to the model and linked to the open decision it claims to fill. Then the
-seven rules run: one checks the graph's structure and only reports; the
+to the model and linked to the open decision it claims to fill. Then six
+of the seven rules run: one checks the graph's structure and only reports; the
 others promote agreeing statements from different documents to
 *validated*, mark contradicting pairs *disputed* and add conflict gaps,
 and raise gaps for vague wording, for declared or undetectable missing
-knowledge, and for unverified statements.
+knowledge, and for unverified statements. The seventh, staleness, runs only
+when a changed document is loaded again, as in S6's second stage.
 
 S6 has a second stage. The generated code from S1 is registered as a
 derived output pointing at its assertions (the demo's runner copies the
@@ -392,12 +395,12 @@ application.
 |---|---|---|---|---|
 | **Replay** | shows the committed results of that scenario | nothing | instant | none |
 | **Deterministic** | re-runs the loading, the rules and the gate (measures D1 to D6) against the demo's own Neo4j, then shows the fresh numbers next to the record's | the database container (started with the app) | about five seconds | none; no network |
-| **Arms** | re-runs the two assistants once each (`--n 1`; the record used five runs) against the freshly loaded store, grades them with the kit's oracle, shows the result | an OpenAI API key in `OPENAI_API_KEY` | one to two minutes | two model calls of a few thousand tokens each, on your provider's bill; the page shows the tokens |
+| **Arms** | re-runs the two assistants once each (`--n 1`; the record used five runs) against the freshly loaded store, grades them with the kit's oracle, shows the result | a model key (`OPENAI_API_KEY` for the record's row) and the worker, started with `--profile arms` on Linux with Landlock (see step 2) | one to two minutes | two model calls of a few thousand tokens each, on your provider's bill; the page shows the tokens |
 
-The Arms button stays greyed out until the key is set. A re-run of either
+The Arms button stays greyed out until a key is set and the worker is running. A re-run of either
 kind writes into a dated folder, `runs/<subject>/<date-time>/`,
 and never into the vendored record under `subjects/cargo_quote/`, which is pumllint's.
-The folder describes itself in `run.json`, written when the run starts and
+The folder describes itself in `run.json`, written when the run starts, every 30 seconds while it runs (`heartbeat_at`), and
 again when it ends: the scenario, the mode, the model row, the as-of date,
 who asked (`page`, or `mcp` for a run started through MCP), the start and
 end, the status and the exit code. It never holds a key, a token or the
@@ -417,7 +420,7 @@ the baseline arm (B) the one that received the documents only.
 
 1. You click a scenario card.
 2. The web server opens the committed result files of that scenario
-   under the vendored record, `subjects/cargo_quote/kg_experiment/results/`.
+   under the vendored record, `subjects/cargo_quote/vendor/kg_experiment/results/`.
 3. It renders them as the report view: the plain-English block, the
    pipeline picture, the systemic model, the bundle, the generated code
    and the oracle's grades.
@@ -439,9 +442,10 @@ that one scenario. The harness then does, in order:
    entities, and every assertion at status *proposed*.
 4. Loads the verifications and approvals, which move the matched
    assertions to *verified* and then *approved*.
-5. Runs the seven rules: agreeing assertions are promoted, contradicting
+5. Runs six of the seven rules: agreeing assertions are promoted, contradicting
    pairs are marked *disputed*, and gaps are raised for vague, missing
-   or unverified knowledge.
+   or unverified knowledge. The seventh, staleness, runs only when a changed
+   document is loaded again (S6's second stage).
 6. Takes the census of the store (D2), runs the shape checks (D4),
    computes the three-valued answer for three keys (D5), and runs the
    gate for its verdict (D6). For S6 it also runs the second stage: the
@@ -476,8 +480,8 @@ The harness then:
 6. Writes the run into a dated folder under `runs/`, with
    the model that answered named on every run.
 
-This mode needs the OpenAI key in the environment; the button stays
-greyed out without it. It takes one to two minutes and costs a few
+This mode needs a model key in the environment and the worker running;
+the button stays greyed out without either. It takes one to two minutes and costs a few
 cents. A run answered by a model other than the record's is marked in
 red as a deviation, because its numbers are no longer comparable with
 the record's (see the next section).
@@ -486,7 +490,7 @@ the record's (see the next section).
 |---|---|---|---|
 | Replay | nothing; the committed files are read | nothing | instant |
 | Deterministic | load, rules, gate | the Neo4j container | about five seconds |
-| Arms | all of the above, then one call per arm and the oracle's grading | the OpenAI key | one to two minutes |
+| Arms | all of the above, then one call per arm and the oracle's grading | a model key and the worker | one to two minutes |
 
 ## Which model the Arms mode calls
 
@@ -626,13 +630,15 @@ page says so in red. Two ways out:
 (the J-F data load does) runs each arm as a loop of turns instead of one
 reply: the model has four tools, read a document, write a file into the
 run's sandbox, run the scenario's own feature files over the sandbox, and
-finish with its decision. Model-written code runs only inside that
-sandbox, a folder under the run's directory, and only through the suite
-command the subject's oracle script names; nothing else executes it. Each
+finish with its decision. The model's files are written into that
+sandbox, a folder under the run's directory. They run only in the
+contained worker, on a copy, and only through the suite the subject's
+oracle script names; nothing else executes them. Each
 run is bounded by a ceiling in calls, tokens and seconds, instance
 configuration read from `KG_AGENT_MAX_CALLS`, `KG_AGENT_MAX_TOKENS` and
-`KG_AGENT_MAX_SECONDS` (defaults 30, 1,500,000 and 1500; tokens are the
-prompt and reply tokens the API reports, added up); a run that reaches it
+`KG_AGENT_MAX_SECONDS` (defaults 30, 1,500,000 and 1500; tokens are what
+the endpoint reports as the call's total, or prompt plus reply where it
+reports no total); a run that reaches it
 ends with decision abstain and the reason. Every turn and tool call is
 written to a trace file beside the run, and the Generate box shows it.
 The pristine suite, the oracle, grades the sandbox afterwards as it
@@ -641,8 +647,8 @@ is an index, not the whole bundle or every document: the governed arm reads
 a key's knowledge through `read_knowledge(key)` and the baseline arm a
 document through `read_document(path)`, every read logged, so the gate
 box shows which keys below verified a run read and which it marked as
-assumptions, and a turn resends far less. The page shows prompt, cached
-and reply tokens per run and per turn, as the endpoint reports them.
+assumptions, and a turn resends far less. The page shows prompt, reply
+and other tokens per run and per turn, as the endpoint reports them.
 
 **Tokens a thinking model spends.** A model that reasons before it
 answers spends tokens on that thinking, and endpoints report them in
@@ -957,7 +963,7 @@ is only a reading of the kernel's name (Ubuntu's cloud kernels end in `-aws`,
 **worker: not attested** means no confined worker is running; hover for the
 reason. A script reads the same from `GET /api/scenarios` as `"worker"`.
 
-The last chip in the header names the knowgov the page runs. It shows the
+The chip after the worker chip names the knowgov the page runs. It shows the
 version from `VERSION`, then how far the running code is past that release,
 then its commit. For example:
 
@@ -999,8 +1005,7 @@ unknown. Scripts read the same values from `GET /api/subjects` as
 export OPENAI_API_KEY=sk-your-real-key-here
 ```
 
-Optionally choose a database password other than the default. The stack reads
-`KG_STORE` too, the store adapter behind the harness's port (`neo4j`, the default, or
+The stack reads `KG_STORE` too, the store adapter behind the harness's port (`neo4j`, the default, or
 `rdflib`: an in-memory graph that needs no database container, no Browser link and no saved
 Cypher; the deterministic mode still re-runs and compares), `KG_SUBJECT`: the subject root inside the container, `/repo/subjects/cargo_quote`
 unless you set it ([`subjects/README.md`](../subjects/README.md) says what a subject holds),
@@ -1018,7 +1023,8 @@ export KG_NEO4J_PASSWORD=choose-a-password
 (7474) and bolt (7687) on `127.0.0.1` only, so they answer on this machine and nowhere else. On a
 laptop nothing changes: `http://localhost:8080` works as before. To reach them from other machines,
 set `KG_BIND` to the address to publish on (`0.0.0.0` for every interface, or one of the host's
-addresses) and choose a password: with a wider bind the stack refuses to start while the Neo4j
+addresses), set `KG_DEMO_HOST` to the address people type in their browser (the page refuses any
+other address, with 421), and choose a password: with a wider bind the stack refuses to start while the Neo4j
 password is the default, and `docker compose logs neo4j` says why. Neo4j takes its password when
 its data volume is first created, so if the stack ran before with the default, run
 `docker compose down -v` once before starting with the new password.
@@ -1093,13 +1099,14 @@ pumllint's demo stack if you ran it before (`docker compose down` in
 
 **4. Use it.** In the browser at `http://localhost:8080`:
 
-- the two chips in the header say whether the store is reachable and
-  whether the Arms mode is enabled;
+- the chips in the header say whether the store is reachable, whether
+  the Arms mode is enabled, where model code would run, which knowgov the
+  page runs, and whether the register is projected;
 - click a scenario card to **Replay** its recorded results;
 - click **Deterministic** to re-run D1 to D6 against the container's
-  Neo4j (about five seconds); the run's log appears on the left, and the
+  Neo4j (about five seconds); the run's log appears in a banner above the report, and the
   view switches to the new demo run when it finishes;
-- click **Arms** (needs the key) to re-run both model arms once; one to
+- click **Arms** (needs a key and the worker, see step 2) to re-run both model arms once; one to
   two minutes, a few cents;
 - use the **source** dropdown in the report header to switch between the
   record, S6's re-run, and any demo run;
@@ -1139,7 +1146,7 @@ git -C "$HOME/knowgov" pull --ff-only && docker compose --project-directory "$HO
 ```
 
 If you do this often, put it in your shell profile once as an alias
-(`~/.zshrc` on a Mac) and type `kgdemo` afterwards:
+(`~/.zshrc` on a Mac) and type `knowgov` afterwards:
 
 ```bash
 alias knowgov='git -C "$HOME/knowgov" pull --ff-only && docker compose --project-directory "$HOME/knowgov/demo" up -d --build --wait'
@@ -1168,7 +1175,7 @@ two addresses, and open the demo.
 
 **Another laptop, without building.** The compose file names a released
 image, `ghcr.io/fdurieux/knowgov:<version>`, pinned by its digest
-(task-0092); the repository also publishes every merge as `:latest` and
+(task-0092); the repository also publishes every merge that touches the platform as `:latest` and
 as the commit's short SHA, which you can name in its place. So the two
 ways to start differ: `docker compose up --build` in this directory builds
 the checkout you have (main, or whatever you checked out), while a plain
@@ -1198,7 +1205,8 @@ the default on a wider bind), a `KG_PAGE_TOKEN` of your own (without it the page
 wider bind), and `KG_BROWSER_URL=http://<the instance's public address>:7474`
 exported so the demo's "Open Neo4j Browser" link and the impact panel's
 Browser links point at the instance rather than at your own machine, and
-`KG_DEMO_HOST=<the instance's public address>` so the Browser is allowed
+`KG_DEMO_HOST=<the instance's public address>` so the page answers for that
+address (it refuses any other, with 421) and the Browser is allowed
 to fetch the impact panel's guides from the page. **Restrict the security group to your own
 IP address** for ports 8080, 7474 and 7687: the demo page's reports have no
 login (only its runs ask for the token), and port 7474 is a live database console protected
@@ -1307,7 +1315,8 @@ once per shell with `export COMPOSE_PROFILES=claude,arms`; then a plain
   self-check again after an update.
 - *Stop and start again.* `docker compose down` removes the containers and
   keeps the Neo4j data and the demo runs; `up -d --wait` brings them back.
-  `down -v` deletes those volumes as well. The stack has no restart policy,
+  `down -v` deletes the Neo4j data volume as well; the demo runs stay in
+  `~/knowgov/runs`. The stack has no restart policy,
   so after the instance is stopped and started, it is down until you run
   `up` again.
 - *Disk.* `df -h /` shows what is left; `docker system df` what the images
@@ -1328,8 +1337,8 @@ once per shell with `export COMPOSE_PROFILES=claude,arms`; then a plain
   (`docker compose -p knowgov down` from any folder for the local stack)
   and stop any earlier `ssh` that half-bound the port, then open the tunnel
   again. Do not tunnel another local port to the instance's 8080: the page
-  answers only for the address it is published on, and would show but
-  refuse runs. To use another port, start the instance's stack with
+  answers only for the address and port it is published on, and refuses
+  every request from another one, the page itself included (421). To use another port, start the instance's stack with
   `KG_PORT_APP=<port>` and tunnel that port to the same one.
 
 **The OpenAI key.** It is read from the environment of the shell that
@@ -1442,7 +1451,7 @@ self-check fails if a key-shaped variable reaches it.
 
 | path | what |
 |---|---|
-| `docker-compose.yml` | the two services, with the registry image for the app |
+| `docker-compose.yml` | the four services (Neo4j and the app; the worker and the LiteLLM gateway only with their profiles), with the registry image for the app and the worker |
 | `docker-compose.override.yml` | local build of the app image from this checkout, and demo runs written into the checkout |
 | `Dockerfile`, `Dockerfile.dockerignore` | the app image: Python 3.12, this repository installed, the harness's dependencies at the record's versions |
 | `app/server.py` | the web server (standard library only): the menu, the report view, starting a re-run, the store's status |
@@ -1502,8 +1511,8 @@ pumllint out at the tag and run:
 python tools/vendor_subject.py ../pumllint
 ```
 
-Until a pumllint tag carries the experiment, `--allow-untagged` copies a
-commit and the note says so.
+To copy a commit that carries no tag, pass `--allow-untagged`; the note
+then says so.
 
 **The harness, after any change to it.** Run one scenario
 deterministically from the page, then compare the run folder with the
@@ -1525,8 +1534,10 @@ its scenario data says. Without a database, `KG_STORE=rdflib` runs the same
 check in memory.
 
 **The published image.** Nothing to do by hand. Every merge to `main`
-that touches the demo rebuilds `ghcr.io/fdurieux/knowgov` and publishes it;
-another machine picks it up with `docker compose pull`.
+that touches the demo, the harness, the subjects, the tools or the instance
+layout publishes `ghcr.io/fdurieux/knowgov` as `:latest` and as its short
+commit id. The compose file stays pinned to the last release, so
+`docker compose pull` fetches that release until a release moves the pin.
 
 | what | when | command |
 |---|---|---|

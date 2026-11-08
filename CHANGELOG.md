@@ -360,6 +360,13 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **The adopter docs held against the code** (task-0230, doc-0028 G9-9 and P4). The nine adopter-facing
+  documents were checked against the code, and every stale claim found is corrected: commands, flags,
+  settings, paths, routes, counts, defaults and described behaviour, in the READMEs, `docs/guide.md`,
+  `docs/security.md` and `docs/lighthouse-evaluation.md`. `tests/test_adopter_docs.py` now fails on any
+  of the following that the code does not bear out: a `--flag`, a command's options, a `KG_*` setting,
+  a repository path or link, a cited test or an `/api` route. `instance/README.md` ends with what stays
+  stable from 1.0, quoting decision-0016 point 3. No code, contract or pin changes.
 - **`tools/preload_check.py` exits 2 when it cannot write `-o`** (task-0228, doc-0030 F6). An unwritable
   report path (a missing folder) exited 1, the finding's code, with a traceback; it is now a failure to run,
   exit 2, one `cannot run: -o ...` line and no report. The command exits through the check tools' outcomes
