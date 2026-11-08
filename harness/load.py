@@ -165,10 +165,14 @@ def _record_preload(st, kit: dict[str, str], version_tag: str) -> dict | None:
     report = preload.read_report(path)
     keys = [p for p in kit if p in FAMILY and p in STORE]
     found = preload.verdicts(SUBJECT, kit, keys, report, path.name)
+    gaps = {}
     for key, v in found.items():
         st.record_preload(f"V:{key}:{version_tag}", v)
-    return {"report": path.name, "documents": [{"artefact": k, "version": version_tag, **{f: v[f] for f in ("state", "tool", "tool_version", "why")}}
-                                               for k, v in sorted(found.items())]}
+        gaps[key] = preload.lint_gaps(key, version_tag, v)   # task-0216: each finding a gap, owned through its keys
+        for g in gaps[key]:
+            st.record_lint_gap(g)
+    return {"report": path.name, "documents": [{"artefact": k, "version": version_tag, **{f: v[f] for f in ("state", "tool", "tool_version", "why")},
+                                                "lint_gaps": len(gaps[k])} for k, v in sorted(found.items())]}
 
 
 def load_inferred(st, scenario: str, inferred: dict):
@@ -419,6 +423,9 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
                                            "unbound", to=[{"id": b["id"], "value": ru["value"], "sha256": ru["sha256"]}]))
         for key in sorted(settled):
             counts["settled"] += st.settle_conflicts(key, rid)
+        for c in rv.get("resolves", []):   # task-0216: a lint gap's resolution, by its document's owner
+            st.resolve_lint_gap(c["gap"], c["resolution"], rid, rv["by"], on, rv["record"], c["note"])
+            counts["resolved"] = counts.get("resolved", 0) + 1
         for c in rv["closes"]:
             if c.get("already"):   # task-0222: closed by stage 1 on the same declaration, so closing again is a no-op
                 continue

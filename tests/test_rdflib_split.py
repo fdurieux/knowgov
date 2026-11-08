@@ -72,7 +72,9 @@ OLD_STEPS = [
 ]
 # Steps added after the split, each in one job: the same rule holds them
 ADDED = ["Two subjects sharing a scenario id never answer each other's gates (task-0195): the held subject on a file-backed rdflib store",
-         "One id per conflict (task-0223, decision-0020), every CargoQuote scenario loaded fresh twice, each conflict gap:conflict:<key>:<a>~<b>, ordered, S4's shown"]
+         "One id per conflict (task-0223, decision-0020), every CargoQuote scenario loaded fresh twice, each conflict gap:conflict:<key>:<a>~<b>, ordered, S4's shown",
+         "Pre-load findings as routed gaps (task-0216), on rdflib, the example instance's planted SEQ002 a lint gap with its owner and "
+         "route and no level moved, held by the baseline, resolved by its owner, a slip in the re-lint delta, kept by the round trip"]
 SHARED = OLD_STEPS[:3] + ["The outcomes, machine-readable, in the job's summary (task-0159)",
                           "The outcome files kept as an artifact, 14 days, outcomes JSON only (task-0159)"]
 

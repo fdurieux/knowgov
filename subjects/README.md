@@ -112,7 +112,9 @@ require_approved = true              # optional, default false: the intended bar
                                      # "intended" finding (major) names its owner and route (capture.routing),
                                      # and the verdict counts it as the class counts a key below verified
                                      # (QUALIFIED, or BLOCKED past max_unverified_share). A behaviour verified
-                                     # by execution on the original is shown to hold, not intended by anyone
+                                     # by execution on the original is shown to hold, not intended by anyone.
+                                     # Such a key never blocks outright: a class that wants it to block lowers
+                                     # max_unverified_share (0 blocks on the first one)
 
 [three_valued]
 keys = ["S-review|notified", "..."]   # D5, measured on the scenario that asks for it

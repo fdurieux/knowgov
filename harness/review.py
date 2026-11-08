@@ -23,6 +23,12 @@ it is written (``python harness/capture.py review FILE`` checks and writes it):
     gap = "gap:declared:OD-1"
     sha256 = "..."               # the declaration's text, digested
 
+    [[resolves]]                 # a pre-load finding kept as a gap (task-0216, decision-0018 point 5)
+    gap = "lint:behavior/quote_flow.puml@v1:0123456789abcdef"
+    resolution = "choice"        # choice (the record is the decision) | exception | open; a slip is a new version
+    sha256 = "..."               # the finding's text, digested
+    note = ""
+
 A ruling binds to content, not to its id (task-0199, doc-0030 F2): every load binds it (``bind``) to the statement
 of its key with its value and digest, the one it names when that one still holds them, else the one
 statement that does (a reordered table, a renumbered answer); one that changed or vanished is not applied,
@@ -60,6 +66,7 @@ import tomllib
 from pathlib import Path
 
 OUTCOMES = ("approved", "rejected", "referred")
+RESOLUTIONS = ("choice", "exception", "open")   # task-0216: a lint gap's resolution by review; a slip is a new version
 PERSON = "elicited"          # the basis a capture's statements carry (harness/load.py load_captures)
 NEVER_PROMOTED = ("inferred", "assumed", "hypothesised")   # a ruling may reject or refer one, never approve it (I4)
 CURRENT = ("proposed", "validated", "verified", "approved", "disputed", "rejected")   # what a ruling lands on: never invalidated
@@ -239,11 +246,13 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
     by, on, record = str(r.get("by", "")), _date(r.get("on")), str(r.get("record", "")).strip()
     given = [dict(x) for x in doc.get("ruling", [])]
     given_closes = [dict(x) for x in doc.get("closes", [])]
+    given_resolves = [dict(x) for x in doc.get("resolves", [])]
     rulings: list[dict] = []
     closes: list[dict] = []
+    resolves: list[dict] = []
     skipped: list[dict] = []
     norm = {"by": by, "on": on, "record": record, "scenario": str(r.get("scenario", "")), "rulings": rulings, "closes": closes,
-            "skipped": skipped}
+            "resolves": resolves, "skipped": skipped}
     if handles is None:
         return ["no issued-handle list in the register (decision 0009): a ruling needs an issued handle"], norm
     h = handles.get(by)
@@ -260,8 +269,8 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
             errs.append(f"review.by {by} was issued on {h['issued']}, after the review's date {on}")
         if h["withdrawn"] and h["withdrawn"] <= on:
             errs.append(f"review.by {by} was withdrawn on {h['withdrawn']}")
-    if not given and not given_closes:
-        errs.append("the review has no ruling and closes no gap")
+    if not given and not given_closes and not given_resolves:
+        errs.append("the review has no ruling, closes no gap and resolves no lint gap")
     roles, unit = (h["roles"], h["unit"]) if h else (set(), "")
 
     briefs: dict[str, dict] = {}
@@ -358,6 +367,35 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
                         "only that owner closes it, so the register needs the unit and a handle of it with closes")
         elif unit not in named_units:
             errs.append(f"{where}: the declaration names {named!r} ({', '.join(named_units)}) as its owner; {by}'s unit is {unit}")
+
+    lint = {g["id"]: g for g in st.lint_gaps()} if given_resolves else {}
+    for i, c in enumerate(given_resolves, 1):   # task-0216: a lint gap resolved by its document's owner
+        gid, res = str(c.get("gap", "")), str(c.get("resolution", ""))
+        where = f"resolves {i} ({gid})"
+        if res not in RESOLUTIONS:
+            errs.append(f"{where}: resolution {res!r} is not one of {', '.join(RESOLUTIONS)} (a slip is a new version of the document, "
+                        "which a re-lint shows; no review records it)")
+        g = lint.get(gid)
+        if g is None or (c.get("sha256") is not None and str(c["sha256"]) != g["sha256"]):
+            why = "gone" if g is None else "changed"
+            if strict:
+                errs.append(f"{where}: the store holds no lint gap {gid!r}" if why == "gone" else
+                            f"{where}: the finding's text is no longer the one the resolution records")
+            else:
+                skipped.append({"act": "resolve", "n": i, "statement": gid, "outcome": res, "key": "", "value": None,
+                                "sha256": c.get("sha256"), "why": why,
+                                "to": [] if g is None else [{"id": gid, "value": g["text"], "sha256": g["sha256"]}]})
+            continue
+        keys = sorted({a["key"] for a in st.artefact_assertions(g["artefact"]) if a.get("version") in (None, g["version"])})
+        resolves.append({"gap": gid, "resolution": res, "note": str(c.get("note", "")), "sha256": g["sha256"], "keys": keys, "n": i})
+        if h is None:
+            continue
+        if "closes" not in roles:
+            errs.append(f"{where}: {by} lacks the role closes, which resolving a document's finding needs")
+        allowed = sorted({u for k in keys for u in owners.get(k, [])})
+        if unit not in allowed:
+            errs.append(f"{where}: the document's owners resolve its findings ({', '.join(allowed) or 'none in the register map'}); "
+                        f"{by}'s unit is {unit}")
     return errs, norm
 
 
@@ -384,4 +422,7 @@ def review_toml(norm: dict) -> str:
     for c in norm["closes"]:
         lines += ["", "[[closes]]", f"gap = {q(str(c.get('gap', '')))}", f"sha256 = {q(str(c['sha256']))}",
                   f"note = {q(str(c.get('note', '')))}"]
+    for c in norm.get("resolves", []):   # task-0216
+        lines += ["", "[[resolves]]", f"gap = {q(str(c['gap']))}", f"resolution = {q(str(c['resolution']))}",
+                  f"sha256 = {q(str(c['sha256']))}", f"note = {q(str(c.get('note', '')))}"]
     return "\n".join(lines) + "\n"
