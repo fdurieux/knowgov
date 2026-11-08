@@ -13,16 +13,32 @@ it is written (``python harness/capture.py review FILE`` checks and writes it):
 
     [[ruling]]
     assertion = "A:cap:2026-11-02-ORG-0002-employee-1:1@capture"
+    key = "QuoteAPI|on_screening_outage"   # what the ruling ruled on (task-0199, doc-0030 H5): written by the command
+    value = "priced=yes;status=held_unscreened;notified=no;hold=true"
+    sha256 = "e3b0c442..."       # ``content_digest`` of its supporting fragments
     outcome = "approved"         # approved | rejected | referred
     note = ""
 
     [[closes]]
     gap = "gap:declared:OD-1"
+    sha256 = "..."               # the declaration's text, digested
 
-``check`` refuses a file whole, each reason naming the rule it breaks (decision-0002 point 5):
+A ruling binds to content, not to its id (task-0199, doc-0030 F2): every load binds it (``bind``) to the statement
+of its key with its value and digest, the one it names when that one still holds them, else the one
+statement that does (a reordered table, a renumbered answer); one that changed or vanished is not applied,
+and the load records it for the gate (``act`` findings, never stderr only). A close binds to its gap's
+text the same way. Read rule for a file written before 0.9.0, with no ``key``, ``value`` or ``sha256``:
+it binds by id as it did, and the gate lists it at info as bound by id only; a new review binds it.
+
+``capture.py review`` refuses a file whole, each reason naming the rule it breaks (decision-0002 point 5);
+a load refuses it whole for the same reasons, but applies the rest of a review one of whose acts no longer
+binds:
 
 - ``by`` not issued, withdrawn by ``on``, or issued after it; ``on`` in the future;
-- a ruling on an assertion the store does not hold, or an outcome not in the three;
+- a ruling on an assertion the store does not hold, or whose content is no longer the one it records, or
+  an outcome not in the three;
+- a ruling other than rejected or referred on a statement of basis inferred, assumed or hypothesised: a
+  model's statement is never promoted (doc-0030 I4);
 - a ruling on a person's statement by a handle without ``approves``, or by the handle that gave it;
 - a ruling on a document's statement, or on a disputed one, by a handle without ``closes``;
 - a ruling by a unit that does not own the key (the subject's ``register_map.toml``);
@@ -45,6 +61,9 @@ from pathlib import Path
 
 OUTCOMES = ("approved", "rejected", "referred")
 PERSON = "elicited"          # the basis a capture's statements carry (harness/load.py load_captures)
+NEVER_PROMOTED = ("inferred", "assumed", "hypothesised")   # a ruling may reject or refer one, never approve it (I4)
+CURRENT = ("proposed", "validated", "verified", "approved", "disputed", "rejected")   # what a ruling lands on: never invalidated
+EVERY = (*CURRENT, "invalidated")
 LAPSE_MONTHS = 6             # ieam-register decision 0008, lifecycle.toml [review.evidence] elicited
 
 
@@ -146,6 +165,53 @@ def gap_owner(text: str, units: dict[str, str]) -> tuple[list[str] | None, str]:
     return sorted(u for u, name in units.items() if low == u.lower() or (low and low in name.lower())), named
 
 
+def _sha(text: str) -> str:
+    import hashlib
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def content_digest(fragments) -> str:
+    """What a ruling binds to beside its value (task-0199): the sha256 of its supporting fragments' sha256s
+    (each over the fragment's text, as the load digests it), sorted, one per line. A person's answer has no
+    fragment, so its digest is the empty text's and its value carries its content."""
+    return _sha("\n".join(sorted(_sha(f.get("text") or "") for f in fragments)))
+
+
+def statement(st, aid: str) -> dict | None:
+    """``assertion_brief`` with its ``sha256`` (``content_digest``), or None when the store holds no ``aid``."""
+    b = st.assertion_brief(aid)
+    if b is None:
+        return None
+    row = next((r for r in st.key_evidence(b["key"], list(EVERY)) if r["id"] == aid), None)
+    return {**b, "sha256": content_digest((row or {}).get("fragments") or [])}
+
+
+def _stem(aid: str) -> str:
+    return aid.rsplit("@", 1)[0]
+
+
+def bind(st, ru: dict) -> tuple[dict | None, dict]:
+    """(the statement a ruling lands on, or None; how it bound). ``how["why"]``: ``content`` (the statement it
+    names, holding its value and digest), ``repaired`` (another statement holding them: a reordered table, a
+    renumbered answer), ``unbound`` (a file from before 0.9.0, bound by id), else it lands nowhere: ``changed``
+    (the statement it names, or its successor, holds another value or digest), ``gone`` (nothing of its key and
+    stem is extracted), ``ambiguous`` (several statements hold its content, none the one it names). ``how["to"]``
+    names what the store holds instead: its key's statements of the same stem, each with value and digest."""
+    aid = str(ru.get("assertion", ""))
+    key, value, digest = ru.get("key"), ru.get("value"), ru.get("sha256")
+    if key is None or value is None or digest is None:   # the read rule: a review file written before 0.9.0
+        b = statement(st, aid)
+        return b, {"why": "unbound" if b else "gone", "to": []}
+    rows = st.key_evidence(str(key), list(CURRENT))
+    same = [r for r in rows if str(r["value"]) == str(value) and content_digest(r.get("fragments") or []) == str(digest)]
+    pick = next((r for r in same if r["id"] == aid), None) or (same[0] if len(same) == 1 else None)
+    if pick is not None:
+        return statement(st, pick["id"]), {"why": "content" if pick["id"] == aid else "repaired", "to": []}
+    held = [{"id": r["id"], "value": str(r["value"]), "sha256": content_digest(r.get("fragments") or [])}
+            for r in rows if _stem(r["id"]) == _stem(aid)]
+    return None, {"why": "ambiguous" if same else "changed" if held else "gone", "to": held}
+
+
 def capture_index(capture_dir: Path) -> dict[str, dict]:
     """assertion id -> {from, on, value, note} for every captured answer (the ids load_captures gives them)."""
     out = {}
@@ -159,15 +225,25 @@ def capture_index(capture_dir: Path) -> dict[str, dict]:
 
 
 def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], units: dict[str, str],
-          captures: dict[str, dict], now: dt.date, compatible) -> tuple[list[str], dict]:
+          captures: dict[str, dict], now: dt.date, compatible, strict: bool = True) -> tuple[list[str], dict]:
     """(reasons for refusal, the normalised review). ``st`` is a loaded store; ``owners`` key -> the
-    units owning its register nodes; ``compatible`` is rules.compatible."""
+    units owning its register nodes; ``compatible`` is rules.compatible.
+
+    Each ruling is ``bind``-ed to the statement it ruled on, and each close to its gap's text (task-0199). With
+    ``strict`` (``capture.py review``, the day the file is written) an act that does not bind is a reason to
+    refuse; without it (a load) the act is set aside in ``norm["skipped"]``, with how it failed to bind, and the
+    rest is checked and applied. The normalised rulings carry ``key``, ``value`` and ``sha256`` from the store and
+    ``statement``, the id they land on; ``unbound`` marks one bound by id under the read rule."""
     errs: list[str] = []
     r = doc.get("review", {})
     by, on, record = str(r.get("by", "")), _date(r.get("on")), str(r.get("record", "")).strip()
-    rulings = [dict(x) for x in doc.get("ruling", [])]
-    closes = [dict(x) for x in doc.get("closes", [])]
-    norm = {"by": by, "on": on, "record": record, "scenario": str(r.get("scenario", "")), "rulings": rulings, "closes": closes}
+    given = [dict(x) for x in doc.get("ruling", [])]
+    given_closes = [dict(x) for x in doc.get("closes", [])]
+    rulings: list[dict] = []
+    closes: list[dict] = []
+    skipped: list[dict] = []
+    norm = {"by": by, "on": on, "record": record, "scenario": str(r.get("scenario", "")), "rulings": rulings, "closes": closes,
+            "skipped": skipped}
     if handles is None:
         return ["no issued-handle list in the register (decision 0009): a ruling needs an issued handle"], norm
     h = handles.get(by)
@@ -184,23 +260,37 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
             errs.append(f"review.by {by} was issued on {h['issued']}, after the review's date {on}")
         if h["withdrawn"] and h["withdrawn"] <= on:
             errs.append(f"review.by {by} was withdrawn on {h['withdrawn']}")
-    if not rulings and not closes:
+    if not given and not given_closes:
         errs.append("the review has no ruling and closes no gap")
     roles, unit = (h["roles"], h["unit"]) if h else (set(), "")
 
     briefs: dict[str, dict] = {}
-    for i, ru in enumerate(rulings, 1):
+    for i, ru in enumerate(given, 1):
         aid, outcome = str(ru.get("assertion", "")), str(ru.get("outcome", ""))
         where = f"ruling {i} ({aid})"
         if outcome not in OUTCOMES:
             errs.append(f"{where}: outcome {outcome!r} is not one of {', '.join(OUTCOMES)}")
-        b = st.assertion_brief(aid)
+        b, how = bind(st, ru)
+        if b is not None and strict and how["why"] == "repaired":
+            b, how = None, {**how, "why": "changed"}   # the day it is written, a ruling names the statement it rules on
         if b is None:
-            errs.append(f"{where}: the store holds no assertion {aid!r}")
+            if strict:
+                errs.append(f"{where}: the store holds no assertion {aid!r}" if how["why"] == "gone" and ru.get("value") is None else
+                            f"{where}: the store no longer holds what the ruling records ({ru.get('key')} = {ru.get('value')!r}); "
+                            f"it holds {', '.join(repr(t['value']) for t in how['to']) or 'nothing of it'}")
+            else:
+                skipped.append({"act": "ruling", "n": i, "statement": aid, "outcome": outcome, "key": str(ru.get("key") or ""),
+                                "value": ru.get("value"), "sha256": ru.get("sha256"), **how})
             continue
-        if aid in briefs:
+        if b["id"] in briefs:
             errs.append(f"{where}: ruled twice in one review")
-        briefs[aid] = {**b, "outcome": outcome}
+        briefs[b["id"]] = {**b, "outcome": outcome}
+        rulings.append({"assertion": b["id"], "outcome": outcome, "note": str(ru.get("note", "")), "key": b["key"],
+                        "value": str(b["value"]), "sha256": b["sha256"], "statement": b["id"], "n": i,
+                        "unbound": how["why"] == "unbound" and not strict})
+        if b["basis"] in NEVER_PROMOTED and outcome not in ("rejected", "referred"):
+            errs.append(f"{where}: {b['key']} is a statement of basis {b['basis']}; a ruling may reject or refer it, "
+                        "never approve it (a model's statement is never promoted; doc-0030 I4)")
         if h is None:
             continue
         key_owners = owners.get(b["key"], [])
@@ -229,13 +319,23 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
         if any(compatible(a, c, key.split("|", 1)[1]) == "conflict" for i, a in enumerate(kept) for c in kept[i + 1:]):
             errs.append(f"{key}: the statements approved disagree with each other; a settlement keeps one value")
 
-    for i, c in enumerate(closes, 1):
+    for i, c in enumerate(given_closes, 1):
         gid = str(c.get("gap", ""))
         where = f"closes {i} ({gid})"
         g = st.declared_gap(gid)
-        if g is None:
-            errs.append(f"{where}: the store holds no open declared gap {gid!r}")
+        held = _sha(g["text"] or "") if g is not None else None
+        if g is None or (c.get("sha256") is not None and str(c["sha256"]) != held):
+            why = "gone" if g is None else "changed"
+            if strict:
+                errs.append(f"{where}: the store holds no open declared gap {gid!r}" if why == "gone" else
+                            f"{where}: the declaration's text is no longer the one the close records")
+            else:
+                skipped.append({"act": "close", "n": i, "statement": gid, "outcome": "closed", "key": "", "value": None,
+                                "sha256": c.get("sha256"), "why": why,
+                                "to": [] if g is None else [{"id": gid, "value": g["text"], "sha256": held}]})
             continue
+        closes.append({"gap": gid, "note": str(c.get("note", "")), "sha256": held, "keys": sorted(g["keys"]), "n": i,
+                       "unbound": c.get("sha256") is None and not strict})
         if h is None:
             continue
         if "closes" not in roles:
@@ -269,9 +369,11 @@ def review_toml(norm: dict) -> str:
              "", "[review]", f"by = {q(norm['by'])}", f"on = {norm['on'].isoformat()}", f"record = {q(norm['record'])}"]
     if norm["scenario"]:
         lines.append(f"scenario = {q(norm['scenario'])}")
-    for ru in norm["rulings"]:
-        lines += ["", "[[ruling]]", f"assertion = {q(str(ru.get('assertion', '')))}", f"outcome = {q(str(ru.get('outcome', '')))}",
-                  f"note = {q(str(ru.get('note', '')))}"]
+    for ru in norm["rulings"]:   # bound to content (task-0199): what was ruled on, as the store held it
+        lines += ["", "[[ruling]]", f"assertion = {q(str(ru.get('assertion', '')))}", f"key = {q(str(ru['key']))}",
+                  f"value = {q(str(ru['value']))}", f"sha256 = {q(str(ru['sha256']))}",
+                  f"outcome = {q(str(ru.get('outcome', '')))}", f"note = {q(str(ru.get('note', '')))}"]
     for c in norm["closes"]:
-        lines += ["", "[[closes]]", f"gap = {q(str(c.get('gap', '')))}", f"note = {q(str(c.get('note', '')))}"]
+        lines += ["", "[[closes]]", f"gap = {q(str(c.get('gap', '')))}", f"sha256 = {q(str(c['sha256']))}",
+                  f"note = {q(str(c.get('note', '')))}"]
     return "\n".join(lines) + "\n"

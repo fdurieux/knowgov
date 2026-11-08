@@ -125,16 +125,33 @@
       "additionalProperties": false,
       "properties": {
         "severity": {"$ref": "#/$defs/severity"},
-        "kind": {"enum": ["key", "task", "stale", "suspect_derived", "lapsed", "preload"], "description": "key: a required key's level or flags; task: the task as a whole; stale: an invalidated statement on a required key; suspect_derived: a derived output that used an invalidated statement; lapsed: a statement on a required key whose review has lapsed (decision-0005), its verifications in related; preload: a document behind the keys whose form the pre-load check left unchecked or found findings in (info, task-0064)"},
+        "kind": {"enum": ["key", "task", "stale", "suspect_derived", "lapsed", "act", "preload"], "description": "key: a required key's level or flags; task: the task as a whole; stale: an invalidated statement on a required key; suspect_derived: a derived output that used an invalidated statement; lapsed: a statement on a required key whose review has lapsed (decision-0005), its verifications in related; act: a person's act a load did not apply as written (task-0199, doc-0032 §6): a ruling or close whose statement changed or vanished (major), a review file refused whole or one from before 0.9.0 bound by id only (info), the statements the store holds instead in related; preload: a document behind the keys whose form the pre-load check left unchecked or found findings in (info, task-0064)"},
         "key": {"type": ["string", "null"], "description": "the required key; null for a finding on the task as a whole or on a derived output"},
         "level": {"type": ["string", "null"], "description": "the key's level; a stale statement's own status (invalidated)"},
         "flags": {"type": "array", "items": {"type": "string"}},
-        "ref": {"type": ["string", "null"], "description": "the statement (stale, lapsed) or derived output (suspect_derived) by id; null for a key or the task"},
+        "ref": {"type": ["string", "null"], "description": "the statement (stale, lapsed, act: the one the act names, or its gap; a refused file: the file) or derived output (suspect_derived) by id; null for a key or the task"},
         "related": {"type": "array", "items": {"type": "string"}, "description": "stale: the verified or approved successors; suspect_derived: the invalidated statements it used; lapsed: the review verifications that lapsed"},
         "message": {"type": "string"},
-        "owner": {"type": ["string", "null"], "description": "key, stale, lapsed (task-0102): the unit that answers for the key, from the subject's register_map.toml (task-0043); null when no row maps the key or several units answer for it; absent on a report from before and on the other kinds"},
-        "route": {"type": ["string", "null"], "description": "key, stale, lapsed (task-0102): the route to approval, the owner's questionnaire (task-0009): the command that writes it, the file the owner answers, its ingest and a review; null when that questionnaire does not cover the key (an agent-chosen key set's key outside the task class it was resolved under); on a declared gap it ends with the close by the closing unit (task-0110)"},
-        "closer": {"type": ["string", "null"], "description": "key, on a declared gap (task-0110, decision-0002 point 3): the unit that closes the gap, the owner its declaration names, else the key's owners; null when that is no unit of the register or several; absent elsewhere and on a report from before"}
+        "owner": {"type": ["string", "null"], "description": "key, stale, lapsed, and act on a key (task-0102, task-0199): the unit that answers for the key, from the subject's register_map.toml (task-0043); null when no row maps the key or several units answer for it; absent on a report from before and on the other kinds"},
+        "route": {"type": ["string", "null"], "description": "key, stale, lapsed, and act on a key (task-0102, task-0199): the route to approval, the owner's questionnaire (task-0009): the command that writes it, the file the owner answers, its ingest and a review; null when that questionnaire does not cover the key (an agent-chosen key set's key outside the task class it was resolved under); on a declared gap it ends with the close by the closing unit (task-0110)"},
+        "closer": {"type": ["string", "null"], "description": "key, on a declared gap (task-0110, decision-0002 point 3): the unit that closes the gap, the owner its declaration names, else the key's owners; null when that is no unit of the register or several; absent elsewhere and on a report from before"},
+        "act": {"type": "object", "required": ["review", "act", "n", "outcome", "by", "on", "why", "from", "to", "reasons"], "additionalProperties": false,
+                "description": "act (task-0199, doc-0032 §6): the act as its review file records it and what the store holds instead; absent on the other kinds",
+                "properties": {
+                  "review": {"type": "string", "description": "the review file, relative to the subject root"},
+                  "act": {"enum": ["ruling", "close", "review"], "description": "review: the file as a whole, refused"},
+                  "n": {"type": "integer", "description": "the act's place in its file, from 1; 0 for the file"},
+                  "outcome": {"type": "string"},
+                  "by": {"type": "string", "description": "the author's issued handle"},
+                  "on": {"type": "string"},
+                  "why": {"enum": ["changed", "gone", "ambiguous", "unbound", "refused"]},
+                  "from": {"type": "object", "required": ["value", "sha256"], "additionalProperties": false,
+                           "properties": {"value": {"type": "string"}, "sha256": {"type": "string"}},
+                           "description": "what the act ruled on: the value and the content digest its file records; empty under the read rule"},
+                  "to": {"type": "array", "description": "what the store holds instead: the statements of its key and stem, each with value and digest",
+                         "items": {"type": "object", "required": ["id", "value", "sha256"], "additionalProperties": false,
+                                   "properties": {"id": {"type": "string"}, "value": {"type": "string"}, "sha256": {"type": "string"}}}},
+                  "reasons": {"type": "array", "items": {"type": "string"}, "description": "refused: why"}}}
       }
     }
   }
