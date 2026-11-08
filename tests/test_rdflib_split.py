@@ -73,6 +73,7 @@ OLD_STEPS = [
 ]
 # Steps added after the split, each in one job: the same rule holds them
 ADDED = ["Two subjects sharing a scenario id never answer each other's gates (task-0195): the held subject on a file-backed rdflib store",
+         "One id per conflict (task-0223, decision-0020), every CargoQuote scenario loaded fresh twice, each conflict gap:conflict:<key>:<a>~<b>, ordered, S4's shown",
          "Pre-load findings as routed gaps (task-0216), on rdflib, the example instance's planted SEQ002 a lint gap with its owner and "
          "route and no level moved, held by the baseline, resolved by its owner, a slip in the re-lint delta, kept by the round trip",
          "The kit's claim (task-0214), on rdflib, the probe kit's five mappers read observed, inferred and intended into the basis, an inferred statement stays proposed and a ruling approving it is refused, an unknown claim is refused by the subject check"]

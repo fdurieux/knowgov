@@ -676,7 +676,7 @@ class RdflibStore(Store):
                     out.append({"a": ida, "va": self.prop(a, "value"), "ba": self.prop(a, "basis"), "aa": self.prop(a, "artefact"),
                                 "b": idb, "vb": self.prop(b, "value"), "bb": self.prop(b, "basis"), "ab": self.prop(b, "artefact"),
                                 "key": self.prop(a, "key"), "pred": self.prop(a, "predicate")})
-        return out
+        return sorted(out, key=lambda r: (str(r["key"]), r["a"], r["b"]))   # decision-0020: key, then id
 
     def _bump(self, x, frm, to) -> None:
         if self.prop(x, "status") == frm:
@@ -904,7 +904,8 @@ class RdflibStore(Store):
         return by_id(out)   # task-0201 (doc-0030 S2): by id on both adapters
 
     def conflict_gaps(self) -> list[dict]:
-        return [{"id": self.nid(g), "text": self.prop(g, "text")} for g in self.nodes("Gap", kind="conflict")]
+        return sorted(({"id": self.nid(g), "text": self.prop(g, "text")} for g in self.nodes("Gap", kind="conflict")),
+                      key=lambda r: r["id"])   # decision-0020: by id, the key then the pair
 
     def assertion_brief(self, assertion_id) -> dict | None:
         x = self.node(assertion_id, "Assertion")
