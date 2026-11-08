@@ -119,6 +119,16 @@ def held_from(acts: list[dict], current: list[dict]) -> dict | None:
             "loaded_at": max((str(a["at"]) for a in acts if a.get("at") is not None), default=None)}
 
 
+# task-0201 (doc-0030 S4): the one uniqueness rule of the port. A node's id is unique among the nodes of its
+# label for each label here, on both adapters: the rdflib adapter refuses any id it already holds; the Neo4j
+# adapter holds the first six by its uniqueness constraints (CONSTRAINTS, the record's D1, unchanged) and
+# refuses the rest at create (``NEO4J_GUARDED``), so a duplicate Derived or Activity is refused on both, never
+# held by one store and lost by export_turtle. Every other node is written by MERGE, one per id.
+UNIQUE_IDS = ("Artefact", "Version", "Fragment", "Entity", "Assertion", "Gap", "Activity", "Derived")
+NEO4J_GUARDED = ("Activity", "Derived")
+DUPLICATE = "a node with id {nid!r} exists: the uniqueness constraint refuses it"
+
+
 def by_id(rows: list[dict]) -> list[dict]:
     """``rows`` in one order on every adapter: by ``id``, a row without one (an OPTIONAL MATCH that met
     nothing) last. A store's collect() answers in its own traversal order, which a reload can move;
@@ -398,9 +408,12 @@ class Store:
         raise NotImplementedError
 
     def declared_gaps_for_key(self, key: str) -> list[dict]:
+        """The declared open gaps concerning ``key``: {id, text}, by id on both adapters (task-0201, doc-0030 S2)."""
         raise NotImplementedError
 
     def conflict_gaps(self) -> list[dict]:
+        """Every conflict gap: {id, text}. Its order is the store's: ordering it renumbers the record's conflict
+        gap ids (R-CONFLICT numbers them in candidate_pairs' order), which waits for task-0202's decision."""
         raise NotImplementedError
 
     # ---- a person's review (task-0037, decision-0002): the rulings harness/review.py has checked

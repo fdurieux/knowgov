@@ -12,6 +12,28 @@ names that section with the version.
 
 ### Contract changes
 
+- **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
+  with one additive field.
+  - **One successor set (G3).** The gate's level drops an invalidated statement only when its own verified or
+    approved successor supersedes it (`superseded_by`), which is how the stale finding, the report's
+    `superseded_by` and the bundle already read it. Before, any settled statement on the key dropped it, so the
+    gate could read PROCEED beside a major stale finding with no successor. A key whose statement a change
+    invalidated with nothing to replace it now reads `invalidated`, on every reader. The scored record is
+    unchanged.
+  - **A disputed key is not unknown (M4).** `three_valued_answer` and the record's D5 read disputed statements.
+    When some are disputed, the answer stays `asserted` or `documented_absent`, and a new field, `disputed`,
+    names them, with a `why`. It is additive: present only when a statement is disputed
+    (`harness/schemas/three-valued-answer.schema.json`).
+  - **One owner and route (G8).** `capture.routing` is the one place a key's answering units and questionnaire
+    files come from: the gate's findings, the questionnaires and a register change's resting keys all read it.
+    A key with several answering units now routes to each unit's questionnaire, the ones `capture.py
+    questionnaire` writes it into, never to an `-unassigned` file nobody writes.
+  - **One uniqueness rule (S4).** `store.UNIQUE_IDS` names the labels whose ids are unique. The Neo4j adapter now
+    refuses a duplicate `Derived` or `Activity` id at create, as rdflib does, so `export_turtle` never meets one.
+    Its constraint list, the record's D1, is unchanged.
+  - **`declared_gaps_for_key` answers by id on both adapters (S2's part).** `candidate_pairs` and `conflict_gaps`
+    keep the store's order, and so the record's conflict gap ids, until task-0202's decision.
+  - `tools/check_one_definition.py` proves it on both stores, in `harness.yml` and the stack.
 - **A person's act binds to what it ruled on** (task-0199, doc-0030 F2: H5, I4, I9; doc-0032 §6 items 7 and 8).
   Before, a ruling named only a statement's id, so after an edit the same id carried a new value and still read
   approved; a vanished id refused the whole review on stderr only.

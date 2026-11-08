@@ -1026,6 +1026,8 @@ class Tools:
                    "as_of": on, "statements": statements, "invalidated": invalidated_on_key(st, key)}
             if "why" in ans:
                 out["why"] = ans["why"]
+            if ans.get("disputed"):   # task-0201 (doc-0030 M4): the statements the documents disagree on
+                out["disputed"] = ans["disputed"]
             return out
         return self._with_store(go)
 

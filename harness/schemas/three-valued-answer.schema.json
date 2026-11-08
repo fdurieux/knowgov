@@ -76,6 +76,13 @@
     }
    }
   },
+  "disputed": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   },
+   "description": "task-0201 (doc-0030 M4): the statements, by id, that are disputed: the documents disagree, and none holds until a review settles it; absent when none is"
+  },
   "why": {
    "type": "string"
   },

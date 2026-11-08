@@ -46,7 +46,7 @@ from urllib.parse import quote, unquote
 
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
 
-from store import (DEAD, DOCUMENT_BASES, Store, StoreBusy, StoreCorrupt, StoreFenced, StoreReadOnly, by_content, by_id, held_from,
+from store import (DEAD, DOCUMENT_BASES, DUPLICATE, Store, StoreBusy, StoreCorrupt, StoreFenced, StoreReadOnly, by_content, by_id, held_from,
                    changed_of, part_list, part_rows, stem, suspect_rows, suspicion)
 
 try:
@@ -309,7 +309,7 @@ class RdflibStore(Store):
 
     def create_node(self, nid: str, labels, props: dict) -> URIRef:
         if nid in self._nodes:
-            raise ValueError(f"a node with id {nid!r} exists: the uniqueness constraint refuses it")
+            raise ValueError(DUPLICATE.format(nid=nid))   # store.UNIQUE_IDS: any id, so every label's (task-0201)
         n = self._n(nid)
         self._nodes[nid] = n
         for lbl in ([labels] if isinstance(labels, str) else labels):
@@ -900,7 +900,7 @@ class RdflibStore(Store):
             for e, _t in self.edges_out(g, "CONCERNS_KEY"):
                 if self.prop(e, "key") == key:
                     out.append({"id": self.nid(g), "text": self.prop(g, "text")})
-        return out
+        return by_id(out)   # task-0201 (doc-0030 S2): by id on both adapters
 
     def conflict_gaps(self) -> list[dict]:
         return [{"id": self.nid(g), "text": self.prop(g, "text")} for g in self.nodes("Gap", kind="conflict")]

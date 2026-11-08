@@ -14,7 +14,7 @@ import threading
 import time
 import uuid
 
-from store import (DEAD, DOCUMENT_BASES, Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, held_from, part_list, part_rows,
+from store import (DEAD, DOCUMENT_BASES, DUPLICATE, NEO4J_GUARDED, Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, held_from, part_list, part_rows,
                    changed_of, setting, stem, suspect_rows, suspicion)
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
@@ -716,9 +716,16 @@ class Neo4jStore(Store):
     def ensure_person(self, aid: str, handle: str) -> None:
         self.run("MERGE (p:Agent {id:$id}) SET p.kind='human', p.name=$name", id=aid, name=handle).consume()
 
+    def _refuse_taken(self, label: str, nid: str) -> None:
+        """store.UNIQUE_IDS for a label no Neo4j constraint holds here (NEO4J_GUARDED; task-0201, doc-0030 S4)."""
+        assert label in NEO4J_GUARDED, label
+        if _rows(self.run(f"MATCH (n:{label} {{id:$id}}) RETURN count(n) AS n", id=nid))[0]["n"]:
+            raise ValueError(DUPLICATE.format(nid=nid))
+
     def create_activity(self, aid: str, kind: str, at: str, tool: str, note: str, agent_id: str, *,
                         subject: str | None = None, scenario: str | None = None) -> None:
         held = {k: v for k, v in (("subject", subject), ("scenario", scenario)) if v is not None}   # task-0195
+        self._refuse_taken("Activity", aid)
         self.run("""
             MATCH (ag:Agent {id:$agent})
             CREATE (act:Activity {id:$aid, kind:$kind, at:$ts, tool:$tool, note:$note})
@@ -786,6 +793,7 @@ class Neo4jStore(Store):
             MERGE (f)-[:MENTIONS]->(e)""").consume()
 
     def create_inferred(self, props, entity, activity, agent_id, candidate_for) -> None:
+        self._refuse_taken("Activity", activity["id"])
         self.run("""
             MATCH (llm:Agent {id:$lid}), (e:Entity {id:$eid})
             CREATE (act:Activity {id:$aid, kind:'inference', at:$at, tool:$itool, note:$note})
@@ -865,6 +873,7 @@ class Neo4jStore(Store):
                  rows=[{"id": k, "until": d} for k, d in sorted(dates.items())]).consume()
 
     def register_derived(self, did, kind, sha, assertion_ids, recorded=None) -> None:
+        self._refuse_taken("Derived", did)
         self.run("""CREATE (dv:Derived {id:$did, kind:$dkind, sha256:$sha, suspect:false})
                     FOREACH (r IN CASE WHEN $rec IS NULL THEN [] ELSE [$rec] END | SET dv.recorded = r)
                     WITH dv UNWIND $ids AS aid MATCH (x:Assertion {id:aid}) MERGE (dv)-[:USED_ASSERTION]->(x)""",
@@ -1046,10 +1055,10 @@ class Neo4jStore(Store):
             r["gaps"] = by_id([g for g in r["gaps"] if g["id"]])
         return by_id(rows)
 
-    def declared_gaps_for_key(self, key) -> list[dict]:
-        return _rows(self.run("""
+    def declared_gaps_for_key(self, key) -> list[dict]:   # by id (task-0201, doc-0030 S2): the driver's order is not one
+        return by_id(_rows(self.run("""
             MATCH (g:Gap {kind:'missing', declared:true})-[c:CONCERNS_KEY {key:$key}]->()
-            RETURN g.id AS id, g.text AS text""", key=key))
+            RETURN g.id AS id, g.text AS text""", key=key)))
 
     def conflict_gaps(self) -> list[dict]:
         return _rows(self.run("MATCH (g:Gap {kind:'conflict'}) RETURN g.id AS id, g.text AS text"))

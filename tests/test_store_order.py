@@ -62,7 +62,9 @@ def test_neo4j_reads_answer_one_order_whatever_order_the_driver_returns():
                  "gaps": [{"id": f"G-{j}", "kind": "ambiguous", "declared": False, "text": "?"} for j in range(2)]} for i in range(2)]
     for read, rows, call in (("suspect_derived", suspect, lambda s: s.suspect_derived()),
                              ("stale_on_keys", stale, lambda s: s.stale_on_keys(["k|a", "k|b", "k|c"])),
-                             ("key_evidence", evidence, lambda s: s.key_evidence("k|a", ["verified"]))):
+                             ("key_evidence", evidence, lambda s: s.key_evidence("k|a", ["verified"])),
+                             ("declared_gaps_for_key", [{"id": f"gap:declared:OD-{i}", "text": "t"} for i in range(5)],   # task-0201
+                              lambda s: s.declared_gaps_for_key("k|a"))):
         answers = [call(_neo4j(rows, seed)) for seed in range(8)]
         assert all(a == answers[0] for a in answers), read
     got = _neo4j(suspect, 3).suspect_derived()

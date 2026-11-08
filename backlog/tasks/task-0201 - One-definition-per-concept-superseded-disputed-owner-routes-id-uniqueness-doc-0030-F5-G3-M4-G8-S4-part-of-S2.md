@@ -3,9 +3,11 @@ id: TASK-0201
 title: >-
   One definition per concept: superseded, disputed, owner routes, id uniqueness
   (doc-0030 F5: G3, M4, G8, S4, part of S2)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-07T07:15:00Z'
+updated_date: '2026-11-08T10:16:00Z'
 labels:
   - review
   - semantics
@@ -34,3 +36,9 @@ G3: superseded is computed two ways (gate.py:46 by key; the stale finding, super
 - [ ] #4 Both adapters refuse a duplicate id for the same labels, named in store.py; declared_gaps_for_key is ordered by id on both
 - [ ] #5 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+One PR, claude/task-0201-f5. G3: gate.resolve_spec reads supersession from stale_on_keys' own successors (superseded_by), the set the stale finding, superseded_by and the bundle read. M4: three_valued reads disputed and names them (an additive disputed field; answer values unchanged). G8: capture.routing, the one owner, route and file rule for findings, questionnaires and register_change.resting. S4: store.UNIQUE_IDS; Neo4j guards Derived and Activity at create (CONSTRAINTS, D1, unchanged). S2's part: declared_gaps_for_key by id. candidate_pairs and conflict_gaps untouched (task-0202). tools/check_one_definition.py.
+<!-- SECTION:PLAN:END -->
