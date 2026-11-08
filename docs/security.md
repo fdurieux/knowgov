@@ -87,6 +87,9 @@ publishes it whole, and a read answers from one published generation or refuses.
     `KG_STORE_READ_ATTEMPTS` times (default 3).
   - A writer whose lease ran out cannot publish: its epoch is gone, and the writer that took the lease
     over terminates its transaction. Recovery is automatic.
+  - A writer's close waits for its lease heartbeat to finish before the driver closes (task-0229). A beat
+    still running past its own bound, the driver's retry time and connection timeout, fails the close
+    with `HeartbeatAlive`, and the driver is left open for the lease to run out.
   - Supported on Neo4j 5 Community with one database; nothing assumes a second database.
 - **Retirement.** Neo4j keeps no earlier generation: a reader open across a publication is refused,
   never answered from a retired one.
@@ -152,7 +155,7 @@ publishes it whole, and a read answers from one published generation or refuses.
 | Writers are serialised from load to publication; no update is lost | `tests/test_store_persistence.py::test_st_04_a_second_writer_waits_for_the_first_and_starts_from_its_publication` |
 | A reader sees the whole old file or the whole new one; a failure keeps the old file | `tests/test_store_persistence.py::test_st_05_a_reader_during_a_publication_gets_the_whole_old_file_or_the_whole_new_one`, `tests/test_store_persistence.py::test_st_06_a_failed_serialisation_sync_or_replacement_keeps_the_previous_file_and_releases_the_lock`, `tests/test_store_persistence.py::test_st_07_a_writer_that_raises_publishes_nothing` |
 | A killed writer leaves the last publication and a recoverable lock; a corrupt file fails explicitly | `tests/test_store_persistence.py::test_st_08_a_writer_killed_before_publication_leaves_the_last_snapshot_and_a_recoverable_lock`, `tests/test_store_persistence.py::test_st_09_a_corrupt_file_fails_explicitly_and_is_never_replaced` |
-| A read answers from one published generation or refuses, on both stores; a half-staged load, a killed or failed publication, racing writers and a recovered lease never show a partial or mixed graph, and an abandoned publication is cleared by a reader once its lease ran out; a writer that wrote nothing publishes nothing (SNAP-01 to SNAP-09) | CI: `tools/check_snapshots.py` in `harness.yml` (rdflib) and `demo.yml` (Neo4j); `tests/test_store_generations.py::test_a_read_handle_refuses_the_read_after_a_publication_and_never_answers_from_two_generations`, `tests/test_store_generations.py::test_snap_05_a_file_writer_whose_lock_file_was_replaced_publishes_nothing` |
+| A read answers from one published generation or refuses, on both stores; a half-staged load, a killed or failed publication, racing writers and a recovered lease never show a partial or mixed graph, and an abandoned publication is cleared by a reader once its lease ran out; a writer that wrote nothing publishes nothing, and a writer's close never races its own lease heartbeat (SNAP-01 to SNAP-10) | CI: `tools/check_snapshots.py` in `harness.yml` (rdflib) and `demo.yml` (Neo4j); `tests/test_store_generations.py::test_a_read_handle_refuses_the_read_after_a_publication_and_never_answers_from_two_generations`, `tests/test_store_generations.py::test_snap_05_a_file_writer_whose_lock_file_was_replaced_publishes_nothing` |
 
 Because the store holds excerpts, treat it, its volume, `KG_RDFLIB_FILE` and `runs/` as being
 as sensitive as the documents they came from. **Practice:** keep them on the instance's

@@ -34,6 +34,8 @@ BROWSER = os.environ.get("KG_BROWSER_URL", "http://localhost:7474")
 # cleared by the next reader under the same lock, and recorded on the node (task-0175).
 PUB = "_KgPublication"
 PUB_MATCH = f"MATCH (p:{PUB} {{id:'publication'}})"
+RETRY_S = 5.0           # the driver's max_transaction_retry_time: how long a managed transaction (a beat) retries
+CONNECT_S = 30.0        # the driver's default connection_timeout, when the handle names none
 LEASE_S = 60.0          # the lease's default; KG_NEO4J_LEASE_SECONDS, KG_NEO4J_LOCK_TIMEOUT and KG_NEO4J_READ_WAIT in store.SETTINGS
 _on_publish = None      # test hook (SNAP-03): called between raising begin and committing the unit
 
@@ -352,6 +354,19 @@ def _refuse_taken(st, label: str, nid: str) -> None:
 WRITES = re.compile(r"\b(?:CREATE|MERGE|SET|DELETE|REMOVE|DETACH|FOREACH)\b", re.I)
 
 
+def _outbox_class():
+    """The driver's per-connection outbox, which a send holds exported: SNAP-10's probe holds it in the
+    middle of a heartbeat's send (tools/check_snapshots.py). Here so that only this adapter names the driver."""
+    from neo4j._sync.io._bolt import _common
+    return _common.Outbox
+
+
+class HeartbeatAlive(RuntimeError):
+    """A writer's lease heartbeat still running past the join's bound at close (task-0229): the driver is left
+    open, since closing it would send GOODBYE on the connection the beat is using (a ``BufferError`` in the
+    driver), and the lease runs out on its own. Not a StoreBusy: no caller may read it as a refusal to retry."""
+
+
 class _Unit:
     """A handle's publication (task-0141.06, decision-0014): for a writer, the lease, the unit's one
     transaction and the sequence lock it publishes under; for a reader, the generation it pinned."""
@@ -365,6 +380,8 @@ class _Unit:
         self.after_commit: list[str] = []
         self.token, self.epoch, self.lost = None, None, False
         self.beat_stop = threading.Event()
+        self.beat: threading.Thread | None = None   # the lease's heartbeat, joined by release() (task-0229)
+        self.join_s = RETRY_S + CONNECT_S + 5.0      # the bound of one beat in flight: its retries and its connection
         self.pinned = None
         self.recovered = None           # what this reader cleared at its pin: the abandoning writer (task-0175)
         self.lease_s = LEASE_S
@@ -408,7 +425,8 @@ class _Unit:
             time.sleep(0.1)
         self.token, self.epoch = token, epoch
         self.terminate_stale()
-        threading.Thread(target=self.heartbeat, daemon=True).start()
+        self.beat = threading.Thread(target=self.heartbeat, name="kg-lease-heartbeat", daemon=True)
+        self.beat.start()
 
     def terminate_stale(self) -> None:
         """Fence on the server: a unit transaction of an earlier owner (its lease ran out, so it can no
@@ -441,7 +459,16 @@ class _Unit:
                 return
 
     def release(self) -> None:
+        """Stop the heartbeat and wait for a beat in flight (task-0229): the driver is not closed under a thread
+        still using one of its connections. Past ``join_s`` the beat is reported (HeartbeatAlive), never left
+        running under a closing driver; then the lease is cleared."""
         self.beat_stop.set()
+        if self.beat is not None:
+            self.beat.join(self.join_s)
+            if self.beat.is_alive():
+                raise HeartbeatAlive(f"{self.uri}: the lease heartbeat was still running {self.join_s:g} s after it was "
+                                     "stopped; the driver is left open and the lease runs out on its own")
+            self.beat = None
         if self.token is None:
             return
         try:
@@ -579,7 +606,7 @@ class Neo4jStore(Store):
         if access not in ("read", "write"):
             raise ValueError(f"access is read or write, not {access!r}")
         self.uri, self.auth, self.instance, self.access = uri, auth, instance, access
-        kw = {"notifications_min_severity": NotificationMinimumSeverity.OFF, "max_transaction_retry_time": 5.0}
+        kw = {"notifications_min_severity": NotificationMinimumSeverity.OFF, "max_transaction_retry_time": RETRY_S}
         if connection_timeout:
             kw["connection_timeout"] = connection_timeout
         self._driver = GraphDatabase.driver(uri, auth=auth, **kw)
@@ -587,6 +614,7 @@ class Neo4jStore(Store):
         # as well as the port's ReadOnly view
         self._session = self._driver.session(default_access_mode=READ_ACCESS if access == "read" else WRITE_ACCESS)
         self._pub = _Unit(self._driver, self._session, uri, access, READ_ACCESS, WRITE_ACCESS)
+        self._pub.join_s = RETRY_S + (connection_timeout or CONNECT_S) + 5.0
         self._constraints = None        # D1 as measured once by this handle, before its transaction
         try:
             if access == "write":
@@ -611,13 +639,23 @@ class Neo4jStore(Store):
         self._pub.drop()
 
     def close(self) -> None:
-        """Release the handle: an unpublished unit is dropped, the lease released. Never publishes."""
+        """Release the handle: an unpublished unit is dropped, the lease released (its heartbeat joined first,
+        task-0229), then the session and the driver closed. Never publishes, and swallows nothing: a failure
+        propagates, and a heartbeat still running leaves the driver open (HeartbeatAlive)."""
         try:
-            self._pub.drop()
-            self._pub.release()
-        finally:
+            try:
+                self._pub.drop()
+            finally:
+                self._pub.release()
+        except HeartbeatAlive:
+            self._session.close()
+            raise
+        except BaseException:
             self._session.close()
             self._driver.close()
+            raise
+        self._session.close()
+        self._driver.close()
 
     def run(self, cypher: str, **params):
         if self.access == "write":
