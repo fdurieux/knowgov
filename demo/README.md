@@ -738,8 +738,10 @@ on a regression: a worse verdict, or a key at a lower level than the
 record's, or a derived output suspect that the record did not hold
 suspect. S2 is BLOCKED in the record too, so
 `--scenario S2 --baseline record` exits 0, and the report still lists the
-blockers. `--baseline <file>` compares with an earlier report of the
-command, written with `-o <file>`. The command never writes a baseline
+blockers. The record keeps stage 2's verdicts but not its keys' levels,
+so `--stage 2 --baseline record` is refused (exit 2). `--baseline <file>`
+compares with an earlier report of the command, written with
+`-o <file>`, and at stage 2 that is the baseline to use. The command never writes a baseline
 itself: keeping one is your decision, made by committing the file.
 
 **As of a date.** A review falls due after the review months of the kind

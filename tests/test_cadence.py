@@ -103,6 +103,37 @@ def test_the_cadence_is_the_registers_and_a_product_key_reviews_at_six_months():
         assert cadence.cadence(CARGO_QUOTE, reg) == ({k: 3 for k in by_key}, 3)
 
 
+def test_the_default_months_apply_only_when_no_node_s_kind_is_named():
+    """task-0209, doc-0030 G11, decision-0005 point 2: "the shortest [review.kinds] months among the kinds of
+    the nodes the key's row names, else the register's default_months". A key resting on a 24-month kind and
+    on a node whose kind the register names no months for reviews at 24, not at the default's 12; a key on
+    unnamed kinds alone takes the default; two named kinds give the shorter."""
+    class Probe:
+        def __init__(self, root):
+            self.root = root
+
+        def register_map(self):
+            return {"row": [{"key": "long|unnamed", "nodes": ["N-LONG", "N-ODD"]},
+                            {"key": "unnamed|only", "nodes": ["N-ODD"]},
+                            {"key": "long|short", "nodes": ["N-LONG", "N-SHORT"]}]}
+
+    with tempfile.TemporaryDirectory() as t:
+        reg = Path(t) / "register"
+        (reg / "metamodel").mkdir(parents=True)
+        (reg / "metamodel" / "lifecycle.toml").write_text(
+            "[review]\ndefault_months = 12\n\n[review.kinds]\nlong = { months = 24 }\nshort = { months = 6 }\n", encoding="utf-8")
+        (reg / "metamodel" / "types.toml").write_text("[taxonomy.nodes]\n", encoding="utf-8")
+        (reg / "nodes").mkdir()
+        for i, kind in (("N-LONG", "long"), ("N-ODD", "unlisted"), ("N-SHORT", "short")):
+            (reg / "nodes" / f"{i}.toml").write_text(f'id = "{i}"\nkind = "{kind}"\n', encoding="utf-8")
+        probe = Probe(Path(t) / "subject")
+        by_key, default = cadence.cadence(probe, reg)
+        assert default == 12
+        assert by_key == {"long|unnamed": 24, "unnamed|only": 12, "long|short": 6}, by_key
+        ck = (str(reg), str(probe.root))
+        assert cadence._KINDS[ck] == {"long|unnamed": "long", "long|short": "short"}, cadence._KINDS[ck]
+
+
 def test_the_load_dates_every_review_and_leaves_execution_undated():
     st = Store({"S-review|max": [_row("S-review|max")], "P1|formula": [_row("P1|formula", "execution", "2026-10-30T11:39:46+00:00")]})
     assert cadence.date_reviews(st) == 1   # twelve months under either subject: a CargoQuote row, or no J-F row

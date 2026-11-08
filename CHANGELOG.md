@@ -302,6 +302,16 @@ names that section with the version.
 
 ### Changes
 
+- **`--stage 2 --baseline record` is refused, and review months take the default only when no kind is named**
+  (task-0209, doc-0030 G9, G11). Two fixes; no record moves.
+  - The record keeps stage 2's verdicts but not its keys' levels. So a stage-2 gate ratcheted against it was
+    compared with stage 1's levels, and the record's own stage-2 outcome read as a regression, exit 1. The
+    combination now exits 2, before any store opens. For stage 2, pass `--baseline FILE`, an earlier stage-2
+    report of `gate_cli.py -o FILE`, which compares level for level.
+  - A key's review months are the shortest among the kinds of its nodes that the register's
+    `[review.kinds]` names, else `[review] default_months`, as decision-0005 point 2 says. Before, a node
+    whose kind is not named mixed the default in, so a key on a 24-month kind beside such a node lapsed at
+    12. The public register names no kind above its default, so neither subject's dates move.
 - **A guide to reverse-engineering a code base and finding its knowledge gaps** (task-0218, decision-0018
   points 1 and 2). `docs/reverse-engineering.md` walks the eight steps for an adopter, from scoping at a named
   commit to re-running on change. For each step it gives the tool that runs it today, the record it leaves and
