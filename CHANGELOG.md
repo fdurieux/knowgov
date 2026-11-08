@@ -12,6 +12,9 @@ names that section with the version.
 
 ### Contract changes
 
+- **`GET /api/store` carries the store's Browser link** (task-0235, additive). A new `browser_connect` field
+  gives the Neo4j Browser link connected to the bolt port the stack publishes (`KG_PORT_BOLT`), or `null`
+  for a store with no Browser. The page's store panel uses it.
 - **Format versions on an instance's inputs** (task-0174, decision-0023, doc-0028 G9-2). `subject.toml` carries
   `[format] version = 1`, covering its subject root's `scenarios.toml`, `plants.toml`, `queries.toml` and register
   map; `code_map.toml` and `connectors.toml` each a top-level `format = 1`; each capture and review file its own
@@ -366,6 +369,13 @@ names that section with the version.
   hostile job's fast chain of processes could be missed and keep running: once in 260 such jobs on a loaded
   machine. In its container the worker now stops only when nothing forked during a look that found none, and
   `tools/check_worker.py` proves it as EXEC-14.
+- **The worker's containment check no longer counts the healthcheck, and a job can no longer hide from it**
+  (task-0232). `tools/check_worker.py`'s EXEC-11 counts any process of the worker's user still alive after a
+  job. It once counted the container's own healthcheck in the instant that check exits, and failed. It also
+  skipped any process with `--attest-only` on its command line, which a job could copy to hide. The check now
+  counts a process only when a second scan, a second later, still finds one, and it trusts no command line: it
+  leaves out only processes started from outside the container, such as the healthcheck, which a job cannot
+  start. Each process it counts is now named in the failure.
 - **The adopter docs held against the code** (task-0230, doc-0028 G9-9 and P4). The nine adopter-facing
   documents were checked against the code, and every stale claim found is corrected: commands, flags,
   settings, paths, routes, counts, defaults and described behaviour, in the READMEs, `docs/guide.md`,
@@ -373,6 +383,12 @@ names that section with the version.
   of the following that the code does not bear out: a `--flag`, a command's options, a `KG_*` setting,
   a repository path or link, a cited test or an `/api` route. `instance/README.md` ends with what stays
   stable from 1.0, quoting decision-0016 point 3. No code, contract or pin changes.
+- **Where the docs were right and the code was wrong** (task-0235; task-0230's docs pass). The store panel's
+  Neo4j Browser link and the impact guides' links now connect to the bolt port the stack publishes
+  (`KG_PORT_BOLT`), so a second stack's links reach its own Neo4j, not the first's. The page no longer says a deterministic run creates no `Derived` node (the
+  page's runs give stage 2 the record's output), and its Arms note names the contained worker. The MCP
+  reader's instructions say every tool but `list_subjects` takes `subject`. Two `docs/security.md` rows now
+  cite tests that prove them: where each store lives, and that the gate never rules.
 - **`tools/preload_check.py` exits 2 when it cannot write `-o`** (task-0228, doc-0030 F6). An unwritable
   report path (a missing folder) exited 1, the finding's code, with a traceback; it is now a failure to run,
   exit 2, one `cannot run: -o ...` line and no report. The command exits through the check tools' outcomes
