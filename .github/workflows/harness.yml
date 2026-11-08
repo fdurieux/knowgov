@@ -96,6 +96,8 @@ jobs:
           python tools/check_instance.py runs/instance | grep '^ABSENT stories/quote.md \[user-stories\]'
           cd harness && KG_STORE=rdflib KG_SUBJECT=../runs/instance/subjects/cargo_quote python run.py --deterministic --scenarios S1 --out ../runs/instance-unmapped && cd ..
           python3 -c 'import json; d=json.load(open("runs/instance-unmapped/S1/deterministic.json")); assert d["load"]["unmapped"]==["stories/quote.md"], d["load"]; print("load: unmapped", d["load"]["unmapped"])'
+      - name: One id per conflict (task-0223, decision-0020), every CargoQuote scenario loaded fresh twice, each conflict gap:conflict:<key>:<a>~<b>, ordered, S4's shown
+        run: KG_STORE=rdflib python tools/check_conflict_ids.py --stores rdflib,rdflib --require S4
       - name: The store survives a round trip (task-0070), every CargoQuote scenario and J-F's (the subset on a pull request) through Turtle into a fresh store, the same gate reports and three-valued answers
         run: |
           KG_STORE=rdflib python tools/check_round_trip.py --chain rdflib,rdflib

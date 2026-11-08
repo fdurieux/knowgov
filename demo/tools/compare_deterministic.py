@@ -92,7 +92,9 @@ def _leaves(obj, prefix: str = "", ignore: frozenset = frozenset(VOLATILE_KEYS))
     return out
 
 
-CONFLICT_ID = re.compile(r"^(gap:conflict:.+):\d+$")
+# a conflict gap's id: the vendored record's positional ``gap:conflict:<key>:<n>`` and decision-0020's
+# ``gap:conflict:<key>:<a>~<b>`` (assertion ids, each ``A:...``), both normalised to ``gap:conflict:<key>:n``
+CONFLICT_ID = re.compile(r"^(gap:conflict:.+?):(?:\d+|A:[^~]+~A:.+)$")
 
 
 def _strip(obj, ignore: frozenset = frozenset(VOLATILE_KEYS)):
