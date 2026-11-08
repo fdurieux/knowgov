@@ -221,4 +221,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:   # task-0200 (P8): any exception blocks through task-0099's entry; a hook that cannot load blocks by hand
+        _hook = _load("knowgov_hook", HERE / "knowgov_hook.py")
+    except Exception as e:  # noqa: BLE001
+        print(f"{CHECK}: task-0099's hook script cannot load ({e}); blocked, fail-closed.", file=sys.stderr)
+        sys.exit(2)
+    sys.exit(_hook.entry(main, CHECK))

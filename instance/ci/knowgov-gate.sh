@@ -50,8 +50,10 @@ PY=$("${PYTHON:-python3}" -c 'import sys; sys.exit(1) if sys.version_info < (3, 
 }
 export PYTHON="$PY"
 HERE=$(pwd)
-KG=$(cd "$KG" && pwd)
-INST=$(cd "$INST" && pwd)
+# P9 (task-0200): a path that does not resolve is a cannot-run, exit 2, never bash's 1 (a finding's code)
+kg_named=$KG inst_named=$INST
+KG=$(cd "$KG" 2>/dev/null && pwd) || { echo "knowgov-gate: the knowgov checkout '$kg_named' does not resolve to a directory" >&2; exit 2; }
+INST=$(cd "$INST" 2>/dev/null && pwd) || { echo "knowgov-gate: the instance '$inst_named' does not resolve to a directory" >&2; exit 2; }
 
 abspath() { case "$1" in /*) echo "$1" ;; *) echo "$(pwd)/$1" ;; esac; }
 

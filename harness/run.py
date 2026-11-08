@@ -11,6 +11,10 @@ the harness and kit written beside them.
 
 from __future__ import annotations
 
+if __name__ == "__main__":   # task-0200: a failure while loading (a pin not installed) is exit 2, its cause in one line
+    import cli_exit
+    cli_exit.guard("run")
+
 import argparse
 import hashlib
 import json
@@ -358,4 +362,5 @@ def _write_usage(out_root, summary, resume: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import cli_exit   # task-0200 (doc-0030 F6): every failure to run is exit 2 with its cause, never 1
+    sys.exit(cli_exit.run(main, "run"))
