@@ -174,8 +174,9 @@ def snap_10() -> None:
             pass
         check({t.ident for t in threading.enumerate()} <= before, "SNAP-10 on rdflib a writer starts no thread its close could race")
         return
-    from neo4j._sync.io._bolt import _common   # the driver's outbox: a beat's send holds it exported, as sendall does
-    flush = _common.Outbox.flush
+    import store_neo4j
+    outbox = store_neo4j._outbox_class()   # the driver's outbox: a beat's send holds it exported, as sendall does
+    flush = outbox.flush
     in_send = threading.Event()
 
     def slow_flush(self):
@@ -184,7 +185,7 @@ def snap_10() -> None:
                 in_send.set()
                 time.sleep(0.5)
         return flush(self)
-    _common.Outbox.flush = slow_flush
+    outbox.flush = slow_flush
     raised, mid, free = [], 0, 0
     try:
         for _ in range(10):
@@ -197,7 +198,7 @@ def snap_10() -> None:
                 raised.append(f"{type(e).__name__}: {e}"[:160])
             free += _pub().get("owner") is None
     finally:
-        _common.Outbox.flush = flush
+        outbox.flush = flush
     check(mid == 10, f"SNAP-10 each of the ten closes began while a beat was in the middle of a send: {mid}")
     check(not raised, f"SNAP-10 a writer closed in the middle of its heartbeat's send closes cleanly, ten times: {raised[:2]}")
     check(free == 10, f"SNAP-10 after each such close the lease is free: {free} of 10")

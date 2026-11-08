@@ -354,6 +354,13 @@ def _refuse_taken(st, label: str, nid: str) -> None:
 WRITES = re.compile(r"\b(?:CREATE|MERGE|SET|DELETE|REMOVE|DETACH|FOREACH)\b", re.I)
 
 
+def _outbox_class():
+    """The driver's per-connection outbox, which a send holds exported: SNAP-10's probe holds it in the
+    middle of a heartbeat's send (tools/check_snapshots.py). Here so that only this adapter names the driver."""
+    from neo4j._sync.io._bolt import _common
+    return _common.Outbox
+
+
 class HeartbeatAlive(RuntimeError):
     """A writer's lease heartbeat still running past the join's bound at close (task-0229): the driver is left
     open, since closing it would send GOODBYE on the connection the beat is using (a ``BufferError`` in the
