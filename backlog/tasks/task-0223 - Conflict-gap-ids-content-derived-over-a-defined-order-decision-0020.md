@@ -1,9 +1,11 @@
 ---
 id: TASK-0223
 title: Conflict gap ids content-derived over a defined order (decision-0020)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-08T11:56:00Z'
+updated_date: '2026-11-08T12:23:00Z'
 labels:
   - store
   - rules

@@ -12,6 +12,16 @@ names that section with the version.
 
 ### Contract changes
 
+- **Conflict gap ids name their two statements** (task-0223, decision-0020, doc-0030 S2). A conflict
+  between two documents is now `gap:conflict:<key>:<a>~<b>`, by its two assertion ids sorted, the form a
+  conflict with a person's statement already had; the positional `gap:conflict:<key>:<n>` is gone. One
+  conflict therefore has one id on rdflib and on Neo4j (the default gate's scratch store and the page's
+  store no longer disagree), and a new conflict on a key no longer renames the others. `conflict_gaps`
+  answers ordered by id, `candidate_pairs` by key then id, on both adapters. The gate report's
+  `conflicts`, its text and the arms' bundle carry the new ids. A record written before keeps its
+  `:<n>` ids; `compare_deterministic.py` reads both forms as one per key, so the scored record still
+  compares equal.
+
 - **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
   with one additive field.
   - **One successor set (G3).** The gate's level drops an invalidated statement only when its own verified or

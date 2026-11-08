@@ -314,6 +314,8 @@ jobs:
 
       - name: Route (c) on the Neo4j store (task-0041), a transcript read by a stub model gives inferred candidates on the empty keys only
         run: docker compose exec -T app python tools/check_transcript_route.py runs/transcript
+      - name: One id per conflict on both stores (task-0223, decision-0020, doc-0030 S2), every CargoQuote scenario loaded fresh on Neo4j and on rdflib, S4's four conflicts named alike
+        run: docker compose exec -T app python tools/check_conflict_ids.py --stores neo4j,rdflib --require S4
       - name: The store survives a round trip (task-0070), Neo4j to Turtle to rdflib and back to Neo4j, every CargoQuote scenario and J-F's (the subset on a pull request), the same gate reports and three-valued answers
         run: |
           docker compose exec -T app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j
