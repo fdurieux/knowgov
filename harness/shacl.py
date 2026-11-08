@@ -30,8 +30,9 @@ kg:SourcedAssertionShape a sh:NodeShape ;
 
 kg:InferredAssertionShape a sh:NodeShape ;
     sh:targetClass kg:InferredAssertion ;
-    sh:property [ sh:path kg:candidateFor ; sh:minCount 1 ;
-                  sh:message "an inferred assertion must be linked to the gap it proposes to fill" ] .
+    sh:or ( [ sh:property [ sh:path kg:candidateFor ; sh:minCount 1 ] ]
+            [ sh:property [ sh:path kg:supportedBy ; sh:minCount 1 ] ] ) ;
+    sh:message "an inferred assertion must be linked to the gap it proposes to fill, or rest on the kit fragment that states it (task-0214)" .
 
 kg:RequirementShape a sh:NodeShape ;
     sh:targetClass kg:Requirement ;

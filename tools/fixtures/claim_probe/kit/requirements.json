@@ -1,0 +1,7 @@
+[
+  {"id": "CLM-001", "kind": "refusal", "statement": "When a value is negative, the service shall refuse it.", "claim": "observed"},
+  {"id": "CLM-002", "kind": "rule", "statement": "The service shall treat zero as a valid value.", "claim": "inferred"},
+  {"id": "CLM-003", "kind": "contract", "statement": "The service shall report every refusal with its reason.", "claim": "intended"},
+  {"id": "CLM-004", "kind": "contract", "statement": "The service shall accept a value of one hundred."},
+  {"id": "CLM-005", "kind": "refusal", "statement": "When a value is not a number, the service shall refuse it.", "claim": "observed"}
+]

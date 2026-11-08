@@ -6,12 +6,14 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-08T11:18:00Z'
+updated_date: '2026-11-08T13:08:00Z'
 labels:
   - process
   - reverse-engineering
   - preload
 dependencies:
   - TASK-0216
+  - TASK-0224
 references:
   - >-
     backlog/decisions/decision-0018 -
@@ -38,3 +40,9 @@ decision-0018 point 1, step 4 (doc-0032 §2 step 4 and §10 item 3). pumllint's 
 - [ ] #3 tools/check_preload_linters.py proves each check finds its planted defect
 - [ ] #4 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-08: the maintainer chose to bump pumllint to 0.35.0 as the record's pin (task-0224). task-0217 is built after task-0224 merges, calling pumllint trace --features from the pinned library directly; the side install (option b, approved by the coordinator earlier the same day) is dropped unless task-0224 finds the record moves, in which case option b resumes.
+<!-- SECTION:NOTES:END -->

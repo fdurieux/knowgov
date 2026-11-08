@@ -919,8 +919,12 @@ out; Replay and Deterministic work without it.
 An Arms run also needs the *worker*, the sealed container that runs the code
 the model writes. It starts only when you add `--profile arms` to the
 `docker compose up` command in step 3, and only on Linux with Landlock, a
-kernel feature that stops that code writing outside its own folder (kernel
-5.13 or later, enabled). Docker Desktop for Mac 4.48.0 has no Landlock, so
+kernel feature that stops that code writing outside its own folder (Linux
+6.2 or later, enabled: the worker needs Landlock ABI 3, the first that also
+stops it truncating a file it may only read). On an older kernel the worker
+refuses to start, the page's worker chip reads *worker: not attested ·
+Landlock ABI N, 3 needed*, and every Arms run is refused; Replay and
+Deterministic work as usual. Docker Desktop for Mac 4.48.0 has no Landlock, so
 there the worker refuses to start and every Arms run is refused; the rest of
 the demo works as usual. To run the Arms mode from a Mac, start the stack on a
 Linux machine whose kernel has Landlock and open the page through an SSH
@@ -1192,7 +1196,9 @@ differ; the self-check in step 3 is what decides.
 
 3. *Check the worker can serve.* This needs no key. Every check must read
    `true`, `write_confined` (Landlock) among them; if one does not, the Arms
-   mode is refused on this machine, and nothing weakens that.
+   mode is refused on this machine, and nothing weakens that. The output's
+   `landlock_abi` must be 3 or more: an older kernel's Landlock is reported, but
+   `write_confined` reads false there.
 
    ```bash
    cat /sys/kernel/security/lsm    # should list landlock

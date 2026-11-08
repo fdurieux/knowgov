@@ -136,7 +136,8 @@ services:
   # in its environment. It attests that confinement at start (harness/worker.py) and the app refuses a
   # job without a fresh attestation. It sees only what ships in the image and the jobs folder.
   # Started only with its profile (decision-0015): `docker compose --profile arms up -d --build --wait`,
-  # on Linux with Landlock; without it, every arms run is refused and the rest of the stack is unchanged.
+  # on Linux with Landlock at ABI 3 or later (Linux 6.2+); without it, every arms run is refused and the rest
+  # of the stack is unchanged.
   # On an engine without Landlock (Docker Desktop for Mac 4.48.0) the worker refuses to serve and exits 3.
   worker:
     profiles: ["arms"]

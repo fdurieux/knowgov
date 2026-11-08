@@ -1,0 +1,89 @@
+# The claim probe (task-0214, decision-0018 point 3, doc-0032 §3). Synthetic: a five-layer kit in the bundle
+# mappers' conventions whose statements say what they are, observed, inferred or intended, beside statements
+# that say nothing. tools/check_claim_probe.py loads it on the store KG_STORE names and holds every mapping:
+# observed reads extracted, inferred reads inferred and never rises above proposed, intended reads authored and
+# is approved only through the attestation below, and a statement without a claim reads as it did before.
+[subject]
+id = "claim_probe"
+name = "Claim probe"
+listed = false
+description = "A five-layer kit whose statements carry the claim field: observed, inferred, intended, and none."
+
+[[artefact]]
+key = "requirements.json"
+short = "req"
+family = "requirements"
+format = "json"
+label = "requirements"
+format_label = "JSON, EARS statements"
+path = "kit/requirements.json"
+mapper = "requirements_json"
+
+[[artefact]]
+key = "contracts/"
+short = "con"
+family = "contracts"
+format = "markdown"
+label = "contracts"
+format_label = "markdown"
+path = "kit/contracts"
+include = ["*.md"]
+mapper = "contracts_markdown"
+
+[[artefact]]
+key = "dmn/"
+short = "dmn"
+family = "decision_tables"
+format = "dmn-1.3"
+label = "decision tables"
+format_label = "DMN 1.3"
+path = "kit/dmn"
+include = ["*.dmn"]
+mapper = "dmn_decisions"
+
+[[artefact]]
+key = "uml/"
+short = "uml"
+family = "diagrams"
+format = "plantuml"
+label = "diagrams"
+format_label = "PlantUML"
+path = "kit/uml"
+include = ["*.puml"]
+mapper = "plantuml_realises"
+
+[[artefact]]
+key = "features/"
+short = "fea"
+family = "acceptance"
+format = "gherkin"
+label = "acceptance suite"
+format_label = "Gherkin, tagged with requirement ids"
+path = "kit/features"
+include = ["*.feature"]
+mapper = "gherkin_tagged"
+
+[reference]
+code = "code/probe.py"
+
+[provenance]
+human = { id = "agent:maintainer", name = "maintainer (the probe's attester)" }
+
+# Execution derived from the suite's links, as the J-F subject's; the authored statements attested and every
+# verified statement approved, so that what an inference can never reach is shown beside what the others reach.
+[verification]
+derive_execution = { from_predicate = "verified_by", key_predicate = "statement", separator = "; " }
+execution_scope = "probe scenario {scenario}"
+authored = { at = "2026-11-08", scope = "the probe's intended statements, attested" }
+approval = { at = "2026-11-08", record = "tools/fixtures/claim_probe/subject.toml" }
+
+[rules]
+requirement_id_pattern = "CLM-\\d{3}"
+
+[tasks.codegen]
+keys = ["CLM-001|statement", "CLM-002|statement", "CLM-003|statement", "CLM-004|statement", "CLM-005|statement"]
+block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
+max_unverified_share = 0.5   # two of five keys below verified read QUALIFIED: an inference is usable only as a stated assumption
+
+[record]
+as_of = 2026-11-08
