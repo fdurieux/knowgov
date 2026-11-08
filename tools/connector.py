@@ -179,14 +179,23 @@ def read_file(data: bytes, id_attribute: str) -> tuple[str, dict]:
 # ---- the mirror ----
 
 def _files(export: list[Path]) -> dict[str, Path]:
-    out = {}
+    """Each input file by the relative path it lands at: a folder's files by their path below it, a
+    file by its name. Two inputs that land at one path are refused, naming both (task-0206, doc-0030
+    P10: one used to be dropped silently); one file named twice is one input."""
+    out: dict[str, Path] = {}
+
+    def put(rel: str, p: Path) -> None:
+        if rel in out and out[rel].resolve() != p.resolve():
+            raise Refused(f"two inputs land at {rel}: {out[rel]} and {p}; rename one or land them apart")
+        out[rel] = p
+
     for e in export:
         if e.is_dir():
             for p in sorted(e.rglob("*")):
                 if p.is_file():
-                    out[p.relative_to(e).as_posix()] = p
+                    put(p.relative_to(e).as_posix(), p)
         elif e.is_file():
-            out[e.name] = e
+            put(e.name, e)
         else:
             raise FileNotFoundError(e)
     if not out:

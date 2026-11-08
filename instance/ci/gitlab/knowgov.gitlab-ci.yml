@@ -17,7 +17,7 @@
   image: python:3.12@sha256:17b9724493d916f56565c131f389faff2597f46dec6ce09516f95125bc9f519f   # tag and index digest (task-0092)
   variables:
     KNOWGOV_REF: main          # pin a tag
-    KNOWGOV_PIP: "pumllint==0.33.0 rdflib==7.6.0 pyshacl==0.40.2 pyyaml==6.0.3"   # the tag's harness.yml pins your store needs
+    KNOWGOV_PIP: "pumllint==0.35.0 rdflib==7.6.0 pyshacl==0.40.2 pyyaml==6.0.3"   # the tag's harness.yml pins your store needs
     KG_GATE: gate              # preload, gate, trace-check or trace-register
     KG_INSTANCE: instance
     KG_AS_OF: ""               # gate, trace-*: the date review currency is read on (YYYY-MM-DD, record); empty: today

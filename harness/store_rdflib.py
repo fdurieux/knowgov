@@ -582,9 +582,10 @@ class RdflibStore(Store):
             self._verify(x, f"ver:review:{self.nid(x)}", h, {"method": "review", "outcome": "pass", "at": at, "valid_until": None, "scope": scope})
         return len(xs)
 
-    def verify_authored(self, at, scope, agent_id) -> int:
+    def verify_authored(self, at, scope, agent_id, artefacts=None) -> int:
         h = self.node(agent_id, "Agent")
-        xs = [x for x in self.nodes("Assertion", basis="authored", status="proposed") if self.prop(x, "value") != "NONE"]
+        xs = [x for x in self.nodes("Assertion", basis="authored", status="proposed") if self.prop(x, "value") != "NONE"
+              and (artefacts is None or self.prop(x, "artefact") in artefacts)]   # decision-0019: the Versions attested
         if h is None:
             return 0
         for x in xs:
@@ -594,9 +595,9 @@ class RdflibStore(Store):
             self.set_props(x, {"status": "verified"})
         return len(xs)
 
-    def approve_verified(self, at, record, agent_id) -> int:
+    def approve_verified(self, at, record, agent_id, artefacts=None) -> int:
         h = self.node(agent_id, "Agent")
-        xs = self.nodes("Assertion", status="verified")
+        xs = [x for x in self.nodes("Assertion", status="verified") if artefacts is None or self.prop(x, "artefact") in artefacts]
         if h is None:
             return 0
         for x in xs:
@@ -1035,6 +1036,36 @@ class RdflibStore(Store):
 
     def record_act_finding(self, row) -> None:
         self.merge_node(row["id"], "ActFinding", props={k: row[k] for k in self.ACT_FIELDS})
+
+    def withdraw_construction(self, artefacts) -> int:
+        n = 0
+        for x in list(self.nodes("Assertion")):
+            if self.prop(x, "artefact") not in artefacts:
+                continue
+            xid, hit = self.nid(x), False
+            for nid in (f"ver:review:{xid}", f"appr:{xid}"):
+                node = self._nodes.get(nid)
+                if node is not None:
+                    self.delete_node(node)
+                    hit = True
+            if not hit or self.prop(x, "status") not in ("approved", "verified"):
+                continue
+            aps = [a for a in self.inn(x, "APPROVES") if self.has_label(a, "Approval")]
+            vs = [v for v in self.inn(x, "VERIFIES") if self.has_label(v, "Verification")]
+            status = "approved" if aps else "verified" if vs else "proposed"
+            if status != self.prop(x, "status"):
+                self.set_props(x, {"status": status})
+                n += 1
+        return n
+
+    def record_attestation(self, row) -> None:
+        a = self.node(row["attester"], "Agent")
+        if a is not None:
+            self.set_props(a, {f"attestation_{row['declaration']}": json.dumps({k: row[k] for k in ("id", *self.ATTESTATION_FIELDS)}, sort_keys=True)})
+
+    def attestations(self) -> list[dict]:
+        return by_id([json.loads(self.prop(a, f"attestation_{d}")) for a in self.nodes("Agent") for d in ("approval", "authored")
+                      if self.prop(a, f"attestation_{d}")])
 
     def clear_act_findings(self) -> None:
         for a in list(self.nodes("ActFinding")):

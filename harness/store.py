@@ -95,7 +95,7 @@ READS = frozenset({
     "gaps_with_concerns", "assertions_on_key", "assertion_rows", "supported_by", "candidate_for",
     "fragments_with_version", "requirements_verified_by", "register_census", "register_node_statements",
     "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions", "held",
-    "act_findings", "derived_rows", "gap_brief", "lint_gaps"})
+    "act_findings", "derived_rows", "gap_brief", "lint_gaps", "attestations"})
 
 
 def held_from(acts: list[dict], current: list[dict]) -> dict | None:
@@ -316,10 +316,13 @@ class Store:
     def verify_by_review(self, key: str, values: list[str], at: str, scope: str, agent_id: str) -> int:
         raise NotImplementedError
 
-    def verify_authored(self, at: str, scope: str, agent_id: str) -> int:
+    def verify_authored(self, at: str, scope: str, agent_id: str, artefacts: list[str] | None = None) -> int:
+        """Review by construction every authored statement still proposed; with ``artefacts`` (decision-0019),
+        only those of these artefacts, the Versions the declaration attests. None: every artefact (the read rule)."""
         raise NotImplementedError
 
-    def approve_verified(self, at: str, record: str, agent_id: str) -> int:
+    def approve_verified(self, at: str, record: str, agent_id: str, artefacts: list[str] | None = None) -> int:
+        """Approve every verified statement; with ``artefacts`` (decision-0019), only those of these artefacts."""
         raise NotImplementedError
 
     def reverify(self, version: str, keys: list[str], agent_id: str, ts: str, scope: str, record: str) -> list[str]:
@@ -518,6 +521,30 @@ class Store:
         written (``load.load_reviews``): a ruling or close whose statement changed or vanished, a refused file, a
         file from before 0.9.0 bound by id. Its fields are ``ACT_FIELDS``, scalars (``to`` and ``reasons`` JSON
         text); writing one id again replaces it, so stage 2's recheck never doubles one."""
+        raise NotImplementedError
+
+    ATTESTATION_FIELDS = ("declaration", "bound", "attester", "unattested")
+
+    def withdraw_construction(self, artefacts: list[str]) -> int:
+        """decision-0019: "An unlisted Version is not attested: its authored statements read proposed, and nothing in
+        it is approved by construction." Take back, from every statement of ``artefacts`` (their current Version
+        unlisted), the review by construction (``ver:review:<id>``) and the approval by construction
+        (``appr:<id>``) an earlier load gave it, changed or not; a person's ruling and a re-verification stay. A
+        statement left with no approval reads verified when a verification remains, else proposed. Returns how many
+        statements changed (task-0221: stage 2 then reads as a fresh load of the later documents)."""
+        raise NotImplementedError
+
+    def record_attestation(self, row: dict) -> None:
+        """Keep how the load read a ``[verification]`` declaration (decision-0019, task-0221), ``row`` of id
+        ``attest:authored`` or ``attest:approval``: ``bound`` (it lists Versions) and, as JSON text in ``unattested``,
+        the stored artefacts it did not attest, each {artefact, sha256, parts}. It is kept on the attester's Agent node
+        (``row["attester"]``), as the property ``attestation_<declaration>``, never as a node of its own, so a bound
+        declaration that attests every Version leaves the store, and the record's census, as the read rule does.
+        Writing one declaration again replaces it, so stage 2 records what its later documents read."""
+        raise NotImplementedError
+
+    def attestations(self) -> list[dict]:
+        """Every ``Attestation``: id and ``ATTESTATION_FIELDS``, by id. Empty when the subject declares none."""
         raise NotImplementedError
 
     def clear_act_findings(self) -> None:

@@ -88,11 +88,28 @@ def _toml(p: Path) -> dict:
     return tomllib.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
 
 
+MANIFESTS = ("subject.toml", "scenarios.toml")   # what a reader of a subject watches for an edit (task-0206)
+
+
+def stamp(root: Path) -> tuple:
+    """Each manifest's (mtime, size), None for one that is not there: when it moves, a Subject built
+    before it is stale (task-0206, doc-0030 P3)."""
+    out = []
+    for name in MANIFESTS:
+        try:
+            st = (Path(root) / name).stat()
+            out.append((st.st_mtime_ns, st.st_size))
+        except OSError:
+            out.append(None)
+    return tuple(out)
+
+
 class Subject:
     def __init__(self, root: Path):
         self.root = Path(root).resolve()
         if not (self.root / "subject.toml").exists():
             raise FileNotFoundError(f"{self.root} holds no subject.toml")
+        self.stamp = stamp(self.root)   # read before the files, so an edit while they are read leaves it stale
         m = _toml(self.root / "subject.toml")
         self.manifest = m
         s = m.get("subject", {})

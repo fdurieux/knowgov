@@ -308,6 +308,8 @@ jobs:
         run: docker compose exec -T app sh -c 'rm -rf runs/ledger-binding && python tools/check_ledger_binding.py runs/ledger-binding'
       - name: One definition per concept (task-0201) on the Neo4j store, one successor set, disputed statements read, one owner and route, a duplicate Derived refused
         run: docker compose exec -T app sh -c 'rm -rf runs/one-definition && python tools/check_one_definition.py runs/one-definition'
+      - name: Attestations bound to their Versions (task-0221, decision-0019) on the Neo4j store, an edited unlisted Version reads proposed and the gate names it
+        run: docker compose exec -T app sh -c 'rm -rf runs/attestation-binding && python tools/check_attestation_binding.py runs/attestation-binding'
       - name: Pre-load findings as routed gaps (task-0216) on the Neo4j store, a lint gap with its owner and route and no level moved, held, resolved, a slip in the re-lint delta, kept by the round trip
         run: docker compose exec -T app sh -c 'rm -rf runs/lint-gaps && python tools/check_lint_gaps.py runs/lint-gaps'
       - name: The kit's claim (task-0214) on the Neo4j store, the probe kit's five mappers read observed, inferred and intended into the basis, an inferred statement stays proposed and a ruling approving it is refused
