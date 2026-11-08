@@ -232,10 +232,11 @@ except OSError as e:
     r = probe(worker_probes.chain(mark), seconds=60)
     took = time.monotonic() - t0
     check((r.get("stdout") or "").strip() == f"built {worker_probes.DEPTH}", f"EXEC-11 the job built its {worker_probes.DEPTH}-deep setsid chain: {r}")
-    left = (probe(worker_probes.survivors(mark)).get("stdout") or "").split()
+    seen = (probe(worker_probes.survivors(mark)).get("stdout") or "").splitlines()
+    left = seen[0].split() if seen else []
     check(left == ["0", "0"] and took < 60 + worker.REAP_S,
           f"EXEC-11 none of the chain and no other process of the worker's user outlives the job, within {60 + worker.REAP_S:g} s "
-          f"({took:.1f} s): marked, others = {left}")
+          f"({took:.1f} s): marked, others = {left}" + "".join(f"\n       {ln}" for ln in seen[1:]))
     genuine = "genuine-" + worker_probes.marker()
     r = probe(worker_probes.forge(genuine), seconds=30)
     out = (r.get("stdout") or "").split()

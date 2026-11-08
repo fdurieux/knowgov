@@ -345,6 +345,13 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **The worker's containment check no longer counts the healthcheck, and a job can no longer hide from it**
+  (task-0232). `tools/check_worker.py`'s EXEC-11 counts any process of the worker's user still alive after a
+  job. It once counted the container's own healthcheck in the instant that check exits, and failed. It also
+  skipped any process with `--attest-only` on its command line, which a job could copy to hide. The check now
+  counts a process only when a second scan, a second later, still finds one, and it trusts no command line: it
+  leaves out only processes started from outside the container, such as the healthcheck, which a job cannot
+  start. Each process it counts is now named in the failure.
 - **`tools/preload_check.py` exits 2 when it cannot write `-o`** (task-0228, doc-0030 F6). An unwritable
   report path (a missing folder) exited 1, the finding's code, with a traceback; it is now a failure to run,
   exit 2, one `cannot run: -o ...` line and no report. The command exits through the check tools' outcomes
