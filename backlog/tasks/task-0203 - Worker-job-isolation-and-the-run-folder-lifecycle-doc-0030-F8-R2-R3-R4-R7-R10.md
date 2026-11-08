@@ -3,9 +3,11 @@ id: TASK-0203
 title: >-
   Worker job isolation and the run-folder lifecycle (doc-0030 F8: R2, R3, R4,
   R7, R10)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-07T07:15:00Z'
+updated_date: '2026-11-08T11:36:00Z'
 labels:
   - review
   - worker
@@ -32,3 +34,15 @@ R4: the reaper kills one level of escaped descendants per round for 50 rounds (w
 - [ ] #4 A fresh cell clears its sandbox, usage.json merges only under --resume, and stage 2's derived input is an explicit flag
 - [ ] #5 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. R4. worker._reap_orphans kills every descendant of the worker (the subreaper), at any depth at once, each round, reaping the dead, until none is left or REAP_S (10 s) passes. It no longer kills one level a round for 50 rounds. Descendants of the worker, not every uid-65534 process, so the compose healthcheck (worker.py --attest-only as uid 65534 in the same container) is never killed.
+2. R7. worker_job.py is made non-dumpable (prctl PR_SET_DUMPABLE 0). Its stdout moves to a private descriptor, close-on-exec, and fd 1 points at /dev/null; the one answer line is written there and the descriptor closed.
+3. R10. write_confined requires landlock_abi() >= 3, and the attestation carries landlock_abi. execution.attested's refusal names the ABI, and the page's worker chip shows 'Landlock ABI N, 3 needed'. The docs' platform floor moves from Linux 5.13 to 6.2.
+4. R2. execution.run maps a job-stage error the model output caused (timeout, killed, output, harness_error) to execution.failed_cell(kind), so the run goes on. A job the app wrote wrong ('job' stage) and ExecutionRefused still raise.
+5. R3. run.py one_agent empties its sandbox before a fresh cell. _write_usage merges an earlier usage.json only under --resume. Stage 2's derived input comes from --stage2-derived, else the file this invocation wrote (WRITTEN), else, under --resume, the earlier attempt's; never a reused --out's leftover (run.stage2_derived).
+6. Probes in tools/worker_probes.py: a 70-deep setsid chain with a survivors count, and a forge through /proc. tests/test_worker_isolation.py runs them on a worker process as uid 65534 under its real Landlock domain (as root), and check_worker.py adds EXEC-11 to EXEC-13 and the R10 attestation check for the stack. Each fails on the old code first.
+7. Docs (demo README, compose comment, docs/security.md) and CHANGELOG: the attestation field and --stage2-derived under Contract changes, the fixes under Changes. Suites (pins, bare stdlib, J-F), the comparator on S1-S7 and J-F, and the round trip on both subjects.
+<!-- SECTION:PLAN:END -->
