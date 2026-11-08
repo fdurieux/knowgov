@@ -319,12 +319,30 @@ names that section with the version.
   the same. The parser gains a field (`declared_line` on participants) that no mapper reads. Not a
   contract change: an instance that copied the CI template moves its `PUMLLINT` when it moves its
   knowgov tag.
+- **What notices a code change, measured: H7's two mutants on the J-F subject** (task-0219, decision-0018 point 8).
+  Two planted changes to one file of the public rebuild, each on a temporary copy, pre-registered first:
+  - The gate (R-STALE) saw neither change, because no document changed; scenario C still read PROCEED.
+  - trace saw both, as `drift` (minor), and could not tell them apart.
+  - Only the kit's suite separated them: 2 and 19 of 258 cases failing.
+  - A known limit: `trace.py check` fails at `blocker` by default, so a pipeline stops on a changed
+    registered file only with `--fail-on minor`. `docs/reverse-engineering.md` step 8 now says so.
+  - `subjects/jef_data_load/probes/h7/` (the pre-registration and `RESULTS.md`), `tools/check_h7_probe.py`,
+    `tests/test_h7_probe.py`.
 - **A guide to reverse-engineering a code base and finding its knowledge gaps** (task-0218, decision-0018
   points 1 and 2). `docs/reverse-engineering.md` walks the eight steps for an adopter, from scoping at a named
   commit to re-running on change. For each step it gives the tool that runs it today, the record it leaves and
   where that record lives. `docs/reverse-engineering-preregistration.md` is step 1's template, with the
   pumllint experiment's first run on J-F filled in as the example. `tests/test_reverse_engineering_guide.py`
   holds every option, path and flag the two pages name to a real one.
+- **The page serves an edited subject on the next request, and the connector refuses a clash** (task-0206,
+  doc-0030 P3, P10). Before, the page rescanned its subjects when a `subject.toml` moved, but kept each
+  subject's tables by folder forever. So an edited name, `listed`, task or id was never served, and an
+  edited `scenarios.toml` was not noticed at all. Both manifests are now watched, and a subject is
+  rebuilt when either moves. With `KG_SUBJECTS` set and no subject under it loading, the page used to
+  fall back to the public CargoQuote. It now serves none: the page and `/api/subjects` load, and every
+  other route answers 404 naming `KG_SUBJECTS`. `tools/connector.py` used to keep one of two export files
+  landing at the same relative path, such as two files sharing a name, and drop the other silently. It
+  now refuses them, naming both, and lands nothing.
 - **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
   applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1
   could not apply stayed reported. Stage 2 clears the acts stage 1 recorded, then binds every ruling and close to

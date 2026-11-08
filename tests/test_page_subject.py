@@ -254,3 +254,78 @@ def test_a_subject_added_after_start_is_served_without_a_restart_and_a_removed_o
         _restore(saved)
         server.refresh_subjects()
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _minimal(d: Path, sid: str, name: str | None = None) -> None:
+    d.mkdir(parents=True, exist_ok=True)
+    m = (ROOT / "subjects" / "minimal" / "subject.toml").read_text(encoding="utf-8")
+    m = m.replace('id = "minimal"', f'id = "{sid}"').replace("listed = false", "listed = true")
+    if name is not None:
+        m = re.sub(r'(?m)^name = "[^"]*"', f'name = "{name}"', m, count=1)
+    (d / "subject.toml").write_text(m, encoding="utf-8")
+    sc = (ROOT / "subjects" / "minimal" / "scenarios.toml").read_text(encoding="utf-8")
+    (d / "scenarios.toml").write_text(sc.replace('id = "S0"', f'id = "{sid}-S0"'), encoding="utf-8")
+
+
+def _touch_later(p: Path) -> None:
+    """Move a file's mtime on, so a filesystem with a coarse clock still sees the edit."""
+    import os
+    st = p.stat()
+    os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns + 2_000_000_000))
+
+
+def test_an_edited_subject_or_scenarios_manifest_is_served_on_the_next_request():
+    """task-0206 (doc-0030 P3): the page rebuilt on a changed subject.toml mtime, but page_subject.of
+    cached by root forever, so an edited name was never served, and scenarios.toml was not watched."""
+    import shutil
+    tmp = Path(tempfile.mkdtemp(prefix="kg-edit-"))
+    _minimal(tmp / "alpha", "alpha", "Alpha one")
+    saved = _env(KG_SUBJECTS=str(tmp))
+    httpd, base = _serve()
+    try:
+        names = lambda: {s["id"]: s["name"] for s in json.loads(_get(base + "/api/subjects")[1])["subjects"]}  # noqa: E731
+        scenarios = lambda: [s["id"] for s in json.loads(_get(base + "/api/scenarios?subject=alpha")[1])["scenarios"]]  # noqa: E731
+        assert names() == {"alpha": "Alpha one"} and scenarios() == ["alpha-S0"]
+        m = tmp / "alpha" / "subject.toml"
+        m.write_text(m.read_text(encoding="utf-8").replace('name = "Alpha one"', 'name = "Alpha two"'), encoding="utf-8")
+        _touch_later(m)
+        assert names() == {"alpha": "Alpha two"}, "the edited name, on the next request"
+        sc = tmp / "alpha" / "scenarios.toml"
+        sc.write_text(sc.read_text(encoding="utf-8").replace('id = "alpha-S0"', 'id = "alpha-S9"'), encoding="utf-8")
+        _touch_later(sc)
+        assert scenarios() == ["alpha-S9"], "scenarios.toml is watched too"
+        # the module's own entry point sees the edit as well, whatever Subject object it is handed
+        stale = Subject(tmp / "alpha")
+        m.write_text(m.read_text(encoding="utf-8").replace('name = "Alpha two"', 'name = "Alpha three"'), encoding="utf-8")
+        _touch_later(m)
+        assert page_subject.of(stale).subject.name == "Alpha three"
+    finally:
+        httpd.shutdown()
+        _restore(saved)
+        server.refresh_subjects()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_kg_subjects_with_nothing_loadable_serves_no_public_subject():
+    """task-0206 (doc-0030 P3): with KG_SUBJECTS set and no manifest under it loading, the page served
+    public CargoQuote, against _load_subjects' docstring. It now serves none, and says so."""
+    import shutil
+    tmp = Path(tempfile.mkdtemp(prefix="kg-none-"))
+    (tmp / "broken").mkdir()
+    (tmp / "broken" / "subject.toml").write_text("[subject\n", encoding="utf-8")
+    saved = _env(KG_SUBJECTS=str(tmp), KG_SUBJECT=str(CARGO_QUOTE.root))
+    httpd, base = _serve()
+    try:
+        assert server._load_subjects() == [], "the instance's own subjects only: none loads, none listed"
+        code, body = _get(base + "/api/subjects")
+        assert code == 200 and json.loads(body)["subjects"] == [], body
+        for path in ("/api/scenarios", "/api/scenarios?subject=cargo_quote", "/api/register"):
+            code, body = _get(base + path)
+            assert code == 404 and b"cargo_quote" not in body.replace(b"'cargo_quote'", b"") and b"KG_SUBJECTS" in body, (path, code, body)
+        code, _ = _get(base + "/")
+        assert code == 200, "the page itself still loads, to say there is no subject"
+    finally:
+        httpd.shutdown()
+        _restore(saved)
+        server.refresh_subjects()
+        shutil.rmtree(tmp, ignore_errors=True)
