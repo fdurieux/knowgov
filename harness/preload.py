@@ -17,6 +17,8 @@ import json
 import os
 from pathlib import Path
 
+import hashlib
+
 from kitio import sha256
 
 DEFAULT_NAME = "preload-report.json"
@@ -76,6 +78,22 @@ def verdicts(subject, kit: dict[str, str], keys, report: dict, name: str) -> dic
             v.update(tool=row.get("tool"), digest=row["sha256"], why="the bytes loaded differ from the bytes the report judged")
         else:
             v.update(state=row["state"], tool=row.get("tool"), tool_version=tools.get(row.get("tool")), digest=row["sha256"],
-                     why=row.get("why", ""))
+                     why=row.get("why", ""), findings=list(row.get("findings") or []))
         out[key] = v
+    return out
+
+
+def lint_gaps(artefact: str, version: str, v: dict) -> list[dict]:
+    """Each finding the report gave a version's exact bytes, as the store keeps it (task-0216, decision-0018
+    point 5): one gap per finding, its id stable across stores and loads (the document, its version, the tool,
+    rule, line and message, never the store's order), ``held`` when the baseline holds it. A version left
+    unchecked, or whose bytes differ from those judged, holds none: there is no finding of its bytes."""
+    out = []
+    for f in v.get("findings") or []:
+        text = f"{v.get('tool')} {f['rule']} ({f['severity']}) at {v.get('file')}:{f['line']}: {f['message']}"
+        fp = hashlib.sha256(f"{v.get('tool')}|{f['rule']}|{f['line']}|{f['message']}".encode("utf-8")).hexdigest()[:16]
+        out.append({"id": f"lint:{artefact}@{version}:{fp}", "artefact": artefact, "version": version, "file": v.get("file"),
+                    "tool": v.get("tool"), "tool_version": v.get("tool_version"), "rule": f["rule"], "severity": f["severity"],
+                    "line": int(f["line"]), "message": f["message"], "held": bool(f.get("held")), "text": text,
+                    "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()})
     return out

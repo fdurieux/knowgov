@@ -1027,6 +1027,18 @@ class RdflibStore(Store):
         keys = sorted(self.prop(e, "key") for e, _t in self.edges_out(g, "CONCERNS_KEY") if self.prop(e, "key") is not None)
         return {"id": gid, "kind": self.prop(g, "kind"), "declared": self.prop(g, "declared"), "text": self.prop(g, "text"), "keys": keys}
 
+    def record_lint_gap(self, row) -> None:
+        self.merge_node(row["id"], "LintGap", props={k: row.get(k) for k in self.LINT_FIELDS})
+
+    def resolve_lint_gap(self, gid, resolution, review_id, by, on, record, note) -> None:
+        g = self.node(gid, "LintGap")
+        if g is not None:
+            self.set_props(g, {"resolution": resolution, "review": review_id, "resolved_by": by, "resolved_on": on,
+                               "record": record, "note": note})
+
+    def lint_gaps(self) -> list[dict]:
+        return by_id([{"id": self.nid(g), **{k: self.prop(g, k) for k in self.LINT_FIELDS}} for g in self.nodes("LintGap")])
+
     def act_findings(self) -> list[dict]:
         return by_id([{"id": self.nid(a), **{k: self.prop(a, k) for k in self.ACT_FIELDS}} for a in self.nodes("ActFinding")])
 

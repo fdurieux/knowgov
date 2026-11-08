@@ -27,6 +27,24 @@ names that section with the version.
     unchanged: no public class declares it. `tools/check_subject.py` refuses a value that is not true
     or false.
 
+- **Each pre-load finding on a loaded document is a gap with an owner and a route** (task-0216, decision-0018
+  point 5). A contract change to the store, the gate report, the review file and the pre-load report.
+  - **The gap.** The load keeps every finding the pre-load report gave a version's exact bytes as a `LintGap`
+    (port write `record_lint_gap`, read `lint_gaps`). Its id is the finding's own, never the store's order. A
+    finding the baseline holds is kept, marked `held`.
+  - **The finding.** The gate lists the lint gaps on the documents behind the task's keys as findings of kind
+    `lint`. The severity is the linter's, at most major. It is info when held or resolved as a choice or an
+    exception.
+  - **Owner and route.** Each names the document's owner and route from `capture.routing`, over the keys
+    behind it. When several units own those keys, it names each one's route.
+  - **A key's level never moves for a lint gap.** It is the document's form, not the knowledge, so every
+    verdict reads as before. task-0064's info listing stays.
+  - **Resolutions.** A review's new `[[resolves]]` (`choice`, `exception`, `open`) is bound to the finding's
+    text by digest. Only the document's owners may make it, under the role `closes`. A slip is a new version.
+  - **The delta.** `tools/preload_check.py --previous REPORT` reports what a re-lint changed, at the same tool
+    versions only: new, gone (a slip when the bytes changed) and kept.
+  - **Proof.** `tools/check_lint_gaps.py` proves it on the example instance, on rdflib and on Neo4j.
+
 - **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
   with one additive field.
   - **One successor set (G3).** The gate's level drops an invalidated statement only when its own verified or

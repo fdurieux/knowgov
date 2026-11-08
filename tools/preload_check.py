@@ -317,6 +317,43 @@ def _baseline_index(baseline: dict) -> dict[tuple, list[int]]:
     return held
 
 
+def delta(previous: dict, rep: dict, name: str = "") -> dict:
+    """What a re-lint changed (task-0216, decision-0018 point 5): each finding of ``rep`` against ``previous``, an
+    earlier report of this command, matched as the baseline matches (file, tool, rule, message; lines are not
+    compared). Comparable only when every tool that ran in both ran at the same version: a newer linter's
+    findings are not a document's change. A finding gone from a file whose bytes changed is a slip, mended by a
+    new version; gone from bytes unchanged, the rule no longer fires on them."""
+    def ran(r):
+        return {lt["tool"]: lt.get("version") for lt in r.get("linters", []) if lt.get("version")}
+    a, b = ran(previous), ran(rep)
+    moved = sorted(t for t in set(a) & set(b) if a[t] != b[t])
+    out = {"previous": name, "comparable": not moved,
+           "why": None if not moved else "tool versions differ: " + ", ".join(f"{t} {a[t]} -> {b[t]}" for t in moved),
+           "new": [], "gone": [], "kept": 0}
+    if moved:
+        return out
+
+    def index(r):
+        found = {}
+        for row in r.get("files", []):
+            for f in row.get("findings", []):
+                found.setdefault((row["file"], row.get("tool"), f["rule"], f["message"]), []).append(f)
+        return found
+    before, after = index(previous), index(rep)
+    digest = {r["file"]: r.get("sha256") for r in rep.get("files", [])}
+    was = {r["file"]: r.get("sha256") for r in previous.get("files", [])}
+    for k in sorted(set(before) | set(after), key=lambda k: tuple(str(x) for x in k)):
+        n0, n1 = len(before.get(k, [])), len(after.get(k, []))
+        out["kept"] += min(n0, n1)
+        row = {"file": k[0], "tool": k[1], "rule": k[2], "message": k[3]}
+        for f in after.get(k, [])[n0:]:
+            out["new"].append({**row, "severity": f["severity"], "line": f["line"]})
+        for f in before.get(k, [])[n1:]:
+            out["gone"].append({**row, "severity": f["severity"], "line": f["line"],
+                                "slip": bool(was.get(k[0]) and digest.get(k[0]) and was[k[0]] != digest[k[0]])})
+    return out
+
+
 def check(instance: Path, changed: list[str] | None = None, threshold: str = "major", table: dict | None = None,
           baseline: dict | None = None, baseline_name: str = "") -> dict:
     """The report. changed: paths relative to the instance (or absolute); None: every file under artefacts/.
@@ -522,6 +559,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("-f", "--format", choices=["text", "json"], default="text")
     ap.add_argument("-o", "--output", help="also write the JSON report to this file (commit one as a baseline: the owner's decision)")
     ap.add_argument("--baseline", metavar="FILE", help="an earlier report (-o): exit 1 only on a finding it does not hold; never written by this command")
+    ap.add_argument("--previous", metavar="FILE", help="an earlier report (-o): also report the delta, each finding new, gone (a slip "
+                                                       "when its file's bytes changed) or kept, at the same tool versions only (task-0216)")
     ap.add_argument("--layout", action="store_true", help="also carry tools/check_instance.py's layout problems in the report "
                                                            "(its layout block, for annotation; task-0115); the exit code stays the lint's")
     args = ap.parse_args(argv)
@@ -554,6 +593,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"cannot run: --baseline {args.baseline} is not a preload report: {errors[0]}", file=sys.stderr)
             return 2
     rep = check(args.instance, changed, args.fail_on, table, baseline, args.baseline or "")
+    if args.previous:
+        try:
+            prev = json.loads(Path(args.previous).read_text(encoding="utf-8"))
+            errors = schema_check.validate(prev, schema_check.load("preload-report"))
+        except (OSError, ValueError) as e:
+            errors = [str(e)]
+        if errors:
+            print(f"cannot run: --previous {args.previous} is not a preload report: {errors[0]}", file=sys.stderr)
+            return 2
+        rep["delta"] = delta(prev, rep, args.previous)
     if args.layout:
         rep["layout"] = layout(args.instance, table)
     if args.output:
