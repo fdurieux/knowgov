@@ -33,6 +33,9 @@ runs them on Python 3.13 as well as 3.12.
 Releases are listed in [`CHANGELOG.md`](CHANGELOG.md); each publishes the image
 `ghcr.io/fdurieux/knowgov:<version>`, so an instance can run a named release rather than
 whatever `:latest` holds. An adopter's guide is [`docs/guide.md`](docs/guide.md); a security reviewer reads [`docs/security.md`](docs/security.md).
+To describe an existing code base and find what nobody wrote down about it, follow
+[`docs/reverse-engineering.md`](docs/reverse-engineering.md), with its pre-registration template
+[`docs/reverse-engineering-preregistration.md`](docs/reverse-engineering-preregistration.md).
 
 The record of the proof of concept stays in pumllint:
 [`docs/neo4j-governed-knowledge-evaluation.md`](https://github.com/fdurieux/pumllint/blob/main/docs/neo4j-governed-knowledge-evaluation.md).

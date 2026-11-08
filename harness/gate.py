@@ -103,9 +103,38 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
     form = preload_behind(s, keys)
     if form is not None:   # only when a load recorded verdicts (task-0064); absent otherwise, so the record reads as before
         out["preload"] = form
+    attest = attestation_behind(s, keys)
+    if attest:   # decision-0019 (task-0221): absent when the subject declares no attestation, so the record reads as before
+        out["attestation"] = attest
     acts = acts_not_applied(s)
     if acts:   # task-0199: a person's act the load did not apply as written; absent otherwise, so the record reads as before
         out["acts"] = acts
+    return out
+
+
+def attestation_behind(s, keys: dict) -> list[dict]:
+    """How the load read each ``[verification]`` declaration (decision-0019): {declaration, bound, attester,
+    unattested: [{artefact, sha256, parts, keys}]}, each unattested artefact with the required keys whose
+    statements come from it (none: the artefact is behind no key of this task, and is left out). Empty on a store
+    view without the read, or when the subject declares no attestation."""
+    import json
+    try:
+        rows = s.attestations()
+    except (AttributeError, NotImplementedError):
+        return []
+    from subject import SUBJECT   # the read rule: a declaration with no versions, read from the manifest, never stored
+    held = {r["declaration"] for r in rows}
+    rows = rows + [{"declaration": n, "bound": False, "attester": "", "unattested": "[]"} for n in ("approval", "authored")
+                   if n not in held and isinstance(SUBJECT.verification.get(n), dict) and SUBJECT.verification[n].get("versions") is None]
+    behind: dict[str, set] = {}
+    for key, k in keys.items():
+        for r in k["assertions"]:
+            if r.get("artefact"):
+                behind.setdefault(r["artefact"], set()).add(key)
+    out = []
+    for r in sorted(rows, key=lambda r: r["declaration"]):
+        un = [{**u, "keys": sorted(behind[u["artefact"]])} for u in json.loads(r.get("unattested") or "[]") if u["artefact"] in behind]
+        out.append({"declaration": r["declaration"], "bound": bool(r["bound"]), "attester": r.get("attester") or "", "unattested": un})
     return out
 
 
