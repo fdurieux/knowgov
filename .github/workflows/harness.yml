@@ -59,7 +59,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"   # the interpreter the demo image and the J-F kit's pins name
-      - run: pip install "pumllint==0.33.0" "pyyaml==6.0.3" "rdflib==7.6.0" "pyshacl==0.40.2" "openai==3.41.0" "pandas==3.0.5" "numpy==2.4.6" "requests==2.34.2" "pyarrow==25.0.1" "pytest==9.1.1" "pytest-bdd==9.0.1"
+      - run: pip install "pumllint==0.35.0" "pyyaml==6.0.3" "rdflib==7.6.0" "pyshacl==0.40.2" "openai==3.41.0" "pandas==3.0.5" "numpy==2.4.6" "requests==2.34.2" "pyarrow==25.0.1" "pytest==9.1.1" "pytest-bdd==9.0.1"
       - name: The stdlib suite with the pins, the tests resting on rdflib run here and a skip of one fails (task-0141.01)
         run: KG_TEST_REQUIRE=rdflib,node,openai KG_TEST_REPORT=outcomes/tests-rdflib.json python tests/run_tests.py
       - name: S1 to S7 on the in-memory store match the record
@@ -138,16 +138,21 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"   # the interpreter the demo image and the J-F kit's pins name
-      - run: pip install "pumllint==0.33.0" "pyyaml==6.0.3" "rdflib==7.6.0" "pyshacl==0.40.2" "openai==3.41.0" "pandas==3.0.5" "numpy==2.4.6" "requests==2.34.2" "pyarrow==25.0.1" "pytest==9.1.1" "pytest-bdd==9.0.1"
+      - run: pip install "pumllint==0.35.0" "pyyaml==6.0.3" "rdflib==7.6.0" "pyshacl==0.40.2" "openai==3.41.0" "pandas==3.0.5" "numpy==2.4.6" "requests==2.34.2" "pyarrow==25.0.1" "pytest==9.1.1" "pytest-bdd==9.0.1"
+      - name: "pumllint's trace --features runs from the installed library (task-0224, for task-0217): the J-F kit's diagrams against its requirements and features, every requirement covered and verified"
+        run: |
+          cd subjects/jef_data_load/vendor/recreate_experiment/kit
+          pumllint trace -c pumllint.toml --requirements requirements.json --features features -f json uml > "$RUNNER_TEMP/trace.json"
+          python -c "import json, sys; s = json.load(open(sys.argv[1]))['summary']; print(s); assert s['requirementCount'] > 0 and s['featureCount'] > 0 and s['uncoveredCount'] == 0 and s['unverifiedCount'] == 0, s" "$RUNNER_TEMP/trace.json"
       - name: The subject check (task-0135) with the mappers installed, the public subjects hold with their whole yield, doc-0018's probe is refused and its misspelt key named with the key the documents yield
         run: |
           mkdir -p runs   # task-0163: this job's first step; the record's steps made runs/ in the one job before the split
           python tools/check_subject.py subjects/cargo_quote | tee runs/check-cargo.txt
           grep -Fx 'yield: 93 key(s) from 10 artefact(s)' runs/check-cargo.txt
-          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-cargo.txt | grep -v '(decision-0019)$'; then exit 1; fi   # task-0221: the read rule's note, until the subject lists its Versions
+          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-cargo.txt; then exit 1; fi   # task-0221: the subject lists its Versions, so a fall back to the read rule fails here
           python tools/check_subject.py subjects/jef_data_load | tee runs/check-jef.txt
           grep -Fx 'manifest holds' runs/check-jef.txt
-          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-jef.txt | grep -v '(decision-0019)$'; then exit 1; fi   # task-0221: the read rule's note, until the subject lists its Versions
+          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-jef.txt; then exit 1; fi   # task-0221: the subject lists its Versions, so a fall back to the read rule fails here
           rc=0; python tools/check_subject.py tools/fixtures/subject_probe > runs/check-probe.txt || rc=$?
           cat runs/check-probe.txt; test "$rc" -eq 1
           grep -F 'WARNING [tasks.codegen] keys: REQ-02|txt' runs/check-probe.txt | grep -F 'did you mean REQ-02|text?'
