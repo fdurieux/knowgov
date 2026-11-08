@@ -51,7 +51,8 @@ writes the baseline: -o naming it is refused, and moving it on is a commit, not 
 own ratchet (`pumllint score --baseline`) is not used: it ratchets maturity levels from `score`,
 not lint findings, and records the file itself when it is missing.
 
-What it is not: it checks form, one file at a time, for its kind. It does not check knowledge;
+What it is not: it checks form: each file by its kind's linter, and step 4's checks read documents together
+(above). It does not check knowledge;
 two well-formed documents that disagree, or a fact nobody wrote down, pass it. That is the
 knowgov gate's question (harness/gate_cli.py), after the load; neither replaces the other. The
 check reads the instance and never writes to it; the linter runs with the instance as its
