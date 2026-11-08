@@ -12,6 +12,25 @@ names that section with the version.
 
 ### Contract changes
 
+- **An attestation is bound to the Versions it attests** (task-0221, decision-0019; decision-0009 option (c)).
+  Before, `[verification] authored` and `approval` attested whatever the documents held at each load, so an edit
+  made after the attestation inherited it.
+  - **The subject format.** Each declaration may list, in `versions`, the digest of every artefact Version it
+    attests: a file's raw-byte SHA-256 (task-0160) and, for a directory, each of its files' (task-0094; a directory
+    is attested when every file is listed). `authored = { at = "...", scope = "...", versions = ["<sha256>", ...] }`.
+  - **An unlisted Version is not attested.** Its authored statements read `proposed`, and none of its statements is
+    approved by construction. A test's verification of it still counts.
+  - **The gate names it.** A new finding kind, `attestation`: each artefact Version a bound declaration does not
+    attest, behind the task's keys, at `major`, with the keys' owner and a route (the attester lists its digest, or
+    the owner's questionnaire, `capture.routing`). New port write and read `record_attestation` and `attestations`
+    (in `store.READS`), on both adapters and through the Turtle round trip; `verify_authored` and `approve_verified`
+    take the attested artefacts.
+  - **Read rule for declarations written before this change.** A declaration with no `versions` attests per load,
+    as decision-0009 (a) has it. The gate lists it at `info` (`attestation`, not bound), and `tools/check_subject.py`
+    notes it, naming decision-0019. The public subjects keep their declarations without lists, so the scored record
+    is unchanged; listing their Versions is the maintainer's own attestation, in a pull request held for it.
+  - `tools/check_subject.py` refuses a listed digest that is no Version of the subject (its files, and the texts
+    its plants make of them). `tools/check_attestation_binding.py` proves it on both stores.
 - **Conflict gap ids name their two statements** (task-0223, decision-0020, doc-0030 S2). A conflict
   between two documents is now `gap:conflict:<key>:<a>~<b>`, by its two assertion ids sorted, the form a
   conflict with a person's statement already had; the positional `gap:conflict:<key>:<n>` is gone. One
@@ -280,6 +299,12 @@ names that section with the version.
 
 ### Changes
 
+- **A guide to reverse-engineering a code base and finding its knowledge gaps** (task-0218, decision-0018
+  points 1 and 2). `docs/reverse-engineering.md` walks the eight steps for an adopter, from scoping at a named
+  commit to re-running on change. For each step it gives the tool that runs it today, the record it leaves and
+  where that record lives. `docs/reverse-engineering-preregistration.md` is step 1's template, with the
+  pumllint experiment's first run on J-F filled in as the example. `tests/test_reverse_engineering_guide.py`
+  holds every option, path and flag the two pages name to a real one.
 - **The page serves an edited subject on the next request, and the connector refuses a clash** (task-0206,
   doc-0030 P3, P10). Before, the page rescanned its subjects when a `subject.toml` moved, but kept each
   subject's tables by folder forever. So an edited name, `listed`, task or id was never served, and an
@@ -289,7 +314,6 @@ names that section with the version.
   other route answers 404 naming `KG_SUBJECTS`. `tools/connector.py` used to keep one of two export files
   landing at the same relative path, such as two files sharing a name, and drop the other silently. It
   now refuses them, naming both, and lands nothing.
-
 - **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
   applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1
   could not apply stayed reported. Stage 2 clears the acts stage 1 recorded, then binds every ruling and close to

@@ -226,6 +226,7 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
         _key(rep, "[three_valued] keys", k)
 
     check_attestations(rep, m, root)
+    check_bindings(rep, m, root)
 
     if tasks and not _toml(root / "scenarios.toml").get("scenario"):
         rep.error("scenario", "scenarios.toml",
@@ -266,6 +267,67 @@ def check_attestations(rep: Report, m: dict, root: Path) -> None:
         rep.error("attestation", "[provenance] human", f"{', '.join(w for w, _ in acts)} attest(s) with no attester: the manifest names "
                   "no [provenance] human id, and no default stands in for a person (decision-0009, doc-0030 I9)",
                   'add [provenance] human = { id = "agent:<who>", name = "..." }, the person who attests')
+
+
+def subject_versions(m: dict, root: Path) -> set[str]:
+    """The digests an artefact Version of the subject can carry (decision-0019): each artefact file's raw bytes and,
+    for a directory, each file's, as on disk, and each text a scenario's patches make of a file (plants.toml, stage 1
+    and 2), as the load digests a planted text. Read from the files alone, never a load."""
+    import hashlib
+    h = lambda b: hashlib.sha256(b).hexdigest()  # noqa: E731
+    out: set[str] = set()
+    texts: dict[str, str] = {}               # a file artefact's text, or a directory's part: "<key><rel>"
+    for a in m.get("artefact", []) if isinstance(m.get("artefact"), list) else []:
+        if not isinstance(a, dict) or not a.get("path"):
+            continue
+        p = root / a["path"]
+        if p.is_file():
+            out.add(h(p.read_bytes()))
+            texts[str(a.get("key"))] = p.read_text(encoding="utf-8")
+        elif p.is_dir():
+            for f in sorted(p.rglob("*")):
+                if f.is_file():
+                    out.add(h(f.read_bytes()))
+                    t = f.read_text(encoding="utf-8", errors="replace")
+                    texts[str(a.get("key")) + f.relative_to(p).as_posix()] = t if t.endswith("\n") else t + "\n"   # as bundled
+    plants = _toml(root / "plants.toml")
+    for stage in ("plant", "stage2"):
+        for patches in (plants.get(stage) or {}).values():
+            kit = dict(texts)
+            for x in patches if isinstance(patches, list) else []:
+                path = str(x.get("path")) + (str(x["within"]) if x.get("within") else "")   # a part a plant changes (task-0094)
+                if x.get("op") == "add":
+                    kit[path] = str(x.get("new", ""))
+                elif x.get("op", "replace") == "replace" and path in kit:
+                    kit[path] = kit[path].replace(str(x.get("old", "")), str(x.get("new", "")))
+            out |= {h(t.encode("utf-8")) for k, t in kit.items() if texts.get(k) != t}
+    return out
+
+
+def check_bindings(rep: Report, m: dict, root: Path) -> None:
+    """decision-0019 (task-0221): ``[verification] authored`` and ``approval`` list in ``versions`` the digest of each
+    artefact Version they attest. A listed digest that is no Version of the subject is an error; a declaration with
+    no list is the read rule's, attesting per load, and noted."""
+    ver = m.get("verification") if isinstance(m.get("verification"), dict) else {}
+    known = None
+    for name in ("authored", "approval"):
+        a = ver.get(name)
+        if not isinstance(a, dict):
+            continue
+        where = f"[verification] {name}"
+        listed = a.get("versions")
+        if listed is None:
+            rep.note("attestation", where, "lists no Version: it attests what the documents hold at each load, so an edit made "
+                     "after it inherits it (decision-0009 (a), the read rule); list the digest of each Version it attests (decision-0019)")
+            continue
+        if not isinstance(listed, list) or not all(isinstance(d, str) and re.fullmatch(r"[0-9a-f]{64}", d) for d in listed):
+            rep.error("attestation", where, "versions is not a list of SHA-256 digests (64 lower-case hex characters)",
+                      "list each attested Version's digest, as the load records it (decision-0019)")
+            continue
+        known = subject_versions(m, root) if known is None else known
+        for d in sorted(set(listed) - known):
+            rep.error("attestation", where, f"versions lists {d}, which is no Version of the subject's artefacts: it attests "
+                      "nothing the load reads", "list a digest of a document as it is, or as a scenario plants it (decision-0019)")
 
 
 def check_map(rep: Report, m: dict, root: Path, register: Path | None) -> None:

@@ -49,6 +49,12 @@ KEPT_KEY = "shipper_id|present"          # S6's change leaves it alone
 LAPSE_DAY = "2027-09-01"   # after 2027-08-07, the day S6's reviews lapse by (decision-0005)
 
 
+def findings(rep: dict) -> list[dict]:
+    """The report's findings but the read rule's info notes (decision-0019, task-0221: a subject whose [verification]
+    lists no Version attests per load, and the gate says so at info until the subject lists them)."""
+    return [f for f in rep["findings"] if not (f["kind"] == "gate:attestation" and f["severity"] == "info")]
+
+
 def run(env: dict, *args: str) -> tuple[int, str]:
     p = subprocess.run([sys.executable, *args], cwd=HARNESS, env=env, capture_output=True, text=True)
     return p.returncode, p.stdout + p.stderr
@@ -88,7 +94,7 @@ def main() -> None:
         sys.exit(f"FAIL: register: want exit 0 and one {APP} entry as of {env['KG_TODAY']}:\n{json.dumps(rep, indent=1)}")
 
     code, rep = trace(env, out, "stage1", "check")
-    if code != 0 or rep["gate"]["verdict"] != "PROCEED" or [r["state"] for r in rep["registered"]] != ["unchanged"] or rep["findings"]:
+    if code != 0 or rep["gate"]["verdict"] != "PROCEED" or [r["state"] for r in rep["registered"]] != ["unchanged"] or findings(rep):
         sys.exit(f"FAIL: check at stage 1: want exit 0, PROCEED, unchanged, no finding:\n{json.dumps(rep, indent=1)}")
 
     # a registration while rehearsing a later date reads the gate on that date and says so (task-0093)
@@ -123,7 +129,7 @@ def main() -> None:
     if code != 0 or [(r["path"], r.get("keys")) for r in rep["registered"]] != [(HAND_JAVA, [KEPT_KEY])]:
         sys.exit(f"FAIL: register --cited: want exit 0 and {HAND_JAVA} on {KEPT_KEY}:\n{json.dumps(rep, indent=1)}")
     code, rep = trace(env, out, "stage1-hand", "check")
-    if code != 0 or [r["state"] for r in rep["registered"]] != ["unchanged"] * 3 or rep["findings"]:
+    if code != 0 or [r["state"] for r in rep["registered"]] != ["unchanged"] * 3 or findings(rep):
         sys.exit(f"FAIL: check at stage 1 with the hand-written files: want exit 0, three unchanged, no finding:\n{json.dumps(rep, indent=1)}")
 
     code, text = run(env, "gate_cli.py", "--scenario", "S6", "--stage", "2", "--publish")

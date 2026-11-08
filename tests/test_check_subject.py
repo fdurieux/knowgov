@@ -79,7 +79,9 @@ def test_the_public_subjects_pass_with_no_finding():
         assert rep["findings"] == [] and rep["exit_code"] == 0, (sid, rep["findings"])
         if MAPPERS_RUN and sid != "minimal":
             assert rep["yield"]["state"] == "checked" and rep["yield"]["keys"] > 0, (sid, rep["yield"])
-            assert not [n for n in rep["notes"] if n["rule"] in ("unyielded", "attestation")], (sid, rep["notes"])
+            # the one attestation note a public subject may carry: decision-0019's read rule, a declaration listing no
+            # Version, until the maintainer lists the Versions it attests (task-0221's held pull request)
+            assert not [n for n in rep["notes"] if n["rule"] == "unyielded" or (n["rule"] == "attestation" and "decision-0019" not in n["message"])], (sid, rep["notes"])
 
 
 def test_the_report_validates_against_its_schema():
