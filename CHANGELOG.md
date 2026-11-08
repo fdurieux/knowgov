@@ -27,8 +27,11 @@ names that section with the version.
     take the attested artefacts.
   - **Read rule for declarations written before this change.** A declaration with no `versions` attests per load,
     as decision-0009 (a) has it. The gate lists it at `info` (`attestation`, not bound), and `tools/check_subject.py`
-    notes it, naming decision-0019. The public subjects keep their declarations without lists, so the scored record
-    is unchanged; listing their Versions is the maintainer's own attestation, in a pull request held for it.
+    notes it, naming decision-0019.
+  - **The public subjects list their Versions** (the maintainer's approval, 2026-11-08). `cargo_quote` and
+    `jef_data_load` list every Version their scenarios load, as vendored at pumllint v0.35.0 and each planted
+    text, so no scenario's attestation changes and the scored record is unchanged. CI's subject check fails
+    again on any note, so a fall back to the read rule is caught.
   - `tools/check_subject.py` refuses a listed digest that is no Version of the subject (its files, and the texts
     its plants make of them). `tools/check_attestation_binding.py` proves it on both stores.
 - **Conflict gap ids name their two statements** (task-0223, decision-0020, doc-0030 S2). A conflict
