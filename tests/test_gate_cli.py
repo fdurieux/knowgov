@@ -265,7 +265,8 @@ def test_key_stale_and_lapsed_findings_name_the_owner_unit_and_the_questionnaire
     (the version-2 report as first published), and the other kinds carry neither."""
     import capture
     owners = capture.finding_owners(CARGO_QUOTE)
-    assert owners["QuoteAPI|on_screening_outage"] == {"unit": "ORG-0002", "name": "Architecture stewardship (stand-in)"}
+    assert owners["QuoteAPI|on_screening_outage"] == {"unit": "ORG-0002", "name": "Architecture stewardship (stand-in)",
+                                                       "files": ["ORG-0002"]}   # task-0201: the questionnaire it is written into
     res = _res(_record("S2"))
     rep = gate_cli.report(res, subject="cargo_quote", scenario="S2", task="codegen", store="rdflib", loaded=True,
                           block_levels=BLOCK, threshold="blocker", baseline=None, owners=owners)

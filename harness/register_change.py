@@ -142,9 +142,14 @@ def resting(change: dict, register_map: dict, previous: Path, current: Path) -> 
     (``descent``)."""
     previous = Path(previous).resolve()
     by_key: dict[str, dict] = {}
+    import capture
+    try:   # the one owner rule (task-0201, doc-0030 G8): routing, over the register after the update
+        route = capture.routing(register_map, capture.register_nodes(Path(current).resolve()))
+    except (OSError, ValueError):
+        route = {}
 
     def land(row: dict, cause: dict) -> None:
-        k = by_key.setdefault(row["key"], {"key": row["key"], "owner": row.get("owner"), "causes": []})
+        k = by_key.setdefault(row["key"], {"key": row["key"], "owner": (route.get(row["key"]) or {}).get("unit"), "causes": []})
         k["causes"].append({**cause, "via": row["via"]})
 
     T = ri.load_tools(previous)

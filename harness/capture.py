@@ -88,39 +88,50 @@ def handle_pattern(root: Path) -> str:
     return types.get("elicited", {}).get("handle", DEFAULT_HANDLE)
 
 
+def _node_owners(register_map: dict, nodes: dict[str, dict]) -> dict[str, list[str]]:
+    out = {}
+    for row in register_map.get("row", []):
+        out[row["key"]] = sorted({nodes[n]["owner"] for n in row.get("nodes", []) if n in nodes and nodes[n]["owner"]})
+    return out
+
+
 def owners_of(subject, nodes: dict[str, dict]) -> dict[str, list[str]]:
     """key -> the owners of the register nodes its map row names, sorted; unassigned when none."""
-    out = {}
-    for row in subject.register_map().get("row", []):
-        owners = sorted({nodes[n]["owner"] for n in row.get("nodes", []) if n in nodes and nodes[n]["owner"]})
-        out[row["key"]] = owners
-    return out
+    return _node_owners(subject.register_map(), nodes)
+
+
+def routing(register_map: dict, nodes: dict[str, dict]) -> dict[str, dict]:
+    """The one place a key's owner and route come from (task-0201, doc-0030 G8): key -> {units, unit, files}.
+    ``units``: who answers for the key, the row's ``owner`` when it names one of the owners of the row's nodes
+    (task-0043), else every owner of them. ``unit``: the one that answers, or None when no unit or several do.
+    ``files``: the questionnaires the key is written into, one per answering unit, or the unassigned one when
+    none answers; ``questionnaires`` writes them and ``questionnaire_route`` names them, so a route always
+    points at a file that holds the key. The gate's findings, the questionnaires and a register change's
+    resting keys (``register_change.resting``) all read it."""
+    units = _node_owners(register_map, nodes)
+    for row in register_map.get("row", []):
+        o = row.get("owner")
+        if o and o in units.get(row["key"], []):
+            units[row["key"]] = [o]
+    return {k: {"units": u, "unit": u[0] if len(u) == 1 else None, "files": u or [UNASSIGNED]} for k, u in units.items()}
 
 
 def answering_owners(subject, nodes: dict[str, dict]) -> dict[str, list[str]]:
-    """key -> the unit its questionnaire goes to: the row's ``owner`` when it names one of the owners
-    of the row's nodes (task-0043), else every owner of them, as ``owners_of``."""
-    out = owners_of(subject, nodes)
-    for row in subject.register_map().get("row", []):
-        o = row.get("owner")
-        if o and o in out.get(row["key"], []):
-            out[row["key"]] = [o]
-    return out
+    """key -> the units its questionnaire goes to (``routing``'s ``units``)."""
+    return {k: r["units"] for k, r in routing(subject.register_map(), nodes).items()}
 
 
 def finding_owners(subject, root: Path | None = None) -> dict[str, dict]:
-    """key -> {unit, name} for the gate's findings (task-0102): the one unit that answers for the key
-    (``answering_owners``), or unit None when no row maps it or several units answer for it. A register
-    that cannot be read names no unit: the gate's verdict never rests on it, so it cannot stop the gate."""
+    """key -> {unit, name, files} for the gate's findings (task-0102): the one unit that answers for the key,
+    or unit None when no row maps it or several units answer for it, and the questionnaires the key is written
+    into (``routing``). A register that cannot be read names no unit: the gate's verdict never rests on it,
+    so it cannot stop the gate."""
     try:
         nodes = register_nodes(root or register_root())
     except (OSError, ValueError):   # tomllib.TOMLDecodeError is a ValueError
         nodes = {}
-    out = {}
-    for key, units in answering_owners(subject, nodes).items():
-        unit = units[0] if len(units) == 1 else None
-        out[key] = {"unit": unit, "name": nodes.get(unit, {}).get("name", "") if unit else ""}
-    return out
+    return {key: {"unit": r["unit"], "name": nodes.get(r["unit"], {}).get("name", "") if r["unit"] else "", "files": r["files"]}
+            for key, r in routing(subject.register_map(), nodes).items()}
 
 
 def gap_closers(subject, gaps: dict[str, list[dict]], root: Path | None = None) -> dict[str, dict]:
@@ -157,11 +168,15 @@ def closing_route(gap: str, unit: str | None) -> str:
             "(python harness/capture.py review) under a handle with the role closes")
 
 
-def questionnaire_route(subject_id: str, scenario: str, task: str, unit: str | None) -> str:
+def questionnaire_route(subject_id: str, scenario: str, task: str, unit: str | None, files: list[str] | None = None) -> str:
     """The route to approval a finding names (task-0102, doc-0014 C7): the owner's questionnaire
-    (task-0009), the command that writes it and the file it writes, then its ingest and a review."""
+    (task-0009), the command that writes it and the file it writes, then its ingest and a review. ``files``
+    (``routing``): the questionnaires the key is written into; with several units, each one's (task-0201, G8)."""
+    files = files or [unit or UNASSIGNED]
+    who = unit or (" or ".join(files) if files != [UNASSIGNED] else "the owner")
+    where = " or ".join(f"DIR/questionnaire-{subject_id}-{scenario}-{f}.toml" for f in files)
     return (f"python harness/capture.py questionnaire --scenario {scenario} --task {task} --out DIR; "
-            f"{unit or 'the owner'} answers DIR/questionnaire-{subject_id}-{scenario}-{unit or UNASSIGNED}.toml, "
+            f"{who} answers {where}, "
             "then python harness/capture.py ingest it and a reviewer who is not the author rules on it")
 
 
@@ -177,11 +192,11 @@ def _q(s: str) -> str:
 
 def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, today: dt.date) -> dict[str, str]:
     """owner -> the questionnaire's TOML text; a key goes to its answering owner only."""
-    own = answering_owners(subject, nodes)
+    route = routing(subject.register_map(), nodes)   # task-0201: where questionnaire_route says the key is
     closers = gap_closers(subject, {k: v.get("declared_gaps") or [] for k, v in res["keys"].items()})   # task-0113
     by_owner: dict[str, list[str]] = {}
     for key in res["keys"]:
-        for o in own.get(key) or [UNASSIGNED]:
+        for o in (route.get(key) or {}).get("files") or [UNASSIGNED]:
             by_owner.setdefault(o, []).append(key)
     out = {}
     for owner, keys in sorted(by_owner.items()):

@@ -280,8 +280,9 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
     from capture import questionnaire_route
     rt = route_task or task
 
-    def route(unit, key):
-        return questionnaire_route(subject, scenario, rt, unit) if route_keys is None or key in route_keys else None
+    def route(unit, key):   # the files routing names, so the route points where the questionnaire is written (G8)
+        files = ((owners or {}).get(key) or {}).get("files")
+        return questionnaire_route(subject, scenario, rt, unit, files) if route_keys is None or key in route_keys else None
     fs = findings(res, block_levels, owners, route, closers)
     fail = baseline["regression"] if baseline is not None else bool(at_or_above(fs, threshold))
     return {"schema_version": SCHEMA_VERSION, "tool": "knowgov gate", "subject": subject, "scenario": scenario, "task": task,

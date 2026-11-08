@@ -306,6 +306,8 @@ jobs:
         run: docker compose exec -T app sh -c 'rm -rf runs/trace && python tools/check_trace_walkthrough.py runs/trace'
       - name: Derived outputs bound to content (task-0199) on the Neo4j store, an edit and a reload under the same id reads suspect, the gate, MCP and trace read one rule
         run: docker compose exec -T app sh -c 'rm -rf runs/ledger-binding && python tools/check_ledger_binding.py runs/ledger-binding'
+      - name: One definition per concept (task-0201) on the Neo4j store, one successor set, disputed statements read, one owner and route, a duplicate Derived refused
+        run: docker compose exec -T app sh -c 'rm -rf runs/one-definition && python tools/check_one_definition.py runs/one-definition'
 
       - name: A person's statement against the documents' (task-0038) on the Neo4j store, on S2 a contradiction raises a conflict, an agreement corroborates
         run: docker compose exec -T app python tools/check_capture_pairing.py runs/pairing

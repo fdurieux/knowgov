@@ -26,6 +26,11 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
     has lapsed by then reads ``validated``, with its approval, and is listed in ``lapsed``."""
     on = cadence.as_of("record" if as_of is None else as_of)
     keys, lapsed = {}, []
+    # one successor set (task-0201, doc-0030 G3): an invalidated statement is superseded only by its own
+    # verified or approved successor (superseded_by over stale_on_keys), the reading the stale finding,
+    # superseded_by and the bundle make, so the gate's level never drops what they still call unreplaced
+    stale = s.stale_on_keys(spec["keys"])
+    superseded = {x["id"] for x in stale if superseded_by(x)}
     for key in spec["keys"]:
         rows, pending = s.key_evidence(key, LIVE), []
         for r in rows:
@@ -40,11 +45,11 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
         elif declared:
             level = "declared_gap"
         else:
-            # an invalidated assertion is superseded only by a verified or
-            # approved replacement on the same key; until then it blocks
-            # (a replacement whose own review has since lapsed still replaced it: the change is history)
-            replaced = any(r["status"] in ("verified", "approved") or r.get("lapsed") for r in rows)
-            live_rows = [r for r in rows if not (r["status"] == "invalidated" and replaced)]
+            # an invalidated assertion is superseded only by its own verified or approved successor
+            # (superseded_by); until then it blocks (a successor whose own review has since lapsed still
+            # superseded it: the change is history, and superseded_by reads the stored status)
+            replaced = any(r["status"] == "invalidated" and r["id"] in superseded for r in rows)
+            live_rows = [r for r in rows if not (r["status"] == "invalidated" and r["id"] in superseded)]
             # decision-0004: a person's answer nobody has reviewed yet (elicited, proposed) does not
             # lower a key that holds a validated-or-better statement; it stays in the bundle, marked
             # pending review. One that contradicts is disputed by R-CONFLICT, and that counts.
@@ -76,8 +81,8 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
     conflicts = s.conflict_gaps()
     # staleness: invalidated assertions on required keys (superseded or not), the verifications
     # their invalidation ended, and the derived outputs that used them (S6; added after the first
-    # scored run, whose S6 bundle carried none of this - see the pre-registration's run notes)
-    stale = s.stale_on_keys(spec["keys"])
+    # scored run, whose S6 bundle carried none of this - see the pre-registration's run notes);
+    # ``stale`` is read above, once, so the level and the finding read one successor set
     suspect = s.suspect_derived()
     out = {"task": task, "verdict": verdict, "why": why, "keys": keys, "conflicts": conflicts,
            "blocked_keys": blocked_keys, "below_verified": below, "flagged": flagged,
@@ -127,7 +132,7 @@ def preload_behind(s, keys: dict) -> list[dict] | None:
     return out
 
 
-THREE_VALUED_STATUSES = ["verified", "approved", "validated", "proposed"]
+THREE_VALUED_STATUSES = ["verified", "approved", "validated", "proposed", "disputed"]   # disputed: task-0201, doc-0030 M4
 SETTLED = ("verified", "approved")   # a successor at one of these supersedes an invalidated statement
 
 
@@ -164,13 +169,20 @@ def _lapse_note(x: dict) -> str:
 
 def three_valued(s, key: str) -> dict:
     """The three-valued answer for one key (D5): ``unknown`` when no assertion exists,
-    ``documented_absent`` when every live assertion says NONE, else ``asserted``."""
+    ``documented_absent`` when every live assertion says NONE, else ``asserted``. A disputed statement is
+    live (task-0201, doc-0030 M4): a key the documents disagree on is not unknown. Its statements are read,
+    and ``disputed`` names them, with ``why``: the answer is the documents', and they do not agree."""
     rows = s.assertions_on_key(key, THREE_VALUED_STATUSES)
     if not rows:
         return {"answer": "unknown", "why": "no assertion for this key (not a documented absence)"}
-    if all(r["value"] == "NONE" for r in rows):
-        return {"answer": "documented_absent", "assertions": rows}
-    return {"answer": "asserted", "assertions": rows}
+    out = {"answer": "documented_absent" if all(r["value"] == "NONE" for r in rows) else "asserted", "assertions": rows}
+    disputed = sorted(r["id"] for r in rows if r.get("status") == "disputed")
+    if disputed:   # absent otherwise, so the record's answers read as before
+        values = sorted({str(r["value"]) for r in rows if r.get("status") == "disputed"})
+        out["disputed"] = disputed
+        out["why"] = (f"{len(disputed)} statement(s) disputed: the documents disagree ({'; '.join(repr(v) for v in values)}); "
+                      "none of them holds until a review settles the dispute")
+    return out
 
 
 BUNDLE_FORMS = ("full", "compact")   # task-0140: full is the default and the record's form
