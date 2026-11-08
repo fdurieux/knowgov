@@ -109,3 +109,12 @@ Take (a)3 with (b)(i), as decided.
 - (b)(i) keeps the refusal where it already is, app-side from the attestation, and stops one engine's missing kernel feature from failing the whole demo.
 - Reject (b)(iii) and any mode without Landlock: both would report a worker that cannot confine its jobs as healthy.
 - Next: task-0165 adds the socket probes the netns does not cover (AF_VSOCK); task-0162 tests arms on a macOS engine whose VM kernel enables Landlock.
+
+## Note (2026-11-08): the platform floor since task-0203
+
+A consequence of the accepted R10 fix (doc-0030 F8, task-0203, #353), not a change to what this record chooses. The backend, the exact network check and the `arms` compose profile are unchanged. `write_confined` is now attested only at Landlock ABI 3 or later, the first ABI that also denies truncation. So "Linux with Landlock (kernel 5.13 or later)" in Consequences now reads **Landlock ABI 3, Linux 6.2 or later**. Below that floor:
+- the worker refuses to start;
+- the page's worker chip reads "worker: not attested · Landlock ABI N, 3 needed";
+- every Arms run is refused, while Replay and Deterministic work as before.
+
+The adopter docs (`demo/README.md`, `docs/security.md`) and CHANGELOG's Unreleased known limit say the same. GitHub's runners and the maintainer's EC2 host are above the floor.
