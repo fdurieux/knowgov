@@ -96,6 +96,19 @@ def refuse(check: str, why: str) -> Decision:
     return Decision(HOOK_BLOCK, f"{check}: refused: {why}.\nA mandatory check reads a report for its own task class only.\n{ROUTE}")
 
 
+def entry(main, check: str, *args) -> int:
+    """A hook's whole run, so that nothing escapes as Claude Code's non-blocking exit 1 (task-0200, doc-0030
+    P8): ``main``'s exit, or, on any exception, a refusal that blocks in every profile, the advisory one
+    included, since a crash is not the gate being down."""
+    try:
+        return main(*args)
+    except SystemExit as e:   # argparse's usage error and a main's own exit: a code other than 0 or 2 blocks too
+        code = e.code if isinstance(e.code, int) else (0 if e.code is None else HOOK_BLOCK)
+        return code if code in (HOOK_ALLOW, HOOK_BLOCK) else emit(refuse(check, f"the hook exited {code}"))
+    except BaseException as e:  # noqa: BLE001 - fail closed
+        return emit(refuse(check, f"the hook failed: {type(e).__name__}: {e}"))
+
+
 def emit(d: Decision) -> int:
     if d.output is not None:
         print(json.dumps(d.output))
@@ -198,6 +211,8 @@ def run_gate(stage: str, task: str, kg: Path, inst: Path, *, advisory: bool, tim
             rep = json.loads(report.read_text(encoding="utf-8"))
         except (OSError, ValueError) as e:
             return refuse(check, f"exit {p.returncode} without a readable report ({e.__class__.__name__})")
+        if not isinstance(rep, dict):   # P8: valid JSON that is not a report raised, exit 1, read as a warning
+            return refuse(check, f"exit {p.returncode} with a report that is not a JSON object ({type(rep).__name__})")
         if rep.get("task") == FREE_KEYS:
             return refuse(check, "the report is for an agent-chosen key set (task 'keys'), not a task class")
         if rep.get("task") != task:
@@ -276,4 +291,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(entry(main, "knowgov hook"))

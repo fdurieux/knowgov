@@ -896,6 +896,8 @@ scenario loaded they answer from the register alone, as before). Ask again when 
 has ended. A page that stops mid-run leaves a `running` file whose heartbeat goes stale; it no longer
 blocks, and the page closes it as failed (`page restarted`) when it starts again.
 
+A call that names an argument the tool does not take is refused with an error naming it, and nothing runs: a misspelt `senario` never reads as no scenario named.
+
 The server reads the store as the page or a run left it. It never loads a scenario and never
 writes to the store, the register or your instance; a change to the record is still a pull
 request. Load what the assistant should see first, on the page or with a run.

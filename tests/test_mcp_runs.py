@@ -137,7 +137,12 @@ def test_n_is_always_one_and_the_run_is_marked_by_mcp():
     stub = StubPage()
     with _Env(KG_MCP_RUN_MODES="deterministic,arms"):
         srv = _server(stub)
-        r = _call(srv, "start_run", {"scenario": "S2", "mode": "arms", "n": 5, "row": "openai-gpt"})
+        # task-0200 (M5): n is not in the schema, so it is refused (-32602), never silently set to 1; re-pinned
+        e = srv.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                        "params": {"name": "start_run", "arguments": {"scenario": "S2", "mode": "arms", "n": 5, "row": "openai-gpt"}}})
+        assert e["error"]["code"] == -32602 and "'n'" in e["error"]["message"], e
+        assert stub.requests == [], "a refused call reaches nothing"
+        r = _call(srv, "start_run", {"scenario": "S2", "mode": "arms", "row": "openai-gpt"})
     assert not r["isError"], r
     (post,) = [x for x in stub.requests if x["method"] == "POST"]
     assert post["body"]["n"] == 1 and post["body"]["by"] == "mcp" and post["body"]["row"] == "openai-gpt", post["body"]
