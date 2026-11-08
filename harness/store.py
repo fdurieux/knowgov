@@ -95,7 +95,7 @@ READS = frozenset({
     "gaps_with_concerns", "assertions_on_key", "assertion_rows", "supported_by", "candidate_for",
     "fragments_with_version", "requirements_verified_by", "register_census", "register_node_statements",
     "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions", "held",
-    "act_findings", "derived_rows"})
+    "act_findings", "derived_rows", "lint_gaps"})
 
 
 def held_from(acts: list[dict], current: list[dict]) -> dict | None:
@@ -484,6 +484,25 @@ class Store:
     def preload_verdicts(self) -> list[dict]:
         """Every version that carries a verdict: artefact, version (tag), state, tool, tool_version,
         digest, report, why; sorted by artefact and version. Empty when no load recorded one."""
+        raise NotImplementedError
+
+    # ---- a pre-load finding on a loaded document as a gap (task-0216, decision-0018 point 5)
+    LINT_FIELDS = ("artefact", "version", "file", "tool", "tool_version", "rule", "severity", "line", "message", "held",
+                   "text", "sha256", "resolution", "resolved_by", "resolved_on", "record", "review", "note")
+
+    def record_lint_gap(self, row: dict) -> None:
+        """Keep, as a ``LintGap`` node of id ``row["id"]``, one finding the pre-load check gave a document version
+        the load recorded (``preload.lint_gaps``). Its fields are ``LINT_FIELDS``, scalars; the resolution fields
+        are empty until a review resolves it (``resolve_lint_gap``). A label of its own, never ``Gap``: the
+        rules, the census's gap kinds and the SHACL projection read the knowledge's gaps, not a document's form."""
+        raise NotImplementedError
+
+    def resolve_lint_gap(self, gid: str, resolution: str, review_id: str, by: str, on: str, record: str, note: str) -> None:
+        """Record a review's resolution of a lint gap (choice, exception, open): a person's act, by handle."""
+        raise NotImplementedError
+
+    def lint_gaps(self) -> list[dict]:
+        """Every ``LintGap``: id and ``LINT_FIELDS``, by id. Empty when no load recorded one."""
         raise NotImplementedError
 
     # ---- a person's acts the load did not apply as written (task-0199, doc-0030 H5, doc-0032 §6)

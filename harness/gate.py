@@ -87,6 +87,9 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
     out = {"task": task, "verdict": verdict, "why": why, "keys": keys, "conflicts": conflicts,
            "blocked_keys": blocked_keys, "below_verified": below, "flagged": flagged,
            "stale": stale, "suspect_derived": suspect, "lapsed": lapsed, "as_of": on.isoformat()}
+    lint = lint_behind(s, keys)
+    if lint is not None:   # task-0216: only when a load recorded lint gaps; absent otherwise, so the record reads as before
+        out["lint"] = lint
     form = preload_behind(s, keys)
     if form is not None:   # only when a load recorded verdicts (task-0064); absent otherwise, so the record reads as before
         out["preload"] = form
@@ -130,6 +133,24 @@ def preload_behind(s, keys: dict) -> list[dict] | None:
             out.append({"artefact": art, "version": ver, "state": state, "tool": v["tool"] if v else None,
                         "why": (v["why"] if v else "no verdict recorded for this version"), "keys": sorted(ks)})
     return out
+
+
+def lint_behind(s, keys: dict) -> list[dict] | None:
+    """The lint gaps (task-0216, decision-0018 point 5) on the document versions behind the keys' live statements,
+    each with the keys it lies behind; None when the store holds no lint gap at all, so a load without a pre-load
+    report reads exactly as before. A lint gap is the document's form: it never lowers a key's level."""
+    try:
+        held = s.lint_gaps()
+    except (AttributeError, NotImplementedError):   # a store view without the read holds none
+        return None
+    if not held:
+        return None
+    behind: dict[tuple, set] = {}
+    for key, k in keys.items():
+        for r in k["assertions"]:
+            if r.get("artefact") and "@" in r["id"]:
+                behind.setdefault((r["artefact"], r["id"].rsplit("@", 1)[1]), set()).add(key)
+    return [{**g, "keys": sorted(behind[(g["artefact"], g["version"])])} for g in held if (g["artefact"], g["version"]) in behind]
 
 
 THREE_VALUED_STATUSES = ["verified", "approved", "validated", "proposed", "disputed"]   # disputed: task-0201, doc-0030 M4

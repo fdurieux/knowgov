@@ -75,6 +75,7 @@
         }}
       }
     },
+    "delta": {"type": "object", "required": ["previous", "comparable", "why", "new", "gone", "kept"], "additionalProperties": false, "description": "with --previous (task-0216, decision-0018 point 5): what a re-lint changed against an earlier report, at the same tool versions only; each finding new, gone (a slip when its file's bytes changed) or kept, matched by file, tool, rule and message", "properties": {"previous": {"type": "string"}, "comparable": {"type": "boolean"}, "why": {"type": ["string", "null"]}, "new": {"type": "array", "items": {"type": "object", "required": ["file", "tool", "rule", "message", "severity", "line"], "additionalProperties": false, "properties": {"file": {"type": "string"}, "tool": {"type": ["string", "null"]}, "rule": {"type": "string"}, "message": {"type": "string"}, "severity": {"$ref": "#/$defs/severity"}, "line": {"type": "integer", "minimum": 0}}}}, "gone": {"type": "array", "items": {"type": "object", "required": ["file", "tool", "rule", "message", "severity", "line", "slip"], "additionalProperties": false, "properties": {"file": {"type": "string"}, "tool": {"type": ["string", "null"]}, "rule": {"type": "string"}, "message": {"type": "string"}, "severity": {"$ref": "#/$defs/severity"}, "line": {"type": "integer", "minimum": 0}, "slip": {"type": "boolean"}}}}, "kept": {"type": "integer", "minimum": 0}}},
     "exit_code": {"enum": [0, 1, 2]},
     "note": {"type": "string"}
   },

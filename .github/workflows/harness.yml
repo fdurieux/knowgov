@@ -324,6 +324,8 @@ jobs:
         run: rm -rf runs/ledger-binding && KG_STORE=rdflib python tools/check_ledger_binding.py runs/ledger-binding
       - name: One definition per concept (task-0201), on rdflib, one successor set for the gate, the stale finding, superseded_by and the bundle, disputed statements read, one owner and route, one uniqueness rule
         run: rm -rf runs/one-definition && KG_STORE=rdflib python tools/check_one_definition.py runs/one-definition
+      - name: Pre-load findings as routed gaps (task-0216), on rdflib, the example instance's planted SEQ002 a lint gap with its owner and route and no level moved, held by the baseline, resolved by its owner, a slip in the re-lint delta, kept by the round trip
+        run: rm -rf runs/lint-gaps && KG_STORE=rdflib python tools/check_lint_gaps.py runs/lint-gaps
       - name: A register change invalidates (task-0122), the fixture's deprecated CAP-0001 and withdrawn REL-06001 stale the keys resting on them and S1's output suspect, exit 1; no state change, nothing; the staleness survives the round trip
         run: |
           rm -rf runs/regchange && KG_STORE=rdflib python tools/check_register_change.py runs/regchange

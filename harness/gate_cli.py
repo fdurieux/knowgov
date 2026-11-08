@@ -148,6 +148,10 @@ def act_finding(a: dict) -> dict:
         msg = (f"{who} ({a['outcome']} {a['statement']}) is bound by id only: the file records no value or digest "
                "(written before 0.9.0), so it was applied to what the id names now" + (f", {now}" if now else "")
                + "; a new review binds it to content")
+    elif a["act"] == "resolve":   # task-0216: a lint gap's resolution whose finding is no longer the one it resolved
+        msg = (f"{who} ({a['outcome']} of {a['statement']}) was not applied: " + ("the finding is gone: the document's version no "
+               "longer has it (a slip mended), so there is nothing to resolve" if why == "gone" else
+               "the finding's text changed since the resolution") + ("" if why == "gone" else "; its owner resolves it again"))
     elif a["act"] == "close":
         msg = (f"{who} (close of {a['statement']}) was not applied: " + ("the gap is no longer declared open" if why == "gone"
                else "the declaration's text changed since the close") + "; its owner closes it again or the gap stands")
@@ -156,10 +160,39 @@ def act_finding(a: dict) -> dict:
                + {"changed": f"the statement now reads {now}", "gone": "no statement of it is extracted any more",
                   "ambiguous": "several statements hold that content and none is the one it names"}[why]
                + "; its owner rules again")
-    f = _finding(ACT_SEVERITY[why], "act", msg, key=a["key"] or None, ref=a["statement"] or a["review"],
+    sev = "info" if a["act"] == "resolve" and why == "gone" else ACT_SEVERITY[why]
+    f = _finding(sev, "act", msg, key=a["key"] or None, ref=a["statement"] or a["review"],
                  related=[t["id"] for t in a["to"]])
     f["act"] = {"review": a["review"], "act": a["act"], "n": a["n"], "outcome": a["outcome"], "by": a["by"], "on": a["on"],
                 "why": why, "from": {"value": a["from_value"], "sha256": a["from_sha256"]}, "to": a["to"], "reasons": a["reasons"]}
+    return f
+
+
+LINT_SEVERITY = {"blocker": "major", "critical": "major", "major": "major", "minor": "minor", "info": "info"}
+
+
+def lint_finding(g: dict) -> dict:
+    """One lint gap behind the keys (``gate.lint_behind``, task-0216) as a finding of kind ``lint``: the linter's
+    severity, at most major (a document's form never blocks the knowledge on its own); info when the baseline
+    holds it or a review resolved it as a choice or an exception; ``open`` keeps it at its severity, said so."""
+    where = f"{g['file'] or g['artefact']}:{g['line']}"
+    msg = f"{g['tool']} {g['rule']} ({g['severity']}) at {where}, version {g['version']}: {g['message']}"
+    res = g.get("resolution")
+    if g.get("held"):
+        sev, msg = "info", msg + "; held by the pre-load baseline, not raised"
+    elif res in ("choice", "exception"):
+        sev, msg = "info", msg + (f"; resolved as {'a choice' if res == 'choice' else 'an exception'} by {g.get('resolved_by')} on "
+                                  f"{g.get('resolved_on')} ({g.get('record')})")
+    else:
+        sev = LINT_SEVERITY.get(g["severity"], "minor")
+        msg += (f"; left open by {g.get('resolved_by')} on {g.get('resolved_on')} ({g.get('record')})" if res == "open"
+                else "; its owner resolves it: a slip (a new version), a choice (a decision record and an approval), an exception "
+                     "(an elicited statement) or open")
+    f = _finding(sev, "lint", msg, ref=g["id"], related=g["keys"])
+    f["lint"] = {"artefact": g["artefact"], "version": g["version"], "file": g["file"], "tool": g["tool"], "tool_version": g["tool_version"],
+                 "rule": g["rule"], "severity": g["severity"], "line": g["line"], "held": bool(g.get("held")),
+                 "resolution": res or None, "resolved_by": g.get("resolved_by") or None, "resolved_on": g.get("resolved_on") or None,
+                 "record": g.get("record") or None}
     return f
 
 
@@ -212,8 +245,23 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                             + (f" ({d['tool']})" if d.get("tool") else "") + (f"; {d['why']}" if d.get("why") else ""),
                             ref=f"{d['artefact']}@{d['version']}", related=d["keys"]))
     out += [act_finding(a) for a in res.get("acts") or []]
+    out += [lint_finding(g) for g in res.get("lint") or []]   # task-0216
     if owners is not None:
         for f in out:
+            if f["kind"] == "lint":   # the document's owning unit: the one unit capture.routing gives every key behind it
+                by_unit: dict = {}
+                for k in f["related"]:
+                    by_unit.setdefault((owners.get(k) or {}).get("unit"), k)
+                f["owner"] = next(iter(by_unit)) if len(by_unit) == 1 else None
+                if not route or not f["related"]:
+                    f["route"] = None
+                elif len(by_unit) == 1:
+                    f["route"] = route(f["owner"], f["related"][0])
+                else:   # several units own the document's keys: each one's route, any of them resolves it
+                    named = sorted(u for u in by_unit if u)
+                    f["route"] = (f"the keys behind it are owned by {', '.join(named) or 'no unit in the register map'}"
+                                  + "".join(f"; {u}: " + (route(u, by_unit[u]) or "") for u in named))
+                continue
             if f["kind"] in OWNED and (f["kind"] != "act" or f["key"]):
                 unit = (owners.get(f["key"]) or {}).get("unit")
                 f["owner"] = unit
@@ -224,7 +272,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                     f["closer"] = c["unit"]
                     if f["route"]:
                         f["route"] += closing_route(c["gap"], c["unit"])
-    kinds = ["task", "key", "suspect_derived", "stale", "lapsed", "act", "preload"]
+    kinds = ["task", "key", "suspect_derived", "stale", "lapsed", "act", "lint", "preload"]
     return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), kinds.index(f["kind"]), f["key"] or "", f["ref"] or ""))
 
 

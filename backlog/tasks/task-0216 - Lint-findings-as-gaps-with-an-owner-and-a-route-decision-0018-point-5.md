@@ -1,9 +1,11 @@
 ---
 id: TASK-0216
 title: Lint findings as gaps with an owner and a route (decision-0018 point 5)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-08T11:17:00Z'
+updated_date: '2026-11-08T12:46:00Z'
 labels:
   - process
   - reverse-engineering
@@ -39,3 +41,15 @@ decision-0018 point 5 (doc-0032 §2 step 5; Dominique's attribute and route step
 - [ ] #4 CHANGELOG.md carries the line under Unreleased's contract heading
 - [ ] #5 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. preload.verdicts carries each judged row's findings; preload.lint_gaps makes one gap per finding, id from the document, version, tool, rule, line and message (never store order), held when the baseline holds it.
+2. Store port: LintGap label (not Gap: the rules, census kinds and SHACL read the knowledge's gaps), record_lint_gap, resolve_lint_gap, lint_gaps (READS, MCP view); both adapters; the Turtle round trip generic.
+3. Load: each judged version's findings recorded; reviews' [[resolves]] applied (not on stage 2's recheck).
+4. Gate: lint_behind (the gaps on documents behind the keys, None with none held, so the record reads as before); gate_cli lint finding, the linter's severity at most major, info held or resolved choice/exception; owner and route from capture.routing over the keys behind it, each unit's route when several; a resolve act whose finding is gone at info.
+5. review.check [[resolves]] (choice, exception, open; bound by the text's digest; the document's owners under closes); review_toml writes it.
+6. preload_check --previous: the re-lint delta at the same tool versions (new, gone as slip or not, kept).
+7. tools/check_lint_gaps.py on both stores; schemas; CHANGELOG; tests failing on the old code first.
+<!-- SECTION:PLAN:END -->
