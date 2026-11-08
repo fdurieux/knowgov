@@ -59,6 +59,13 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   test's arms as scenarios, a deterministic record, the kit's own suite as oracle; task-0021).
   `docs/lighthouse-evaluation.md` the evaluation protocol (doc-0013's seven criteria; actions out of
   scope); `tools/lighthouse_evidence.py` collects its public evidence on both subjects (task-0069), the bundle by the server's `evidence_bundle`, over stdio or `--transport http` (task-0095).
+  `docs/reverse-engineering.md` the process guide (decision-0018; doc-0032's eight steps, scope to re-run, each with its
+  tool, record and place; adopter register) and `docs/reverse-engineering-preregistration.md` step 1's template (ten
+  fields, the clean-room parameter and the bundle; J-F's first run the worked example), both held by
+  `tests/test_reverse_engineering_guide.py` (every command option, prose flag and path real; task-0218); step 8's first
+  probe `subjects/jef_data_load/probes/h7/` (pre-registration, then `RESULTS.md`), run by `tools/check_h7_probe.py` on
+  temporary copies of the public codex rebuild: R-STALE, trace drift and the suite per mutant, held to its frozen §8 table
+  by `tests/test_h7_probe.py` (task-0219).
   `tools/connector.py` lands a system of record's export (AML; BPMN, its own dialect and ARIS's, by URI) in
   `<instance>/register/exports/<system>/<date>/` with MANIFEST.toml and RECONCILE.json in ieam-register's format (decision-0010, task-0138: `[ids]` every AML object by GUID, the system's `id_field`; register ids apart, `[register_ids]` GUID to id, `[bpmn_ids]`; RECONCILE.json's ids diff, `stale_nodes` and `unregistered` the register's own, plus `unknown_ids` and stale-by-register-id, redundant once nodes carry `[source]` GUIDs; `proposal_impact`'s D2 reads `[register_ids]`), the system
   and the id attribute (`AT_ID` by default) from `<instance>/connectors.toml`; the comparison the register's own `tools/reconcile.py`, vendored and imported; `check_instance.py` checks `connectors.toml`'s systems against `metamodel/sources.toml` (task-0121); a vanished id stale, never a deletion; the

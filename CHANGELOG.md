@@ -313,6 +313,15 @@ names that section with the version.
   the same. The parser gains a field (`declared_line` on participants) that no mapper reads. Not a
   contract change: an instance that copied the CI template moves its `PUMLLINT` when it moves its
   knowgov tag.
+- **What notices a code change, measured: H7's two mutants on the J-F subject** (task-0219, decision-0018 point 8).
+  Two planted changes to one file of the public rebuild, each on a temporary copy, pre-registered first:
+  - The gate (R-STALE) saw neither change, because no document changed; scenario C still read PROCEED.
+  - trace saw both, as `drift` (minor), and could not tell them apart.
+  - Only the kit's suite separated them: 2 and 19 of 258 cases failing.
+  - A known limit: `trace.py check` fails at `blocker` by default, so a pipeline stops on a changed
+    registered file only with `--fail-on minor`. `docs/reverse-engineering.md` step 8 now says so.
+  - `subjects/jef_data_load/probes/h7/` (the pre-registration and `RESULTS.md`), `tools/check_h7_probe.py`,
+    `tests/test_h7_probe.py`.
 - **A guide to reverse-engineering a code base and finding its knowledge gaps** (task-0218, decision-0018
   points 1 and 2). `docs/reverse-engineering.md` walks the eight steps for an adopter, from scoping at a named
   commit to re-running on change. For each step it gives the tool that runs it today, the record it leaves and
