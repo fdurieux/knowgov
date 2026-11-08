@@ -341,7 +341,7 @@ def load_inferred_proposals(st) -> int:
     return n
 
 
-def load_reviews(st, scenario: str, now: dt.date | None = None, recheck: bool = False) -> dict:
+def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = False) -> dict:
     """Every review in the subject's ``<capture dir>/reviews/`` for this scenario (task-0037,
     decision-0002), after the rules have run: harness/review.py checks each file against the loaded
     store and refuses it whole, with its reasons on stderr; an accepted one applies its rulings
@@ -355,8 +355,11 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, recheck: bool = 
     value and digest it records, whatever its id is in this extraction; one whose statement changed or vanished
     is not applied, and every act not applied (a refused file too, and a file from before 0.9.0 bound by id
     only) is recorded in the store, ``record_act_finding``, for the gate to report: never stderr only.
-    ``recheck`` (stage 2, after a re-extraction): the rulings only, again against the statements the change
-    left current, so an act whose statement the change replaced is reported; the closes stand (task-0197)."""
+    ``again`` (stage 2, after a re-extraction; task-0222): every review file is read again, as a fresh load of the
+    later documents reads it, after the acts stage 1 recorded are cleared. A ruling binds to what the change left
+    current, so one whose statement it replaced is reported and one written for the later version applies in
+    the same run; a close of a gap stage 1 closed, on the same declaration, is a no-op, and one whose declaration
+    changed is reported (``review.check``)."""
     import sys
     import capture
     import review
@@ -364,6 +367,8 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, recheck: bool = 
     rdir = SUBJECT.capture_dir / "reviews"
     files = sorted(rdir.glob("*.toml")) if rdir.is_dir() else []
     counts = {"files": [], "refused": [], "approved": 0, "rejected": 0, "referred": 0, "closed": 0, "settled": 0, "skipped": 0}
+    if again:
+        st.clear_act_findings()
     if not files:
         return counts
     reg = capture.register_root()
@@ -375,10 +380,6 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, recheck: bool = 
         sc = str(doc.get("review", {}).get("scenario", ""))
         if sc and sc != scenario:
             continue
-        if recheck:
-            doc = {k: v for k, v in doc.items() if k != "closes"}
-            if not doc.get("ruling"):
-                continue
         rel = str(p.relative_to(SUBJECT.root)) if p.is_relative_to(SUBJECT.root) else str(p)
         rid = f"review:{p.stem}"
         errs, rv = review.check(doc, st, handles=handles, owners=owners, units=units, captures=caps, now=now,
@@ -396,9 +397,12 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, recheck: bool = 
             st.record_act_finding(_act(f"actf:{rid}:{x['act']}:{x['n']}", head, x["act"], x["n"], x["statement"], x["outcome"],
                                        x["key"], x["why"], value=x["value"], sha=x["sha256"], to=x["to"]))
         person, on = f"person:{rv['by']}", rv["on"].isoformat()
-        if not recheck:   # stage 2 rechecks a review the first load already recorded
-            st.ensure_person(person, rv["by"])
+        st.ensure_person(person, rv["by"])
+        try:
             st.create_activity(f"act:{rid}", "review", on, "review", f"rulings by {rv['by']} on {on}, {rv['record']}, {rel}", person)
+        except ValueError:
+            if not again:   # store.UNIQUE_IDS: only stage 2 meets a review stage 1 recorded, and keeps that record
+                raise
         settled = set()
         for ru in rv["rulings"]:
             b = st.assertion_brief(ru["statement"])
@@ -416,6 +420,8 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, recheck: bool = 
         for key in sorted(settled):
             counts["settled"] += st.settle_conflicts(key, rid)
         for c in rv["closes"]:
+            if c.get("already"):   # task-0222: closed by stage 1 on the same declaration, so closing again is a no-op
+                continue
             st.close_declared_gap(c["gap"], rid, on, rv["record"])
             counts["closed"] += 1
             if c["unbound"]:

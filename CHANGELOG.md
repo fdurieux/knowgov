@@ -21,6 +21,20 @@ names that section with the version.
   `conflicts`, its text and the arms' bundle carry the new ids. A record written before keeps its
   `:<n>` ids; `compare_deterministic.py` reads both forms as one per key, so the scored record still
   compares equal.
+- **A task class may require approved: the intended bar** (task-0215, decision-0018 point 4). A contract
+  change to the subject format and the gate report, opt-in.
+  - **The field.** `require_approved = true` under `[tasks.<class>]`.
+  - **What it does.** A key that reads `verified` but not `approved` then sits below the class's bar.
+    That is a behaviour shown to hold, perhaps by execution on the original, that no person has yet
+    intended.
+  - **The finding.** Each such key gets an `intended` finding, major, naming its owner and route from
+    `capture.routing`. The report's `keys` counts them as `unintended`, and `store_status` shows the
+    field.
+  - **The verdict.** It counts these keys as the class counts a key below verified: QUALIFIED, or
+    BLOCKED past `max_unverified_share`. PROCEED then needs every key approved.
+  - **Without the field, nothing changes.** Every class reads as before, and the scored record is
+    unchanged: no public class declares it. `tools/check_subject.py` refuses a value that is not true
+    or false.
 
 - **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
   with one additive field.
@@ -216,6 +230,13 @@ names that section with the version.
 
 ### Changes
 
+- **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
+  applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1
+  could not apply stayed reported. Stage 2 clears the acts stage 1 recorded, then binds every ruling and close to
+  what the change left current. A close of a gap stage 1 already closed, on the same declaration (its digest), is a
+  no-op; a close whose declaration changed is not applied and is an `act` finding, as at a load (task-0199). New port
+  read `gap_brief` and write `clear_act_findings`, on both adapters. `tools/check_stage2_reload.py` holds it (R1 to
+  R3). The scored record is unchanged.
 - **A model call whose prompt the endpoint cut is marked, never scored** (task-0185, doc-0023). A model
   server with a short context, such as Ollama at its defaults (4,096 tokens), can drop most of a long prompt
   and still answer, with HTTP 200. The OpenAI API has no field for the context length, so knowgov cannot set
