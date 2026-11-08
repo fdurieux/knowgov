@@ -144,10 +144,10 @@ jobs:
           mkdir -p runs   # task-0163: this job's first step; the record's steps made runs/ in the one job before the split
           python tools/check_subject.py subjects/cargo_quote | tee runs/check-cargo.txt
           grep -Fx 'yield: 93 key(s) from 10 artefact(s)' runs/check-cargo.txt
-          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-cargo.txt; then exit 1; fi
+          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-cargo.txt | grep -v '(decision-0019)$'; then exit 1; fi   # task-0221: the read rule's note, until the subject lists its Versions
           python tools/check_subject.py subjects/jef_data_load | tee runs/check-jef.txt
           grep -Fx 'manifest holds' runs/check-jef.txt
-          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-jef.txt; then exit 1; fi
+          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-jef.txt | grep -v '(decision-0019)$'; then exit 1; fi   # task-0221: the read rule's note, until the subject lists its Versions
           rc=0; python tools/check_subject.py tools/fixtures/subject_probe > runs/check-probe.txt || rc=$?
           cat runs/check-probe.txt; test "$rc" -eq 1
           grep -F 'WARNING [tasks.codegen] keys: REQ-02|txt' runs/check-probe.txt | grep -F 'did you mean REQ-02|text?'
@@ -327,6 +327,8 @@ jobs:
         run: rm -rf runs/ledger-binding && KG_STORE=rdflib python tools/check_ledger_binding.py runs/ledger-binding
       - name: One definition per concept (task-0201), on rdflib, one successor set for the gate, the stale finding, superseded_by and the bundle, disputed statements read, one owner and route, one uniqueness rule
         run: rm -rf runs/one-definition && KG_STORE=rdflib python tools/check_one_definition.py runs/one-definition
+      - name: Attestations bound to their Versions (task-0221, decision-0019), on rdflib, the read rule at info, a listed Version attested, an edited unlisted one proposed and named, a digest of nothing refused
+        run: rm -rf runs/attestation-binding && KG_STORE=rdflib python tools/check_attestation_binding.py runs/attestation-binding
       - name: Pre-load findings as routed gaps (task-0216), on rdflib, the example instance's planted SEQ002 a lint gap with its owner and route and no level moved, held by the baseline, resolved by its owner, a slip in the re-lint delta, kept by the round trip
         run: rm -rf runs/lint-gaps && KG_STORE=rdflib python tools/check_lint_gaps.py runs/lint-gaps
       - name: The kit's claim (task-0214), on rdflib, the probe kit's five mappers read observed, inferred and intended into the basis, an inferred statement stays proposed and a ruling approving it is refused, an unknown claim is refused by the subject check

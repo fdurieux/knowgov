@@ -244,10 +244,29 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
         counts["review"] += st.verify_by_review(key, sorted(pristine.get(key, set())), review["at"], review.get("scope", "review"), ATTESTER)
     # requirements and links: reviewed by construction, only where the subject attests it (decision-0009), on the
     # day it names and by the person it names (task-0199, doc-0030 I9): never the load's day, never a default
+    # decision-0019 (task-0221): a declaration that lists Versions attests those only; one that lists none attests
+    # per load, as decision-0009 (a) has it (the read rule), and the store records which reading it was
+    docs = kit if kit is not None else SUBJECT.pristine()
+    marks = []
     if authored:
-        counts["review"] += st.verify_authored(authored["at"], authored.get("scope", "authored"), ATTESTER)
+        arts, mark = attested_artefacts(docs, authored, "authored")
+        marks.append(mark)
+        counts["review"] += st.verify_authored(authored["at"], authored.get("scope", "authored"), ATTESTER, arts)
     if approval:
-        counts["approved"] = st.approve_verified(approval["at"], approval.get("record", "approval"), ATTESTER)
+        arts, mark = attested_artefacts(docs, approval, "approval")
+        marks.append(mark)
+        counts["approved"] = st.approve_verified(approval["at"], approval.get("record", "approval"), ATTESTER, arts)
+    for mark in marks:   # a bound declaration only: the read rule's is the manifest's own (gate.attestation_behind), so its store is as before
+        if mark["bound"]:
+            st.record_attestation(mark)
+    # decision-0019, quoted: "An unlisted Version is not attested: its authored statements read proposed, and nothing in
+    # it is approved by construction." An earlier load (stage 1) may have attested what this Version's statements were,
+    # changed or not: take it back, then corroborate and mark the unverified as a fresh load of these documents does
+    unlisted = sorted({u["artefact"] for m in marks if m["bound"] for u in json.loads(m["unattested"])})
+    if unlisted and st.withdraw_construction(unlisted):
+        from rules import r_corroborate, r_unverified
+        r_corroborate(st)
+        r_unverified(st)
     # decision-0005: every review falls due after its key's review months; the date is the verification's
     # valid_until, which the gate reads as of a date (harness/cadence.py). Not counted: the record's counts stand.
     import cadence
@@ -264,6 +283,29 @@ def _day(v) -> str | None:
         return str(v)
     except ValueError:
         return None
+
+
+def attested_artefacts(kit: dict[str, str], decl: dict, name: str) -> tuple[list[str] | None, dict]:
+    """(the stored artefacts ``decl`` attests as ``kit`` holds them, or None when it lists no Version: the read
+    rule, every artefact as decision-0009 (a) has it; the store's record of it, ``record_attestation``).
+    decision-0019, task-0221: ``[verification] authored`` and ``approval`` list in ``versions`` the digest of each
+    Version they attest, a file's raw-byte SHA-256 (``Subject.version_digest``, task-0160) and, for a directory,
+    its files' (``part_digests``, task-0094; a directory is attested when every file of it is listed)."""
+    listed = decl.get("versions")
+    rows, arts = [], []
+    for path, text in sorted(kit.items()):
+        if path not in FAMILY or path not in STORE:
+            continue
+        digest, _n = SUBJECT.version_digest(path, text)
+        parts = sorted(SUBJECT.part_digests(path, text).values()) if path.endswith("/") else []
+        ok = listed is None or digest in listed or bool(parts and all(d in listed for d in parts))
+        rows.append({"artefact": path, "sha256": digest, "parts": parts, "attested": ok})
+        if ok:
+            arts.append(path)
+    mark = {"id": f"attest:{name}", "declaration": name, "bound": listed is not None, "attester": ATTESTER or "",
+            "unattested": json.dumps([{k: r[k] for k in ("artefact", "sha256", "parts")} for r in rows if not r["attested"]],
+                                     ensure_ascii=False, sort_keys=True)}
+    return (None if listed is None else arts), mark
 
 
 def attestation(name: str, table: dict | None = None) -> dict | None:
