@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-08T20:55:00Z'
-updated_date: '2026-11-08T23:02:00Z'
+updated_date: '2026-11-08T23:47:00Z'
 labels:
   - worker
   - containment
@@ -51,5 +51,5 @@ EXEC-14's witness fixed (main's stack job at ec4e693, job 128882506686: round 5 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-A hostile job could outlast the worker's reaper: _reap_orphans returned at the first /proc scan with no live descendant, and a listing is no snapshot, so under load a fast fork chain slipped between a listing and its reads (1 of 260 hostile jobs in the emulated container). Now, in its container (the init of its own pid namespace), the reaper takes an empty scan only when the namespace's pid counter did not move across it, which closes the race; on a host it takes five empty scans in a row. EXEC-14 runs the hostile chain against the real worker container. (A'), the worker stopping at the bound, is a separate commit held for the maintainer; (B) to (D), cgroup and namespace options that change decision-0012/0015's container settings, go to the maintainer as a 1.0 question.
+A hostile job could outlast the worker's reaper: _reap_orphans returned at the first /proc scan with no live descendant, and a listing is no snapshot, so under load a fast fork chain slipped between a listing and its reads (1 of 260 hostile jobs in the emulated container). Now, in its container (the init of its own pid namespace), the reaper takes an empty scan only when the namespace's pid counter did not move across it, which closes the race; on a host it takes five empty scans in a row. EXEC-14 runs the hostile chain against the real worker container (#389; its witness made blind to a healthcheck and strict for a chain in #391). (A'), the worker stopping at the bound, was decided by the maintainer on 2026-11-08 ("(A') yes") and merged in #389: past REAP_S the job fails, the attestation is withdrawn and the worker exits with code 4, so recovery is a manual restart, named as the 1.0 limit K22 (doc-0028 §10). (B) to (D), cgroup and namespace options that change decision-0012/0015's container settings, and an automatic restart, are parked as task-0238 for a decision after the lighthouse.
 <!-- SECTION:FINAL_SUMMARY:END -->

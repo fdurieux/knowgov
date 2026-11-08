@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-06T13:03:00Z'
-updated_date: '2026-11-08T19:53:00Z'
+updated_date: '2026-11-08T23:47:00Z'
 labels:
   - contracts
   - instance
@@ -175,6 +175,8 @@ The files carry nothing:
 
 <!-- SECTION:NOTES:BEGIN -->
 AC #3 (no code until the maintainer had read the plan) is met by decision-0023, accepted 2026-11-08 on the maintainer's word ("go with the recommended mix, in 0.9.0"); the build follows it.
+
+2026-11-08 (coordinator): decision-0023 Amendment A1 replaces "a missing version reads as the current one until 1.0" with "a missing version reads as version 1, in every release"; task-0236 builds it.
 <!-- SECTION:NOTES:END -->
 
 ## Comments
