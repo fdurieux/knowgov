@@ -140,6 +140,7 @@ def trace(out: Path, made: dict[str, Path]) -> dict[str, dict]:
     inst = out / "inst"
     (inst / "code").mkdir(parents=True)
     shutil.copytree(made["control"] / "src", inst / "code", dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(ROOT / "demo" / "register", inst / "register")   # the subject's register (KG_REGISTER's default): APP-0005 is checked against it
     (inst / "code_map.toml").write_text(
         '[code]\nroot = "code"\ninclude = ["**/*.py"]\n\n'
         f'[[map]]\nglob = "jef/**"\napp = "{APP}"\nnote = "the public rebuild of jef-data (task-0219 probe)"\n', encoding="utf-8")
