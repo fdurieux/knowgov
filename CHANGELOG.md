@@ -319,6 +319,15 @@ names that section with the version.
   where that record lives. `docs/reverse-engineering-preregistration.md` is step 1's template, with the
   pumllint experiment's first run on J-F filled in as the example. `tests/test_reverse_engineering_guide.py`
   holds every option, path and flag the two pages name to a real one.
+- **The page serves an edited subject on the next request, and the connector refuses a clash** (task-0206,
+  doc-0030 P3, P10). Before, the page rescanned its subjects when a `subject.toml` moved, but kept each
+  subject's tables by folder forever. So an edited name, `listed`, task or id was never served, and an
+  edited `scenarios.toml` was not noticed at all. Both manifests are now watched, and a subject is
+  rebuilt when either moves. With `KG_SUBJECTS` set and no subject under it loading, the page used to
+  fall back to the public CargoQuote. It now serves none: the page and `/api/subjects` load, and every
+  other route answers 404 naming `KG_SUBJECTS`. `tools/connector.py` used to keep one of two export files
+  landing at the same relative path, such as two files sharing a name, and drop the other silently. It
+  now refuses them, naming both, and lands nothing.
 - **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
   applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1
   could not apply stayed reported. Stage 2 clears the acts stage 1 recorded, then binds every ruling and close to
