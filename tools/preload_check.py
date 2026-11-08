@@ -652,11 +652,17 @@ def main(argv: list[str] | None = None) -> int:
         rep["delta"] = delta(prev, rep, args.previous)
     if args.layout:
         rep["layout"] = layout(args.instance, table)
-    if args.output:
-        Path(args.output).write_text(json.dumps(rep, indent=1) + "\n", encoding="utf-8")
+    if args.output:   # an unwritable -o is a failure to run, exit 2, never 1 (task-0228, doc-0030 F6)
+        try:
+            Path(args.output).write_text(json.dumps(rep, indent=1) + "\n", encoding="utf-8")
+        except OSError as e:
+            print(f"cannot run: -o {args.output} cannot be written ({e.__class__.__name__}: {e.strerror or e})", file=sys.stderr)
+            return 2
     print(json.dumps(rep, indent=1) if args.format == "json" else render(rep))
     return rep["exit_code"]
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import _outcomes   # task-0159: the outcome recorded when KG_OUTCOMES names a file
+    import cli_exit    # task-0228: anything else that escapes main is a failure to run, exit 2 (doc-0030 F6)
+    sys.exit(_outcomes.run(lambda: cli_exit.run(main, "preload check")))

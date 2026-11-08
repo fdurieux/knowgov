@@ -334,6 +334,10 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **`tools/preload_check.py` exits 2 when it cannot write `-o`** (task-0228, doc-0030 F6). An unwritable
+  report path (a missing folder) exited 1, the finding's code, with a traceback; it is now a failure to run,
+  exit 2, one `cannot run: -o ...` line and no report. The command exits through the check tools' outcomes
+  wrapper, so `KG_OUTCOMES` records its runs, and any other failure escaping it is exit 2 as well.
 
 - **Uniform edges: every failure to run is exit 2, every hook's crash blocks** (task-0200, doc-0030 F6:
   G6, G7, R9, M6, M10, P8, P9, G12).

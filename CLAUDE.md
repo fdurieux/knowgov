@@ -32,7 +32,7 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   `tools/example_instance.py` that CI mounts read-only and digests before and after (task-0006). Each kind's `lint`
   field is doc-0008 §5's tool and gate column; `tools/preload_check.py` lints an instance's documents
   with the ones that run here (pumllint; Spectral for api-contracts, task-0066; markdownlint, gplint, bpmnlint, dmnlint for prose, Gherkin, BPMN, .dmn, task-0082, proven by `tools/check_preload_linters.py`; `--baseline` fails only on regression, task-0065), and with `--layout` carries `tools/check_instance.py`'s problems in an optional `layout` block (severity, kind, file, `fails`), passed by `instance/ci/preload-check.sh` with `KG_REPORT` so `harness/annotate.py` annotates them, a layout error an error and the rest never one, the exit the lint's (task-0115), lists every other kind's files, and a kind whose linter is not installed, as unchecked, exits under the
-  gate contract, JSON under `harness/schemas/preload-report.schema.json`; `instance/ci/` is the
+  gate contract (through `_outcomes.run` and `cli_exit.run`, an unwritable `-o` exit 2; task-0228), JSON under `harness/schemas/preload-report.schema.json`; `instance/ci/` is the
   template an instance copies, its script proven in `harness.yml` (task-0045); `instance/ci/knowgov-gate.sh`
   the three gates as one platform-neutral call (KG_* variables to the core flags; `KG_TASK=keys` exits 2, doc-0014 C4), wrapped by
   `instance/ci/github/action.yml` (run for real in `harness.yml`) and `instance/ci/gitlab/knowgov.gitlab-ci.yml`
