@@ -221,6 +221,17 @@ names that section with the version.
 
 ### Changes
 
+- **pumllint 0.35.0 is the record's pin** (task-0224, the maintainer, 2026-11-08). The image, both
+  `harness.yml` jobs, `demo/requirements.txt` and the CI templates (`instance/ci/preload-check.yml`'s
+  `PUMLLINT`, the GitLab include's `KNOWGOV_PIP`) install pumllint 0.35.0 in place of 0.33.0, so the
+  pre-load check, the sequence-diagram mappers and the image run one version, the first with
+  `pumllint trace --features` (task-0217 builds on it; a CI step runs it on the J-F kit). Nothing a
+  reader sees moves: the scored record (S1 to S7) and J-F's run equal under the comparator on rdflib
+  and Neo4j; the two mappers that import the parser yield the same statements, value for value; the
+  pre-load check's pumllint findings on the example instance and on every `.puml` of both subjects are
+  the same. The parser gains a field (`declared_line` on participants) that no mapper reads. Not a
+  contract change: an instance that copied the CI template moves its `PUMLLINT` when it moves its
+  knowgov tag.
 - **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
   applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1
   could not apply stayed reported. Stage 2 clears the acts stage 1 recorded, then binds every ruling and close to
