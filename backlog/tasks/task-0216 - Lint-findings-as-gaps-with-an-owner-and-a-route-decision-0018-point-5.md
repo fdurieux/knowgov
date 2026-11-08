@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-08T11:17:00Z'
-updated_date: '2026-11-08T13:07:00Z'
+updated_date: '2026-11-08T13:09:00Z'
 labels:
   - process
   - reverse-engineering
@@ -57,7 +57,7 @@ decision-0018 point 5 (doc-0032 §2 step 5; Dominique's attribute and route step
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Evidence (merged head over 3b931bb): tools/check_lint_gaps.py holds on rdflib and on Neo4j 5.26 (planted SEQ002 on the example instance: gap and minor finding with owner ORG-0001 and route; --baseline holds it at info; employee-3 resolves it as a choice, employee-1 refused for lacking closes; mended diagram, --previous delta comparable, SEQ002 gone as a slip, no gap left, the resolve act info; Turtle round trip equal). check_round_trip --chain --expect-preload on the planted instance: rdflib to rdflib (S1, S6), neo4j to rdflib to neo4j (S1). Comparator S1-S7 and J-F: 0 diffs. check_gate_after_change rc 0; check_mcp_server holds on both stores. New tests failed on the old code (AttributeError on preload.lint_gaps, gate.lint_behind, gate_cli.lint_finding, preload_check.delta). A lint gap never lowers a key's level: it sits on its document, the gate lists it beside the keys behind it, levels and verdict equal those of the unplanted instance.
+Evidence (merged head over 3b931bb): tools/check_lint_gaps.py holds on rdflib and on Neo4j 5.26 (planted SEQ002 on the example instance: gap and minor finding behind 15 keys owned by several units, so owner null and each unit's route named; --baseline holds it at info; employee-3 resolves it as a choice, employee-1 refused for lacking closes; mended diagram, --previous delta comparable, SEQ002 gone as a slip, no gap left, the resolve act info; Turtle round trip equal). check_round_trip --chain --expect-preload on the planted instance: rdflib to rdflib (S1, S6), neo4j to rdflib to neo4j (S1). Comparator S1-S7 and J-F: 0 diffs. check_gate_after_change rc 0; check_mcp_server holds on both stores. New tests failed on the old code (AttributeError on preload.lint_gaps, gate.lint_behind, gate_cli.lint_finding, preload_check.delta). A lint gap never lowers a key's level: it sits on its document, the gate lists it beside the keys behind it, levels and verdict equal those of the unplanted instance.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
