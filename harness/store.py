@@ -95,7 +95,7 @@ READS = frozenset({
     "gaps_with_concerns", "assertions_on_key", "assertion_rows", "supported_by", "candidate_for",
     "fragments_with_version", "requirements_verified_by", "register_census", "register_node_statements",
     "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions", "held",
-    "act_findings", "derived_rows", "attestations"})
+    "act_findings", "derived_rows", "gap_brief", "attestations"})
 
 
 def held_from(acts: list[dict], current: list[dict]) -> dict | None:
@@ -511,6 +511,16 @@ class Store:
 
     def attestations(self) -> list[dict]:
         """Every ``Attestation``: id and ``ATTESTATION_FIELDS``, by id. Empty when the subject declares none."""
+        raise NotImplementedError
+
+    def clear_act_findings(self) -> None:
+        """Remove every ``ActFinding``: stage 2 re-reads every review file against the later documents and records
+        afresh what it cannot apply (task-0222), so no act reads unapplied for a version it now applies to."""
+        raise NotImplementedError
+
+    def gap_brief(self, gid: str) -> dict | None:
+        """One gap of any kind, by id: {id, kind, declared, text, keys}; None when the store holds none (task-0222:
+        a close of a gap already closed is told from one that is gone)."""
         raise NotImplementedError
 
     def act_findings(self) -> list[dict]:

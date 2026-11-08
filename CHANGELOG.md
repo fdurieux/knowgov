@@ -225,6 +225,13 @@ names that section with the version.
 
 ### Changes
 
+- **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
+  applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1
+  could not apply stayed reported. Stage 2 clears the acts stage 1 recorded, then binds every ruling and close to
+  what the change left current. A close of a gap stage 1 already closed, on the same declaration (its digest), is a
+  no-op; a close whose declaration changed is not applied and is an `act` finding, as at a load (task-0199). New port
+  read `gap_brief` and write `clear_act_findings`, on both adapters. `tools/check_stage2_reload.py` holds it (R1 to
+  R3). The scored record is unchanged.
 - **A model call whose prompt the endpoint cut is marked, never scored** (task-0185, doc-0023). A model
   server with a short context, such as Ollama at its defaults (4,096 tokens), can drop most of a long prompt
   and still answer, with HTTP 200. The OpenAI API has no field for the context length, so knowgov cannot set

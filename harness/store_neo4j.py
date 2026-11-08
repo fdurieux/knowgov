@@ -1163,6 +1163,16 @@ class Neo4jStore(Store):
         cols = ", ".join(f"a.{k} AS {k}" for k in self.ATTESTATION_FIELDS)
         return by_id(_rows(self.run(f"MATCH (a:Attestation) RETURN a.id AS id, {cols}")))
 
+    def clear_act_findings(self) -> None:
+        self.run("MATCH (a:ActFinding) DETACH DELETE a").consume()
+
+    def gap_brief(self, gid) -> dict | None:
+        rows = _rows(self.run("""
+            MATCH (g:Gap {id:$gid}) OPTIONAL MATCH (g)-[c:CONCERNS_KEY]->()
+            RETURN g.id AS id, g.kind AS kind, g.declared AS declared, g.text AS text,
+                   [k IN collect(c.key) WHERE k IS NOT NULL] AS keys""", gid=gid))
+        return {**rows[0], "keys": sorted(rows[0]["keys"])} if rows else None
+
     def act_findings(self) -> list[dict]:
         cols = ", ".join(f"a.{k} AS {k}" for k in self.ACT_FIELDS)
         return by_id(_rows(self.run(f"MATCH (a:ActFinding) RETURN a.id AS id, {cols}")))
