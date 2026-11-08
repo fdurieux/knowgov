@@ -621,6 +621,52 @@ _REQ_ID = re.compile(r"\b(" + SUBJECT.rules.get("requirement_id_pattern", r"[A-Z
 bundle_parts = _subject_bundle_parts   # (relative path, text) per part of a bundle
 
 
+# The claim (task-0214, decision-0018 point 3, doc-0032 §3; method 1.3 of pumllint's recreation experiment). A
+# kit statement may say what it is: ``observed``, what the pinned original does; ``inferred``, a proposed
+# explanation or generalised rule; ``intended``, behaviour accepted by the responsible authority. The bundle
+# mappers read it into the basis. A statement that says nothing loads as before, so a kit without claims, the
+# vendored ones and the scored record, does not move. Where a mapper reads it (subjects/README.md):
+# requirements_json an item's ``"claim"``; contracts_markdown a part's ``Claim: <value>`` line;
+# dmn_decisions ``claim: <value>`` in a decision's or a rule's description, the rule's winning; gherkin_tagged an
+# ``@claim:<value>`` tag on the Feature, a Rule or a Scenario, the nearest winning; plantuml_realises a
+# ``' claim: <value>`` comment line in the diagram.
+CLAIMS = {"observed": "extracted", "inferred": "inferred", "intended": "authored"}
+# An assertion that rests on statements of different claims (a requirement cited by two contract parts) takes
+# the most conservative basis among them: an inference anywhere under it caps it at proposed, and an observation
+# is not an intention. A statement with no claim counts as the mapper's own basis, as before.
+_RANK = {"inferred": 0, "extracted": 1, "authored": 2}
+_CLAIM_LINE = re.compile(r"^[ \t]*claim:[ \t]*(\S+)[ \t]*$", re.I | re.M)            # contracts_markdown
+_CLAIM_IN_TEXT = re.compile(r"\bclaim:[ \t]*([A-Za-z_-]+)", re.I)                      # dmn_decisions descriptions
+_CLAIM_COMMENT = re.compile(r"^[ \t]*'[ \t]*claim:[ \t]*(\S+)[ \t]*$", re.I | re.M)   # plantuml_realises
+_CLAIM_TAG = "@claim:"                                                                 # gherkin_tagged
+
+
+class UnknownClaim(ValueError):
+    """A claim value the kit format does not know: tools/check_subject.py refuses it, and a load fails on it
+    rather than read the statement as something it did not say."""
+
+
+def claim_of(value, where: str) -> str | None:
+    """``value`` as a claim, None when the statement states none; an unknown value raises UnknownClaim."""
+    if value is None:
+        return None
+    c = str(value).strip().lower()
+    if c not in CLAIMS:
+        raise UnknownClaim(f"{where}: claim {value!r} is not one of {', '.join(CLAIMS)}")
+    return c
+
+
+def _basis(claims, default: str) -> str:
+    """The basis an assertion takes from the claims of the statements it rests on (None: the statement states
+    none, so it counts as ``default``, the mapper's own)."""
+    return min([CLAIMS[c] if c else default for c in claims] or [default], key=_RANK.__getitem__)
+
+
+def _first_claim(rx: re.Pattern, text: str, where: str) -> str | None:
+    m = rx.search(text or "")
+    return claim_of(m.group(1), where) if m else None
+
+
 def _ids_in(text: str) -> list[str]:
     """Requirement ids cited in a text, ranges written ``JDL-023 … JDL-039`` (or ``..``, ``to``,
     an en dash) expanded, each id once, in id order."""
@@ -640,40 +686,44 @@ def _stem(rel: str) -> str:
 def extract_requirements_json(path: str, text: str) -> Bag:
     """A JSON list of ``{id, kind, statement, basis}``: one requirement entity per item and one
     extracted ``statement`` assertion, supported by the item as a row fragment (R-VAGUE reads
-    row fragments)."""
+    row fragments). An item's optional ``claim`` sets the statement's basis (task-0214); the item's
+    ``basis`` (where the reverse engineer read it: code logic, prose or both) is not a claim."""
     import json
     b = Bag(short(path))
     for item in json.loads(text):
         rid, stmt = item["id"], item["statement"]
         b.ent(rid, "requirement", rid)
         f = b.frag(f"row/{rid}", stmt)
-        b.assertion(rid, "statement", stmt, stmt, [f])
+        b.assertion(rid, "statement", stmt, stmt, [f], basis=_basis([claim_of(item.get("claim"), f"{path} {rid}")], "extracted"))
     return b
 
 
-def _by_requirement(bag: Bag, predicate: str, cites: dict[str, list[tuple[str, str]]], text_for) -> None:
-    """One authored assertion per requirement: ``<req>|<predicate>`` = the parts that cite it,
-    ``; ``-separated in path order, supported by one fragment per citing part."""
+def _by_requirement(bag: Bag, predicate: str, cites: dict[str, list[tuple[str, str, str | None]]], text_for) -> None:
+    """One assertion per requirement: ``<req>|<predicate>`` = the parts that cite it, ``; ``-separated in
+    path order, supported by one fragment per citing part; authored, unless the citing statements' claims
+    say otherwise (the most conservative among them, task-0214)."""
     for rid in sorted(cites):
         bag.ent(rid, "requirement", rid)
-        names = [n for n, _f in cites[rid]]
-        frags = [f for _n, f in cites[rid]]
-        bag.assertion(rid, predicate, "; ".join(names), text_for(rid, names), frags, basis="authored")
+        names = [n for n, _f, _c in cites[rid]]
+        frags = [f for _n, f, _c in cites[rid]]
+        bag.assertion(rid, predicate, "; ".join(names), text_for(rid, names), frags,
+                      basis=_basis([c for _n, _f, c in cites[rid]], "authored"))
 
 
 def extract_contracts_markdown(path: str, text: str) -> Bag:
     """A bundle of prose contracts. Each part elaborates the requirements it cites anywhere
     (``Requirements: JDL-045, …`` sentences, ranges, inline citations); every markdown table row
     is a fragment, so a changed cell is a changed fragment. ``<req>|elaborated_by`` lists the
-    citing parts."""
+    citing parts. A part's ``Claim: <value>`` line is the claim of its citations (task-0214)."""
     b = Bag(short(path))
-    cites: dict[str, list[tuple[str, str]]] = {}
+    cites: dict[str, list[tuple[str, str, str | None]]] = {}
     for rel, body in bundle_parts(text):
         name = rel or path
         ids = _ids_in(body)
+        claim = _first_claim(_CLAIM_LINE, body, name)
         head = b.frag(f"{name}:cites", f"{name} cites {', '.join(ids)}" if ids else f"{name} cites no requirement")
         for rid in ids:
-            cites.setdefault(rid, []).append((name, head))
+            cites.setdefault(rid, []).append((name, head, claim))
         for i, line in enumerate(body.splitlines(), 1):
             if line.startswith("|") and not re.match(r"^\|[\s:|-]+\|$", line):
                 b.frag(f"{name}:row/{i}", line)
@@ -684,10 +734,11 @@ def extract_contracts_markdown(path: str, text: str) -> Bag:
 def extract_dmn_decisions(path: str, text: str) -> Bag:
     """A bundle of DMN 1.3 files: one ``decision_table`` entity per decision with its rule count
     (authored: the table's own structure), and ``<req>|decided_by`` for every requirement a rule's
-    description cites, listing ``<decision>/<rule id>``."""
+    description cites, listing ``<decision>/<rule id>``. ``claim: <value>`` in a decision's own
+    description is its rules' claim, in a rule's description that rule's (task-0214)."""
     b = Bag(short(path))
     ns = {"d": "https://www.omg.org/spec/DMN/20191111/MODEL/"}
-    cites: dict[str, list[tuple[str, str]]] = {}
+    cites: dict[str, list[tuple[str, str, str | None]]] = {}
     for rel, body in bundle_parts(text):
         if not body.lstrip().startswith("<"):
             continue   # a README beside the tables
@@ -696,8 +747,9 @@ def extract_dmn_decisions(path: str, text: str) -> Bag:
             dname = dec.get("name") or dec.get("id")
             ent = f"dmn:{dname}"
             b.ent(ent, "decision_table", dname)
+            dclaim = _first_claim(_CLAIM_IN_TEXT, dec.findtext("d:description", default="", namespaces=ns), f"{rel or path} {dname}")
             rules = list(dec.iter(f"{{{ns['d']}}}rule"))
-            frags = []
+            frags, claims = [], []
             for r in rules:
                 rid = r.get("id")
                 desc = (r.findtext("d:description", default="", namespaces=ns) or "").strip()
@@ -705,9 +757,12 @@ def extract_dmn_decisions(path: str, text: str) -> Bag:
                 outs = [(o.findtext("d:text", default="", namespaces=ns) or "").strip() for o in r.findall("d:outputEntry", ns)]
                 f = b.frag(f"{rel or path}:rule/{rid}", f"{rid}: {', '.join(ins)} -> {', '.join(outs)}" + (f" ({desc})" if desc else ""))
                 frags.append(f)
+                claim = _first_claim(_CLAIM_IN_TEXT, desc, f"{rel or path} {dname}/{rid}") or dclaim
+                claims.append(claim)
                 for req in _ids_in(desc):
-                    cites.setdefault(req, []).append((f"{dname}/{rid}", f))
-            b.assertion(ent, "rules", str(len(rules)), f"{dname} has {len(rules)} rules", frags, basis="authored")
+                    cites.setdefault(req, []).append((f"{dname}/{rid}", f, claim))
+            b.assertion(ent, "rules", str(len(rules)), f"{dname} has {len(rules)} rules", frags,
+                        basis=_basis(claims or [dclaim], "authored"))
     _by_requirement(b, "decided_by", cites, lambda rid, names: f"{rid} is decided by {', '.join(names)}")
     return b
 
@@ -716,32 +771,51 @@ def extract_gherkin_tagged(path: str, text: str) -> Bag:
     """A bundle of feature files whose scenarios carry ``@<req>`` tags: one ``feature`` entity per
     part with its scenario count, and ``<req>|verified_by`` listing ``<feature>::<scenario>`` for
     every tagged scenario (authored: the suite's own links). The subject's ``[verification]
-    derive_execution`` turns these into the execution map."""
+    derive_execution`` turns these into the execution map. An ``@claim:<value>`` tag on the Feature, a
+    Rule or a Scenario is the claim of the scenarios under it, the nearest winning (task-0214)."""
     b = Bag(short(path))
-    cites: dict[str, list[tuple[str, str]]] = {}
+    cites: dict[str, list[tuple[str, str, str | None]]] = {}
     for rel, body in bundle_parts(text):
         stem = _stem(rel) if rel else _stem(path)
+        where = rel or path
         lines = body.splitlines()
+
+        def tags_above(i: int) -> tuple[list[str], int]:
+            tags, j = [], i - 1
+            while j >= 0 and lines[j].strip().startswith("@"):
+                tags = lines[j].split() + tags
+                j -= 1
+            return tags, j
+
+        def claim_in(tags: list[str], at: str) -> str | None:
+            return next((claim_of(t[len(_CLAIM_TAG):], f"{where} {at}") for t in tags if t.lower().startswith(_CLAIM_TAG)), None)
+
         n = 0
-        frags = []
+        frags, claims = [], []
+        fclaim = rclaim = None
         for i, line in enumerate(lines):
+            if re.match(r"\s*Feature:", line):
+                fclaim = claim_in(tags_above(i)[0], "Feature")
+                continue
+            if re.match(r"\s*Rule:", line):
+                rclaim = claim_in(tags_above(i)[0], line.strip())
+                continue
             m = re.match(r"\s*Scenario(?: Outline)?: (.*)", line)
             if not m:
                 continue
             n += 1
             title = m.group(1).strip()
-            tags = []
-            j = i - 1
-            while j >= 0 and lines[j].strip().startswith("@"):
-                tags = lines[j].split() + tags
-                j -= 1
+            tags, j = tags_above(i)
             f = b.frag(f"{rel or path}:scenario/{n}", "\n".join(lines[j + 1:i + 1]).strip())
             frags.append(f)
+            claim = claim_in(tags, f"scenario {title!r}") or rclaim or fclaim
+            claims.append(claim)
             for t in tags:
                 if _REQ_ID.fullmatch(t.lstrip("@")):
-                    cites.setdefault(t.lstrip("@"), []).append((f"{stem}::{title}", f))
+                    cites.setdefault(t.lstrip("@"), []).append((f"{stem}::{title}", f, claim))
         b.ent(f"feature:{stem}", "feature", stem)
-        b.assertion(f"feature:{stem}", "scenarios", str(n), f"{stem} has {n} scenarios", frags, basis="authored")
+        b.assertion(f"feature:{stem}", "scenarios", str(n), f"{stem} has {n} scenarios", frags,
+                    basis=_basis(claims or [fclaim], "authored"))
     _by_requirement(b, "verified_by", cites, lambda rid, names: f"{rid} is verified by {', '.join(names)}")
     return b
 
@@ -756,18 +830,21 @@ _PUML_NAMES = {
 def extract_plantuml_realises(path: str, text: str) -> Bag:
     """A bundle of PlantUML diagrams: one ``diagram`` entity per part with its type (pumllint's
     parser), its title and the names it declares (authored: the diagram's own structure), and
-    ``<req>|realised_by`` for every requirement the footer's ``realises`` list names."""
+    ``<req>|realised_by`` for every requirement the footer's ``realises`` list names. A ``' claim: <value>``
+    comment line is the claim of the diagram's statements (task-0214)."""
     from pumllint import parser  # the product's parser, as a library
     b = Bag(short(path))
-    cites: dict[str, list[tuple[str, str]]] = {}
+    cites: dict[str, list[tuple[str, str, str | None]]] = {}
     for rel, body in bundle_parts(text):
         stem = _stem(rel) if rel else _stem(path)
+        claim = _first_claim(_CLAIM_COMMENT, body, rel or path)
+        basis = _basis([claim], "authored")
         d = parser.parse_source(body, file_path=rel or path)[0]
         ent = f"diagram:{stem}"
         title = next((x.value for x in d.directives if getattr(x, "kind", "") == "title"), stem)
         b.ent(ent, "diagram", title)
         head = b.frag(f"{rel or path}:head", f"@startuml {stem}: {d.diagram_type}, {title}")
-        b.assertion(ent, "type", d.diagram_type, title, [head], basis="authored")
+        b.assertion(ent, "type", d.diagram_type, title, [head], basis=basis)
         names = sorted(d.participants) if d.participants else []
         if not names:
             rx = _PUML_NAMES.get(d.diagram_type)
@@ -775,12 +852,12 @@ def extract_plantuml_realises(path: str, text: str) -> Bag:
                 names = sorted({(m[0] if isinstance(m, tuple) else m).strip() for m in rx.findall(body)} - {""})
         if d.diagram_type == "activity":
             names = [f"{len(d.activity_nodes or [])} activity nodes"]
-        b.assertion(ent, "elements", "; ".join(names), f"{stem} declares {len(names)} elements", [head], basis="authored")
+        b.assertion(ent, "elements", "; ".join(names), f"{stem} declares {len(names)} elements", [head], basis=basis)
         foot = re.search(r"^\s*footer\b(.*)$", body, re.M)
         if foot:
             f = b.frag(f"{rel or path}:footer", foot.group(0).strip())
             for req in _ids_in(foot.group(1)):
-                cites.setdefault(req, []).append((stem, f))
+                cites.setdefault(req, []).append((stem, f, claim))
     _by_requirement(b, "realised_by", cites, lambda rid, names: f"{rid} is realised by {', '.join(names)}")
     return b
 

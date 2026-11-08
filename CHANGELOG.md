@@ -57,6 +57,26 @@ names that section with the version.
     versions only: new, gone (a slip when the bytes changed) and kept.
   - **Proof.** `tools/check_lint_gaps.py` proves it on the example instance, on rdflib and on Neo4j.
 
+- **A kit statement says what it is: the claim** (task-0214, decision-0018 point 3, doc-0032 §3). A change to the
+  kit format the five bundle mappers read, and an additive rule in the subject check's report.
+  - **The field.** A statement may carry `claim`: `observed` (what the pinned original does), `inferred` (a
+    proposed explanation or generalised rule) or `intended` (accepted by the responsible authority). They load
+    as `extracted`, `inferred` and `authored`. `requirements_json` reads an item's `"claim"`, `contracts_markdown`
+    a part's `Claim:` line, `dmn_decisions` `claim:` in a decision's or rule's description, `gherkin_tagged` an
+    `@claim:` tag on the Feature, a Rule or a Scenario, and `plantuml_realises` a `' claim:` comment line
+    (`subjects/README.md`, "The claim"; `instance/mappers.toml`).
+  - **Inferred stays proposed.** Nothing verifies it, a ruling may never approve it (task-0199 I4), and a
+    `verified_by` link claimed inferred derives no execution, so it raises no other statement either. An
+    assertion resting on statements of different claims takes the most conservative.
+  - **No claim, no change.** A statement without one loads as before, so the public kits and the scored record
+    do not move.
+  - **Refused when unknown.** `tools/check_subject.py` refuses an unknown claim under a new rule, `claim`
+    (`harness/schemas/subject-check.schema.json`, additive), and the load fails on it rather than guess.
+  - The SHACL shape for an inferred assertion accepts one that rests on the kit fragment stating it, beside one
+    linked to the gap it proposes to fill.
+  - `tools/fixtures/claim_probe` carries every mapping. `tools/check_claim_probe.py` proves it on both stores, in
+    `harness.yml` and the stack.
+
 - **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
   with one additive field.
   - **One successor set (G3).** The gate's level drops an invalidated statement only when its own verified or

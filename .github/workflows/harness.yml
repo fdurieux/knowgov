@@ -327,6 +327,8 @@ jobs:
         run: rm -rf runs/one-definition && KG_STORE=rdflib python tools/check_one_definition.py runs/one-definition
       - name: Pre-load findings as routed gaps (task-0216), on rdflib, the example instance's planted SEQ002 a lint gap with its owner and route and no level moved, held by the baseline, resolved by its owner, a slip in the re-lint delta, kept by the round trip
         run: rm -rf runs/lint-gaps && KG_STORE=rdflib python tools/check_lint_gaps.py runs/lint-gaps
+      - name: The kit's claim (task-0214), on rdflib, the probe kit's five mappers read observed, inferred and intended into the basis, an inferred statement stays proposed and a ruling approving it is refused, an unknown claim is refused by the subject check
+        run: KG_STORE=rdflib python tools/check_claim_probe.py
       - name: A register change invalidates (task-0122), the fixture's deprecated CAP-0001 and withdrawn REL-06001 stale the keys resting on them and S1's output suspect, exit 1; no state change, nothing; the staleness survives the round trip
         run: |
           rm -rf runs/regchange && KG_STORE=rdflib python tools/check_register_change.py runs/regchange
