@@ -16,7 +16,7 @@ minor) that leaves the diagram's statements as they were. Then:
    finding is info and names who, when and the record. A review by a handle without the role is refused whole,
    and the gate says so.
 4. A slip. The diagram mended, a re-lint with ``--previous`` at the same tool versions shows the finding gone, a
-   slip; the load holds no lint gap, and the review's resolution, with nothing left to resolve, is info.
+   slip; the load holds no SEQ002 gap, and the review's resolution, with nothing left to resolve, is info.
 5. The Turtle round trip keeps every lint gap, on this store's adapter.
 
 Exit 0 when all hold, 1 on a failure. The store is the one ``KG_STORE`` names; the stack job runs it on Neo4j.
@@ -77,8 +77,10 @@ def instance(out: Path, name: str, plant: bool) -> tuple[Path, dict]:
     return inst, env
 
 
-def lints(rep: dict) -> list[dict]:
-    return [f for f in rep["findings"] if f["kind"] == "lint"]
+def lints(rep: dict, rule: str | None = None) -> list[dict]:
+    """The lint findings, or those of one rule: where the Node linters are installed (CI), the example's own
+    documents have findings of their own, which every check here leaves aside."""
+    return [f for f in rep["findings"] if f["kind"] == "lint" and rule in (None, f["lint"]["rule"])]
 
 
 def review(inst: Path, name: str, by: str, gap: dict, resolution: str) -> None:
@@ -108,7 +110,7 @@ def main(out: Path) -> int:
     found = [f for f in lints(rep) if f["lint"]["rule"] == "SEQ002"]
     if not gaps or not found or found[0]["severity"] != "minor" or not found[0].get("route") or "questionnaire" not in found[0]["route"]:
         errs.append(f"1: want a lint gap and a minor lint finding with its route: gaps {len(gaps)}, findings {[(f['severity'], f.get('route')) for f in found]}")
-    if rep["levels"] != plain["levels"] or rep["verdict"] != plain["verdict"] or lints(plain):
+    if rep["levels"] != plain["levels"] or rep["verdict"] != plain["verdict"] or lints(plain, "SEQ002"):
         errs.append(f"1: a lint gap moved a level or the verdict: {rep['verdict']} vs {plain['verdict']}, "
                     f"{ {k: (v, plain['levels'].get(k)) for k, v in rep['levels'].items() if v != plain['levels'].get(k)} }")
     gap = next((g for g in gaps if g["rule"] == "SEQ002"), None)
@@ -151,11 +153,11 @@ def main(out: Path) -> int:
     rep = gate(env)
     left = probe(env, "import store\nwith store.open_store(access='read') as st:\n    print(json.dumps(st.lint_gaps()))")
     stale = [f for f in rep["findings"] if f["kind"] == "act" and f["act"]["act"] == "resolve"]
-    if [g for g in left if g["rule"] == "SEQ002"] or lints(rep) or not stale or stale[0]["severity"] != "info":
+    if [g for g in left if g["rule"] == "SEQ002"] or lints(rep, "SEQ002") or not stale or stale[0]["severity"] != "info":
         errs.append(f"4: want no SEQ002 gap or finding, and the resolution's act at info: gaps {len(left)}, "
-                    f"lint {len(lints(rep))}, acts {[(f['severity'], f['act']['why']) for f in stale]}")
+                    f"lint {len(lints(rep, 'SEQ002'))}, acts {[(f['severity'], f['act']['why']) for f in stale]}")
     print(f"    delta comparable {delta.get('comparable')}: gone {[(g['rule'], g['slip']) for g in gone]}, kept {delta.get('kept')}; "
-          f"lint gaps now {len(left)}; the resolution's act {stale[0]['severity'] if stale else None} ({stale[0]['act']['why'] if stale else None})")
+          f"SEQ002 gaps now {len([g for g in left if g['rule'] == 'SEQ002'])}; the resolution's act {stale[0]['severity'] if stale else None} ({stale[0]['act']['why'] if stale else None})")
 
     print("== 5: the Turtle round trip keeps every lint gap")
     shutil.copy(out / "first.json", inst / "preload-report.json")
