@@ -321,7 +321,7 @@ jobs:
 
       - name: A register node to the statements its cited anchor names (task-0046), on Neo4j, S6 with the S1 code as derived, equal to the rdflib port
         run: |
-          docker compose exec -T app sh -c 'rm -rf runs/anchor && mkdir -p runs/anchor/S1 && cp subjects/cargo_quote/vendor/kg_experiment/results/S1/run1_G.py runs/anchor/S1/ && python harness/run.py --deterministic --scenarios S6 --out runs/anchor > /dev/null'
+          docker compose exec -T app sh -c 'rm -rf runs/anchor && mkdir -p runs/anchor && python harness/run.py --deterministic --scenarios S6 --out runs/anchor --stage2-derived subjects/cargo_quote/vendor/kg_experiment/results/S1/run1_G.py > /dev/null'
           docker compose exec -T app python3 - <<'PY'
           import sys
           sys.path[:0] = ["harness", "demo/app"]
