@@ -334,6 +334,12 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **The Claude Code hooks close two gaps** (task-0204, doc-0030 P2, P4). `knowgov_hook.py` reads git from the
+  command's tokens, so `/usr/bin/git push`, `git -C dir push` and `bash -c 'git push'` are the push
+  transition, and a commit whose own command stages or names a spec file (`git add spec.md && git commit`,
+  `git commit -a`, `git add .`) is the spec transition before it runs; a command it cannot read fails closed.
+  `attestation_paths.py` blocks a change to `subject.toml`'s `[capture]` table, and capture-shaped TOML
+  (`[[answer]]`, `[[unknown]]`, `[capture]`, a signed `[answered]`) written anywhere, as it blocks a review file.
 
 - **Uniform edges: every failure to run is exit 2, every hook's crash blocks** (task-0200, doc-0030 F6:
   G6, G7, R9, M6, M10, P8, P9, G12).

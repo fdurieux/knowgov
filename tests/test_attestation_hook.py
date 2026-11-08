@@ -132,6 +132,32 @@ def test_captures_reviews_baseline_map_and_register_are_blocked():
         assert p.returncode == 2 and "review file" in p.stderr, (content, p.stderr)
 
 
+
+def test_a_re_pointed_capture_dir_and_capture_shaped_content_anywhere_are_blocked():
+    """task-0204 (doc-0030 P4): [capture] dir is attesting, a change or an addition blocked as [verification]'s;
+    capture-shaped TOML is blocked wherever it is written, parsed or half-written, as a review file is."""
+    inst = _instance()
+    p = _edit(inst, 'dir = "answers"', 'dir = "../../notes"')
+    assert p.returncode == 2 and "[capture]" in p.stderr and "BLOCKED" in p.stderr, p.stderr
+    p = _edit(inst, '[capture]\ndir = "answers"\n', "")   # removing it falls back to captures/, still guarded
+    assert p.returncode == 0, p.stderr
+    capture = ('[capture]\nfrom = "employee-1"\non = 2026-11-05\nrecord = "r"\n\n'
+               '[[answer]]\nkey = "REQ-01|text"\nvalue = "v"\nnote = ""\n')
+    for content in (capture, '[[answer]]\nkey = "k"\nvalue = "v"\n', '[[unknown]]\nkey = "k"\nnote = ""\n',
+                    '[answered]\nfrom = "employee-1"\non = "2026-11-05"\n', "[[answer]]\nkey = \n", "[answered]\nfrom = \n"):
+        for path in ("notes/a.toml", "subjects/probe/elsewhere/2026-11-05.toml"):
+            p = _run(inst, "Write", path, content=content)
+            assert p.returncode == 2 and "capture-shaped" in p.stderr, (path, content, p.stderr)
+    # the same content appended by an Edit to an ordinary file
+    (inst / "notes").mkdir(exist_ok=True)
+    (inst / "notes" / "b.toml").write_text("x = 1\n", encoding="utf-8")
+    p = _run(inst, "Edit", "notes/b.toml", old_string="x = 1\n", new_string='x = 1\n\n[[answer]]\nkey = "k"\nvalue = "v"\n')
+    assert p.returncode == 2 and "capture-shaped" in p.stderr, p.stderr
+    # a blank questionnaire, as capture.py questionnaire writes it, attests nothing
+    blank = '[questionnaire]\nowner = "ORG-1"\n\n[answered]\nfrom = ""\non = ""\n\n[[item]]\nkey = "k"\nanswer = ""\n'
+    assert _run(inst, "Write", "notes/q.toml", content=blank).returncode == 0
+
+
 def test_cannot_tell_blocks_fail_closed():
     inst = _instance()
     for raw in ["", "not json", "[]", json.dumps({"tool_name": "Edit", "tool_input": {}, "cwd": str(inst)}),

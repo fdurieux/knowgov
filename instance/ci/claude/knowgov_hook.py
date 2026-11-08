@@ -19,7 +19,12 @@ so that a crash, a missing interpreter or a timeout blocks too. Every blocking p
 
 ``gate`` fires at stage transitions, never on every edit (playbook p. 27): ``plan`` when a plan is
 presented for acceptance (``ExitPlanMode``), ``spec`` when a commit carries a spec file (``--spec``
-globs, default ``spec.md`` at any depth), ``push`` before ``git push``. Any other event is no
+globs, default ``spec.md`` at any depth), ``push`` before ``git push``. Git is read from the command's
+tokens (task-0204, doc-0030 P2): ``git``, ``/usr/bin/git``, after ``-C``/``-c``, inside ``bash -c '...'``,
+across ``&&``, ``;`` and pipes. A commit is ``spec`` too when its own command stages or names a spec path
+(``git add spec.md && git commit``, ``git commit spec.md``), a folder, ``.`` or a glob holding a changed
+one, or stages broadly (``-A``, ``-u``, ``-a``) while one is changed; a command that cannot be read, or a
+worktree git cannot read, fails closed to ``spec``. Any other event is no
 transition: exit 0, no decision. At a transition it calls ``knowgov-gate.sh <knowgov> <instance>
 gate`` with the task class (``--task``, or ``--task-for`` for that stage) and reads its report; a
 report for any other task, or for the agent-chosen key set the MCP server names ``keys``, is refused
@@ -119,11 +124,86 @@ def emit(d: Decision) -> int:
 
 # --- transitions -------------------------------------------------------------------------------
 
-_GIT = r"(?:^|[;&|(\n]|\s)git(?:\s+(?:-[Cc]\s+\S+|--?[\w-]+(?:=\S+)?))*\s+"
+_GIT = r"(?:^|[;&|(\n\s'\"`]|/)git(?:\s+(?:-[Cc]\s+\S+|--?[\w-]+(?:=\S+)?))*\s+"
+SEPARATORS = {"&&", "||", ";", "|", "&", "(", ")", ";;", "\n"}
+# git's global options that take a value (git -C dir, git -c k=v); the subcommand follows them
+_GLOBAL_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix", "--config-env"}
+# options of add, rm, mv and commit that take a value, so the value is not read as a path
+_WITH_VALUE = {"-m", "--message", "-F", "--file", "-C", "--reuse-message", "-c", "--reedit-message", "--author", "--date",
+               "-t", "--template", "--fixup", "--squash", "--cleanup", "--trailer", "--pathspec-from-file", "-S", "--gpg-sign"}
+# staging that takes everything changed, the paths named or not
+_BROAD = {"-A", "--all", "-u", "--update", "-a", "--include", "-i"}
 
 
 def _git(cmd: str, sub: str) -> bool:
-    return re.search(_GIT + sub + r"(?:\s|$|[;&|)])", cmd) is not None
+    """The fallback reading, by pattern, when the command cannot be tokenised."""
+    return re.search(_GIT + sub + r"(?:\s|$|[;&|)'\"`])", cmd) is not None
+
+
+def git_calls(cmd: str, depth: int = 0) -> list[tuple[str, list[str]]] | None:
+    """Every git subcommand the shell command runs, with its arguments: ``git``, ``/usr/bin/git``, after ``-C``
+    and ``-c`` and other global options, inside ``bash -c '...'`` and ``sh -c``, across ``&&``, ``;`` and pipes
+    (task-0204, doc-0030 P2). None when the command cannot be read (unbalanced quotes): the caller fails closed."""
+    import shlex
+    try:
+        lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
+        lex.whitespace_split = True
+        toks = list(lex)
+    except ValueError:
+        return None
+    out: list[tuple[str, list[str]]] = []
+    i = 0
+    while i < len(toks):
+        t = toks[i]
+        if depth < 4 and ("git" in t) and (" " in t or "\n" in t or ";" in t or "&" in t):   # a quoted command: bash -c '...'
+            inner = git_calls(t, depth + 1)
+            if inner is None:
+                return None
+            out += inner
+            i += 1
+            continue
+        if Path(t).name == "git":
+            j = i + 1
+            while j < len(toks) and toks[j].startswith("-") and toks[j] not in SEPARATORS:
+                j += 2 if toks[j] in _GLOBAL_WITH_VALUE else 1
+            if j < len(toks) and toks[j] not in SEPARATORS:
+                sub, args, k = toks[j], [], j + 1
+                while k < len(toks) and toks[k] not in SEPARATORS:
+                    args.append(toks[k])
+                    k += 1
+                out.append((sub, args))
+                i = k
+                continue
+        i += 1
+    return out
+
+
+def _paths_named(args: list[str]) -> tuple[list[str], bool]:
+    """The pathspecs a staging or committing call names, and whether it stages everything changed."""
+    paths, broad, i, rest = [], False, 0, False
+    while i < len(args):
+        a = args[i]
+        if rest:
+            paths.append(a)
+        elif a == "--":
+            rest = True
+        elif a in _WITH_VALUE:
+            i += 1
+        elif a.startswith("-") and len(a) > 1:
+            if a in _BROAD or a.split("=", 1)[0] in _BROAD or (not a.startswith("--") and set(a[1:]) & {"A", "a", "u", "i"}):
+                broad = True
+        else:
+            paths.append(a)
+        i += 1
+    return paths, broad
+
+
+def _status(cwd: str) -> list[str] | None:
+    """Every path git reports changed or untracked in the worktree; None if git cannot tell."""
+    p = subprocess.run(["git", "-C", cwd or ".", "status", "--porcelain=v1", "-uall"], capture_output=True, text=True)
+    if p.returncode:
+        return None
+    return [ln[3:].split(" -> ")[-1].strip('"') for ln in p.stdout.splitlines() if len(ln) > 3]
 
 
 def _committed(cwd: str, cmd: str) -> list[str] | None:
@@ -140,6 +220,37 @@ def _committed(cwd: str, cmd: str) -> list[str] | None:
     return out
 
 
+def _spec(paths, globs) -> bool:
+    return any(fnmatch.fnmatch(p, g) or fnmatch.fnmatch(Path(p).name, g) for p in paths for g in globs)
+
+
+def _stages_spec(cwd: str, calls, globs) -> bool | None:
+    """Whether the command itself stages or commits a spec file, read before it runs (P2): a path it names that
+    is one, or a folder, a glob or ``.`` that holds a changed one, or broad staging (-A, -u, -a) while one is
+    changed. None when git cannot tell (the caller fails closed)."""
+    changed = None
+    for sub, args in calls:
+        if sub not in ("add", "stage", "commit", "rm", "mv"):
+            continue
+        paths, broad = _paths_named(args)
+        if _spec(paths, globs):
+            return True
+        wide = [p for p in paths if p in (".", ":/", "*") or any(c in p for c in "*?[") or Path(cwd or ".", p).is_dir()]
+        if broad or wide:
+            if changed is None:
+                changed = _status(cwd)
+                if changed is None:
+                    return None
+            if broad and _spec(changed, globs):
+                return True
+            for w in wide:
+                base = "" if w in (".", ":/") else w.rstrip("/")
+                under = [c for c in changed if not base or c == base or c.startswith(base + "/") or fnmatch.fnmatch(c, w)]
+                if _spec(under, globs):
+                    return True
+    return False
+
+
 def transition(event: dict, spec_globs: list[str]) -> str | None:
     """The stage a tool call moves to, or None: not a transition, the hook has no decision."""
     tool = event.get("tool_name")
@@ -148,13 +259,23 @@ def transition(event: dict, spec_globs: list[str]) -> str | None:
     if tool != "Bash":
         return None
     cmd = str((event.get("tool_input") or {}).get("command") or "")
-    if _git(cmd, "push"):
+    cwd = str(event.get("cwd") or "")
+    calls = git_calls(cmd)
+    if calls is None:   # a command that cannot be read: by pattern, failing closed on a commit
+        if _git(cmd, "push"):
+            return "push"
+        return "spec" if _git(cmd, "commit") else None
+    subs = {sub for sub, _ in calls}
+    if "push" in subs:
         return "push"
-    if _git(cmd, "commit"):
-        paths = _committed(str(event.get("cwd") or ""), cmd)
+    if "commit" in subs:
+        paths = _committed(cwd, cmd)
         if paths is None:   # cannot tell what the commit carries: treat it as the transition (fail closed)
             return "spec"
-        if any(fnmatch.fnmatch(p, g) or fnmatch.fnmatch(Path(p).name, g) for p in paths for g in spec_globs):
+        if _spec(paths, spec_globs):
+            return "spec"
+        named = _stages_spec(cwd, calls, spec_globs)   # what the command itself stages, before it runs (P2)
+        if named is None or named:
             return "spec"
     return None
 
