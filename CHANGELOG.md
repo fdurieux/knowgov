@@ -225,6 +225,13 @@ names that section with the version.
 
 ### Changes
 
+- **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
+  applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1
+  could not apply stayed reported. Stage 2 clears the acts stage 1 recorded, then binds every ruling and close to
+  what the change left current. A close of a gap stage 1 already closed, on the same declaration (its digest), is a
+  no-op; a close whose declaration changed is not applied and is an `act` finding, as at a load (task-0199). New port
+  read `gap_brief` and write `clear_act_findings`, on both adapters. `tools/check_stage2_reload.py` holds it (R1 to
+  R3). The scored record is unchanged.
 - **A model call whose prompt the endpoint cut is marked, never scored** (task-0185, doc-0023). A model
   server with a short context, such as Ollama at its defaults (4,096 tokens), can drop most of a long prompt
   and still answer, with HTTP 200. The OpenAI API has no field for the context length, so knowgov cannot set
@@ -243,6 +250,13 @@ names that section with the version.
   error three times, waiting 5, 10 and 15 seconds: a request the endpoint refuses, such as an effort the model
   does not accept, took 30 seconds to report. Now a 429, a 5xx, a dropped or timed-out connection, or a reply
   that ended early is retried with the same waits, and any other error is reported at once.
+
+- **A key the endpoint never checks is no longer marked accepted** (task-0188, doc-0023). The page checks each
+  model row's key by asking its endpoint for the list of models. Some endpoints list their models to anyone:
+  OpenRouter answered with an invalid key, and Ollama holds no keys. Such a row read *key accepted*
+  whatever its key. The page now asks first with a placeholder that is no key. If the endpoint answers that, the
+  row reads *key unchecked* with the reason, and your key is not sent. Otherwise it asks with your key, as
+  before. The check stays free; it makes two requests at most.
 
 - **One clock: every lapse is decided on the gate's date** (task-0198, doc-0030 F4: H3, G4, G10, M8;
   decision-0005 points 3 and 5).

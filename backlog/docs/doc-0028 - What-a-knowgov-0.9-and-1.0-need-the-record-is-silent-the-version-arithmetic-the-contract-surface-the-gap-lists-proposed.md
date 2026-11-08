@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-08T11:18:00Z'
+updated_date: '2026-11-08T11:57:00Z'
 tags:
   - brief
   - release
@@ -90,6 +90,7 @@ Every item here is the maintainer's to meet.
 | G9-11 | The code review's high findings fixed (doc-0030, the maintainer's acceptance of 2026-11-07) | Open at `8d80b2b`: H1 a held scenario matched by bare id; H2 stage 2 reopens a closed gap; H3 a person's approval lapses by the wall clock; H4 conflicts paired within one version; H5 rulings bound to positional ids; H6 trace misses a document edit; H7 subject_check reads any manifest-named path; M3 HTTP refusals smuggle a request | task-0195 (task-0194 its interim), task-0196, task-0197, task-0198, task-0199 |
 | G9-12 | The reverse-engineering process's contract changes (decision-0018, the maintainer, 2026-11-08: "include in 0.9") | Not built: the kit's `claim` field, the intended bar, lint findings as routed gaps | task-0214, task-0215, task-0216 |
 | G9-13 | An attestation bound to the Versions it attests (decision-0019, the maintainer, 2026-11-08: "Build it in 0.9") | Not built; K12 below is decided for 0.9.0 by this row | task-0221 |
+| G9-14 | One id per conflict on every store (decision-0020, the maintainer, 2026-11-08: "accept decision-0020's advice") | Not built: document conflicts are numbered in store order (doc-0030 S2) | task-0223 |
 
 ## 5. 1.0: the contracts proven (proposed gap list)
 
