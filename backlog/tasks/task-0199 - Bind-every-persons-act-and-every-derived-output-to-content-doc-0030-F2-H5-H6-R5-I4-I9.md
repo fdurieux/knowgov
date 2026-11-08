@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-07T07:15:00Z'
-updated_date: '2026-11-08T07:39:00Z'
+updated_date: '2026-11-08T08:16:00Z'
 labels:
   - review
   - reviews
@@ -39,3 +39,11 @@ H5 (high): a ruling binds to a positional assertion id with no value or digest (
 - [ ] #7 A re-run neither loses nor misplaces an act (doc-0032 §6): an act (ruling, review approval, gap close, attestation) whose statement is unchanged re-applies after a reload or a re-extraction; one whose statement changed is not applied and is a gate finding naming the act, its author's handle, the change (old value and digest to new) and the owning unit's route from register_map.toml; never silent, never stderr only
 - [ ] #8 Statements pair by content across two extractions of one document at two commits (doc-0032 §6): a test with a reordered table or a renumbered fragment shows that no act moves onto another statement
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Two PRs, each green alone (coordinator's SHAPE).
+PR A, claude/task-0199-f2 (AC 1, 4, 7, 8; 5 and 6 for its part): review.bind binds a ruling to its key, value and content digest (store fragments' sha256s); capture.py review writes them; a load re-pairs by content, sets aside an act that no longer binds and records it (port write record_act_finding, read act_findings, both adapters); the gate reports kind act (major changed/gone/ambiguous; info refused or read-rule unbound) with owner and route; stage 2 rechecks rulings; I4 refused in review.check; I9 load.attestation and check_subject's attestation rule; cadence.lapse's empty min an assertion. tools/check_act_binding.py.
+PR B, claude/task-0199-f2-trace (AC 2, 3; 5 and 6 for its part): the ledger's used list (id, key, value, sha256), kept on the Derived node; store.suspicion the one rule for suspect_derived, all_derived and derived_outputs on both adapters, no stored flag read; trace.check reads it; the read rule an info unbound finding. tools/check_ledger_binding.py.
+<!-- SECTION:PLAN:END -->
