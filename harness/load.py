@@ -16,9 +16,10 @@ from kitio import FAMILY, sha256, pristine
 from store import stem
 import load_memory
 from subject import SUBJECT
-from extract import extract_all, short, NONE
+from extract import extract_all, NONE
 
 STORE = SUBJECT.store_keys        # artefact keys the store holds; the others are documents for the arms only
+SHORTS = SUBJECT.shorts           # artefact key -> the short its statements' ids carry
 PROV = SUBJECT.provenance
 VER = SUBJECT.verification
 HUMAN = {"id": PROV.get("human", {}).get("id", "agent:maintainer"), "name": PROV.get("human", {}).get("name", "maintainer")}
@@ -64,7 +65,27 @@ def resolve_symbols(bags, symbols: dict[str, str]) -> list[dict]:
 
 
 def _artefact_of(kit: dict[str, str], bag) -> str:
-    return next(p for p in kit if p in FAMILY and bag.artefact == short(p))
+    """The artefact a bag came from, by its ``short``; two artefacts with one ``short`` are refused, never the
+    first taken (doc-0030 I11; ``tools/check_subject.py`` refuses the manifest)."""
+    found = [p for p in kit if p in FAMILY and SHORTS.get(p) == bag.artefact]   # an unmapped document may have no short
+    if len(found) > 1:
+        from kitio import DocumentUnreadable
+        raise DocumentUnreadable(f"{', '.join(found)}: one short, {bag.artefact!r}, names {len(found)} artefacts, "
+                                 "so their statements cannot be told apart; give each its own short")
+    return found[0]
+
+
+def stored_bags(kit: dict[str, str], code: str) -> list:
+    """The extraction of the artefacts the store holds: a document with a mapper and ``store = false`` is the
+    arms' only, so its statements are never loaded (doc-0030 S1); it still lends its symbols (``symbol_table``)."""
+    return [b for b in extract_all(kit, code) if _artefact_of(kit, b) in STORE]
+
+
+def statements_of(kit: dict[str, str], changed: set[str] | None = None) -> int:
+    """The statements a load of ``kit`` writes, as ``load_scenario`` notes them before its first write: every
+    stored artefact's, or with ``changed`` (a stage-2 re-load) only those artefacts' (doc-0030 S6)."""
+    bags = stored_bags(kit, SUBJECT.reference_code())
+    return load_memory.statements([b for b in bags if changed is None or _artefact_of(kit, b) in changed])
 
 
 def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
@@ -79,7 +100,7 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
     it gets a successor in ``version_tag`` (I6), even on an artefact whose bytes did not change (a value
     resolved through a changed symbol). R-STALE then invalidates what the successors replace."""
     code = SUBJECT.reference_code()
-    bags = extract_all(kit, code)
+    bags = stored_bags(kit, code)
     if reingest:
         changed = set(kit) if changed is None else set(changed)
         changed |= {_artefact_of(kit, b) for b in bags if not all(
@@ -190,7 +211,7 @@ def pristine_values() -> dict[str, set[str]]:
     record verified). Computed from the pristine kit's extraction."""
     kit = pristine()
     code = SUBJECT.reference_code()
-    bags = extract_all(kit, code)
+    bags = stored_bags(kit, code)
     resolve_symbols(bags, symbol_table(kit))
     out: dict[str, set[str]] = {}
     for bag in bags:
@@ -211,7 +232,7 @@ def execution_map(kit: dict[str, str] | None) -> dict[str, list[str]]:
         return dict(SUBJECT.verification_map().get("execution", {}))
     sep = d.get("separator", "; ")
     out: dict[str, list[str]] = {}
-    for bag in extract_all(kit, SUBJECT.reference_code()):
+    for bag in stored_bags(kit, SUBJECT.reference_code()):
         for a in bag.assertions:
             if a["predicate"] == d["from_predicate"] and a["basis"] not in ("inferred", "assumed", "hypothesised"):
                 for suite_scenario in (v.strip() for v in a["value"].split(sep) if v.strip()):

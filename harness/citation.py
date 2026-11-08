@@ -40,6 +40,7 @@ def parse(text: str, prefix: str) -> list[str]:
     """The keys the header cites, in order, no repeats; [] when it cites none. Raises Malformed."""
     line_re = re.compile(r"^\s*" + re.escape(prefix) + r"\s*" + re.escape(MARK) + r"(.*)$")
     keys: list[str] = []
+    text = text.removeprefix("\ufeff")   # a byte-order mark before line 1 is not part of its comment (doc-0030 I12)
     for n, line in enumerate(text.splitlines()[:HEAD_LINES], 1):
         m = line_re.match(line)
         if not m:

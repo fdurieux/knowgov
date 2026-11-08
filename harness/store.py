@@ -396,15 +396,18 @@ class Store:
     def mark_unverified(self) -> int:
         raise NotImplementedError
 
-    def invalidate_stale(self, new_tag: str) -> dict:
+    def invalidate_stale(self, new_tag: str, at: str | None = None) -> dict:
+        """R-STALE after a re-ingestion as ``new_tag``. An invalidated statement's ``invalidated_at`` is ``at``,
+        the ISO 8601 instant of the change that invalidated it (the re-load's provenance stamp, ``load.now()``),
+        on both adapters (doc-0030 S8); absent when the caller names none. Nothing reads it to decide."""
         raise NotImplementedError
 
-    def invalidate_keys(self, reasons: dict[str, str]) -> dict:
+    def invalidate_keys(self, reasons: dict[str, str], at: str | None = None) -> dict:
         """A register change (task-0122, harness/register_change.py): every live statement (proposed,
         validated, verified, approved, disputed) on each key of ``reasons`` is invalidated, its
         ``invalidated_by`` the key's reason; its verifications end (``valid_until`` the reason) and the
-        derived outputs that used it turn suspect, as ``invalidate_stale`` does for a source change.
-        Returns {invalidated: [{id, key, derived}]}, sorted by id, ``derived`` sorted."""
+        derived outputs that used it turn suspect, as ``invalidate_stale`` does for a source change;
+        ``invalidated_at`` is ``at``, as there. Returns {invalidated: [{id, key, derived}]}, sorted by id, ``derived`` sorted."""
         raise NotImplementedError
 
     # ---- the gate
