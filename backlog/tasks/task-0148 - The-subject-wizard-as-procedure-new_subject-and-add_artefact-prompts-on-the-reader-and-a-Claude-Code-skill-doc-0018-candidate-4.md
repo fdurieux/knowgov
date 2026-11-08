@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-05T21:24:00Z'
-updated_date: '2026-11-05T23:48:00Z'
+updated_date: '2026-11-08T19:53:00Z'
 labels: []
 dependencies:
   - TASK-0146
@@ -52,4 +52,6 @@ Rebased onto main after #242, #248, #249; B1/B2 workarounds removed, register_no
 Merged as fdurieux/knowgov#245 on a fully green matrix at 54a8207 (tests, stack, rdflib; publish skipped). Evidence: tests/test_wizard.py (both eras and transports with the Mcp-Name check, argument validation, each prompt equal to the skill's parts, the never-list and stop condition, every backticked tool real, mappers.toml equal to harness/extract.py's EXTRACTORS read by ast, knowgov-runs without prompts); check_mcp_server.py --scenarios S1 lists and gets the prompts over stdio and HTTP; run_tests 498/502 stdlib (4 skipped), 501/502 with the pins. doc-0021 §8 applied: items 1 to 12; B1/B2 workarounds retired after #248 and #249; register_nodes first. Departures recorded: none outstanding (register_nodes added once #238 merged). The maintainer's Desktop test is still to run; the README states Desktop's role until then.
 
 AC #5 left open: instance/README.md states Desktop's role (it asks the gate; onboarding is Claude Code's), but the AC holds until the maintainer's own Claude Desktop test shows the prompts listed and subject_check running. The task stays In Progress until then; the README's Desktop paragraph is updated with the result (coordinator, 2026-11-05).
+
+2026-11-08: the maintainer will run the Claude Desktop test (AC #5) on 2026-11-09. Steps given in the coordinator's reply of 2026-11-08 and on the queue page.
 <!-- SECTION:NOTES:END -->
