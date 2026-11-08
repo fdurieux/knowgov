@@ -7,6 +7,7 @@ families it refuses are recorded by ``apply_constraints`` (D1).
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import threading
@@ -14,7 +15,7 @@ import time
 import uuid
 
 from store import (DEAD, DOCUMENT_BASES, Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, held_from, part_list, part_rows,
-                   setting, stem)
+                   changed_of, setting, stem, suspect_rows, suspicion)
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
 
@@ -863,10 +864,12 @@ class Neo4jStore(Store):
             UNWIND $rows AS r MATCH (v:Verification {id:r.id}) SET v.valid_until = r.until""",
                  rows=[{"id": k, "until": d} for k, d in sorted(dates.items())]).consume()
 
-    def register_derived(self, did, kind, sha, assertion_ids) -> None:
+    def register_derived(self, did, kind, sha, assertion_ids, recorded=None) -> None:
         self.run("""CREATE (dv:Derived {id:$did, kind:$dkind, sha256:$sha, suspect:false})
+                    FOREACH (r IN CASE WHEN $rec IS NULL THEN [] ELSE [$rec] END | SET dv.recorded = r)
                     WITH dv UNWIND $ids AS aid MATCH (x:Assertion {id:aid}) MERGE (dv)-[:USED_ASSERTION]->(x)""",
-                 did=did, dkind=kind, sha=sha, ids=assertion_ids).consume()
+                 did=did, dkind=kind, sha=sha, ids=assertion_ids,
+                 rec=None if recorded is None else json.dumps(recorded, ensure_ascii=False, sort_keys=True)).consume()
 
     # ---- the rules
     def structural_violations(self) -> list[dict]:
@@ -1095,14 +1098,18 @@ class Neo4jStore(Store):
                    collect(DISTINCT {id:succ.id, value:succ.value, status:succ.status}) AS successors""", keys=keys))
         return by_id([{**r, "verifications": by_id(r["verifications"]), "successors": by_id(r["successors"])} for r in rows])
 
-    def suspect_derived(self) -> list[dict]:   # rows and used_invalidated by id: collect() is store order
+    def _derived_rows(self) -> list[dict]:
         rows = _rows(self.run("""
-            MATCH (d:Derived {suspect:true})-[:USED_ASSERTION]->(x:Assertion {status:'invalidated'})
-            RETURN d.id AS id, d.kind AS kind, d.sha256 AS sha256, collect(x.id) AS used_invalidated"""))
-        return by_id([{**r, "used_invalidated": sorted(r["used_invalidated"])} for r in rows])
+            MATCH (d:Derived) OPTIONAL MATCH (d)-[:USED_ASSERTION]->(x:Assertion)
+            RETURN d.id AS id, d.kind AS kind, d.sha256 AS sha256, d.recorded AS recorded,
+                   collect({id:x.id, status:x.status}) AS used"""))
+        return [{**r, "used": [u for u in r["used"] if u["id"]]} for r in rows]
+
+    def suspect_derived(self) -> list[dict]:   # task-0199: by suspicion, the one rule, never the stored flag
+        return suspect_rows(suspicion(self, self._derived_rows()))
 
     def all_derived(self) -> list[dict]:
-        return _rows(self.run("MATCH (dv:Derived) RETURN dv.id AS id, dv.suspect AS suspect"))
+        return [{"id": r["id"], "suspect": r["suspect"]} for r in suspicion(self, self._derived_rows())]
 
     def held_keys(self) -> list[dict]:
         out: dict[str, dict] = {}
@@ -1113,11 +1120,13 @@ class Neo4jStore(Store):
         return [out[k] for k in sorted(out)]
 
     def derived_outputs(self) -> list[dict]:
+        sus = {r["id"]: r for r in suspicion(self, self._derived_rows())}
         rows = _rows(self.run("""
             MATCH (d:Derived) OPTIONAL MATCH (d)-[:USED_ASSERTION]->(x:Assertion)
-            RETURN d.id AS id, d.kind AS kind, d.sha256 AS sha256, coalesce(d.suspect, false) AS suspect,
+            RETURN d.id AS id, d.kind AS kind, d.sha256 AS sha256,
                    collect({id:x.id, key:x.key, status:x.status, artefact:x.artefact, version:x.version}) AS used"""))
-        return by_id([{**r, "used": by_id([u for u in r["used"] if u["id"]])} for r in rows])
+        return by_id([{"id": r["id"], "kind": r["kind"], "sha256": r["sha256"], "suspect": sus[r["id"]]["suspect"],
+                       **changed_of(sus[r["id"]]), "used": by_id([u for u in r["used"] if u["id"]])} for r in rows])
 
     def artefact_assertions(self, artefact) -> list[dict]:
         rows = _rows(self.run("""

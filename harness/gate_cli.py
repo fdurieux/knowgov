@@ -162,9 +162,12 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
             out.append(_finding("major", "stale", f"{x['id']} on {x['key']} was invalidated by {x['invalidated_by']} (verifications ended: {ended}); "
                                 "no verified or approved successor replaces it", key=x["key"], level="invalidated", ref=x["id"]))
     for d in res.get("suspect_derived") or []:
-        used = sorted(d.get("used_invalidated") or [])
-        out.append(_finding("blocker", "suspect_derived", f"{d['id']} ({d.get('kind') or 'derived output'}) used {len(used)} statement(s) now invalidated "
-                            f"({', '.join(used)}): it may not be reused as it is: regenerate it from the current statements", ref=d["id"], related=used))
+        used, changed = sorted(d.get("used_invalidated") or []), sorted(d.get("used_changed") or [])
+        why = f"used {len(used)} statement(s) now invalidated ({', '.join(used)})" if used else ""
+        if changed:   # task-0199: a statement changed under its id since trace registered the output
+            why += ("; and " if why else "used ") + f"{len(changed)} statement(s) whose value or digest changed since it was built ({', '.join(changed)})"
+        out.append(_finding("blocker", "suspect_derived", f"{d['id']} ({d.get('kind') or 'derived output'}) {why}"
+                            ": it may not be reused as it is: regenerate it from the current statements", ref=d["id"], related=used + changed))
     for x in res.get("lapsed") or []:
         out.append(_finding("major", "lapsed", f"{x['id']} on {x['key']} {cadence.describe(x, res.get('as_of'))}",
                             key=x["key"], level=x.get("to", "validated"), ref=x["id"], related=x["verifications"]))

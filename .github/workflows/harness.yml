@@ -320,6 +320,8 @@ jobs:
           KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_stage2_reload.py
       - name: knowgov-trace (task-0051) on the example instance, a registered build of APP-0001 turns suspect after S6's change and check exits 1 naming it
         run: rm -rf runs/trace && KG_STORE=rdflib python tools/check_trace_walkthrough.py runs/trace
+      - name: Derived outputs bound to content (task-0199), on rdflib, the ledger records each used statement's value and digest, an edit and a reload under the same id reads suspect, the gate, MCP and trace read one rule
+        run: rm -rf runs/ledger-binding && KG_STORE=rdflib python tools/check_ledger_binding.py runs/ledger-binding
       - name: A register change invalidates (task-0122), the fixture's deprecated CAP-0001 and withdrawn REL-06001 stale the keys resting on them and S1's output suspect, exit 1; no state change, nothing; the staleness survives the round trip
         run: |
           rm -rf runs/regchange && KG_STORE=rdflib python tools/check_register_change.py runs/regchange

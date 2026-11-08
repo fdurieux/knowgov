@@ -12,6 +12,25 @@ names that section with the version.
 
 ### Contract changes
 
+- **A derived output binds to what it was built on, and one rule reads it suspect** (task-0199, doc-0030 F2:
+  H6, R5; doc-0032 §6 item 6). Before, trace's ledger kept statement ids only. A reload re-mints the same id
+  for a new value, so code built on the old value read unchanged. The gate also read *suspect* from a flag
+  stored at invalidation, while trace read it from the statements' statuses, so one store could give two
+  answers.
+  - **The ledger.** `trace.py register` writes each entry's `used`: every statement the output was built on,
+    with its `id`, `key`, `value` and `sha256`, the content digest of its fragments (`store.content_digest`).
+    The store keeps that list on the derived output (`register_derived(..., recorded)`).
+  - **One rule, `store.suspicion`.** A derived output is suspect when a statement it used is invalidated.
+    Where its registration recorded what it used, it is also suspect when the statement of that id now holds
+    another value or digest, or is gone. The port's reads `suspect_derived`, `all_derived` and
+    `derived_outputs` all answer by it, and no stored flag decides. So the gate, the MCP reader and
+    `trace.py check` read one answer. A suspect row names the changed statements in `used_changed`, present
+    only when there are some (the gate's suspect finding, `derived_outputs` and trace's `registered` rows).
+    `trace.py check`'s blocker names each statement's old and new value.
+  - **Read rule for ledgers written before this change.** An entry with no `used` reads by status, as
+    before. `trace.py check` lists it in a new finding, `unbound`, at info. Registering the file again
+    binds it.
+  - `tools/check_ledger_binding.py` proves it on both stores, in `harness.yml` and the stack.
 - **The store records whose load it holds, and no subject answers from another's** (task-0195, doc-0030
   F1, H1 and S5; decision-0013 A1). Before, the store named only the held scenario, so two subjects
   sharing a scenario id answered each other's gates.
