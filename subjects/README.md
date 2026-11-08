@@ -142,6 +142,13 @@ text = "..."
 numbers = { planted = 15, reached_code = 6 }
 ```
 
+**Conflict gap ids in a record** (decision-0020, task-0223). A conflict between two statements is named
+`gap:conflict:<key>:<a>~<b>`, by its two assertion ids sorted, whether a person's statement is one side or
+both are documents'. A record written before took `gap:conflict:<key>:<n>` for two documents, numbered in the
+store's order: the vendored CargoQuote results keep that form (S4's `:0` to `:3`) and are never edited.
+`demo/tools/compare_deterministic.py` reads both forms as one per key, so a run compares equal to such a
+record; the page and the gate name a conflict by its statements on every store.
+
 ## `scenarios.toml`
 
 A subject that declares a task declares at least one scenario: the gate loads one, and with none

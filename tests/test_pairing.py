@@ -114,11 +114,33 @@ def test_nobody_knows_pairs_with_nothing_and_a_person_is_not_weighed_against_a_m
     assert st.x[CAP]["status"] == "proposed" and not any(CAP in g["concerns"] for g in st.gaps.values())
 
 
-def test_the_documents_conflict_ids_keep_their_numbering_beside_a_person_s():
-    """The comparator normalises gap:conflict:<key>:<n>; a person's conflicts take a pair id and no number."""
-    st = PairStore([_x("A:dt:k|v@v1", "1", key="k|v"), _x("A:seq:k|v@v1", "2", key="k|v"), _cap("3", key="k|v")])
+def test_every_conflict_id_names_its_two_statements_sorted_a_person_s_and_two_documents_alike():
+    """decision-0020 (task-0223): a conflict between two documents is gap:conflict:<key>:<a>~<b>, its assertion
+    ids sorted, the form a person's conflict already had; no positional :<n> is left. Re-pinned: this test
+    held the documents' gap:conflict:k|v:0 before."""
+    st = PairStore([_x("A:seq:k|v@v1", "2", key="k|v"), _x("A:dt:k|v@v1", "1", key="k|v"), _cap("3", key="k|v")])
     rules.r_conflict(st, "S1")
-    assert sorted(g for g in st.gaps if g.endswith(":0") or g.endswith(":1")) == ["gap:conflict:k|v:0"], sorted(st.gaps)
+    cap = "A:cap:2026-11-02-ORG-0002-employee-1:1@capture"
+    assert sorted(st.gaps) == sorted([f"gap:conflict:k|v:A:dt:k|v@v1~A:seq:k|v@v1", f"gap:conflict:k|v:{cap}~A:dt:k|v@v1",
+                                      f"gap:conflict:k|v:{cap}~A:seq:k|v@v1"]), sorted(st.gaps)
+    assert not any(re.search(r":\d+$", g) for g in st.gaps), sorted(st.gaps)
+    # the person's text is kept; a document pair takes the adapter's own wording
+    assert st.gaps["gap:conflict:k|v:A:dt:k|v@v1~A:seq:k|v@v1"]["text"].startswith("two artefacts")
+
+
+def test_adding_an_unrelated_conflict_on_the_key_leaves_every_other_conflict_s_id_unchanged():
+    """decision-0020 (task-0223, AC #3): ids name content, not a position, so a new conflict on the key, which
+    sorts before the others, renames none of them (root cause 2, doc-0030), whatever order the store returns."""
+    base = [_x("A:dt:k|v@v1", "1", key="k|v"), _x("A:seq:k|v@v1", "2", key="k|v"), _x("A:spec:k|v@v1", "3", key="k|v")]
+    before = PairStore(base)
+    rules.r_conflict(before, "S1")
+    for order in (lambda xs: xs, lambda xs: list(reversed(xs))):
+        after = PairStore(order(base + [_x("A:bpmn:k|v@v1", "4", key="k|v")]))   # A:bpmn sorts first
+        rules.r_conflict(after, "S1")
+        assert set(before.gaps) < set(after.gaps), (sorted(before.gaps), sorted(after.gaps))
+        for gid, g in before.gaps.items():
+            assert after.gaps[gid]["concerns"] == g["concerns"], gid
+        assert len(after.gaps) == len(before.gaps) + 3
 
 
 def test_both_adapters_pair_across_versions_by_a_named_basis_and_ci_runs_the_instance_check():
