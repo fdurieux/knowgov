@@ -20,6 +20,13 @@ names that section with the version.
   version and the one this knowgov reads. The public subjects, the wizard skill and `tools/example_instance.py`
   write the key; `check_subject.py`'s report (and the MCP `subject_check`'s) carries `format`, and
   `check_instance.py` lists it per subject. `capture.py` now exits through the one failure-to-run wrapper.
+- **The MCP servers name the knowgov they run** (task-0231, additive). The reader's `store_status` and
+  `knowgov-runs`' `run_options` carry `"knowgov": {"version", "commit", "describe"}`, the same values the
+  page's `/api/subjects` gives (task-0227): knowgov's version, the commit, and how far it is past the
+  release tag when that is known, each `null` when unknown. The server reads them once, at start. Both
+  servers' `serverInfo.version`, in the `initialize` reply and in the stateless era's `_meta` stamp, is now
+  knowgov's version (`0.8.0` today) instead of `"1"`. To see which knowgov you are using, ask your assistant
+  to call `store_status`.
 - **The page names the knowgov it runs** (task-0227). A chip in the header gives knowgov's version, the
   build's commit, and how far it is past the release tag when that is known: for example
   `knowgov 0.8.0 + 277 (7e113f0)` from a checkout build, or `knowgov 0.8.0 (v0.8.0)` from a release image.

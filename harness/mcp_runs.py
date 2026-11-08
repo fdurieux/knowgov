@@ -47,7 +47,7 @@ sys.path.insert(0, str(HERE))
 import mcp_server  # noqa: E402
 from mcp_server import READ_ONLY, ToolError  # noqa: E402
 
-SERVER = {"name": "knowgov-runs", "title": "knowgov scenario runs (through the page)", "version": "1"}
+SERVER = {"name": "knowgov-runs", "title": "knowgov scenario runs (through the page)", "version": mcp_server.SERVER["version"]}   # knowgov's VERSION (task-0231)
 MODES = ("deterministic", "arms")
 DEFAULT_PAGE = "http://localhost:8080"
 LOG_TAIL = 4000          # characters of the log run_status returns
@@ -221,7 +221,8 @@ class RunTools:
                 "scenarios": [s["id"] for s in j.get("scenarios") or []],
                 "token_required": bool((j.get("writes") or {}).get("token_required")),
                 "writes_refused": (j.get("writes") or {}).get("refused"),
-                "run": _run_view(j["run"], tail=False) if j.get("run") else None}
+                "run": _run_view(j["run"], tail=False) if j.get("run") else None,
+                "knowgov": dict(mcp_server.KNOWGOV)}   # task-0231: which knowgov this server runs, read once at start
 
     def start_run(self, args: dict) -> dict:
         scenario, mode = args.get("scenario"), args.get("mode")
