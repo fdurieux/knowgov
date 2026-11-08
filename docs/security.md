@@ -288,7 +288,10 @@ never takes one empty scan of `/proc` for "nothing is left", since a listing is 
 chain could slip between a listing and its reads and outlive its job, as it did once in 260 hostile jobs
 under load: in its container, the init of its own pid namespace, it takes an empty scan only when the
 namespace's pid counter did not move across it; on a host, the test path, it takes `QUIET_SCANS` empty
-scans in a row, a weaker rule; task-0233), and
+scans in a row, a weaker rule; task-0233. Past its 10 s bound with something unconfirmed gone, the worker
+stops serving and exits with code 4, its last job a failed cell and its attestation withdrawn: as its
+container's init its exit ends every process of the namespace, and the app refuses arms until it is restarted),
+and
 Linux Landlock rules that let it write only beneath its own folder, so it cannot forge a result or the
 worker's attestation. The job's runner is non-dumpable and answers on a descriptor no process it starts
 inherits or can open through `/proc`, so model code cannot forge its answer through the runner's output

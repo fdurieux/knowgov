@@ -76,3 +76,59 @@ def test_the_counter_is_the_namespaces_only_where_the_worker_is_its_init():
     assert "if not live:\n            return len(killed)" not in body, "one empty scan never ends the reaping"
     sec = (ROOT / "docs" / "security.md").read_text(encoding="utf-8")
     assert "task-0233" in sec and "QUIET_SCANS" in sec
+
+
+# (A') task-0233: past its bound the reaper raises, and the worker stops serving rather than run the next job
+# beside what the last one left
+BOUND = r"""
+import json, os, subprocess, sys, time
+sys.path.insert(0, {harness!r})
+import worker
+victim = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+time.sleep(0.2)
+kill = os.kill
+os.kill = lambda pid, sig: None   # a process the worker cannot end
+try:
+    worker._reap_orphans(seconds=0.3)
+    out = "returned"
+except worker.ReapIncomplete as e:
+    out = "raised: " + str(e)
+os.kill = kill
+victim.kill()
+print(json.dumps(out))
+"""
+
+
+def test_past_its_bound_the_reaper_raises_and_the_worker_stops_serving():
+    if not Path("/proc/self/stat").exists():
+        skip("linux-proc", "the reaper reads /proc")
+    p = subprocess.run([sys.executable, "-c", BOUND.format(harness=str(ROOT / "harness"))], capture_output=True, text=True, timeout=60)
+    assert p.returncode == 0, p.stderr[-2000:]
+    out = json.loads(p.stdout.strip().splitlines()[-1])
+    assert out.startswith("raised: 1 process(es) the job left are still alive"), out
+    import tempfile
+    import threading
+    import worker
+    import execution
+    keep = worker.run_job
+    worker.run_job = lambda jd, wd, confine=True: (_ for _ in ()).throw(worker.ReapIncomplete("1 process(es) the job left are still alive after 10 s"))
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            jobs, work = Path(td) / "jobs", Path(td) / "work"
+            jobs.mkdir()
+            work.mkdir()
+            (jobs / "job-1").mkdir()
+            fake = {"ok": True, "checks": {c: True for c in execution.ATTEST_CHECKS}}
+            code = worker.serve(jobs, work, attestation=fake, stop=threading.Event())
+            result = json.loads((jobs / "job-1" / "result.json").read_text())
+            attest = json.loads((jobs / "attest.json").read_text())
+    finally:
+        worker.run_job = keep
+    assert code == 4, "the worker exits: as its container's init it takes every process of the namespace with it"
+    assert result["stage"] == "harness_error" and "stopped serving" in result["error"], result
+    assert attest["ok"] is False and "stopped serving" in attest["refused"], attest
+    try:
+        execution.attested(jobs)
+        raise AssertionError("the app took a job beside what the last one left")
+    except execution.ExecutionRefused:
+        pass

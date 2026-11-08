@@ -368,7 +368,9 @@ names that section with the version.
   none, but a process can fork and exit between the moment the table is listed and the moment it is read, so a
   hostile job's fast chain of processes could be missed and keep running: once in 260 such jobs on a loaded
   machine. In its container the worker now stops only when nothing forked during a look that found none, and
-  `tools/check_worker.py` proves it as EXEC-14.
+  `tools/check_worker.py` proves it as EXEC-14. If the clean-up still cannot confirm everything gone within its
+  10 seconds, the worker now stops serving and exits, which ends every process in its container; the page then
+  refuses arms runs until the worker is restarted. Before, it logged the survivors and took the next job.
 - **The worker's containment check no longer counts the healthcheck, and a job can no longer hide from it**
   (task-0232). `tools/check_worker.py`'s EXEC-11 counts any process of the worker's user still alive after a
   job. It once counted the container's own healthcheck in the instant that check exits, and failed. It also

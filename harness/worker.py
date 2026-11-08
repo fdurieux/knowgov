@@ -328,6 +328,12 @@ def _descendants(root: int, tree: dict[int, tuple[int, str]]) -> set[int]:
     return out
 
 
+class ReapIncomplete(RuntimeError):
+    """What a job left was not confirmed gone within REAP_S (task-0233): the worker stops serving rather than
+    run the next job beside it. As its container's init, its exit takes every process of the namespace with it,
+    and the app refuses a job without a fresh attestation."""
+
+
 def _ns_counter() -> int | None:
     """The pid namespace's last allocated pid (``/proc/sys/kernel/ns_last_pid``), when this worker is the init
     of a pid namespace of its own, as in its container: every fork in the namespace moves it. None elsewhere
@@ -345,7 +351,7 @@ def _reap_orphans(before: set[int] = frozenset(), seconds: float = REAP_S) -> in
     worker at any depth at once, not one level a round, and reaps the dead, until none is left or the bound
     passes. A job's escapee that left its group with setsid is still a descendant: this worker is its
     subreaper. A process this worker had before the job (``before``, with its own descendants) is not the
-    job's. Returns how many were killed; a process still alive at the bound is logged.
+    job's. Returns how many were killed; past the bound, ReapIncomplete.
 
     "None is left" is never one empty scan (task-0233): a /proc listing is no snapshot, and a process that
     forks and exits between the listing and its read leaves a child the scan never saw, so under load a fast
@@ -381,9 +387,8 @@ def _reap_orphans(before: set[int] = frozenset(), seconds: float = REAP_S) -> in
         else:
             quiet = 0
         if time.monotonic() >= end:
-            print(f"worker: {len(live)} process(es) the job left are still alive after {seconds:g} s" if live else
-                  f"worker: after {seconds:g} s no scan of what the job left was confirmed empty", file=sys.stderr, flush=True)
-            return len(killed)
+            raise ReapIncomplete(f"{len(live)} process(es) the job left are still alive after {seconds:g} s" if live else
+                                 f"after {seconds:g} s no scan of what the job left was confirmed empty")
         for pid in live:
             try:
                 os.kill(pid, signal.SIGKILL)
@@ -488,7 +493,8 @@ def serve(jobs: Path, workdir: Path, *, once: bool = False, attestation: dict | 
             _write_atomic(jobs / "attest.json", dict(attest() if attestation is None else a, heartbeat=time.time()))
             stop.wait(BEAT_S)
     _write_atomic(jobs / "attest.json", dict(a, heartbeat=time.time()))
-    threading.Thread(target=beat, daemon=True).start()
+    beating = threading.Thread(target=beat, daemon=True)
+    beating.start()
     print(f"worker: confined ({', '.join(a['checks'])}), serving {jobs}", file=sys.stderr, flush=True)
     try:
         while not stop.is_set():
@@ -497,7 +503,20 @@ def serve(jobs: Path, workdir: Path, *, once: bool = False, attestation: dict | 
                     os.mkdir(jd / "claimed")   # one worker takes a job, once
                 except OSError:
                     continue
-                r = run_job(jd, workdir)
+                try:
+                    r = run_job(jd, workdir)
+                except ReapIncomplete as e:   # fail closed (task-0233): no next job beside what this one left
+                    stop.set()
+                    beating.join(BEAT_S + 30)   # no heartbeat lands after the refusal
+                    why = f"the worker stopped serving: {e}"
+                    for path, body in ((jd / "result.json", {"error": why, "stage": "harness_error"}),
+                                       (jobs / "attest.json", dict(a, ok=False, heartbeat=time.time(), refused=why))):
+                        try:
+                            _write_atomic(path, body)
+                        except OSError:
+                            pass
+                    print(f"worker: {why}", file=sys.stderr, flush=True)
+                    return 4
                 try:
                     _write_atomic(jd / "result.json", r)
                 except OSError:
