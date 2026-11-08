@@ -12,6 +12,13 @@ names that section with the version.
 
 ### Contract changes
 
+- **Under `--baseline`, the gate's held findings are no longer annotated as errors** (task-0207,
+  doc-0030 R8). With a baseline the gate exits on a regression only, yet `harness/annotate.py` marked
+  every finding at the threshold an error, though the gate exited 0. Each finding of a report with a
+  baseline now carries `held`: false for the regression's own findings (a key whose level fell, a derived
+  output newly suspect, and with a worse verdict the task finding and every blocker), true for the rest.
+  annotate shows a held finding as a warning at most, titled "held by the baseline". Additive and optional in
+  `gate-report.schema.json`: not required, absent without `--baseline`.
 - **An attestation is bound to the Versions it attests** (task-0221, decision-0019; decision-0009 option (c)).
   Before, `[verification] authored` and `approval` attested whatever the documents held at each load, so an edit
   made after the attestation inherited it.
@@ -107,6 +114,25 @@ names that section with the version.
     linked to the gap it proposes to fill.
   - `tools/fixtures/claim_probe` carries every mapping. `tools/check_claim_probe.py` proves it on both stores, in
     `harness.yml` and the stack.
+
+- **Step 4's checks in the pre-load check** (task-0217, decision-0018 point 1). A contract change to the
+  pre-load report, additive.
+  - **The checks.** After each kind's linter, `tools/preload_check.py` runs three checks across documents:
+    - pumllint's `trace` with `--features`, over diagrams, feature files and requirements;
+    - a glossary check: a term in three requirements with no glossary row;
+    - a DMN check: gaps, overlaps under `UNIQUE` or `ANY`, and untyped outputs.
+  - **The report.** Each finding names its check as `tool`, and a new `checks` block says whether each one
+    ran. A document no linter of its kind read, but a check did, is judged by that check alone.
+  - **Through the load.** Each finding reaches the load as a lint gap, routed as task-0216 routes them.
+  - **The trace needs pumllint 0.35.0 or later**, the harness's pin since task-0224, and the instance's
+    requirement-id pattern. Without either, it is listed as unchecked, naming what is missing.
+  - **The example instance.** The DMN check finds two minor gaps in its screening table, at 41 to 42 and
+    66 to 67 on a `number` input. A lint finding never lowers a key's level, so every verdict reads as
+    before.
+  - **Found, not fixed.** The two DMN gaps are reported as found. The example is built from CargoQuote's
+    vendored kit, which is never edited by hand.
+  - **Proof.** `tools/check_preload_linters.py` proves each check on its planted defect, the trace on the
+    pinned pumllint.
 
 - **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
   with one additive field.
@@ -325,6 +351,15 @@ names that section with the version.
   - **An unchanged CRLF document reads checked (I12).** The load compared the pre-load report's digest of
     the raw bytes with a digest of the text, so a document with Windows line endings always read unchecked.
     It now compares raw bytes. A `knowgov-keys:` citation on line 1 after a byte-order mark is now read.
+- **An agent run stopped by its seconds ceiling reads as the ceiling, not as an API error** (task-0207,
+  doc-0030 R6). When the run's deadline cut a model's answer mid-stream, or the client's timeout fired at
+  it, the run was recorded as an API error, so `--resume` ran the cell again and paid for it again. It now
+  ends with `stopped_by: "ceiling: <n> seconds"`, a `ceiling` turn in its trace, and no `api_error`, so
+  `--resume` keeps it. A stream that falls silent for the idle limit before the deadline is still an API
+  error.
+- **Route (c) records the model that answered** (task-0207, doc-0030 R12). A transcript's proposals file
+  named the configured model (`KG_ARMS_MODEL`); it now names the model the endpoint answered with, as the
+  stream named it, which a gateway or an alias can make differ.
 - **pumllint 0.35.0 is the record's pin** (task-0224, the maintainer, 2026-11-08). The image, both
   `harness.yml` jobs, `demo/requirements.txt` and the CI templates (`instance/ci/preload-check.yml`'s
   `PUMLLINT`, the GitLab include's `KNOWGOV_PIP`) install pumllint 0.35.0 in place of 0.33.0, so the
@@ -336,6 +371,15 @@ names that section with the version.
   the same. The parser gains a field (`declared_line` on participants) that no mapper reads. Not a
   contract change: an instance that copied the CI template moves its `PUMLLINT` when it moves its
   knowgov tag.
+- **What notices a code change, measured: H7's two mutants on the J-F subject** (task-0219, decision-0018 point 8).
+  Two planted changes to one file of the public rebuild, each on a temporary copy, pre-registered first:
+  - The gate (R-STALE) saw neither change, because no document changed; scenario C still read PROCEED.
+  - trace saw both, as `drift` (minor), and could not tell them apart.
+  - Only the kit's suite separated them: 2 and 19 of 258 cases failing.
+  - A known limit: `trace.py check` fails at `blocker` by default, so a pipeline stops on a changed
+    registered file only with `--fail-on minor`. `docs/reverse-engineering.md` step 8 now says so.
+  - `subjects/jef_data_load/probes/h7/` (the pre-registration and `RESULTS.md`), `tools/check_h7_probe.py`,
+    `tests/test_h7_probe.py`.
 - **A guide to reverse-engineering a code base and finding its knowledge gaps** (task-0218, decision-0018
   points 1 and 2). `docs/reverse-engineering.md` walks the eight steps for an adopter, from scoping at a named
   commit to re-running on change. For each step it gives the tool that runs it today, the record it leaves and

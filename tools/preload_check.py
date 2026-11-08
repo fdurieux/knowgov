@@ -16,6 +16,14 @@ under instance/ci/. Every other kind's files, a decision table that is not .dmn,
 linter is not installed here, are reported *unchecked*, naming the tool (or saying the table names
 none): an unchecked file does not fail the check, and it is never passed silently.
 
+After the kinds' linters, step 4's checks (task-0217, decision-0018 point 1; tools/step4_checks.py) read
+documents together: pumllint's trace with --features (the linter's own pumllint, 0.35.0 or later; an older
+one leaves the trace unchecked, naming 0.35.0), the glossary check and the DMN
+gap check. Each finding names its check as its ``tool``; the report's ``checks`` block says whether each ran; a
+document its kind's linter left unchecked and a check read is judged by that check alone, and says so. A check
+that is installed and fails is cannot-run, exit 2. Provisional on task-0200 (F6): a check's own failure is caught
+here and reported; F6's one exit wrapper will map whatever escapes (today a traceback, exit 1) to exit 2.
+
 The programme's gate contract:
 
     0  every checked file is clean at the threshold (unchecked files are listed, not failed)
@@ -68,6 +76,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 import check_instance  # noqa: E402
+import step4_checks  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "harness"))
 import schema_check  # noqa: E402
@@ -324,7 +333,8 @@ def delta(previous: dict, rep: dict, name: str = "") -> dict:
     findings are not a document's change. A finding gone from a file whose bytes changed is a slip, mended by a
     new version; gone from bytes unchanged, the rule no longer fires on them."""
     def ran(r):
-        return {lt["tool"]: lt.get("version") for lt in r.get("linters", []) if lt.get("version")}
+        return {**{lt["tool"]: lt.get("version") for lt in r.get("linters", []) if lt.get("version")},
+                **{c["check"]: c["version"] for c in r.get("checks", []) if c.get("version")}}
     a, b = ran(previous), ran(rep)
     moved = sorted(t for t in set(a) & set(b) if a[t] != b[t])
     out = {"previous": name, "comparable": not moved,
@@ -337,7 +347,7 @@ def delta(previous: dict, rep: dict, name: str = "") -> dict:
         found = {}
         for row in r.get("files", []):
             for f in row.get("findings", []):
-                found.setdefault((row["file"], row.get("tool"), f["rule"], f["message"]), []).append(f)
+                found.setdefault((row["file"], f.get("tool") or row.get("tool"), f["rule"], f["message"]), []).append(f)
         return found
     before, after = index(previous), index(rep)
     digest = {r["file"]: r.get("sha256") for r in rep.get("files", [])}
@@ -412,6 +422,11 @@ def check(instance: Path, changed: list[str] | None = None, threshold: str = "ma
     linters = []
     by_file = {r["file"]: r for r in rows}
     held = _baseline_index(baseline) if baseline is not None else None
+    settled: list[str] = []          # the rows a linter or a check judged, settled once every finding is in
+    failed: set[str] = set()
+    failed_by: dict[str, str] = {}
+    failed_checks: list[str] = []
+    only: dict[str, str] = {}        # a row no linter of its kind judged, judged by a check: why its linter did not
     for kind, files in targets.items():
         tool, runner = RUNNERS[kind]
         res = runner(files, inst, threshold)
@@ -431,39 +446,71 @@ def check(instance: Path, changed: list[str] | None = None, threshold: str = "ma
             if row is None:
                 continue   # a finding on a file pumllint read and this check did not name (none today)
             row["findings"].append({k: f[k] for k in ("rule", "severity", "line", "message")})
-        for rel in rels:
-            row = by_file[rel]
-            row["findings"].sort(key=lambda f: (SEVERITIES.index(f["severity"]), f["line"]))
-            if held is not None:
-                for f in row["findings"]:   # worst first, so the worst finding claims the worst entry the baseline holds
-                    entries = held.get((rel, f["rule"], f["message"]), [])
-                    match = next((s for s in sorted(entries) if s <= SEVERITIES.index(f["severity"])), None)
-                    f["held"] = match is not None
-                    if match is not None:
-                        entries.remove(match)
-            hits = [f for f in row["findings"] if SEVERITIES.index(f["severity"]) <= SEVERITIES.index(threshold)]
-            new = [f for f in hits if not f.get("held")]
-            if new:
-                row.update(state="findings", why=f"{len(new)} finding(s) at or above {threshold}"
-                           + (f" not in the baseline ({len(hits) - len(new)} held)" if held is not None else ""))
-            elif hits:
-                row.update(state="held", why=f"{len(hits)} finding(s) at or above {threshold}, every one held by the baseline")
-            else:
-                row["why"] = f"no finding at or above {threshold}" + (f" ({len(row['findings'])} below)" if row["findings"] else "")
+        settled.extend(rels)
         parsed = any(SEVERITIES.index(f["severity"]) <= SEVERITIES.index(threshold) for r in rels for f in by_file[r]["findings"])
         if res["rc"] == 1 and not parsed:
-            for rel in rels:   # the linter's own exit is the authority: never pass what it failed
-                by_file[rel].update(state="findings", why=f"{tool} exited 1 at --fail-on {threshold}")
+            failed.update(rels)   # the linter's own exit is the authority: never pass what it failed
+            failed_by.update({rel: tool for rel in rels})
+
+    checks = []
+    for name, (reads, runner) in step4_checks.CHECKS.items():   # step 4's checks, across the kinds they read (task-0217)
+        try:
+            res = runner(inst)
+        except (OSError, ValueError, KeyError, subprocess.SubprocessError) as e:   # task-0200 F6 maps the rest to exit 2
+            res = {"state": "cannot_run", "why": f"{name}: {type(e).__name__}: {e}", "version": None, "files": 0, "findings": []}
+        if res["state"] == "ran":
+            read = set(res.get("read", []))
+            for r in rows:   # a document the check read and its kind's linter left unchecked is judged by the check alone
+                if r["file"] in read and r["state"] == "unchecked":
+                    only[r["file"]] = f"judged by {name} alone; {r['why']}"
+                    r.update(state="clean", tool=name)
+                    settled.append(r["file"])
+        landed = 0
+        for f in res["findings"]:
+            row = by_file.get(f["file"])
+            if row is None or row["state"] not in ("clean", "findings", "held"):
+                continue   # a document outside this run's scope (--changed, --since), or one no tool could read
+            row["findings"].append({**{k: f[k] for k in ("rule", "severity", "line", "message")}, "tool": name})
+            settled.append(f["file"])
+            landed += 1
+        checks.append({"check": name, "reads": list(reads), "state": res["state"], "why": res["why"], "version": res["version"],
+                       "files": res["files"], "findings": landed})
+        if res["state"] == "cannot_run":
+            failed_checks.append(f"{name}: {res['why']}")
+
+    for rel in dict.fromkeys(settled):
+        row = by_file[rel]
+        row["findings"].sort(key=lambda f: (SEVERITIES.index(f["severity"]), f["line"]))
+        if held is not None:
+            for f in row["findings"]:   # worst first, so the worst finding claims the worst entry the baseline holds
+                entries = held.get((rel, f["rule"], f["message"]), [])
+                match = next((s for s in sorted(entries) if s <= SEVERITIES.index(f["severity"])), None)
+                f["held"] = match is not None
+                if match is not None:
+                    entries.remove(match)
+        hits = [f for f in row["findings"] if SEVERITIES.index(f["severity"]) <= SEVERITIES.index(threshold)]
+        new = [f for f in hits if not f.get("held")]
+        if new:
+            row.update(state="findings", why=f"{len(new)} finding(s) at or above {threshold}"
+                       + (f" not in the baseline ({len(hits) - len(new)} held)" if held is not None else ""))
+        elif hits:
+            row.update(state="held", why=f"{len(hits)} finding(s) at or above {threshold}, every one held by the baseline")
+        else:
+            row["why"] = f"no finding at or above {threshold}" + (f" ({len(row['findings'])} below)" if row["findings"] else "")
+        if rel in failed:
+            row.update(state="findings", why=f"{failed_by[rel]} exited 1 at --fail-on {threshold}")
+        if rel in only:
+            row["why"] = f"{row['why']} ({only[rel]})"
 
     for r in rows:   # the bytes judged, so the load can tell a verdict from a later edit (task-0064)
         f = inst / r["file"]
         if r["kind"] and f.is_file():
             r["sha256"] = hashlib.sha256(f.read_bytes()).hexdigest()
     counts = {s: sum(1 for r in rows if r["state"] == s) for s in STATES}
-    code = 2 if counts["cannot_run"] else 1 if counts["findings"] else 0
+    code = 2 if counts["cannot_run"] or failed_checks else 1 if counts["findings"] else 0
     out = {"schema_version": 1, "tool": "knowgov preload check", "instance": str(inst),
            "scope": "changed" if changed is not None else "all", "threshold": threshold,
-           "files": rows, "linters": linters, "counts": counts, "exit_code": code,
+           "files": rows, "linters": linters, "checks": checks, "counts": counts, "exit_code": code,
            "note": "form, not knowledge: this does not replace harness/gate_cli.py"}
     if baseline is not None:
         fs = [f for r in rows for f in r["findings"] if SEVERITIES.index(f["severity"]) <= SEVERITIES.index(threshold)]

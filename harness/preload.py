@@ -57,6 +57,7 @@ def verdicts(subject, kit: dict[str, str], keys, report: dict, name: str) -> dic
     inst = instance_root(subject) or Path(report.get("instance", "/"))
     rows = {r["file"]: r for r in report.get("files", [])}
     tools = {lt["tool"]: lt.get("version") for lt in report.get("linters", [])}
+    tools.update({c["check"]: c.get("version") for c in report.get("checks", [])})   # step 4's checks (task-0217)
     paths = {a["key"]: (Path(subject.root) / a["path"]).resolve() for a in subject.artefacts if a.get("path")}
     out = {}
     for key in keys:
@@ -76,7 +77,8 @@ def verdicts(subject, kit: dict[str, str], keys, report: dict, name: str) -> dic
             v.update(tool=row.get("tool"), digest=row["sha256"], why="the bytes loaded differ from the bytes the report judged")
         else:
             v.update(state=row["state"], tool=row.get("tool"), tool_version=tools.get(row.get("tool")), digest=row["sha256"],
-                     why=row.get("why", ""), findings=list(row.get("findings") or []))
+                     why=row.get("why", ""), findings=[{**f, "tool_version": tools.get(f["tool"])} if f.get("tool") else f
+                                                       for f in row.get("findings") or []])
         out[key] = v
     return out
 
@@ -88,10 +90,12 @@ def lint_gaps(artefact: str, version: str, v: dict) -> list[dict]:
     unchecked, or whose bytes differ from those judged, holds none: there is no finding of its bytes."""
     out = []
     for f in v.get("findings") or []:
-        text = f"{v.get('tool')} {f['rule']} ({f['severity']}) at {v.get('file')}:{f['line']}: {f['message']}"
-        fp = hashlib.sha256(f"{v.get('tool')}|{f['rule']}|{f['line']}|{f['message']}".encode("utf-8")).hexdigest()[:16]
+        tool = f.get("tool") or v.get("tool")   # a step-4 check's finding names its check (task-0217); the linter's, the row's
+        text = f"{tool} {f['rule']} ({f['severity']}) at {v.get('file')}:{f['line']}: {f['message']}"
+        fp = hashlib.sha256(f"{tool}|{f['rule']}|{f['line']}|{f['message']}".encode("utf-8")).hexdigest()[:16]
         out.append({"id": f"lint:{artefact}@{version}:{fp}", "artefact": artefact, "version": version, "file": v.get("file"),
-                    "tool": v.get("tool"), "tool_version": v.get("tool_version"), "rule": f["rule"], "severity": f["severity"],
+                    "tool": tool, "tool_version": f.get("tool_version") if f.get("tool") else v.get("tool_version"),
+                    "rule": f["rule"], "severity": f["severity"],
                     "line": int(f["line"]), "message": f["message"], "held": bool(f.get("held")), "text": text,
                     "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()})
     return out

@@ -278,12 +278,17 @@ python harness/trace.py check --instance my-instance --ledger ledger.json -f jso
 
 This compares the work you registered with `harness/trace.py register` (code, generated files, a
 rebuild) with what it rested on, and reports what is now suspect because a statement under it
-changed, and any registered file whose bytes changed since it was registered.
+changed, and any registered file whose bytes changed since it was registered. A changed file is
+reported as minor, the second-lowest of five severities. Unless you say otherwise, the command fails
+only on the highest, blocker. To make a changed file stop a pipeline, add `--fail-on minor`.
 
 Know what each instrument sees. The gate sees an edit to a document. trace sees that a registered
 file's bytes changed, but not whether its behaviour did. Only running the kit's scenarios on the new
 commit shows a change of behaviour. Run all three, and note which caught what. knowgov's first test of
-this step, on two planted changes to the J-F subject's public rebuild, is task-0219.
+this step planted two changes in the J-F subject's public rebuild, two lines of one file
+(`subjects/jef_data_load/probes/h7/RESULTS.md`). The gate saw neither change, because no document
+changed. trace saw both, but could not tell them apart. Only the scenarios separated them: 2 failing cases
+for the change that shows only when a download fails, and 19 for the other.
 
 - **Record:** the new gate report, the trace report, the scenarios' results on the new commit.
 - **Where:** a new run folder beside the first, naming the commit it read.
