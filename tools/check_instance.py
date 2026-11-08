@@ -45,6 +45,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 from subject import Subject  # noqa: E402
+import formats  # noqa: E402  (task-0174, decision-0023)
 from code_map import CODE_MAP, code_map, glob_re, register_apps  # noqa: E402,F401  (task-0050; harness/code_map.py)
 sys.path.insert(0, str(ROOT / "tools"))
 import check_subject  # noqa: E402  (task-0135)
@@ -83,6 +84,7 @@ def connectors(inst: Path, reg: Path, errors: list[str]) -> dict | None:
     except tomllib.TOMLDecodeError as e:
         errors.append(f"{CONNECTORS}: not TOML: {e}")
         return {"systems": []}
+    formats.version(cfg, p.as_posix(), formats.CONNECTORS)   # task-0174: a newer one refused, exit 2
     systems = cfg.get("system", {})
     if not isinstance(systems, dict) or not systems:
         errors.append(f"{CONNECTORS}: no [system.<name>] table")
@@ -152,13 +154,15 @@ def check(instance: Path, table: dict[str, dict] | None = None) -> dict:
         for root in roots:
             try:
                 s = Subject(root)
+            except formats.FormatError:   # task-0174: a subject written for a newer knowgov is not this check's to judge, exit 2
+                raise
             except Exception as e:  # noqa: BLE001 — a subject that does not load is the finding
                 errors.append(f"subjects/{root.name}: does not load: {e}")
                 continue
             ids.setdefault(s.id, []).append(root.name)
             for sc in s.order:
                 scenario_of.setdefault(sc, []).append(s.id)
-            srep = {"id": s.id, "root": root.relative_to(inst).as_posix(), "artefacts": [],
+            srep = {"id": s.id, "root": root.relative_to(inst).as_posix(), "format": s.format, "artefacts": [],
                     "record": s.record_dir.is_dir() and any(s.record_dir.iterdir())}
             for a in s.artefacts:
                 if not a.get("path"):
@@ -223,7 +227,7 @@ def render(rep: dict) -> str:
     out = [f"instance {rep['instance']}"]
     out.append("register: " + (", ".join(rep["register"]["trees"]) if rep["register"] else "missing"))
     for s in rep["subjects"]:
-        out.append(f"subject {s['id']} ({s['root']}): {len(s['artefacts'])} artefacts, record {'present' if s['record'] else 'empty'}")
+        out.append(f"subject {s['id']} ({s['root']}): format {s['format']}, {len(s['artefacts'])} artefacts, record {'present' if s['record'] else 'empty'}")
         for a in s["artefacts"]:
             out.append(f"  {a['state']:10s} {a['key']}  [{a['kind'] or '-'}] {a['mapper'] or '(no mapper)'}  {a['path']}")
         chk = s.get("check")
@@ -273,7 +277,11 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, tomllib.TOMLDecodeError, KeyError) as e:
         print(f"cannot run: instance/kinds.toml: {e}", file=sys.stderr)
         return 2
-    rep = check(args.instance, table)
+    try:
+        rep = check(args.instance, table)
+    except formats.FormatError as e:   # task-0174, decision-0023: written for a newer knowgov, or no version
+        print(f"cannot run: {e}", file=sys.stderr)
+        return 2
     print(json.dumps(rep, indent=1) if args.json else render(rep))
     return 1 if rep["errors"] else 0
 

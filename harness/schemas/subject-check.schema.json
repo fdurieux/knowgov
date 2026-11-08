@@ -11,6 +11,7 @@
   "tool": {"const": "check_subject"},
   "subject": {"type": "string"},
   "root": {"type": "string"},
+  "format": {"type": "integer", "minimum": 1, "description": "the subject root's format version, subject.toml's [format] version, the current one when it names none (task-0174, decision-0023); absent when subject.toml does not parse"},
   "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
   "notes": {"type": "array", "items": {"$ref": "#/$defs/note"}},
   "yield": {

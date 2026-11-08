@@ -57,6 +57,8 @@ def code_map(inst: Path, apps: dict[str, dict], errors: list[str]) -> dict | Non
     except (OSError, tomllib.TOMLDecodeError) as e:
         errors.append(f"{CODE_MAP}: does not parse: {e}")
         return {"root": None, "rows": [], "unmapped": [], "unmatched": [], "citations": {"require": False, "apps": []}}
+    import formats   # task-0174, decision-0023: format = N, a newer one refused (FormatTooNew, exit 2)
+    formats.version(doc, f.as_posix(), formats.CODE_MAP)
     code = doc.get("code", {})
     root = (inst / code.get("root", ".")).resolve()
     include = list(code.get("include", ["**"]))
