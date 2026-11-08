@@ -20,6 +20,13 @@ names that section with the version.
   version and the one this knowgov reads. The public subjects, the wizard skill and `tools/example_instance.py`
   write the key; `check_subject.py`'s report (and the MCP `subject_check`'s) carries `format`, and
   `check_instance.py` lists it per subject. `capture.py` now exits through the one failure-to-run wrapper.
+- **The MCP servers name the knowgov they run** (task-0231, additive). The reader's `store_status` and
+  `knowgov-runs`' `run_options` carry `"knowgov": {"version", "commit", "describe"}`, the same values the
+  page's `/api/subjects` gives (task-0227): knowgov's version, the commit, and how far it is past the
+  release tag when that is known, each `null` when unknown. The server reads them once, at start. Both
+  servers' `serverInfo.version`, in the `initialize` reply and in the stateless era's `_meta` stamp, is now
+  knowgov's version (`0.8.0` today) instead of `"1"`. To see which knowgov you are using, ask your assistant
+  to call `store_status`.
 - **The page names the knowgov it runs** (task-0227). A chip in the header gives knowgov's version, the
   build's commit, and how far it is past the release tag when that is known: for example
   `knowgov 0.8.0 + 277 (7e113f0)` from a checkout build, or `knowgov 0.8.0 (v0.8.0)` from a release image.
@@ -360,6 +367,13 @@ names that section with the version.
   counts a process only when a second scan, a second later, still finds one, and it trusts no command line: it
   leaves out only processes started from outside the container, such as the healthcheck, which a job cannot
   start. Each process it counts is now named in the failure.
+- **The adopter docs held against the code** (task-0230, doc-0028 G9-9 and P4). The nine adopter-facing
+  documents were checked against the code, and every stale claim found is corrected: commands, flags,
+  settings, paths, routes, counts, defaults and described behaviour, in the READMEs, `docs/guide.md`,
+  `docs/security.md` and `docs/lighthouse-evaluation.md`. `tests/test_adopter_docs.py` now fails on any
+  of the following that the code does not bear out: a `--flag`, a command's options, a `KG_*` setting,
+  a repository path or link, a cited test or an `/api` route. `instance/README.md` ends with what stays
+  stable from 1.0, quoting decision-0016 point 3. No code, contract or pin changes.
 - **`tools/preload_check.py` exits 2 when it cannot write `-o`** (task-0228, doc-0030 F6). An unwritable
   report path (a missing folder) exited 1, the finding's code, with a traceback; it is now a failure to run,
   exit 2, one `cannot run: -o ...` line and no report. The command exits through the check tools' outcomes

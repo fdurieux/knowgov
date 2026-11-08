@@ -125,7 +125,13 @@ from urllib.parse import urlsplit
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-SERVER = {"name": "knowgov", "title": "knowgov gate (read-only)", "version": "1"}
+import build_identity  # noqa: E402  (task-0227's identity)
+
+# Which knowgov this process runs (task-0231): {version, commit, describe}, each None when unknown, read
+# once at start from this copy's own files, as the page's /api/subjects reads it. store_status and
+# knowgov-runs' run_options carry it; serverInfo.version is its VERSION.
+KNOWGOV = build_identity.identity()
+SERVER = {"name": "knowgov", "title": "knowgov gate (read-only)", "version": KNOWGOV["version"] or "unknown"}
 PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]   # the handshake era, newest first
 MODERN_VERSIONS = ["2026-07-28"]                                               # stateless, per-request _meta
 SUPPORTED_VERSIONS = MODERN_VERSIONS + PROTOCOL_VERSIONS
@@ -692,7 +698,7 @@ class Tools:
                                   "max_unverified_share": t["max_unverified_share"],
                                   **({"require_approved": True} if t.get("require_approved") else {}),
                                   **({"rationale": t["rationale"]} if t["rationale"] else {})} for n, t in TASKS.items()},
-                    "three_valued_keys": list(SUBJECT.three_valued)}
+                    "three_valued_keys": list(SUBJECT.three_valued), "knowgov": dict(KNOWGOV)}
         return self._with_store(go)
 
     def gate_verdict(self, args: dict) -> dict:

@@ -25,7 +25,7 @@ subject in the folder `KG_SUBJECTS` names, leaves it out; named directly, it sti
 job runs it. `subjects/cargo_quote/` is the full one: the kit of pumllint's proof of concept, its
 record, its seven scenarios. `subjects/jef_data_load/` is the second: the specification kit of
 pumllint's recreation experiment (J-F's daily asset load reverse-engineered, 163 requirements
-joining five layers), the degradation test's five arms as its scenarios with its patches as the
+joining five layers), the degradation test's six arms (C, the kit as committed, and D1 to D5) as its scenarios with its patches as the
 plants, the platform's own deterministic record, and the kit's own pytest-bdd suite as the
 oracle (`oracle/jef_suite.py`, one scenario per feature file, run once per reply and cached).
 
