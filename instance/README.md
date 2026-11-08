@@ -1575,24 +1575,42 @@ parts count is decided in the project's record, decision-0016, point 3, quoted h
 > - the image's name and tag scheme (decision-0003 §3);
 > - the format versions of the instance's inputs, and the ieam-register format versions an instance's register may be in.
 
-In plain English, and where each is described:
+In plain English: each row is one contract, where it is described, and how you are told when it
+changes. Every contract change is listed in `CHANGELOG.md` under its release's **Contract changes**
+heading, so that heading is the one place to watch. Some contracts also carry a signal of their own,
+named in the last column.
 
-| You can rely on | Described in |
-|---|---|
-| the gate command's flags and its exit codes: 0 no finding at or above `--fail-on`, 1 a finding at or above it, 2 the gate could not run | "Running the gates in your pipeline", above |
-| the shape of every JSON report, each pinned by a schema | `harness/schemas/` |
-| the folders and files of your instance | "The layout", at the top |
-| what a store must offer the platform (the store port) | `harness/store.py` |
-| the fields of `subject.toml` | the [subjects guide](../subjects/README.md) |
-| the tools and prompts of both assistant servers (the reader and the runs server), what they take and what they return | "Letting an AI assistant ask the gate", above |
-| the `KG_*` settings this file or [`docs/security.md`](../docs/security.md) names | here and there |
-| the page's `/api/*` routes | the [demo's guide](../demo/README.md) |
-| the CI action, the GitLab include, the shell wrappers and the hooks' settings files | "Running the gates in your pipeline" and "A fail-closed hook for Claude Code", above |
-| the image's name and tags: `ghcr.io/fdurieux/knowgov:<tag>` for a release, `:latest` for the last main | the [README](../README.md) |
-| the format version each of your input files declares (built: decision-0023, task-0174): "A file with no number is read as the current version. This holds until knowgov 1.0", "A file at the current version, or an older one, is read", and "A file with a newer number is refused" | "Format versions", above |
-| which ieam-register format versions your register may be in | not yet stated |
+| You can rely on | Described in | How you are told of a change |
+|---|---|---|
+| the gate command's flags and its exit codes: 0 no finding at or above `--fail-on`, 1 a finding at or above it, 2 the gate could not run | "Running the gates in your pipeline", above | `CHANGELOG.md`, Contract changes |
+| the shape of every JSON report, each pinned by a schema | `harness/schemas/` | `CHANGELOG.md`, Contract changes; where a report carries `schema_version`, the line names it when it moves |
+| the folders and files of your instance | "The layout", at the top | `CHANGELOG.md`, Contract changes |
+| what a store must offer the platform (the store port) | `harness/store.py` | `CHANGELOG.md`, Contract changes |
+| the fields of `subject.toml` | the [subjects guide](../subjects/README.md) | `CHANGELOG.md`, Contract changes; its `[format] version` moves with its format ("Format versions", above) |
+| the tools and prompts of both assistant servers (the reader and the runs server), what they take and what they return | "Letting an AI assistant ask the gate", above | `CHANGELOG.md`, Contract changes; each server names the knowgov version it runs |
+| the `KG_*` settings this file or [`docs/security.md`](../docs/security.md) names | "The settings an instance may rely on", above, and `docs/security.md` | `CHANGELOG.md`, Contract changes |
+| the page's `/api/*` routes, as the demo's guide documents them | the [demo's guide](../demo/README.md) | `CHANGELOG.md`, Contract changes |
+| the CI action, the GitLab include, the shell wrappers and the hooks' settings files | "Running the gates in your pipeline" and "A fail-closed hook for Claude Code", above | `CHANGELOG.md`, Contract changes; you run them from the knowgov tag you pin |
+| the image's name and tags: `ghcr.io/fdurieux/knowgov:<tag>` for a release, `:latest` for the last main | the [README](../README.md) | each release's tag; `CHANGELOG.md`, Contract changes |
+| the format version each of your input files declares (built: decision-0023, task-0174) | "Format versions", above | the number in the file moves, and `CHANGELOG.md` says what changed and how to bring an older file up to date |
+| which ieam-register format versions your register may be in | not yet stated | not yet stated |
 
 Two things follow from the quoted text. A `KG_*` setting that neither this file nor
 `docs/security.md` names is not a contract, so do not build on it. A setting the demo's guide
 alone describes is a convenience of the demo, not a promise. And the page's HTTP API is the
 contract only as far as the demo's guide documents it.
+
+### How a change reaches you, and for how long you are supported
+
+The same decision says how the contracts may change, and for how long a release is looked after.
+In plain English: from 0.9.0, a release whose last number moves (0.9.1, 0.9.2) only fixes things,
+and any change to a contract waits for 0.10.0. From 1.0.0, nothing you rely on disappears without
+warning: it is first marked *deprecated*, keeps working for a while, and is removed only in a new
+major version. Support covers the latest minor release only, on a best-effort basis, until the
+organisation that will offer support exists. Its points 2, 5 and 6, as accepted:
+
+> **0.9.x carries fixes only.** A fix, a documentation change or a dependency pin is a patch. Any contract change, additive or breaking, is 0.10.0 and restarts the freeze. This amends decision-0003 §2 from 0.9.0 on. Until 0.9.0, decision-0003 §2 stands, and contract changes after 0.8.0 gather for 0.9.0.
+
+> **Deprecation, from 1.0.0.** A contract element is deprecated in a minor release, under a `### Deprecated` heading in `CHANGELOG.md`. It keeps working for at least one further minor and ninety days, and is removed only in a major. Ninety days is the drafter's figure.
+
+> **Support.** Until task-0060's entity exists, the latest minor only, on a best-effort basis; from then, the entity's support terms.
