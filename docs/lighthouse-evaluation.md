@@ -111,8 +111,10 @@ owns them?*
 - **Gap:**
   - The gate cannot see knowledge that is consistently wrong. J-F's degradation test planted the
     same defect in every document, and the gate said QUALIFIED.
-  - A verification by review does not yet lapse by date (task-0067 asks the maintainer to decide
-    whether it should).
+  - A verification by execution is not tied to the code it last passed on: a code change leaves it
+    verified, and the gate reads PROCEED on code the suite now fails
+    (`subjects/jef_data_load/probes/h7/RESULTS.md`). A verification by review does lapse, after its
+    key's review months (decision-0005).
 - **Pilot:**
   - The gate runs on the pilot's main delivery task.
   - Every BLOCKED and QUALIFIED key is read by its owner, who confirms the level is right or
@@ -154,7 +156,7 @@ enough?*
   - The store and the register change only through pull requests and recorded rulings
     (decision-0002, with four eyes in the register).
   - The MCP server only reads: it refuses every store operation that is not a read. Over HTTP it
-    binds to the loopback address unless a token is set.
+    binds to the loopback address by default and refuses a wider bind unless a token is set.
   - A model may only read and propose inferred statements; it never rules.
   - There is no business action to secure: see the section below on what is out of scope.
 - **Rehearsal evidence:**
@@ -179,8 +181,9 @@ uses?*
     store (`KG_RDFLIB_FILE`).
   - Two store kinds give the same record (the deterministic comparator).
   - The register's exports carry a manifest of digests and a reconciliation record.
-  - Not yet verified: any of the three import routes from an incumbent architecture tool
-    (task-0063), and a round trip through Turtle into the other store kind (task-0070).
+  - A round trip through Turtle into the other store kind is proven in CI (task-0070).
+  - Not yet verified: any of the three import routes from an incumbent architecture tool on a real
+    installation (task-0063).
 - **Rehearsal evidence:**
   - The export manifest item: every digest matches the subject's bytes, and the reconciliation
     record is present.
@@ -194,8 +197,9 @@ uses?*
 
 *What does it cost to run, and does it hold at the organisation's scale?*
 
-- **The stack today:** not measured beyond the record's token counts (task-0027) and the times
-  below. The scale of a lighthouse is unknown.
+- **The stack today:** not measured beyond the record's token counts (task-0027), the times
+  below, and Neo4j's transaction memory per statement, measured up to 48,288 statements
+  (`docs/load-memory.json`, task-0176). The scale of a lighthouse is unknown.
 - **Rehearsal evidence:**
   - The cost item: wall-clock time per step and the store's size in nodes and relationships, with
     no model call.

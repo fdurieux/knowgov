@@ -53,12 +53,12 @@ full list and the synonyms to avoid.
 | register | the list of your architecture's building blocks and the typed links between them, in its own repository layout ([ieam-register](https://github.com/fdurieux/ieam-register)) |
 | node | one building block in the register: a capability (`CAP-`), product (`PRD-`), journey (`JRN-`), process (`PROC-`), application or module (`APP-`), information node (`ENT-`, your data model's business entities) or organisation unit (`ORG-`) |
 | link | one typed relationship between two nodes, such as `supports` or `realizes`, with a state, an owner and an approval |
-| state | where a node or link is in its life: draft, proposed, approved, deprecated, retired |
+| state | where a node or link is in its life: draft, proposed, approved, deprecated, retired, rejected |
 | document | one of your files: requirements, a decision table, a BPMN model, an OpenAPI contract |
 | kind | the sort of document, one folder under `artefacts/` per kind |
 | fragment | a piece of a document (a table row, a process step), with a digest of its bytes |
 | assertion | one fact read from a fragment: an entity, a property and a value, with its basis and status |
-| status | where an assertion is in its life: proposed, validated, verified, approved, disputed, invalidated |
+| status | where an assertion is in its life: proposed, validated, verified, approved, disputed, rejected, invalidated |
 | subject | one body of documents the platform loads, with the task it answers and the keys that task needs |
 | key | one fact a task needs, such as the surcharge of pricing step P2 |
 | gate | the check that reads a task's keys and gives a verdict |
@@ -110,7 +110,8 @@ step by step"). It needs Docker. It works offline from the first start, and need
 
 In plain English: Replay shows what was recorded. Deterministic re-runs the part with no model and
 compares it with the record. The last sentence of the plain-English block says whether they
-match. For S2 it reads "identical on all 108 fields compared with results/S2, timestamps aside".
+match. For S2 it reads "identical on all 117 fields compared with results/S2, timestamps aside". On the
+in-memory store it is 108, because the Neo4j constraint measurement is not compared across store kinds.
 
 4. Replay **S6 invalidated by change** to see a change travel through the store.
 
@@ -137,8 +138,10 @@ sorted into their kinds, and checks it. It writes only into the folder you name.
 ## 4. Your instance
 
 An *instance* is a git repository of your own that holds your register, your documents and your
-subjects. It is private and stays in your organisation's repositories. The platform reads it
-read-only and never writes to it.
+subjects. It is private and stays in your organisation's repositories. The stack mounts it
+read-only and never writes to it. Commands you run in your own checkout do write to it:
+`harness/capture.py` into a subject's `captures/`, `harness/transcript.py` into `captures/inferred/`,
+and the connector into `register/exports/`. You commit what they write like any other change.
 
 ```
 <your instance>/
@@ -188,7 +191,9 @@ where one runs here: pumllint for PlantUML models, Spectral for API contracts, m
 specification prose, gplint for Gherkin, bpmnlint for BPMN and dmnlint for DMN files (see "A check
 before the load" below). For every other kind nothing checks the form yet: a malformed C4 model or
 a schema with a syntax error reaches the mapper as it is, and the check lists it as unchecked,
-naming the tool your instance would add.
+naming the tool your instance would add. After the linters, three checks read documents together:
+pumllint's trace with `--features`, a glossary check and a decision-table gap check. A document one
+of them reads is listed as judged by that check, even when its own linter is not installed.
 
 ### Which tool checks which kind
 
@@ -297,7 +302,7 @@ The two checks answer different questions, and neither replaces the other.
 | | check before the load (`tools/preload_check.py`) | knowgov gate (`harness/gate_cli.py`) |
 |---|---|---|
 | question | Is this document well formed for its kind? | Is the knowledge this task needs good enough to build on? |
-| looks at | one file | one task's keys, across every document |
+| looks at | one file for its kind's linter; several documents for the three cross-document checks | one task's keys, across every document |
 | runs | on the pull request, before the merge | after the load, before a build |
 | finds | syntax, broken rules, a score | missing, declared-open, contradicting, unverified, invalidated knowledge |
 | misses | two well-formed documents that disagree; a fact nobody wrote down | a malformed file the mapper still read; anything no mapper reads |
@@ -476,9 +481,14 @@ In the register view, type a node id in the **Impact** box and press **walk**.
 In plain English: the walk starts at your node and follows links outwards. From an application or
 module it follows `supports` to processes. From a process it follows `delivers` to products,
 `realizes` to capabilities, and `is_supported_by` backwards to the journey steps the process
-supports. From a journey it follows `concerns` to products. It follows **approved** links only. A
-link that is not approved, or whose far node is deprecated or retired, is listed as *withdrawn*
-and not followed. The walk does not climb to a node's parent.
+supports. From a journey or a step it follows `concerns` to products and `is_supported_by` to its
+processes. From a capability it goes back along `requires` to the products that need it. From an
+information node it goes back along `crud` and `manages` to the processes and applications that use
+it. From a product it goes back along `concerns` and `delivers` to its journeys and processes. It
+follows **approved** links only. A link that is not approved, or whose far node is deprecated or
+retired, is listed as *withdrawn* and not followed. An edge back to the start is listed and not
+counted. The walk does not climb to a node's parent; tick **children** to also walk from every
+approved descendant. The **realisers** walk instead finds what implements a capability.
 
 Example: the QuoteAPI module, `APP-0002`.
 
@@ -489,22 +499,29 @@ Example: the QuoteAPI module, `APP-0002`.
 | PROC-0002 | is_supported_by (inverse) | JRN-0002 | Submit a quote request | yes |
 | PROC-0002 | realizes | CAP-0004 | Validate a quote request | yes |
 | PROC-0001 | delivers | PRD-0002 | CargoQuote instant quote | yes |
+| JRN-0002 | is_supported_by | PROC-0002 | Validate the request | yes |
+| CAP-0004 | requires (inverse) | PRD-0002 | CargoQuote instant quote | yes |
+| PRD-0002 | concerns (inverse) | JRN-0001 | Get a freight quote | yes |
+| PRD-0002 | delivers (inverse) | PROC-0001 | Quote process | yes |
+| JRN-0001 | concerns | PRD-0002 | CargoQuote instant quote | yes |
 
-Five links, none withdrawn: retiring QuoteAPI touches two processes, one capability, one journey
-step and the product. The same walk runs from the command line, with no store:
+Ten links, none withdrawn: retiring QuoteAPI touches two processes, one capability, the journey
+and one of its steps, and the product. The same walk runs from the command line, with no store:
 
 ```bash
 python demo/register/tools/impact.py --from APP-0002
 ```
 
 In plain English: this reads the register's files and prints one line per link with its state,
-owner and evidence, then a summary: "5 edges walked, 0 withdrawn; products reached ['PRD-0002'];
-journey elements reached ['JRN-0002']".
+owner and evidence, then a summary: "10 edges walked, 0 withdrawn; products reached ['PRD-0002'];
+journey elements reached ['JRN-0001', 'JRN-0002']".
 
-From a process, `PROC-0004` Price the quote reaches the journey step JRN-0003 and the capability
-CAP-0002. From a journey, `JRN-0001` Get a freight quote reaches the product PRD-0002. From a
-process with withdrawn links, J-F's `PROC-0006` Daily chain meets six links, two of them
-withdrawn, and reaches the product PRD-0005 and three journey steps.
+From a process, `PROC-0004` Price the quote walks nine links, one of them withdrawn, and reaches
+the capability CAP-0002, the product PRD-0002, the process PROC-0001 that delivers it, the journey
+JRN-0001 and its step JRN-0003. From a
+journey, `JRN-0001` Get a freight quote walks four links and reaches the product PRD-0002 and the
+process PROC-0001. From a process with withdrawn links, J-F's `PROC-0006` Daily chain walks ten
+links, two of them withdrawn, and reaches the product PRD-0005 and three journey steps.
 
 ### Seeing the walk as a graph
 
@@ -514,18 +531,19 @@ Browser**.
 
 In plain English: **open in the Browser** opens Neo4j Browser on a small guide page. Click the
 grey query block once and the query moves into the editor. Nothing runs until you press play. For
-APP-0002 the graph shows 6 nodes and 8 relationships. Two of them, a `REG_PARENT` and a
-`REG_REQUIRES`, are drawn because the Browser draws every relationship between the nodes it shows.
-The walk did not follow them. The table on the page is the walk; the graph is a picture of its
+APP-0002 the graph also draws `REG_PARENT` relationships, such as the step JRN-0002 to its journey
+JRN-0001, because the Browser draws every relationship between the nodes it shows. The walk did not
+follow them. The table on the page is the walk; the graph is a picture of its
 neighbourhood.
 
 ### Starting from a capability or an information node
 
-The walk does not start from a capability, an information node, a product or a journey step. From
-`CAP-0002` or `ENT-0003` it meets no link, and the panel says "No link starts at this node in a
-direction the walk follows". That is the walk's design: it answers "what would retiring this
-application or process touch", going upwards. To ask "what rests on this capability" or "what
-touches this entity", go the other way. Two saved queries in the store card do that.
+The walk starts from any node. From `CAP-0002` Price a shipment it walks five links and reaches the
+product that requires it, PRD-0002, with the journey and the process behind that product. From
+`ENT-0003` Quote it walks seventeen. It does not find the process that realises a capability: that
+is the **realisers** walk. Two saved queries in the store card answer a narrower question, one step
+past the start's neighbours: what realises or requires a capability, and what creates, reads,
+updates, deletes or manages an entity.
 
 **A capability.** The saved query *What rests on CAP-0002* lists what realises or requires the
 capability, then steps on from each process that realises it over an approved link.
@@ -659,7 +677,8 @@ command still exits 1 on `derived:S1:G:run1` (report version 2; task-0048).
 
 A statement verified by a review stays current for the review months of the kind its key concerns,
 then lapses (decision-0005). The months are your register's: `metamodel/lifecycle.toml`, `[review.kinds]`
-(12 for a capability, 6 for a product in the example register), else `[review] default_months`. A key
+(12 for a capability, 6 for a product, a journey step or a touchpoint in the example register),
+else `[review] default_months`. A key
 whose row in `register_map.toml` names nodes of several kinds takes the shortest; a key with no row takes
 the default. The load writes the due date as the verification's `valid_until`. On the day after it, the
 statement reads *validated*, its approval falls with it, and the gate lists a *lapsed* finding (major)
@@ -671,7 +690,8 @@ python harness/gate_cli.py --scenario S1 --as-of 2027-08-07 --baseline record
 ```
 
 In plain English: read the store as of 7 August 2027 and compare with the record. CargoQuote's ten
-review-only keys were reviewed on 6 August 2026 and fall due after twelve months. They read validated,
+review-only keys were reviewed on 6 August 2026. Seven fall due after twelve months; the three on the
+API's response rest on journey steps and fell due after six, on 6 February 2027. All ten read validated,
 10 of 36 keys are below verified, above the 25 % bar, and the command exits 1, naming each
 `approved -> validated` as a regression. `--as-of` is today by default, so a pipeline's ratchet catches
 a review falling due. The remedy is a new review: a person of a unit that owns the key approves the
@@ -699,7 +719,7 @@ The report names the version it loaded (task-0049).
 
 ## 10. Choosing the model, or none
 
-The Arms mode calls a model; nothing else does. The models it may call are rows in
+The Arms mode and the transcript route (`harness/transcript.py`) call a model; nothing else does. The models it may call are rows in
 `demo/models.toml`. Each row names the endpoint, the model and the *name* of the environment
 variable that holds its key, never the key itself. A row whose variable is empty stays greyed, and
 the server refuses it. With no key set, no document leaves your network. A private model behind a
@@ -722,11 +742,14 @@ your own instance the register is your checkout, mounted read-only, and none of 
 - The page's reports have no login. Run it on your own network, and do not expose port 7474: it is
   a live console behind one password. Beyond your own machine, the page starts a run or projects
   the register only for a viewer who has entered its token (`KG_PAGE_TOKEN`; demo README).
-- The walk starts only from applications, processes and journeys. For a capability or an
-  information node, use the saved queries of section 8.
-- A module reaches its code only through whole documents, and a change to code reaches nothing.
+- The walk does not find what implements a capability: use the realisers walk, or the saved
+  queries of section 8 for what touches an entity.
+- In the store, a module reaches code only through the documents its links cite, narrowed to the
+  cited anchor where there is one. A code change invalidates nothing, but knowgov-trace's check
+  lists an edited registered file as drift.
 - Before the load, six kinds have their form checked: PlantUML models, API contracts,
   specification prose, Gherkin, BPMN and DMN files. Every other kind, and a decision table written
-  in Markdown, is listed as unchecked, naming the tool your instance would add (section 5).
+  in Markdown, is listed as unchecked, naming the tool your instance would add (section 5), unless
+  one of the three cross-document checks reads it.
 - QUALIFIED is not safe. A defect present in every document passes the gate (J-F D3 and D5).
 - A person's answer reaches *proposed* at most until the review record is built (section 6).

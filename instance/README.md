@@ -1395,7 +1395,7 @@ spec commit is read under `codegen` like the other stages. Claude Code blocks a 
 |---|---|---|
 | 0, PROCEED | the action goes ahead | the action goes ahead |
 | 1, a finding | **blocked**, naming the findings and the route to approval: the key's owner answers it, a reviewer who is not the author settles it | **blocked**, the same |
-| 2, cannot run (no subject, rdflib missing, a timeout; with `KG_PUBLISH` or `KG_NO_LOAD`, an unreachable store) | **blocked**, naming the gate as unavailable | goes ahead, with a warning that says FAIL-OPEN |
+| 2, cannot run (no subject, rdflib missing, a timeout; for a gate that uses the store, an unreachable store) | **blocked**, naming the gate as unavailable | goes ahead, with a warning that says FAIL-OPEN |
 | a report for another task, or for `keys` | **refused**, blocked | **refused**, blocked |
 
 A report for `keys` is one the MCP server's `gate_verdict` gives for a set of keys the assistant chose
@@ -1408,8 +1408,8 @@ that hit it: the route is the owner's answer, or an exception from whoever owns 
 variables, as "Running the gates in your pipeline" lists them, in the environment Claude Code starts
 with (the managed settings' `env` key, or the engineer's shell). The hook's gate loads the scenario
 into a private copy in memory and leaves the store `KG_STORE` names as it was, so two sessions can
-share one Neo4j. The exception is `KG_PUBLISH=1` or `KG_NO_LOAD=1` in that environment. With either,
-keep one store per worktree: rdflib in memory (`KG_STORE=rdflib` and no `KG_RDFLIB_FILE`: every run
+share one Neo4j. The exception is a gate set to use that store: `KG_PUBLISH=1` in that environment,
+or one told to read the store as the instance left it. Then keep one store per worktree: rdflib in memory (`KG_STORE=rdflib` and no `KG_RDFLIB_FILE`: every run
 loads its own), a `KG_RDFLIB_FILE` inside each worktree, or one compose project per worktree. Either
 way, pass the MCP tools' `scenario` argument, so a read of another session's load is refused.
 
