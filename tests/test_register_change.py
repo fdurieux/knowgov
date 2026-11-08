@@ -147,7 +147,7 @@ def test_the_port_declares_the_write_and_both_adapters_implement_it():
     import store_neo4j
     assert "invalidate_keys" in vars(store.Store) and "invalidate_keys" in vars(store_neo4j.Neo4jStore)
     # the rdflib adapter imports rdflib, which this runner does without: read its source
-    assert "    def invalidate_keys(self, reasons) -> dict:" in (ROOT / "harness" / "store_rdflib.py").read_text(encoding="utf-8")
+    assert "    def invalidate_keys(self, reasons, at=None) -> dict:" in (ROOT / "harness" / "store_rdflib.py").read_text(encoding="utf-8")
     src = (ROOT / "harness" / "register_change.py").read_text(encoding="utf-8")
     assert "MATCH" not in src and "store.invalidate_keys" in src, "the change speaks the port, never Cypher"
     import mcp_server

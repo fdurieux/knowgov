@@ -92,20 +92,26 @@ def note(st, n: int) -> None:
     _refuse_over(c["written"], c["deleted"], limit, "this load")
 
 
-def preflight(st, loads: list[int]) -> None:
+def preflight(st, loads: list) -> None:
     """Refuse a unit of several wipe-and-load steps (``harness/run.py``: one per scenario) before the
-    first, when the whole unit's forecast does not fit: ``loads`` is each step's statement count. Nothing
-    is noted; each load is still checked as it comes (``note``)."""
+    first, when the whole unit's forecast does not fit: ``loads`` is each step's statement count, or a list
+    of counts, the step's wiped load and then the loads it adds to that graph without a wipe (a stage-2
+    re-load, ``change.unit_loads``; doc-0030 S6). Nothing is noted; each load is still checked as it comes
+    (``note``)."""
     if not enabled() or not loads:
         return
     info = st.transaction_memory() or {}
     limit = info.get("limit")
     if not limit:
         return
-    present, written, deleted = int(info.get("published") or 0), 0, 0
-    for n in loads:
-        deleted, present, written = deleted + present, n, written + n
-    _refuse_over(written, deleted, limit, f"the run's {len(loads)} loads in one unit")
+    present, written, deleted, n_loads = int(info.get("published") or 0), 0, 0, 0
+    for step in loads:
+        first, *added = [step] if isinstance(step, int) else list(step)
+        deleted, present, written = deleted + present, first, written + first
+        for n in added:
+            present, written = present + n, written + n
+        n_loads += 1 + len(added)
+    _refuse_over(written, deleted, limit, f"the run's {n_loads} loads in one unit")
 
 
 def _refuse_over(written: int, deleted: int, limit: dict, what: str) -> None:
@@ -176,12 +182,12 @@ TOTAL_SHARE = 0.7   # dbms.memory.transaction.total.max's default share of the h
 
 
 def sizing(subject) -> dict:
-    """What a subject's loads need, from its documents alone (no store): each scenario's statements, a
-    gate load's forecast (one scenario replacing a published generation of the same size), the whole
-    run's (``harness/run.py``: every scenario in one unit), and the heap whose default 70% holds the larger."""
-    from extract import extract_all
-    from kitio import kit_for
-    per = {sc: statements(extract_all(kit_for(sc), subject.reference_code())) for sc in subject.order}
+    """What a subject's loads need, from its documents alone (no store): each scenario's statements, its
+    stage 2's re-load included, a gate load's forecast (one scenario replacing a published generation of
+    the same size), the whole run's (``harness/run.py``: every scenario in one unit), and the heap whose default 70% holds the larger."""
+    from change import unit_loads
+    steps = dict(zip(subject.order, unit_loads(subject, subject.order)))
+    per = {sc: sum(s) for sc, s in steps.items()}   # a scenario's first load and its stage-2 re-load (doc-0030 S6)
     biggest = max(per.values(), default=0)
     gate = forecast(biggest, biggest)
     w = sum(per.values())

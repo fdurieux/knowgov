@@ -12,6 +12,13 @@ from pathlib import Path
 
 from subject import SUBJECT, ROOT, HERE
 
+
+class DocumentUnreadable(ValueError):
+    """A document its mapper cannot read, or whose statements collide (two fragments at one locator): the
+    message names the document, so a load that fails on it reads as the document's fault, never the store's
+    (doc-0030 I11). ``tools/check_subject.py`` refuses both before a load. Here, in the standard library's
+    reach, so a reader that never extracts catches it without the mappers' libraries."""
+
 # Fixed order: the baseline arm concatenates in this order (pre-registration §7).
 KIT_FILES: list[tuple[str, Path]] = SUBJECT.kit_files
 FAMILY: dict[str, tuple[str, str]] = SUBJECT.families

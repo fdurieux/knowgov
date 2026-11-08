@@ -186,8 +186,9 @@ def block(change: dict, landed: list[dict]) -> dict:
                       "causes": sorted({c.get("node") or c.get("link") for c in k["causes"]})} for k in landed]}
 
 
-def apply(store, landed: list[dict]) -> dict:
-    """Mark the live statements on the landed keys stale and what used them suspect, through the port."""
+def apply(store, landed: list[dict], at: str | None = None) -> dict:
+    """Mark the live statements on the landed keys stale and what used them suspect, through the port;
+    ``at``, the change's instant, is their ``invalidated_at`` (doc-0030 S8)."""
     if not landed:
         return {"invalidated": []}
-    return store.invalidate_keys({k["key"]: "; ".join(k["reasons"]) for k in landed})
+    return store.invalidate_keys({k["key"]: "; ".join(k["reasons"]) for k in landed}, at)

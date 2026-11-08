@@ -64,7 +64,9 @@ cannot write a stale snapshot back over a newer one. A writer takes an exclusive
 `KG_RDFLIB_FILE.lock` before it loads the snapshot it starts from, so a second writer waits (at most
 `KG_RDFLIB_LOCK_TIMEOUT` seconds, default 60, then cannot run) and starts from the first one's
 publication. It publishes only on commit, through a synced temporary file in the same directory and
-an atomic replacement. A failure or an exception publishes nothing and releases the lock. A file that
+an atomic replacement that keeps the file's mode, so a `chmod 600` on `KG_RDFLIB_FILE` stands (a first
+publication is 0644); a writer that changed nothing publishes nothing (task-0205). A failure or an
+exception publishes nothing and releases the lock. A file that
 does not parse is reported and left as it is, never read as an empty store. Supported on POSIX
 filesystems with `flock` (Linux, macOS), on a local disk; a platform without it refuses a writer.
 
@@ -150,7 +152,7 @@ publishes it whole, and a read answers from one published generation or refuses.
 | Writers are serialised from load to publication; no update is lost | `tests/test_store_persistence.py::test_st_04_a_second_writer_waits_for_the_first_and_starts_from_its_publication` |
 | A reader sees the whole old file or the whole new one; a failure keeps the old file | `tests/test_store_persistence.py::test_st_05_a_reader_during_a_publication_gets_the_whole_old_file_or_the_whole_new_one`, `tests/test_store_persistence.py::test_st_06_a_failed_serialisation_sync_or_replacement_keeps_the_previous_file_and_releases_the_lock`, `tests/test_store_persistence.py::test_st_07_a_writer_that_raises_publishes_nothing` |
 | A killed writer leaves the last publication and a recoverable lock; a corrupt file fails explicitly | `tests/test_store_persistence.py::test_st_08_a_writer_killed_before_publication_leaves_the_last_snapshot_and_a_recoverable_lock`, `tests/test_store_persistence.py::test_st_09_a_corrupt_file_fails_explicitly_and_is_never_replaced` |
-| A read answers from one published generation or refuses, on both stores; a half-staged load, a killed or failed publication, racing writers and a recovered lease never show a partial or mixed graph, and an abandoned publication is cleared by a reader once its lease ran out (SNAP-01 to SNAP-08) | CI: `tools/check_snapshots.py` in `harness.yml` (rdflib) and `demo.yml` (Neo4j); `tests/test_store_generations.py::test_a_read_handle_refuses_the_read_after_a_publication_and_never_answers_from_two_generations`, `tests/test_store_generations.py::test_snap_05_a_file_writer_whose_lock_file_was_replaced_publishes_nothing` |
+| A read answers from one published generation or refuses, on both stores; a half-staged load, a killed or failed publication, racing writers and a recovered lease never show a partial or mixed graph, and an abandoned publication is cleared by a reader once its lease ran out; a writer that wrote nothing publishes nothing (SNAP-01 to SNAP-09) | CI: `tools/check_snapshots.py` in `harness.yml` (rdflib) and `demo.yml` (Neo4j); `tests/test_store_generations.py::test_a_read_handle_refuses_the_read_after_a_publication_and_never_answers_from_two_generations`, `tests/test_store_generations.py::test_snap_05_a_file_writer_whose_lock_file_was_replaced_publishes_nothing` |
 
 Because the store holds excerpts, treat it, its volume, `KG_RDFLIB_FILE` and `runs/` as being
 as sensitive as the documents they came from. **Practice:** keep them on the instance's

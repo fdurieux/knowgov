@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import threading
 import time
 import uuid
@@ -346,6 +347,11 @@ def _refuse_taken(st, label: str, nid: str) -> None:
         raise ValueError(DUPLICATE.format(nid=nid))
 
 
+# a statement that may write (doc-0030 S7): a writer's unit publishes only once one ran; its reads share the
+# unit's transaction (they read its own writes) and are rolled back with it when nothing was written
+WRITES = re.compile(r"\b(?:CREATE|MERGE|SET|DELETE|REMOVE|DETACH|FOREACH)\b", re.I)
+
+
 class _Unit:
     """A handle's publication (task-0141.06, decision-0014): for a writer, the lease, the unit's one
     transaction and the sequence lock it publishes under; for a reader, the generation it pinned."""
@@ -355,6 +361,7 @@ class _Unit:
         self.read_mode, self.write_mode = read_mode, write_mode
         self.tx = None                  # the unit's one transaction, begun at its first statement
         self.wipe_pending = False       # a wipe asked before the transaction began, run as its first statement
+        self.dirty = False              # a write statement ran in the unit: only then does it publish (S7)
         self.after_commit: list[str] = []
         self.token, self.epoch, self.lost = None, None, False
         self.beat_stop = threading.Event()
@@ -510,7 +517,7 @@ class _Unit:
         if self.tx is None:
             self.tx = self.session.begin_transaction(metadata={"kg_writer": self.token, "kg_epoch": self.epoch})
             if self.wipe_pending:
-                self.wipe_pending = False
+                self.wipe_pending, self.dirty = False, True
                 self.tx.run(f"MATCH (n) WHERE NOT n:{PUB} DETACH DELETE n").consume()
         return self.tx
 
@@ -519,8 +526,9 @@ class _Unit:
         a writer that lost its lease publishes nothing (StoreFenced)."""
         if self.token is None:
             raise StoreBusy(f"{self.uri}: this writer was closed; it no longer holds the store and cannot publish")
-        if self.tx is None and not self.wipe_pending:
-            return   # nothing written: nothing to publish
+        if not self.dirty and not self.wipe_pending:
+            self.drop()   # nothing written (a writer that only read): nothing to publish, its reads rolled back (S7)
+            return
         tx = self.begin()
         raised = False
         try:
@@ -532,6 +540,7 @@ class _Unit:
             if self.owned(tx, "SET p.end = p.begin") is None:
                 raise StoreFenced(f"{self.uri}: this writer's lease was taken by another; nothing published")
             tx.commit()
+            self.dirty = False
         except BaseException:
             self.drop()
             if raised:   # the unit never committed: close the gap it opened, while this writer still owns the store
@@ -556,7 +565,7 @@ class _Unit:
                 except Exception:  # noqa: BLE001 — a closed connection has rolled it back already
                     pass
             self.tx = None
-        self.wipe_pending = False
+        self.wipe_pending, self.dirty = False, False
 
 
 class Neo4jStore(Store):
@@ -612,6 +621,8 @@ class Neo4jStore(Store):
 
     def run(self, cypher: str, **params):
         if self.access == "write":
+            if WRITES.search(cypher):
+                self._pub.dirty = True
             return self._pub.begin().run(cypher, **params)
         return self._session.run(cypher, **params)
 
@@ -983,18 +994,18 @@ class Neo4jStore(Store):
             MERGE (g)-[:CONCERNS]->(x)
             RETURN count(x) AS n""").single()["n"]
 
-    def invalidate_stale(self, new_tag) -> dict:
+    def invalidate_stale(self, new_tag, at=None) -> dict:
         inv = _rows(self.run("""
             MATCH (x:Assertion)-[:SUPPORTED_BY]->(f:Fragment)<-[:HAS_FRAGMENT]-(old:Version)<-[:HAS_VERSION]-(a:Artefact)-[:CURRENT]->(cur:Version)
             WHERE old <> cur AND x.version <> $tag
             OPTIONAL MATCH (cur)-[:HAS_FRAGMENT]->(nf:Fragment {locator:f.locator})
             WITH x, f, nf WHERE nf IS NULL OR nf.sha256 <> f.sha256
-            SET x.status='invalidated', x.invalidated_at=datetime().epochSeconds, x.invalidated_by=$tag
+            SET x.status='invalidated', x.invalidated_at=$at, x.invalidated_by=$tag
             WITH DISTINCT x
             OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x) SET v.valid_until=$tag
             WITH DISTINCT x
             OPTIONAL MATCH (d:Derived)-[:USED_ASSERTION]->(x) SET d.suspect=true
-            RETURN x.id AS id, x.key AS key, collect(DISTINCT d.id) AS derived""", tag=new_tag))
+            RETURN x.id AS id, x.key AS key, collect(DISTINCT d.id) AS derived""", tag=new_tag, at=at))
         # task-0197 (I5, I6): an older statement with a live successor of the same id stem in the new version
         succ = {stem(r["id"]) for r in self.run("MATCH (y:Assertion {version:$tag}) WHERE NOT y.status IN $dead RETURN y.id AS id",
                                                  tag=new_tag, dead=list(DEAD))}
@@ -1003,12 +1014,12 @@ class Neo4jStore(Store):
         if older:
             inv += _rows(self.run("""
                 UNWIND $ids AS xid MATCH (x:Assertion {id:xid})
-                SET x.status='invalidated', x.invalidated_at=datetime().epochSeconds, x.invalidated_by=$tag
+                SET x.status='invalidated', x.invalidated_at=$at, x.invalidated_by=$tag
                 WITH DISTINCT x
                 OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x) SET v.valid_until=$tag
                 WITH DISTINCT x
                 OPTIONAL MATCH (d:Derived)-[:USED_ASSERTION]->(x) SET d.suspect=true
-                RETURN x.id AS id, x.key AS key, collect(DISTINCT d.id) AS derived""", ids=older, tag=new_tag))
+                RETURN x.id AS id, x.key AS key, collect(DISTINCT d.id) AS derived""", ids=older, tag=new_tag, at=at))
         kept = _rows(self.run("""
             MATCH (x:Assertion)-[:SUPPORTED_BY]->(f:Fragment)<-[:HAS_FRAGMENT]-(old:Version)<-[:HAS_VERSION]-(a:Artefact)-[:CURRENT]->(cur:Version)
             WHERE old <> cur AND x.version <> $tag AND x.status <> 'invalidated'
@@ -1022,17 +1033,17 @@ class Neo4jStore(Store):
             RETURN g.id AS id ORDER BY g.id""", inv=[r["id"] for r in inv], dead=list(DEAD), tag=new_tag)]
         return {"invalidated": inv, "kept": kept, **({"withdrawn": withdrawn} if withdrawn else {})}
 
-    def invalidate_keys(self, reasons) -> dict:
+    def invalidate_keys(self, reasons, at=None) -> dict:
         inv = _rows(self.run("""
             UNWIND $pairs AS p
             MATCH (x:Assertion {key:p.key}) WHERE x.status IN ['proposed','validated','verified','approved','disputed']
-            SET x.status='invalidated', x.invalidated_at=datetime().epochSeconds, x.invalidated_by=p.reason
+            SET x.status='invalidated', x.invalidated_at=$at, x.invalidated_by=p.reason
             WITH x, p
             OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x) SET v.valid_until=p.reason
             WITH DISTINCT x
             OPTIONAL MATCH (d:Derived)-[:USED_ASSERTION]->(x) SET d.suspect=true
             RETURN x.id AS id, x.key AS key, collect(DISTINCT d.id) AS derived""",
-            pairs=[{"key": k, "reason": r} for k, r in sorted(reasons.items())]))
+            pairs=[{"key": k, "reason": r} for k, r in sorted(reasons.items())], at=at))
         return {"invalidated": sorted(({**r, "derived": sorted(d for d in r["derived"] if d)} for r in inv), key=lambda r: r["id"])}
 
     # ---- the gate

@@ -532,6 +532,7 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
     """The gate on one store handle: read as it is (``--no-load``), loaded into the scratch store, or
     loaded into the configured store and published (``--publish``)."""
     import load_memory
+    from kitio import DocumentUnreadable
     from store import StoreChanged
     from tasks import TASKS
     change = None
@@ -562,6 +563,8 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
         raise
     except load_memory.LoadTooLarge as e:   # task-0176: refused before the unit's first write; nothing published
         raise CannotRun(str(e)) from e
+    except DocumentUnreadable as e:   # doc-0030 I11: the document's fault, named, never the store's
+        raise CannotRun(f"a document cannot be loaded: {e}") from e
     except Exception as e:  # noqa: BLE001 — an unreachable store fails here, on the first statement
         raise CannotRun(f"the store did not answer: {type(e).__name__}: {e}") from e
 
@@ -645,7 +648,8 @@ def _register_change(st, subject, scenario: str, change: dict, previous: Path) -
                 ids = [a["id"] for v in resolve(st, "codegen")["keys"].values() for a in v["assertions"]] if "codegen" in TASKS else []
                 st.register_derived(did, d.get("kind", "artefact"), sha256(path.read_text(encoding="utf-8")), ids)
                 break
-    done = rc.apply(st, landed)
+    from load import now
+    done = rc.apply(st, landed, at=now())   # invalidated_at: the instant of this change (doc-0030 S8)
     return {**rc.block(change, landed), "invalidated": [x["id"] for x in done["invalidated"]], "derived": did}
 
 

@@ -31,8 +31,7 @@ import agent
 from load import PROV, load_captures, load_inferred, load_reviews, load_scenario, load_verifications, pristine_values
 from store import open_store
 import load_memory
-from extract import extract_all
-from change import apply_change, reverify
+from change import apply_change, reverify, unit_loads
 from plant import INFERRED
 from rules import census, run_all
 from subject import HERE as HARNESS, ROOT, SUBJECT
@@ -280,7 +279,7 @@ def main() -> None:
     summary = {}
     try:
         # before the first load and the first model call: the whole run is one unit (task-0176)
-        load_memory.preflight(d, [load_memory.statements(extract_all(kit_for(sc), SUBJECT.reference_code())) for sc in args.scenarios])
+        load_memory.preflight(d, unit_loads(SUBJECT, args.scenarios))   # each scenario's loads, its stage 2's too (doc-0030 S6)
         _run_all(args, d, pv, as_of, out_root, summary)
     except load_memory.LoadTooLarge as e:   # task-0176: refused before the unit's first write; nothing published
         d.close()

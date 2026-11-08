@@ -167,6 +167,7 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
     added = {p.get("path") for stage in ("plant", "stage2") for ps in plants.get(stage, {}).values()
              for p in ps if p.get("op") == "add"}
     seen: set[str] = set()
+    shorts: dict[str, str] = {}
     for i, a in enumerate(m.get("artefact", [])):
         where = f"[[artefact]] #{i + 1}" + (f" {a['key']}" if isinstance(a.get("key"), str) else "")
         _fields(rep, where, a, ARTEFACT_FIELDS)
@@ -178,6 +179,13 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
             if key in seen:
                 rep.error("duplicate", where, f"key {key!r} is declared twice", "give each artefact its own key")
             seen.add(key)
+        sh = a.get("short")
+        if isinstance(sh, str) and sh:   # I11: the load attributes a bag to its artefact by short
+            if sh in shorts:
+                rep.error("duplicate", where, f"short {sh!r} is {shorts[sh]}'s too: the load cannot tell their statements apart",
+                          "give each artefact its own short (the file's stem, unique in the subject)")
+            else:
+                shorts[sh] = str(key)
         mapper = a.get("mapper")
         if mapper and not a.get("short"):   # G5: extract.short() indexes it; without it the load is a KeyError
             stem = Path(str(a.get("path") or key or "doc")).name.split(".")[0] or "doc"
@@ -390,7 +398,7 @@ def yield_only(root: Path) -> dict:
         code = SUBJECT.reference_code()
     except (OSError, StopIteration, KeyError):
         code = ""
-    arts, failed, claims, authored, missing_mod = {}, {}, {}, [], None
+    arts, failed, claims, authored, dups, missing_mod = {}, {}, {}, [], {}, None
     for key, p in SUBJECT.kit_files:
         mapper = SUBJECT.mappers.get(key)
         if not mapper or not p.exists() or key not in SUBJECT.shorts:   # no short: refused by the manifest check (G5)
@@ -407,10 +415,13 @@ def yield_only(root: Path) -> dict:
         except Exception as e:  # noqa: BLE001 — a mapper that cannot read its document is the finding
             failed[key] = f"{type(e).__name__}: {e}"
             continue
+        if dup := extract.duplicate_locators(bag):   # I11: a duplicated row, which the load refuses
+            dups[key] = dup
         arts[key] = sorted({f"{a['entity']}|{a['predicate']}" for a in bag.assertions})
         if any(a.get("basis") == "authored" for a in bag.assertions):
             authored.append(key)
-    out = {"state": "checked", "why": None, "artefacts": arts, "failed": failed, "claims": claims, "authored": authored}
+    out = {"state": "checked", "why": None, "artefacts": arts, "failed": failed, "claims": claims, "authored": authored,
+           "duplicate_locators": dups}
     if missing_mod:
         out["why"] = f"some mappers need {missing_mod}, which is not installed here; their artefacts are unchecked"
     return out
@@ -443,6 +454,10 @@ def check_yield(rep: Report, m: dict, root: Path) -> dict:
     for key, why in sorted(y.get("failed", {}).items()):
         rep.error("mapper-failed", f"[[artefact]] {key}", f"its mapper cannot read it: {why}; the load fails on it",
                   "fix the document, or give the artefact the mapper of its convention (instance/kinds.toml)")
+    for key, dup in sorted(y.get("duplicate_locators", {}).items()):   # doc-0030 I11
+        rep.error("duplicate", f"[[artefact]] {key}",
+                  f"{len(dup)} locator(s) appear twice ({', '.join(dup[:5])}): a duplicated row, so the load would write one "
+                  "fragment twice and fails on it", "remove or renumber the duplicated row, so each statement's evidence has its own place")
     for key, why in sorted(y.get("claims", {}).items()):   # task-0214, decision-0018 point 3
         rep.error("claim", f"[[artefact]] {key}", f"{why}; the load fails on it rather than guess what the statement is",
                   "write observed, inferred or intended, or leave the claim out so the statement loads as before "

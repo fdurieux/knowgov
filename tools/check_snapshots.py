@@ -1,4 +1,4 @@
-"""Store generations, proven on a real store (task-0141.06, decision-0014): SNAP-01..SNAP-08.
+"""Store generations, proven on a real store (task-0141.06, decision-0014): SNAP-01..SNAP-09.
 
     python tools/check_snapshots.py --disposable                 # KG_STORE=neo4j: the database it names
     KG_STORE=rdflib python tools/check_snapshots.py --disposable  # a file-backed store in a temporary folder
@@ -30,6 +30,9 @@ read together: the held scenario, the census, the register's census and the gate
            read answers the last committed generation with no new writer, the reader having cleared
            the begin under the sequence lock and recorded the abandoning writer; the clearing and a
            writer taking the lease, in either order or racing, never both act and never lose the writer
+  SNAP-09  a writer that only read publishes nothing (doc-0030 S7): the generation and the store's file
+           are those it found, and its readers keep their snapshot; on rdflib a publication keeps the
+           file's mode, an operator's ``chmod 600`` included (S3)
 
 Exit 0 when every check holds, 1 otherwise. No model is called; the clock is pinned.
 """
@@ -133,6 +136,32 @@ def mcp_verdict() -> str | None:
     t = mcp_server.Tools(as_of="record")
     out = t.call("gate_verdict", {"task": "codegen"}) if hasattr(t, "call") else t.gate_verdict({"task": "codegen"})
     return out.get("verdict") if isinstance(out, dict) else None
+
+
+def _generation():
+    """What a publication moves: the file's identity on rdflib (an atomic replace is a new inode), the
+    counter on Neo4j. A writer's lease moves the epoch, which publishes nothing, so it is left out."""
+    if kind() == "rdflib":
+        st = os.stat(os.environ["KG_RDFLIB_FILE"])
+        return (st.st_ino, st.st_mtime_ns, st.st_size)
+    p = _pub()
+    return (p.get("begin"), p.get("end"))
+
+
+def snap_09(s1: str, g1: dict) -> None:
+    before = _generation()
+    with opener("write") as st:   # a unit of work that ends cleanly: committed, and it wrote nothing
+        got = snapshot(st)
+    check(got == g1, f"SNAP-09 a writer reads the published generation: {got}")
+    check(_generation() == before, "SNAP-09 a writer that only read publishes nothing: the generation is the one it found")
+    check(read_now() == g1, "SNAP-09 a reader then reads the same generation")
+    if kind() == "rdflib":
+        path = os.environ["KG_RDFLIB_FILE"]
+        os.chmod(path, 0o600)
+        publish(s1)
+        mode = os.stat(path).st_mode & 0o777
+        check(mode == 0o600 and _generation() != before, f"SNAP-09 a publication keeps the file's mode, an operator's chmod 600: {oct(mode)}")
+        os.chmod(path, 0o644)
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -660,6 +689,8 @@ def main() -> int:
     snap_06(s1, s2, g1, g2)
     snap_07(round_trip=not args.no_round_trip)
     snap_08(s1, s2, g1)
+    publish(s1)
+    snap_09(s1, g1)
     print(f"snapshots ({kind()}): " + ("every check holds" if not FAILURES else f"{len(FAILURES)} failure(s)"))
     if tmp:
         tmp.cleanup()
