@@ -81,3 +81,48 @@ The mixed scheme, the drafter's recommendation, which the maintainer took:
 - **The CHANGELOG** names it under Unreleased › Contract changes.
 - **`instance/README.md`** documents the key in the adopter register.
 - **doc-0028** G9-2 reads met once task-0174 merges.
+
+## Amendment A1 (2026-11-08): a missing version reads as version 1, in every release
+
+*Taken by the coordinating session under the maintainer's overnight delegation (2026-11-08: "continue working autonomously … before you make the call that I am needed, perform a swot, fit/gap, opportunity, and if you cannot call a clear decision then, park it for me to review"). Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0` (its D1). It changes what this record chooses, so it carries the four parts.*
+
+**What changes.** The Decision's fourth bullet, "A missing version reads as the current one until 1.0", becomes **"A missing version reads as version 1, in every release."** At 0.9.0 every input's current version is 1, so no reader's behaviour changes now. When an input moves to version 2, a file that names no version is still read as 1, the version it was written under. It is never reinterpreted as 2. The rest of the Decision stands: a higher version is refused with exit 2, naming the file and both versions, and a lower one is read.
+
+**Why.** "Until 1.0" schedules a change of meaning at 1.0.0. decision-0016 point 4 cuts 1.0.0 only once the lighthouse has run on the 0.9 contracts with no contract change, and point 2 makes any contract change after 0.9.0 a 0.10.0 that restarts the freeze. As written, 1.0.0 would either break point 4 or leave the rule undefined.
+
+### Opportunity canvas
+
+| Element | Content |
+|---|---|
+| Problem | The read rule for an unstamped file expires at the release that must not change a contract |
+| Users | Every instance whose files predate task-0174, the lighthouse's first; the readers in `harness/formats.py` |
+| Proposal | A missing version is version 1, permanently |
+| Unique value | An old file's meaning is fixed for good. No reader reinterprets it when a format moves |
+| Cost | One constant held apart from `CURRENT` in `harness/formats.py`; the "Format versions" text and the contracts row in `instance/README.md`; the CHANGELOG line (Unreleased, task-0174's); one test that moves `CURRENT` to 2 |
+| Risk | None at 0.9; at a version 2, an unstamped file written for 2 would be misread, which every writer stamping its output prevents (requirement 5 above) |
+
+### Fit/gap
+
+| Must satisfy | Reads as 1 | Refused from 0.9.0 | Refused from 1.0.0 |
+|---|---|---|---|
+| decision-0016 point 4: no contract change from 0.9.0 to 1.0.0 | Fit | Fit | **Gap**: a change at 1.0.0 |
+| No adopter file breaks at the freeze | Fit | **Gap**: every unstamped file refused at 0.9.0 | Fit until 1.0.0 |
+| A record keeps the version it was written under | Fit: an unstamped record is fixed at 1 | Fit | Fit |
+| task-0174 §2 requirement 1 (missing reads current until 1.0) | Fit: current is 1 through 0.9.x | Gap | Fit |
+
+### SWOT (of "reads as 1")
+
+| | Helpful | Harmful |
+|---|---|---|
+| **Internal** | **S:** the meaning of old input is fixed forever; no behaviour change now; one constant | **W:** unstamped files persist, and a reader cannot tell "written before versions" from "written at 1" |
+| **External** | **O:** a format 2 needs no migration for unstamped files | **T:** a future writer that forgets to stamp, which the writers' tests catch |
+
+### Advice
+
+"Reads as 1". It is the only option that keeps both accepted decisions and breaks no adopter's file, and it costs one constant and a test. That makes the call clear, so it is taken under the delegation. The maintainer can reverse it before publishing the 0.9.0 Release.
+
+### Consequences
+
+- **task-0236** builds it. `harness/formats.py` reads a missing version as 1, and a test moves `CURRENT` to 2 and still reads an unstamped file as 1.
+- `instance/README.md` ("Format versions" and the contracts row) and the CHANGELOG's task-0174 line drop "until 1.0".
+- doc-0028 G9-2 stays met.
