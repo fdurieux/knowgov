@@ -502,6 +502,15 @@ class Store:
 
     ATTESTATION_FIELDS = ("declaration", "bound", "attester", "unattested")
 
+    def withdraw_construction(self, artefacts: list[str]) -> int:
+        """decision-0019: "An unlisted Version is not attested: its authored statements read proposed, and nothing in
+        it is approved by construction." Take back, from every statement of ``artefacts`` (their current Version
+        unlisted), the review by construction (``ver:review:<id>``) and the approval by construction
+        (``appr:<id>``) an earlier load gave it, changed or not; a person's ruling and a re-verification stay. A
+        statement left with no approval reads verified when a verification remains, else proposed. Returns how many
+        statements changed (task-0221: stage 2 then reads as a fresh load of the later documents)."""
+        raise NotImplementedError
+
     def record_attestation(self, row: dict) -> None:
         """Keep how the load read a ``[verification]`` declaration (decision-0019, task-0221), ``row`` of id
         ``attest:authored`` or ``attest:approval``: ``bound`` (it lists Versions) and, as JSON text in ``unattested``,

@@ -1017,6 +1017,27 @@ class RdflibStore(Store):
     def record_act_finding(self, row) -> None:
         self.merge_node(row["id"], "ActFinding", props={k: row[k] for k in self.ACT_FIELDS})
 
+    def withdraw_construction(self, artefacts) -> int:
+        n = 0
+        for x in list(self.nodes("Assertion")):
+            if self.prop(x, "artefact") not in artefacts:
+                continue
+            xid, hit = self.nid(x), False
+            for nid in (f"ver:review:{xid}", f"appr:{xid}"):
+                node = self._nodes.get(nid)
+                if node is not None:
+                    self.delete_node(node)
+                    hit = True
+            if not hit or self.prop(x, "status") not in ("approved", "verified"):
+                continue
+            aps = [a for a in self.inn(x, "APPROVES") if self.has_label(a, "Approval")]
+            vs = [v for v in self.inn(x, "VERIFIES") if self.has_label(v, "Verification")]
+            status = "approved" if aps else "verified" if vs else "proposed"
+            if status != self.prop(x, "status"):
+                self.set_props(x, {"status": status})
+                n += 1
+        return n
+
     def record_attestation(self, row) -> None:
         a = self.node(row["attester"], "Agent")
         if a is not None:

@@ -254,6 +254,14 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
     for mark in marks:   # a bound declaration only: the read rule's is the manifest's own (gate.attestation_behind), so its store is as before
         if mark["bound"]:
             st.record_attestation(mark)
+    # decision-0019, quoted: "An unlisted Version is not attested: its authored statements read proposed, and nothing in
+    # it is approved by construction." An earlier load (stage 1) may have attested what this Version's statements were,
+    # changed or not: take it back, then corroborate and mark the unverified as a fresh load of these documents does
+    unlisted = sorted({u["artefact"] for m in marks if m["bound"] for u in json.loads(m["unattested"])})
+    if unlisted and st.withdraw_construction(unlisted):
+        from rules import r_corroborate, r_unverified
+        r_corroborate(st)
+        r_unverified(st)
     # decision-0005: every review falls due after its key's review months; the date is the verification's
     # valid_until, which the gate reads as of a date (harness/cadence.py). Not counted: the record's counts stand.
     import cadence

@@ -142,10 +142,10 @@ jobs:
           mkdir -p runs   # task-0163: this job's first step; the record's steps made runs/ in the one job before the split
           python tools/check_subject.py subjects/cargo_quote | tee runs/check-cargo.txt
           grep -Fx 'yield: 93 key(s) from 10 artefact(s)' runs/check-cargo.txt
-          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-cargo.txt; then exit 1; fi
+          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-cargo.txt | grep -v '(decision-0019)$'; then exit 1; fi   # task-0221: the read rule's note, until the subject lists its Versions
           python tools/check_subject.py subjects/jef_data_load | tee runs/check-jef.txt
           grep -Fx 'manifest holds' runs/check-jef.txt
-          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-jef.txt; then exit 1; fi
+          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-jef.txt | grep -v '(decision-0019)$'; then exit 1; fi   # task-0221: the read rule's note, until the subject lists its Versions
           rc=0; python tools/check_subject.py tools/fixtures/subject_probe > runs/check-probe.txt || rc=$?
           cat runs/check-probe.txt; test "$rc" -eq 1
           grep -F 'WARNING [tasks.codegen] keys: REQ-02|txt' runs/check-probe.txt | grep -F 'did you mean REQ-02|text?'

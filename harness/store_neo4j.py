@@ -1156,6 +1156,20 @@ class Neo4jStore(Store):
     def record_act_finding(self, row) -> None:
         self.run("MERGE (a:ActFinding {id:$id}) SET a += $props", id=row["id"], props={k: row[k] for k in self.ACT_FIELDS}).consume()
 
+    def withdraw_construction(self, artefacts) -> int:
+        self.run("""
+            MATCH (x:Assertion) WHERE x.artefact IN $arts
+            OPTIONAL MATCH (v:Verification {id:'ver:review:' + x.id}) DETACH DELETE v""", arts=list(artefacts)).consume()
+        self.run("""
+            MATCH (x:Assertion) WHERE x.artefact IN $arts
+            OPTIONAL MATCH (ap:Approval {id:'appr:' + x.id}) DETACH DELETE ap""", arts=list(artefacts)).consume()
+        return self.run("""
+            MATCH (x:Assertion) WHERE x.artefact IN $arts AND x.status IN ['approved', 'verified']
+            OPTIONAL MATCH (a:Approval)-[:APPROVES]->(x) WITH x, count(a) AS aps
+            OPTIONAL MATCH (v:Verification)-[:VERIFIES]->(x) WITH x, aps, count(v) AS vs
+            WITH x, CASE WHEN aps > 0 THEN 'approved' WHEN vs > 0 THEN 'verified' ELSE 'proposed' END AS status
+            WHERE status <> x.status SET x.status = status RETURN count(x) AS n""", arts=list(artefacts)).single()["n"]
+
     def record_attestation(self, row) -> None:   # on the attester's Agent node, never a node of its own (store.py)
         self.run("MATCH (a:Agent {id:$aid}) SET a += $props", aid=row["attester"],
                  props={f"attestation_{row['declaration']}": json.dumps({k: row[k] for k in ("id", *self.ATTESTATION_FIELDS)}, sort_keys=True)}).consume()
