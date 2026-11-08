@@ -46,7 +46,9 @@ With a baseline the gate ratchets instead: exit 1 only on a regression, a verdic
 baseline's, a required key at a lower level than the baseline's, or a derived output suspect that
 the baseline did not hold suspect. ``--baseline record`` is the
 subject's record for the same scenario (its deterministic run; the record's gate is the codegen
-task); ``--baseline FILE`` is an earlier report of this command or a deterministic.json. The gate
+task, read at stage 1: ``--stage 2 --baseline record`` exits 2, since the record keeps stage 2's
+verdicts, not its keys' levels, task-0209); ``--baseline FILE`` is an earlier report of this command
+(at stage 2, a stage-2 report) or a deterministic.json. The gate
 never writes a baseline: recording one is a separate, deliberate act (``-o``, then commit it).
 
 A capture (harness/capture.py) does not trip the ratchet by agreeing (decision-0004): a person's
@@ -492,6 +494,9 @@ def run(args) -> dict:
     cfg2 = SUBJECT.scenario(scenario).get("stage2") if args.stage == 2 else None
     if args.stage == 2 and not cfg2:
         raise CannotRun(f"{SUBJECT.id}: {scenario} has no later version (no [scenario.stage2])")
+    if args.stage == 2 and args.baseline == "record":   # task-0209, doc-0030 G9
+        raise CannotRun("--baseline record compares with stage 1: the record keeps stage 2's verdicts, not its keys' "
+                        "levels; for stage 2, pass --baseline FILE, an earlier stage-2 report of this command")
     base = _baseline(args.baseline, SUBJECT, scenario, args.task)
     import cadence
     try:
@@ -704,7 +709,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--scenario", help="the scenario to load (default: the subject's first)")
     ap.add_argument("--task", default="codegen", help="the task class (default: codegen)")
     ap.add_argument("--fail-on", choices=SEVERITIES, default="blocker", help="the severity at or above which the gate exits 1 (default: blocker)")
-    ap.add_argument("--baseline", default="none", help="none (default), record, or the path of an earlier report or deterministic.json: exit 1 only on a regression")
+    ap.add_argument("--baseline", default="none", help="none (default), record (stage 1 only), or the path of an earlier report or deterministic.json: exit 1 only on a regression")
     ap.add_argument("--stage", type=int, choices=[1, 2], default=1,
                     help="1 (default): the scenario as first loaded; 2: then its later version, the subject's [scenario.stage2] change, before re-verification")
     ap.add_argument("--reverify", action="store_true", help="with --stage 2: the owner's recorded re-verification of the named keys before the gate")

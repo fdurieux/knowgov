@@ -68,17 +68,18 @@ def _read(subject, root: Path) -> tuple[tuple[dict[str, int], int], dict[str, st
                 kinds[n["id"]] = n["kind"]
     out, which = {}, {}
     for row in subject.register_map().get("row", []):
-        # (months, unnamed, kind) per node, the kind blank where the register names no months for it: the
-        # shortest months win, and on a tie the kind the register names months for, which the page shows
-        months = sorted((by_kind[k], 0, k) if (k := kinds.get(n, "")) in by_kind else (default, 1, "") for n in row.get("nodes", []))
-        out[row["key"]] = months[0][0] if months else default
-        if months and months[0][2]:
-            which[row["key"]] = months[0][2]
+        # decision-0005 point 2: the shortest months among the kinds the register names months for, else the
+        # default; a node whose kind it names none for never mixes the default in (task-0209, doc-0030 G11)
+        named = sorted((by_kind[k], k) for n in row.get("nodes", []) if (k := kinds.get(n, "")) in by_kind)
+        out[row["key"]] = named[0][0] if named else default
+        if named:
+            which[row["key"]] = named[0][1]
     return (out, default), which
 
 
 def months_for(key: str, subject=None) -> int:
-    """The review months of the key: the shortest among its register nodes' kinds, else the default."""
+    """The review months of the key: the shortest among the kinds of its register nodes that the register
+    names months for, else the default (decision-0005 point 2)."""
     by_key, default = cadence(subject)
     return by_key.get(key, default)
 
