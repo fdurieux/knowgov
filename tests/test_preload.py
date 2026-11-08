@@ -302,6 +302,31 @@ def test_the_json_report_round_trips_through_the_command():
         assert rep["tool"] == "knowgov preload check" and rep["schema_version"] == 1
 
 
+
+def test_an_unwritable_output_or_any_failure_to_run_exits_2_through_the_outcomes():
+    """task-0228 (doc-0030 F6): -o's write failing is cannot-run, exit 2 with one line and no report; the
+    command's entry goes through _outcomes.run, so KG_OUTCOMES records it, and anything else that escapes
+    main is exit 2 too, never 1 (the finding's code)."""
+    import os
+    import subprocess
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "inst"
+        example_instance.build(out)
+        bad = Path(td) / "no-such-dir" / "r.json"
+        with _Standin(Path(td)):
+            assert preload_check.main([str(out), "-f", "json", "-o", str(bad), "--changed", "artefacts/textual-requirements/requirements.md"]) == 2
+        log = Path(td) / "outcomes.jsonl"
+        env = {**os.environ, "KG_OUTCOMES": str(log)}
+        env.pop("KG_TRACEBACK", None)
+        p = subprocess.run([sys.executable, str(ROOT / "tools" / "preload_check.py"), str(out), "-o", str(bad),
+                            "--changed", "artefacts/textual-requirements/requirements.md"], capture_output=True, text=True, env=env, timeout=120)
+        assert p.returncode == 2 and "cannot run: -o" in p.stderr and "Traceback" not in p.stderr and not p.stdout, (p.returncode, p.stderr)
+        row = json.loads(log.read_text(encoding="utf-8").splitlines()[-1])
+        assert row["tool"] == "preload_check.py" and row["exit"] == 2 and row["outcome"] == "cannot run", row
+        src = (ROOT / "tools" / "preload_check.py").read_text(encoding="utf-8")
+        assert 'sys.exit(_outcomes.run(lambda: cli_exit.run(main, "preload check")))' in src
+
+
 def test_a_baseline_holds_what_it_recorded_and_fails_only_on_a_regression():
     """task-0065: an earlier report (-o) as --baseline. Held findings are listed and pass; a new finding,
     or one at a worse severity, fails; the command never writes the baseline; a file that is not a

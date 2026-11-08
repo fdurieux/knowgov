@@ -334,6 +334,10 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **`tools/preload_check.py` exits 2 when it cannot write `-o`** (task-0228, doc-0030 F6). An unwritable
+  report path (a missing folder) exited 1, the finding's code, with a traceback; it is now a failure to run,
+  exit 2, one `cannot run: -o ...` line and no report. The command exits through the check tools' outcomes
+  wrapper, so `KG_OUTCOMES` records its runs, and any other failure escaping it is exit 2 as well.
 - **The Claude Code hooks close two gaps** (task-0204, doc-0030 P2, P4). `knowgov_hook.py` reads git from the
   command's tokens, so `/usr/bin/git push`, `git -C dir push` and `bash -c 'git push'` are the push
   transition, and a commit whose own command stages or names a spec file (`git add spec.md && git commit`,
