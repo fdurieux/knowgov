@@ -1,11 +1,11 @@
 ---
 id: TASK-0233
 title: Probe whether a hostile job can outlast the worker's reaper
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-08T20:55:00Z'
-updated_date: '2026-11-08T21:17:00Z'
+updated_date: '2026-11-08T21:39:00Z'
 labels:
   - worker
   - containment
@@ -23,9 +23,9 @@ The containment question behind EXEC-11 (task-0232): can a job's processes outla
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The hostile job is run in the emulated container, with the outcome measured from outside the namespace over several lifetimes and with and without a new session per generation
-- [ ] #2 If the reaper can be outlasted, the fix is proposed under DECIDE with what the worker container would need for each option, before any change
-- [ ] #3 If it cannot, the probe is the next EXEC check in tools/check_worker.py, run by the stack
+- [x] #1 The hostile job is run in the emulated container, with the outcome measured from outside the namespace over several lifetimes and with and without a new session per generation
+- [x] #2 If the reaper can be outlasted, the fix is proposed under DECIDE with what the worker container would need for each option, before any change
+- [x] #3 If it cannot, the probe is the next EXEC check in tools/check_worker.py, run by the stack
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -35,4 +35,17 @@ Probe (main 615fa36, the container emulated: the worker as pid 1 of its own pid 
 - idle machine: 0 of 160 (life 0, 1, 3, 10 ms, with and without setsid per generation) and 0 of 40 (a branching swarm, life 0 and 1 ms);
 - under load (6 busy loops on 4 cores): 1 of 260 jobs left a chain alive, 121 pids/s, life 1 ms with setsid per generation; the job took 0.5 s, so the reaper returned early, not at REAP_S.
 Cause: _reap_orphans returns at the first /proc scan with no live descendant, and a /proc listing is no snapshot: a member that forks and exits between the listing and its read leaves a child never listed. Options sent to the coordinator under DECIDE before any change: (A) quiescence by the namespace's ns_last_pid around an empty scan, (A') fail closed at REAP_S, (B) cgroup.kill, (C) freeze then kill, (D) a pid namespace per job; B to D change decision-0012/0015's container settings.
+
+Fix (A), the coordinator's call, no container change: _reap_orphans takes an empty scan only when the pid namespace's counter (/proc/sys/kernel/ns_last_pid, read by the worker as its namespace's pid 1, no privilege) did not move across it; elsewhere QUIET_SCANS (5) empty scans in a row, the weaker test-path rule stated in docs/security.md. (A') in its own commit, held for the maintainer: past REAP_S the reaper raises ReapIncomplete and the worker stops serving (the job a failed cell, the attestation withdrawn, exit 4).
+Evidence:
+- tests/test_reaper_quiescence.py: a scan made to miss a listed process (deterministic) and a namespace counter that moved across an empty scan; both fail on main 44ef5c8 (the reaper returned after one scan, the process alive), pass here; plus the counter rule's guard and (A')'s test.
+- The emulated container under load (6 busy loops on 4 cores): main's reaper let 1 of 260 hostile chains outlive its job; this one 0 of 260 (life 0, 1, 1, 2 ms, setsid per generation).
+- EXEC-14 (tools/check_worker.py, the stack): five hostile chains, the next job's witness the namespace's pid counter (at most 5 pids in the second after) and no marked process, and the worker its namespace's init; holds in the emulated container. NSpid was first used to detect the namespace and is wrong under a /proc mounted inside it (it shows one level, as Docker's does): the worker being pid 1 is the test.
+- run_tests: no yaml 823/878 (55 skipped), pins 877/878 (1 skipped), 0 failed.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+A hostile job could outlast the worker's reaper: _reap_orphans returned at the first /proc scan with no live descendant, and a listing is no snapshot, so under load a fast fork chain slipped between a listing and its reads (1 of 260 hostile jobs in the emulated container). Now, in its container (the init of its own pid namespace), the reaper takes an empty scan only when the namespace's pid counter did not move across it, which closes the race; on a host it takes five empty scans in a row. EXEC-14 runs the hostile chain against the real worker container. (A'), the worker stopping at the bound, is a separate commit held for the maintainer; (B) to (D), cgroup and namespace options that change decision-0012/0015's container settings, go to the maintainer as a 1.0 question.
+<!-- SECTION:FINAL_SUMMARY:END -->
