@@ -80,3 +80,16 @@ def test_the_check_holds_on_rdflib():
 def test_ci_runs_it_on_both_stores():
     assert f"KG_STORE=rdflib python {TOOL} runs/attestation-binding" in (ROOT / ".github" / "workflows" / "harness.yml").read_text(encoding="utf-8")
     assert f"python {TOOL} runs/attestation-binding" in (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
+
+
+def test_stage_two_takes_back_the_construction_acts_of_an_unlisted_version():
+    """decision-0019: "An unlisted Version is not attested: its authored statements read proposed, and nothing in it is
+    approved by construction" -- the unchanged statements of a changed Version too (the coordinator's (a), 2026-11-08)."""
+    src = (ROOT / "harness" / "load.py").read_text(encoding="utf-8")
+    assert "st.withdraw_construction(unlisted)" in src and "r_corroborate(st)" in src
+    for name in ("store_rdflib.py", "store_neo4j.py"):
+        a = (ROOT / "harness" / name).read_text(encoding="utf-8")
+        body = a[a.index("def withdraw_construction(self, artefacts)"):][:1500]
+        assert "ver:review:" in body and "appr:" in body, name
+    import store
+    assert "withdraw_construction" not in store.READS
