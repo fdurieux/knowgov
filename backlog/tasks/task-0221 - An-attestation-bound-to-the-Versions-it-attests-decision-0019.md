@@ -1,11 +1,11 @@
 ---
 id: TASK-0221
 title: An attestation bound to the Versions it attests (decision-0019)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-08T11:18:00Z'
-updated_date: '2026-11-08T12:25:00Z'
+updated_date: '2026-11-08T13:06:00Z'
 labels:
   - attestation
   - contract
@@ -35,7 +35,7 @@ decision-0019 (the maintainer, 2026-11-08: Build it in 0.9; decision-0009 option
 - [x] #4 A probe shows an edited, unlisted Version reading proposed on rdflib and Neo4j, and failing on the old code
 - [x] #5 CHANGELOG.md carries the line under Unreleased's contract heading, with the read rule
 - [x] #6 The scored record (S1 to S7), the deterministic run and the comparator stay equal
-- [ ] #7 A second pull request lists cargo_quote's and jef_data_load's attested Versions with S6's measured effect, held for the maintainer's approval
+- [x] #7 A second pull request lists cargo_quote's and jef_data_load's attested Versions with S6's measured effect, held for the maintainer's approval
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -48,4 +48,12 @@ load.attested_artefacts reads [verification] authored and approval versions (raw
 
 <!-- SECTION:NOTES:BEGIN -->
 Severity: an unattested Version behind the task's keys is major (its authored statements read proposed and nothing in it is approved by construction, so the keys behind it fall below verified, and the attester or the keys' owner has to act); a declaration without versions is info. The read rule writes nothing to the store (a declaration without versions is read from the manifest by gate.attestation_behind), and the record's D6_gate leaves the attestation entry out (run.gate_summary), so the record S1-S7 and J-F is unchanged. A test's verification of an unattested Version still counts: the probe's edited table reads verified, not proposed, on its execution-verified statements; its authored statements read proposed. AC 7: the held pull request, claude/task-0221-public-digests.
+
+AC 7, the maintainer's approval, 2026-11-08 (relayed by the coordinator, ~13:0x UTC): "list the planted texts too on #355". #355 lists, for cargo_quote and jef_data_load, every artefact Version the scenarios load: the documents as vendored at pumllint v0.35.0 (be737dd, 2026-11-02) and every planted text, stage 1 and stage 2 (cargo_quote 23 digests, jef_data_load 89, a directory's by its files). The at dates and the [provenance] attester are unchanged: the listing records what the maintainer has approved and does not re-date the attestation. Measured: the comparator reads S1-S7 and J-F identical. To keep the census equal, an attestation's reading is kept on the attester's Agent node, not a node of its own (in #354).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+An attestation is bound to the Versions it attests (decision-0019). [verification] authored and approval list in versions the digest of each artefact Version they attest (raw-byte SHA-256, task-0160; a directory's file digests, task-0094); an unlisted Version's authored statements read proposed and nothing in it is approved by construction, on both stores. The gate's attestation finding names each unattested Version behind the keys (major) with the owner's route from capture.routing, and a declaration without a list at info (the read rule). check_subject refuses a digest of no Version and notes an unbound declaration, naming decision-0019. tools/check_attestation_binding.py fails 6 checks on the old code and holds on rdflib and Neo4j. On the maintainer's approval of 2026-11-08 (planted texts listed), cargo_quote and jef_data_load list every Version their scenarios load, as vendored at pumllint v0.35.0 and as planted, with their at dates unchanged; the scored record S1-S7 and J-F reads identical.
+<!-- SECTION:FINAL_SUMMARY:END -->
