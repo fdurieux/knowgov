@@ -171,10 +171,10 @@ def _sha(text: str) -> str:
 
 
 def content_digest(fragments) -> str:
-    """What a ruling binds to beside its value (task-0199): the sha256 of its supporting fragments' sha256s
-    (each over the fragment's text, as the load digests it), sorted, one per line. A person's answer has no
-    fragment, so its digest is the empty text's and its value carries its content."""
-    return _sha("\n".join(sorted(_sha(f.get("text") or "") for f in fragments)))
+    """What a ruling binds to beside its value (task-0199): ``store.content_digest``, the one digest trace's
+    ledger records too, so a ruling and a derived output name a statement's content alike."""
+    from store import content_digest as digest
+    return digest(fragments)
 
 
 def statement(st, aid: str) -> dict | None:
