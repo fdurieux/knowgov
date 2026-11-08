@@ -548,6 +548,12 @@ they are at each load, so after an edit, re-read the documents before the next l
 declaration until someone has. A later decision may bind each attestation to the version of the
 document it covers.
 
+Each declaration needs its own `at`, and `[provenance] human` needs an `id`. A stage-2
+re-verification in `scenarios.toml` needs its `at` too. The layout check refuses a declaration
+without them (*ERROR attestation*). A load applies none of them and says so. Before 0.9.0, a
+missing `at` was dated by each load's own day, so the review never lapsed, and a missing attester
+was recorded as `agent:maintainer`.
+
 ## Capturing what people know
 
 Some knowledge is in nobody's documents, only in people's heads. The gate then reports a key as
@@ -621,6 +627,17 @@ outcome = "approved"
 python harness/capture.py review review.toml
 ```
 
+The file the command saves records what each ruling ruled on, as the store held it: the
+statement's `key`, its `value`, and `sha256`, a digest of the document text it was read from. A
+close records the `sha256` of the gap's declaration. Every later load binds each ruling to the
+statement that still holds that content, whatever its id is now. If a table's rows were reordered
+or answers were renumbered, the ruling follows its content. If the statement was edited, or is no
+longer in the documents, the ruling is not applied. The rest of the review still is. The gate then
+lists an `act` finding, `major`: it names the review, the person who ruled, the value they ruled
+on, what the documents say now, the key's owner and the route to a new ruling. A review saved
+before 0.9.0 has no `key`, `value` or `sha256`. It still binds by id, as it did, and the gate lists
+it at `info` as bound by id only. A new review binds it to content.
+
 Before ruling, read what you rule on:
 
 ```bash
@@ -650,6 +667,8 @@ from the review itself, and the command refuses a review that breaks a rule, nam
 
 - **Approving an answer** needs the role `approves`, in a unit that owns the key, and never the
   handle that gave the answer.
+- **A model's statement** (basis inferred, assumed or hypothesised) may be rejected or referred,
+  never approved: whoever reviews it, it is not promoted.
 - **Overruling a document**, rejecting or approving one of its statements, needs the role
   `closes`. So does **settling a dispute**: the review must rule on *every* side, approving what
   is kept and rejecting the rest, and what it keeps must agree. Approving one side alone is refused,

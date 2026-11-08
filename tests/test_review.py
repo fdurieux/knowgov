@@ -172,7 +172,9 @@ def test_the_written_review_reads_back_as_it_was_checked():
     rv["scenario"] = "S2"
     back = tomllib.loads(review.review_toml(rv))
     assert back["review"] == {"by": "employee-2", "on": NOW, "record": "minutes/2026-11-03.md", "scenario": "S2"}
-    assert back["ruling"] == [{"assertion": CAP, "outcome": "approved", "note": ""}]
+    # task-0199: the ruling records what it ruled on, as the store held it (a person's answer has no fragment)
+    assert back["ruling"] == [{"assertion": CAP, "key": OUT, "value": HELD, "sha256": review.content_digest([]),
+                               "outcome": "approved", "note": ""}]
 
 
 def test_the_adapters_rule_without_naming_a_basis():

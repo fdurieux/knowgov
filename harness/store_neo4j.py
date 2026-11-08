@@ -1142,6 +1142,13 @@ class Neo4jStore(Store):
         props = {f"preload_{k}": verdict.get(k) for k in PRELOAD_FIELDS}
         self.run("MATCH (v:Version {id:$vid}) SET v += $props", vid=vid, props=props).consume()
 
+    def record_act_finding(self, row) -> None:
+        self.run("MERGE (a:ActFinding {id:$id}) SET a += $props", id=row["id"], props={k: row[k] for k in self.ACT_FIELDS}).consume()
+
+    def act_findings(self) -> list[dict]:
+        cols = ", ".join(f"a.{k} AS {k}" for k in self.ACT_FIELDS)
+        return by_id(_rows(self.run(f"MATCH (a:ActFinding) RETURN a.id AS id, {cols}")))
+
     def preload_verdicts(self) -> list[dict]:
         return _rows(self.run("""
             MATCH (a:Artefact)-[:HAS_VERSION]->(v:Version) WHERE v.preload_state IS NOT NULL

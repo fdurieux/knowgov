@@ -1013,6 +1013,12 @@ class RdflibStore(Store):
         if v is not None:
             self.set_props(v, {f"preload_{k}": verdict.get(k) for k in ("state", "tool", "tool_version", "digest", "report", "why")})
 
+    def record_act_finding(self, row) -> None:
+        self.merge_node(row["id"], "ActFinding", props={k: row[k] for k in self.ACT_FIELDS})
+
+    def act_findings(self) -> list[dict]:
+        return by_id([{"id": self.nid(a), **{k: self.prop(a, k) for k in self.ACT_FIELDS}} for a in self.nodes("ActFinding")])
+
     def preload_verdicts(self) -> list[dict]:
         out = []
         for a in self.nodes("Artefact"):

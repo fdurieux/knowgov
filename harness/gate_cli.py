@@ -126,7 +126,41 @@ def _finding(severity: str, kind: str, message: str, *, key=None, level=None, fl
             "ref": ref, "related": list(related), "message": message}
 
 
-OWNED = ("key", "stale", "lapsed")   # the finding kinds that name the key's owner and the route (task-0102)
+OWNED = ("key", "stale", "lapsed", "act")   # the finding kinds that name the key's owner and the route (task-0102, task-0199)
+# task-0199: an act whose statement changed is major (the owner must rule again; the key's own finding carries
+# what it now reads), one read under the 0.9.0 rule or a refused file info (nothing it ruled on moved)
+ACT_SEVERITY = {"changed": "major", "gone": "major", "ambiguous": "major", "unbound": "info", "refused": "info"}
+
+
+def _short(sha: str) -> str:
+    return (sha or "")[:12] or "none"
+
+
+def act_finding(a: dict) -> dict:
+    """One act the load did not apply as written (``gate.acts_not_applied``) as a finding of kind ``act``."""
+    who = f"{a['review']}: {a['act']} {a['n']} by {a['by']} on {a['on']}" if a["act"] != "review" else f"{a['review']} by {a['by']} on {a['on']}"
+    was = f"{a['from_value']!r} (sha256 {_short(a['from_sha256'])})"
+    now = "; ".join(f"{t['id']} {t['value']!r} (sha256 {_short(t['sha256'])})" for t in a["to"])
+    why = a["why"]
+    if why == "refused":
+        msg = f"{who} was refused whole and applied nothing: " + "; ".join(a["reasons"])
+    elif why == "unbound":
+        msg = (f"{who} ({a['outcome']} {a['statement']}) is bound by id only: the file records no value or digest "
+               "(written before 0.9.0), so it was applied to what the id names now" + (f", {now}" if now else "")
+               + "; a new review binds it to content")
+    elif a["act"] == "close":
+        msg = (f"{who} (close of {a['statement']}) was not applied: " + ("the gap is no longer declared open" if why == "gone"
+               else "the declaration's text changed since the close") + "; its owner closes it again or the gap stands")
+    else:
+        msg = (f"{who} ({a['outcome']} {a['statement']} on {a['key']}) was not applied: it ruled on {was}, and "
+               + {"changed": f"the statement now reads {now}", "gone": "no statement of it is extracted any more",
+                  "ambiguous": "several statements hold that content and none is the one it names"}[why]
+               + "; its owner rules again")
+    f = _finding(ACT_SEVERITY[why], "act", msg, key=a["key"] or None, ref=a["statement"] or a["review"],
+                 related=[t["id"] for t in a["to"]])
+    f["act"] = {"review": a["review"], "act": a["act"], "n": a["n"], "outcome": a["outcome"], "by": a["by"], "on": a["on"],
+                "why": why, "from": {"value": a["from_value"], "sha256": a["from_sha256"]}, "to": a["to"], "reasons": a["reasons"]}
+    return f
 
 
 def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None = None,
@@ -177,9 +211,10 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
         out.append(_finding("info", "preload", f"{d['artefact']} {d['version']}, behind {len(d['keys'])} required key(s): {what}"
                             + (f" ({d['tool']})" if d.get("tool") else "") + (f"; {d['why']}" if d.get("why") else ""),
                             ref=f"{d['artefact']}@{d['version']}", related=d["keys"]))
+    out += [act_finding(a) for a in res.get("acts") or []]
     if owners is not None:
         for f in out:
-            if f["kind"] in OWNED:
+            if f["kind"] in OWNED and (f["kind"] != "act" or f["key"]):
                 unit = (owners.get(f["key"]) or {}).get("unit")
                 f["owner"] = unit
                 f["route"] = route(unit, f["key"]) if route else None
@@ -189,7 +224,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                     f["closer"] = c["unit"]
                     if f["route"]:
                         f["route"] += closing_route(c["gap"], c["unit"])
-    kinds = ["task", "key", "suspect_derived", "stale", "lapsed", "preload"]
+    kinds = ["task", "key", "suspect_derived", "stale", "lapsed", "act", "preload"]
     return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), kinds.index(f["kind"]), f["key"] or "", f["ref"] or ""))
 
 

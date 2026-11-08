@@ -7,6 +7,7 @@ port (store.py); the first adapter (store_neo4j.py) holds the Cypher.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
 import re
 import tomllib
@@ -21,6 +22,7 @@ STORE = SUBJECT.store_keys        # artefact keys the store holds; the others ar
 PROV = SUBJECT.provenance
 VER = SUBJECT.verification
 HUMAN = {"id": PROV.get("human", {}).get("id", "agent:maintainer"), "name": PROV.get("human", {}).get("name", "maintainer")}
+ATTESTER = PROV.get("human", {}).get("id")   # who attests (decision-0009): declared, never the default above (doc-0030 I9)
 LLM = {"id": PROV.get("llm", {}).get("id", "agent:llm"), "name": PROV.get("llm", {}).get("name", "model")}
 TOOL = PROV.get("harness_name", "harness")
 
@@ -227,24 +229,54 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
     ts = now()
     counts = {"execution": 0, "review": 0, "approved": 0}
     smoke_digest = sha256(SUBJECT.reference_code())
-    review, authored, approval = VER.get("review", {}), VER.get("authored"), VER.get("approval")
+    review, authored, approval = attestation("review"), attestation("authored"), attestation("approval")
     for suite_scenario, keys in execution.items():
         for key in keys:
             counts["execution"] += st.verify_by_execution(
                 key, sorted(pristine.get(key, set())), suite_scenario,
                 VER.get("execution_scope", "suite scenario {scenario}").format(scenario=suite_scenario), ts, smoke_digest)
-    for key in vmap.get("review", {}).get("keys", []):
-        counts["review"] += st.verify_by_review(key, sorted(pristine.get(key, set())), review.get("at", ts), review.get("scope", "review"), HUMAN["id"])
-    # requirements and links: reviewed by construction, only where the subject attests it (decision-0009)
+    for key in vmap.get("review", {}).get("keys", []) if review else []:
+        counts["review"] += st.verify_by_review(key, sorted(pristine.get(key, set())), review["at"], review.get("scope", "review"), ATTESTER)
+    # requirements and links: reviewed by construction, only where the subject attests it (decision-0009), on the
+    # day it names and by the person it names (task-0199, doc-0030 I9): never the load's day, never a default
     if authored:
-        counts["review"] += st.verify_authored(authored.get("at", ts), authored.get("scope", "authored"), HUMAN["id"])
+        counts["review"] += st.verify_authored(authored["at"], authored.get("scope", "authored"), ATTESTER)
     if approval:
-        counts["approved"] = st.approve_verified(approval.get("at", ts), approval.get("record", "approval"), HUMAN["id"])
+        counts["approved"] = st.approve_verified(approval["at"], approval.get("record", "approval"), ATTESTER)
     # decision-0005: every review falls due after its key's review months; the date is the verification's
     # valid_until, which the gate reads as of a date (harness/cadence.py). Not counted: the record's counts stand.
     import cadence
     cadence.date_reviews(st)
     return counts
+
+
+def _day(v) -> str | None:
+    """``v`` as the ISO date (or instant) it names, or None when it names none."""
+    if isinstance(v, (dt.date, dt.datetime)):
+        return v.isoformat()
+    try:
+        dt.date.fromisoformat(str(v)[:10])
+        return str(v)
+    except ValueError:
+        return None
+
+
+def attestation(name: str, table: dict | None = None) -> dict | None:
+    """``[verification] <name>`` (or ``table``, a stage-2 re-verification) as a person's attestation, or None when
+    the subject declares none or declares one the load may not apply (task-0199, doc-0030 I9): with no ``at`` it
+    would be dated by each load's day and never lapse, and with no ``[provenance] human`` id it would be no one's.
+    ``check_subject`` refuses both; the load says so on stderr and applies neither."""
+    import sys
+    a = VER.get(name) if table is None else table
+    if not a:
+        return None
+    at = _day(a.get("at"))
+    missing = [w for w, ok in (("date (at)", at), ("attester ([provenance] human id)", ATTESTER)) if not ok]
+    if missing:
+        print(f"attestation not applied: {name} has no {' and no '.join(missing)} (doc-0030 I9; tools/check_subject.py refuses it)",
+              file=sys.stderr)
+        return None
+    return {**a, "at": at}
 
 
 def load_captures(st, scenario: str) -> dict:
@@ -309,7 +341,7 @@ def load_inferred_proposals(st) -> int:
     return n
 
 
-def load_reviews(st, scenario: str, now: dt.date | None = None) -> dict:
+def load_reviews(st, scenario: str, now: dt.date | None = None, recheck: bool = False) -> dict:
     """Every review in the subject's ``<capture dir>/reviews/`` for this scenario (task-0037,
     decision-0002), after the rules have run: harness/review.py checks each file against the loaded
     store and refuses it whole, with its reasons on stderr; an accepted one applies its rulings
@@ -317,14 +349,21 @@ def load_reviews(st, scenario: str, now: dt.date | None = None) -> dict:
     declared gaps it names. It reads no clock (task-0198, doc-0030 H3): an approval of a person's statement
     keeps its ``until``, six months after the answer, and the gate decides as of its date whether it is
     current (``cadence.lapse``), so one ``--as-of`` gives one report whatever the day of the load. ``now``,
-    when given, refuses a review dated after it, as ``capture.py review`` does on the day it is written."""
+    when given, refuses a review dated after it, as ``capture.py review`` does on the day it is written.
+
+    Each act binds to content (task-0199, doc-0030 H5, doc-0032 §6): a ruling lands on the statement holding the
+    value and digest it records, whatever its id is in this extraction; one whose statement changed or vanished
+    is not applied, and every act not applied (a refused file too, and a file from before 0.9.0 bound by id
+    only) is recorded in the store, ``record_act_finding``, for the gate to report: never stderr only.
+    ``recheck`` (stage 2, after a re-extraction): the rulings only, again against the statements the change
+    left current, so an act whose statement the change replaced is reported; the closes stand (task-0197)."""
     import sys
     import capture
     import review
     from rules import compatible
     rdir = SUBJECT.capture_dir / "reviews"
     files = sorted(rdir.glob("*.toml")) if rdir.is_dir() else []
-    counts = {"files": [], "refused": [], "approved": 0, "rejected": 0, "referred": 0, "closed": 0, "settled": 0}
+    counts = {"files": [], "refused": [], "approved": 0, "rejected": 0, "referred": 0, "closed": 0, "settled": 0, "skipped": 0}
     if not files:
         return counts
     reg = capture.register_root()
@@ -336,19 +375,33 @@ def load_reviews(st, scenario: str, now: dt.date | None = None) -> dict:
         sc = str(doc.get("review", {}).get("scenario", ""))
         if sc and sc != scenario:
             continue
+        if recheck:
+            doc = {k: v for k, v in doc.items() if k != "closes"}
+            if not doc.get("ruling"):
+                continue
         rel = str(p.relative_to(SUBJECT.root)) if p.is_relative_to(SUBJECT.root) else str(p)
-        errs, rv = review.check(doc, st, handles=handles, owners=owners, units=units, captures=caps, now=now, compatible=compatible)
+        rid = f"review:{p.stem}"
+        errs, rv = review.check(doc, st, handles=handles, owners=owners, units=units, captures=caps, now=now,
+                                compatible=compatible, strict=False)
+        head = {"review": rel, "by": rv["by"], "on": rv["on"].isoformat() if rv["on"] else str(doc.get("review", {}).get("on", ""))}
         if errs:
             for e in errs:
                 print(f"review refused: {rel}: {e}", file=sys.stderr)
             counts["refused"].append(rel)
+            st.record_act_finding(_act(f"actf:{rid}", head, "review", 0, "", "", "", "refused", reasons=errs))
             continue
-        rid, person, on = f"review:{p.stem}", f"person:{rv['by']}", rv["on"].isoformat()
-        st.ensure_person(person, rv["by"])
-        st.create_activity(f"act:{rid}", "review", on, "review", f"rulings by {rv['by']} on {on}, {rv['record']}, {rel}", person)
+        for x in rv["skipped"]:   # an act whose statement changed or vanished: not applied, and said so (doc-0032 §6 item 7)
+            print(f"review act not applied: {rel}: {x['act']} {x['n']} ({x['statement']}): {x['why']}", file=sys.stderr)
+            counts["skipped"] += 1
+            st.record_act_finding(_act(f"actf:{rid}:{x['act']}:{x['n']}", head, x["act"], x["n"], x["statement"], x["outcome"],
+                                       x["key"], x["why"], value=x["value"], sha=x["sha256"], to=x["to"]))
+        person, on = f"person:{rv['by']}", rv["on"].isoformat()
+        if not recheck:   # stage 2 rechecks a review the first load already recorded
+            st.ensure_person(person, rv["by"])
+            st.create_activity(f"act:{rid}", "review", on, "review", f"rulings by {rv['by']} on {on}, {rv['record']}, {rel}", person)
         settled = set()
         for ru in rv["rulings"]:
-            b = st.assertion_brief(ru["assertion"])
+            b = st.assertion_brief(ru["statement"])
             outcome = ru["outcome"]
             until = review.until_for(b, caps)
             if b["status"] == "disputed":
@@ -357,10 +410,25 @@ def load_reviews(st, scenario: str, now: dt.date | None = None) -> dict:
             # and the gate reads it lapsed as of its date (cadence.lapse), never the load's day
             st.apply_ruling(b["id"], outcome, rid, person, on, rv["record"], until.isoformat() if until else "")
             counts[outcome] += 1
+            if ru["unbound"]:   # the read rule: a file from before 0.9.0 binds by id, and the gate says so
+                st.record_act_finding(_act(f"actf:{rid}:ruling:{ru['n']}", head, "ruling", ru["n"], b["id"], outcome, b["key"],
+                                           "unbound", to=[{"id": b["id"], "value": ru["value"], "sha256": ru["sha256"]}]))
         for key in sorted(settled):
             counts["settled"] += st.settle_conflicts(key, rid)
         for c in rv["closes"]:
             st.close_declared_gap(c["gap"], rid, on, rv["record"])
             counts["closed"] += 1
+            if c["unbound"]:
+                st.record_act_finding(_act(f"actf:{rid}:close:{c['n']}", head, "close", c["n"], c["gap"], "closed",
+                                           (c["keys"] or [""])[0], "unbound"))
         counts["files"].append(rel)
     return counts
+
+
+def _act(fid: str, head: dict, act: str, n: int, statement: str, outcome: str, key: str, why: str, *,
+         value=None, sha=None, to=(), reasons=()) -> dict:
+    """One act the load did not apply as written, as the store keeps it (``record_act_finding``): scalar
+    properties only, ``to`` and ``reasons`` as JSON text, so both adapters and the Turtle round trip hold it."""
+    return {"id": fid, **head, "act": act, "n": n, "statement": statement, "outcome": outcome, "key": key or "", "why": why,
+            "from_value": "" if value is None else str(value), "from_sha256": str(sha or ""),
+            "to": json.dumps(list(to), ensure_ascii=False, sort_keys=True), "reasons": json.dumps(list(reasons), ensure_ascii=False)}

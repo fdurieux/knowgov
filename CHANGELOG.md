@@ -12,6 +12,33 @@ names that section with the version.
 
 ### Contract changes
 
+- **A person's act binds to what it ruled on** (task-0199, doc-0030 F2: H5, I4, I9; doc-0032 §6 items 7 and 8).
+  Before, a ruling named only a statement's id, so after an edit the same id carried a new value and still read
+  approved; a vanished id refused the whole review on stderr only.
+  - **The review file.** `capture.py review` now writes each `[[ruling]]` with the statement's `key`, `value`
+    and `sha256`, the digest of its supporting fragments' digests (`review.content_digest`), and each
+    `[[closes]]` with the `sha256` of the gap's declaration.
+  - **Every load binds each act by content.** A ruling lands on the statement of its key holding its value
+    and digest: the one it names, or else the one statement that does, so a reordered table or renumbered
+    answers move no act onto another statement. A ruling whose statement changed or vanished is not applied,
+    and the rest of its file is. Stage 2 binds the rulings again after the re-extraction, so a ruling is never
+    moved onto a successor.
+  - **The gate reports each act it did not apply.** The new finding kind is `act`, with an `act` object: the
+    file, the act, its author's handle, the value and digest it ruled on, and what the store holds instead.
+    Its severity is `major` when the statement changed, vanished or is ambiguous, and `info` for a file refused
+    whole or read under the rule below. On a key, it names the owner and the route, as `key` findings do. A
+    new port write and read, `record_act_finding` and `act_findings` (in `store.READS`), hold these acts on both
+    adapters and through the Turtle round trip.
+  - **Read rule for review files written before this change.** A `[[ruling]]` with no `key`, `value` or `sha256`,
+    or a `[[closes]]` with no `sha256`, binds by id, as before. It is applied, and the gate lists it at `info` as
+    bound by id only. A new review binds it to content. No file is rewritten.
+  - **I4.** A ruling other than `rejected` or `referred` on a statement of basis `inferred`, `assumed` or
+    `hypothesised` is refused.
+  - **I9.** `[verification] authored`, `approval` and `review`, and a stage-2 re-verification, need their own
+    `at` and an attester (`[provenance] human` id). `tools/check_subject.py` refuses each without (rule
+    `attestation`). The load no longer dates an undated attestation by its own day, and no longer defaults the
+    attester: it applies neither, and says so on stderr.
+  - `tools/check_act_binding.py` proves it on both stores, in `harness.yml` and the stack.
 - **A derived output binds to what it was built on, and one rule reads it suspect** (task-0199, doc-0030 F2:
   H6, R5; doc-0032 §6 item 6). Before, trace's ledger kept statement ids only. A reload re-mints the same id
   for a new value, so code built on the old value read unchanged. The gate also read *suspect* from a flag
