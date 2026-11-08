@@ -324,6 +324,8 @@ jobs:
         run: rm -rf runs/ledger-binding && KG_STORE=rdflib python tools/check_ledger_binding.py runs/ledger-binding
       - name: One definition per concept (task-0201), on rdflib, one successor set for the gate, the stale finding, superseded_by and the bundle, disputed statements read, one owner and route, one uniqueness rule
         run: rm -rf runs/one-definition && KG_STORE=rdflib python tools/check_one_definition.py runs/one-definition
+      - name: The kit's claim (task-0214), on rdflib, the probe kit's five mappers read observed, inferred and intended into the basis, an inferred statement stays proposed and a ruling approving it is refused, an unknown claim is refused by the subject check
+        run: KG_STORE=rdflib python tools/check_claim_probe.py
       - name: A register change invalidates (task-0122), the fixture's deprecated CAP-0001 and withdrawn REL-06001 stale the keys resting on them and S1's output suspect, exit 1; no state change, nothing; the staleness survives the round trip
         run: |
           rm -rf runs/regchange && KG_STORE=rdflib python tools/check_register_change.py runs/regchange

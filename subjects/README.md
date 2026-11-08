@@ -246,6 +246,35 @@ title = "..."
 text = "MATCH ..."
 ```
 
+## The claim
+
+A kit written by reverse engineering (decision-0018, doc-0032 §3) may say, statement by statement, what each
+statement is (task-0214):
+
+| claim | what it says | basis it loads with | how far it can rise |
+|---|---|---|---|
+| `observed` | what the pinned original does | `extracted` | `verified` by execution, then `approved` |
+| `inferred` | a proposed explanation or generalised rule | `inferred` | never above `proposed`: nothing verifies it, a ruling may reject or refer it but never approve it (`harness/review.py`, task-0199 I4), and a `verified_by` link it carries derives no execution |
+| `intended` | behaviour the responsible authority accepted | `authored` | `approved` only under `[verification] authored` and `approval` (decision-0009) |
+
+A statement with no claim loads as before: `extracted` for `requirements_json`'s statements, `authored` for the
+other four mappers' links and structure. The public kits carry no claim, so they and the record do not move.
+Where each bundle mapper reads it:
+
+| mapper | where the claim is written | scope |
+|---|---|---|
+| `requirements_json` | `"claim": "<value>"` on an item (its `basis` field is where the statement was read: code logic, prose or both, not a claim) | the item's statement |
+| `contracts_markdown` | a line `Claim: <value>` in a part | the part's citations |
+| `dmn_decisions` | `claim: <value>` in a decision's or a rule's `<description>` | the decision's rules, a rule's own winning |
+| `gherkin_tagged` | a tag `@claim:<value>` on the Feature, a Rule or a Scenario | the scenarios under it, the nearest winning |
+| `plantuml_realises` | a comment line `' claim: <value>` | the diagram's statements |
+
+An assertion resting on statements of different claims, such as a requirement two contract parts cite, takes the
+most conservative: `inferred` before `extracted` before `authored`, a statement with no claim counting as the
+mapper's own basis. An unknown value (`guessed`) is refused by `tools/check_subject.py` (rule `claim`), and the
+load fails on it rather than read the statement as something it did not say. `tools/fixtures/claim_probe` carries
+every mapping, and `tools/check_claim_probe.py` holds it on the store `KG_STORE` names.
+
 ## Checking a subject
 
 `tools/check_subject.py <subject root> [--register DIR] [--json]` reads a root before it is loaded,
@@ -253,7 +282,8 @@ and `tools/check_instance.py` runs it on every subject of an instance (task-0135
 F5). It refuses (exit 1) a table or field this file does not document, a task without `keys`,
 `block_levels` or `max_unverified_share`, a key that is not `<entity>|<predicate>`, a task with no
 scenario, a `register_map.toml` node the register does not hold or an `owner` of none of its row's
-nodes, and a mapper that cannot read its document. It warns on a required key no document yields
+nodes, a mapper that cannot read its document, and a claim that is not `observed`, `inferred` or
+`intended` (task-0214). It warns on a required key no document yields
 when they yield a near one, the documents' yield taken from the load's own mappers in a child
 process, with no store. `tools/fixtures/subject_probe` carries every refusal on purpose; the report
 is pinned by `harness/schemas/subject-check.schema.json`.

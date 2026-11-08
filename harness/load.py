@@ -200,7 +200,8 @@ def execution_map(kit: dict[str, str] | None) -> dict[str, list[str]]:
     or, when ``[verification] derive_execution`` is set, derived from the kit of the scenario at
     hand: every assertion with ``from_predicate`` (say ``verified_by``) names, in its value, the
     suite scenarios that verify its entity's ``key_predicate`` (say ``statement``), separated by
-    ``separator``. A scenario the plant removed from the kit then verifies nothing."""
+    ``separator``. A scenario the plant removed from the kit then verifies nothing. A link the kit claims
+    is inferred (task-0214) derives nothing: an inference never raises a statement, its own or another's."""
     d = VER.get("derive_execution")
     if not d or kit is None:
         return dict(SUBJECT.verification_map().get("execution", {}))
@@ -208,7 +209,7 @@ def execution_map(kit: dict[str, str] | None) -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
     for bag in extract_all(kit, SUBJECT.reference_code()):
         for a in bag.assertions:
-            if a["predicate"] == d["from_predicate"]:
+            if a["predicate"] == d["from_predicate"] and a["basis"] not in ("inferred", "assumed", "hypothesised"):
                 for suite_scenario in (v.strip() for v in a["value"].split(sep) if v.strip()):
                     out.setdefault(suite_scenario, []).append(f"{a['entity']}|{d['key_predicate']}")
     return out
