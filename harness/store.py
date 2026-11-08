@@ -94,7 +94,8 @@ READS = frozenset({
     "suspect_derived", "all_derived", "preload_verdicts", "census", "extraction_activities", "extraction_times",
     "gaps_with_concerns", "assertions_on_key", "assertion_rows", "supported_by", "candidate_for",
     "fragments_with_version", "requirements_verified_by", "register_census", "register_node_statements",
-    "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions", "held"})
+    "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions", "held",
+    "derived_rows"})
 
 
 def held_from(acts: list[dict], current: list[dict]) -> dict | None:
@@ -427,6 +428,11 @@ class Store:
         raise NotImplementedError
 
     def stale_on_keys(self, keys: list[str]) -> list[dict]:
+        raise NotImplementedError
+
+    def derived_rows(self) -> list[dict]:
+        """Every derived output as ``suspicion`` reads it: {id, kind, sha256, recorded, used: [{id, status}]}
+        (task-0199); the rule's input, read by the three reads below."""
         raise NotImplementedError
 
     def suspect_derived(self) -> list[dict]:

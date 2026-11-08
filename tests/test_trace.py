@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "tools"), str(ROOT / "harness")]
 import example_instance  # noqa: E402
 import schema_check  # noqa: E402
+import store  # noqa: E402
 import trace  # noqa: E402
 
 IDS = ["A:1@v1", "A:2@v1", "A:3@v1"]
@@ -24,15 +25,27 @@ class FakeStore:
         self.derived: dict[str, dict] = {}
         self.status = {a: "approved" for a in IDS}
 
-    def register_derived(self, did, kind, sha, ids):
+    def register_derived(self, did, kind, sha, ids, recorded=None):
         assert did not in self.derived, f"{did} registered twice"
-        self.derived[did] = {"kind": kind, "sha256": sha, "ids": list(ids)}
+        self.derived[did] = {"kind": kind, "sha256": sha, "ids": list(ids), "recorded": recorded}
+
+    def _rows(self):   # what an adapter hands store.suspicion, the one rule (task-0199)
+        return [{"id": d, "kind": x["kind"], "sha256": x["sha256"],
+                 "recorded": None if x["recorded"] is None else json.dumps(x["recorded"]),
+                 "used": [{"id": a, "status": self.status[a]} for a in x["ids"] if a in self.status]} for d, x in self.derived.items()]
 
     def all_derived(self):
-        return [{"id": d, "suspect": False} for d in self.derived]
+        return [{"id": r["id"], "suspect": r["suspect"]} for r in store.suspicion(self, self._rows())]
+
+    def suspect_derived(self):
+        return store.suspect_rows(store.suspicion(self, self._rows()))
 
     def assertion_brief(self, aid):
-        return {"id": aid, "key": f"k{aid[2]}", "status": self.status[aid]} if aid in self.status else None
+        return {"id": aid, "key": f"k{aid[2]}", "value": "1", "status": self.status[aid]} if aid in self.status else None
+
+    def key_evidence(self, key, live):
+        return [{"id": a, "value": "1", "status": s, "fragments": [{"text": a}]} for a, s in self.status.items()
+                if f"k{a[2]}" == key and s in live]
 
     def stale_on_keys(self, keys):
         return [{"id": a, "key": f"k{a[2]}", "successors": [{"id": a.replace("@v1", "@v2"), "status": "proposed"}]}

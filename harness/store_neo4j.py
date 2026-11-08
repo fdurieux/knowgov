@@ -1098,7 +1098,7 @@ class Neo4jStore(Store):
                    collect(DISTINCT {id:succ.id, value:succ.value, status:succ.status}) AS successors""", keys=keys))
         return by_id([{**r, "verifications": by_id(r["verifications"]), "successors": by_id(r["successors"])} for r in rows])
 
-    def _derived_rows(self) -> list[dict]:
+    def derived_rows(self) -> list[dict]:
         rows = _rows(self.run("""
             MATCH (d:Derived) OPTIONAL MATCH (d)-[:USED_ASSERTION]->(x:Assertion)
             RETURN d.id AS id, d.kind AS kind, d.sha256 AS sha256, d.recorded AS recorded,
@@ -1106,10 +1106,10 @@ class Neo4jStore(Store):
         return [{**r, "used": [u for u in r["used"] if u["id"]]} for r in rows]
 
     def suspect_derived(self) -> list[dict]:   # task-0199: by suspicion, the one rule, never the stored flag
-        return suspect_rows(suspicion(self, self._derived_rows()))
+        return suspect_rows(suspicion(self, self.derived_rows()))
 
     def all_derived(self) -> list[dict]:
-        return [{"id": r["id"], "suspect": r["suspect"]} for r in suspicion(self, self._derived_rows())]
+        return [{"id": r["id"], "suspect": r["suspect"]} for r in suspicion(self, self.derived_rows())]
 
     def held_keys(self) -> list[dict]:
         out: dict[str, dict] = {}
@@ -1120,7 +1120,7 @@ class Neo4jStore(Store):
         return [out[k] for k in sorted(out)]
 
     def derived_outputs(self) -> list[dict]:
-        sus = {r["id"]: r for r in suspicion(self, self._derived_rows())}
+        sus = {r["id"]: r for r in suspicion(self, self.derived_rows())}
         rows = _rows(self.run("""
             MATCH (d:Derived) OPTIONAL MATCH (d)-[:USED_ASSERTION]->(x:Assertion)
             RETURN d.id AS id, d.kind AS kind, d.sha256 AS sha256,

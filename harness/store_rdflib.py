@@ -962,16 +962,16 @@ class RdflibStore(Store):
                         "successors": by_id(_distinct(succ)) or [{"id": None, "value": None, "status": None}]})
         return by_id(out)
 
-    def _derived_rows(self) -> list[dict]:
+    def derived_rows(self) -> list[dict]:
         return [{"id": self.nid(d), "kind": self.prop(d, "kind"), "sha256": self.prop(d, "sha256"), "recorded": self.prop(d, "recorded"),
                  "used": [{"id": self.nid(x), "status": self.prop(x, "status")} for x in self.out(d, "USED_ASSERTION") if self.has_label(x, "Assertion")]}
                 for d in self.nodes("Derived")]
 
     def suspect_derived(self) -> list[dict]:   # task-0199: by suspicion, the one rule, never the stored flag
-        return suspect_rows(suspicion(self, self._derived_rows()))
+        return suspect_rows(suspicion(self, self.derived_rows()))
 
     def all_derived(self) -> list[dict]:
-        return [{"id": r["id"], "suspect": r["suspect"]} for r in suspicion(self, self._derived_rows())]
+        return [{"id": r["id"], "suspect": r["suspect"]} for r in suspicion(self, self.derived_rows())]
 
     def held_keys(self) -> list[dict]:
         out: dict[str, dict] = {}
@@ -986,7 +986,7 @@ class RdflibStore(Store):
         return [out[k] for k in sorted(out)]
 
     def derived_outputs(self) -> list[dict]:
-        sus = {r["id"]: r for r in suspicion(self, self._derived_rows())}
+        sus = {r["id"]: r for r in suspicion(self, self.derived_rows())}
         return by_id([{"id": self.nid(d), "kind": self.prop(d, "kind"), "sha256": self.prop(d, "sha256"),
                        "suspect": sus[self.nid(d)]["suspect"], **changed_of(sus[self.nid(d)]),
                        "used": by_id(_distinct([{"id": self.nid(x), "key": self.prop(x, "key"), "status": self.prop(x, "status"),
