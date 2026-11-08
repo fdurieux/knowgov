@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-08T20:55:00Z'
-updated_date: '2026-11-08T21:39:00Z'
+updated_date: '2026-11-08T22:36:00Z'
 labels:
   - worker
   - containment
@@ -42,6 +42,8 @@ Evidence:
 - The emulated container under load (6 busy loops on 4 cores): main's reaper let 1 of 260 hostile chains outlive its job; this one 0 of 260 (life 0, 1, 1, 2 ms, setsid per generation).
 - EXEC-14 (tools/check_worker.py, the stack): five hostile chains, the next job's witness the namespace's pid counter (at most 5 pids in the second after) and no marked process, and the worker its namespace's init; holds in the emulated container. NSpid was first used to detect the namespace and is wrong under a /proc mounted inside it (it shows one level, as Docker's does): the worker being pid 1 is the test.
 - run_tests: no yaml 823/878 (55 skipped), pins 877/878 (1 skipped), 0 failed.
+
+EXEC-14's witness fixed (main's stack job at ec4e693, job 128882506686: round 5 allocated 6 pids against QUIET_PIDS 5, marked 0, init 1; the healthcheck's docker exec, not a chain). ns_quiet now reads two consecutive one-second windows; a round fails when both allocate more than QUIET_PIDS (20) or any process carries the chain's mark (check_worker.quiet_round, its reasoning in check_worker.py): a surviving chain forks 121 to 800 a second in every window, a healthcheck runs once in ten seconds and lands in at most one. The reaper is unchanged. Emulated container, five rounds each: the new witness beside a healthcheck entered by nsenter back to back holds (17 to 20 a window); main's fails; the new witness with the reaper disabled fails (677 to 3214 a window, marked 2). tests/test_reaper_quiescence.py's quiet_round test fails on main 6cc4ee1, passes here.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
