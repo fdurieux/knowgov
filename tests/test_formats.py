@@ -1,5 +1,6 @@
 """Task-0174 (decision-0023, doc-0028 G9-2): format versions on an instance's inputs. One rule in
-``harness/formats.py``: a missing version reads as the current one, an equal or lower one is read, a higher
+``harness/formats.py``: a missing version reads as version 1 in every release (decision-0023 A1, task-0236), an
+equal or lower one is read, a higher
 one is refused (``FormatTooNew``), and every reader answers that with exit 2, naming the file, its version
 and the reader's. Each reader is held here, each writer's stamp, the public subjects' key and the
 attestation hook's indifference to it."""
@@ -54,7 +55,7 @@ def _subject(tmp: Path, version) -> Path:
     return root
 
 
-def test_the_rule_missing_reads_current_lower_and_equal_read_higher_refused():
+def test_the_rule_missing_reads_1_lower_and_equal_read_higher_refused():
     assert formats.version({}, "x.toml", formats.CODE_MAP) == formats.CURRENT["code_map"] == 1
     assert formats.version({"format": 1}, "x.toml", formats.CAPTURE) == 1
     assert formats.version({"format": {"version": 1}}, "subject.toml", formats.SUBJECT) == 1
@@ -72,11 +73,33 @@ def test_the_rule_missing_reads_current_lower_and_equal_read_higher_refused():
     try:   # a lower version is read, once one moves
         formats.CURRENT["capture"] = 2
         assert formats.version({"format": 1}, "c.toml", formats.CAPTURE) == 1
-        assert formats.version({}, "c.toml", formats.CAPTURE) == 2
+        assert formats.version({}, "c.toml", formats.CAPTURE) == 1   # A1: missing is 1, never the current
     finally:
         formats.CURRENT.clear()
         formats.CURRENT.update(saved)
 
+
+
+def test_a_missing_version_stays_1_when_a_kind_moves_to_2():
+    """decision-0023 Amendment A1 (task-0236 AC #2): with a kind's current version moved to 2, an unstamped file
+    reads as 1, the version it was written under; format = 2 reads as 2; format = 3 is refused, exit 2."""
+    import cli_exit
+    assert formats.MISSING == 1 and all(v == 1 for v in formats.CURRENT.values())   # nothing moves at 0.9.0
+    saved = dict(formats.CURRENT)
+    try:
+        for kind in formats.CURRENT:
+            formats.CURRENT.clear()
+            formats.CURRENT.update(saved)
+            formats.CURRENT[kind] = 2
+            unstamped, two, three = ({"subject": {}}, {"format": {"version": 2}}, {"format": {"version": 3}}) \
+                if kind == formats.SUBJECT else ({}, {"format": 2}, {"format": 3})
+            assert formats.version(unstamped, "f.toml", kind) == 1, kind
+            assert formats.version(two, "f.toml", kind) == 2, kind
+            _raises(lambda: formats.version(three, "f.toml", kind), formats.FormatTooNew, "f.toml", "= 3", f"{kind} format 2")
+            assert cli_exit.run(lambda: formats.version(three, "f.toml", kind), "probe") == 2, kind
+    finally:
+        formats.CURRENT.clear()
+        formats.CURRENT.update(saved)
 
 def test_a_subject_root_for_a_newer_knowgov_is_refused_by_every_reader_of_it():
     from subject import Subject
