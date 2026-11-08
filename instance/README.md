@@ -1328,7 +1328,7 @@ about?" (`list_subjects`).
 
 ## Creating a subject with an assistant
 
-Writing a subject by hand means a manifest of up to fifteen tables, a register map and a scenario
+Writing a subject by hand means a manifest of up to sixteen tables, a register map and a scenario
 file, and its mistakes either pass every check or surface late, dressed as missing knowledge. An
 assistant can guide you through it instead: a *wizard*, in the sense of a step-by-step procedure,
 that proposes, checks after each step and explains the findings. Its steps and its stops are
@@ -1540,7 +1540,8 @@ In plain English, and where each is described:
 | the page's `/api/*` routes | the [demo's guide](../demo/README.md) |
 | the CI action, the GitLab include, the shell wrappers and the hooks' settings files | "Running the gates in your pipeline" and "A fail-closed hook for Claude Code", above |
 | the image's name and tags: `ghcr.io/fdurieux/knowgov:<tag>` for a release, `:latest` for the last main | the [README](../README.md) |
-| the format version each of your input files declares, and which register format versions your register may be in | not yet: the format versions are planned for 0.9.0 |
+| the format version each of your input files declares (built: decision-0023, task-0174): "A file with no number is read as the current version. This holds until knowgov 1.0", "A file at the current version, or an older one, is read", and "A file with a newer number is refused" | "Format versions", above |
+| which ieam-register format versions your register may be in | not yet stated |
 
 Two things follow from the quoted text. A `KG_*` setting that neither this file nor
 `docs/security.md` names is not a contract, so do not build on it. A setting the demo's guide

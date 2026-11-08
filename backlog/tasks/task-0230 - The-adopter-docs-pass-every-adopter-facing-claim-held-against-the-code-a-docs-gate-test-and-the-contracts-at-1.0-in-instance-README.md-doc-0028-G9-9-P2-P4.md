@@ -8,7 +8,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-08T19:36:00Z'
-updated_date: '2026-11-08T20:17:00Z'
+updated_date: '2026-11-08T20:51:00Z'
 labels:
   - docs
   - release
@@ -103,6 +103,15 @@ Not changed, for the maintainer:
 Suites on this tree:
 - pins: 861/862, 1 skip, 0 failed;
 - bare 3.13: 808/862, 54 skips, 0 failed.
+
+After merging main 615fa36 (#382, task-0174 format versions):
+- the P4 table's format-version row now cites decision-0023 and task-0174 as built, quotes #382's three read rules and points to its "Format versions" section;
+- which ieam-register format versions a register may be in is split out as not yet stated;
+- #382 added [format] to check_subject's TABLES, so the manifest has sixteen top-level tables again, and the count is restored to sixteen;
+- tests/test_adopter_docs.py passes on #382's text.
+Suites on the merged tree:
+- bare 3.13: 815/870, 55 skips;
+- pins: 869/870, 1 skip.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
