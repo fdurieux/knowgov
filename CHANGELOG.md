@@ -12,6 +12,14 @@ names that section with the version.
 
 ### Contract changes
 
+- **Format versions on an instance's inputs** (task-0174, decision-0023, doc-0028 G9-2). `subject.toml` carries
+  `[format] version = 1`, covering its subject root's `scenarios.toml`, `plants.toml`, `queries.toml` and register
+  map; `code_map.toml` and `connectors.toml` each a top-level `format = 1`; each capture and review file its own
+  `format = 1`, stamped by `harness/capture.py` as it writes them. A file with no number reads as the current
+  version until 1.0; a file with a newer number is refused by every reader with exit 2, naming the file, its
+  version and the one this knowgov reads. The public subjects, the wizard skill and `tools/example_instance.py`
+  write the key; `check_subject.py`'s report (and the MCP `subject_check`'s) carries `format`, and
+  `check_instance.py` lists it per subject. `capture.py` now exits through the one failure-to-run wrapper.
 - **The page names the knowgov it runs** (task-0227). A chip in the header gives knowgov's version, the
   build's commit, and how far it is past the release tag when that is known: for example
   `knowgov 0.8.0 + 277 (7e113f0)` from a checkout build, or `knowgov 0.8.0 (v0.8.0)` from a release image.

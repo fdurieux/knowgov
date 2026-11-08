@@ -25,12 +25,14 @@ import hashlib
 import re
 import shutil
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 sys.path.insert(0, str(ROOT / "tools"))
 from subject import Subject  # noqa: E402
+import formats  # noqa: E402  (task-0174)
 import check_instance  # noqa: E402
 
 REGISTER = ROOT / "demo" / "register"
@@ -47,6 +49,7 @@ def code_map(out: Path, code: Path) -> str:
     return (
         "# Code paths to the register application or module each implements (instance/README.md,\n"
         "# \"Mapping code to the register\"). Globs are relative to [code] root.\n\n"
+        f"format = {formats.CURRENT[formats.CODE_MAP]}   # task-0174: the format this file is written in\n\n"
         f'[code]\nroot = "{root}"\ninclude = ["**/*.py"]\n\n'
         f'[[map]]\nglob = "{code.name}"\napp = "{CODE_APP}"\n'
         'note = "CargoQuote reference implementation: QuoteAPI, TariffEngine and ScreeningService are its modules"\n'
@@ -80,6 +83,8 @@ def build(out: Path) -> Path:
     shutil.move(s.record_dir, out / "record" / s.id)
     manifest, n = re.subn(rf'^dir = "{re.escape(rec)}"', f'dir = "../../record/{s.id}"', manifest, flags=re.M)
     assert n == 1, rec
+    if formats.declared(tomllib.loads(manifest), formats.SUBJECT) is None:   # task-0174: the writer stamps the version it writes
+        manifest = f"[format]\nversion = {formats.CURRENT[formats.SUBJECT]}\n\n" + manifest
     (sroot / "subject.toml").write_text(manifest, encoding="utf-8")
     (out / check_instance.CODE_MAP).write_text(code_map(out, sroot / s.reference["code"]), encoding="utf-8")
     return out

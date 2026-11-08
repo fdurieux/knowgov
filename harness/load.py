@@ -14,6 +14,7 @@ import tomllib
 
 from kitio import FAMILY, sha256, pristine
 from store import stem
+import formats   # task-0174, decision-0023: a capture or review file names the format it was written in
 import load_memory
 from subject import SUBJECT
 from extract import extract_all, NONE
@@ -356,6 +357,7 @@ def load_captures(st, scenario: str) -> dict:
     counts = {"files": [], "answers": 0, "unknown": 0}
     for p in files:
         c = tomllib.loads(p.read_text(encoding="utf-8"))
+        formats.version(c, p.as_posix(), formats.CAPTURE)   # a newer capture refused, exit 2, never misread
         cap = c.get("capture", {})
         handle, on, record = cap["from"], str(cap["on"]), cap["record"]
         person, aid = f"person:{handle}", f"act:capture:{p.stem}"
@@ -445,13 +447,14 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
     caps = review.capture_index(SUBJECT.capture_dir)
     for p in files:
         doc = tomllib.loads(p.read_text(encoding="utf-8"))
+        formats.version(doc, p.as_posix(), formats.REVIEW)   # before the scenario filter: a newer file refused, exit 2
         sc = str(doc.get("review", {}).get("scenario", ""))
         if sc and sc != scenario:
             continue
         rel = str(p.relative_to(SUBJECT.root)) if p.is_relative_to(SUBJECT.root) else str(p)
         rid = f"review:{p.stem}"
         errs, rv = review.check(doc, st, handles=handles, owners=owners, units=units, captures=caps, now=now,
-                                compatible=compatible, strict=False)
+                                compatible=compatible, strict=False, where=p.as_posix())
         head = {"review": rel, "by": rv["by"], "on": rv["on"].isoformat() if rv["on"] else str(doc.get("review", {}).get("on", ""))}
         if errs:
             for e in errs:
