@@ -1,6 +1,11 @@
 # The smallest subject: no artefacts, no record, one task with two required keys. The harness
 # loads it, the rules find nothing, and the gate reports every key absent and BLOCKED. It is
 # the worked example of subjects/README.md and the fixture the CI stack job runs.
+# The format this subject root is written in (task-0174, decision-0023): one version for subject.toml,
+# scenarios.toml, plants.toml, queries.toml and the register map; a knowgov that reads an older one refuses it.
+[format]
+version = 1
+
 [subject]
 id = "minimal"
 name = "Minimal"

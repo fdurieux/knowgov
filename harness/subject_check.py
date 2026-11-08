@@ -205,7 +205,10 @@ def evaluate(args: dict, register: Path | None = None) -> dict:
                 raise SubjectCheckError(f"document path {rel.as_posix()!r} is also a folder another path names")
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(text, encoding="utf-8")
-        rep = cs.check(root, register if Path(register).is_dir() else None, cs.kinds_mappers())
+        try:
+            rep = cs.check(root, register if Path(register).is_dir() else None, cs.kinds_mappers())
+        except cs.formats.FormatError as e:   # task-0174: a manifest for a newer knowgov is refused, never misread
+            raise SubjectCheckError(str(e).replace(root.as_posix(), label)) from None
         rep["root"] = label
         return rep
     finally:

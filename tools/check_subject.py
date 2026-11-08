@@ -53,6 +53,8 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "harness"))
+import formats  # noqa: E402  (task-0174, decision-0023: [format] version, standard library, binds no subject)
 KINDS_TABLE = ROOT / "instance" / "kinds.toml"
 MAPPERS_TABLE = ROOT / "instance" / "mappers.toml"   # what each mapper reads, in an adopter's words (task-0149)
 DEFAULT_REGISTER = ROOT / "demo" / "register"
@@ -60,7 +62,8 @@ SCHEMA_VERSION = 1
 
 # What the loader reads (harness/subject.py Subject, harness/gate.py, tools/vendor_subject.py)
 TABLES = {"subject", "artefact", "reference", "oracle", "provenance", "verification", "arms", "tasks",
-          "three_valued", "rules", "register", "page", "record", "capture", "vendor"}
+          "three_valued", "rules", "register", "page", "record", "capture", "vendor", "format"}
+FORMAT_FIELDS = {"version"}   # task-0174: [format] version covers the subject root's configuration
 SUBJECT_FIELDS = {"id", "name", "description", "record_model", "record_effort", "listed"}
 ARTEFACT_FIELDS = {"key", "short", "family", "format", "label", "format_label", "path", "include", "mapper", "store"}
 ARTEFACT_REQUIRED = ("key", "family", "format")
@@ -162,6 +165,8 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
         _fields(rep, "[subject]", m["subject"], SUBJECT_FIELDS)
     if isinstance(m.get("record"), dict):
         _fields(rep, "[record]", m["record"], RECORD_FIELDS)
+    if isinstance(m.get("format"), dict):
+        _fields(rep, "[format]", m["format"], FORMAT_FIELDS)
 
     plants = _toml(root / "plants.toml")
     added = {p.get("path") for stage in ("plant", "stage2") for ps in plants.get(stage, {}).values()
@@ -518,6 +523,9 @@ def check(root: Path, register: Path | None = None, mappers: set[str] | None = N
         rep.error("manifest", "subject.toml", f"not valid TOML: {e}", "fix the syntax the message names")
         out["exit_code"] = 1
         return out
+    # task-0174, decision-0023: the root's format version, missing read as current, a newer one refused
+    # (FormatTooNew: the command exits 2, the instance check and the MCP subject_check refuse the call)
+    out["format"] = formats.version(m, (root / "subject.toml").as_posix(), formats.SUBJECT)
     sub = m.get("subject") if isinstance(m.get("subject"), dict) else {}
     out["subject"] = sub.get("id", root.name)
     check_manifest(rep, m, root, mappers if mappers is not None else kinds_mappers())
@@ -557,7 +565,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"cannot run: {args.root} holds no subject.toml", file=sys.stderr)
         return 2
     register = args.register or Path(os.environ.get("KG_REGISTER") or DEFAULT_REGISTER)
-    rep = check(args.root, register)
+    try:
+        rep = check(args.root, register)
+    except formats.FormatError as e:   # task-0174: written for a newer knowgov, or no version: cannot run
+        print(f"cannot run: {e}", file=sys.stderr)
+        return 2
     print(json.dumps(rep, indent=1) if args.json else render(rep))
     return rep["exit_code"]
 
