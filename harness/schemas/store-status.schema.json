@@ -82,6 +82,10 @@
      },
      "rationale": {
       "type": "string"
+     },
+     "require_approved": {
+      "const": true,
+      "description": "present when the class requires approved for its keys (task-0215)"
      }
     }
    },
