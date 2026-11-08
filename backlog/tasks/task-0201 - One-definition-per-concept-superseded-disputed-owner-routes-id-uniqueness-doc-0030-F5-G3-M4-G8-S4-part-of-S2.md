@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-07T07:15:00Z'
-updated_date: '2026-11-08T11:02:00Z'
+updated_date: '2026-11-08T11:03:00Z'
 labels:
   - review
   - semantics
@@ -52,5 +52,5 @@ Shipped in #345, merged on whole green at f533ebc (tests, rdflib, rdflib-readers
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-One definition per concept (doc-0030 F5). G3: the gate's level, the stale finding, superseded_by and the bundle read one successor set, an invalidated statement's own verified or approved successor; S6's stage 2 with DT-V's V2 removed reads weight_kg|max invalidated on all four, where main read it approved beside a major stale finding. M4: three_valued and three_valued_answer read disputed statements and name them in an optional disputed field; S4's QuoteAPI|on_screening_outage reads asserted, not unknown. G8: capture.routing is the one owner, route and questionnaire file rule for the gate's findings, the questionnaires and register_change.resting; a key with several answering units routes to each unit's questionnaire, where it is written. S4: store.UNIQUE_IDS, the Neo4j adapter refusing a duplicate Derived or Activity at create, its constraints (D1) unchanged; declared_gaps_for_key by id on both adapters. Verified by tools/check_one_definition.py (3 failures on main on rdflib, 4 on Neo4j; green on both), the suites, the round trips, the MCP check and the five walkthroughs; the record S1-S7 and J-F unchanged. Held for task-0202: candidate_pairs and conflict_gaps keep the store's order.
+One definition per concept (doc-0030 F5). G3: the gate's level, the stale finding, superseded_by and the bundle read one successor set, an invalidated statement's own verified or approved successor; S6's stage 2 with DT-V's V2 removed reads weight_kg|max invalidated on all four, where main read it approved beside a major stale finding. M4: three_valued and three_valued_answer read disputed statements and name them in an optional disputed field; S4's QuoteAPI|on_screening_outage reads asserted, not unknown. G8: capture.routing is the one owner, route and questionnaire file rule for the gate's findings, the questionnaires and register_change.resting; a key with several answering units routes to each unit's questionnaire, where it is written. S4: store.UNIQUE_IDS, the Neo4j adapter refusing a duplicate Derived or Activity at create, its constraints (D1) unchanged; declared_gaps_for_key by id on both adapters. Verified by tools/check_one_definition.py (3 failures on main on rdflib, 4 on Neo4j; green on both), the suites, the round trips, the MCP check and the five walkthroughs; the record S1-S7 and J-F unchanged. Held for task-0202: candidate_pairs and conflict_gaps keep the store's order, so the conflict gap ids stay unordered until that decision.
 <!-- SECTION:FINAL_SUMMARY:END -->
