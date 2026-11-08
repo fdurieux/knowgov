@@ -58,7 +58,7 @@ import page_subject  # noqa: E402  (the subject as a value: task-0032.01)
 import http_boundary  # noqa: E402  (the HTTP trust boundary and limits, task-0141.03, task-0141.04)
 import runs_index  # noqa: E402  (the one reader of the run folders, shared with the MCP server: task-0128)
 import key_check  # noqa: E402  (task-0171: each row's key checked by the endpoint's model listing, no tokens)
-from subject import Subject  # noqa: E402
+from subject import Subject, stamp as subject_stamp  # noqa: E402
 _ps = page_subject.current   # the subject of the call in progress; the environment's when no call names one
 
 
@@ -89,13 +89,16 @@ _SIGNATURE = None
 
 
 def _of(root: Path):
-    m = (root / "subject.toml").resolve()
-    mtime = m.stat().st_mtime_ns
-    hit = _BUILT.get(str(m))
-    if hit and hit[0] == mtime:
+    """The subject at ``root``, rebuilt when its subject.toml or scenarios.toml moves (task-0206)."""
+    root = Path(root).resolve()
+    if not (root / "subject.toml").exists():
+        raise FileNotFoundError(f"{root} holds no subject.toml")
+    now = subject_stamp(root)
+    hit = _BUILT.get(str(root))
+    if hit and hit[0] == now:
         return hit[1]
     ps = page_subject.of(Subject(root))
-    _BUILT[str(m)] = (mtime, ps)
+    _BUILT[str(root)] = (now, ps)
     return ps
 
 
@@ -116,10 +119,7 @@ def _signature() -> tuple:
         if not part.strip() or not root.is_dir():
             continue
         for m in [root / "subject.toml"] if (root / "subject.toml").exists() else sorted(root.glob("*/subject.toml")):
-            try:
-                found.append((str(m), m.stat().st_mtime_ns))
-            except OSError:
-                continue
+            found.append((str(m), subject_stamp(m.parent)))   # subject.toml and scenarios.toml (task-0206)
     return tuple(found)
 
 
@@ -163,6 +163,8 @@ def _load_subjects() -> list:
     if named:
         first = [ps for ps in listed if ps.root.resolve() == Path(named).resolve()]
         listed = first + [ps for ps in listed if ps not in first]
+    if os.environ.get("KG_SUBJECTS"):
+        return listed   # the instance's own subjects only: none loads, none is served (task-0206, doc-0030 P3)
     return listed or [page_subject.current()]
 
 
@@ -184,7 +186,7 @@ def subject_of_request(q: dict, body: dict | None = None):
     sid = (q.get("subject") or [None])[0] or ((body or {}).get("subject") if isinstance(body, dict) else None)
     refresh_subjects()
     if not sid:
-        return SUBJECTS[0]
+        return SUBJECTS[0] if SUBJECTS else None
     return SUBJECT_BY_ID.get(str(sid))
 import arms  # noqa: E402  (the model endpoint settings; the client is imported only when a call is made)
 RUNS_DIR = Path(os.environ.get("KG_DEMO_RUNS", str(ROOT / "runs")))
@@ -236,6 +238,8 @@ def worker_view() -> dict:
     app reads from its kernel release, labelled as a reading), never a copy of its logic (task-0169)."""
     return execution.placement()
 INDEX = (HERE / "index.html").read_bytes()
+NO_SUBJECT = ("no subject is served: KG_SUBJECTS names no subject.toml that loads, and an instance's page serves its own "
+              "subjects only; the log names each one left out and why")
 
 # Saved Cypher for the store panel. Each runs in Neo4j Browser against the
 # scenario currently loaded; the comment on each says which scenario shows it.
@@ -889,6 +893,10 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
         q = urllib.parse.parse_qs(u.query)
         parts = [p for p in u.path.split("/") if p]
         ps = subject_of_request(q)
+        if ps is None and not SUBJECTS:   # task-0206: KG_SUBJECTS names no subject that loads; the page says so
+            if parts in ([], ["index.html"], ["api", "subjects"]):
+                return self._send(200, INDEX, "text/html; charset=utf-8") if parts != ["api", "subjects"] else self._json({"subjects": [], "current": None})
+            return self._json({"error": NO_SUBJECT}, 404)
         if ps is None:   # every route, the page included: a subject this page does not serve is not found
             return self._json({"error": f"no subject {q['subject'][0]!r} here; /api/subjects lists them"}, 404)
         with page_subject.using(ps):
@@ -995,7 +1003,7 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
             return self._json({"error": "subject must be a string"}, 400)
         ps = subject_of_request(q, body)
         if ps is None:
-            return self._json({"error": "no such subject here; /api/subjects lists them"}, 404)
+            return self._json({"error": NO_SUBJECT if not SUBJECTS else "no such subject here; /api/subjects lists them"}, 404)
         with page_subject.using(ps):
             return self._post(parts, body)
 
