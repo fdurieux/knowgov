@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-08T11:17:00Z'
-updated_date: '2026-11-08T12:37:00Z'
+updated_date: '2026-11-08T13:04:00Z'
 labels:
   - process
   - reverse-engineering
@@ -64,6 +64,8 @@ Choices made, beyond the ACs' letter:
 - an assertion resting on statements of different claims takes the most conservative (inferred, then extracted, then authored, no claim counting as the mapper's basis);
 - an inferred verified_by link derives no execution (otherwise an inference would raise another statement to verified);
 - the SHACL inferred shape widened to accept a fragment-backed statement (no record scenario trips it; comparator identical).
+
+2026-11-08, after review: the coordinating session accepted the four choices above as taken. They are (1) the per-mapper syntax, (2) the most conservative basis for mixed claims, (3) an inferred verified_by link deriving no execution, and (4) the SHACL shape accepting a fragment-backed inferred statement. All four are named in subjects/README.md, "The claim". Merged origin/main at 3b931bb (task-0215's intended bar); CHANGELOG.md resolved with both contract lines, ours after it, and 0.8.0 byte-identical.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

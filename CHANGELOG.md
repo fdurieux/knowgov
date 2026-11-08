@@ -12,6 +12,21 @@ names that section with the version.
 
 ### Contract changes
 
+- **A task class may require approved: the intended bar** (task-0215, decision-0018 point 4). A contract
+  change to the subject format and the gate report, opt-in.
+  - **The field.** `require_approved = true` under `[tasks.<class>]`.
+  - **What it does.** A key that reads `verified` but not `approved` then sits below the class's bar.
+    That is a behaviour shown to hold, perhaps by execution on the original, that no person has yet
+    intended.
+  - **The finding.** Each such key gets an `intended` finding, major, naming its owner and route from
+    `capture.routing`. The report's `keys` counts them as `unintended`, and `store_status` shows the
+    field.
+  - **The verdict.** It counts these keys as the class counts a key below verified: QUALIFIED, or
+    BLOCKED past `max_unverified_share`. PROCEED then needs every key approved.
+  - **Without the field, nothing changes.** Every class reads as before, and the scored record is
+    unchanged: no public class declares it. `tools/check_subject.py` refuses a value that is not true
+    or false.
+
 - **A kit statement says what it is: the claim** (task-0214, decision-0018 point 3, doc-0032 §3). A change to the
   kit format the five bundle mappers read, and an additive rule in the subject check's report.
   - **The field.** A statement may carry `claim`: `observed` (what the pinned original does), `inferred` (a
@@ -31,6 +46,7 @@ names that section with the version.
     linked to the gap it proposes to fill.
   - `tools/fixtures/claim_probe` carries every mapping. `tools/check_claim_probe.py` proves it on both stores, in
     `harness.yml` and the stack.
+
 - **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
   with one additive field.
   - **One successor set (G3).** The gate's level drops an invalidated statement only when its own verified or

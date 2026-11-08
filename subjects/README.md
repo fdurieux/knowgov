@@ -107,6 +107,12 @@ verbatim = ["contracts/cli.md"]      # optional: kit files the governed bundle c
 block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
 max_unverified_share = 0.25
 rationale = "..."                    # optional: why these keys; store_status reports it (task-0101)
+require_approved = true              # optional, default false: the intended bar (task-0215, decision-0018 point 4).
+                                     # A key verified but not approved then reads below the class's bar: an
+                                     # "intended" finding (major) names its owner and route (capture.routing),
+                                     # and the verdict counts it as the class counts a key below verified
+                                     # (QUALIFIED, or BLOCKED past max_unverified_share). A behaviour verified
+                                     # by execution on the original is shown to hold, not intended by anyone
 
 [three_valued]
 keys = ["S-review|notified", "..."]   # D5, measured on the scenario that asks for it
@@ -272,7 +278,9 @@ Where each bundle mapper reads it:
 An assertion resting on statements of different claims, such as a requirement two contract parts cite, takes the
 most conservative: `inferred` before `extracted` before `authored`, a statement with no claim counting as the
 mapper's own basis. An unknown value (`guessed`) is refused by `tools/check_subject.py` (rule `claim`), and the
-load fails on it rather than read the statement as something it did not say. `tools/fixtures/claim_probe` carries
+load fails on it rather than read the statement as something it did not say. The SHACL shape for an inferred
+assertion (`harness/shacl.py`) accepts one that rests on the kit fragment stating it, beside one linked to the gap
+it proposes to fill. `tools/fixtures/claim_probe` carries
 every mapping, and `tools/check_claim_probe.py` holds it on the store `KG_STORE` names.
 
 ## Checking a subject
@@ -280,7 +288,8 @@ every mapping, and `tools/check_claim_probe.py` holds it on the store `KG_STORE`
 `tools/check_subject.py <subject root> [--register DIR] [--json]` reads a root before it is loaded,
 and `tools/check_instance.py` runs it on every subject of an instance (task-0135, doc-0018 F2 to
 F5). It refuses (exit 1) a table or field this file does not document, a task without `keys`,
-`block_levels` or `max_unverified_share`, a key that is not `<entity>|<predicate>`, a task with no
+`block_levels` or `max_unverified_share`, a `require_approved` that is not true or false, a key that
+is not `<entity>|<predicate>`, a task with no
 scenario, a `register_map.toml` node the register does not hold or an `owner` of none of its row's
 nodes, a mapper that cannot read its document, and a claim that is not `observed`, `inferred` or
 `intended` (task-0214). It warns on a required key no document yields
