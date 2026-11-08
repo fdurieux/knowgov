@@ -1,9 +1,11 @@
 ---
 id: TASK-0216
 title: Lint findings as gaps with an owner and a route (decision-0018 point 5)
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-11-08T11:17:00Z'
+updated_date: '2026-11-08T13:09:00Z'
 labels:
   - process
   - reverse-engineering
@@ -33,9 +35,33 @@ decision-0018 point 5 (doc-0032 §2 step 5; Dominique's attribute and route step
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Each pre-load finding on a loaded document is a gap in the store and a gate finding naming the document's owner and route; the baseline (--baseline) holds a finding without raising it
-- [ ] #2 A finding's resolution (slip, choice, exception, open) is recorded and a re-lint at the same tool versions shows the delta
-- [ ] #3 Whether a lint gap lowers a key's level is stated in the PR, and the record's verdicts are unchanged
-- [ ] #4 CHANGELOG.md carries the line under Unreleased's contract heading
-- [ ] #5 The scored record (S1 to S7), the deterministic run and the comparator stay equal
+- [x] #1 Each pre-load finding on a loaded document is a gap in the store and a gate finding naming the document's owner and route; the baseline (--baseline) holds a finding without raising it
+- [x] #2 A finding's resolution (slip, choice, exception, open) is recorded and a re-lint at the same tool versions shows the delta
+- [x] #3 Whether a lint gap lowers a key's level is stated in the PR, and the record's verdicts are unchanged
+- [x] #4 CHANGELOG.md carries the line under Unreleased's contract heading
+- [x] #5 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. preload.verdicts carries each judged row's findings; preload.lint_gaps makes one gap per finding, id from the document, version, tool, rule, line and message (never store order), held when the baseline holds it.
+2. Store port: LintGap label (not Gap: the rules, census kinds and SHACL read the knowledge's gaps), record_lint_gap, resolve_lint_gap, lint_gaps (READS, MCP view); both adapters; the Turtle round trip generic.
+3. Load: each judged version's findings recorded; reviews' [[resolves]] applied (not on stage 2's recheck).
+4. Gate: lint_behind (the gaps on documents behind the keys, None with none held, so the record reads as before); gate_cli lint finding, the linter's severity at most major, info held or resolved choice/exception; owner and route from capture.routing over the keys behind it, each unit's route when several; a resolve act whose finding is gone at info.
+5. review.check [[resolves]] (choice, exception, open; bound by the text's digest; the document's owners under closes); review_toml writes it.
+6. preload_check --previous: the re-lint delta at the same tool versions (new, gone as slip or not, kept).
+7. tools/check_lint_gaps.py on both stores; schemas; CHANGELOG; tests failing on the old code first.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Evidence (merged head over 3b931bb): tools/check_lint_gaps.py holds on rdflib and on Neo4j 5.26 (planted SEQ002 on the example instance: gap and minor finding behind 15 keys owned by several units, so owner null and each unit's route named; --baseline holds it at info; employee-3 resolves it as a choice, employee-1 refused for lacking closes; mended diagram, --previous delta comparable, SEQ002 gone as a slip, no gap left, the resolve act info; Turtle round trip equal). check_round_trip --chain --expect-preload on the planted instance: rdflib to rdflib (S1, S6), neo4j to rdflib to neo4j (S1). Comparator S1-S7 and J-F: 0 diffs. check_gate_after_change rc 0; check_mcp_server holds on both stores. New tests failed on the old code (AttributeError on preload.lint_gaps, gate.lint_behind, gate_cli.lint_finding, preload_check.delta). A lint gap never lowers a key's level: it sits on its document, the gate lists it beside the keys behind it, levels and verdict equal those of the unplanted instance.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Each pre-load finding on a loaded document is now a lint gap in the store (port: record_lint_gap, resolve_lint_gap, lint_gaps; a LintGap label apart from the knowledge gaps, so the rules, the census and SHACL read as before) and a gate finding of kind lint naming the document's owner and route from capture.routing over the keys behind it, each unit's route when several own them. Its severity is the linter's, at most major; info when the --baseline holds it or a review resolved it as a choice or an exception. A review's [[resolves]] (choice, exception, open) binds to the finding's text by digest and is the document owners' to make under the role closes; a slip is a new version. preload_check --previous reports a re-lint's delta at the same tool versions: new, gone (a slip when the bytes changed), kept. A lint gap never lowers a key's level: S1-S7 and J-F compare with 0 diffs. Proven by tools/check_lint_gaps.py on rdflib (harness.yml) and Neo4j (demo.yml); tests/test_lint_gaps.py; schemas gate-report (kind lint, act resolve) and preload-report (delta); CHANGELOG under Unreleased, Contract changes.
+<!-- SECTION:FINAL_SUMMARY:END -->
