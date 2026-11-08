@@ -148,3 +148,37 @@ def test_a_pre_load_finding_the_baseline_holds_is_never_an_error():
     assert out[1].startswith("::error ") and "line=9" in out[1], out[1]
     doc = json.loads(annotate.convert(rep, "sarif"))
     assert [r["level"] for r in doc["runs"][0]["results"]][:2] == ["warning", "error"]
+
+
+def test_a_gate_finding_the_baseline_held_is_never_an_error():
+    """task-0207, doc-0030 R8: under --baseline the gate exits on a regression only. The findings the
+    baseline held carry ``held`` and are at most warnings; the regression's own findings stay errors.
+    Without a baseline, no finding carries ``held`` and the threshold decides, as before."""
+    import gate_cli
+    res = {"verdict": "BLOCKED", "why": "1 required key(s) at a blocking level: P2|surcharge (invalidated)",
+           "keys": {"P2|surcharge": {"level": "invalidated", "flags": []}, "P5|note": {"level": "proposed", "flags": []},
+                    "P7|rate": {"level": "proposed", "flags": []}},
+           "below_verified": ["P5|note", "P7|rate"], "flagged": [], "blocked_keys": ["P2|surcharge"],
+           "suspect_derived": [{"id": "derived:S1:G:run1", "kind": "code", "used_invalidated": ["A:dt:P2|surcharge@v1"]}]}
+    kw = dict(subject="s", scenario="S6", task="codegen", store="rdflib", loaded=True,
+              block_levels={"absent", "invalidated", "disputed"}, threshold="major")
+    same = {"verdict": "BLOCKED", "levels": {"P2|surcharge": "invalidated", "P5|note": "proposed", "P7|rate": "proposed"},
+            "suspect": ["derived:S1:G:run1"]}
+    rep = gate_cli.report(res, baseline=gate_cli.compare(res, same, "record"), **kw)
+    assert rep["exit_code"] == 0 and all(f["held"] for f in rep["findings"]), rep["findings"]
+    assert not schema_check.validate(rep, schema_check.load("gate-report"))
+    out = annotate.convert(rep, "github").splitlines()
+    assert out and not any(ln.startswith("::error ") for ln in out), out
+    assert all("held by the baseline" in ln for ln in out), out
+    assert {r["level"] for r in json.loads(annotate.convert(rep, "sarif"))["runs"][0]["results"]} == {"warning"}
+    # one key fell since the baseline (P7 was verified): that finding is the regression, an error; the rest held
+    fell = dict(same, levels=dict(same["levels"], **{"P7|rate": "verified"}))
+    rep = gate_cli.report(res, baseline=gate_cli.compare(res, fell, "record"), **kw)
+    assert rep["exit_code"] == 1 and not schema_check.validate(rep, schema_check.load("gate-report"))
+    assert [f["key"] for f in rep["findings"] if not f["held"]] == ["P7|rate"], rep["findings"]
+    errors = [ln for ln in annotate.convert(rep, "github").splitlines() if ln.startswith("::error ")]
+    assert len(errors) == 1 and "P7" in errors[0], errors
+    # no baseline: no held field, the threshold decides
+    rep = gate_cli.report(res, baseline=None, **kw)
+    assert not any("held" in f for f in rep["findings"]) and rep["exit_code"] == 1
+    assert sum(ln.startswith("::error ") for ln in annotate.convert(rep, "github").splitlines()) == 4

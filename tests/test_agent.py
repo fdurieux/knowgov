@@ -351,3 +351,48 @@ def test_the_page_reads_a_cut_cell_as_prompt_cut_with_no_decision():
     assert v["prompt_cut"] == cut and v["decision"] is None and v["api_error"].startswith("prompt cut") and v["model"] is None, v
     page = (ROOT / "demo" / "app" / "index.html").read_text(encoding="utf-8")
     assert "r.prompt_cut ? 'prompt cut' : r.api_error ? 'api error'" in page, "the run table names the cut"
+
+
+def test_the_seconds_ceiling_reached_mid_stream_is_the_ceiling_not_an_api_error():
+    """task-0207, doc-0030 R6: a stream the run's own deadline cuts (``bounded``'s TimeoutError, or the
+    client's timeout set to the time remaining) ends the run at its seconds ceiling, so run.py records no
+    api_error and --resume keeps the cell instead of paying for it again. A stream that falls silent for
+    the idle limit well before the deadline, or any other failure, is still an api error."""
+    import time
+
+    def trickle():
+        while True:   # a recorded stream that never ends: one chunk every 0.1 s
+            time.sleep(0.1)
+            yield {"choices": []}
+
+    def streaming(messages, tools, deadline=None):
+        for _ in agent.bounded(trickle(), deadline, idle=60):
+            pass
+
+    class APITimeoutError(Exception):   # the client's own class name, as openai raises it at its timeout
+        pass
+
+    def client_timeout(messages, tools, deadline=None):
+        time.sleep(max(0.0, deadline - time.monotonic()))
+        raise APITimeoutError("Request timed out.")
+
+    def silent(messages, tools, deadline=None):
+        def nothing():
+            time.sleep(5)
+            yield {}
+        for _ in agent.bounded(nothing(), deadline, idle=0.2):
+            pass
+
+    with tempfile.TemporaryDirectory() as td:
+        for name, responder in (("stream", streaming), ("client", client_timeout)):
+            r = agent.run("s", "u", sandbox=Path(td) / name, read_text=lambda p: "", feedback=lambda root, f: {}, tag="t",
+                          responder=responder, limits={"seconds": 1})
+            assert r["stopped_by"] == "ceiling: 1 seconds", (name, r["stopped_by"])
+            assert r["parsed"]["decision"] == "abstain" and r["trace"][-1]["kind"] == "ceiling", (name, r["trace"][-1])
+        r = agent.run("s", "u", sandbox=Path(td) / "idle", read_text=lambda p: "", feedback=lambda root, f: {}, tag="t",
+                      responder=silent, limits={"seconds": 60})
+        assert r["stopped_by"].startswith("api error: the model sent nothing"), r["stopped_by"]
+    # run.py: only a stopped_by that starts "api error" is recorded as one, and --resume re-runs only those
+    run_py = (ROOT / "harness" / "run.py").read_text(encoding="utf-8")
+    assert 'if res["stopped_by"] and res["stopped_by"].startswith("api error"):' in run_py
+    assert 'if "api_error" not in prev:\n                return prev' in run_py

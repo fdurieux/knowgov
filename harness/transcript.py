@@ -93,6 +93,21 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
 
+def model_call(answered: dict):
+    """The model call route (c) makes through the arms' client: the parsed JSON reply, and in ``answered``
+    the model that answered, the usage's ``model`` (what the endpoint named in its stream), which a
+    gateway or an alias can make differ from the one configured (task-0207, doc-0030 R12)."""
+    import arms
+
+    def call(system, user):
+        r = arms.call(system, user, tag="transcript")
+        answered["model"] = (r.get("usage") or {}).get("model") or answered.get("model")
+        if r["parse_error"]:
+            raise CannotRun(f"the model's reply is not JSON: {r['parse_error']}")
+        return r["parsed"]
+    return call
+
+
 def run(args, call=None) -> int:
     import arms
     import review
@@ -120,16 +135,14 @@ def run(args, call=None) -> int:
     with st:
         gate_cli._load(st, scenario)
         keys = open_keys(resolve(st, args.task))
+    answered: dict = {}
     if call is None:
-        def call(system, user):
-            r = arms.call(system, user, tag="transcript")
-            if r["parse_error"]:
-                raise CannotRun(f"the model's reply is not JSON: {r['parse_error']}")
-            return r["parsed"]
+        call = model_call(answered)
     proposals = propose(raw.decode("utf-8", errors="replace"), keys, call)
     on = review.today()
     digest = hashlib.sha256(raw).hexdigest()
-    meta = {"subject": SUBJECT.id, "scenario": scenario, "task": args.task, "model": ep["model"], "host": ep["host"],
+    # task-0207, doc-0030 R12: the model that answered, as the endpoint named it in the stream, not the one configured
+    meta = {"subject": SUBJECT.id, "scenario": scenario, "task": args.task, "model": answered.get("model") or ep["model"], "host": ep["host"],
             "transcript_sha256": digest, "on": on.isoformat()}
     if not proposals:
         print(f"no proposal on the {len(keys)} key(s) the store holds nothing on; nothing written")
