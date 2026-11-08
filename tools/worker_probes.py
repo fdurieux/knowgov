@@ -14,44 +14,70 @@ def marker() -> str:
 
 
 def chain(mark: str, depth: int = DEPTH) -> str:
-    """A ``depth``-deep chain of processes, each in its own session (setsid), each sleeping; the job's own
-    process exits as soon as the chain stands, so the job ends with every link left behind. The marker is
-    in this code, so each link's command line carries it."""
+    """A ``depth``-deep chain of processes, each in its own session (setsid), each sleeping, built whole
+    before the job answers: each link reports through a pipe once its child, and so the whole chain below
+    it, stands, so the job's ``built N`` follows the last fork, never races it. A fork that fails (a process
+    bound reached) is reported by name as ``fork failed``, never as a short chain. The marker is in this
+    code, so each link's command line carries it."""
     return f"""
 import os, sys, time
 MARK = {mark!r}
 DEPTH = {int(depth)}
 
+class Failed(Exception):
+    \"\"\"A link below failed: its message is passed up as it is.\"\"\"
+
 def link(d):
+    \"\"\"Fork link d, which forks d - 1 below it; return once the whole chain below stands, or raise.\"\"\"
+    r, w = os.pipe()
     pid = os.fork()
     if pid:
-        return pid
-    os.setsid()
-    null = os.open(os.devnull, os.O_RDWR)
-    for fd in (0, 1, 2):
-        os.dup2(null, fd)
-    if d > 1:
-        link(d - 1)
+        os.close(w)
+        got = b''
+        while not got.endswith(b'\\n'):   # one line: every link below holds a copy of this pipe, so no EOF comes
+            chunk = os.read(r, 256)
+            if not chunk:
+                break
+            got += chunk
+        os.close(r)
+        got = got.strip()
+        if got != b'ok':
+            raise Failed(got.decode('utf-8', 'replace') or 'a link died before it answered')
+        return
+    os.close(r)
+    try:
+        os.setsid()
+        null = os.open(os.devnull, os.O_RDWR)
+        for fd in (0, 1, 2):
+            os.dup2(null, fd)
+        if d > 1:
+            link(d - 1)
+        os.write(w, b'ok\\n')
+    except Failed as e:
+        os.write(w, ('%s\\n' % e).encode())
+        os._exit(1)
+    except OSError as e:
+        os.write(w, ('fork failed at depth %d: %s\\n' % (DEPTH - d + 1, e)).encode())
+        os._exit(1)
+    os.close(w)
     time.sleep(600)
     os._exit(0)
 
-link(DEPTH)
+try:
+    link(DEPTH)
+except (Failed, OSError) as e:
+    print(e if isinstance(e, Failed) else 'fork failed at depth 1: %s' % e)
+    sys.exit(0)
 
-def count():
-    n = 0
-    for p in os.listdir('/proc'):
-        if p.isdigit() and int(p) != os.getpid():
-            try:
-                if MARK.encode() in open('/proc/' + p + '/cmdline', 'rb').read():
-                    n += 1
-            except OSError:
-                pass
-    return n
-
-end = time.time() + 20
-while count() < DEPTH and time.time() < end:
-    time.sleep(0.05)
-print('built', count())
+n = 0
+for p in os.listdir('/proc'):
+    if p.isdigit() and int(p) != os.getpid():
+        try:
+            if MARK.encode() in open('/proc/' + p + '/cmdline', 'rb').read():
+                n += 1
+        except OSError:
+            pass
+print('built', n)
 """
 
 

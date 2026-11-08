@@ -65,8 +65,13 @@ def _worker():
     # as root the worker drops to uid 65534, which may not reach a virtual environment in a private folder:
     # it runs on the interpreter the environment was made from (the worker needs only the standard library)
     python = getattr(sys, "_base_executable", sys.executable) if os.getuid() == 0 else sys.executable
+    # RLIMIT_NPROC counts every process of the user: in its container the worker's uid owns only the worker's
+    # processes, but a CI runner's user owns dozens more, so the job's process bound here leaves the probe's
+    # 70-deep chain room beside them (the stack's worker keeps its default, 128)
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("OPENAI", "GEMINI", "AWS", "KG_ANTHROPIC", "KG_MODEL_API"))}
+    env["KG_WORKER_PROCESSES"] = "4096"
     p = subprocess.Popen([python, "-c", SERVE.format(harness=str(ROOT / "harness"), jobs=str(jobs), work=str(work))],
-                         env={k: v for k, v in os.environ.items() if not k.startswith(("OPENAI", "GEMINI", "AWS", "KG_ANTHROPIC", "KG_MODEL_API"))},
+                         env=env,
                          stderr=subprocess.PIPE, start_new_session=True)
     try:
         end = time.monotonic() + 15
