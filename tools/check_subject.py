@@ -275,7 +275,7 @@ def subject_versions(m: dict, root: Path) -> set[str]:
     import hashlib
     h = lambda b: hashlib.sha256(b).hexdigest()  # noqa: E731
     out: set[str] = set()
-    texts: dict[str, str] = {}
+    texts: dict[str, str] = {}               # a file artefact's text, or a directory's part: "<key><rel>"
     for a in m.get("artefact", []) if isinstance(m.get("artefact"), list) else []:
         if not isinstance(a, dict) or not a.get("path"):
             continue
@@ -284,16 +284,20 @@ def subject_versions(m: dict, root: Path) -> set[str]:
             out.add(h(p.read_bytes()))
             texts[str(a.get("key"))] = p.read_text(encoding="utf-8")
         elif p.is_dir():
-            out |= {h(f.read_bytes()) for f in sorted(p.rglob("*")) if f.is_file()}
+            for f in sorted(p.rglob("*")):
+                if f.is_file():
+                    out.add(h(f.read_bytes()))
+                    t = f.read_text(encoding="utf-8", errors="replace")
+                    texts[str(a.get("key")) + f.relative_to(p).as_posix()] = t if t.endswith("\n") else t + "\n"   # as bundled
     plants = _toml(root / "plants.toml")
     for stage in ("plant", "stage2"):
         for patches in (plants.get(stage) or {}).values():
             kit = dict(texts)
             for x in patches if isinstance(patches, list) else []:
-                path = str(x.get("path"))
+                path = str(x.get("path")) + (str(x["within"]) if x.get("within") else "")   # a part a plant changes (task-0094)
                 if x.get("op") == "add":
                     kit[path] = str(x.get("new", ""))
-                elif x.get("op", "replace") == "replace" and path in kit and not x.get("within"):
+                elif x.get("op", "replace") == "replace" and path in kit:
                     kit[path] = kit[path].replace(str(x.get("old", "")), str(x.get("new", "")))
             out |= {h(t.encode("utf-8")) for k, t in kit.items() if texts.get(k) != t}
     return out
