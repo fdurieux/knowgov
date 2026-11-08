@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-08T11:18:00Z'
-updated_date: '2026-11-08T12:25:00Z'
+updated_date: '2026-11-08T14:33:00Z'
 labels:
   - attestation
   - contract
@@ -48,4 +48,6 @@ load.attested_artefacts reads [verification] authored and approval versions (raw
 
 <!-- SECTION:NOTES:BEGIN -->
 Severity: an unattested Version behind the task's keys is major (its authored statements read proposed and nothing in it is approved by construction, so the keys behind it fall below verified, and the attester or the keys' owner has to act); a declaration without versions is info. The read rule writes nothing to the store (a declaration without versions is read from the manifest by gate.attestation_behind), and the record's D6_gate leaves the attestation entry out (run.gate_summary), so the record S1-S7 and J-F is unchanged. A test's verification of an unattested Version still counts: the probe's edited table reads verified, not proposed, on its execution-verified statements; its authored statements read proposed. AC 7: the held pull request, claude/task-0221-public-digests.
+
+Stage 2's reading (the coordinator's answer to the DECIDE, 2026-11-08: option (a)), decision-0019's text, quoted: "An unlisted Version is not attested: its authored statements read proposed, and nothing in it is approved by construction". It covers the unchanged statements of a changed, unlisted Version. So when stage 2 re-reads a subject whose bound declarations do not list a Version it now loads, load.load_verifications withdraws the by-construction acts (ver:review and appr: of that Version's statements, changed or not) through the new port write withdraw_construction on both adapters, then re-runs r_corroborate and r_unverified; a test's verification still counts. tools/check_stage2_reload.py passes on both stores without setting attestation aside. CI's subject-check step admits exactly the read rule's note (grep -v on '(decision-0019)'), failing on any other NOTE, WARNING or ERROR; #355, whose lists make the note disappear, restores the strict form.
 <!-- SECTION:NOTES:END -->
