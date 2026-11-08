@@ -339,6 +339,13 @@ def _rows(result) -> list[dict]:
     return [dict(r) for r in result]
 
 
+def _refuse_taken(st, label: str, nid: str) -> None:
+    """store.UNIQUE_IDS for a label no Neo4j constraint holds here (NEO4J_GUARDED; task-0201, doc-0030 S4)."""
+    assert label in NEO4J_GUARDED, label
+    if _rows(st.run(f"MATCH (n:{label} {{id:$id}}) RETURN count(n) AS n", id=nid))[0]["n"]:
+        raise ValueError(DUPLICATE.format(nid=nid))
+
+
 class _Unit:
     """A handle's publication (task-0141.06, decision-0014): for a writer, the lease, the unit's one
     transaction and the sequence lock it publishes under; for a reader, the generation it pinned."""
@@ -716,16 +723,10 @@ class Neo4jStore(Store):
     def ensure_person(self, aid: str, handle: str) -> None:
         self.run("MERGE (p:Agent {id:$id}) SET p.kind='human', p.name=$name", id=aid, name=handle).consume()
 
-    def _refuse_taken(self, label: str, nid: str) -> None:
-        """store.UNIQUE_IDS for a label no Neo4j constraint holds here (NEO4J_GUARDED; task-0201, doc-0030 S4)."""
-        assert label in NEO4J_GUARDED, label
-        if _rows(self.run(f"MATCH (n:{label} {{id:$id}}) RETURN count(n) AS n", id=nid))[0]["n"]:
-            raise ValueError(DUPLICATE.format(nid=nid))
-
     def create_activity(self, aid: str, kind: str, at: str, tool: str, note: str, agent_id: str, *,
                         subject: str | None = None, scenario: str | None = None) -> None:
         held = {k: v for k, v in (("subject", subject), ("scenario", scenario)) if v is not None}   # task-0195
-        self._refuse_taken("Activity", aid)
+        _refuse_taken(self, "Activity", aid)
         self.run("""
             MATCH (ag:Agent {id:$agent})
             CREATE (act:Activity {id:$aid, kind:$kind, at:$ts, tool:$tool, note:$note})
@@ -793,7 +794,7 @@ class Neo4jStore(Store):
             MERGE (f)-[:MENTIONS]->(e)""").consume()
 
     def create_inferred(self, props, entity, activity, agent_id, candidate_for) -> None:
-        self._refuse_taken("Activity", activity["id"])
+        _refuse_taken(self, "Activity", activity["id"])
         self.run("""
             MATCH (llm:Agent {id:$lid}), (e:Entity {id:$eid})
             CREATE (act:Activity {id:$aid, kind:'inference', at:$at, tool:$itool, note:$note})
@@ -873,7 +874,7 @@ class Neo4jStore(Store):
                  rows=[{"id": k, "until": d} for k, d in sorted(dates.items())]).consume()
 
     def register_derived(self, did, kind, sha, assertion_ids, recorded=None) -> None:
-        self._refuse_taken("Derived", did)
+        _refuse_taken(self, "Derived", did)
         self.run("""CREATE (dv:Derived {id:$did, kind:$dkind, sha256:$sha, suspect:false})
                     FOREACH (r IN CASE WHEN $rec IS NULL THEN [] ELSE [$rec] END | SET dv.recorded = r)
                     WITH dv UNWIND $ids AS aid MATCH (x:Assertion {id:aid}) MERGE (dv)-[:USED_ASSERTION]->(x)""",

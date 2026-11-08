@@ -48,8 +48,18 @@ class Store:
     def conflict_gaps(self):
         return []
 
-    def stale_on_keys(self, keys):
-        return []
+    def stale_on_keys(self, keys):   # as the adapters read it: each invalidated statement with its own successors (task-0201)
+        out = []
+        for k in keys:
+            rows = self.rows.get(k, [])
+            for x in rows:
+                if x["status"] == "invalidated":
+                    succ = [{"id": r["id"], "value": "1", "status": r["status"]} for r in rows
+                            if r["status"] in ("proposed", "validated", "verified", "approved")]
+                    out.append({"id": x["id"], "key": k, "value": "1", "invalidated_by": "v2",
+                                "verifications": [{"id": None, "valid_until": None}],
+                                "successors": succ or [{"id": None, "value": None, "status": None}]})
+        return out
 
     def suspect_derived(self):
         return []
