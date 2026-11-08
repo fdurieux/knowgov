@@ -75,6 +75,24 @@
         }}
       }
     },
+    "checks": {
+      "type": "array",
+      "description": "step 4's checks (task-0217, decision-0018 point 1), each across the kinds it reads, after the kinds' own linters: ran, unchecked (it cannot run here, or the instance holds nothing it reads; why says which) or cannot_run (exit 2); version is pumllint's for the trace, null for the checks of this repository's own; findings counts those that landed on a row of this report",
+      "items": {
+        "type": "object",
+        "required": ["check", "reads", "state", "why", "version", "files", "findings"],
+        "additionalProperties": false,
+        "properties": {
+          "check": {"enum": ["pumllint trace", "glossary", "dmn gaps"]},
+          "reads": {"type": "array", "items": {"type": "string"}},
+          "state": {"enum": ["ran", "unchecked", "cannot_run"]},
+          "why": {"type": "string"},
+          "version": {"type": ["string", "null"]},
+          "files": {"type": "integer", "minimum": 0},
+          "findings": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
     "delta": {"type": "object", "required": ["previous", "comparable", "why", "new", "gone", "kept"], "additionalProperties": false, "description": "with --previous (task-0216, decision-0018 point 5): what a re-lint changed against an earlier report, at the same tool versions only; each finding new, gone (a slip when its file's bytes changed) or kept, matched by file, tool, rule and message", "properties": {"previous": {"type": "string"}, "comparable": {"type": "boolean"}, "why": {"type": ["string", "null"]}, "new": {"type": "array", "items": {"type": "object", "required": ["file", "tool", "rule", "message", "severity", "line"], "additionalProperties": false, "properties": {"file": {"type": "string"}, "tool": {"type": ["string", "null"]}, "rule": {"type": "string"}, "message": {"type": "string"}, "severity": {"$ref": "#/$defs/severity"}, "line": {"type": "integer", "minimum": 0}}}}, "gone": {"type": "array", "items": {"type": "object", "required": ["file", "tool", "rule", "message", "severity", "line", "slip"], "additionalProperties": false, "properties": {"file": {"type": "string"}, "tool": {"type": ["string", "null"]}, "rule": {"type": "string"}, "message": {"type": "string"}, "severity": {"$ref": "#/$defs/severity"}, "line": {"type": "integer", "minimum": 0}, "slip": {"type": "boolean"}}}}, "kept": {"type": "integer", "minimum": 0}}},
     "exit_code": {"enum": [0, 1, 2]},
     "note": {"type": "string"}
@@ -103,7 +121,8 @@
               "severity": {"$ref": "#/$defs/severity"},
               "line": {"type": "integer", "minimum": 0},
               "message": {"type": "string"},
-              "held": {"type": "boolean", "description": "with --baseline: the baseline holds this finding"}
+              "held": {"type": "boolean", "description": "with --baseline: the baseline holds this finding"},
+              "tool": {"type": "string", "description": "the step-4 check that found it (task-0217): pumllint trace, glossary or dmn gaps; absent for the row's own linter"}
             }
           }
         }

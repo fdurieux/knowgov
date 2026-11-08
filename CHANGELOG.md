@@ -115,6 +115,25 @@ names that section with the version.
   - `tools/fixtures/claim_probe` carries every mapping. `tools/check_claim_probe.py` proves it on both stores, in
     `harness.yml` and the stack.
 
+- **Step 4's checks in the pre-load check** (task-0217, decision-0018 point 1). A contract change to the
+  pre-load report, additive.
+  - **The checks.** After each kind's linter, `tools/preload_check.py` runs three checks across documents:
+    - pumllint's `trace` with `--features`, over diagrams, feature files and requirements;
+    - a glossary check: a term in three requirements with no glossary row;
+    - a DMN check: gaps, overlaps under `UNIQUE` or `ANY`, and untyped outputs.
+  - **The report.** Each finding names its check as `tool`, and a new `checks` block says whether each one
+    ran. A document no linter of its kind read, but a check did, is judged by that check alone.
+  - **Through the load.** Each finding reaches the load as a lint gap, routed as task-0216 routes them.
+  - **The trace needs pumllint 0.35.0 or later**, the harness's pin since task-0224, and the instance's
+    requirement-id pattern. Without either, it is listed as unchecked, naming what is missing.
+  - **The example instance.** The DMN check finds two minor gaps in its screening table, at 41 to 42 and
+    66 to 67 on a `number` input. A lint finding never lowers a key's level, so every verdict reads as
+    before.
+  - **Found, not fixed.** The two DMN gaps are reported as found. The example is built from CargoQuote's
+    vendored kit, which is never edited by hand.
+  - **Proof.** `tools/check_preload_linters.py` proves each check on its planted defect, the trace on the
+    pinned pumllint.
+
 - **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
   with one additive field.
   - **One successor set (G3).** The gate's level drops an invalidated statement only when its own verified or
@@ -319,6 +338,12 @@ names that section with the version.
     `[review.kinds]` names, else `[review] default_months`, as decision-0005 point 2 says. Before, a node
     whose kind is not named mixed the default in, so a key on a 24-month kind beside such a node lapsed at
     12. The public register names no kind above its default, so neither subject's dates move.
+- **Three fixes to the MCP reader and its check** (task-0208, doc-0030 M7, M9, M11). `code_path`'s ledger
+  leg reads `unchecked`, naming why, when the ledger holds an entry for the path but there is no code root to
+  read the file from (no instance, or a code map that does not hold); before, it read `drift: false` for a
+  file it never looked at. The reader no longer writes `__pycache__` into `KG_REGISTER/tools` when it loads
+  the register's own modules, so a register mounted read-only stays unwritten. `tools/check_mcp_server.py`
+  builds the arms' bundle from each scenario's prompts, as the runner does, not a fixed `task_codegen`.
 - **An agent run stopped by its seconds ceiling reads as the ceiling, not as an API error** (task-0207,
   doc-0030 R6). When the run's deadline cut a model's answer mid-stream, or the client's timeout fired at
   it, the run was recorded as an API error, so `--resume` ran the cell again and paid for it again. It now
