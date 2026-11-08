@@ -302,6 +302,17 @@ names that section with the version.
 
 ### Changes
 
+- **pumllint 0.35.0 is the record's pin** (task-0224, the maintainer, 2026-11-08). The image, both
+  `harness.yml` jobs, `demo/requirements.txt` and the CI templates (`instance/ci/preload-check.yml`'s
+  `PUMLLINT`, the GitLab include's `KNOWGOV_PIP`) install pumllint 0.35.0 in place of 0.33.0, so the
+  pre-load check, the sequence-diagram mappers and the image run one version, the first with
+  `pumllint trace --features` (task-0217 builds on it; a CI step runs it on the J-F kit). Nothing a
+  reader sees moves: the scored record (S1 to S7) and J-F's run equal under the comparator on rdflib
+  and Neo4j; the two mappers that import the parser yield the same statements, value for value; the
+  pre-load check's pumllint findings on the example instance and on every `.puml` of both subjects are
+  the same. The parser gains a field (`declared_line` on participants) that no mapper reads. Not a
+  contract change: an instance that copied the CI template moves its `PUMLLINT` when it moves its
+  knowgov tag.
 - **A guide to reverse-engineering a code base and finding its knowledge gaps** (task-0218, decision-0018
   points 1 and 2). `docs/reverse-engineering.md` walks the eight steps for an adopter, from scoping at a named
   commit to re-running on change. For each step it gives the tool that runs it today, the record it leaves and
