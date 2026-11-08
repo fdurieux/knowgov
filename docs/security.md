@@ -292,7 +292,8 @@ the host. The only escape is `KG_ALLOW_UNCONTAINED_EXECUTION=1`, which runs the 
 uncontained, as before. With an organisation's instance mounted, the interim guard (task-0141.07,
 `harness/execution_guard.py`) still refuses first: the worker sees only the public subjects. Supported:
 Linux with Landlock at ABI 3 or later (Linux 6.2 or later, enabled; task-0203: below ABI 3 Landlock does not
-confine truncation, so `write_confined` is not attested) and a container engine that runs the compose
+confine truncation, so `write_confined` is not attested: the worker refuses to serve, the page's worker chip
+reads *worker: not attested · Landlock ABI N, 3 needed*, and every arms run is refused) and a container engine that runs the compose
 service; elsewhere the worker refuses to serve and model output does not run. That sentence was the
 fail-closed design, proven on GitHub's Ubuntu runners and a Linux kernel with Landlock only; the first
 evidence on another engine is the maintainer's Mac (2026-11-06), below. The worker starts only

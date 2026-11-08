@@ -17,8 +17,10 @@ names that section with the version.
   - **The attestation.** The worker's attestation gains `landlock_abi`, the kernel's Landlock version.
     `write_confined` is now true only at ABI 3 or later, Linux 6.2, the first version where Landlock also
     stops a job truncating a file it may only read. Below that, the worker refuses to serve. The page's
-    worker chip names the ABI found and the 3 needed. Arms now need Linux 6.2 or later, where they needed
-    5.13.
+    worker chip names the ABI found and the 3 needed.
+  - **Known limit: Arms now need Linux 6.2 or later**, where they needed 5.13. On a kernel between the two the
+    worker refuses to serve, the page's worker chip reads *Landlock ABI N, 3 needed*, and every Arms run is
+    refused; Replay and Deterministic are unaffected.
   - **`harness/run.py --stage2-derived FILE`** names stage 2's derived output, the code an earlier scenario
     built. By default it is the file this invocation wrote, or, under `--resume`, its earlier attempt's.
     It is never a file left in a reused `--out` folder. A deterministic run in a fresh folder is unchanged.
