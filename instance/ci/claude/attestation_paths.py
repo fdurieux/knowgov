@@ -7,7 +7,7 @@
 It reads one PreToolUse event on stdin (the settings snippet beside this file matches Edit, Write,
 MultiEdit and NotebookEdit) and refuses a write that would attest for a person:
 
-- a ``subject.toml`` whose ``[verification]`` or ``[provenance]`` table the write adds or changes
+- a ``subject.toml`` whose ``[verification]``, ``[provenance]`` or ``[capture]`` table the write adds or changes
   (decision-0009: a load verifies and approves by construction only what the manifest declares, and
   ``[provenance] human`` names who attests). The tables are compared parsed, before and after the
   write, so an ordinary edit (an ``[[artefact]]``, a task class, a comment) passes, and so does removing
@@ -18,6 +18,9 @@ MultiEdit and NotebookEdit) and refuses a write that would attest for a person:
 - the file a manifest's ``[verification] map`` names (its ``review`` rows say which keys a review covers);
 - a review file anywhere: a TOML file whose content after the write has a ``[review]`` table or a
   ``[[ruling]]`` (``harness/capture.py review`` takes it as input; it is a person's ruling);
+- capture-shaped TOML anywhere: ``[[answer]]`` or ``[[unknown]]`` rows, a ``[capture]`` table, or an
+  ``[answered]`` table naming a handle or a date (task-0204, doc-0030 P4), since a re-pointed
+  ``[capture] dir`` would otherwise make any folder a capture folder;
 - ``preload-baseline.json`` at any depth (the owner's commit of the pre-load findings they accept);
 - anything under the instance's ``register/`` (the register changes by its own pull request and checks).
 
@@ -48,7 +51,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 WRITE_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 PROTECTED, CLEAR, CANNOT_TELL = 1, 0, 2      # the gate contract, as the check answers
-ATTESTING = ("verification", "provenance")
+ATTESTING = ("verification", "provenance", "capture")   # [capture] dir re-points the guarded captures (task-0204, P4)
 CHECK = "knowgov attestation paths"
 ROUTE = ("Route: an attestation is a person's act (decision-0009, decision-0002). Leave the table, the capture, the "
          "review, the baseline or the register as it is; say in the pull request what is missing, and the person "
@@ -157,6 +160,21 @@ def _is_review(text: str) -> bool:
         return "[review]" in heads or "[[ruling]]" in heads
 
 
+def _is_capture(text: str) -> bool:
+    """Capture-shaped content (task-0204, doc-0030 P4), what ``load_captures`` reads as a person's answers
+    wherever the file lies: ``[[answer]]`` or ``[[unknown]]`` rows, a ``[capture]`` table, or an
+    ``[answered]`` table that names a handle or a date (a questionnaire signed for a person). A blank
+    questionnaire, ``[answered]`` left empty as ``capture.py questionnaire`` writes it, is not one."""
+    try:
+        doc = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:   # half-written: read the headers as text, failing closed on [answered]
+        heads = {ln.strip().replace(" ", "") for ln in text.splitlines()}
+        return bool(heads & {"[[answer]]", "[[unknown]]", "[capture]", "[answered]"})
+    ans = doc.get("answered")
+    signed = isinstance(ans, dict) and any(str(ans.get(f) or "").strip() for f in ("from", "on"))
+    return "answer" in doc or "unknown" in doc or "capture" in doc or signed
+
+
 def check(event: dict, inst: Path) -> tuple[int, str]:
     p = target(event, Path(str(event.get("cwd") or inst)))
     if p is None or not _inside(p, inst):
@@ -191,6 +209,10 @@ def check(event: dict, inst: Path) -> tuple[int, str]:
     if p.suffix.lower() == ".toml" and _is_review(after):
         return PROTECTED, (f"{rel} would be a review file ([review] or [[ruling]]): a second person's ruling on what "
                            "the store holds (decision-0002). The reviewer writes it.")
+    if p.suffix.lower() == ".toml" and _is_capture(after):
+        return PROTECTED, (f"{rel} would be capture-shaped ([[answer]], [[unknown]], [capture] or a signed [answered]): "
+                           "a person's answers under their handle, which harness/capture.py ingest writes from their "
+                           "questionnaire. Only a person's handle enters them, wherever the file lies.")
     return CLEAR, ""
 
 

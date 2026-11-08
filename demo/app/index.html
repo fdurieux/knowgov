@@ -141,7 +141,7 @@ a{color:var(--teal)}
 <script>
 const $ = (s, el=document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let STATE = {subject: '', scenarios: [], store: null, armsEnabled: false, execution: {ok: false, why: null}, worker: null, detEnabled: false, current: null, source: null, view: null, run: null, shown: null, lastRun: {}, recordModel: '', recordEffort: '', modelRows: []};
+let STATE = {subject: '', knowgov: null, scenarios: [], store: null, armsEnabled: false, execution: {ok: false, why: null}, worker: null, detEnabled: false, current: null, source: null, view: null, run: null, shown: null, lastRun: {}, recordModel: '', recordEffort: '', modelRows: []};
 // the arms choice is kept per subject: each subject has its own record's row (task-0032.02)
 function armsChoice() { try { return JSON.parse(localStorage.getItem('kg-arms-row:' + STATE.subject) || 'null'); } catch (e) { return null; } }
 function saveArmsChoice(c) { try { localStorage.setItem('kg-arms-row:' + STATE.subject, JSON.stringify(c)); } catch (e) {} }
@@ -229,11 +229,28 @@ async function loadScenarios() {
   if (j.run) { STATE.lastRun[j.run.scenario + j.run.mode] = j.run; if (j.run.status === 'running') watchRun(); }
 }
 
+// which knowgov serves this page (task-0227; harness/build_identity.py): VERSION, the build's commit and its
+// distance from the release tag, each as the running copy's own files say it; a part not known reads unknown
+function knowgovLabel(k) {
+  if (!k) return 'knowgov: not reported';
+  const v = k.version || 'version unknown';
+  const m = /^(.+?)-(\d+)-g([0-9a-f]+)$/.exec(k.describe || '');
+  const since = tag => tag === 'v' + k.version ? '' : ' since ' + tag;
+  if (m) return `knowgov ${v} + ${m[2]}${since(m[1])} (${m[3].slice(0, 7)})`;
+  if (k.describe) return `knowgov ${v} (${k.describe})`;
+  if (k.commit) return `knowgov ${v} (${k.commit.slice(0, 7)}, distance from the release unknown)`;
+  return `knowgov ${v} (commit unknown)`;
+}
+function knowgovChip() {
+  const k = STATE.knowgov;
+  const title = k ? `VERSION ${k.version || 'unknown'}; commit ${k.commit || 'unknown'}; describe ${k.describe || 'unknown'}. Compare with: git -C ~/knowgov describe --tags --always` : 'this app does not report its version';
+  return `<span class="chip" title="${esc(title)}">${esc(knowgovLabel(k))}</span>`;
+}
 function renderChips() {
   const s = STATE.store;
   $('#chips').innerHTML =
     `<span class="chip ${s.reachable ? 'ok' : 'bad'}" title="${esc(s.error||'')}">store ${esc(s.store || 'neo4j')} ${s.reachable ? 'reachable' : 'unreachable'} · ${esc(s.uri)}${s.loaded ? ' · loaded: ' + esc(s.loaded) : ''}</span>` +
-    armsChip() + workerChip() +
+    armsChip() + workerChip() + knowgovChip() +
     `<span class="chip ${s.register ? 'ok' : 'warn'}" title="the register's projection in the store: derived, its own namespace, wiped by a run">register ${s.register ? 'projected at ' + esc(s.register.tag || s.register.commit.slice(0, 7)) : 'not projected'}</span>`;
 }
 
@@ -673,6 +690,7 @@ function renderReport(v) {
 // the subject on screen: the address's ?subject=, else the last one picked in this browser, else the server's default
 async function loadSubjects() {
   const j = await (await fetch('/api/subjects')).json();
+  STATE.knowgov = j.knowgov || null;
   const ids = j.subjects.map(x => x.id);
   let saved = null; try { saved = localStorage.getItem('kg-subject'); } catch (e) {}
   const asked = new URLSearchParams(location.search).get('subject');

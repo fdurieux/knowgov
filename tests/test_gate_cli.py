@@ -241,6 +241,22 @@ def test_a_later_version_is_asked_for_coherently_or_the_gate_cannot_run():
         assert why in err.getvalue(), err.getvalue()
 
 
+def test_a_stage_two_gate_is_never_ratcheted_against_the_record():
+    """task-0209, doc-0030 G9: the record keeps stage 2's verdicts, not its keys' levels, so ``--stage 2
+    --baseline record`` would read the record's own stage-2 outcome as a regression of stage 1's levels. It
+    is refused, exit 2, before any store is opened; an earlier stage-2 report of this command is the
+    baseline that compares level for level. On the process's subject: only a scenario with a later version."""
+    from subject import SUBJECT
+    changed = next((sc for sc in SUBJECT.order if SUBJECT.scenario(sc).get("stage2")), None)
+    if not changed:
+        return
+    for extra in ([], ["--reverify"]):
+        err = io.StringIO()
+        with redirect_stderr(err):
+            assert gate_cli.main(["--scenario", changed, "--stage", "2", "--baseline", "record", *extra]) == 2, extra
+        assert "--baseline FILE" in err.getvalue() and "stage 2" in err.getvalue(), err.getvalue()
+
+
 def test_the_report_names_the_version_and_the_change_and_a_report_without_them_still_validates():
     rep = _report(_res(_record("S1")))
     assert rep["version"] is None and rep["change"] is None

@@ -1362,8 +1362,11 @@ seconds, and a hook on every edit must be fast and file-scoped. The script decid
 tool call is a transition, so the snippets need no fragile command pattern:
 
 - **plan**: the assistant presents a plan for acceptance (`ExitPlanMode`);
-- **spec**: a `git commit` that carries a spec file (`--spec GLOB`, default `spec.md` at any depth);
-- **push**: before `git push`.
+- **spec**: a `git commit` that carries a spec file (`--spec GLOB`, default `spec.md` at any depth),
+  whether it was staged earlier or by the same command (`git add docs && git commit`, `git commit -a`,
+  `git commit spec.md`); when the hook cannot read the command or the worktree, it treats the commit
+  as this transition;
+- **push**: before `git push`, written `/usr/bin/git push`, `git -C dir push` or `bash -c 'git push'` as well.
 
 Any other tool call gets no decision from it, and goes on through the normal permissions.
 
@@ -1409,18 +1412,21 @@ them for that person. They are:
 
 - in a `subject.toml`, the `[verification]` table (when the documents were reviewed, what they were
   read against, where the approval is recorded) and the `[provenance]` table (who attests): see
-  "Who vouches for a document";
+  "Who vouches for a document"; and its `[capture]` table, since re-pointing `[capture] dir` would make
+  any folder the capture folder;
 - a subject's `captures/` folder (answers people gave, and `captures/reviews/`, the rulings on them),
   or the folder its `[capture] dir` names;
 - the file its `[verification] map` names, which says which keys a test or a dated review covers;
 - a review file anywhere (a TOML file with a `[review]` table or a `[[ruling]]`);
+- a capture anywhere (a TOML file with `[[answer]]` or `[[unknown]]` rows, a `[capture]` table, or an
+  `[answered]` table that names a handle or a date); a blank questionnaire is not one;
 - `preload-baseline.json`, the pre-load findings an owner accepted (see "Checking a document before the load");
 - everything under `register/`, which changes by its own pull request and checks.
 
 `attestation_paths.py`, beside `knowgov_hook.py`, is a second hook that blocks an assistant's Edit,
 Write, MultiEdit or NotebookEdit on any of these. In plain English: the assistant may add an artefact
 or a task class to `subject.toml`, and may remove the attestation tables outright (that attests
-nothing), but the moment a write would add or change `[verification]` or `[provenance]`, or touch one
+nothing), but the moment a write would add or change `[verification]`, `[provenance]` or `[capture]`, or touch one
 of the files above, Claude Code stops it and tells the assistant to leave it to the person of record.
 It compares the two tables as parsed TOML before and after the write, so moving a comment or adding
 an artefact is not mistaken for an attestation.

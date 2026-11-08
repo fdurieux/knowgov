@@ -1,9 +1,11 @@
 ---
 id: TASK-0209
 title: Gate single fixes (doc-0030 G9, G11)
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-11-07T07:15:00Z'
+updated_date: '2026-11-08T15:51:00Z'
 labels:
   - review
   - gate
@@ -23,6 +25,24 @@ G9: --stage 2 --baseline record compares against stage 1's record, so the record
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 --stage 2 --baseline record is refused with exit 2, or reads the stage-2 gate
-- [ ] #2 Review months follow decision-0005 point 2, by a test with a kind longer than the default beside an unnamed kind
+- [x] #1 --stage 2 --baseline record is refused with exit 2, or reads the stage-2 gate
+- [x] #2 Review months follow decision-0005 point 2, by a test with a kind longer than the default beside an unnamed kind
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. G9: gate_cli refuses --stage 2 --baseline record (CannotRun, exit 2, before any store opens): the record keeps stage 2's verdicts but not its per-key levels, so it cannot ratchet the keys; --baseline FILE takes an earlier stage-2 report. 2. G11: cadence._read takes the shortest months among the kinds the register names months for, the default only when it names none (decision-0005 point 2). 3. Tests first, each failing on main: the refusal in test_gate_cli; a synthetic register with a 24-month kind beside an unnamed kind in test_cadence. 4. CHANGELOG under Unreleased > Changes; docs where --baseline record is described. 5. Checks: one_clock, comparator, run_tests (pins, no yaml, J-F), gate_after_change, stage2_reload.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+G9, the choice (the coordinator accepted it, 2026-11-08): a refusal, exit 2, not a stage-2 reading of the record. The record's stage2 block keeps the gate's verdicts, blocked keys and keys below verified before and after re-verification, but not each key's level. So a baseline read from it could ratchet the verdict but not the keys, a weaker check presented as the same one. gate_cli.run raises CannotRun before any store opens and names --baseline FILE, an earlier stage-2 report of this command, which compares level for level. G11: cadence._read takes the shortest months among the kinds the register's [review.kinds] names, else default_months (decision-0005 point 2). The public register names no kind above its 12-month default, so no lapse in the record moves: the comparator reads S1-S7 and J-F identical. Both tests fail on 5c4e922.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+--stage 2 --baseline record is refused with exit 2 before any store opens (doc-0030 G9): the record keeps stage 2's verdicts, not its keys' levels, and the message names --baseline FILE, an earlier stage-2 report. Review months follow decision-0005 point 2 (G11): the shortest among the kinds the register names months for, the default only when none is named. Tests: test_gate_cli's test_a_stage_two_gate_is_never_ratcheted_against_the_record and test_cadence's test_the_default_months_apply_only_when_no_node_s_kind_is_named (a 24-month kind beside an unnamed kind), both failing on main first. The record is unchanged (the comparator on S1-S7 and J-F); one_clock, gate_after_change and stage2_reload (both subjects; Neo4j) hold. CHANGELOG under Unreleased > Changes, docs in demo/README.md and gate_cli's help.
+<!-- SECTION:FINAL_SUMMARY:END -->

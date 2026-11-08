@@ -138,6 +138,31 @@ def test_only_stage_transitions_call_the_gate():
         assert hook.transition({"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}, "cwd": str(tmp / "none")}, ["spec.md"]) == "spec"
 
 
+
+def test_git_on_a_word_boundary_and_a_commit_that_stages_a_spec_are_transitions():
+    """task-0204 (doc-0030 P2): /usr/bin/git, bash -c and a quote before git are the same git; a commit whose
+    own command stages or names a spec path, or stages broadly while one is changed, is the spec transition
+    before it runs; a command that cannot be read fails closed."""
+    t = lambda cmd, cwd: hook.transition({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": str(cwd)}, ["spec.md"])  # noqa: E731
+    with tempfile.TemporaryDirectory() as d:
+        repo = Path(d)
+        g = lambda *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True)  # noqa: E731
+        g("init", "-q")
+        (repo / "a.py").write_text("x = 1\n")
+        (repo / "docs").mkdir()
+        (repo / "docs" / "spec.md").write_text("# spec\n")
+        for cmd in ["/usr/bin/git push", "bash -c 'git push origin main'", "sh -c \"cd x; git -C y push\"", "(git push)"]:
+            assert t(cmd, repo) == "push", cmd
+        assert t("echo gitpush; ls", repo) is None
+        assert t("git commit -m 'only code' a.py", repo) is None
+        for cmd in ["git add docs/spec.md && git commit -m s", "git commit -m s docs/spec.md", "/usr/bin/git commit -m s -- docs/spec.md",
+                    "git add . && git commit -m s", "git add docs && git commit -m s", "git add -A && git commit -m s",
+                    "bash -c 'git add docs/spec.md; git commit -m s'", "git add 'docs/*.md' && git commit -m s",
+                    "git commit -m \"unbalanced"]:
+            assert t(cmd, repo) == "spec", cmd
+        assert t("git add a.py && git commit -m code", repo) is None
+
+
 def test_an_unreadable_event_or_a_missing_checkout_blocks():
     p = _hook(None, "gate", "--task", "codegen", raw="not json")
     assert p.returncode == 2 and "unreadable hook event" in p.stderr

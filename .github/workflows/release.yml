@@ -36,6 +36,10 @@ jobs:
           file: demo/Dockerfile
           push: true
           tags: ghcr.io/fdurieux/knowgov:${{ github.ref_name }}
+          # task-0227: the page names the release it is (harness/build_identity.py)
+          build-args: |
+            KG_BUILD_COMMIT=${{ github.sha }}
+            KG_BUILD_DESCRIBE=${{ github.ref_name }}
           labels: |
             org.opencontainers.image.source=https://github.com/fdurieux/knowgov
             org.opencontainers.image.revision=${{ github.sha }}

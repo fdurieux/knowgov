@@ -738,8 +738,10 @@ on a regression: a worse verdict, or a key at a lower level than the
 record's, or a derived output suspect that the record did not hold
 suspect. S2 is BLOCKED in the record too, so
 `--scenario S2 --baseline record` exits 0, and the report still lists the
-blockers. `--baseline <file>` compares with an earlier report of the
-command, written with `-o <file>`. The command never writes a baseline
+blockers. The record keeps stage 2's verdicts but not its keys' levels,
+so `--stage 2 --baseline record` is refused (exit 2). `--baseline <file>`
+compares with an earlier report of the command, written with
+`-o <file>`, and at stage 2 that is the baseline to use. The command never writes a baseline
 itself: keeping one is your decision, made by committing the file.
 
 **As of a date.** A review falls due after the review months of the kind
@@ -954,6 +956,44 @@ is only a reading of the kernel's name (Ubuntu's cloud kernels end in `-aws`,
 `-azure`, `-gcp` or `-oracle`), not a check: nothing asks the cloud provider.
 **worker: not attested** means no confined worker is running; hover for the
 reason. A script reads the same from `GET /api/scenarios` as `"worker"`.
+
+The last chip in the header names the knowgov the page runs. It shows the
+version from `VERSION`, then how far the running code is past that release,
+then its commit. For example:
+
+- **knowgov 0.8.0 + 277 (7e113f0)**: a build from a checkout, 277 commits
+  after the v0.8.0 release, at commit 7e113f0.
+- **knowgov 0.8.0 (v0.8.0)**: exactly the release.
+- **knowgov 0.8.0 (7e113f0, distance from the release unknown)**: the commit
+  is known but the distance is not.
+
+A part the page cannot know reads *unknown*; it never guesses. To check that
+the page runs what your checkout holds, compare the chip with:
+
+```bash
+git -C ~/knowgov describe --tags --always
+```
+
+That prints, for example, `v0.8.0-277-g7e113f0`: the release, the commit
+count past it, and `g` followed by the commit.
+
+When you build the image from your checkout (`docker compose up --build`
+with `docker-compose.override.yml`), the image does not keep the commit
+history, so the chip shows the commit alone and says the distance is
+unknown. To show the distance as well, build with it:
+
+```bash
+cd ~/knowgov/demo && KG_BUILD_DESCRIBE="$(git -C ~/knowgov describe --tags --always)" docker compose up -d --build --wait
+```
+
+The page shows that value only if it matches the commit the image was built
+from, so a value left over from an earlier build is shown as unknown, not
+wrong. A release image from 0.9.0 on carries its tag and commit. The 0.8.0
+image predates this chip and does not show it. When the page runs
+straight from a checkout, without Docker, it asks git itself. A copy cloned
+without tags (`--depth 1`) shows the commit and says the distance is
+unknown. Scripts read the same values from `GET /api/subjects` as
+`"knowgov": {"version", "commit", "describe"}`, each `null` when unknown.
 
 ```bash
 export OPENAI_API_KEY=sk-your-real-key-here
