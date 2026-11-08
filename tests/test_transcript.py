@@ -59,3 +59,40 @@ def test_both_adapters_take_a_candidate_for_nothing_and_ci_runs_the_route():
     assert "if candidate_for:" in rdf and "WITH x WHERE $gid IS NOT NULL" in neo
     for wf in ("harness.yml", "demo.yml"):
         assert "tools/check_transcript_route.py" in (ROOT / ".github" / "workflows" / wf).read_text(encoding="utf-8"), wf
+
+
+def test_the_file_records_the_model_that_answered_not_the_one_configured():
+    """task-0207, doc-0030 R12: route (c) records the model the endpoint answered with, the usage's model
+    from the stream (a gateway or an alias can differ from KG_ARMS_MODEL), through the arms' own call,
+    stubbed here: no model is called. On CargoQuote's S2, the scenario route (c) is proven on, rdflib."""
+    import argparse
+    import re
+    import tempfile
+    from tests._skip import need_rdflib, skip
+    need_rdflib()
+    import arms
+    from subject import SUBJECT
+    if SUBJECT.id != "cargo_quote":
+        skip("cargo-quote-subject", "route (c)'s scenario S2 is CargoQuote's; this pass runs another subject")
+    names = ("KG_STORE", "KG_TODAY", "KG_MODEL_API_KEY_VAR", "KG_TRANSCRIPT_R12_KEY", "KG_ARMS_MODEL")
+    keep, keep_call = {k: os.environ.get(k) for k in names}, arms.call
+    os.environ.update(KG_STORE="rdflib", KG_TODAY="2026-11-08", KG_MODEL_API_KEY_VAR="KG_TRANSCRIPT_R12_KEY",
+                      KG_TRANSCRIPT_R12_KEY="not-a-key", KG_ARMS_MODEL="configured-alias")
+
+    def stub(system, user, *, tag):
+        key = re.findall(r"^- (\S+)$", user, re.M)[0]
+        return {"raw": "", "parsed": {"proposals": [{"key": key, "value": "only when held"}]}, "parse_error": None,
+                "usage": {"model": "answered-model-2026-11-01"}}
+    arms.call = stub
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            t = Path(td) / "t.txt"
+            t.write_text("A: only when held.", encoding="utf-8")
+            assert transcript.run(argparse.Namespace(transcript=t, scenario="S2", task="codegen", into=Path(td) / "out")) == 0
+            (out,) = (Path(td) / "out").glob("*.toml")
+            meta = tomllib.loads(out.read_text(encoding="utf-8"))["inference"]
+        assert meta["model"] == "answered-model-2026-11-01", meta
+    finally:
+        arms.call = keep_call
+        for k, v in keep.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
