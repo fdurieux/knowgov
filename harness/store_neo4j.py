@@ -904,7 +904,8 @@ class Neo4jStore(Store):
               AND (a.version = b.version OR (a.basis IN $docs AND b.basis IN $docs)
                    OR ($across IS NOT NULL AND (a.basis = $across) <> (b.basis = $across)))
             RETURN a.id AS a, a.value AS va, a.basis AS ba, a.artefact AS aa, b.id AS b, b.value AS vb, b.basis AS bb,
-                   b.artefact AS ab, a.key AS key, a.predicate AS pred""", across=across, docs=list(DOCUMENT_BASES)))
+                   b.artefact AS ab, a.key AS key, a.predicate AS pred
+            ORDER BY key, a, b""", across=across, docs=list(DOCUMENT_BASES)))   # decision-0020: key, then id
 
     def corroborate(self, a, b, promote=True) -> None:
         self.run("""MATCH (a:Assertion {id:$a}), (b:Assertion {id:$b})
@@ -1063,7 +1064,7 @@ class Neo4jStore(Store):
             RETURN g.id AS id, g.text AS text""", key=key)))
 
     def conflict_gaps(self) -> list[dict]:
-        return _rows(self.run("MATCH (g:Gap {kind:'conflict'}) RETURN g.id AS id, g.text AS text"))
+        return _rows(self.run("MATCH (g:Gap {kind:'conflict'}) RETURN g.id AS id, g.text AS text ORDER BY id"))   # decision-0020
 
     def assertion_brief(self, assertion_id) -> dict | None:
         rows = _rows(self.run("""

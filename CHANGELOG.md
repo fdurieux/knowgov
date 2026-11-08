@@ -31,6 +31,15 @@ names that section with the version.
     is unchanged; listing their Versions is the maintainer's own attestation, in a pull request held for it.
   - `tools/check_subject.py` refuses a listed digest that is no Version of the subject (its files, and the texts
     its plants make of them). `tools/check_attestation_binding.py` proves it on both stores.
+- **Conflict gap ids name their two statements** (task-0223, decision-0020, doc-0030 S2). A conflict
+  between two documents is now `gap:conflict:<key>:<a>~<b>`, by its two assertion ids sorted, the form a
+  conflict with a person's statement already had; the positional `gap:conflict:<key>:<n>` is gone. One
+  conflict therefore has one id on rdflib and on Neo4j (the default gate's scratch store and the page's
+  store no longer disagree), and a new conflict on a key no longer renames the others. `conflict_gaps`
+  answers ordered by id, `candidate_pairs` by key then id, on both adapters. The gate report's
+  `conflicts`, its text and the arms' bundle carry the new ids. A record written before keeps its
+  `:<n>` ids; `compare_deterministic.py` reads both forms as one per key, so the scored record still
+  compares equal.
 - **The worker attests `write_confined` only from Landlock ABI 3, and `run.py` takes stage 2's derived input
   explicitly** (task-0203, doc-0030 F8: R10, R3). Two contract changes, and a raised platform floor.
   - **The attestation.** The worker's attestation gains `landlock_abi`, the kernel's Landlock version.

@@ -352,7 +352,8 @@ class Store:
         """Live assertion pairs on one entity and predicate from different artefacts: of the same
         version, and, when ``across`` names a basis, of any versions when exactly one side carries
         it (a capture's version is never a document's; task-0038). Each row: a, va, ba, aa (its
-        artefact), b, vb, bb, ab, key, pred."""
+        artefact), b, vb, bb, ab, key, pred; a's id below b's. Ordered by key, then a, then b, on every
+        adapter (decision-0020)."""
         raise NotImplementedError
 
     def corroborate(self, a: str, b: str, promote: bool = True) -> None:
@@ -415,8 +416,8 @@ class Store:
         raise NotImplementedError
 
     def conflict_gaps(self) -> list[dict]:
-        """Every conflict gap: {id, text}. Its order is the store's: ordering it renumbers the record's conflict
-        gap ids (R-CONFLICT numbers them in candidate_pairs' order), which waits for task-0202's decision."""
+        """Every conflict gap: {id, text}, ordered by id, which is ``gap:conflict:<key>:<a>~<b>``: by key, then by
+        the pair (decision-0020)."""
         raise NotImplementedError
 
     # ---- a person's review (task-0037, decision-0002): the rulings harness/review.py has checked
