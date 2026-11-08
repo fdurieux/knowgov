@@ -360,6 +360,13 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **Where the docs were right and the code was wrong** (task-0235; task-0230's docs pass). The store panel's
+  Neo4j Browser link and the impact guides' links now connect to the bolt port the stack publishes
+  (`KG_PORT_BOLT`), so a second stack's links reach its own Neo4j, not the first's; `GET /api/store` carries
+  the link as `browser_connect`. The page no longer says a deterministic run creates no `Derived` node (the
+  page's runs give stage 2 the record's output), and its Arms note names the contained worker. The MCP
+  reader's instructions say every tool but `list_subjects` takes `subject`. Two `docs/security.md` rows now
+  cite tests that prove them: where each store lives, and that the gate never rules.
 - **`tools/preload_check.py` exits 2 when it cannot write `-o`** (task-0228, doc-0030 F6). An unwritable
   report path (a missing folder) exited 1, the finding's code, with a traceback; it is now a failure to run,
   exit 2, one `cannot run: -o ...` line and no report. The command exits through the check tools' outcomes
