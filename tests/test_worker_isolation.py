@@ -114,9 +114,19 @@ def test_r7_the_job_cannot_forge_its_answer():
 
 
 def test_r2_a_job_stage_error_is_the_kinds_failed_cell_and_the_run_goes_on():
-    with _worker():
-        r = execution.run("suite", {"scenario": "S1"}, {"artifact.py": b"import time\ntime.sleep(600)\n"},
-                          deadline=time.monotonic() + 4)
+    """A job that hangs past its time: the worker answers a timeout, and ``run`` turns that answer into the
+    suite's failed cell rather than raising. The job is CargoQuote's whichever subject the suite runs under
+    (its oracle needs nothing beyond the standard library, so the code's hang is what the worker meets)."""
+    hang = {"artifact.py": b"import time\ntime.sleep(600)\n"}
+    with _worker() as (jobs, _pid):
+        raw = execution.submit(jobs, "suite", {"scenario": "S1"}, hang, seconds=4, subject="cargo_quote")
+        assert raw.get("stage") == "timeout" and "error" in raw, raw
+        keep = execution.submit
+        execution.submit = lambda *a, **k: raw   # run()'s own path, on the worker's real answer
+        try:
+            r = execution.run("suite", {"scenario": "S1"}, hang, deadline=time.monotonic() + 4)
+        finally:
+            execution.submit = keep
     assert r["ran"] is True and r["passed"] == 0 and r["stage"] in execution.MODEL_STAGES and r["error"], r
     for kind, want in (("suite", {"ran", "passed", "total", "per_scenario"}), ("suite_dir", {"ran", "passed", "total", "per_scenario"}),
                        ("feedback", {"features", "passed", "total"}), ("probe", {"exit", "stdout"})):
@@ -152,7 +162,10 @@ def test_r10_write_confined_is_attested_only_from_landlock_abi_3_and_the_page_sa
 
 
 def test_r3_a_reused_out_folder_carries_nothing_into_a_fresh_run():
-    import run
+    try:
+        import run
+    except ModuleNotFoundError as e:   # run.py imports the pins (pyshacl, rdflib): the rdflib job runs this
+        skip("rdflib", f"{e.name} is not installed")
     with tempfile.TemporaryDirectory() as td:
         out = Path(td)
         (out / "S1").mkdir()
