@@ -56,6 +56,7 @@ class Bag:
         return a
 
 
+from kitio import DocumentUnreadable  # the load's named document error (doc-0030 I11), raised here
 from subject import SUBJECT, BUNDLE_MARK_RE, bundle_parts as _subject_bundle_parts
 
 _SHORT = SUBJECT.shorts   # artefact key -> the short name assertion ids carry (the subject manifest)
@@ -881,17 +882,36 @@ EXTRACTORS = {   # mapper name (the subject manifest's) -> the deterministic map
 }
 
 
+def duplicate_locators(bag: Bag) -> list[str]:
+    """The locators two or more of a document's fragments share (a duplicated row): the load would write
+    one fragment id twice, so it is refused, by ``tools/check_subject.py`` and by ``extract_all``."""
+    seen, dup = set(), []
+    for f in bag.fragments:
+        if f["locator"] in seen and f["locator"] not in dup:
+            dup.append(f["locator"])
+        seen.add(f["locator"])
+    return dup
+
+
 def extract_all(kit: dict[str, str], code_text: str) -> list[Bag]:
     bags = []
     mappers = SUBJECT.mappers
     for path, text in kit.items():
         mapper = mappers.get(path)
-        if mapper == "links":
-            bags.append(extract_links(path, text, code_text))
-        elif mapper in EXTRACTORS:
-            bags.append(EXTRACTORS[mapper](path, text))
-        elif mapper:
+        if not mapper:
+            continue
+        if mapper != "links" and mapper not in EXTRACTORS:
             raise KeyError(f"{path}: no mapper named {mapper!r}; the harness has {sorted(EXTRACTORS) + ['links']}")
+        try:
+            bag = extract_links(path, text, code_text) if mapper == "links" else EXTRACTORS[mapper](path, text)
+        except (UnknownClaim, ImportError):   # a claim names its own place; a missing library is the machine's
+            raise
+        except Exception as e:  # noqa: BLE001 — whatever the mapper raised, the document is named (I11)
+            raise DocumentUnreadable(f"{path}: its mapper {mapper!r} cannot read it: {type(e).__name__}: {e}") from e
+        if dup := duplicate_locators(bag):
+            raise DocumentUnreadable(f"{path}: {len(dup)} locator(s) appear twice ({', '.join(dup[:5])}): "
+                                     "a duplicated row; each statement's evidence needs its own place")
+        bags.append(bag)
     return bags
 
 

@@ -29,7 +29,9 @@ process only. The file's lifecycle (task-0141.02):
   directory. A reader sees the whole old file or the whole new one. Any failure leaves the previous
   file in place, removes the temporary file and propagates; nothing reports a commit that did not
   happen. ``close()`` releases the lock and publishes nothing; a writer killed before it commits
-  leaves the last publication, and its lock dies with it.
+  leaves the last publication, and its lock dies with it. A writer that changed nothing publishes
+  nothing on ``commit()`` (doc-0030 S7): its readers keep the generation they hold. A publication keeps
+  the store file's mode, so an operator's ``chmod 600`` stands (S3); a first publication is 0644.
 - Supported: POSIX filesystems with ``fcntl.flock`` (Linux, macOS), the store and its lock on a local
   disk. On a platform without ``fcntl`` a writer on a file refuses to open rather than run unlocked.
   Crash durability: a commit that returned has its file and directory entry fsynced; a crash before
@@ -39,6 +41,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import tempfile
 import threading
 import time
@@ -135,6 +138,7 @@ class RdflibStore(Store):
         self._lock = None                           # the writer's lock file, held from before the load to close
         self.absent = False                         # True when the file did not exist: nothing published yet
         self.lock_waited = False                    # True when another writer held the lock first
+        self.dirty = False                          # True once this handle changed the graph: only then does commit publish (S7)
         if not self.path:
             return
         if access == "write":
@@ -256,15 +260,21 @@ class RdflibStore(Store):
             return
         if self._lock is None:
             raise StoreBusy(f"{self.path}: this writer was closed; it no longer holds the lock and cannot publish")
+        if not self.dirty:
+            return   # nothing written: nothing to publish (S7)
         self._fence()
         directory = os.path.dirname(os.path.abspath(self.path))
+        try:
+            mode = stat.S_IMODE(os.stat(self.path).st_mode)   # the published file's, an operator's chmod included (S3)
+        except FileNotFoundError:
+            mode = 0o644
         fd, tmp = tempfile.mkstemp(prefix=TMP_PREFIX + os.path.basename(self.path) + ".", dir=directory)
         try:
             with os.fdopen(fd, "wb") as fh:
                 self.g.serialize(destination=fh, format="turtle")
                 fh.flush()
                 _fsync(fh.fileno())
-            os.chmod(tmp, 0o644)
+            os.chmod(tmp, mode)
             _replace(tmp, self.path)
         except BaseException:
             try:
@@ -272,7 +282,7 @@ class RdflibStore(Store):
             except FileNotFoundError:
                 pass
             raise
-        self.absent = False
+        self.absent, self.dirty = False, False
         _fsync_dir(directory)
 
     def abort(self) -> None:
@@ -312,6 +322,7 @@ class RdflibStore(Store):
             raise ValueError(DUPLICATE.format(nid=nid))   # store.UNIQUE_IDS: any id, so every label's (task-0201)
         n = self._n(nid)
         self._nodes[nid] = n
+        self.dirty = True
         for lbl in ([labels] if isinstance(labels, str) else labels):
             self.g.add((n, RDF.type, L[lbl]))
         self.g.add((n, P["_seq"], Literal(self._next())))
@@ -329,9 +340,13 @@ class RdflibStore(Store):
 
     def set_props(self, n: URIRef, props: dict) -> None:
         for k, v in props.items():
+            new = set() if v is None else {_lit(v)}
+            if set(self.g.objects(n, P[k])) == new:
+                continue   # unchanged: not a write
             self.g.remove((n, P[k], None))
-            if v is not None:
-                self.g.add((n, P[k], _lit(v)))
+            for o in new:
+                self.g.add((n, P[k], o))
+            self.dirty = True
 
     def prop(self, n: URIRef, k: str):
         return _py(self.g.value(n, P[k]))
@@ -381,6 +396,7 @@ class RdflibStore(Store):
 
     def create_edge(self, src: URIRef, etype: str, dst: URIRef, props: dict | None = None) -> URIRef:
         e = E[str(self._next())]
+        self.dirty = True
         self.g.add((e, RDF.type, EDGE))
         self.g.add((e, P["_seq"], Literal(self._seq)))
         self.g.add((e, P["_from"], src))
@@ -399,6 +415,7 @@ class RdflibStore(Store):
         return self.create_edge(src, etype, dst, props)
 
     def delete_node(self, n: URIRef) -> None:
+        self.dirty = True
         for e in list(self._out.get(n, [])) + list(self._in.get(n, [])):
             self._delete_edge(e)
         self.g.remove((n, None, None))
@@ -409,6 +426,7 @@ class RdflibStore(Store):
         self._out[src] = [x for x in self._out.get(src, []) if x != e]
         self._in[dst] = [x for x in self._in.get(dst, []) if x != e]
         self.g.remove((e, None, None))
+        self.dirty = True
 
     def edge_count(self) -> int:
         return sum(len(v) for v in self._out.values())
@@ -417,6 +435,7 @@ class RdflibStore(Store):
     def wipe(self) -> None:
         self.g = Graph()
         self._nodes, self._out, self._in, self._seq = {}, {}, {}, 0
+        self.dirty = True
 
     def export_turtle(self) -> str:
         return self.g.serialize(format="turtle")
@@ -816,7 +835,7 @@ class RdflibStore(Store):
                             if cur != old:
                                 yield x, f, cur
 
-    def invalidate_stale(self, new_tag) -> dict:
+    def invalidate_stale(self, new_tag, at=None) -> dict:
         inv_nodes, inv = [], []
         for x, f, cur in self._stale_candidates(new_tag):
             nf = next((c for c in self.out(cur, "HAS_FRAGMENT") if self.prop(c, "locator") == self.prop(f, "locator")), None)
@@ -824,7 +843,7 @@ class RdflibStore(Store):
                 continue
             if x not in inv_nodes:
                 inv_nodes.append(x)
-            self.set_props(x, {"status": "invalidated", "invalidated_at": self._seq, "invalidated_by": new_tag})
+            self.set_props(x, {"status": "invalidated", "invalidated_at": at, "invalidated_by": new_tag})
         # task-0197 (I5, I6): an older statement with a live successor of the same id stem in the new version is
         # invalidated too, though its own fragments did not change (a value resolved through a changed symbol,
         # a bundle that lost one of several fragments)
@@ -833,7 +852,7 @@ class RdflibStore(Store):
             if self.prop(x, "version") == new_tag or self.prop(x, "status") in DEAD or x in inv_nodes or stem(self.nid(x)) not in succ:
                 continue
             inv_nodes.append(x)
-            self.set_props(x, {"status": "invalidated", "invalidated_at": self._seq, "invalidated_by": new_tag})
+            self.set_props(x, {"status": "invalidated", "invalidated_at": at, "invalidated_by": new_tag})
         for x in inv_nodes:
             derived = []
             for v in self.inn(x, "VERIFIES"):
@@ -859,13 +878,13 @@ class RdflibStore(Store):
                 withdrawn.append(self.nid(g))
         return {"invalidated": inv, "kept": kept, **({"withdrawn": withdrawn} if withdrawn else {})}
 
-    def invalidate_keys(self, reasons) -> dict:
+    def invalidate_keys(self, reasons, at=None) -> dict:
         inv = []
         for key, reason in sorted(reasons.items()):
             for x in sorted(self.nodes("Assertion", key=key), key=self.nid):
                 if self.prop(x, "status") not in ("proposed", "validated", "verified", "approved", "disputed"):
                     continue
-                self.set_props(x, {"status": "invalidated", "invalidated_at": self._seq, "invalidated_by": reason})
+                self.set_props(x, {"status": "invalidated", "invalidated_at": at, "invalidated_by": reason})
                 for v in self.inn(x, "VERIFIES"):
                     if self.has_label(v, "Verification"):
                         self.set_props(v, {"valid_until": reason})
