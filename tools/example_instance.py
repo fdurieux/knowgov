@@ -21,6 +21,7 @@ run write nothing into an instance. tools/check_instance.py passes on it.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import shutil
 import sys
@@ -82,6 +83,22 @@ def build(out: Path) -> Path:
     (sroot / "subject.toml").write_text(manifest, encoding="utf-8")
     (out / check_instance.CODE_MAP).write_text(code_map(out, sroot / s.reference["code"]), encoding="utf-8")
     return out
+
+
+def attest(inst: Path, *files: Path) -> None:
+    """The attester lists the Version each of ``files`` (documents under the instance ``inst``) now holds, as the
+    maintainer's listing of an edit would (decision-0019): its raw-byte SHA-256 joins ``versions`` in the subject's
+    ``[verification] authored`` and ``approval``. A check that plants a defect to measure something other than the
+    attestation lists the planted Version, so an unlisted Version's withdrawn attestation stays out of what it
+    measures (task-0221)."""
+    mf = Path(inst) / "subjects" / SUBJECT.name / "subject.toml"
+    text = mf.read_text(encoding="utf-8")
+    for f in files:
+        digest = hashlib.sha256(Path(f).read_bytes()).hexdigest()
+        if f'"{digest}"' not in text:
+            text, n = re.subn(r'(versions = \[)', rf'\1"{digest}", ', text)
+            assert n == 2, f"want authored and approval to list their Versions: {n}"
+    mf.write_text(text, encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:

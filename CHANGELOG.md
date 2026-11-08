@@ -34,8 +34,11 @@ names that section with the version.
     take the attested artefacts.
   - **Read rule for declarations written before this change.** A declaration with no `versions` attests per load,
     as decision-0009 (a) has it. The gate lists it at `info` (`attestation`, not bound), and `tools/check_subject.py`
-    notes it, naming decision-0019. The public subjects keep their declarations without lists, so the scored record
-    is unchanged; listing their Versions is the maintainer's own attestation, in a pull request held for it.
+    notes it, naming decision-0019.
+  - **The public subjects list their Versions** (the maintainer's approval, 2026-11-08). `cargo_quote` and
+    `jef_data_load` list every Version their scenarios load, as vendored at pumllint v0.35.0 and each planted
+    text, so no scenario's attestation changes and the scored record is unchanged. CI's subject check fails
+    again on any note, so a fall back to the read rule is caught.
   - `tools/check_subject.py` refuses a listed digest that is no Version of the subject (its files, and the texts
     its plants make of them). `tools/check_attestation_binding.py` proves it on both stores.
 - **Conflict gap ids name their two statements** (task-0223, decision-0020, doc-0030 S2). A conflict
@@ -315,8 +318,11 @@ names that section with the version.
   - `gate_cli.py --publish` checks the report against its schema and writes `-o` before it publishes
     the load, so a command that fails publishes nothing.
   - The MCP servers answer a non-string tool or prompt name with -32602, and any other internal
-    failure with -32603, so the stdio loop and the HTTP connection survive it. `--host ::1` exits 2
-    (the HTTP transport binds IPv4 only), and a port that cannot be bound exits 2 too.
+    failure with -32603, so the stdio loop and the HTTP connection survive it. A port that cannot be
+    bound exits 2.
+  - **Known limit: the MCP server's HTTP transport binds IPv4 only.** `--host ::1` (or any IPv6 address)
+    exits 2 before binding, where it crashed with exit 1. Serving IPv6 would need a named exception to the
+    network scan.
   - Claude Code hooks: a gate report that is valid JSON but not an object is refused, and any exception
     in a hook, the gate's, the attestation hook or knowgov's own, blocks in every profile, the advisory
     one included. Before, it exited 1, which Claude Code reads as a non-blocking warning.
@@ -324,12 +330,32 @@ names that section with the version.
     directory; under a CI shell's `-e` it exited 1.
   - `harness/schema_check.py`'s `enum` and `const` compare type as well as value: `true` is not `1`.
 
+- **pumllint 0.35.0 is the record's pin** (task-0224, the maintainer, 2026-11-08). The image, both
+  `harness.yml` jobs, `demo/requirements.txt` and the CI templates (`instance/ci/preload-check.yml`'s
+  `PUMLLINT`, the GitLab include's `KNOWGOV_PIP`) install pumllint 0.35.0 in place of 0.33.0, so the
+  pre-load check, the sequence-diagram mappers and the image run one version, the first with
+  `pumllint trace --features` (task-0217 builds on it; a CI step runs it on the J-F kit). Nothing a
+  reader sees moves: the scored record (S1 to S7) and J-F's run equal under the comparator on rdflib
+  and Neo4j; the two mappers that import the parser yield the same statements, value for value; the
+  pre-load check's pumllint findings on the example instance and on every `.puml` of both subjects are
+  the same. The parser gains a field (`declared_line` on participants) that no mapper reads. Not a
+  contract change: an instance that copied the CI template moves its `PUMLLINT` when it moves its
+  knowgov tag.
 - **A guide to reverse-engineering a code base and finding its knowledge gaps** (task-0218, decision-0018
   points 1 and 2). `docs/reverse-engineering.md` walks the eight steps for an adopter, from scoping at a named
   commit to re-running on change. For each step it gives the tool that runs it today, the record it leaves and
   where that record lives. `docs/reverse-engineering-preregistration.md` is step 1's template, with the
   pumllint experiment's first run on J-F filled in as the example. `tests/test_reverse_engineering_guide.py`
   holds every option, path and flag the two pages name to a real one.
+- **The page serves an edited subject on the next request, and the connector refuses a clash** (task-0206,
+  doc-0030 P3, P10). Before, the page rescanned its subjects when a `subject.toml` moved, but kept each
+  subject's tables by folder forever. So an edited name, `listed`, task or id was never served, and an
+  edited `scenarios.toml` was not noticed at all. Both manifests are now watched, and a subject is
+  rebuilt when either moves. With `KG_SUBJECTS` set and no subject under it loading, the page used to
+  fall back to the public CargoQuote. It now serves none: the page and `/api/subjects` load, and every
+  other route answers 404 naming `KG_SUBJECTS`. `tools/connector.py` used to keep one of two export files
+  landing at the same relative path, such as two files sharing a name, and drop the other silently. It
+  now refuses them, naming both, and lands nothing.
 - **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
   applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1
   could not apply stayed reported. Stage 2 clears the acts stage 1 recorded, then binds every ruling and close to
