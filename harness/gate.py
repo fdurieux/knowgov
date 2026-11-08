@@ -109,13 +109,17 @@ def attestation_behind(s, keys: dict) -> list[dict]:
         rows = s.attestations()
     except (AttributeError, NotImplementedError):
         return []
+    from subject import SUBJECT   # the read rule: a declaration with no versions, read from the manifest, never stored
+    held = {r["declaration"] for r in rows}
+    rows = rows + [{"declaration": n, "bound": False, "attester": "", "unattested": "[]"} for n in ("approval", "authored")
+                   if n not in held and isinstance(SUBJECT.verification.get(n), dict) and SUBJECT.verification[n].get("versions") is None]
     behind: dict[str, set] = {}
     for key, k in keys.items():
         for r in k["assertions"]:
             if r.get("artefact"):
                 behind.setdefault(r["artefact"], set()).add(key)
     out = []
-    for r in rows:
+    for r in sorted(rows, key=lambda r: r["declaration"]):
         un = [{**u, "keys": sorted(behind[u["artefact"]])} for u in json.loads(r.get("unattested") or "[]") if u["artefact"] in behind]
         out.append({"declaration": r["declaration"], "bound": bool(r["bound"]), "attester": r.get("attester") or "", "unattested": un})
     return out

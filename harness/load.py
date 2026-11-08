@@ -251,8 +251,9 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
         arts, mark = attested_artefacts(docs, approval, "approval")
         marks.append(mark)
         counts["approved"] = st.approve_verified(approval["at"], approval.get("record", "approval"), ATTESTER, arts)
-    for mark in marks:
-        st.record_attestation(mark)
+    for mark in marks:   # a bound declaration only: the read rule's is the manifest's own (gate.attestation_behind), so its store is as before
+        if mark["bound"]:
+            st.record_attestation(mark)
     # decision-0005: every review falls due after its key's review months; the date is the verification's
     # valid_until, which the gate reads as of a date (harness/cadence.py). Not counted: the record's counts stand.
     import cadence
