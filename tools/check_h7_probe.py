@@ -18,7 +18,7 @@ Three instruments, on each of the three:
   later version on it (``change.apply_change``, as stage 2 does), with the mutant as the reference code. The statements
   invalidated are counted; the gate's verdict on C with the mutant as reference code is recorded beside it.
 - trace ``drift``: a temporary instance whose ``code_map.toml`` maps the copy's ``src/`` to APP-0005
-  (``jef-data``); C published to a file store; ``sync.py`` registered from the control; then each variant's
+  (``jef-data``), with a copy of the subject's register to check it against; C published to a file store; ``sync.py`` registered from the control; then each variant's
   ``sync.py`` in its place and ``trace.py check --changed jef/data/sync.py``.
 - the suite: ``subjects/jef_data_load/oracle/jef_suite.py`` on the copy, under the J-F pins on CPython 3.12.
 
@@ -208,4 +208,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import _outcomes   # task-0159: the outcome recorded when KG_OUTCOMES names a file
+    sys.exit(_outcomes.run(main))
