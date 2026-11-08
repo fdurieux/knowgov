@@ -291,6 +291,12 @@ names that section with the version.
   the same. The parser gains a field (`declared_line` on participants) that no mapper reads. Not a
   contract change: an instance that copied the CI template moves its `PUMLLINT` when it moves its
   knowgov tag.
+- **A guide to reverse-engineering a code base and finding its knowledge gaps** (task-0218, decision-0018
+  points 1 and 2). `docs/reverse-engineering.md` walks the eight steps for an adopter, from scoping at a named
+  commit to re-running on change. For each step it gives the tool that runs it today, the record it leaves and
+  where that record lives. `docs/reverse-engineering-preregistration.md` is step 1's template, with the
+  pumllint experiment's first run on J-F filled in as the example. `tests/test_reverse_engineering_guide.py`
+  holds every option, path and flag the two pages name to a real one.
 - **Stage 2 reads every review file again** (task-0222). A review written for a scenario's later version now
   applies in the same `--stage 2` run, on both stores; before, only the rulings were re-checked and an act stage 1
   could not apply stayed reported. Stage 2 clears the acts stage 1 recorded, then binds every ruling and close to
