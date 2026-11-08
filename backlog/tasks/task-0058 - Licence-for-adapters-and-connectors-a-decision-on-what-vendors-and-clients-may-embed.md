@@ -7,7 +7,7 @@ status: To Do
 assignee:
   - '@fdurieux'
 created_date: '2026-11-03T22:49:00Z'
-updated_date: '2026-11-03T22:51:00Z'
+updated_date: '2026-11-08T19:53:00Z'
 labels:
   - lighthouse
   - licence
@@ -30,7 +30,13 @@ knowgov is GPL-3.0-or-later (decision-0001). That suits an organisation running 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A knowgov decision record states the licence of the platform and of adapters, connectors and any SDK, and where the boundary sits in the tree
+- [x] #1 A knowgov decision record states the licence of the platform and of adapters, connectors and any SDK, and where the boundary sits in the tree
 - [ ] #2 README.md's licence section says what the decision means for an organisation and for a vendor
 - [ ] #3 Every file under the boundary carries the licence the decision names
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+decision-0026 (accepted 2026-11-08, the maintainer: "licence as advised"): the platform stays GPL-3.0-or-later; harness/schemas/, instance/ and any future SDK are Apache-2.0 (doc-0028 G9-8 met). AC #1 met by that record. AC #2 (README's licence section) and AC #3 (SPDX headers and an Apache-2.0 text under the boundary, with a test refusing a harness/ import there) wait for the maintainer to say counsel has looked, or to go ahead without.
+<!-- SECTION:NOTES:END -->
