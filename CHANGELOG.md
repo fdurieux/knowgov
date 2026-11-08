@@ -45,6 +45,24 @@ names that section with the version.
     versions only: new, gone (a slip when the bytes changed) and kept.
   - **Proof.** `tools/check_lint_gaps.py` proves it on the example instance, on rdflib and on Neo4j.
 
+- **Step 4's checks in the pre-load check** (task-0217, decision-0018 point 1). A contract change to the
+  pre-load report, additive.
+  - **The checks.** After each kind's linter, `tools/preload_check.py` runs three checks across documents:
+    - pumllint's `trace` with `--features`, over diagrams, feature files and requirements;
+    - a glossary check: a term in three requirements with no glossary row;
+    - a DMN check: gaps, overlaps under `UNIQUE` or `ANY`, and untyped outputs.
+  - **The report.** Each finding names its check as `tool`, and a new `checks` block says whether each one
+    ran. A document no linter of its kind read, but a check did, is judged by that check alone.
+  - **Through the load.** Each finding reaches the load as a lint gap, routed as task-0216 routes them.
+  - **The trace needs pumllint 0.35.0 or later**, with `KG_PUMLLINT_TRACE` naming its command, and the
+    instance's requirement-id pattern. Without either, it is listed as unchecked, naming what is missing.
+    The record's pin stays 0.33.0.
+  - **The example instance.** The DMN check finds two minor gaps in its screening table, at 41 to 42 and
+    66 to 67 on a `number` input. A lint finding never lowers a key's level, so every verdict reads as
+    before.
+  - **Proof.** `tools/check_preload_linters.py` proves each check on its planted defect, with pumllint
+    0.35.0 installed into its own prefix.
+
 - **One definition per concept** (task-0201, doc-0030 F5: G3, M4, G8, S4; S2 for `declared_gaps_for_key`). A fix,
   with one additive field.
   - **One successor set (G3).** The gate's level drops an invalidated statement only when its own verified or

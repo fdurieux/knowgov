@@ -464,11 +464,39 @@ installed but fails, a folder that is not a kind, a named file that does not exi
 report under `harness/schemas/preload-report.schema.json`. The linter runs with your instance as
 its working directory, so your own configuration applies.
 
-The example instance shows what a first run finds. Its prose, Gherkin and DMN are clean under the
-shipped configurations; its BPMN model (`quote_process.bpmn`) has no diagram interchange and no
+**Checks across documents.** After each kind's own linter, the check runs three checks that read
+several documents together. They are step 4 of reverse engineering (decision-0018). Each finding
+names its check as its `tool`, and the report's `checks` block says whether each check ran.
+
+| check | reads | finds |
+|---|---|---|
+| `pumllint trace` | `plantuml-models`, `acceptance-scenarios` (`.feature`), `textual-requirements` | a requirement no diagram realises; one modelled that no feature references; a diagram or feature citing an id no requirement holds (`major`); a diagram, feature or scenario citing none |
+| `glossary` | `textual-requirements`, `glossary` | a term (a code span or a bold phrase) in three or more requirements with no glossary row |
+| `dmn gaps` | `decision-tables` (`.dmn`) | input values no rule matches; rules that overlap under hit policy `UNIQUE` (`major`), or under `ANY` with different outputs; an output with no type, or a rule leaving one empty |
+
+- **What the trace needs.** It needs **pumllint 0.35.0 or later**, the first release whose `trace`
+  reads `--features`, and the requirement-id pattern in a `pumllint.toml` at your instance's root:
+  `[rules.requirement-link]` with `pattern = "REQ-\\d+"`, say. The harness itself pins pumllint
+  0.33.0, the record's version, which the sequence-diagram mapper imports.
+- **Installing the trace's pumllint.** Install 0.35.0 into a prefix of its own, such as
+  `python -m venv .pumllint-trace && .pumllint-trace/bin/pip install "pumllint==0.35.0"`. Then
+  name its command in `KG_PUMLLINT_TRACE` (`.pumllint-trace/bin/pumllint`).
+- **When it cannot run.** Without 0.35.0, or without a pattern, the trace is listed as
+  *unchecked* and says which of the two is missing. A check whose documents your instance lacks is
+  unchecked too: the glossary check with no glossary, say.
+- **Documents no linter reads.** A document whose kind has no linter here, but which a check read,
+  is judged by that check alone: your requirements under the trace and the glossary check, a
+  `.dmn` file when dmnlint is not installed. Its row says so.
+- **Through the load.** Each finding reaches the load as any linter's does, and becomes a gap
+  with an owner and a route (task-0216).
+
+The example instance shows what a first run finds. Its prose and Gherkin are clean under the
+shipped configurations. Its BPMN model (`quote_process.bpmn`) has no diagram interchange and no
 `incoming`/`outgoing` references on its nodes, so `bpmnlint:recommended` reports 97 errors on it.
-That is a real finding about the model's form, not a fault of the check: adopt over it with a
-baseline (below), or fix the model.
+Its screening table is clean under dmnlint, but the DMN check finds two gaps in it, both `minor`.
+Its `risk_index` is a `number`, and the rules stop at 41 and resume at 42, and again at 66 and 67,
+so a value such as 41.5 matches no rule. These are real findings about the documents, not faults
+of the check: adopt over them with a baseline (below), or fix the documents.
 
 To run it on every pull request, copy `instance/ci/preload-check.yml` into your instance's
 `.github/workflows/`, pin `KNOWGOV_REF` to a knowgov tag, and make the job a required check with
