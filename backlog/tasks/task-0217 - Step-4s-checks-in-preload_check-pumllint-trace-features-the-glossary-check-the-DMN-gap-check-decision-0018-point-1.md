@@ -3,11 +3,11 @@ id: TASK-0217
 title: >-
   Step 4's checks in preload_check: pumllint trace --features, the glossary
   check, the DMN gap check (decision-0018 point 1)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-08T11:18:00Z'
-updated_date: '2026-11-08T13:40:00Z'
+updated_date: '2026-11-08T16:09:00Z'
 labels:
   - process
   - reverse-engineering
@@ -36,10 +36,10 @@ decision-0018 point 1, step 4 (doc-0032 §2 step 4 and §10 item 3). pumllint's 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 preload_check runs the three checks on an instance's documents of the kinds they read, each finding in the preload report with its tool
-- [ ] #2 A kind whose check cannot run here is listed as unchecked, as today
-- [ ] #3 tools/check_preload_linters.py proves each check finds its planted defect
-- [ ] #4 The scored record (S1 to S7), the deterministic run and the comparator stay equal
+- [x] #1 preload_check runs the three checks on an instance's documents of the kinds they read, each finding in the preload report with its tool
+- [x] #2 A kind whose check cannot run here is listed as unchecked, as today
+- [x] #3 tools/check_preload_linters.py proves each check finds its planted defect
+- [x] #4 The scored record (S1 to S7), the deterministic run and the comparator stay equal
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -60,4 +60,12 @@ decision-0018 point 1, step 4 (doc-0032 §2 step 4 and §10 item 3). pumllint's 
 2026-11-08: the maintainer chose to bump pumllint to 0.35.0 as the record's pin (task-0224). task-0217 is built after task-0224 merges, calling pumllint trace --features from the pinned library directly; the side install (option b, approved by the coordinator earlier the same day) is dropped unless task-0224 finds the record moves, in which case option b resumes.
 
 Plan amended (coordinator, on the maintainer's word, 2026-11-08): pumllint 0.35.0 becomes the record's pin through task-0224; option (b) dropped. The trace runs the harness's pumllint (preload_check.pumllint_cmd); KG_PUMLLINT_TRACE and the side install are gone; an older pumllint leaves the trace unchecked naming 0.35.0, and check_preload_linters exits 2 on it. The PR waits for task-0224 on main. Evidence on the build before the amendment: four suites 0 failed (bare 741/778, J-F bare 741/778, pinned 776/778, pinned J-F 775/778); comparator 0 diffs S1-S7 and J-F; round trip --chain --expect-preload rdflib (S1, S6) and neo4j,rdflib,neo4j (S1); plain round trip both subjects; check_mcp_server, check_gate_after_change, check_lint_gaps on Neo4j hold. After it: check_preload_linters holds on pumllint 0.35.0 with the Node linters and exits 2 on 0.33.0. The example's screening table has two DMN gaps (41 to 42, 66 to 67 on a number input): found, not fixed, the kit being vendored.
+
+Final evidence on d68d840 (origin/main d1e6b87 with task-0224, pumllint 0.35.0 the pin): check_preload_linters holds with the Node linters and the pinned pumllint 0.35.0 (trace REQ-99 and REQ-98 major; glossary undefined term minor, none once defined; DMN the example's two gaps, the planted overlap and two untyped outputs). Comparator S1-S7 and J-F: 0 diffs. Round trip --chain --expect-preload rdflib (S1, S6) and neo4j,rdflib,neo4j (S1); plain round trip on both subjects; check_mcp_server, check_gate_after_change, check_lint_gaps on Neo4j hold. Suites: bare 756/805, J-F bare 756/805, pinned 800/805, pinned J-F 799/805; the 3 failures each time are tests/test_worker_isolation.py (r2, r4, r7, task-0203 from main), which fail the same way on a clean origin/main checkout here: the worker child cannot import the harness from the scratch path (No module named execution), an environment matter, not this change. New tests failed on the old code (ModuleNotFoundError step4_checks; test_preload's counts).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+tools/preload_check.py runs step 4's checks after the kinds' linters (tools/step4_checks.py): pumllint trace --features on the harness's pinned pumllint (0.35.0 since task-0224; an older one leaves it unchecked naming 0.35.0, and the instance's requirement-id pattern from its pumllint.toml), a glossary check (a term in three requirements with no glossary row) and a DMN gap check (gaps, overlaps under UNIQUE or ANY, untyped outputs), the last two reimplemented from the published description, nothing of pumllint's GPL lab copied. Each finding names its check as tool and reaches the load as a task-0216 lint gap; the report gains a checks block; a document its kind's linter left unchecked and a check read is judged by the check alone. The example's screening table has two DMN gaps (41 to 42, 66 to 67 on a number input), found, not fixed. A lint finding never lowers a key's level: the record compares with 0 diffs. Proven by check_preload_linters part 4 and tests/test_step4_checks.py; schema preload-report additive; instance/README and CHANGELOG under Unreleased, Contract changes.
+<!-- SECTION:FINAL_SUMMARY:END -->
