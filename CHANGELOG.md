@@ -12,10 +12,6 @@ names that section with the version.
 
 ### Contract changes
 
-- **`GET /api/store` carries the store's Browser link** (task-0235, additive). A new `browser_connect` field
-  gives the Neo4j Browser link connected to the bolt port the stack publishes (`KG_PORT_BOLT`), or `null`
-  for a store with no Browser. The page's store panel uses it.
-
 - **Twenty `KG_*` settings are contracts from 1.0** (task-0234, decision-0027, decision-0016 point 3).
   `instance/README.md`'s new section "The settings an instance may rely on" documents fourteen of them,
   each with what it does, its default and who sets it:
@@ -377,6 +373,11 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **The page's store panel links Neo4j Browser to the right bolt port** (task-0235). `GET /api/store`, a route
+  that serves the page, gains a `browser_connect` field: the Neo4j Browser link connected to the bolt port the
+  stack publishes (`KG_PORT_BOLT`), or `null` for a store with no Browser. It is not a contract: the page's
+  HTTP API is the four routes `demo/README.md` names (decision-0030).
+
 - **What stays stable from 1.0, and how a change reaches you** (task-0181, decision-0016, doc-0028 P4).
   `instance/README.md`'s contracts table now says, for each contract, how you are told when it changes. A new
   subsection quotes decision-0016's points 2, 5 and 6: 0.9.x carries fixes only, the deprecation rule from

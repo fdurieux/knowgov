@@ -1590,11 +1590,11 @@ named in the last column.
 | the fields of `subject.toml` | the [subjects guide](../subjects/README.md) | `CHANGELOG.md`, Contract changes; its `[format] version` moves with its format ("Format versions", above) |
 | the tools and prompts of both assistant servers (the reader and the runs server), what they take and what they return | "Letting an AI assistant ask the gate", above | `CHANGELOG.md`, Contract changes; each server names the knowgov version it runs |
 | the `KG_*` settings this file or [`docs/security.md`](../docs/security.md) names | "The settings an instance may rely on", above, and `docs/security.md` | `CHANGELOG.md`, Contract changes |
-| the page's `/api/*` routes, as the demo's guide documents them | the [demo's guide](../demo/README.md) | `CHANGELOG.md`, Contract changes |
+| the page's HTTP API: the four routes the demo's guide names, `POST /api/run`, `GET /api/scenarios`, `GET /api/subjects` and `POST /api/models/check` (decision-0030); every other route may change in any release | the [demo's guide](../demo/README.md), "The page's HTTP API" | `CHANGELOG.md`, Contract changes |
 | the CI action, the GitLab include, the shell wrappers and the hooks' settings files | "Running the gates in your pipeline" and "A fail-closed hook for Claude Code", above | `CHANGELOG.md`, Contract changes; you run them from the knowgov tag you pin |
 | the image's name and tags: `ghcr.io/fdurieux/knowgov:<tag>` for a release, `:latest` for the last main | the [README](../README.md) | each release's tag; `CHANGELOG.md`, Contract changes |
 | the format version each of your input files declares (built: decision-0023 and its Amendment A1, task-0174, task-0236): a file with no number is read as version 1, in every release | "Format versions", above | the number in the file moves, and `CHANGELOG.md` says what changed and how to bring an older file up to date |
-| which ieam-register format versions your register may be in | not yet stated | not yet stated |
+| which ieam-register format versions your register may be in: this release of knowgov reads a register in the format of ieam-register `v0.2.11`, the tag it vendors (`demo/register/SOURCE.md`) and tests. A register at another tag may load, but is untested (decision-0028) | `demo/register/SOURCE.md` | `CHANGELOG.md`, when a release vendors another tag; one that changes a contract output is listed under Contract changes |
 
 Two things follow from the quoted text. A `KG_*` setting that neither this file nor
 `docs/security.md` names is not a contract, so do not build on it. A setting the demo's guide
