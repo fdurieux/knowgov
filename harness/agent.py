@@ -165,6 +165,18 @@ def bounded(stream, deadline: float | None, idle: float):
         yield item
 
 
+def _deadline_passed(e: BaseException, deadline: float | None) -> bool:
+    """Whether a failed call failed because the run's monotonic deadline passed (task-0207, doc-0030 R6):
+    a timeout (``bounded``'s TimeoutError, the client's own timeout, set to the time remaining) at or past
+    the deadline. A stream that fell silent for the idle limit before it, or any other failure, is not."""
+    if deadline is None or time.monotonic() < deadline - DEADLINE_SLACK:
+        return False
+    return isinstance(e, TimeoutError) or "Timeout" in type(e).__name__
+
+
+DEADLINE_SLACK = 0.5   # seconds: a client timeout set to the time remaining fires at the deadline, give or take scheduling
+
+
 def _close(stream) -> None:
     for name in ("close", "response.close"):
         obj = stream
@@ -291,6 +303,12 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
         try:
             r = responder(messages, tools, deadline=deadline) if _accepts(responder, "deadline") else responder(messages, tools)
         except Exception as e:  # noqa: BLE001 — a failed call ends the run as an api error, never silently
+            if _deadline_passed(e, deadline):
+                # task-0207, doc-0030 R6: the run's own seconds ceiling cut the answer short; the ceiling,
+                # not an api error, so --resume keeps the cell instead of running it, and paying, again
+                stopped_by = f"ceiling: {lim['seconds']} seconds"
+                trace.append({"turn": len(trace) + 1, "kind": "ceiling", "text": str(e)[:300], "at": round(time.monotonic() - t0, 1)})
+                break
             stopped_by = f"api error: {str(e)[:200]}"
             trace.append({"turn": len(trace) + 1, "kind": "error", "text": str(e)[:300], "at": round(time.monotonic() - t0, 1)})
             break

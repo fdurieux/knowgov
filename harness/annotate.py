@@ -15,7 +15,9 @@ or the pre-load check's (``preload_check.py -o``), read by its ``tool`` field.
   scanning among them).
 
 A finding at or above the report's threshold is an error (it is what made the command exit 1);
-below it, a warning, and ``info`` a notice. Where a finding points: a trace finding's ``path``
+below it, a warning, and ``info`` a notice. A finding the report marks ``held`` (the gate's under
+``--baseline``, which exits on a regression only; the pre-load check's baseline) did not fail the
+command, so it is at most a warning (task-0106, task-0207). Where a finding points: a trace finding's ``path``
 under the code map's root (the report's ``code_root``, relative to ``--instance``); a pre-load
 finding's file and line (relative to ``--instance``), and with its ``layout`` block each layout problem's
 file (task-0115; only a layout error is an error, the rest warnings and notices); anything else (a key, a statement, the
@@ -84,9 +86,10 @@ def findings(rep: dict, instance: Path | None = None, subject: Path | None = Non
             path = _rel(base / path, root) if instance else (base / path).as_posix()
         ident = f.get("ref") or f.get("key") or path or f.get("app") or ""
         subject_of = f.get("app") or f.get("key") or f.get("ref")
-        title = f"knowgov {tool} {f['kind']}" + (f" {subject_of}" if subject_of else "")
+        held = bool(f.get("held"))   # task-0207, R8: under --baseline, a finding the baseline held did not fail the gate
+        title = f"knowgov {tool} {f['kind']}" + (f" {subject_of}" if subject_of else "") + (" (held by the baseline)" if held else "")
         out.append({"severity": f["severity"], "kind": f["kind"], "id": ident, "path": path or fallback,
-                    "line": 1, "title": title, "message": f["message"]})
+                    "line": 1, "title": title, "message": f["message"], "held": held})
     return out
 
 

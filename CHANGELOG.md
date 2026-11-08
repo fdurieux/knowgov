@@ -12,6 +12,13 @@ names that section with the version.
 
 ### Contract changes
 
+- **Under `--baseline`, the gate's held findings are no longer annotated as errors** (task-0207,
+  doc-0030 R8). With a baseline the gate exits on a regression only, yet `harness/annotate.py` marked
+  every finding at the threshold an error, though the gate exited 0. Each finding of a report with a
+  baseline now carries `held`: false for the regression's own findings (a key whose level fell, a derived
+  output newly suspect, and with a worse verdict the task finding and every blocker), true for the rest.
+  annotate shows a held finding as a warning at most, titled "held by the baseline". Additive and optional in
+  `gate-report.schema.json`: not required, absent without `--baseline`.
 - **An attestation is bound to the Versions it attests** (task-0221, decision-0019; decision-0009 option (c)).
   Before, `[verification] authored` and `approval` attested whatever the documents held at each load, so an edit
   made after the attestation inherited it.
@@ -308,6 +315,15 @@ names that section with the version.
   file it never looked at. The reader no longer writes `__pycache__` into `KG_REGISTER/tools` when it loads
   the register's own modules, so a register mounted read-only stays unwritten. `tools/check_mcp_server.py`
   builds the arms' bundle from each scenario's prompts, as the runner does, not a fixed `task_codegen`.
+- **An agent run stopped by its seconds ceiling reads as the ceiling, not as an API error** (task-0207,
+  doc-0030 R6). When the run's deadline cut a model's answer mid-stream, or the client's timeout fired at
+  it, the run was recorded as an API error, so `--resume` ran the cell again and paid for it again. It now
+  ends with `stopped_by: "ceiling: <n> seconds"`, a `ceiling` turn in its trace, and no `api_error`, so
+  `--resume` keeps it. A stream that falls silent for the idle limit before the deadline is still an API
+  error.
+- **Route (c) records the model that answered** (task-0207, doc-0030 R12). A transcript's proposals file
+  named the configured model (`KG_ARMS_MODEL`); it now names the model the endpoint answered with, as the
+  stream named it, which a gateway or an alias can make differ.
 - **pumllint 0.35.0 is the record's pin** (task-0224, the maintainer, 2026-11-08). The image, both
   `harness.yml` jobs, `demo/requirements.txt` and the CI templates (`instance/ci/preload-check.yml`'s
   `PUMLLINT`, the GitLab include's `KNOWGOV_PIP`) install pumllint 0.35.0 in place of 0.33.0, so the

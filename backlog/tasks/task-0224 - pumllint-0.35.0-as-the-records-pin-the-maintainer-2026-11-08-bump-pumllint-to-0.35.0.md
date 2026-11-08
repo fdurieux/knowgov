@@ -3,10 +3,10 @@ id: TASK-0224
 title: >-
   pumllint 0.35.0 as the record's pin (the maintainer, 2026-11-08: bump pumllint
   to 0.35.0)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-08T13:08:00Z'
-updated_date: '2026-11-08T14:27:00Z'
+updated_date: '2026-11-08T15:34:00Z'
 labels:
   - pins
   - record
@@ -27,11 +27,11 @@ The maintainer, 2026-11-08: "bump pumllint to 0.35.0". task-0217 (decision-0018 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 Every place that names pumllint 0.33.0 as a pin names 0.35.0, and tests/test_demo.py holds the new pin
-- [ ] #2 The image is rebuilt with 0.35.0 and the stack job runs on it
+- [x] #2 The image is rebuilt with 0.35.0 and the stack job runs on it
 - [x] #3 The scored record (S1 to S7), the deterministic run and the comparator stay equal on rdflib and Neo4j; the sequence-diagram mapper yields the same statements under 0.35.0 as under 0.33.0, shown by a diff of its yield
 - [x] #4 pumllint 0.35.0's trace --features runs from the installed library (a smoke step), for task-0217
 - [x] #5 CHANGELOG.md carries the pin change under Unreleased, and CLAUDE.md's pins line is updated
-- [ ] #6 If the record or the mapper's yield moves, the task stops and the before and after go to the maintainer before any merge
+- [x] #6 If the record or the mapper's yield moves, the task stops and the before and after go to the maintainer before any merge
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -60,4 +60,12 @@ Proof, each under CPython 3.12 venvs with the record's pins, one with pumllint 0
 Further checks under 0.35.0: check_round_trip --chain rdflib,rdflib --expect-parts on J-F's full set (C, D1-D5) exit 0, every answer survives; check_mcp_server on rdflib, CargoQuote S1-S7 and J-F C, D1-D5 (the full sets), exit 0 both, every check holds. AC #6 not triggered: nothing moved. AC #2 waits on the PR's stack job (demo.yml rebuilds the image from demo/Dockerfile with the new pin).
 
 Merged origin/main at ccbc4ae (task-0216's lint gaps, task-0214's claim probe); tests/test_rdflib_split.py's ADDED keeps both sides. Re-run: run_tests with the pins 785/786, 1 skipped, 0 failed; without pyyaml 747/786, 39 skipped, 0 failed. tools/check_lint_gaps.py (real pumllint, the planted SEQ002) under 0.33.0 and 0.35.0: exit 0 both, output identical but for the version; tools/check_claim_probe.py exit 0. tests/test_lint_gaps.py's 0.33.0 is fixture data for a version change, not a pin, and stays.
+
+PR #362 merged as d1e6b87 on 2026-11-08, on a whole green matrix with stack (tests, rdflib, rdflib-readers, stack, the knowgov gate; publish skipped): the stack job rebuilt the image from demo/Dockerfile with pumllint 0.35.0 and ran on it. AC #6: nothing moved, so the task did not stop; nothing went to the maintainer for a decision.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+pumllint 0.35.0 is the record's pin (PR #362, merged as d1e6b87). Every pin of 0.33.0 moved: demo/Dockerfile, demo/requirements.txt, both harness.yml jobs, the CI templates (preload-check.yml's PUMLLINT, the GitLab include's KNOWGOV_PIP), the tests that hold them, CLAUDE.md, docs/security.md. Nothing moved under 0.35.0. The comparator found 0 differing leaves on CargoQuote S1-S7 and J-F C, D1-D5, on rdflib and on Neo4j 5.26. The mappers' yield showed 0 differences: CargoQuote 12,634 leaves (the sequence mapper's 145 statements), J-F 69,135 leaves (plantuml_realises' 1,074 statements). The parser output the mappers read changed no value; it adds one field, participants' declared_line, which no mapper reads. Pre-load and lint findings were identical: the example instance had 0 findings under both versions; the 12 .puml files had 5 findings under both; check_lint_gaps gave the same output under both. A CI smoke step in rdflib-readers runs pumllint trace --features on the J-F kit: 163 requirements, 0 uncovered, 0 unverified. run_tests passed with the pins, without pyyaml and on the J-F pass; the round trips --chain, check_mcp_server, check_preload_linters and the stack job passed. Not a contract change; a CHANGELOG line sits under Unreleased > Changes. task-0217 can build on the pin.
+<!-- SECTION:FINAL_SUMMARY:END -->
