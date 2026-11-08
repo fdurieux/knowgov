@@ -3,10 +3,10 @@ id: TASK-0213
 title: >-
   Define reverse engineering and knowledge-gap identification as a repeatable
   process (a brief first)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-07T09:25:00Z'
-updated_date: '2026-11-07T23:59:00Z'
+updated_date: '2026-11-08T11:18:00Z'
 labels:
   - process
   - reverse-engineering
@@ -29,9 +29,9 @@ The maintainer, 2026-11-07: "I want the reverse engineering experiment to be rep
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A backlog doc defines the process step by step (scope at a named commit; reverse-engineer into a kit with each statement observed, inferred or intended; gather the existing artefacts; lint both; load as a subject so lint findings, code quirks and missing documentation become gaps routed to owners; address; re-run on change), each step mapped to the tool or record that exists and the gaps named
-- [ ] #2 The doc carries the four parts (opportunity canvas, fit/gap, SWOT, advice) and states how decision-0011 relates to it and where H7's drift question fits
-- [ ] #3 The maintainer's decision on the process is recorded before any task builds a step of it
+- [x] #1 A backlog doc defines the process step by step (scope at a named commit; reverse-engineer into a kit with each statement observed, inferred or intended; gather the existing artefacts; lint both; load as a subject so lint findings, code quirks and missing documentation become gaps routed to owners; address; re-run on change), each step mapped to the tool or record that exists and the gaps named
+- [x] #2 The doc carries the four parts (opportunity canvas, fit/gap, SWOT, advice) and states how decision-0011 relates to it and where H7's drift question fits
+- [x] #3 The maintainer's decision on the process is recorded before any task builds a step of it
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -42,4 +42,12 @@ The maintainer, 2026-11-07: "I want the reverse engineering experiment to be rep
 - Fit/gap: no code overlap with the tranche, since the brief changes nothing in harness/, tools/ or subjects/. The risk of going stale is mitigated by marking every step that depends on F2, F4, F5, F6 or F8 as provisional.
 - SWOT: the strengths are an idle session and a subject close to its doc-0031 work. The weakness is the provisional steps. The opportunity is that the brief feeds F2. The threats are staleness and drift against the tranche as it lands.
 - Advice: draft now, document only; no task minted, no step built before the maintainer's decision on the process (AC #3).
+
+2026-11-08, the maintainer's decision: "Do them now. include in 0.9." (answering doc-0032 §11's eight questions as recommended). Recorded as decision-0018 (accepted), with its four parts; decision-0011 gains amendment A7 and stays proposed. The builds are tasks 0214 to 0220; the three contract changes (0214, 0215, 0216) gather for 0.9.0 under doc-0028 G9-12. The same day the maintainer chose to bind attestations to versions in 0.9.0 (decision-0019, task-0221, G9-13) and to build the stage-2 idempotent close (task-0222).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+The brief (doc-0032, #340) defines the reverse-engineering process in eight steps, each mapped to its tool or record and its gap, with the four parts and eight questions. The maintainer answered all eight on 2026-11-08; decision-0018 records the process and the answers before any step is built (AC #3), decision-0011 is amended (A7), and the build is tasks 0214 to 0220. Follow-ups: the first instance (task-0220) waits on the maintainer for the J-F commit, the route to its private code and what may be published.
+<!-- SECTION:FINAL_SUMMARY:END -->

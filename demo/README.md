@@ -522,18 +522,21 @@ point a run somewhere else. The header chip says how many rows are
 available, and names the variables to set when none is.
 
 **Each key is checked before you pick it.** When the page starts, it
-asks every row's endpoint for its list of models. That request costs no
-tokens and sends no prompt and no document. Each row then shows one of
-four marks:
+asks every row's endpoint for its list of models, first with a placeholder
+that is no key, then with your key. Those requests cost no tokens and send
+no prompt and no document. Each row then shows one of four marks:
 
-- *key accepted*: the endpoint answered with its list;
+- *key accepted*: the endpoint refused the placeholder and answered your
+  key with its list;
 - *key refused*: the endpoint answered 401 or 403. The row is greyed with
   the status and the variable to fix, and a run on it is refused at once,
   before any call is made;
 - *endpoint unreachable*: no answer. The row stays usable, since a run
   may still get through later;
-- *key unchecked*: no key is set, the check is off, or the endpoint does
-  not serve a list (404, for instance), which says nothing about the key.
+- *key unchecked*: no key is set, the check is off, the endpoint does
+  not serve a list (404, for instance), or it lists its models to anyone,
+  placeholder included, as OpenRouter and Ollama do. None of these says
+  anything about the key, and an open list is never sent your key.
 
 Rows that share an endpoint and a key are checked once. After you fix a
 key and restart, or to ask again, press *re-check keys* under the

@@ -7,11 +7,15 @@ only outbound traffic stays the model client's (docs/security.md).
 
 Verdicts:
 
-    accepted     the endpoint answered the listing (2xx)
+    accepted     the endpoint answered the listing (2xx) to the key, having refused it without one
     refused      the endpoint refused the key (401, 403): a run on the row would fail the same way
     unreachable  no answer (no connection, a timeout): a run might still work later
-    unchecked    no key, the check off (KG_KEY_CHECK=off) or not yet run, or another status
-                 (404: the endpoint serves no listing; 429; 5xx), which says nothing of the key
+    unchecked    no key, the check off (KG_KEY_CHECK=off) or not yet run, another status (404: the
+                 endpoint serves no listing; 429; 5xx), or a listing open without a key (OpenRouter's,
+                 Ollama's; task-0188), any of which says nothing of the key
+
+The listing is read first with a placeholder bearer that is no key (``NO_KEY``), then, unless that
+already settles it, with the row's key: two requests at most, both free.
 
 A verdict carries the HTTP status and the time it was taken, never the provider's message: OpenAI's
 401 body quotes part of the key. The key is read from its variable when a check is made and handed
@@ -50,9 +54,12 @@ def fingerprint(base_url: str, key: str) -> str:
     return hmac.new(_SECRET, base_url.encode() + b"\0" + key.encode(), hashlib.sha256).hexdigest()[:24]
 
 
-def probe(base_url: str, key: str) -> dict:
-    """One listing request through the model client. Returns the verdict, the HTTP status and the
-    model ids listed (names, nothing secret); never the exception's text."""
+NO_KEY = "knowgov-key-check-no-key"   # the bearer of the first listing: no provider issues it, so it is no key
+
+
+def _listing(base_url: str, key: str) -> dict:
+    """One listing request through the model client: the verdict, the HTTP status and the model ids
+    listed (names, nothing secret); never the exception's text."""
     from openai import OpenAI, APIConnectionError, APIStatusError, APITimeoutError  # lazy, as arms.call()
 
     client = OpenAI(api_key=key, base_url=base_url, max_retries=0, timeout=TIMEOUT_S)
@@ -68,12 +75,29 @@ def probe(base_url: str, key: str) -> dict:
     return {"state": ACCEPTED, "status": 200, "models": listed}
 
 
+def probe(base_url: str, key: str) -> dict:
+    """The row's verdict from at most two listing requests (task-0188). The first carries NO_KEY: an
+    endpoint that lists its models to it lists them to anyone (OpenRouter's did with an invalid
+    bearer on 2026-11-06, doc-0023; Ollama holds no keys), so its listing says nothing of the key and the
+    verdict is unchecked, ``open`` noting why, whatever the key would get. An endpoint that does not answer
+    is unreachable. Otherwise the second request carries the key and its answer is the verdict, as
+    before: accepted, refused, or unchecked for any other status."""
+    first = _listing(base_url, NO_KEY)
+    if first["state"] == ACCEPTED:
+        return {"state": UNCHECKED, "status": first["status"], "models": first["models"], "open": True}
+    if first["state"] == UNREACHABLE:
+        return first
+    return _listing(base_url, key)
+
+
 def _now() -> str:
     # task-0075: the time a verdict was taken is shown, never decides an outcome
     return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _why(state: str, status: int | None, key_var: str, gateway: bool) -> str:
+def _why(state: str, status: int | None, key_var: str, gateway: bool, open_listing: bool = False) -> str:
+    if open_listing:
+        return f"the endpoint lists its models without a key, so the listing says nothing of the key in {key_var}"
     if state == ACCEPTED:
         return "gateway key accepted, upstream unchecked" if gateway else "key accepted by the endpoint's model listing"
     if state == REFUSED:
@@ -163,7 +187,7 @@ class Checker:
         in_list = None if listed is None or not model else any(m == model or m.rsplit("/", 1)[-1] == model for m in listed)
         return {"state": res["state"], "status": res["status"], "checked_at": res["checked_at"],
                 "scope": "gateway" if gateway else "key", "model_listed": in_list,
-                "why": _why(res["state"], res["status"], key_var, gateway)}
+                "why": _why(res["state"], res["status"], key_var, gateway, bool(res.get("open")))}
 
 
 CHECKER = Checker()

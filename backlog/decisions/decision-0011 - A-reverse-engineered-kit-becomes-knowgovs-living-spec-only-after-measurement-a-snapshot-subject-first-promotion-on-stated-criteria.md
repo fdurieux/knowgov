@@ -113,3 +113,18 @@ It drops the maintainer's goal (answer 1): knowgov managing its own roadmap. (c)
   - P4, the shadow-period wiring (A2, A3), advisory, after scoring.
 - Its pull requests that touch `subjects/`, `harness/`, `tools/` or `demo/` wait until task-0141's S1, .07, H1 and H2 have merged. doc-0026 is reserved for its study.
 - The promotion criteria are fixed here, so the later record cannot set them after seeing the numbers.
+
+## Amendment A7 (2026-11-08)
+
+The maintainer, answering doc-0032 §11 question 6 (decision-0018 point 6): amend this record while it is proposed. Its choice, (c), does not move, so the amendment carries no four parts of its own (CLAUDE.md). This record stays proposed, and its approval stays the maintainer's.
+
+- **It is the process's first in-house instance.** decision-0018 defines the reverse-engineering process in eight steps (doc-0032 §2). This record applies them to knowgov's gate lane:
+  - steps 1 and 2 are A1 and A4's kit at a commit;
+  - step 5 is A5 and A6, the frozen subject and the register slice;
+  - step 7 is the scoring and its fidelity bar;
+  - step 8 is the shadow period and its drift instruments (A2).
+- **It adds steps 3, 4 and 6:**
+  - **Step 3, gather.** The lane's existing artefacts are gathered beside the kit: the backlog's acceptance criteria for the lane's tasks, `docs/`, the JSON Schemas under `harness/schemas/`, and the code's docstrings. A key the kit states and no existing artefact states is undocumented. A key an artefact states differently is a conflict.
+  - **Step 4, lint both.** The kit and the gathered artefacts are linted with `tools/preload_check.py` and step 4's checks (task-0217), and nothing is fixed first.
+  - **Step 6, address.** Each finding gets a recorded resolution (slip, choice, exception, open) through the routes decision-0018 point 5 builds (task-0216). The lint is then repeated at the same tool versions.
+- **The snapshot commit comes after F2, F4 and F5.** These are task-0199, task-0198 and task-0201, which change the lane's gate, load, review and cadence. All three have merged (#342, #343, #341, #345), so the snapshot can be taken on `main` once this record is approved. This replaces A4's "after task-0141.02 (S1)", which has also merged.

@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-07T07:15:00Z'
+updated_date: '2026-11-08T11:18:00Z'
 tags:
   - brief
   - release
@@ -88,6 +88,8 @@ Every item here is the maintainer's to meet.
 | G9-9 | Accurate adopter docs | `docs/guide.md:321-324` says task-0037 is not built and that nothing takes S2 to PROCEED; task-0037 is Done, and its AC #5 shows that path. `README.md:25` and `demo/README.md:1024` say Python 3.13; the image is `python:3.12-slim` (`demo/Dockerfile:9`). #291 (open) fixes both. The external pass (doc-0012 §9) found them too, and a third: `docs/guide.md` describes a narrower impact walk than the register's three walks (dependants, realisers, thread) | P2 |
 | G9-10 | The upstream formats an instance may use | unstated | decision-0016 point 3 |
 | G9-11 | The code review's high findings fixed (doc-0030, the maintainer's acceptance of 2026-11-07) | Open at `8d80b2b`: H1 a held scenario matched by bare id; H2 stage 2 reopens a closed gap; H3 a person's approval lapses by the wall clock; H4 conflicts paired within one version; H5 rulings bound to positional ids; H6 trace misses a document edit; H7 subject_check reads any manifest-named path; M3 HTTP refusals smuggle a request | task-0195 (task-0194 its interim), task-0196, task-0197, task-0198, task-0199 |
+| G9-12 | The reverse-engineering process's contract changes (decision-0018, the maintainer, 2026-11-08: "include in 0.9") | Not built: the kit's `claim` field, the intended bar, lint findings as routed gaps | task-0214, task-0215, task-0216 |
+| G9-13 | An attestation bound to the Versions it attests (decision-0019, the maintainer, 2026-11-08: "Build it in 0.9") | Not built; K12 below is decided for 0.9.0 by this row | task-0221 |
 
 ## 5. 1.0: the contracts proven (proposed gap list)
 
@@ -163,7 +165,7 @@ No released `CHANGELOG.md` section is edited.
 | K9 | Response sizes are not capped by the HTTP limits (0.7.0) | to mint | no cap in `demo/app` or `harness/mcp_server.py`. H2 (task-0141.04) bounded requests only. Minted as task-0177 (T-c) |
 | K10 | Claude Desktop's role is asking the gate until the maintainer's own Desktop test shows the prompts and `subject_check` (0.7.0) | tasked | task-0148 AC #5, In Progress, waits on the maintainer's test |
 | K11 | A proposal's slices are as fine as the register's links: steps supported only by one end-to-end process share one thread (0.7.0) | proposed 1.0 limit | by design: doc-0022 K1 slices on the register's own `THREAD` walk, facts only. A finer slice is the register's to model (ieam-register), not knowgov's to infer |
-| K12 | An attestation is the manifest's declaration and is not bound to a document's version (0.7.0) | proposed 1.0 limit | decision-0009 (a) chose attestation by the subject's declaration, built by task-0136. Binding an attestation to a version is a new decision, not a fix. If the maintainer wants it before 1.0, it needs a decision record first |
+| K12 | An attestation is the manifest's declaration and is not bound to a document's version (0.7.0) | **decided for 0.9.0** (decision-0019, 2026-11-08; G9-13); first proposed as a 1.0 limit | decision-0009 (a) chose attestation by the subject's declaration, built by task-0136. Binding an attestation to a version is a new decision, not a fix. If the maintainer wants it before 1.0, it needs a decision record first |
 | K13 | A run folder from before `run.json` is inferred: status, start and initiator unknown (0.7.0) | proposed 1.0 limit | historical runs only. Every run since task-0127 writes `run.json`, and `runs/` is gitignored and never the record |
 | K14 | `proposal_impact`'s branch mode reads a branch's additions only (0.7.0) | proposed 1.0 limit | `branch_overlay` reads added node files; a modified one is listed as reused ("changed") and a deleted one is not read. That matches doc-0017's question, a proposed addition. A change or a removal is `register_impact`'s and `--register-previous`'s question |
 | K15 | The subject check compares keys with the documents' yield only where the mappers run (0.7.0) | proposed 1.0 limit | knowgov extracts keys only through deterministic mappers. Route c (task-0139) measured model proposals for the prose kinds and adopted none. A kind with no mapper yields nothing to compare |

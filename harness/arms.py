@@ -90,6 +90,82 @@ class BudgetExceeded(RuntimeError):
     pass
 
 
+CUT_CHARS_PER_TOKEN = 10   # doc-0023 defect 1: a whole prompt measured 4.7 characters per token, the one Ollama cut 27
+CUT_MIN_CHARS = 4_000      # below it the ratio is a tokenizer's overhead, and no server's context is that short
+
+
+class PromptCut(RuntimeError):
+    """The endpoint read far fewer prompt tokens than the characters sent can hold: a server whose
+    context is shorter than the prompt cut it and still answered (Ollama at its defaults, doc-0023
+    defect 1). The call is marked on the run and never scored as an answer (task-0185)."""
+
+    def __init__(self, detail: dict, usage: dict | None = None):
+        super().__init__(detail["why"])
+        self.detail, self.usage = detail, usage
+
+
+def prompt_cut(chars: int, usage: dict) -> dict | None:
+    """The mark for a call whose reported prompt tokens are too few for the characters sent, else None.
+    The tokens read are the larger of the prompt and the cached tokens, so an endpoint that counts a
+    cached prefix apart from the prompt is not read as a cut; an endpoint that reports no prompt tokens
+    is not marked, since there is nothing to compare, and neither is a prompt under CUT_MIN_CHARS, whose
+    ratio says more of the tokenizer's overhead than of a cut. The OpenAI API carries no context length,
+    so the harness can only see the cut, never prevent it: the server's own setting does that."""
+    seen = max(int(usage.get("prompt_tokens") or 0), int(usage.get("cached_tokens") or 0))
+    if seen <= 0 or chars < CUT_MIN_CHARS or chars <= CUT_CHARS_PER_TOKEN * seen:
+        return None
+    ratio = chars / seen
+    return {"chars": chars, "prompt_tokens": seen, "chars_per_token": round(ratio, 1), "threshold": CUT_CHARS_PER_TOKEN,
+            "why": (f"prompt cut by the endpoint: {chars:,} characters sent, {seen:,} prompt tokens read "
+                    f"({ratio:.1f} characters per token, above {CUT_CHARS_PER_TOKEN}); set the server's context length")}
+
+
+def text_of(content) -> str:
+    """The text of a reply's content (task-0186). A string is the text. A list of parts, which Mistral
+    sends at reasoning_effort high (a thinking part, then text; streamed, a list while it thinks, then
+    strings; doc-0023 defect 2), gives its text parts only, the thinking dropped. The pinned SDK keeps
+    such a list as it came, dicts or objects, so both are read."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, (list, tuple)):
+        out = []
+        for part in content:
+            if isinstance(part, str):
+                out.append(part)
+                continue
+            get = part.get if isinstance(part, dict) else (lambda k, d=None, p=part: getattr(p, k, d))
+            if get("type") == "text":
+                out.append(str(get("text") or ""))
+        return "".join(out)
+    return str(content)
+
+
+class IncompleteStream(RuntimeError):
+    """A stream that ended without its usage part: retried, as a transient fault (task-0187)."""
+
+
+_TRANSIENT_NAMES = {"APIConnectionError", "APITimeoutError", "TransportError", "TimeoutException"}
+
+
+def transient(e: BaseException) -> bool:
+    """Whether a failed call is worth another attempt (task-0187): a 429 or a 5xx, a connection or a
+    timeout failure (the SDK's or the transport's), a stream that ended without its usage, or an error
+    event inside a 200 stream (the SDK's APIError with no status, which a stream carries in place of a
+    5xx). Any other status, a 400 for an effort the model refuses, a 401, a 404, is reported at once,
+    and so is any other exception: retrying it only spends the waits."""
+    status = getattr(e, "status_code", None)
+    if isinstance(status, int):
+        return status == 429 or status >= 500
+    if isinstance(e, (IncompleteStream, ConnectionError, TimeoutError)):
+        return True
+    names = {c.__name__ for c in type(e).__mro__}
+    if names & _TRANSIENT_NAMES:
+        return True
+    return type(e).__name__ == "APIError"
+
+
 def endpoint() -> dict:
     """The instance settings as they stand now (base URL, key variable, model, effort), and whether a
     call would be a deviation from the record: a model or an effort other than the record's, when the
@@ -173,12 +249,12 @@ def call(system: str, user: str, *, tag: str) -> dict:
                 if getattr(chunk, "model", None):
                     model_name = chunk.model
                 if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                    parts.append(chunk.choices[0].delta.content)
+                    parts.append(text_of(chunk.choices[0].delta.content))   # a list of parts gives its text (task-0186)
             if usage_obj is None:
-                raise RuntimeError("stream ended without a usage chunk")
+                raise IncompleteStream("stream ended without a usage chunk")
             break
-        except Exception as e:  # noqa: BLE001 — transient 5xx/429 from the proxy; retried, counted
-            if attempts >= 4:
+        except Exception as e:  # noqa: BLE001 — a 429, a 5xx or a dropped connection is retried and counted; any other error at once (task-0187)
+            if attempts >= 4 or not transient(e):
                 raise
             with _lock:
                 _state.setdefault("retries", []).append({"tag": tag, "attempt": attempts, "error": str(e)[:200]})
@@ -187,9 +263,14 @@ def call(system: str, user: str, *, tag: str) -> dict:
     u = usage_obj
     rec = {"tag": tag, "model": model_name, "host": ep["host"], "effort": ep["effort"], "attempts": attempts, "streamed": True,
            **usage_fields(u, ep["host"]), "seconds": round(dt, 1)}
+    cut = prompt_cut(len(system) + len(user), rec)   # task-0185: the tokens were spent, so they are counted; the reply is never read
+    if cut:
+        rec["prompt_cut"] = cut
     with _lock:
         _state["tokens"] += tokens_of(rec)
         _state["usage"].append(rec)
+    if cut:
+        raise PromptCut(cut, rec)
     raw = "".join(parts)
     try:
         parsed = json.loads(raw)
