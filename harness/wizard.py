@@ -60,6 +60,20 @@ class PromptError(ValueError):
     """A prompt that cannot be given: an unknown name, a missing or malformed argument."""
 
 
+def file_refusal(v: str) -> str | None:
+    """Why ``add_artefact``'s ``file`` is not a path inside the instance, else None (task-0272), confined as
+    ``subject_check`` confines a manifest's paths: no control character (NUL included), no backslash, no
+    ``~``, not absolute, and no ``..`` segment, so the prompt never carries a path that leaves the instance."""
+    from pathlib import PurePosixPath
+    if any(ord(c) < 0x20 or 0x7f <= ord(c) <= 0x9f for c in v):
+        return "carries a control character"
+    if "\\" in v or v.startswith("~") or PurePosixPath(v).is_absolute():
+        return "is not a relative path inside the instance"
+    if ".." in PurePosixPath(v).parts:
+        return "climbs out with .."
+    return None
+
+
 def kinds() -> list[dict]:
     return tomllib.loads(KINDS.read_text(encoding="utf-8")).get("kind", [])
 
@@ -122,6 +136,9 @@ def get(name, arguments) -> dict:
             continue
         if not (FILE_TOKEN if a["name"] == "file" else TOKEN).fullmatch(v):
             raise PromptError(f"{a['name']} {v!r} is not one token: {a['description']}")
+        why = file_refusal(v) if a["name"] == "file" else None
+        if why:
+            raise PromptError(f"file {v!r} {why}: {a['description']}")
         named.append(f"{a['name']} `{v}`")
     have = parts()
     head = f"/{name} " + ("with " + ", ".join(named) if named else "with no arguments") + ".\n\n"
