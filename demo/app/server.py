@@ -1086,10 +1086,12 @@ PAGE_SETTINGS = ("KG_DEMO_PORT", "KG_PAGE_MAX_BODY", "KG_PAGE_READ_TIMEOUT", "KG
 
 
 def main() -> None:
+    import register_impact
     import switches
     try:
         switches.check()   # task-0276: an on/off setting with a value it does not accept stops the page, exit 2
-    except switches.BadSwitch as e:
+        register_impact.require_named()   # task-0288: KG_REGISTER names a register the page cannot read: exit 2, named
+    except (switches.BadSwitch, register_impact.RegisterUnreadable) as e:
         print(f"kg demo: cannot start: {e}", file=sys.stderr, flush=True)
         sys.exit(2)
     try:   # task-0264: every numeric setting the page reads, its limits and its store's port, refused at start, named
