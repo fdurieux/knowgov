@@ -151,7 +151,8 @@ The register map's rows are checked against the register you name, with `--regis
 `KG_REGISTER`. If the register you name cannot be read (a typo in the path, or a folder that is not
 a register), the check stops with exit 2 and names the path; it never skips the register check
 without saying so. A folder counts as a register when its `metamodel/types.toml` lists its
-taxonomies and it holds the register's own `tools/register.py`, the same test every command uses.
+taxonomies and it holds the register's own loader, `register.py` in its tools folder, the same test
+every command uses.
 Only when you name no register, and the public register this copy of knowgov carries cannot be read
 either, are the rows reported as unchecked.
 
