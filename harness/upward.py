@@ -91,6 +91,8 @@ def _node(reg: dict, nid: str) -> dict:
 def key_nodes(key, root: Path | None = None) -> dict:
     """The map rows on ``key`` with their register nodes; UpwardError on a key the subject does not know."""
     from subject import SUBJECT
+    import key_rule
+    key = key_rule.normalise(key)   # task-0301: the NFC form the register map's rows hold
     if not isinstance(key, str) or "|" not in key:
         raise UpwardError(f"key {key!r}: an entity|attribute key, as store_status and register_impact name them")
     if key not in _known():

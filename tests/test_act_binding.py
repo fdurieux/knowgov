@@ -158,3 +158,37 @@ def test_a_load_sets_aside_the_act_that_no_longer_binds_and_applies_the_rest():
     assert [(x["n"], x["why"], x["value"]) for x in rv["skipped"]] == [(1, "changed", "41")], rv["skipped"]
     errs, _ = _check([_ruling(), keep], rows, strict=True)   # the day it is written, the same file is refused
     assert any("no longer holds what the ruling records" in e for e in errs), errs
+
+
+def _answer(stem, n, handle, value="held_unscreened only", key="response|hold_presence"):
+    """A captured answer as the store holds it: no fragments (its digest is the empty text's) and its giver."""
+    return {"id": f"A:cap:{stem}:{n}@capture", "key": key, "value": value, "basis": "elicited", "status": "approved",
+            "fragments": [], "agent": handle}
+
+
+def _answer_ruling(aid, value="held_unscreened only", key="response|hold_presence"):
+    return {"assertion": aid, "key": key, "value": value, "sha256": review.content_digest([]), "outcome": "approved"}
+
+
+def test_a_vanished_answer_is_never_repaired_by_another_persons_identical_answer():
+    """task-0302 (decision-0032 C2-1): a captured answer's digest is the empty text's, so another person's identical
+    answer held the ruling's content and won as "repaired" once the ruled answer's capture was deleted."""
+    ruled = "A:cap:2026-11-05-ORG-0002-employee-1:1@capture"
+    assert review.content_digest([]).startswith("e3b0c442")
+    st = Store([_answer("2026-11-06-ORG-0002-employee-3", 1, "employee-3")])
+    b, how = review.bind(st, _answer_ruling(ruled))
+    assert b is None and how["why"] == "gone", (b, how)
+    # nor through a handle that ends where the ruled one does, nor a file renamed by a second capture the same day
+    for stem, handle in (("2026-11-06-ORG-0002-x-employee-1", "x-employee-1"), ("2026-11-06-ORG-0002-employee-1-2", "employee-1-2")):
+        assert review.bind(Store([_answer(stem, 1, handle)]), _answer_ruling(ruled))[0] is None, stem
+    assert review.bind(Store([_answer("2026-11-06-ORG-0002-employee-1", 1, "employee-1")]),
+                       _answer_ruling("A:cap:2026-11-05-ORG-0002-employee-1-2:1@capture"))[0] is None
+
+
+def test_the_same_givers_answer_given_again_still_repairs():
+    """The reverse: the same person's identical answer, captured again under another id, carries the ruling."""
+    ruled = "A:cap:2026-11-05-ORG-0002-employee-1:1@capture"
+    st = Store([_answer("2026-11-06-ORG-0002-employee-1", 2, "employee-1"), _answer("2026-11-06-ORG-0002-employee-3", 1, "employee-3")])
+    b, how = review.bind(st, _answer_ruling(ruled))
+    assert b["id"] == "A:cap:2026-11-06-ORG-0002-employee-1:2@capture" and how["why"] == "repaired", (b, how)
+    assert review.bind(Store([_answer("2026-11-05-ORG-0002-employee-1", 1, "employee-1")]), _answer_ruling(ruled))[1]["why"] == "content"

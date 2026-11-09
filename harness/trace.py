@@ -88,6 +88,12 @@ class CannotRun(Exception):
     """exit 2"""
 
 
+
+def _nfc(key: str) -> str:
+    """A key named on the command line, in NFC (task-0301), as the store holds it."""
+    import key_rule
+    return key_rule.normalise(key)
+
 def _sha(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
@@ -255,7 +261,8 @@ def entry_keys(e: dict) -> list[str]:
     """The keys a ledger entry rests on, sorted: those it was registered on (--keys, --cited) and those of the
     statements it recorded using (task-0303, task-0304)."""
     used = e.get("used") if isinstance(e.get("used"), list) else []
-    return sorted(set(e.get("keys") or []) | {u["key"] for u in used if isinstance(u, dict) and u.get("key")})
+    keys = set(e.get("keys") or []) | {u["key"] for u in used if isinstance(u, dict) and u.get("key")}
+    return sorted({_nfc(k) for k in keys})   # task-0301: reported in NFC, a ledger written before it included
 
 
 def _keys_of(e: dict, ids: list[str], briefs: list[dict] | None = None) -> list[str]:
@@ -486,7 +493,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--file", action="append", default=[], help="a built or changed file, relative to the code map's root (repeat)")
     r.add_argument("--repo", default="code", help="the code repository's name, in the derived id (default: code)")
     r.add_argument("--assertion", action="append", default=[], help="a statement the build used (repeat; default: every statement the task's gate serves)")
-    r.add_argument("--keys", type=lambda v: [k.strip() for k in v.split(",") if k.strip()], default=None, metavar="K1,K2",
+    r.add_argument("--keys", type=lambda v: [_nfc(k.strip()) for k in v.split(",") if k.strip()], default=None, metavar="K1,K2",
                    help="hand-written code: register on these keys' current statements (task-0124)")
     r.add_argument("--cited", action="store_true", help="hand-written code: register each file on the keys its header cites (task-0124)")
     r.add_argument("--as-of", default="today", metavar="DATE",

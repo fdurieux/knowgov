@@ -25,6 +25,13 @@ names that section with the version.
   `task_profile`, `register` and `knowgov`, read as gate report version 3 reads them. Additive to
   `trace-report.schema.json`, still version 1. `harness/annotate.py` ends a finding's message with its owner and
   route, the gate's key findings' too. The record does not move.
+- **Two keys that are canonically equivalent are one key** (task-0301, decision-0034 Amendment A2). knowgov
+  stores and reports a key in Unicode NFC (not NFKC), whichever form enters: `société|adresse` composed and decomposed
+  read alike in the MCP tools' `key` and `keys`, the task classes, the register map, the verification map, captures,
+  reviews, proposals, code-header citations, `trace register --keys` and `check_subject`, and a document is
+  composed before its mapper reads it, so a decomposed document yields the composed keys. Every public key is ASCII
+  and unchanged, and the record does not move. On macOS, set `git config core.precomposeunicode true`.
+
 - **The key rule refuses every control and format character** (task-0297, decision-0034 Amendment A1). A key's
   sides now hold only Basic Multilingual Plane characters outside Unicode categories Cc, Cf, Zs, Zl, Zp and Cs, and
   no `|`. `harness/key_rule.py` writes this as explicit `\uXXXX` ranges, with no `\s`, so ECMA-262 and Python read
@@ -601,6 +608,12 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **An approval of a captured answer no longer passes to another person's identical answer** (task-0302, decision-0032
+  C2-1). A captured answer has no fragments, so its digest is the empty text's: when the approved answer's capture was
+  deleted, another person's answer with the same key and value bound the ruling as "repaired" and the gate read the key
+  approved with no act finding. A captured answer now binds by giver, key and value: only the same person's answer,
+  given again, carries the ruling; otherwise the ruling is not applied and the gate lists a major `gone` act naming
+  the vanished id.
 - **The CI templates read paths and settings one way, and refuse what they cannot follow** (task-0267; security,
   fail-open).
   - **Changed paths.** `instance/ci/knowgov-gate.sh`'s changed-code list, shared by the GitLab include and the

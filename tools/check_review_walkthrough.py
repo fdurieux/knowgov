@@ -94,22 +94,23 @@ def write_review(path: Path, by: str, scenario: str, rulings=(), closes=()) -> P
     return path
 
 
-def answer(env: dict, out: Path) -> str:
-    """employee-1 answers ORG-0002's S2 questionnaire; returns the capture's stem."""
+def answer(env: dict, out: Path, handle: str = "employee-1", on: str = ANSWERED_ON, want: dict | None = None) -> str:
+    """``handle`` (employee-1 by default) answers ORG-0002's S2 questionnaire on ``on``, with ``want`` (key -> answer;
+    employee-1's three by default); returns the capture's stem."""
     qdir = out / "questionnaires"
     expect(env, 0, "Questionnaire for ORG-0002", "capture.py", "questionnaire", "--scenario", "S2", "--out", str(qdir))
     text = (qdir / "questionnaire-cargo_quote-S2-ORG-0002.toml").read_text(encoding="utf-8")
-    text = text.replace('from = ""', 'from = "employee-1"', 1).replace('on = ""', f'on = "{ANSWERED_ON}"', 1)
-    want = {OUT: HELD, "response|hold_presence": "held_unscreened only", "response|statuses": STATUSES}
+    text = text.replace('from = ""', f'from = "{handle}"', 1).replace('on = ""', f'on = "{on}"', 1)
+    want = want or {OUT: HELD, "response|hold_presence": "held_unscreened only", "response|statuses": STATUSES}
     parts = text.split("[[item]]")
     for i, part in enumerate(parts[1:], 1):
         key = tomllib.loads(part)["key"]
         if key in want:
             parts[i] = part.replace('answer = ""', f'answer = "{want[key]}"', 1)
-    answered = out / "answered.toml"
+    answered = out / f"answered-{handle}-{on}.toml"
     answered.write_text("[[item]]".join(parts), encoding="utf-8")
-    expect(env, 0, "captured 3 answer(s)", "capture.py", "ingest", str(answered))
-    return f"A:cap:{ANSWERED_ON}-ORG-0002-employee-1"
+    expect(env, 0, f"captured {len(want)} answer(s)", "capture.py", "ingest", str(answered))
+    return f"A:cap:{on}-ORG-0002-{handle}"
 
 
 def main(out: Path) -> int:
