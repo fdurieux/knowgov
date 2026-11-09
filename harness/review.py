@@ -65,6 +65,7 @@ import re
 import tomllib
 from pathlib import Path
 
+import dates     # task-0262: one strict YYYY-MM-DD parse
 import formats   # task-0174, decision-0023
 
 OUTCOMES = ("approved", "rejected", "referred")
@@ -100,7 +101,7 @@ def today() -> dt.date:
     outcome would move with the calendar fails at once rather than on the day it moves."""
     v = os.environ.get("KG_TODAY")
     if v:
-        return dt.date.fromisoformat(v)
+        return dates.parse(v, "KG_TODAY")   # task-0262: YYYY-MM-DD only, refused naming the value
     if os.environ.get(CLOCK) == "pinned":
         raise WallClock("KG_CLOCK=pinned and no KG_TODAY: this check reads today's date and must pin it "
                         "(KG_TODAY, or --as-of record; task-0075)")
@@ -130,10 +131,7 @@ def pinned(env, on) -> dict:
 def _date(v) -> dt.date | None:
     if isinstance(v, dt.date) and not isinstance(v, dt.datetime):
         return v
-    try:
-        return dt.date.fromisoformat(str(v))
-    except ValueError:
-        return None
+    return dates.parse(v) if dates.is_date(v) else None   # task-0262
 
 
 def issued_handles(register: Path) -> dict[str, dict] | None:

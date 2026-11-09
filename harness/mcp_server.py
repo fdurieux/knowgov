@@ -111,7 +111,6 @@ the body (``-32020``) and an error is a 400, or a 404 for an unknown method. A r
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import ipaddress
 import json
 import os
@@ -1014,6 +1013,7 @@ class Tools:
 
     def three_valued_answer(self, args: dict) -> dict:
         import cadence
+        import dates   # task-0262: the session's date, parsed as every date is
         from gate import THREE_VALUED_STATUSES, invalidated_on_key, three_valued
         from subject import SUBJECT
         key = args.get("key")
@@ -1029,7 +1029,7 @@ class Tools:
             statements = [prov.get(r["id"], r) for r in ans.get("assertions", [])]
             on = self.session_as_of()
             for r in statements:   # task-0198 (doc-0030 M8): currency as of the session's date, as gate_verdict reads it
-                gone = cadence.lapse(r, key, dt.date.fromisoformat(on))   # resolved once, by _resolve
+                gone = cadence.lapse(r, key, dates.parse(on))   # resolved once, by _resolve
                 if gone:
                     r["status"], r["lapsed"] = gone["to"], gone
             out = {"subject": SUBJECT.id, "store": st.name, "scenario": scenario, "key": key, "answer": ans["answer"],

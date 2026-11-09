@@ -25,6 +25,26 @@ names that section with the version.
   `main`'s harness at run time. To move to a later release, take that tag's include or template; the default
   follows. Against Neo4j, add the driver at `demo/Dockerfile`'s pin to the include's `KNOWGOV_PIP`. The GitHub
   action is unchanged: it already runs the knowgov tag named in `uses:`.
+- **Every date is YYYY-MM-DD, and nothing looser** (task-0262, decision-0032, G9-17). One parse,
+  `harness/dates.py`, now reads every date knowgov takes:
+  - `--as-of` on `gate_cli`, `run`, `trace` and `proposal_impact`;
+  - `KG_AS_OF` and the MCP readers' `as_of`;
+  - `KG_TODAY`;
+  - `capture due --on` and `connector --exported-on`;
+  - the page's `POST /api/run` `as_of` and `GET /api/register?today=`.
+
+  Before, Python's `date.fromisoformat` also read the ISO week form and the basic form, so `2026-W45-1` was
+  read as 2026-11-02 and `20261105xx` as 2026-11-05, and the MCP runs reader's `\d` let fullwidth digits
+  through. Such a value is now refused, naming it: exit 2 on a command, a tool error on MCP, 400 on the page.
+  A stored date, such as a verification's `at` or `valid_until`, is read the same way, alone or followed by
+  an ISO time. `record`, `today` and valid dates read as before, and the record does not move.
+
+- **The subject-check report's `finding.rule` names three more rules** (task-0257, decision-0032, G9-17).
+  `require-approved` and `rationale` (a malformed `[tasks.<class>]` field, task-0242) and `attestation` (an
+  attestation with no day or no attester, task-0199) were emitted by `tools/check_subject.py` but missing from
+  `harness/schemas/subject-check.schema.json`. A report carrying one failed its own schema, from the CLI's
+  `--json` and from the MCP `subject_check`. Schema version 1, additive.
+
 - **One reading of every on/off setting** (task-0276, decision-0033 choice 2, G9-17). `harness/switches.py` lists
   them and reads each one: a flag (`KG_NO_LOAD`, `KG_PUBLISH`, `KG_ALLOW_UNCONTAINED_EXECUTION`, `KG_TRACEBACK`,
   `KG_THINKING_UNCOUNTED`) is on with `1` and off with `0`, empty or unset; `KG_LOAD_MEMORY_CHECK` and `KG_KEY_CHECK`

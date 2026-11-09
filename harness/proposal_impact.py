@@ -78,6 +78,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+import dates  # noqa: E402  (task-0262: one strict YYYY-MM-DD parse)
 import register_impact as ri  # noqa: E402
 
 SCHEMA_VERSION = 1
@@ -132,10 +133,9 @@ def _date(v, what: str) -> dt.date:
         return v.date()
     if isinstance(v, dt.date):
         return v
-    try:
-        return dt.date.fromisoformat(str(v))
-    except ValueError as e:
-        raise ProposalError(f"{what}: {v!r} is not a date (YYYY-MM-DD)") from e
+    if not dates.is_date(v):   # task-0262: YYYY-MM-DD only
+        raise ProposalError(f"{what}: {v!r} is not a date (YYYY-MM-DD)")
+    return dates.parse(v)
 
 
 def _str(v, what: str) -> str:

@@ -244,14 +244,10 @@ ATTESTATIONS = ("authored", "approval", "review")   # [verification]: a person's
 
 
 def _dated(v) -> bool:
-    import datetime as dt
-    if isinstance(v, dt.date):
-        return True
-    try:
-        dt.date.fromisoformat(str(v)[:10])
-        return True
-    except ValueError:
-        return False
+    """An attestation's day, as the load reads it (``harness/load.py`` ``_day``): a date, YYYY-MM-DD, alone or
+    with an ISO time (task-0262)."""
+    import dates
+    return dates.day(v) is not None
 
 
 def check_attestations(rep: Report, m: dict, root: Path) -> None:
