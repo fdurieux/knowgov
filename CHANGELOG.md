@@ -26,6 +26,17 @@ names that section with the version.
   naming the setting. Before, `Pinned`, `pinned ` or `1` silently read the wall clock. No on/off setting is trimmed of
   spaces any more, in Python as in `knowgov-gate.sh`, so `KG_NO_LOAD=' 1'` is refused in both. A misspelt
   `KG_LOAD_MEMORY_CHECK` now exits 2 naming the setting, not as "the store did not answer".
+- **`held_keys`' `gate` is the task class's own verdict whatever the store holds** (task-0292, completing task-0283).
+  On a store holding no key, minimal S0's, it was null where `gate_verdict` gives BLOCKED; it is now
+  `gate_verdict`'s verdict and why there too. The held-keys schema's description no longer promises null; the type
+  stays an object or null.
+- **`gate_cli --baseline FILE` holds a deterministic.json to the run too** (task-0286, G9-17). A record file of
+  another scenario, one outside this subject's own record tree (another subject's, or a copy), or one read under
+  another task class or stage than its own (codegen, stage 1, unless the file names them) is refused with exit 2,
+  naming the file and what differs. So is a file without the record's whole structure, such as a report with its
+  `tool` removed and a `D6_gate` added. A baseline level the gate's ladder lacks, in a report or a record, is named
+  the same way, never "the store did not answer". The record's own file for the same run reads as before. The
+  record does not move.
 - **`gate_cli --baseline FILE` keeps its promise: an earlier report of the same run** (task-0258, G9-17). A report
   baseline of another subject, scenario, task class or stage is refused with exit 2, naming the field and both
   values. So is one whose `schema_version` is above this command's, under decision-0023's rule. Each report is

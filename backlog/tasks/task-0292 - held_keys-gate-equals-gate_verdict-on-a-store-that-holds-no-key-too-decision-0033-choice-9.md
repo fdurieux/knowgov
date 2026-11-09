@@ -3,9 +3,11 @@ id: TASK-0292
 title: >-
   held_keys' gate equals gate_verdict on a store that holds no key too
   (decision-0033 choice 9)
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-11-09T15:43:00Z'
+updated_date: '2026-11-09T16:52:00Z'
 labels:
   - contracts
   - validation
@@ -34,9 +36,29 @@ Contract-bearing: it finishes task-0283's change and moves a schema description.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `held_keys`' `gate` is computed whatever the store holds, and equals `gate_verdict`'s verdict and why on every subject, scenario, stage and task class, minimal S0 included.
-- [ ] #2 The held-keys schema's `gate` description no longer says null for an empty store; its type stays object or null, and the tool's description says when null remains (no task class).
-- [ ] #3 `check_mcp_server.py` holds the equality on minimal S0 beside CargoQuote and J-F, and the reproduction is a test.
-- [ ] #4 The record does not move.
-- [ ] #5 `CHANGELOG.md`'s Unreleased section names the change under Contract changes.
+- [x] #1 `held_keys`' `gate` is computed whatever the store holds, and equals `gate_verdict`'s verdict and why on every subject, scenario, stage and task class, minimal S0 included.
+- [x] #2 The held-keys schema's `gate` description no longer says null for an empty store; its type stays object or null, and the tool's description says when null remains (no task class).
+- [x] #3 `check_mcp_server.py` holds the equality on minimal S0 beside CargoQuote and J-F, and the reproduction is a test.
+- [x] #4 The record does not move.
+- [x] #5 `CHANGELOG.md`'s Unreleased section names the change under Contract changes.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. store_reads.held_keys: the class's own evaluation runs whatever the store holds; null only when the subject declares no task class.
+2. The held-keys schema drops "null when the store holds no key"; the tool description says when null remains.
+3. check_mcp_server --held-gate-only, run on minimal in harness.yml; tests.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Evidence: on the old code minimal S0's held_keys gate read None where gate_verdict gives BLOCKED (check_mcp_server --held-gate-only fails); with the fix both BLOCKED. check_mcp_server holds on every CargoQuote and J-F scenario (re-run on S1, S4, S6 and C after the merge). tests/test_held_keys_gate.py: the empty store and the no-class case. complexity: check_mcp_server.py::main 42 to 43 for the --held-gate-only dispatch, recorded with its reason. Record unmoved, suites as task-0286's.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+held_keys' gate is now gate_verdict's verdict and why whatever the store holds: minimal S0, holding no key, reads BLOCKED in both. It is null only when the subject declares no task class (where it raised before), as the tool description says; the schema no longer promises null for an empty store. check_mcp_server --held-gate-only holds it on minimal in harness.yml.
+<!-- SECTION:FINAL_SUMMARY:END -->

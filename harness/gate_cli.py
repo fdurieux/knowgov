@@ -544,6 +544,7 @@ def check_report_baseline(data: dict, where: str, *, subject: str, scenario: str
     if errors:
         more = f" (and {len(errors) - 1} more)" if len(errors) > 1 else ""
         raise CannotRun(f"--baseline {where}: not a valid version-{v} gate report: {errors[0]}{more}")
+    _levels_known(data.get("levels") or {}, where, "$.levels")
     was = {"subject": data.get("subject"), "scenario": data.get("scenario"), "task": data.get("task"),
            "stage": 2 if data.get("change") else 1}
     now = {"subject": subject, "scenario": scenario, "task": task, "stage": stage}
@@ -551,6 +552,60 @@ def check_report_baseline(data: dict, where: str, *, subject: str, scenario: str
         if was[field] != now[field]:
             raise CannotRun(f"--baseline {where}: a report of {field} {was[field]!r}, and this run's {field} is "
                             f"{now[field]!r}: a baseline is an earlier report of the same run")
+
+
+def _levels_known(levels: dict, where: str, field: str) -> None:
+    """Every level a baseline holds is one of the gate's (task-0286): a value the ladder lacks is named, never
+    left to fail the comparison as "the store did not answer"."""
+    for key, level in levels.items():
+        if level not in LEVELS:
+            raise CannotRun(f"--baseline {where}: {field}.{key} is {level!r}, not a level of the gate ({', '.join(LEVELS)})")
+
+
+RECORD_TASK = "codegen"   # the record's gate is the codegen task, read at stage 1 (task-0209)
+# a deterministic.json by its whole structure, every record of both public subjects' (task-0286): never one key
+RECORD_KEYS = ("D1_constraints", "D2_census", "D4_shacl", "D6_gate", "gate_keys", "load", "rules", "scenario", "verifications")
+RECORD_GATE_KEYS = ("below_verified", "blocked_keys", "conflicts", "flagged", "task", "verdict", "why")
+
+
+def _record_shape(data: dict, where) -> None:
+    """A deterministic.json has the record's whole structure, or it is not one (a report with its tool removed and
+    a D6_gate added is neither): each top-level part, D6_gate's fields with a verdict of the gate's, and every
+    gate key an object with a level."""
+    missing = [k for k in RECORD_KEYS if k not in data]
+    gate = data.get("D6_gate")
+    if missing or not isinstance(gate, dict):
+        raise CannotRun(f"--baseline {where}: not a gate report or the record's deterministic.json: it lacks "
+                        f"{', '.join(missing) or 'a D6_gate object'}")
+    lacking = [k for k in RECORD_GATE_KEYS if k not in gate]
+    if lacking or gate.get("verdict") not in VERDICTS:
+        raise CannotRun(f"--baseline {where}: not the record's deterministic.json: its D6_gate lacks "
+                        f"{', '.join(lacking) or 'a verdict of the gate'} ({gate.get('verdict')!r})")
+    keys = data.get("gate_keys")
+    if not isinstance(keys, dict) or not all(isinstance(v, dict) and "level" in v for v in keys.values()):
+        raise CannotRun(f"--baseline {where}: not the record's deterministic.json: gate_keys is not an object of "
+                        "keys, each with its level")
+
+
+def check_record_baseline(data: dict, where: Path, *, record_dir: Path, scenario: str, task: str, stage: int) -> None:
+    """A deterministic.json read as a baseline is this subject's record for the same run (task-0286): a file of
+    the subject's own record tree with the record's whole structure (``_record_shape``), its ``scenario`` the run's,
+    its task the record's (its D6_gate's, codegen) and its stage 1 (or the one it names), every level one of the gate's. Each failure is CannotRun,
+    exit 2, naming the file and what differs."""
+    _record_shape(data, where)
+    root = Path(record_dir).resolve()
+    if not Path(where).resolve().is_relative_to(root):
+        raise CannotRun(f"--baseline {where}: a deterministic.json outside this subject's record ({root}): "
+                        "a record baseline is the subject's own")
+    was = {"scenario": data.get("scenario"), "task": data["D6_gate"].get("task") or data.get("task", RECORD_TASK),
+           "stage": data.get("stage", 1)}
+    now = {"scenario": scenario, "task": task, "stage": stage}
+    for field in ("scenario", "task", "stage"):
+        if was[field] != now[field]:
+            raise CannotRun(f"--baseline {where}: a record of {field} {was[field]!r}, and this run's {field} is "
+                            f"{now[field]!r}: a baseline is the record of the same run")
+    keys = data.get("gate_keys") or {}
+    _levels_known({k: v["level"] for k, v in keys.items()}, str(where), "$.gate_keys")
 
 
 def _baseline(arg: str, subject, scenario: str, task: str, stage: int = 1) -> tuple[dict, str] | None:
@@ -567,10 +622,10 @@ def _baseline(arg: str, subject, scenario: str, task: str, stage: int = 1) -> tu
     p = Path(arg)
     if not p.exists():
         raise CannotRun(f"no baseline at {p}")
-    return _read_baseline(p, run=(subject.id, scenario, task, stage)), str(p)
+    return _read_baseline(p, run=(subject.id, scenario, task, stage), record_dir=subject.record_dir), str(p)
 
 
-def _read_baseline(p: Path, run: tuple[str, str, str, int] | None = None) -> dict:
+def _read_baseline(p: Path, run: tuple[str, str, str, int] | None = None, record_dir: Path | None = None) -> dict:
     """An earlier report or deterministic.json as a baseline; one that cannot be read is a cannot-run (G6). With
     ``run`` (subject, scenario, task, stage), a gate report is first held to it (``check_report_baseline``)."""
     try:
@@ -580,6 +635,9 @@ def _read_baseline(p: Path, run: tuple[str, str, str, int] | None = None) -> dic
     if run is not None and isinstance(data, dict) and data.get("tool") == "knowgov gate":
         subject, scenario, task, stage = run
         check_report_baseline(data, str(p), subject=subject, scenario=scenario, task=task, stage=stage)
+    elif run is not None and isinstance(data, dict) and "D6_gate" in data:
+        _, scenario, task, stage = run
+        check_record_baseline(data, p, record_dir=record_dir, scenario=scenario, task=task, stage=stage)
     try:
         return baseline_of(data)
     except (ValueError, KeyError, TypeError, AttributeError) as e:

@@ -44,14 +44,16 @@ def held_keys(st, *, subject: str, scenario: str, task: str, as_of: str) -> dict
     keys = [k["key"] for k in held]
     levels: dict[str, str] = {}
     verdict = None
-    if keys:
-        version = gate_cli.held_version(st)
+    version = gate_cli.held_version(st)
+    if keys and task in TASKS:   # a subject that declares no task class has none to read the levels or a verdict under
         spec = dict(TASKS[task], keys=keys)   # the levels: every held key's, as gate_verdict reads that key set
         rep = gate_cli.evaluate(st, subject=subject, scenario=scenario, task="keys", spec=spec, threshold="blocker",
                                 baseline=None, loaded=False, version=version, as_of=as_of, route_task=task)
         levels = rep["levels"]
-        # the verdict: the task class's own, on its own required keys, as gate_verdict gives it (task-0283,
-        # decision-0033 choice 9); never the held key set gated under the class's bar as if all were required
+    # the verdict: the task class's own, on its own required keys, as gate_verdict gives it (task-0283, decision-0033
+    # choice 9), whatever the store holds (task-0292: a store holding no key is BLOCKED there, never null here);
+    # never the held key set gated under the class's bar as if all were required
+    if task in TASKS:
         own = gate_cli.evaluate(st, subject=subject, scenario=scenario, task=task, spec=dict(TASKS[task]), threshold="blocker",
                                 baseline=None, loaded=False, version=version, as_of=as_of, route_task=task)
         verdict = {"task": task, "verdict": own["verdict"], "why": own["why"]}
