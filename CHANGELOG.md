@@ -12,6 +12,19 @@ names that section with the version.
 
 ### Contract changes
 
+- **The gate report names what it decided on: schema version 3** (task-0237, decision-0029; task-0103 AC #3,
+  doc-0014 C9). `gate_cli.py -f json` and the MCP reader's `gate_verdict` now carry three required fields.
+  - `task_profile`: the sha256 of the canonical JSON (sorted keys, no whitespace) of the subject's
+    `[tasks.<class>]` table the gate read. With a key set asked for, the table carries those keys.
+  - `register`: `{tag, commit, why}`. These come from the register's `SOURCE.md` when it is vendored, or
+    from an instance checkout's own git `HEAD`, read without the network. Otherwise they are null, with
+    the reason.
+  - `knowgov`: the build that judged, `{version, commit, describe}`, as `store_status` reports it.
+
+  A retained report, a `--baseline` file or the pre-push hook's, thus says which task profile, register and
+  knowgov it judged by. `schema_version` is now 3. A version-2 report still reads as a `--baseline`. The
+  scored record does not move: the deterministic comparator reads no gate report.
+
 - **Twenty `KG_*` settings are contracts from 1.0** (task-0234, decision-0027, decision-0016 point 3).
   `instance/README.md`'s new section "The settings an instance may rely on" documents fourteen of them,
   each with what it does, its default and who sets it:

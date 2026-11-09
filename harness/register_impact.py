@@ -25,7 +25,9 @@ from __future__ import annotations
 
 import contextlib
 import importlib.util
+import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -109,6 +111,38 @@ def source(root: Path) -> dict:
         except (OSError, subprocess.CalledProcessError):
             return ""
     return {"tag": git("describe", "--tags", "--exact-match"), "commit": git("rev-parse", "HEAD")}
+
+
+def identity(root: Path) -> dict:
+    """The register a gate decided on, for its report (task-0237, decision-0029): ``{tag, commit, why}``.
+    A vendored copy's SOURCE.md names both. An instance's own checkout gives its git ``HEAD`` and the tag
+    exactly on it, read without the network (no fetch) and only when git answers for this folder itself,
+    not an enclosing repository. Otherwise ``tag`` and ``commit`` are null and ``why`` says why; ``why``
+    is null when the commit is known. A tag is null when none names the commit. Nothing reads the clock."""
+    root = Path(root)
+    note = root / "SOURCE.md"
+    if note.is_file():
+        found = source(root)
+        commit, tag = found["commit"] or None, found["tag"] or None
+        return {"tag": tag, "commit": commit, "why": None if commit else "the register's SOURCE.md names no commit"}
+    exe = shutil.which("git")
+    if exe is None:
+        return {"tag": None, "commit": None, "why": "the register has no SOURCE.md and git is not installed here"}
+
+    def git(*args: str) -> str | None:
+        try:
+            p = subprocess.run([exe, "-C", str(root), *args], capture_output=True, text=True, timeout=10,
+                               env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return p.stdout.strip() if p.returncode == 0 else None
+    top = git("rev-parse", "--show-toplevel")
+    if not top or Path(top).resolve() != root.resolve():
+        return {"tag": None, "commit": None, "why": "the register has no SOURCE.md and is not a git checkout of its own"}
+    commit = git("rev-parse", "HEAD")
+    if not commit or not re.fullmatch(r"[0-9a-f]{40}", commit):
+        return {"tag": None, "commit": None, "why": "the register's checkout has no commit"}
+    return {"tag": git("describe", "--tags", "--exact-match", "HEAD") or None, "commit": commit, "why": None}
 
 
 def owning_unit(reg: dict, nid: str) -> dict:
