@@ -176,6 +176,17 @@ def _key(rep: Report, where: str, key) -> bool:
     return False
 
 
+def _task_keys(rep: Report, where: str, keys) -> None:
+    """Each key of a task class by the one rule; a key listed twice, equal after NFC, warned (task-0309 B4)."""
+    once: set[str] = set()
+    for k in keys if isinstance(keys, list) else []:
+        if isinstance(k, str) and k:
+            _key(rep, where, k)
+            if key_rule.normalise(k) in once:
+                rep.warning("duplicate", where, f"key {k!r} is listed twice (equal after NFC); the gate merges them", "list each key once")
+            once.add(key_rule.normalise(k))
+
+
 def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
     for t in m:
         if t not in TABLES:
@@ -245,9 +256,7 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
                 p["hint"] = f"use {near!r}" if near else p["hint"]
             rep.error(p["code"], where, p["message"], p["hint"])
         keys = t.get("keys")
-        for k in keys if isinstance(keys, list) else []:
-            if isinstance(k, str) and k:
-                _key(rep, f"{where} keys", k)
+        _task_keys(rep, f"{where} keys", keys)
     tv = m.get("three_valued", {})
     for k in tv.get("keys", []) if isinstance(tv, dict) else []:
         _key(rep, "[three_valued] keys", k)

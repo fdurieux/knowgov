@@ -262,8 +262,8 @@ def bind(st, ru: dict, handles: dict | None = None) -> tuple[dict | None, dict]:
     (the statement it names, or its successor, holds another value or digest), ``gone`` (nothing of its key and
     stem is extracted), ``ambiguous`` (several statements hold its content, none the one it names). ``how["to"]``
     names what the store holds instead: its key's statements of the same stem, each with value and digest."""
-    aid = str(ru.get("assertion", ""))
     import key_rule   # task-0301: a ruling's key in NFC, as the store holds it
+    aid = key_rule.normalise(str(ru.get("assertion", "")))   # its ids embed the key, in NFC too (task-0309 B2)
     key, value, digest = key_rule.normalise(ru.get("key")), ru.get("value"), ru.get("sha256")
     if key is None or value is None or digest is None:   # the read rule: a review file written before 0.9.0
         b = statement(st, aid)

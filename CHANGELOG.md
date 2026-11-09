@@ -594,6 +594,10 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **NFC at the remaining entry points** (task-0309, the re-check of task-0301). A `--baseline` file written with
+  decomposed level keys no longer reads every current key as new (it failed open); a ruling's assertion id is read
+  in NFC; the MCP tools refuse a key when the value as sent, or its NFC, breaks the published pattern, naming the
+  value as sent; `check_subject` warns when a task class lists two keys equal after NFC. No contract moves.
 - **A capture stem that reads as two givers names none** (task-0308, the re-check of task-0302). `ops`'s second file
   the same day and `ops-2`'s first share a stem, so a deleted capture's approval could pass to `ops-2`'s later
   identical answer. When the whole tail and the tail without its trailing `-<n>` are both issued handles, nothing
