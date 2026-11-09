@@ -400,7 +400,7 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
-- **Prioritisation inputs and refinement planning, and a proposal template** (task-0253, doc-0034). `instance/README.md`
+- **Prioritisation inputs and refinement planning, and a proposal template** (task-0253, task-0255, doc-0034). `instance/README.md`
   gains "Feeding your prioritisation, and planning refinement": the facts knowgov gives a team's own method (WSJF, cost
   of delay, RICE), with the command that yields each, what it does not supply, and how to turn each slice's keys below
   the bar into refinement items by level. `instance/templates/proposal.toml` is an annotated template of every field

@@ -583,15 +583,15 @@ Until task-0252 lands (in flight, for 0.9.0), the per-slice `design` reading cou
 Every key below the task's bar becomes a refinement item for the person who can move it. What the
 item is depends on the key's level:
 
-| The key reads | The item | Who |
-|---|---|---|
-| absent | elicit it: send the owner's questionnaire (`harness/capture.py questionnaire`) | the key's owner unit |
-| declared gap | a decision that closes the gap | the unit named as `closer` in the gate report |
-| disputed | a ruling on which source is right, in a review file | a reviewer who is not the author |
-| invalidated | reconfirm it against the changed document | the key's owner unit |
-| proposed | a four-eyes review | a reviewer who is not the author |
-| validated, but the task asks for more | verify it (a test) or approve it (a review) | the key's owner unit and a reviewer |
-| lapsed by the end of the sprint | renew the review (`harness/capture.py due`) | the person who answered, or the owner unit |
+| The key reads | The work | Owner | Route |
+|---|---|---|---|
+| absent | elicit it | the key's owner unit | the owner's questionnaire: `harness/capture.py questionnaire`, then `ingest` |
+| declared gap | a decision that closes the gap | the unit named as `closer` in the gate report | a review file that closes the gap: `harness/capture.py review` |
+| disputed | a ruling on which source is right | a reviewer who is not the author | a review file: `harness/capture.py review` |
+| invalidated | reconfirm it against the changed document | the key's owner unit | the owner's questionnaire, then a review |
+| proposed | a four-eyes review | a reviewer who is not the author | a review file: `harness/capture.py review` |
+| validated, but the task asks for more | verify it (a test) or approve it (a review) | the key's owner unit and a reviewer | a suite scenario in the subject's `[verification] map`, or a review file |
+| lapsed by the end of the sprint | renew the review | the person who answered, or the owner unit | `harness/capture.py due`, then `ingest` |
 
 Two more items come from the slice map, not from a key:
 
