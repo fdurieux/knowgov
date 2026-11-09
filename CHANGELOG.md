@@ -411,7 +411,7 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
-- **A Neo4j read never answers a generation before its data has arrived** (SNAP-11; decision-0014, amendment
+- **A Neo4j read never answers a generation before its data has arrived** (SNAP-11, task-0274; decision-0014, amendment
   A1, accepted 2026-11-09). Under racing writers, a reader could pin a newly published generation while Neo4j was still
   applying the writer's commit, and read it with records missing: CI's SNAP-04 saw S2's counts with no
   extraction activity. Neo4j had shown the publication's `end`, written in the same transaction, before the

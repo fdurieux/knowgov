@@ -38,7 +38,7 @@ RETRY_S = 5.0           # the driver's max_transaction_retry_time: how long a ma
 CONNECT_S = 30.0        # the driver's default connection_timeout, when the handle names none
 LEASE_S = 60.0          # the lease's default; KG_NEO4J_LEASE_SECONDS, KG_NEO4J_LOCK_TIMEOUT and KG_NEO4J_READ_WAIT in store.SETTINGS
 _on_publish = None      # test hook (SNAP-03): called between raising begin and committing the unit
-_on_committed = None    # test hook (SNAP-11): called between the unit's commit and closing the gap (end = begin)
+_on_committed = None    # test hook (SNAP-11, task-0274): called between the unit's commit and closing the gap (end = begin)
 
 CONSTRAINTS = [
     ("uniqueness", "CREATE CONSTRAINT assertion_id IF NOT EXISTS FOR (n:Assertion) REQUIRE n.id IS UNIQUE"),

@@ -36,7 +36,7 @@ read together: the held scenario, the census, the register's census and the gate
   SNAP-10  a writer closed while its lease heartbeat is in the middle of a send (task-0229): on Neo4j, ten
            closes, each while a beat holds its connection's outbox, every one clean and the lease free after
            it (the close joins the beat before the driver closes); on rdflib a writer starts no thread to race
-  SNAP-11  a generation is never visible before its data: on Neo4j a writer held between its unit's
+  SNAP-11  a generation is never visible before its data (task-0274): on Neo4j a writer held between its unit's
            commit and closing the gap leaves begin above end, so a read is refused though the data is in; one
            killed there is refused while its lease is live, then closed forward by a read and read whole; then
            24 publications under six readers, every read a complete generation (before, every such batch read
