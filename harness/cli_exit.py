@@ -18,7 +18,8 @@ never with a traceback as its only output. ``run`` calls ``main`` and maps what 
 what fails while the module loads (a pin not installed): an exception that reaches the interpreter prints the
 one line and the process exits 2.
 
-``KG_TRACEBACK=1`` prints the traceback after the line, for a person debugging; nothing reads it.
+``KG_TRACEBACK=1`` prints the traceback after the line, for a person debugging; nothing reads it. It is read
+through ``switches`` (task-0276): ``run`` refuses any other value but ``0`` or empty with exit 2 before ``main``.
 Standard library only.
 """
 from __future__ import annotations
@@ -29,7 +30,7 @@ import traceback
 
 CANNOT_RUN = 2
 # raised to say "cannot run" in the command's own words: the message is the cause, no type name added
-OWN = {"CannotRun", "WallClock", "LoadTooLarge", "ScratchUnavailable", "FormatError", "FormatTooNew"}
+OWN = {"CannotRun", "WallClock", "LoadTooLarge", "ScratchUnavailable", "FormatError", "FormatTooNew", "BadSwitch"}
 
 
 def cause(e: BaseException) -> str:
@@ -39,13 +40,25 @@ def cause(e: BaseException) -> str:
     return f"{type(e).__name__}: {text}" if text else type(e).__name__
 
 
+def _traceback(strict: bool = False) -> bool:
+    """KG_TRACEBACK read through switches; a bad value raises when ``strict``, else reads as off (the run is
+    already exiting 2 and has printed its cause)."""
+    import switches
+    try:
+        return switches.on("KG_TRACEBACK")
+    except switches.BadSwitch:
+        if strict:
+            raise
+        return False
+
+
 def guard(tool: str) -> None:
     """Exit 2, the cause in one line, for an exception that escapes to the interpreter (a failed import)."""
     def hook(kind, e, tb):
         if issubclass(kind, KeyboardInterrupt):
             return sys.__excepthook__(kind, e, tb)
         print(f"{tool}: cannot run: {cause(e)}", file=sys.stderr)
-        if os.environ.get("KG_TRACEBACK") == "1":
+        if _traceback():
             traceback.print_exception(kind, e, tb)
         sys.stderr.flush()
         sys.stdout.flush()
@@ -57,12 +70,13 @@ def run(main, tool: str, *args) -> int:
     """``main(*args)``'s exit code, None read as 0; anything raised but SystemExit and KeyboardInterrupt
     mapped to exit 2 with its cause on stderr."""
     try:
+        _traceback(strict=True)
         rc = main(*args)
     except (SystemExit, KeyboardInterrupt):
         raise
     except BaseException as e:  # noqa: BLE001 - every failure to run is exit 2, never 1 (the finding's code)
         print(f"{tool}: cannot run: {cause(e)}", file=sys.stderr)
-        if os.environ.get("KG_TRACEBACK") == "1":
+        if _traceback():
             traceback.print_exc()
         return CANNOT_RUN
     return 0 if rc is None else int(rc)

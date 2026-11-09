@@ -266,14 +266,44 @@ def read_body(handler, limits: Limits, *, required: bool = True) -> bytes:
     return data
 
 
+class NotJson(ValueError):
+    """A body or line that is not JSON the parser can read: malformed, not UTF-8, or nested past the
+    parser's depth (task-0272: ``json.loads`` raises RecursionError there, which no caller caught)."""
+
+
+def parse_json(text: str | bytes):
+    """``json.loads`` with every way it can refuse as ``NotJson``: bytes must be strict UTF-8 (never a
+    "replace" decode), and a nesting past the interpreter's recursion limit is a parse error, not a
+    RecursionError that ends the stdio loop or drops the connection (task-0272)."""
+    if isinstance(text, (bytes, bytearray)):
+        try:
+            text = bytes(text).decode("utf-8")
+        except UnicodeDecodeError as e:
+            raise NotJson(f"not UTF-8: {e.reason} at byte {e.start}") from None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        raise NotJson(str(e)) from None
+    except RecursionError:
+        raise NotJson("nested deeper than the parser reads") from None
+
+
+def bearer_matches(header: str | None, token: str) -> bool:
+    """An ``Authorization`` value carries ``token`` under the Bearer scheme, the scheme compared without
+    regard to case (RFC 7235 §2.1, RFC 6750 §2.1; task-0272), the token in constant time."""
+    import hmac
+    scheme, _, cred = (header or "").strip().partition(" ")
+    return scheme.lower() == "bearer" and hmac.compare_digest(cred.strip().encode(), token.encode())
+
+
 def read_json_body(handler, limits: Limits, *, required: bool = True) -> dict:
     """``read_body``, then UTF-8 JSON (400) whose top level is an object (400); an empty body is {}."""
     data = read_body(handler, limits, required=required)
     if not data:
         return {}
     try:
-        body = json.loads(data.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+        body = parse_json(data)
+    except NotJson:   # malformed, not UTF-8, or nested past the parser's depth (task-0272)
         raise Refused(400, "the body must be UTF-8 JSON") from None
     if not isinstance(body, dict):
         raise Refused(400, "the body must be a JSON object")

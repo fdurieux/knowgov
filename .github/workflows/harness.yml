@@ -289,7 +289,8 @@ jobs:
           test "$(gate --scenario S3 --fail-on major)" = 1
           test "$(gate --scenario S2 --baseline record)" = 0
           KG_STORE=rdflib python gate_cli.py --as-of record --scenario S1 -f json -o ../runs/gate-s1.json > /dev/null
-          test "$(gate --scenario S2 --baseline ../runs/gate-s1.json)" = 1
+          test "$(gate --scenario S1 --baseline ../runs/gate-s1.json)" = 0   # the same run: no regression
+          test "$(gate --scenario S2 --baseline ../runs/gate-s1.json)" = 2   # task-0258: another scenario's report is refused
           test "$(gate --scenario nope)" = 2
           test "$(gate --scenario S6 --stage 2)" = 1
           test "$(gate --scenario S1 --stage 2)" = 2
