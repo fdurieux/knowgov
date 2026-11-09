@@ -6,7 +6,7 @@ title: >-
   refactors after 1.0
 type: other
 created_date: '2026-11-09T06:59:00Z'
-updated_date: '2026-11-09T06:59:00Z'
+updated_date: '2026-11-09T07:11:00Z'
 ---
 *Filed by the coordinating session (session_01HTAA1UV2N6XGtCwCvVnB5t) on 2026-11-09. The maintainer asked for a review of the third-party handover "KnowGov v1.0 scope and code review", covering opportunity, SWOT, fit/gap and software quality, with a plan for the improvements, corrections and refactorings that would pay. The handover's own instruction, "do not modify … until that reconciliation has been reviewed", is the third party's, and the maintainer's request supersedes it. This doc and the tasks it names are that plan. Nothing here changes code.*
 
@@ -128,3 +128,19 @@ Read against ISO/IEC 25010's characteristics.
 2. Do the SOLID refactors wait until after 1.0, as task-0247? Advice: yes.
 3. Is SonarQube left out as a gate, with an advisory scan reconsidered after 1.0? Advice: yes.
 4. Does the app image's non-root user (task-0248) wait for a decision, after the cut? Advice: yes.
+
+## Answered (2026-11-09)
+
+The maintainer: "all as advised, but regarding SonarQube: should we trigger an automatic SonarQube scan every major release? Other suggestions for SonarQube to manage technical debt?". After the coordinator's answer, set out with the four parts in chat: "yes, mint and dispatch both". In force:
+
+1. **G9-16: task-0242 to task-0246 before the cut.** They join doc-0028's G9 list, and 0.9.0 is not cut without them. Dispatched on 2026-11-09:
+   - task-0242 (R1) and task-0244 (R3) to the gate session;
+   - task-0243 (R2) to stream C;
+   - task-0245 (R4) and task-0246 to the docs session, after #397.
+2. **The SOLID refactors wait until after 1.0** (task-0247, parked at m-4).
+3. **SonarQube is not a gate.** In its place:
+   - **task-0250, an advisory scan at every minor release**, not every major, since majors are years apart and one delta would cover too much to triage. It runs on the release tag and on demand with a ref, so v0.9.0 can be the first, the frozen baseline. Community Build, the scanner and the tuned profile are all pinned. Coverage is imported from `tools/coverage_stdlib.py`, the debt delta is taken against the previous release and an in-repository triage baseline, and a finding is accepted with its reason in code.
+   - **task-0251, a complexity ratchet in the test suite**, the everyday control. A new function stays under 15. Today's hotspots may only shrink, and a raised value needs a stated reason, so a fix is never blocked.
+   - SonarQube Cloud (free for public repositories: PR decoration, persistent triage, gates on new code only) is left for the maintainer after 1.0.
+   - Neither task is a cut condition.
+4. **The app image's non-root user waits for its own decision** (task-0248).

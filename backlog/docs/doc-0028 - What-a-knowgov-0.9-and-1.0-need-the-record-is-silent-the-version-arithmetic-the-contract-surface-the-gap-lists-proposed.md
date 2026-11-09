@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-09T06:49:00Z'
+updated_date: '2026-11-09T07:11:00Z'
 tags:
   - brief
   - release
@@ -92,6 +92,7 @@ Every item here is the maintainer's to meet.
 | G9-13 | An attestation bound to the Versions it attests (decision-0019, the maintainer, 2026-11-08: "Build it in 0.9") | Not built; K12 below is decided for 0.9.0 by this row | task-0221 |
 | G9-14 | One id per conflict on every store (decision-0020, the maintainer, 2026-11-08: "accept decision-0020's advice") | Not built: document conflicts are numbered in store order (doc-0030 S2) | task-0223 |
 | G9-15 | pumllint 0.35.0 as the record's pin, so the image runs step 4's feature trace (G9-4; the maintainer, 2026-11-08: "bump pumllint to 0.35.0") | 0.33.0 pinned; trace --features first in 0.35.0 | task-0224, then task-0217 |
+| G9-16 | The third-party code review's reproduced defects fixed (doc-0033; the maintainer, 2026-11-09: "all as advised") | R1 a malformed block_levels weakens the gate; R2 float comparison corroborates distinct numbers; R3 inference-basis flags by hash seed; R4 .env files enter a locally built image; a test leak and three hygiene items | task-0242 to task-0246 |
 
 ### Status at `main` `6d27961` (2026-11-09)
 
@@ -114,9 +115,10 @@ Every item here is the maintainer's to meet.
 | G9-13 | met | task-0221 (#354, #355) |
 | G9-14 | met | task-0223 (#359) |
 | G9-15 | met | task-0224 (#362); `pumllint trace --features` smoke step in rdflib-readers |
+| G9-16 | **open: five tasks** | task-0242 (R1), task-0244 (R3), task-0243 (R2), task-0245 (R4) and task-0246, dispatched 2026-11-09 |
 
 **Left before the cut:**
-- **work**: #397 (task-0236, task-0181 AC #4 to #6), merging on green; task-0241, C4 in `proposal_impact` and the register view (in 0.9.0 on the maintainer's word, 2026-11-09), dispatched. Merged on 2026-11-08 and 09: the re-vendor at `v0.2.13` (#393), task-0181 AC #1 to #3 (#395), and task-0237, the report's identity (#396, decision-0029);
+- **work**: #397 (task-0236, task-0181 AC #4 to #6), merging on green; task-0241, C4 in `proposal_impact` and the register view (in 0.9.0 on the maintainer's word, 2026-11-09), dispatched. G9-16's five fixes (task-0242 to task-0246, doc-0033), dispatched. Merged on 2026-11-08 and 09: the re-vendor at `v0.2.13` (#393), task-0181 AC #1 to #3 (#395), and task-0237, the report's identity (#396, decision-0029);
 - **the maintainer's**: G9-3's Desktop test (2026-11-09);
 - **the release PR**: its Known limits. These are decision-0024's thirteen, decision-0021's K21, K10 unless the Desktop test closes it, and the tasked K16, K19, K22 and U1, with K1 at the current Landlock floor (ABI 3, task-0203).
 
