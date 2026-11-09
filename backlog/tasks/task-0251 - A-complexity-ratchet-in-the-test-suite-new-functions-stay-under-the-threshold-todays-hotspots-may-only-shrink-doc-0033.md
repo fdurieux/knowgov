@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-09T07:10:00Z'
-updated_date: '2026-11-09T08:09:00Z'
+updated_date: '2026-11-09T09:20:00Z'
 labels:
   - quality
   - tests
@@ -42,6 +42,8 @@ The maintainer, 2026-11-09: "yes, mint and dispatch both", on the coordinator's 
 
 <!-- SECTION:NOTES:BEGIN -->
 Measured on main 6dcfe92 (after #398): 1657 functions, 186 over 15 (the brief's 'about 185 at Sonar's count'); the worst harness/review.py::check at 148. The measure: if (+nesting), elif and else (+1), conditional expressions, loops and except (+nesting), a loop's else (+1), match (+nesting), each boolean-operator sequence (+1), direct recursion (+1); nesting from those and from nested functions, lambdas and classes, whose complexity counts to the function around them. Differs from Sonar: comprehension clauses not counted, no labelled jumps, no indirect recursion, module and class-level code unscored; documented in the tool's docstring. The ratchet: value is the recorded score, floor the lowest ever recorded; a function above value fails; below value, at or under 15, or gone is stale and fails until --update tightens it; value above floor needs a reason, which --update writes only from --reason. No product code changed; no CHANGELOG line (maintainer tooling). The measure runs in under a second. Local: run_tests stdlib 860/909, bare venv without yaml 853/909, pins 908/909, each 0 failed (each suite run alone: three worker-probe tests count processes and fail when two suites run side by side).
+
+Regenerated on main 73ff4d4 (after #400, #402, #404, #406): 188 functions over 15 of 1668, largest harness/review.py::check at 148; against 6dcfe92: new proposal_impact.with_levels 17, task_policy.problems 34; raised mcp_server Server._tools 23->25, proposal_impact.render_text 57->64, slices 129->132, rules.compatible 17->21; lowered gate.resolve_spec 42->39, check_subject.check_manifest 85->77; none left. Stdlib suite on the merge 875/925, 0 failed.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
