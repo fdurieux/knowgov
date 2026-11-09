@@ -20,6 +20,21 @@ names that section with the version.
   `tests/test_settings_table.py` now fails on any `KG_*` the code (`harness/`, `demo/app/`, `tools/`, `instance/`)
   reads or a compose file under `demo/` passes that has neither a row nor an entry, with its reason, on its
   internal list.
+- **One rule for a knowledge key, `entity|attribute`** (task-0296, decision-0034 choice 3(a)). `harness/key_rule.py`
+  holds it: each side of the `|` is non-empty, with no `|`, no whitespace and no format character (U+200B to U+200D,
+  U+2060, U+FEFF). It is `tools/check_subject.py`'s `KEY_RE`, and the `pattern` of the `keys` items of `gate_verdict`
+  and `evidence_bundle`. So `keys: ["nonsense"]` now answers -32602 on both transports and in both eras, where it
+  used to read BLOCKED with the key absent. A key holding a zero-width space, which passed `check_subject` and read
+  absent at the gate, is now a `key-syntax` error there and -32602 on the wire. Every key in the public subjects and
+  the record already matches it.
+- **A scenario id is `[A-Za-z0-9][A-Za-z0-9_-]{0,31}`, one per scenario** (task-0295, decision-0034 choice 2).
+  Before, two scenarios with one id passed the check and the loader kept the last; `id = ""` and `id = "../x"`
+  passed and reached the gate's report; and `run.py` wrote `<out>/../x`, outside its `--out`. Now a scenario with
+  no id, a duplicate or an id outside the pattern is an error in `tools/check_subject.py` and the MCP
+  `subject_check` (rule `scenario-id`, which the subject-check schema adds, version 1, additive). The subject's
+  loader refuses it, so `gate_cli`, `run.py`, the MCP reader and the page exit 2 naming the id before they write
+  anything. `[[scenario.sources]]` and stage-2 `derived` ids are not scenario ids. Every public id already
+  matches, and the record does not move.
 - **Every command that reads a register refuses a named one it cannot read** (task-0288, decision-0033 choice 5,
   after task-0279). `harness/run.py`, `harness/trace.py`, `harness/capture.py`, `harness/transcript.py` and
   `harness/step_grid.py` now exit 2 on a `KG_REGISTER` they cannot read, naming the path and what is missing,

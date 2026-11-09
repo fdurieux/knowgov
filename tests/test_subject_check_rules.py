@@ -39,9 +39,10 @@ def _calls(path: Path) -> list[tuple[str, ast.expr]]:
 
 
 def _policy_codes() -> set[str]:
-    """Every ``"code"`` a ``task_policy.problems`` result can carry, read from its dict literals."""
+    """Every ``"code"`` a ``task_policy`` or ``scenario_ids`` problem can carry, read from their dict literals."""
     codes = set()
-    for n in ast.walk(ast.parse((ROOT / "harness" / "task_policy.py").read_text(encoding="utf-8"))):
+    for n in (n for f in ("task_policy.py", "scenario_ids.py")
+              for n in ast.walk(ast.parse((ROOT / "harness" / f).read_text(encoding="utf-8")))):
         if isinstance(n, ast.Dict):
             for k, v in zip(n.keys, n.values):
                 if isinstance(k, ast.Constant) and k.value == "code":
@@ -75,6 +76,7 @@ def test_every_rule_code_the_checker_can_emit_is_in_the_schema():
     codes = emitted()
     assert {"require-approved", "rationale", "attestation"} <= codes["error"], codes   # task-0257's three
     assert "task-class" in codes["error"], codes                                         # task-0278's
+    assert "scenario-id" in codes["error"], codes                                        # task-0295's
     assert {"required", "block-level", "share"} <= codes["error"] and "zero-yield" in codes["warning"], codes
     findings = [{"level": LEVEL[m], "rule": c, "where": "w", "message": "m", "fix": "f"}
                 for m in ("error", "warning") for c in sorted(codes[m])]

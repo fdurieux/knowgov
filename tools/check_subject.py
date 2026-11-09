@@ -57,7 +57,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+import scenario_ids  # noqa: E402  (task-0295: the loader's own rule for scenario ids)
 import task_policy  # noqa: E402  (task-0242, doc-0033 R1: the one task-policy validator, also the runtime's)
+import key_rule  # noqa: E402  (task-0296: one entity|attribute rule, the gate's keys pattern too)
 import formats  # noqa: E402  (task-0174, decision-0023: [format] version, standard library, binds no subject)
 KINDS_TABLE = ROOT / "instance" / "kinds.toml"
 MAPPERS_TABLE = ROOT / "instance" / "mappers.toml"   # what each mapper reads, in an adopter's words (task-0149)
@@ -75,7 +77,7 @@ TASK_FIELDS = {"keys", "block_levels", "max_unverified_share", "verbatim", "rati
 TASK_REQUIRED = ("keys", "block_levels", "max_unverified_share")
 RECORD_FIELDS = {"dir", "as_of"}
 LEVELS = task_policy.LEVELS   # harness/gate.py ORDER (task-0242: one list, the validator's)
-KEY_RE = re.compile(r"[^|\s]+\|[^|\s]+")
+KEY_RE = key_rule.KEY_RE   # task-0296: the one key rule, the MCP tools' keys pattern too
 NEAR = 0.8   # difflib ratio for a did-you-mean
 YIELD_TIMEOUT = 300
 
@@ -143,6 +145,13 @@ class Report:
         self.notes.append({"rule": rule, "where": where, "message": message})
 
 
+def _scenario_ids(rep: Report, root: Path) -> None:
+    """task-0295 (decision-0034 choice 2): every scenario has an id, ``[A-Za-z0-9][A-Za-z0-9_-]{0,31}``, its own within
+    the subject; the loader refuses the subject on the first breach (``harness/scenario_ids.py``)."""
+    for p in scenario_ids.problems(_toml(root / "scenarios.toml").get("scenario", [])):
+        rep.error(p["code"], f"scenarios.toml {p['where']}", p["message"], p["hint"])
+
+
 def _class_name(rep: Report, name, where: str) -> None:
     """task-0278 (decision-0033 choice 4): a class named ``keys``, or outside ``[a-z][a-z0-9_-]{0,31}``; the runtime
     refuses the manifest on it (``task_policy.build``)."""
@@ -162,7 +171,7 @@ def _fields(rep: Report, where: str, table: dict, known: set[str]) -> None:
 def _key(rep: Report, where: str, key) -> bool:
     if isinstance(key, str) and KEY_RE.fullmatch(key):
         return True
-    rep.error("key-syntax", where, f"{key!r} is not a key: a key is <entity>|<predicate>, one '|' and no spaces",
+    rep.error("key-syntax", where, f"{key!r} is not a key: a key is <entity>|<predicate>, one '|', no spaces and no invisible format character",
               "write it as entity|predicate, as the mappers name it (REQ-01|text, QuoteAPI|notified)")
     return False
 
@@ -246,6 +255,7 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
     check_attestations(rep, m, root)
     check_bindings(rep, m, root)
 
+    _scenario_ids(rep, root)
     if tasks and not _toml(root / "scenarios.toml").get("scenario"):
         rep.error("scenario", "scenarios.toml",
                   f"the subject declares task(s) {', '.join(sorted(tasks))} and no scenario: the gate runs on a scenario and exits 2 on this subject",
