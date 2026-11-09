@@ -58,7 +58,7 @@ def test_the_rule_and_the_schema_agree_on_every_case():
 
 def test_check_subject_reports_a_key_outside_the_rule_as_an_error():
     """AC3: a zero-width space, or any other key outside the rule, is a key-syntax error in check_subject."""
-    for k in ("thing\u200b|property", "nonsense", "a\ufeff|b"):
+    for k in ("thing\u200b|property", "nonsense", "a\ufeff|b", "thing\u202e|property"):   # RLO: task-0297
         rep = check_subject.Report(ROOT)
         assert check_subject._key(rep, "[tasks.codegen] keys", k) is False
         assert any(f["rule"] == "key-syntax" and f["level"] == "error" for f in rep.findings), (k, rep.findings)
@@ -137,8 +137,11 @@ def test_every_control_and_format_character_is_refused_and_combining_marks_are_k
     Zs, Zl and Zp one, is refused on either side of the |; nothing ALLOWED holds belongs to them, so a later Unicode
     version cannot open a gap unseen. A combining mark (Mn) is kept: an NFD accented name needs it."""
     import unicodedata
-    refused = [c for c in range(0x110000) if unicodedata.category(chr(c)) in key_rule.REFUSED_CATEGORIES
-               and not 0xD800 <= c <= 0xDFFF]   # a lone surrogate is no character of a key read from JSON
+    refused = [c for c in range(0x110000) if (unicodedata.category(chr(c)) in key_rule.REFUSED_CATEGORIES
+                                              or chr(c).isspace()) and not 0xD800 <= c <= 0xDFFF]
+    # every Cc, Cf, Zs, Zl and Zp code point, and every character str.isspace() names; a lone surrogate is no
+    # character of a key read from JSON
+    assert {c for c in range(0x110000) if chr(c).isspace()} <= set(refused)
     assert len([c for c in refused if unicodedata.category(chr(c)) in ("Cc", "Cf")]) > 200
     item = _keys_item("gate_verdict")
     for c in refused:
