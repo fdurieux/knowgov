@@ -412,7 +412,7 @@ names that section with the version.
 
 ### Changes
 - **A Neo4j read never answers a generation before its data has arrived** (SNAP-11; decision-0014, amendment
-  proposed). Under racing writers, a reader could pin a newly published generation while Neo4j was still
+  A1, accepted 2026-11-09). Under racing writers, a reader could pin a newly published generation while Neo4j was still
   applying the writer's commit, and read it with records missing: CI's SNAP-04 saw S2's counts with no
   extraction activity. Neo4j had shown the publication's `end`, written in the same transaction, before the
   transaction's last records. `end` is now set in a transaction of its own once the unit's commit has returned,

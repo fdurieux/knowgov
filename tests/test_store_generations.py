@@ -183,7 +183,7 @@ def test_a_reader_clears_an_abandoned_publication_only_under_the_lock_and_once_t
     lock, guard = rec.index("SET p.lock_seq = coalesce(p.lock_seq, 0) + 1"), rec.index("WHERE p.begin <> p.end AND")
     assert lock < guard, "the lock is taken before the condition is read"
     assert "(p.owner IS NULL OR coalesce(p.expires < datetime(), true))" in rec
-    # SNAP-11 (decision-0014 A1, proposed): the gap closes forward, end = begin, since the unit may have committed
+    # SNAP-11 (decision-0014 A1, accepted 2026-11-09): the gap closes forward, end = begin, since the unit may have committed
     for part in ("p.end = p.begin", "p.owner = null", "p.epoch = p.epoch + 1", "p.abandoned_owner = owner", "p.abandoned_epoch = epoch"):
         assert part in rec, part
     assert "p.begin = p.end," not in rec and "SET p.begin = p.end\"" not in src and "SET p.begin = p.end)" not in src, \
@@ -309,7 +309,7 @@ def test_a_nan_setting_is_refused_by_isnan():
 
 
 def test_end_is_set_after_the_units_commit_never_inside_it():
-    """SNAP-11 (decision-0014 A1, proposed): Neo4j showed a committing unit's new ``end`` to lock-free readers
+    """SNAP-11 (decision-0014 A1, accepted 2026-11-09): Neo4j showed a committing unit's new ``end`` to lock-free readers
     before its last records, so ``end`` is written in a transaction of its own after ``commit()`` returns. The
     fence (the epoch checked under the node's lock, held to the commit) stays inside the unit. On a real store
     SNAP-11 holds a writer between the two and races 24 publications under six readers."""

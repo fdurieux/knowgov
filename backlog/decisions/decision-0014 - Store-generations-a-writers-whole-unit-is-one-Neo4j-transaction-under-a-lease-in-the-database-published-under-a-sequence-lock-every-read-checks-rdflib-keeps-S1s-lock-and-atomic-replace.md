@@ -128,7 +128,7 @@ Option 2 on Neo4j; S1's design, plus a lock-file fence, on rdflib.
   - `KG_NEO4J_READ_WAIT`: 0 to 600 (default 10).
 - **The server-side fence.** `TERMINATE TRANSACTIONS` ran on Community 5.26: right after a takeover, the former owner's unit transaction reads `Terminated` in `SHOW TRANSACTIONS`, and its commit raises `StoreFenced`. SNAP-05 checks both.
 
-## Amendment A1 (proposed, 2026-11-09): Neo4j sets `end` after the unit's commit, and every gap closes forward
+## Amendment A1 (2026-11-09; accepted 2026-11-09): Neo4j sets `end` after the unit's commit, and every gap closes forward
 
 ### Context
 
@@ -206,3 +206,11 @@ Accept A1. It restores what decision-0014 promised, changes no shape (fix-only u
 both fails on main's code and passes on the fix. The alternative of keeping `end` in the unit and making readers lock
 is not available: Neo4j read-committed readers take no locks. Retrying reads more often would only make the window
 rarer, not close it.
+
+### Acceptance of A1 (2026-11-09)
+
+The maintainer, 2026-11-09: "accept A1". **A1 is accepted:** the commit order is the five steps above, with `end`
+set in its own transaction after the unit's commit, and every gap closes forward (`end = begin`). It replaces
+step 3 of the Decision's commit order ("in the unit's transaction, lock the node, check the epoch, set `end =
+begin`") and the backward close of a failed publication and of task-0175's recovery. fdurieux/knowgov#415 builds
+it, proven by `tools/check_snapshots.py` SNAP-11.
