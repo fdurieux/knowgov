@@ -82,7 +82,7 @@ sys.path.insert(0, str(HERE))
 import dates  # noqa: E402  (task-0262: one strict YYYY-MM-DD parse)
 import register_impact as ri  # noqa: E402
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2   # task-0305: not_followed and behind_not_followed, renamed from withdrawn (not additive)
 TOOL = "knowgov proposal_impact"
 MODES = ("as_is", "changed")
 STEP_KINDS = ("step", "touchpoint")
@@ -653,7 +653,7 @@ def slices(T, CR, read: dict, ov: Overlay, scope: str | None = None, register_ma
             "start": cell(s), "axis": axis, "products": [ov.name(p) for p in pids],
             "descendants": [cell(d) for d in t["live"]],
             "thread": by_layer, "empty": [name for name, xs in by_layer.items() if not xs and name != own],
-            "withdrawn": [{"from": ov.name(e["from"]), "rel": e["rel"], "to": ov.name(e["to"]), "state": e["state"]}
+            "not_followed": [{"from": ov.name(e["from"]), "rel": e["rel"], "to": ov.name(e["to"]), "state": e["state"]}
                           for e in t["edges"] if not e["live"]],
             "owners": sorted({o for o in ((nodes.get(x) or {}).get("owner") for x in shown) if o}),
             "handoffs": handoffs,
@@ -689,13 +689,13 @@ def slices(T, CR, read: dict, ov: Overlay, scope: str | None = None, register_ma
 
 CELL_WHY = {
     "of": "the task class's keys (the subject's register-map keys when no class is named): every slice's denominator",
-    "landed": "distinct keys the slice's rows land, the rows on a withdrawn descendant left out",
+    "landed": "distinct keys the slice's rows land, the rows on a descendant not followed left out",
     "unread": "keys whose level was not read: no scenario held, or the slice not read",
     "worst": "the lowest level read, by the gate's order; null when none was read. Not a score",
     "unknown": "keys read at absent: no statement, the three-valued unknown",
     "gaps": "keys read at declared_gap: a documented gap",
     "lapsed": "keys with a lapsed review on the date read (decision-0005)",
-    "behind_withdrawn": "rows naming the far node of a thread edge the walk does not follow; only_behind, those landed no other way",
+    "behind_not_followed": "rows naming the far node of a thread edge the walk does not follow; only_behind, those landed no other way",
 }
 
 
@@ -708,11 +708,11 @@ def slice_keys(register_map: dict, start: str, t: dict, of: int, wanted: list[st
     edge the thread does not follow; the cells, unread until ``with_levels`` reads a store. Facts only,
     with the denominator."""
     live = list(t["live"])
-    withdrawn = [d["id"] for d in t["descendants"] if not d["live"]]
+    not_followed = [d["id"] for d in t["descendants"] if not d["live"]]
     keep = None if wanted is None else set(wanted)
-    rows = [r for r in ri.landed_rows(register_map, start, sorted(t["reached"]), live, withdrawn)
+    rows = [r for r in ri.landed_rows(register_map, start, sorted(t["reached"]), live, not_followed)
             if keep is None or r["key"] in keep]
-    landed = {r["key"] for r in rows if not r.get("withdrawn")}
+    landed = {r["key"] for r in rows if not r.get("not_followed")}
     behind = []
     for e in t["edges"]:
         if e["live"]:
@@ -721,7 +721,7 @@ def slice_keys(register_map: dict, start: str, t: dict, of: int, wanted: list[st
                      and (keep is None or r["key"] in keep)})
         behind.append({"from": e["from"], "rel": e["rel"], "to": e["to"], "state": e["state"], "keys": ks,
                        "only_behind": [k for k in ks if k not in landed]})
-    return {"task": task, "of": of, "landed": len(landed), "rows": rows, "behind_withdrawn": behind, "gate": None,
+    return {"task": task, "of": of, "landed": len(landed), "rows": rows, "behind_not_followed": behind, "gate": None,
             "cells": cells(rows, read=False)}
 
 
@@ -736,7 +736,7 @@ def key_remainder(register_map: dict, items: list[dict], wanted: list[str] | Non
     denominator, so every one of the class's keys is in a slice or here. ``with_levels`` reads their levels."""
     rows_all = register_map.get("row", [])
     universe = wanted if wanted is not None else list(dict.fromkeys(r["key"] for r in rows_all))
-    on = {r["key"] for i in items for r in (i.get("keys") or {}).get("rows", []) if not r.get("withdrawn")}
+    on = {r["key"] for i in items for r in (i.get("keys") or {}).get("rows", []) if not r.get("not_followed")}
     rest = []
     for k in universe:
         if k in on:
@@ -756,7 +756,7 @@ def cells(rows: list[dict], read: bool) -> dict:
     from gate import ORDER
     keyed = {}
     for r in rows:
-        if not r.get("withdrawn"):
+        if not r.get("not_followed"):
             keyed.setdefault(r["key"], r)
     levels = {}
     for r in keyed.values():
@@ -882,8 +882,8 @@ def landed_keys(register_map: dict, node: str, root: Path, children: bool) -> li
     w = ri.walk(node, "dependants", root, children=children)
     reached = [x["id"] for xs in w["reached"].values() for x in xs]
     walked = [c["id"] for c in w["children"] if c["walked"]]
-    withdrawn = [c["id"] for c in w["children"] if c.get("withdrawn")]
-    return ri.landed_rows(register_map, node, reached, walked, withdrawn)
+    not_followed = [c["id"] for c in w["children"] if c.get("not_followed")]
+    return ri.landed_rows(register_map, node, reached, walked, not_followed)
 
 
 def approvals(base: dict, ov: Overlay) -> list[dict]:
@@ -1219,8 +1219,8 @@ def render_text(r: dict) -> str:
             c = k["cells"]
             lv = ", ".join(f"{n} {lvl}" for lvl, n in c["levels"].items()) or "none read"
             lines.append(f"    keys {k['landed']} of {k['of']}; levels {lv}; unread {len(c['unread'])}; worst {c['worst'] or '-'}; "
-                         f"unknown {len(c['unknown'])}; gaps {len(c['gaps'])}; lapsed {len(c['lapsed'])}; behind withdrawn "
-                         f"{sum(len(b['keys']) for b in k['behind_withdrawn'])} ({sum(len(b['only_behind']) for b in k['behind_withdrawn'])} "
+                         f"unknown {len(c['unknown'])}; gaps {len(c['gaps'])}; lapsed {len(c['lapsed'])}; behind not followed "
+                         f"{sum(len(b['keys']) for b in k['behind_not_followed'])} ({sum(len(b['only_behind']) for b in k['behind_not_followed'])} "
                          f"only behind); owner handoffs {len(s['handoffs'])}")
     for g in sl["remainder"]:
         if g["elements"] or g.get("capabilities"):

@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/register-impact.schema.json",
  "title": "knowgov reader register_impact",
- "description": "What the MCP reader's register_impact returns (harness/mcp_server.py Tools.register_impact, harness/register_impact.py walk; task-0111, task-0118, task-0120, task-0172): the register's tag and commit, the walk from the node, the node with its owning unit, its children (with children, every descendant by parent, walked or withdrawn), the edges, what is reached by taxonomy prefix, the register-map rows it lands on and, with a scenario held, each landed key at the gate's level with its findings and the gate's verdict over them. store, scenario and as_of are null and gate is null when no store answers; store_unavailable says why the store could not be read.",
+ "description": "What the MCP reader's register_impact returns (harness/mcp_server.py Tools.register_impact, harness/register_impact.py walk; task-0111, task-0118, task-0120, task-0172): the register's tag and commit, the walk from the node, the node with its owning unit, its children (with children, every descendant by parent, walked or not_followed), the edges, what is reached by taxonomy prefix, the register-map rows it lands on and, with a scenario held, each landed key at the gate's level with its findings and the gate's verdict over them. store, scenario and as_of are null and gate is null when no store answers; store_unavailable says why the store could not be read.",
  "type": "object",
  "additionalProperties": false,
  "required": [
@@ -152,7 +152,7 @@
        "null"
       ]
      },
-     "withdrawn": {
+     "not_followed": {
       "type": "boolean"
      }
     }
@@ -330,7 +330,7 @@
       "type": "string"
      }
     },
-    "withdrawn": {
+    "not_followed": {
      "type": "boolean"
     },
     "level": {

@@ -164,7 +164,7 @@ products that require it, from an information entity to the processes and
 applications that use it, from a product to its journeys and processes.
 The walk follows approved links only (the register's
 decision 0007): an edge whose link is not approved, or whose far node is
-deprecated or retired, is listed as withdrawn and not followed, so only
+deprecated or retired, is listed as not followed, with its state, so only
 what lies behind approved links counts as reached. It does not climb a
 node's parent, and it says so when it reaches no product. Beside each
 reached node it names the owning unit, the unit the node's owner field

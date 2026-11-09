@@ -169,7 +169,7 @@ def _fields(rep: Report, where: str, table: dict, known: set[str]) -> None:
 
 
 def _key(rep: Report, where: str, key) -> bool:
-    if isinstance(key, str) and KEY_RE.fullmatch(key):
+    if isinstance(key, str) and KEY_RE.fullmatch(key_rule.normalise(key)):   # task-0301: read in NFC
         return True
     rep.error("key-syntax", where, f"{key!r} is not a key: a key is <entity>|<predicate>, one '|', no space and no control or format character (key_rule)",
               "write it as entity|predicate, as the mappers name it (REQ-01|text, QuoteAPI|notified)")
@@ -434,7 +434,7 @@ def yield_only(root: Path) -> dict:
         if not mapper or not p.exists() or key not in SUBJECT.shorts:   # no short: refused by the manifest check (G5)
             continue
         try:
-            text = SUBJECT.artefact_text(key)
+            text = extract.mapped_text(SUBJECT.artefact_text(key))   # task-0301: NFC, as the load reads it
             bag = extract.extract_links(key, text, code) if mapper == "links" else extract.EXTRACTORS[mapper](key, text)
         except ModuleNotFoundError as e:
             missing_mod = e.name
@@ -512,12 +512,14 @@ def check_yield(rep: Report, m: dict, root: Path) -> dict:
                  f"{', '.join(y['authored'])} hold authored statements and the manifest declares no [verification] authored: "
                  "they load proposed until a person attests them (decision-0009)")
     tasks = m.get("tasks", {}) if isinstance(m.get("tasks"), dict) else {}
-    required = {k for t in tasks.values() if isinstance(t, dict) for k in (t.get("keys") or []) if isinstance(k, str)}
+    nfc = key_rule.normalise   # task-0301: a task key and a yielded key compared in NFC, as the store compares them
+    required = {nfc(k) for t in tasks.values() if isinstance(t, dict) for k in (t.get("keys") or []) if isinstance(k, str)}
     best = {} if partial else _offers(sorted(k for k in required if KEY_RE.fullmatch(k) and k not in yielded), yielded - required)
     for name, t in sorted(tasks.items()):
         if not isinstance(t, dict) or partial:
             continue
         for k in t.get("keys") or []:
+            k = nfc(k)
             if not isinstance(k, str) or not KEY_RE.fullmatch(k) or k in yielded:
                 continue
             near = best.get(k)

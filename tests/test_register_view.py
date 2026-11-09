@@ -469,7 +469,7 @@ def test_register_impact_cypher_equals_the_walk_on_every_node():
     # the steps are the vendored walk's FORWARD table, every kind and direction, nothing more
     forward = register_view._load_tools()["impact"].FORWARD
     assert steps == {(tax, "REG_" + rel.upper(), fwd) for tax, rels in forward.items() for rel, fwd in rels} and len(steps) == 11
-    assert "AS followed" in sn.IMPACT_ROWS and "'no, withdrawn'" in sn.IMPACT_ROWS
+    assert "AS followed" in sn.IMPACT_ROWS and "'no, not followed (link '" in sn.IMPACT_ROWS
     assert sn.IMPACT_PATHS.count("OPTIONAL CALL (a) {") == 1 and "WITH a MATCH" not in sn.IMPACT_WALK and sn.IMPACT_PATHS.rstrip().endswith("RETURN a, p")
     walked = 0
     for nid in reg["nodes"]:
@@ -726,7 +726,7 @@ def test_dependants_and_node_store_queries_are_listed_from_the_registers_default
     for raw in (sn.DEPENDANTS_CAPABILITY, sn.DEPENDANTS_INFORMATION):
         # one step on only over an approved link to a live node; every edge met is a row and says whether it was followed
         assert raw.count("r0.state = 'approved'") == 2 and raw.count("NOT p.state IN ['deprecated','retired']") == 2
-        assert "'no, withdrawn'" in raw and "CALL (" in raw
+        assert "'no, not followed (link '" in raw and "CALL (" in raw
     assert "{state:'approved'}" in sn.MODULE_STORE and "Derived" in sn.MODULE_STORE
     # the server names no start of its own: the adapter's literals are the anchors it replaces
     srv = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
@@ -1076,13 +1076,13 @@ def test_impact_panel_reaches_what_register_impact_reaches_on_both_walks_both_op
                         assert p["reached"]["all"] == r["reached_ids"] and p["edges"] == r["edges"], (s.id, nid, walk, children)
                         assert p["walk"] == walk and p["children"] is children
                         if children:
-                            assert [(d["id"], d["state"], d["walked"], d["withdrawn"]) for d in p["descendants"]] == \
-                                [(c["id"], c["state"], c["walked"], c["withdrawn"]) for c in r["children"]]
-                            withdrawn = {d["id"] for d in p["descendants"] if d["withdrawn"]}
+                            assert [(d["id"], d["state"], d["walked"], d["not_followed"]) for d in p["descendants"]] == \
+                                [(c["id"], c["state"], c["walked"], c["not_followed"]) for c in r["children"]]
+                            withdrawn = {d["id"] for d in p["descendants"] if d["not_followed"]}
                             assert not withdrawn & {e["from"] for e in p["edges"]}, "a withdrawn descendant is not walked from"
                             sec = p["panel"]["sections"][0]
                             assert sec["heading"] == "Descendants by parent" and len(sec["table"]["rows"]) == len(p["descendants"])
-                            assert all(row[4] == ("no, withdrawn" if row[0] in withdrawn else "yes") for row in sec["table"]["rows"])
+                            assert all((row[4].startswith("no, not followed") if row[0] in withdrawn else row[4] == "yes") for row in sec["table"]["rows"])
                         else:
                             assert "descendants" not in p
             # the keys the panel's reach lands, as register_impact lands them (task-0118's counts)

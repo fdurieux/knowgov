@@ -201,6 +201,8 @@ def _record_preload(st, kit: dict[str, str], version_tag: str) -> dict | None:
 def load_inferred(st, scenario: str, inferred: dict):
     """One model-proposed assertion (the subject's ``[inferred]`` plant), attributed to the llm
     agent, linked to the open decision it claims to resolve, with no supporting fragment."""
+    import key_rule   # task-0301: the plant's key in NFC
+    inferred = {**inferred, "entity": key_rule.normalise(inferred["entity"]), "predicate": key_rule.normalise(inferred["predicate"])}
     st.create_inferred({"id": inferred["id"] + "@v1", "predicate": inferred["predicate"], "value": inferred["value"],
                         "text": inferred["text"], "artefact": "llm", "key": f"{inferred['entity']}|{inferred['predicate']}", "version": "v1"},
                        inferred["entity"],
@@ -383,7 +385,9 @@ def load_captures(st, scenario: str) -> dict:
         person, aid = f"person:{handle}", f"act:capture:{p.stem}"
         st.ensure_person(person, handle)
         st.create_activity(aid, "elicitation", on, "questionnaire", f"answers from {handle} on {on}, owner {cap.get('owner', '')}, {record}", person)
+        import key_rule   # task-0301: an answered key in NFC, whichever form the owner's editor wrote
         for i, a in enumerate(c.get("answer", []), 1):
+            a = {**a, "key": key_rule.normalise(a["key"])}
             ent, pred = a["key"].split("|", 1)
             st.ensure_entity(ent, "elicited", ent)
             st.create_assertion({"id": f"A:cap:{p.stem}:{i}@capture", "predicate": pred, "value": a["value"],
@@ -392,6 +396,7 @@ def load_captures(st, scenario: str) -> dict:
                                 ent, aid, person, [])
             counts["answers"] += 1
         for i, u in enumerate(c.get("unknown", []), 1):
+            u = {**u, "key": key_rule.normalise(u["key"])}
             ent, pred = u["key"].split("|", 1)
             st.ensure_entity(ent, "elicited", ent)
             xid = f"A:cap:{p.stem}:unknown{i}@capture"
@@ -419,7 +424,9 @@ def load_inferred_proposals(st) -> int:
         c = tomllib.loads(p.read_text(encoding="utf-8"))
         inf = c.get("inference", {})
         on, model, dig = str(inf.get("on", "")), str(inf.get("model", "model")), str(inf.get("transcript_sha256", ""))[:12]
+        import key_rule   # task-0301
         for i, x in enumerate(c.get("proposal", []), 1):
+            x = {**x, "key": key_rule.normalise(x["key"])}
             ent, pred = x["key"].split("|", 1)
             st.ensure_entity(ent, "inferred", ent)
             st.create_inferred({"id": f"A:inf:{p.stem}:{i}@transcript", "predicate": pred, "value": x["value"],

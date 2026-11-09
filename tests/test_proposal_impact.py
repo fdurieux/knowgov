@@ -613,7 +613,7 @@ def test_on_the_approved_register_prd_0002s_cap_0003_is_reached_by_no_step_and_p
     assert [c["id"] for c in by["PROC-0006"]["descendants"]] == ["PROC-0007", "PROC-0009", "PROC-0008"]
     assert [c["id"] for c in by["JRN-0002"]["descendants"]] == ["JRN-0004"]   # the touchpoint rides its step
     assert by["JRN-0009"]["empty"] == ["capability"]   # PROC-0006 realises nothing itself: as fine as the links
-    assert {"rel": "is_supported_by", "from": "JRN-0003", "to": "PROC-0005", "state": "proposed"} in by["JRN-0003"]["withdrawn"]
+    assert {"rel": "is_supported_by", "from": "JRN-0003", "to": "PROC-0005", "state": "proposed"} in by["JRN-0003"]["not_followed"]
     assert "ENT-0021" in [c["id"] for c in by["JRN-0006"]["thread"]["information"]]
     shared = _group(sl, "shared")["elements"]
     assert shared == [{"id": "ENT-0021", "element": "node", "slices": ["JRN-0006", "PROC-0006"]},
@@ -641,7 +641,7 @@ def test_an_overlay_no_product_touches_is_placed_outside_and_the_map_is_facts_on
         text = json.dumps(rep["slices"]).casefold()
         assert not [w for w in PLANNING_WORDS if w in text], [w for w in PLANNING_WORDS if w in text]
     for s in _report()["slices"]["map"]:
-        assert set(s) == {"start", "axis", "products", "descendants", "thread", "empty", "withdrawn", "owners", "elements",
+        assert set(s) == {"start", "axis", "products", "descendants", "thread", "empty", "not_followed", "owners", "elements",
                           "handoffs", "keys"}   # task-0191: each slice's owner handoffs and keys
 
 
@@ -765,7 +765,7 @@ def test_each_slice_lists_the_keys_register_impact_lands_on_its_nodes_with_the_d
         c = s["keys"]["cells"]
         assert c["read"] is False and c["levels"] == {} and c["worst"] is None and len(c["unread"]) == s["keys"]["landed"]
     assert (by["JRN-0002"]["keys"]["landed"], by["JRN-0002"]["keys"]["of"]) == (22, 36)
-    behind = by["JRN-0003"]["keys"]["behind_withdrawn"]
+    behind = by["JRN-0003"]["keys"]["behind_not_followed"]
     assert [(b["from"], b["to"], b["state"]) for b in behind] == [("JRN-0003", "PROC-0005", "proposed")]
     assert len(behind[0]["keys"]) == 4 and behind[0]["only_behind"] == ["QuoteAPI|on_notification_failure"]
     assert all(h["owners"][0] != h["owners"][1] for s in by.values() for h in s["handoffs"])
@@ -801,7 +801,7 @@ def test_with_a_scenario_held_each_slice_reads_its_levels_as_register_impact_doe
             assert k["gate"]["verdict"] == gate["verdict"]
             c = k["cells"]
             assert c["read"] is True and sum(c["levels"].values()) == k["landed"] and c["unread"] == []
-            assert c["unknown"] == sorted({r["key"] for r in k["rows"] if r["level"] == "absent" and not r.get("withdrawn")})
+            assert c["unknown"] == sorted({r["key"] for r in k["rows"] if r["level"] == "absent" and not r.get("not_followed")})
             if c["levels"]:
                 from gate import ORDER
                 assert c["worst"] == min(c["levels"], key=ORDER.index)
@@ -842,8 +842,8 @@ def test_under_a_task_class_each_slice_reads_only_its_keys_and_the_rest_are_on_n
         k = s["keys"]
         assert k["task"] == "design" and k["of"] == len(want)
         assert {x["key"] for x in k["rows"]} <= set(want), s["start"]["id"]
-        assert all(set(b["keys"]) <= set(want) for b in k["behind_withdrawn"])
-        on |= {x["key"] for x in k["rows"] if not x.get("withdrawn")}
+        assert all(set(b["keys"]) <= set(want) for b in k["behind_not_followed"])
+        on |= {x["key"] for x in k["rows"] if not x.get("not_followed")}
     tk = r["slices"]["task_keys"]
     off = [x["key"] for x in tk["keys"]]
     assert tk["task"] == "design" and tk["group"] == "on_no_slice" and tk["denominator"] == len(want) == 36

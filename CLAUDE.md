@@ -158,6 +158,13 @@ jobs in parallel (task-0163): `rdflib`, the record and its round trip, and `rdfl
 readers; every step of the old `rdflib` runs in exactly one (`tests/test_rdflib_split.py`), and
 `rdflib-readers` gates once the maintainer adds it to the ruleset's required checks.
 
+**Sub-sessions: model and effort fitted to the work** (maintainer, 2026-11-09). A coordinating session picks each sub-session's model and reasoning effort for what it will do, and names the choice in the brief and in its reply to the maintainer:
+- the most capable model at high effort for a build that crosses modules or moves a contract, and for every probe, re-probe and re-check;
+- the same model at medium effort for a narrow, well-specified contract build;
+- a faster, lower-cost model at medium effort for a fix-only task behind an unchanged contract, and for docs and wording.
+
+A cloud sub-session takes its model at launch, and its effort is stated in the brief. A subagent takes both directly. The model identifiers themselves stay out of the repository.
+
 CI budget (task-0084): a pull request's `rdflib` and `stack` each within 12 minutes on an
 uncontended runner; under parallel load the job may run longer, and the record is never subset to
 meet it. On a pull

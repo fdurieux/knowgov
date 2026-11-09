@@ -66,7 +66,7 @@ def test_the_grid_is_j1s_steps_by_the_folders_scenarios_with_each_steps_keys():
     for s in g["steps"]:
         r = pi.evaluate(None, today=pi._date(SUBJECT.record_as_of, "as_of"), scope=s["scopes"][0], register_map=rmap)
         sl = next(x for x in r["slices"]["map"] if x["start"]["id"] == s["id"])
-        assert s["keys"] == sorted({x["key"] for x in sl["keys"]["rows"] if not x.get("withdrawn")}) and s["of"] == g["denominator"]
+        assert s["keys"] == sorted({x["key"] for x in sl["keys"]["rows"] if not x.get("not_followed")}) and s["of"] == g["denominator"]
     on = {k for s in g["steps"] for k in s["keys"]}
     assert {o["key"] for o in g["off_steps"]} == {r["key"] for r in rmap["row"]} - on
     for c in g["cells"]:

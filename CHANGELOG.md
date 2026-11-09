@@ -11,6 +11,21 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **Two keys that are canonically equivalent are one key** (task-0301, decision-0034 Amendment A2). knowgov
+  stores and reports a key in Unicode NFC (not NFKC), whichever form enters: `société|adresse` composed and decomposed
+  read alike in the MCP tools' `key` and `keys`, the task classes, the register map, the verification map, captures,
+  reviews, proposals, code-header citations, `trace register --keys` and `check_subject`, and a document is
+  composed before its mapper reads it, so a decomposed document yields the composed keys. Every public key is ASCII
+  and unchanged, and the record does not move. On macOS, set `git config core.precomposeunicode true`.
+
+- **"Not followed" is not "withdrawn"** (task-0305, decision-0035, doc-0037 §3.4). Every list of edges or
+  descendants a walk does not follow was named `withdrawn`, a proposed link included. It is now `not_followed`,
+  with the edge's state: proposal-impact's `slices.map[].not_followed` and `keys.behind_not_followed`,
+  `register_impact`'s `children[].not_followed` and the landed keys' `not_followed` flag, step-grid's
+  `behind_not_followed`. The page and the saved queries say "no, not followed" and why: the link's state, or a
+  far node deprecated or retired. `withdrawn` now means deprecated or retired alone. The rename is not additive,
+  so proposal-impact and step-grid move to `schema_version` 2. The record does not move.
+
 - **An execution or review verification holds only for the document versions it was attested on** (task-0306,
   decision-0036). No suite runs when the documents load. Before, the load wrote a passing execution verification
   for every statement whose value the documents on disk state, so an edited value on an instance read *verified
@@ -26,6 +41,7 @@ names that section with the version.
     version.
   - The port's `verify_by_execution` and `verify_by_review` take the attested artefacts, on both adapters.
   - The public subjects list their versions, so the record does not move.
+
 - **The key rule refuses every control and format character** (task-0297, decision-0034 Amendment A1). A key's
   sides now hold only Basic Multilingual Plane characters outside Unicode categories Cc, Cf, Zs, Zl, Zp and Cs, and
   no `|`. `harness/key_rule.py` writes this as explicit `\uXXXX` ranges, with no `\s`, so ECMA-262 and Python read
