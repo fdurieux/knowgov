@@ -106,7 +106,13 @@ adds ``; closed by UNIT``.
 The JSON report (-f json) is pinned by harness/schemas/gate-report.schema.json, version 3 (the
 schema's description says what changed from 1 and 2 and what was added since), and validated before
 it is printed. Version 3 (task-0237, decision-0029) names what the gate decided on: ``task_profile``,
-the sha256 of the task table read; ``register``, its tag and commit; ``knowgov``, the build.
+the sha256 of the task table read; ``register``, its tag and commit; ``knowgov``, the build. Added since, without a
+version change (task-0307, decision-0037): ``corpus``, the sha256 over the loaded document Versions' digests
+(``store.corpus_digest``: one ``<artefact>\t<version>\t<sha256>`` line each, sorted by artefact then version).
+With ``--baseline``, each of ``task_profile``, ``register``, ``knowgov``, ``corpus`` and ``as_of`` that differs
+from the baseline's is named on stderr, one line each; the exit is the ratchet's, unchanged. A field the
+baseline lacks, or holds as unknown (null), reads as unknown and is never named; ``--baseline record`` holds
+only ``as_of``, the subject's ``[record] as_of``.
 """
 from __future__ import annotations
 
@@ -347,15 +353,21 @@ def at_or_above(fs: list[dict], threshold: str) -> list[dict]:
     return [f for f in fs if SEVERITIES.index(f["severity"]) <= SEVERITIES.index(threshold)]
 
 
+IDENTITY_FIELDS = ("task_profile", "register", "knowgov", "corpus", "as_of")   # task-0307: what --baseline names when it differs
+
+
 def baseline_of(data: dict) -> dict:
-    """{verdict, levels, suspect} from an earlier report of this command (version 1 or 2; a version-1
-    report named no derived output, so it holds none suspect) or from a deterministic.json."""
+    """{verdict, levels, suspect, identity} from an earlier report of this command (version 1 or 2; a version-1
+    report named no derived output, so it holds none suspect) or from a deterministic.json. ``identity`` holds
+    the identity fields the report carries (task-0307); a field it lacks is left out, read as unknown. A
+    deterministic.json names none: its ``identity`` is None, the record's (``record_identity``) set by the reader."""
     if data.get("tool") == "knowgov gate":
         sus = data.get("suspect_derived")
-        return {"verdict": data["verdict"], "levels": data.get("levels", {}), "suspect": list(sus) if isinstance(sus, list) else []}
+        return {"verdict": data["verdict"], "levels": data.get("levels", {}), "suspect": list(sus) if isinstance(sus, list) else [],
+                "identity": {f: data[f] for f in IDENTITY_FIELDS if f in data}}
     if "D6_gate" in data:
         return {"verdict": data["D6_gate"]["verdict"], "levels": {k: v["level"] for k, v in data.get("gate_keys", {}).items()},
-                "suspect": [d["id"] for d in data["D6_gate"].get("suspect_derived") or []]}
+                "suspect": [d["id"] for d in data["D6_gate"].get("suspect_derived") or []], "identity": None}
     raise CannotRun("the baseline file is neither a gate report nor a deterministic.json")
 
 
@@ -402,8 +414,9 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
            version: str | None = None, change: dict | None = None, owners: dict[str, dict] | None = None,
            route_task: str | None = None, route_keys=None, closers: dict[str, dict] | None = None,
            register_change: dict | None = None, task_profile: str | None = None,
-           suspect_scope: dict[str, dict] | None = None) -> dict:
-    """``task_profile`` is the digest of the task table the gate read (``profile_digest``; None when the
+           suspect_scope: dict[str, dict] | None = None, corpus: str | None = None) -> dict:
+    """``corpus`` is ``store.corpus_digest`` of the loaded Versions (task-0307; None when none is loaded).
+    ``task_profile`` is the digest of the task table the gate read (``profile_digest``; None when the
     report is built without one). ``route_task`` is the task class whose questionnaire a finding's route names (``task`` by default;
     the MCP server's agent-chosen key set, task ``keys``, names the class it was resolved under), and
     ``route_keys`` the keys that questionnaire covers (None: every key): a key outside them has no route."""
@@ -431,6 +444,7 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
             "baseline": baseline, "exit_code": 1 if fail else 0,
             # task-0237, decision-0029 (version 3): what the gate decided on, so a retained report names it
             "task_profile": task_profile, "register": register_identity(), "knowgov": knowgov_identity(),
+            "corpus": corpus,   # task-0307, decision-0037: added since, without a version change
             **({"register_change": register_change} if register_change is not None else {})}   # task-0122, additive
 
 
@@ -486,6 +500,38 @@ def knowgov_identity() -> dict:
         import build_identity
         _IDENTITY["knowgov"] = build_identity.identity()
     return dict(_IDENTITY["knowgov"])
+
+
+def _known(value) -> bool:
+    """An identity value that says something: not null, and for an object (register, knowgov) one with a
+    value besides ``why`` (task-0307)."""
+    if isinstance(value, dict):
+        return any(v is not None for k, v in value.items() if k != "why")
+    return value is not None
+
+
+def _show(value) -> str:
+    return value if isinstance(value, str) else json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def identity_drift(identity: dict, rep: dict) -> list[dict]:
+    """Each identity field (``IDENTITY_FIELDS``) on which this report and its baseline's ``identity`` both say
+    something and differ: {field, baseline, now} (task-0307, decision-0037). A field either side lacks or holds
+    as unknown is never a difference. Named on stderr, never in the exit."""
+    return [{"field": f, "baseline": identity[f], "now": rep.get(f)} for f in IDENTITY_FIELDS
+            if f in identity and _known(identity[f]) and _known(rep.get(f)) and identity[f] != rep.get(f)]
+
+
+def drift_lines(source: str, drift: list[dict]) -> list[str]:
+    return [f"gate: --baseline {source}: {d['field']} differs: the baseline's {_show(d['baseline'])}, this run's {_show(d['now'])}"
+            for d in drift]
+
+
+def name_drift(base: tuple[dict, str] | None, rep: dict) -> dict:
+    """Each identity field that differs from the baseline's, one stderr line each (task-0307): named, never the exit."""
+    for line in drift_lines(base[1], identity_drift(base[0].get("identity") or {}, rep)) if base else []:
+        print(line, file=sys.stderr)
+    return rep
 
 
 def render(rep: dict) -> str:
@@ -618,11 +664,21 @@ def _baseline(arg: str, subject, scenario: str, task: str, stage: int = 1) -> tu
         p = subject.record_dir / rel / "deterministic.json"
         if not p.exists():
             raise CannotRun(f"no record for {scenario}: {p} does not exist")
-        return _read_baseline(p), "record"
+        return record_identity(_read_baseline(p), subject), "record"
     p = Path(arg)
     if not p.exists():
         raise CannotRun(f"no baseline at {p}")
-    return _read_baseline(p, run=(subject.id, scenario, task, stage), record_dir=subject.record_dir), str(p)
+    return record_identity(_read_baseline(p, run=(subject.id, scenario, task, stage), record_dir=subject.record_dir), subject), str(p)
+
+
+def record_identity(base: dict, subject) -> dict:
+    """A deterministic.json names no identity of its own; the record is read as of the subject's ``[record] as_of``,
+    so that is the one field it holds (task-0307). A gate report's identity is its own, left as read."""
+    if base.get("identity") is None:
+        import cadence
+        on = cadence.record_date(subject) if getattr(subject, "record_as_of", None) else None
+        base["identity"] = {"as_of": on.isoformat()} if on else {}
+    return base
 
 
 def _read_baseline(p: Path, run: tuple[str, str, str, int] | None = None, record_dir: Path | None = None) -> dict:
@@ -716,7 +772,7 @@ def run(args) -> dict:
         except Exception as e:  # noqa: BLE001
             raise CannotRun(f"the store cannot be opened: {e}") from e
         try:
-            return _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous)
+            return name_drift(base, _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous))
         except StoreChanged as e:
             if attempt == attempts - 1:
                 raise CannotRun(f"the store was republished during each of {attempts} reads; run again: {e}") from e
@@ -782,6 +838,7 @@ def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshol
     defaults to the loaded subject's (``capture.finding_owners``) when ``subject`` is its id;
     ``route_task``, the class an agent-chosen key set was resolved under, names its questionnaire."""
     from gate import resolve_spec
+    from store import corpus_digest
     res = resolve_spec(st, task, spec, as_of)
     from subject import SUBJECT
     scope = suspect_scope(st, res, spec)   # task-0282: which suspect outputs rest on this task's keys
@@ -801,7 +858,8 @@ def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshol
                   block_levels=set(spec["block_levels"]), threshold=threshold,
                   baseline=compare(res, *baseline, suspect_scope=scope) if baseline else None, version=version, change=change, owners=owners,
                   route_task=route_task, route_keys=_route_keys(route_task) if route_task and route_task != task else None,
-                  closers=closers, register_change=register_change, task_profile=profile_digest(table), suspect_scope=scope)
+                  closers=closers, register_change=register_change, task_profile=profile_digest(table), suspect_scope=scope,
+                  corpus=corpus_digest(st.version_digests()))
 
 
 def _route_keys(task: str) -> set[str] | None:

@@ -1291,6 +1291,11 @@ class Neo4jStore(Store):
         cols = ", ".join(f"a.{k} AS {k}" for k in self.ACT_FIELDS)
         return by_id(_rows(self.run(f"MATCH (a:ActFinding) RETURN a.id AS id, {cols}")))
 
+    def version_digests(self) -> list[dict]:
+        return _rows(self.run("""
+            MATCH (a:Artefact)-[:HAS_VERSION]->(v:Version)
+            RETURN a.id AS artefact, v.tag AS version, v.sha256 AS sha256 ORDER BY artefact, version"""))
+
     def preload_verdicts(self) -> list[dict]:
         return _rows(self.run("""
             MATCH (a:Artefact)-[:HAS_VERSION]->(v:Version) WHERE v.preload_state IS NOT NULL

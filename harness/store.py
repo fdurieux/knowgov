@@ -39,6 +39,7 @@ is an adapter, not a rewrite.
 """
 from __future__ import annotations
 
+import hashlib
 import math
 import os
 from typing import Any
@@ -96,7 +97,18 @@ READS = frozenset({
     "gaps_with_concerns", "assertions_on_key", "assertion_rows", "supported_by", "candidate_for",
     "fragments_with_version", "requirements_verified_by", "register_census", "register_node_statements",
     "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions", "held",
-    "act_findings", "derived_rows", "gap_brief", "lint_gaps", "attestations"})
+    "act_findings", "derived_rows", "gap_brief", "lint_gaps", "attestations", "version_digests"})
+
+
+def corpus_digest(rows: list[dict]) -> str | None:
+    """The corpus a gate decided on (task-0307, decision-0037): the sha256, hex, of one UTF-8 line per loaded
+    document Version, ``<artefact>\t<version>\t<sha256>\n``, sorted by artefact then version (``version_digests``'
+    order, re-sorted here so neither adapter's order counts). Every Version the store holds counts, a stage-2
+    change's earlier one included. None when no Version is loaded."""
+    if not rows:
+        return None
+    lines = sorted((r["artefact"], r["version"] or "", r["sha256"] or "") for r in rows)
+    return hashlib.sha256("".join(f"{a}\t{v}\t{d}\n" for a, v, d in lines).encode("utf-8")).hexdigest()
 
 
 def held_from(acts: list[dict], current: list[dict]) -> dict | None:
@@ -487,6 +499,11 @@ class Store:
     def record_preload(self, vid: str, verdict: dict) -> None:
         """Set on Version ``vid`` the verdict a pre-load report gave its bytes: preload_state,
         preload_tool, preload_tool_version, preload_digest, preload_report, preload_why."""
+        raise NotImplementedError
+
+    def version_digests(self) -> list[dict]:
+        """Every loaded document Version: {artefact, version (tag), sha256}, sorted by artefact and version
+        (task-0307). ``corpus_digest`` folds them into the gate report's ``corpus``."""
         raise NotImplementedError
 
     def preload_verdicts(self) -> list[dict]:
