@@ -12,6 +12,20 @@ names that section with the version.
 
 ### Contract changes
 
+- **`proposal_impact` and the register view read every coverage rule the register's checker defines** (task-0241;
+  the maintainer, 2026-11-09). At ieam-register v0.2.13 these are C1 to C4, where C4 is the register's decision 0020:
+  an approved process that realises an approved capability is supported by an approved application or module.
+  - The rules come from the vendored `check_register.py`'s own `COVERAGE_RULES`, in its order, so a later
+    register rule needs no knowgov code.
+  - A proposal that breaks C4 now reports it under `coverage.new_gaps`, on its hypothetical element, as C1 to C3
+    are reported.
+  - The register view's coverage summary and lines name C4.
+  - `proposal-impact` schema, version 1, additive: `coverage.before` and `after` name C4, and a new gap's `rule`
+    may be `C4`. C1 to C3 stay the required keys, so a report on a register from before decision 0020 still
+    validates.
+  - `tools/fixtures/proposal_c4_gap.json` is the worked case, held by the tests and by
+    `tools/check_proposal_branch.py` in branch mode. The vendored register is C4-clean, so nothing in the
+    record moves.
 - **The gate report names what it decided on: schema version 3** (task-0237, decision-0029; task-0103 AC #3,
   doc-0014 C9). `gate_cli.py -f json` and the MCP reader's `gate_verdict` now carry three required fields.
   - `task_profile`: the sha256 of the canonical JSON (sorted keys, no whitespace) of the subject's

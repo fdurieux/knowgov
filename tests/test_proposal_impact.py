@@ -45,6 +45,38 @@ def _valid(rep: dict) -> None:
     assert errors == [], errors[:5]
 
 
+# ---- task-0241: every coverage rule the register's checker defines, C4 (decision 0020) among them
+
+C4_FIXTURE = ROOT / "tools" / "fixtures" / "proposal_c4_gap.json"
+
+
+def test_coverage_reads_every_rule_the_registers_checker_defines_and_a_c4_gap_is_reported_hypothetical():
+    """A process proposed to realise an approved capability, with a diagram of record and no supporting
+    application: C1 to C3 hold as before and C4 falls from 5/5 to 5/6, its gap on the hypothetical process.
+    The rules are the checker's own COVERAGE_RULES, in its order, so a later rule needs no code here."""
+    r = _report(json.loads(C4_FIXTURE.read_text(encoding="utf-8")))
+    _valid(r)
+    cov = r["coverage"]
+    assert list(cov["before"]) == list(cov["after"]) == ["C1", "C2", "C3", "C4"]
+    assert {c: (cov["after"][c]["covered"], cov["after"][c]["denominator"]) for c in cov["after"]} == \
+        {"C1": (7, 8), "C2": (5, 5), "C3": (6, 6), "C4": (5, 6)}
+    assert cov["new_gaps"] == [{"rule": "C4", "id": "PROC-0011", "hypothetical": True}]
+    assert cov["after"]["C4"]["uncovered"] == [{"id": "PROC-0011", "hypothetical": True}]
+    assert "  C4: 5/5 -> 5/6 covered; uncovered ['PROC-0011']" in pi.render_text(r).splitlines()
+    worked = _report()["coverage"]
+    assert (worked["before"]["C4"]["covered"], worked["after"]["C4"]["covered"]) == (5, 5), "the worked example breaks no C4"
+
+
+def test_the_rules_are_the_checkers_own_and_a_report_on_an_earlier_register_still_validates():
+    class Checker:
+        COVERAGE_RULES = {"C1": "", "C2": "", "C3": "", "C4": "", "C9": ""}
+    assert pi.coverage_rules(Checker) == ("C1", "C2", "C3", "C4", "C9")
+    r = _report()
+    for side in ("before", "after"):   # a register before decision 0020 defines no C4: the schema requires C1 to C3 only
+        del r["coverage"][side]["C4"]
+    _valid(r)
+
+
 # ---- task-0130 AC1: the worked example's gaps and reach, every overlay element hypothetical
 
 def test_the_worked_example_raises_c1_on_two_steps_c2_on_the_new_capability_and_reaches_the_new_product():
