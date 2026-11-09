@@ -594,6 +594,12 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **An approval of a captured answer no longer passes to another person's identical answer** (task-0302, decision-0032
+  C2-1). A captured answer has no fragments, so its digest is the empty text's: when the approved answer's capture was
+  deleted, another person's answer with the same key and value bound the ruling as "repaired" and the gate read the key
+  approved with no act finding. A captured answer now binds by giver, key and value: only the same person's answer,
+  given again, carries the ruling; otherwise the ruling is not applied and the gate lists a major `gone` act naming
+  the vanished id.
 - **The CI templates read paths and settings one way, and refuse what they cannot follow** (task-0267; security,
   fail-open).
   - **Changed paths.** `instance/ci/knowgov-gate.sh`'s changed-code list, shared by the GitLab include and the
