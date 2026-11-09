@@ -91,6 +91,7 @@ def main(out: Path) -> int:
     text = t.read_text(encoding="utf-8")
     assert ROW in text, ROW
     t.write_text(text.replace(ROW, "add `341.00` (flat)", 1), encoding="utf-8")
+    example_instance.attest(inst, t)   # the edit listed: this measures the ledger, not the attestation (decision-0036)
     publish(env, "S6")
     code, rep = trace(env, out, "check-2", "check")
     sus = [f for f in rep["findings"] if f["kind"] == "suspect" and P2 in f["related"]]

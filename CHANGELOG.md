@@ -11,6 +11,21 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **An execution or review verification holds only for the document versions it was attested on** (task-0306,
+  decision-0036). No suite runs when the documents load. Before, the load wrote a passing execution verification
+  for every statement whose value the documents on disk state, so an edited value on an instance read *verified
+  by execution*. With S1's P2 surcharge edited from 316.00 to 341.00, the gate gave QUALIFIED, and PROCEED once
+  `versions` was removed.
+  - The subject format gains `[verification] execution = { versions = [...] }`: the digests of the document
+    versions the suite's result was attested on. `review` takes `versions` the same way.
+  - An unlisted version is neither verified by execution or review nor, in consequence, approved. A
+    declaration that lists nothing verifies nothing; there is no read rule for these two. decision-0019's read
+    rule for `authored` and `approval` is unchanged.
+  - `tools/check_subject.py` notes an `execution` or `review` that lists nothing, and a subject whose
+    verification map names suite scenarios but declares no `execution`. It refuses a digest that matches no
+    version.
+  - The port's `verify_by_execution` and `verify_by_review` take the attested artefacts, on both adapters.
+  - The public subjects list their versions, so the record does not move.
 - **The key rule refuses every control and format character** (task-0297, decision-0034 Amendment A1). A key's
   sides now hold only Basic Multilingual Plane characters outside Unicode categories Cc, Cf, Zs, Zl, Zp and Cs, and
   no `|`. `harness/key_rule.py` writes this as explicit `\uXXXX` ranges, with no `\s`, so ECMA-262 and Python read

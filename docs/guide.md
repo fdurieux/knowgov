@@ -682,8 +682,12 @@ else `[review] default_months`. A key
 whose row in `register_map.toml` names nodes of several kinds takes the shortest; a key with no row takes
 the default. The load writes the due date as the verification's `valid_until`. On the day after it, the
 statement reads *validated*, its approval falls with it, and the gate lists a *lapsed* finding (major)
-naming the statement, its date and the review. A verification by execution never lapses by date: the
-oracle runs again on every load.
+naming the statement, its date and the review. A verification by execution never lapses by date, but it
+is no fresh run either: no oracle runs at load. It is the subject's attested result, `[verification]
+execution`'s `versions`, and it holds only for the document Versions that list names (decision-0036). A
+review verification is bound the same way, by `review`'s `versions`. Edit a document and its statements fall
+below verified, and so out of approval, until the attestation lists the new Version's digest. A declaration
+that lists none verifies nothing.
 
 ```bash
 python harness/gate_cli.py --scenario S1 --as-of 2027-08-07 --baseline record

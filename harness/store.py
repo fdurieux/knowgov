@@ -311,10 +311,16 @@ class Store:
         raise NotImplementedError
 
     # ---- verifications and approvals
-    def verify_by_execution(self, key: str, values: list[str], suite_scenario: str, scope: str, ts: str, digest: str) -> int:
+    def verify_by_execution(self, key: str, values: list[str], suite_scenario: str, scope: str, ts: str, digest: str,
+                            artefacts: list[str] | None = None) -> int:
+        """The suite's attested pass on the live statements of ``key`` holding one of ``values``; with ``artefacts``
+        (decision-0036, task-0306), only those of these artefacts, the Versions the execution declaration lists."""
         raise NotImplementedError
 
-    def verify_by_review(self, key: str, values: list[str], at: str, scope: str, agent_id: str) -> int:
+    def verify_by_review(self, key: str, values: list[str], at: str, scope: str, agent_id: str,
+                         artefacts: list[str] | None = None) -> int:
+        """A person's review of the live statements of ``key`` holding one of ``values``; with ``artefacts``
+        (decision-0036, task-0306), only those of these artefacts, the Versions the review declaration lists."""
         raise NotImplementedError
 
     def verify_authored(self, at: str, scope: str, agent_id: str, artefacts: list[str] | None = None) -> int:
@@ -530,9 +536,11 @@ class Store:
         """decision-0019: "An unlisted Version is not attested: its authored statements read proposed, and nothing in
         it is approved by construction." Take back, from every statement of ``artefacts`` (their current Version
         unlisted), the review by construction (``ver:review:<id>``) and the approval by construction
-        (``appr:<id>``) an earlier load gave it, changed or not; a person's ruling and a re-verification stay. A
-        statement left with no approval reads verified when a verification remains, else proposed. Returns how many
-        statements changed (task-0221: stage 2 then reads as a fresh load of the later documents)."""
+        (``appr:<id>``) an earlier load gave it, changed or not, and its execution verifications (``ver:exec:``):
+        decision-0036 binds those to the listed Versions too (task-0306). The load calls it before it verifies, so
+        what the Versions still listed earn is written again as a fresh load writes it; a person's ruling and a
+        re-verification stay. A statement left with no approval reads verified when a verification remains, else
+        proposed. Returns how many statements changed (task-0221: stage 2 then reads as a fresh load of the later documents)."""
         raise NotImplementedError
 
     def record_attestation(self, row: dict) -> None:
