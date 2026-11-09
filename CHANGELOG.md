@@ -397,6 +397,10 @@ names that section with the version.
   of gate levels, `keys` a non-empty list of keys, `max_unverified_share` a number from 0 to 1,
   `require_approved` true or false, `rationale` text. A malformed field is a checker error and, unchecked,
   the gate's exit 2 (an error result from the MCP reader), naming the class and the field.
+- **A key resting only on inference carries every basis, not one chosen by the hash seed** (task-0244,
+  doc-0033 R3). A key whose statements are all inferred, assumed or hypothesised was flagged with one of
+  those bases, picked by Python's set order, so the same store could report different flags from run to
+  run. Its flags now list every basis among them, sorted. The verdict never depended on it.
 - **The vendored register moves to ieam-register v0.2.13** (`7980708`, from v0.2.11). It adds the register's
   decision 0019, four eyes: a session that drafted a change is its author and may not approve it. It also adds
   decision 0020, coverage rule C4: an approved process that realises an approved capability is supported by an

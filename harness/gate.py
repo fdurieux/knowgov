@@ -15,6 +15,16 @@ def resolve(s, task: str, as_of=None) -> dict:
     return resolve_spec(s, task, TASKS[task], as_of)
 
 
+INFERENCE = ("inferred", "assumed", "hypothesised")
+
+
+def inference_flags(rows: list[dict]) -> set[str]:
+    """A key whose every statement rests on inference carries each basis among them as a flag (task-0244,
+    doc-0033 R3): every one, so the sorted flags never depend on a set's iteration order (PYTHONHASHSEED).
+    A key with any other basis, or none, carries none of them."""
+    return {r["basis"] for r in rows} if rows and all(r["basis"] in INFERENCE for r in rows) else set()
+
+
 def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
     """The gate over any key set: ``spec`` is a task's shape (keys, block_levels,
     max_unverified_share); ``task`` only names it in the result. The MCP server resolves an
@@ -62,8 +72,7 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
         flags = set()
         if any(g["kind"] == "ambiguous" for r in rows for g in r["gaps"]):
             flags.add("ambiguous")
-        if rows and all(r["basis"] in ("inferred", "assumed", "hypothesised") for r in rows):
-            flags.add(next(iter({r["basis"] for r in rows})))
+        flags |= inference_flags(rows)
         keys[key] = {"level": level, "flags": sorted(flags), "assertions": rows, "declared_gaps": declared,
                      "pending_review": pending}
     n = len(keys)
