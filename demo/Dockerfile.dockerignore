@@ -14,3 +14,12 @@ venv
 backlog
 tests
 runs
+# task-0245: a .env file holds the stack's settings, keys among them; compose reads one beside the compose file to
+# fill in its variables, and none, at the root or in any folder, enters the image. A template with no values,
+# .env.example, may.
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example

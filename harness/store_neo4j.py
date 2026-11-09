@@ -1382,6 +1382,14 @@ class Neo4jStore(Store):
         return _rows(self.run(text))
 
 
+def committed_nodes(uri: str = URI, auth: tuple[str, str] = AUTH) -> int:
+    """How many evidence nodes the store holds as committed, read with the driver alone and no pin (SNAP-11:
+    the data is in while a publication's gap is still open). For tools/check_snapshots.py only."""
+    from neo4j import GraphDatabase
+    with GraphDatabase.driver(uri, auth=auth) as drv, drv.session() as sess:
+        return int(sess.run(f"MATCH (n) WHERE NOT n:{PUB} RETURN count(n) AS n").single()["n"])
+
+
 def publication(uri: str = URI, auth: tuple[str, str] = AUTH) -> dict:
     """The publication node's properties as they stand, read with the driver alone and no pin: the
     counter, the lease and, after a reader cleared an abandoned publication, the abandoning writer

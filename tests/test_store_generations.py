@@ -183,8 +183,11 @@ def test_a_reader_clears_an_abandoned_publication_only_under_the_lock_and_once_t
     lock, guard = rec.index("SET p.lock_seq = coalesce(p.lock_seq, 0) + 1"), rec.index("WHERE p.begin <> p.end AND")
     assert lock < guard, "the lock is taken before the condition is read"
     assert "(p.owner IS NULL OR coalesce(p.expires < datetime(), true))" in rec
-    for part in ("p.begin = p.end", "p.owner = null", "p.epoch = p.epoch + 1", "p.abandoned_owner = owner", "p.abandoned_epoch = epoch"):
+    # SNAP-11 (decision-0014 A1, proposed): the gap closes forward, end = begin, since the unit may have committed
+    for part in ("p.end = p.begin", "p.owner = null", "p.epoch = p.epoch + 1", "p.abandoned_owner = owner", "p.abandoned_epoch = epoch"):
         assert part in rec, part
+    assert "p.begin = p.end," not in rec and "SET p.begin = p.end\"" not in src and "SET p.begin = p.end)" not in src, \
+        "no gap is ever closed backward"
     assert "self.meta(clear)" in rec, "one managed write transaction"
     pin = src.split("    def pin(self", 1)[1].split("\n    def ", 1)[0]
     assert pin.index('if st["owner"] is None or st["expired"]:') < pin.index("self.recover()") < pin.index("if time.monotonic() >= deadline:")
@@ -285,3 +288,38 @@ def test_the_generation_settings_have_defaults_and_refuse_nonsense():
                 raise AssertionError(f"{name}={bad!r} accepted")
     with _env(KG_NEO4J_LEASE_SECONDS="5"):
         assert store.setting("KG_NEO4J_LEASE_SECONDS") == 5.0
+
+
+
+def test_a_nan_setting_is_refused_by_isnan():
+    """task-0246: the bound check reads math.isnan(v), not v != v, with the same meaning: every float setting
+    refuses a NaN however it is spelt."""
+    floats = [n for n, (default, _, _) in store.SETTINGS.items() if isinstance(default, float)]
+    assert floats
+    for name in floats:
+        for bad in ("nan", "NaN", "-nan", "+nan"):
+            with _env(**{name: bad}):
+                try:
+                    store.setting(name)
+                except ValueError as e:
+                    assert name in str(e), e
+                else:
+                    raise AssertionError(f"{name}={bad!r} accepted")
+    assert "math.isnan(v)" in (ROOT / "harness" / "store.py").read_text(encoding="utf-8")
+
+
+def test_end_is_set_after_the_units_commit_never_inside_it():
+    """SNAP-11 (decision-0014 A1, proposed): Neo4j showed a committing unit's new ``end`` to lock-free readers
+    before its last records, so ``end`` is written in a transaction of its own after ``commit()`` returns. The
+    fence (the epoch checked under the node's lock, held to the commit) stays inside the unit. On a real store
+    SNAP-11 holds a writer between the two and races 24 publications under six readers."""
+    src = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")
+    pub = src.split("    def publish(self)", 1)[1].split("\n    def ", 1)[0]
+    body = pub.split('"""', 2)[2]   # the code, past the docstring
+    fence, commit = body.index("self.owned(tx)"), body.index("tx.commit()")
+    end = body.index('self.meta(lambda t: self.owned(t, "SET p.end = p.begin"))')
+    assert fence < commit < end, "the fence in the unit, then its commit, then end in its own transaction"
+    assert 'self.owned(tx, "SET p.end' not in body, "end is never written in the unit's transaction"
+    assert "_on_committed(self)" in body and body.index("_on_committed(self)") < end
+    snaps = (ROOT / "tools" / "check_snapshots.py").read_text(encoding="utf-8")
+    assert "def snap_11(" in snaps and "snap_11(s1, s2, g1, g2)" in snaps and "RACE_11, READERS_11 = 24, 6" in snaps

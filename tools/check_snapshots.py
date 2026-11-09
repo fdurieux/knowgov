@@ -284,14 +284,12 @@ def snap_11(s1: str, s2: str, g1: dict, g2: dict) -> None:
     states = {json.dumps(x, sort_keys=True) for x in (g1, g2)}
     if kind() == "neo4j":
         import store_neo4j
-        from neo4j import GraphDatabase
         seen: dict = {}
 
         def at_commit(unit):
             p = store_neo4j.publication()
             seen["pair"] = (p.get("begin"), p.get("end"))
-            with GraphDatabase.driver(store_neo4j.URI, auth=store_neo4j.AUTH) as drv, drv.session() as sess:
-                seen["nodes"] = sess.run(f"MATCH (n) WHERE NOT n:{store_neo4j.PUB} RETURN count(n) AS n").single()["n"]
+            seen["nodes"] = store_neo4j.committed_nodes()
             try:
                 with _env(KG_NEO4J_READ_WAIT="0"):
                     store.read(snapshot, instance=_sid(), attempts=1)

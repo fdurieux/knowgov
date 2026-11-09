@@ -66,6 +66,11 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   probe `subjects/jef_data_load/probes/h7/` (pre-registration, then `RESULTS.md`), run by `tools/check_h7_probe.py` on
   temporary copies of the public codex rebuild: R-STALE, trace drift and the suite per mutant, held to its frozen §8 table
   by `tests/test_h7_probe.py` (task-0219).
+  `.github/workflows/quality.yml` the advisory SonarQube scan (task-0250, doc-0033): on a `v*` tag, on dispatch with a
+  `ref`, on its own PRs; Community Build and the scanner pinned, the token minted per run; `tools/quality/` the profile
+  (`knowgov-python.xml`), the settings, `coverage_xml.py` (`coverage_stdlib.py --lines` to generic coverage), `report.py`
+  (export, and the debt delta against the previous release's artefact and `baseline.json`); never a gate, red only when
+  the scan cannot run; `docs/quality-scan.md`, a finding accepted by `# NOSONAR(<rule>) <why>` or a baseline entry.
   `tools/connector.py` lands a system of record's export (AML; BPMN, its own dialect and ARIS's, by URI) in
   `<instance>/register/exports/<system>/<date>/` with MANIFEST.toml and RECONCILE.json in ieam-register's format (decision-0010, task-0138: `[ids]` every AML object by GUID, the system's `id_field`; register ids apart, `[register_ids]` GUID to id, `[bpmn_ids]`; RECONCILE.json's ids diff, `stale_nodes` and `unregistered` the register's own, plus `unknown_ids` and stale-by-register-id, redundant once nodes carry `[source]` GUIDs; `proposal_impact`'s D2 reads `[register_ids]`), the system
   and the id attribute (`AT_ID` by default) from `<instance>/connectors.toml`; the comparison the register's own `tools/reconcile.py`, vendored and imported; `check_instance.py` checks `connectors.toml`'s systems against `metamodel/sources.toml` (task-0121); a vanished id stale, never a deletion; the

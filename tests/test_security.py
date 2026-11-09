@@ -143,7 +143,9 @@ CLIENTS = {"openai": {"harness/arms.py", "harness/agent.py", "harness/key_check.
 # and knowgov-runs (task-0133), a client of the page's run API at the operator's KG_PAGE_URL, the local page by default
 LOCAL_CHECKS = {"demo/tools/check_impact_cypher.py": 'os.environ.get("KG_DEMO_URL", "http://localhost:8080")',
                 "tools/check_mcp_server.py": '"--http", "--host", "127.0.0.1", "--port", "0"',
-                "harness/mcp_runs.py": 'DEFAULT_PAGE = "http://localhost:8080"'}
+                "harness/mcp_runs.py": 'DEFAULT_PAGE = "http://localhost:8080"',
+                # the advisory scan's export (task-0250): the workflow's SonarQube service container, on loopback
+                "tools/quality/report.py": 'DEFAULT_SERVER = "http://127.0.0.1:9000"'}
 # the worker's attestation probe (no_socket_escape): it tries to open AF_VSOCK and AF_PACKET sockets and to
 # connect to TEST-NET-1 (RFC 5737, never routed), and holds only when every attempt is refused
 PROBES = {"harness/worker.py": 'OUTSIDE = ("192.0.2.1", 9)',

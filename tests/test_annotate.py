@@ -185,3 +185,17 @@ def test_a_gate_finding_the_baseline_held_is_never_an_error():
     rep = gate_cli.report(res, baseline=None, **kw)
     assert not any("held" in f for f in rep["findings"]) and rep["exit_code"] == 1
     assert sum(ln.startswith("::error ") for ln in annotate.convert(rep, "github").splitlines()) == 4
+
+
+
+def test_the_fingerprint_is_the_md5_of_its_base_as_before_usedforsecurity():
+    """task-0246: annotate's md5 says usedforsecurity=False (it is an identifier GitLab compares, not a secret) and
+    its fingerprints do not move: the first is the plain md5 of tool|kind|id|path|line, the clash suffix |n after."""
+    import hashlib
+    rep = {"tool": "knowgov gate"}
+    f = {"kind": "key", "id": "K|v", "path": "subject.toml", "line": 3}
+    seen: set[str] = set()
+    first = annotate._fingerprint(rep, f, seen)
+    assert first == hashlib.md5(b"knowgov gate|key|K|v|subject.toml|3").hexdigest()
+    assert annotate._fingerprint(rep, f, seen) == hashlib.md5(b"knowgov gate|key|K|v|subject.toml|3|2").hexdigest()
+    assert "usedforsecurity=False" in (ROOT / "harness" / "annotate.py").read_text(encoding="utf-8")

@@ -19,6 +19,9 @@ findings name it.
 The levels come from the gate itself, ``gate_cli.evaluate`` over the landed keys on one ``as_of``
 under one declared task class (its block levels, bar and route; codegen by default, task-0120), the
 report ``gate_verdict --task`` makes for that key set, so a key reads here as ``gate_verdict`` reports it.
+The keys are the reach: every mapped key a change to the node touches, whatever a class requires; the
+class sets how they are read, not which are listed, so this is not a class's readiness. That is
+``proposal_impact``'s slices, which keep to the class's ``[tasks.<class>]`` keys (task-0252).
 Only the store port's reads are used; nothing is written. Standard library only.
 """
 from __future__ import annotations

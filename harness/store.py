@@ -39,6 +39,7 @@ is an adapter, not a rewrite.
 """
 from __future__ import annotations
 
+import math
 import os
 from typing import Any
 
@@ -717,7 +718,7 @@ def setting(name: str, fallback=None):
         v = int(raw) if isinstance(default, int) else float(raw)
     except ValueError:
         raise ValueError(f"{name} must be a {'whole ' if isinstance(default, int) else ''}number, not {raw!r}") from None
-    if not (lo <= v <= hi) or v != v:
+    if math.isnan(v) or not (lo <= v <= hi):
         raise ValueError(f"{name} must be between {lo:g} and {hi:g}, not {raw!r}")
     return v
 
