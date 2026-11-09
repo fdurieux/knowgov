@@ -1063,6 +1063,12 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    import switches
+    try:
+        switches.check()   # task-0276: an on/off setting with a value it does not accept stops the page, exit 2
+    except switches.BadSwitch as e:
+        print(f"kg demo: cannot start: {e}", file=sys.stderr, flush=True)
+        sys.exit(2)
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     for rid in close_stale_runs():
         print(f"closed {rid}: its run.json read running with a stale heartbeat ({runs_index.RESTARTED})", flush=True)
