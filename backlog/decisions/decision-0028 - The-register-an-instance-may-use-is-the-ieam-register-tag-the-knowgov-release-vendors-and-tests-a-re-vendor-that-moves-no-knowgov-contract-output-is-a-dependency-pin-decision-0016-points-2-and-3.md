@@ -5,7 +5,7 @@ title: >-
   vendors and tests; a re-vendor that moves no knowgov contract output is a
   dependency pin (decision-0016 points 2 and 3)
 date: '2026-11-08T23:45:00Z'
-status: proposed
+status: accepted
 ---
 ## Context
 
@@ -22,7 +22,7 @@ Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0`
 - **(c) A register format key** in ieam-register, which knowgov reads as a range. This would need the register's own record first.
 - **(d) Unstated.**
 
-## Decision (proposed)
+## Decision
 
 **(a)**, the drafter's recommendation.
 - `instance/README.md` states, in the adopter register: "knowgov X.Y.Z reads a register in the format of ieam-register `vA.B.C`, the tag it vendors (`demo/register/SOURCE.md`) and tests. A register at another tag may load, but is untested."
@@ -68,3 +68,7 @@ Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0`
 - **The re-vendor at v0.2.13** (stream A) lands first, so 0.9.0's sentence names `v0.2.13`.
 - **doc-0028 G9-10** reads met for the category; the statement waits on this record.
 - **(c)** is ieam-register's to propose if a lighthouse register needs a range. Nothing is minted for it.
+
+## Acceptance (2026-11-09)
+
+The maintainer, 2026-11-09: "all as advised", answering the six questions the coordinator set out with their four parts on the queue page (fdurieux/knowgov#392). The decision is accepted as written: (a), the vendored tag exactly, `v0.2.13` at 0.9.0 (task-0240, #393). task-0181 AC #5 writes the sentence and its test in #397.

@@ -4,7 +4,7 @@ title: >-
   The page's HTTP API at 1.0 is the four routes demo/README.md documents; every
   other route serves the page and may change (decision-0016 point 3)
 date: '2026-11-08T23:45:00Z'
-status: proposed
+status: accepted
 ---
 ## Context
 
@@ -35,7 +35,7 @@ Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0`
 - **(b) (a), plus a run's status and results** (`GET /api/run`, `GET /api/runs`, `GET /api/results/<scenario>`), documented as contracts.
 - **(c) Every route.**
 
-## Decision (proposed)
+## Decision
 
 **(a)**, the drafter's recommendation. This is decision-0016 point 3 read literally, with decision-0027's accepted principle applied to routes: a route is a contract by being documented for an adopter, and the rest are the page's own.
 - `demo/README.md` gains one sentence naming the four as the page's HTTP API at 1.0, and saying that every other route serves the page and may change in any release.
@@ -78,3 +78,7 @@ Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0`
 
 - **If accepted**, task-0181's build writes the sentence, the test and the changelog move (its AC #6). The build is prepared overnight, and its pull request waits for the maintainer's word.
 - **doc-0028**: A02's inventory question closes when this record is accepted.
+
+## Acceptance (2026-11-09)
+
+The maintainer, 2026-11-09: "all as advised", answering the six questions the coordinator set out with their four parts on the queue page (fdurieux/knowgov#392). The decision is accepted as written: (a), the four documented routes. The extension the advice named, `GET /api/run`, is not taken. task-0181 AC #6 writes the sentence, the test and the changelog move in #397.
