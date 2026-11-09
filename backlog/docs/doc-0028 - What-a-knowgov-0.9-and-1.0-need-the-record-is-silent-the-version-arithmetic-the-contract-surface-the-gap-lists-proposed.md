@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-09T07:34:00Z'
+updated_date: '2026-11-09T08:55:00Z'
 tags:
   - brief
   - release
@@ -93,6 +93,7 @@ Every item here is the maintainer's to meet.
 | G9-14 | One id per conflict on every store (decision-0020, the maintainer, 2026-11-08: "accept decision-0020's advice") | Not built: document conflicts are numbered in store order (doc-0030 S2) | task-0223 |
 | G9-15 | pumllint 0.35.0 as the record's pin, so the image runs step 4's feature trace (G9-4; the maintainer, 2026-11-08: "bump pumllint to 0.35.0") | 0.33.0 pinned; trace --features first in 0.35.0 | task-0224, then task-0217 |
 | G9-16 | The third-party code review's reproduced defects fixed (doc-0033; the maintainer, 2026-11-09: "all as advised") | R1 a malformed block_levels weakens the gate; R2 float comparison corroborates distinct numbers; R3 inference-basis flags by hash seed; R4 .env files enter a locally built image; a test leak and three hygiene items | task-0242 to task-0246 |
+| G9-17 | A contract validation pass done (decision-0032; the maintainer, 2026-11-09: "middle option, and yes, only contract-bearing findings hold the cut") | every review found a contract-bearing defect; none from CI | task-0256 |
 
 ### Status at `main` `6d27961` (2026-11-09)
 
@@ -116,6 +117,7 @@ Every item here is the maintainer's to meet.
 | G9-14 | met | task-0223 (#359) |
 | G9-15 | met | task-0224 (#362); `pumllint trace --features` smoke step in rdflib-readers |
 | G9-16 | **open: five tasks** | task-0242 (R1), task-0244 (R3), task-0243 (R2), task-0245 (R4) and task-0246, dispatched 2026-11-09 |
+| G9-17 | **open** | task-0256: the pass dispatched 2026-11-09; only its contract-bearing findings hold the cut |
 
 **Left before the cut:**
 - **work**: #397 (task-0236, task-0181 AC #4 to #6), merging on green; task-0241, C4 in `proposal_impact` and the register view (in 0.9.0 on the maintainer's word, 2026-11-09), dispatched. G9-16's five fixes (task-0242 to task-0246, doc-0033), dispatched. task-0252, a slice's readiness read over its task class's keys (doc-0034 D1; the maintainer, 2026-11-09: "(a), fix it in 0.9.0"), dispatched. Merged on 2026-11-08 and 09: the re-vendor at `v0.2.13` (#393), task-0181 AC #1 to #3 (#395), and task-0237, the report's identity (#396, decision-0029);
