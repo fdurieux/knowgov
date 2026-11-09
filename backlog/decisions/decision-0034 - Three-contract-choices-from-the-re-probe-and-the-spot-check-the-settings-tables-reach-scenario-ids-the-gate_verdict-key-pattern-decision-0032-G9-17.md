@@ -133,3 +133,40 @@ Accepted by the maintainer on 2026-11-09: "N7, D1, D3 as advised".
 - **decision-0033 choice 1's table** now reaches every setting the code reads or a compose file passes. The README's settings paragraph says so.
 - **task-0265's duplicate scenario id** moves to task-0295. task-0265 keeps its other items.
 - **task-0265's CS-4 zero-width space** moves to task-0296.
+
+## Amendment A1 (2026-11-09; accepted 2026-11-09): choice 3 refuses every control and format character
+
+**Context.** The spot check's re-check of task-0296, at `main` `946c72e`, found that the five characters choice 3 lists are not the whole class. These still pass `harness/key_rule.py` on every surface and read as absent at the gate (K1), as confirmed by the coordinator on `main`:
+- U+200E (LRM);
+- U+202E (RLO, a bidi override of the Trojan Source kind);
+- U+00AD (soft hyphen);
+- U+2061 and U+180E;
+- NUL.
+
+It also found that `\s` differs between the engines (K2): Python's str `\s` matches U+001C to U+001F and U+0085, and ECMA-262's does not. So a JavaScript client validating the inputSchema accepts `thing\x1c|property`, which the server refuses with -32602.
+
+**Options:**
+- **(a)** Refuse every character of general category Cc and Cf on either side of the `|`, listed explicitly as `\uXXXX` ranges so ECMA-262 and Python agree. This settles K2 too.
+- **(b)** Keep the five, and add U+001C to U+001F and U+0085 explicitly for K2.
+
+**Canvas.**
+- Problem: a key that looks right and never matches, including bidi-override forms.
+- Users: subject authors and MCP clients.
+- Cost: one pattern and its tests.
+- Value: the frozen key rule closes the class.
+
+**Fit/gap.**
+- Choice 3's title says "Unicode format characters refused", while its advice listed five. (a) fits the title; (b) fits the list.
+- decision-0033 choice 7 makes the inputSchema the executable contract. Only a pattern both engines read alike keeps that promise, and (a) gives one.
+
+**SWOT, (a).**
+- Strengths: the whole invisible class, and one reading in both engines.
+- Weaknesses: a longer pattern to freeze.
+- Opportunities: free before the cut, a 0.10.0 after it.
+- Threats: a private instance with a control character in a key, which is implausible. Every public key is ASCII and still matches.
+
+**Advice: (a).** Combining marks (Mn, such as U+034F) stay allowed, because accented names in decomposed form need them.
+
+### Acceptance of A1
+
+Accepted by the maintainer on 2026-11-09: "K1 (a) as advised". The build is task-0297, which holds the 0.9.0 cut.
