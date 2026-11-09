@@ -18,6 +18,11 @@ never with a traceback as its only output. ``run`` calls ``main`` and maps what 
 what fails while the module loads (a pin not installed): an exception that reaches the interpreter prints the
 one line and the process exits 2.
 
+``run(main, tool, register=True)``, for a command that reads the register, first refuses a register named by
+``KG_REGISTER`` that it cannot read (``register_impact.require_named``; task-0288, decision-0033 choice 5): exit 2,
+naming the setting, the path and what is missing, before ``main`` reads anything. An unnamed register is the
+command's own business, as before.
+
 ``KG_TRACEBACK=1`` prints the traceback after the line, for a person debugging; nothing reads it. It is read
 through ``switches`` (task-0276): ``run`` refuses any other value but ``0`` or empty with exit 2 before ``main``.
 Standard library only.
@@ -30,7 +35,8 @@ import traceback
 
 CANNOT_RUN = 2
 # raised to say "cannot run" in the command's own words: the message is the cause, no type name added
-OWN = {"CannotRun", "WallClock", "LoadTooLarge", "ScratchUnavailable", "FormatError", "FormatTooNew", "BadSwitch"}
+OWN = {"CannotRun", "WallClock", "LoadTooLarge", "ScratchUnavailable", "FormatError", "FormatTooNew", "BadSwitch",
+       "RegisterUnreadable"}
 
 
 def cause(e: BaseException) -> str:
@@ -66,11 +72,15 @@ def guard(tool: str) -> None:
     sys.excepthook = hook
 
 
-def run(main, tool: str, *args) -> int:
+def run(main, tool: str, *args, register: bool = False) -> int:
     """``main(*args)``'s exit code, None read as 0; anything raised but SystemExit and KeyboardInterrupt
-    mapped to exit 2 with its cause on stderr."""
+    mapped to exit 2 with its cause on stderr. With ``register``, a named register that cannot be read is
+    refused first."""
     try:
         _traceback(strict=True)
+        if register:
+            import register_impact
+            register_impact.require_named()
         rc = main(*args)
     except (SystemExit, KeyboardInterrupt):
         raise

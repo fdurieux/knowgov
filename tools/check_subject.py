@@ -17,8 +17,9 @@ documents say. It reads and never writes; it opens no store.
   runs on one and exits 2 on a subject that has none. `subjects/minimal/` declares the pristine `S0`.
 - **The register map** (F4). Every node a row of `register_map.toml` names is in the register, and
   a row's `owner` is one of the owners of its nodes. A register named by `--register` or `KG_REGISTER`
-  that cannot be read is exit 2, naming it (task-0279, decision-0033 choice 5); with neither named,
-  the default `demo/register`, and the rows unchecked only when it cannot be read.
+  that cannot be read is exit 2, naming it, by every reader's one test, `register_impact.unreadable`
+  (task-0279, task-0288 N10, decision-0033 choice 5); with neither named, the default `demo/register`, and
+  the rows unchecked only when it cannot be read.
 - **The documents' yield** (F2). Each artefact's mapper is run on the subject's own documents, in
   a child process (the harness binds its subject at import), and every task's required key is
   looked up in what they yield. A key no document yields, with a near match the documents do
@@ -569,7 +570,7 @@ def main(argv: list[str] | None = None) -> int:
     by = "--register" if args.register else "KG_REGISTER" if os.environ.get("KG_REGISTER") else None
     if by:   # task-0279 (decision-0033 choice 5): a register named and not readable exits 2; unchecked is for none named
         import register_impact
-        why = register_impact.unreadable(register, tools=False)
+        why = register_impact.unreadable(register)   # task-0288 (N10): the readers' one test, the register's own loader included
         if why:
             print(f"cannot run: {by} {register.as_posix()} is not a readable register: {why}", file=sys.stderr)
             return 2

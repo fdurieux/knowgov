@@ -11,6 +11,16 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **Every command that reads a register refuses a named one it cannot read** (task-0288, decision-0033 choice 5,
+  after task-0279). `harness/run.py`, `harness/trace.py`, `harness/capture.py`, `harness/transcript.py` and
+  `harness/step_grid.py` now exit 2 on a `KG_REGISTER` they cannot read, naming the path and what is missing,
+  before they read or write anything, and the page refuses to start. Before, `capture ingest` skipped the
+  issued-handle check and wrote a capture the register would refuse, `capture due`, `trace check` and
+  `run.py --deterministic` went on with exit 0 (`trace` read twelve review months without saying so), and the
+  page started and answered `/api/register` with a 404 naming the path. `check_subject` now uses the same test
+  as the other readers, the register's own `tools/register.py` included, so a folder with only
+  `metamodel/types.toml` is exit 2, not exit 1 with every row's node unknown. An unnamed register reads as before,
+  and the record does not move.
 - **`gate_cli --baseline FILE` keeps its promise: an earlier report of the same run** (task-0258, G9-17). A report
   baseline of another subject, scenario, task class or stage is refused with exit 2, naming the field and both
   values. So is one whose `schema_version` is above this command's, under decision-0023's rule. Each report is

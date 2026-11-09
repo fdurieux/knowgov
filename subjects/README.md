@@ -315,8 +315,9 @@ nodes, a mapper that cannot read its document, and a claim that is not `observed
 `intended` (task-0214). It warns on a required key no document yields
 when they yield a near one, the documents' yield taken from the load's own mappers in a child
 process, with no store. A register named by `--register` or `KG_REGISTER` that cannot be read is
-exit 2, naming the path; with neither, the rows are checked against `demo/register` and are
-unchecked only when it cannot be read (task-0279, decision-0033 choice 5). `tools/fixtures/subject_probe`
+exit 2, naming the path, by the readers' one test (`register_impact.unreadable`: `metamodel/types.toml`
+naming its taxonomies and the register's `tools/register.py`); with neither, the rows are checked against
+`demo/register` and are unchecked only when it cannot be read (task-0279, task-0288, decision-0033 choice 5). `tools/fixtures/subject_probe`
 carries every refusal on purpose; the report is pinned by `harness/schemas/subject-check.schema.json`.
 
 ## Vendoring

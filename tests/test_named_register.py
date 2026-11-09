@@ -9,19 +9,25 @@ The other readers that take a register follow the same rule:
 - `register_nodes`, `upward` and `proposal_impact` (and its `--register-branch`) exited 1 with a traceback;
 - `gate_cli` reported `register: null` and exit 0 on a bad `KG_REGISTER`, and its `--register-previous` is
   now checked before the load;
-- the MCP reader started anyway; now it refuses to start."""
+- the MCP reader started anyway; now it refuses to start.
+
+task-0288 (the bounded re-probe at 9861953) carries the rule to every reader that reads the register through
+`cadence.register_root`: `capture` (whose ingest skipped the issued-handle check, writing a capture a good
+register refuses), `trace`, `run`, `transcript` and `step_grid` refuse it through `cli_exit.run(register=True)`
+or their own check, and the page refuses to start. `check_subject` uses the readers' one test (N10)."""
 from __future__ import annotations
 
 import contextlib
 import io
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path[:0] = [str(ROOT / "tools"), str(ROOT / "harness")]
+sys.path[:0] = [str(ROOT / "tools"), str(ROOT / "harness"), str(Path(__file__).resolve().parent)]
 import check_subject  # noqa: E402
 import register_impact as ri  # noqa: E402
 
@@ -98,6 +104,54 @@ def test_every_other_reader_that_takes_a_register_exits_2_naming_it():
         code, _, err = _run([ROOT / "harness" / "proposal_impact.py", "--register-branch", Path(td) / "branch", "--base", "origin/main"])
         assert code == 2 and "--register-branch" in err and "is not a readable register" in err, (code, err[-300:])
     assert not Path(_env()["KG_RDFLIB_FILE"]).exists(), "a refused register opens no store"
+
+
+def test_the_readers_through_register_root_refuse_it_too():
+    """task-0288: each exits 2 naming KG_REGISTER and the path, before it reads or writes anything."""
+    with tempfile.TemporaryDirectory() as td:
+        led = Path(td) / "ledger.json"
+        led.write_text("{}", encoding="utf-8")
+        answered = Path(td) / "answered.toml"
+        answered.write_text("[questionnaire]\nsubject = \"cargo_quote\"\n", encoding="utf-8")
+        for args in ([ROOT / "harness" / "capture.py", "due", "--out", Path(td) / "due"],
+                     [ROOT / "harness" / "capture.py", "ingest", answered, "--into", Path(td) / "captures"],
+                     [ROOT / "harness" / "capture.py", "questionnaire", "S1", "--out", Path(td) / "q"],
+                     [ROOT / "harness" / "capture.py", "review", Path(td) / "review.toml"],
+                     [ROOT / "harness" / "trace.py", "check", "--instance", td, "--ledger", led],
+                     [ROOT / "harness" / "transcript.py", Path(td) / "t.jsonl"],
+                     [ROOT / "harness" / "step_grid.py"],
+                     [ROOT / "demo" / "app" / "server.py"]):
+            code, _, err = _run(args, KG_REGISTER=NOPE, KG_PAGE_PORT="0")
+            assert code == 2 and f"KG_REGISTER {NOPE} is not a readable register: no such directory" in err, \
+                (args[0].name, args[1:2], code, err[-300:])
+        for left in ("due", "captures", "q"):
+            assert not (Path(td) / left).exists(), f"a refused register writes nothing ({left})"
+    assert not Path(_env()["KG_RDFLIB_FILE"]).exists(), "a refused register opens no store"
+
+
+def test_run_refuses_it_too():
+    import importlib.util
+    if importlib.util.find_spec("pyshacl") is None:
+        from _skip import skip
+        skip("rdflib", "harness/run.py imports the pins (pyshacl) before its exit reads the register")
+    with tempfile.TemporaryDirectory() as td:
+        code, _, err = _run([ROOT / "harness" / "run.py", "--deterministic", "--out", Path(td) / "out"], KG_REGISTER=NOPE)
+        assert code == 2 and f"run: cannot run: KG_REGISTER {NOPE} is not a readable register" in err, (code, err[-300:])
+        assert not (Path(td) / "out").exists()
+
+
+def test_check_subject_reads_a_register_as_the_others_do():
+    """N10: a folder with only metamodel/types.toml, or without the register's own tools/register.py, gave exit 1
+    with every row's node unknown, or exit 0; now it is exit 2 like every other reader's."""
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td) / "reg"
+        (d / "metamodel").mkdir(parents=True)
+        (d / "metamodel" / "types.toml").write_text('taxonomy = ["capabilities"]\n', encoding="utf-8")
+        code, _, err = _run([ROOT / "tools" / "check_subject.py", CARGO, "--register", d])
+        assert code == 2 and "no tools/register.py" in err, (code, err[-300:])
+        shutil.copytree(REGISTER, Path(td) / "full", ignore=shutil.ignore_patterns("__pycache__", "tools"))
+        code, _, err = _run([ROOT / "tools" / "check_subject.py", CARGO, "--register", Path(td) / "full"])
+        assert code == 2 and "no tools/register.py" in err, (code, err[-300:])
 
 
 def test_a_named_register_that_reads_is_read():

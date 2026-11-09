@@ -483,4 +483,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     import cli_exit   # task-0200 (doc-0030 F6): every failure to run is exit 2 with its cause, never 1
-    sys.exit(cli_exit.run(main, "knowgov-trace"))
+    sys.exit(cli_exit.run(main, "knowgov-trace", register=True))   # task-0288: a named register it cannot read, exit 2
