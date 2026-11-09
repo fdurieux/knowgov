@@ -1058,6 +1058,23 @@ def _error(id_, code: int, message: str, data=None) -> dict:
     return {"jsonrpc": "2.0", "id": id_, "error": err}
 
 
+KEY_ARGS = ("key", "keys")   # the arguments that name knowledge keys, on every tool that takes one (task-0301)
+
+
+def nfc_keys(args):
+    """``args`` with each knowledge key in NFC (task-0301, decision-0034 Amendment A2): ``key`` and each item of
+    ``keys``. A value of another shape is left for the schema to refuse."""
+    if not isinstance(args, dict) or not any(k in args for k in KEY_ARGS):
+        return args
+    import key_rule
+    out = dict(args)
+    if "key" in out:
+        out["key"] = key_rule.normalise(out["key"])
+    if "keys" in out:
+        out["keys"] = key_rule.normalise_all(out["keys"])
+    return out
+
+
 def argument_refusal(name: str, args, schema: dict) -> str | None:
     """Why a call's ``args`` are refused before dispatch (-32602), else None: not an object; an argument the
     tool does not list, its schema's ``additionalProperties: false`` (M5); or any other way they break the
@@ -1243,6 +1260,7 @@ class Server:
         tool = next((t for t in self.table if t["name"] == name), None)
         if tool is None:
             return _error(id_, -32602, f"unknown tool {name!r}")
+        args = nfc_keys(args)   # task-0301: a key in NFC before it is checked or read, whichever form the client sent
         refused = argument_refusal(name, args, tool.get("inputSchema") or {})
         if refused:
             return _error(id_, -32602, refused)

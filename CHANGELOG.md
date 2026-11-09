@@ -11,6 +11,13 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **Two keys that are canonically equivalent are one key** (task-0301, decision-0034 Amendment A2). knowgov
+  stores and reports a key in Unicode NFC (not NFKC), whichever form enters: `société|adresse` composed and decomposed
+  read alike in the MCP tools' `key` and `keys`, the task classes, the register map, the verification map, captures,
+  reviews, proposals, code-header citations, `trace register --keys` and `check_subject`, and a document is
+  composed before its mapper reads it, so a decomposed document yields the composed keys. Every public key is ASCII
+  and unchanged, and the record does not move. On macOS, set `git config core.precomposeunicode true`.
+
 - **The key rule refuses every control and format character** (task-0297, decision-0034 Amendment A1). A key's
   sides now hold only Basic Multilingual Plane characters outside Unicode categories Cc, Cf, Zs, Zl, Zp and Cs, and
   no `|`. `harness/key_rule.py` writes this as explicit `\uXXXX` ranges, with no `\s`, so ECMA-262 and Python read

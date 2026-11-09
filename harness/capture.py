@@ -284,7 +284,8 @@ def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
                 errs.append(f"answered.from {handle} was withdrawn on {h['withdrawn']}, by the answer's date {on} (decision 0009)")
     answers, unknown = [], []
     for i, it in enumerate(doc.get("item", [])):
-        key = it.get("key", "")
+        import key_rule   # task-0301: an item's key in NFC, whichever form the owner's editor saved
+        key = key_rule.normalise(it.get("key", ""))
         ans, nk = str(it.get("answer", "")).strip(), bool(it.get("nobody_knows", False))
         if not ans and not nk:
             continue
@@ -334,10 +335,11 @@ def due_captures(capture_dir: Path, on: dt.date) -> list[dict]:
         cap = c.get("capture", {})
         when = _date(cap.get("on"))
         for i, a in enumerate(c.get("answer", []), 1):
-            k = (str(cap.get("from", "")), a["key"])
+            import key_rule
+            k = (str(cap.get("from", "")), key_rule.normalise(a["key"]))
             if when is None or (k in latest and latest[k]["on"] >= when):
                 continue
-            latest[k] = {"id": f"A:cap:{p.stem}:{i}@capture", "from": k[0], "key": a["key"], "value": str(a.get("value", "")),
+            latest[k] = {"id": f"A:cap:{p.stem}:{i}@capture", "from": k[0], "key": k[1], "value": str(a.get("value", "")),
                          "on": when, "record": cap.get("record", ""), "owner": cap.get("owner", ""),
                          "subject": cap.get("subject", ""), "scenario": cap.get("scenario", ""),
                          "task": cap.get("task", "codegen"), "due": review.add_months(when, review.LAPSE_MONTHS)}

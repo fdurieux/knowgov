@@ -40,11 +40,15 @@ class Bag:
         return fid
 
     def ent(self, eid: str, kind: str, name: str | None = None) -> str:
-        self.entities.setdefault(eid, {"id": eid, "kind": kind, "name": name or eid})
+        import key_rule   # task-0301: the entity a key names, in NFC, as its assertions name it
+        eid = key_rule.normalise(eid)
+        self.entities.setdefault(eid, {"id": eid, "kind": kind, "name": key_rule.normalise(name) or eid})
         return eid
 
     def assertion(self, entity: str, predicate: str, value, text: str,
                   frags: list[str], basis: str = "extracted") -> dict:
+        import key_rule   # task-0301: a yielded key in NFC, whichever form the document spells it in
+        entity, predicate = key_rule.normalise(entity), key_rule.normalise(predicate)
         key = f"{entity}|{predicate}"
         n = self._n.get(key, 0)
         self._n[key] = n + 1
@@ -893,6 +897,15 @@ def duplicate_locators(bag: Bag) -> list[str]:
     return dup
 
 
+def mapped_text(text: str) -> str:
+    """A document's text as a mapper reads it: Unicode NFC (task-0301), so a name a macOS path, a clipboard, a PDF
+    copy or an export wrote decomposed yields the key the composed spelling yields. A mapper's ``\\w`` does not
+    match a combining mark, so ``socie\u0301te\u0301`` would otherwise be read as ``socie``. Every public document is
+    NFC already, so no fragment moves."""
+    import key_rule
+    return key_rule.normalise(text)
+
+
 def extract_all(kit: dict[str, str], code_text: str) -> list[Bag]:
     bags = []
     mappers = SUBJECT.mappers
@@ -903,6 +916,7 @@ def extract_all(kit: dict[str, str], code_text: str) -> list[Bag]:
         if mapper != "links" and mapper not in EXTRACTORS:
             raise KeyError(f"{path}: no mapper named {mapper!r}; the harness has {sorted(EXTRACTORS) + ['links']}")
         try:
+            text = mapped_text(text)
             bag = extract_links(path, text, code_text) if mapper == "links" else EXTRACTORS[mapper](path, text)
         except (UnknownClaim, ImportError):   # a claim names its own place; a missing library is the machine's
             raise
