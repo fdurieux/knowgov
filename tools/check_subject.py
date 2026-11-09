@@ -58,6 +58,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 import task_policy  # noqa: E402  (task-0242, doc-0033 R1: the one task-policy validator, also the runtime's)
+import key_rule  # noqa: E402  (task-0296: one entity|attribute rule, the gate's keys pattern too)
 import formats  # noqa: E402  (task-0174, decision-0023: [format] version, standard library, binds no subject)
 KINDS_TABLE = ROOT / "instance" / "kinds.toml"
 MAPPERS_TABLE = ROOT / "instance" / "mappers.toml"   # what each mapper reads, in an adopter's words (task-0149)
@@ -75,7 +76,7 @@ TASK_FIELDS = {"keys", "block_levels", "max_unverified_share", "verbatim", "rati
 TASK_REQUIRED = ("keys", "block_levels", "max_unverified_share")
 RECORD_FIELDS = {"dir", "as_of"}
 LEVELS = task_policy.LEVELS   # harness/gate.py ORDER (task-0242: one list, the validator's)
-KEY_RE = re.compile(r"[^|\s]+\|[^|\s]+")
+KEY_RE = key_rule.KEY_RE   # task-0296: the one key rule, the MCP tools' keys pattern too
 NEAR = 0.8   # difflib ratio for a did-you-mean
 YIELD_TIMEOUT = 300
 
@@ -162,7 +163,7 @@ def _fields(rep: Report, where: str, table: dict, known: set[str]) -> None:
 def _key(rep: Report, where: str, key) -> bool:
     if isinstance(key, str) and KEY_RE.fullmatch(key):
         return True
-    rep.error("key-syntax", where, f"{key!r} is not a key: a key is <entity>|<predicate>, one '|' and no spaces",
+    rep.error("key-syntax", where, f"{key!r} is not a key: a key is <entity>|<predicate>, one '|', no spaces and no invisible format character",
               "write it as entity|predicate, as the mappers name it (REQ-01|text, QuoteAPI|notified)")
     return False
 
