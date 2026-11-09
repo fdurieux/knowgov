@@ -45,8 +45,10 @@ _SECRET = secrets.token_bytes(32)   # this process's only; a fingerprint means n
 
 
 def enabled_by_env() -> bool:
-    """KG_KEY_CHECK=off (or 0, no, false) turns the check off: every row reads unchecked."""
-    return (os.environ.get("KG_KEY_CHECK") or "on").strip().lower() not in ("off", "0", "no", "false")
+    """KG_KEY_CHECK=off, in any case, turns the check off: every row reads unchecked; on, empty or unset leaves
+    it on; any other value is BadSwitch (task-0276)."""
+    import switches
+    return switches.on("KG_KEY_CHECK")
 
 
 def fingerprint(base_url: str, key: str) -> str:

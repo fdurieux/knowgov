@@ -77,6 +77,59 @@ def test_the_rules_are_the_checkers_own_and_a_report_on_an_earlier_register_stil
     _valid(r)
 
 
+# ---- task-0261: the schema names no rule; a register defining C5 yields a valid report
+
+C5 = """
+
+# task-0261's fixture: a fifth coverage rule, read by proposal_impact from this list, the schema naming none
+COVERAGE_RULES["C5"] = "a fixture rule: every process C4 finds unsupported, again"
+_check_coverage_c1_to_c4 = check_coverage
+
+
+def check_coverage(reg, f, today):
+    s = _check_coverage_c1_to_c4(reg, f, today)
+    s["C5"] = {**s["C4"], "uncovered": list(s["C4"]["uncovered"])}
+    return s
+"""
+
+
+def _register_with_c5(dest: Path) -> Path:
+    """The vendored register copied, its checker given a C5 that repeats C4: synthetic, under ``dest``."""
+    reg = dest / "register"
+    shutil.copytree(ri.register_root(), reg, ignore=shutil.ignore_patterns("__pycache__"))
+    tool = reg / "tools" / "check_register.py"
+    tool.write_text(tool.read_text(encoding="utf-8") + C5, encoding="utf-8")
+    return reg
+
+
+def test_a_register_defining_c5_yields_a_report_valid_under_the_unchanged_schema():
+    with tempfile.TemporaryDirectory() as t:
+        reg = _register_with_c5(Path(t))
+        r = pi.evaluate(json.loads(C4_FIXTURE.read_text(encoding="utf-8")), root=reg, today=TODAY)
+    _valid(r)
+    cov = r["coverage"]
+    assert list(cov["before"]) == list(cov["after"]) == ["C1", "C2", "C3", "C4", "C5"]
+    assert [(g["rule"], g["id"], g["hypothetical"]) for g in cov["new_gaps"]] == [("C4", "PROC-0011", True), ("C5", "PROC-0011", True)]
+    schema = json.dumps(SCHEMA)
+    assert not any(f'"{c}"' in schema for c in ("C1", "C2", "C3", "C4", "C5")), "the schema names no coverage rule"
+
+
+def test_the_schema_holds_the_rule_id_form_and_the_cell():
+    r = _report()
+    bad = copy.deepcopy(r)
+    bad["coverage"]["after"]["coverage-5"] = bad["coverage"]["after"]["C1"]
+    assert any("does not match" in e for e in schema_check.validate(json.loads(json.dumps(bad, default=str)), SCHEMA))
+    bad = copy.deepcopy(r)
+    bad["coverage"]["after"]["C9"] = {"covered": 1}
+    assert any("missing 'denominator'" in e for e in schema_check.validate(json.loads(json.dumps(bad, default=str)), SCHEMA))
+    bad = copy.deepcopy(r)
+    bad["coverage"]["after"]["C5\n"] = bad["coverage"]["after"]["C1"]   # ECMA's $ is the end: a trailing newline is no rule id
+    assert any("does not match" in e for e in schema_check.validate(json.loads(json.dumps(bad, default=str)), SCHEMA))
+    bad = copy.deepcopy(r)
+    bad["coverage"]["new_gaps"][0]["rule"] = "D5"
+    assert any("does not match" in e for e in schema_check.validate(json.loads(json.dumps(bad, default=str)), SCHEMA))
+
+
 # ---- task-0130 AC1: the worked example's gaps and reach, every overlay element hypothetical
 
 def test_the_worked_example_raises_c1_on_two_steps_c2_on_the_new_capability_and_reaches_the_new_product():

@@ -805,7 +805,9 @@ reads it against the register *as if approved*, without approving it
 (task-0130, task-0131, doc-0017). The proposal is a small JSON (or TOML)
 file: the new nodes, with provisional ids, their kind, name, parent and
 owner; the links that join them to what exists; the register nodes it
-reuses, each `as_is` or `changed`; and any exception it asks for.
+reuses, each `as_is` or `changed`; and any exception it asks for. An
+optional top-level `format = 1` names the overlay's format: missing reads
+as 1, and a newer one is refused with exit 2 rather than misread.
 `tools/fixtures/proposal_contract_quote.json` is doc-0017's worked
 example, synthetic: a *Contract freight quote* product that requires
 three existing capabilities and a new one, *Check a shipper's credit*,
@@ -1194,9 +1196,10 @@ two addresses, and open the demo.
 ## Start it elsewhere
 
 **Another laptop, without building.** The compose file names a released
-image, `ghcr.io/fdurieux/knowgov:<version>`, pinned by its digest
+image, `ghcr.io/fdurieux/knowgov:vX.Y.Z`, pinned by its digest
 (task-0092); the repository also publishes every merge that touches the platform as `:latest` and
-as the commit's short SHA, which you can name in its place. So the two
+as the commit's short SHA, which you can name in its place: a build of `main`, not a contract, so it
+may be cleaned away (the release tag and `:latest` are the contract; the root README). So the two
 ways to start differ: `docker compose up --build` in this directory builds
 the checkout you have (main, or whatever you checked out), while a plain
 pull with `-f docker-compose.yml` runs the named release. Each release

@@ -605,6 +605,20 @@ def test_register_impact_refuses_an_unknown_or_malformed_id():
     assert _call(s, "register_impact", {"node": "CAP-0002", "scenario": "S9"})["result"]["isError"] is True
 
 
+def test_register_impact_owns_the_finding_kinds_gate_cli_owns():
+    """task-0260, doc-0032 group 3 CB1: one definition. register_impact lists, for each landed key, the findings of
+    the kinds gate_verdict names the key's owner and route on (key, intended, stale, lapsed and act), so an act
+    finding on a key whose ruling no longer binds shows on both; tools/check_owned_findings.py runs it on a store.
+    The register-impact schema admits every one of them, and the act object."""
+    import register_impact as ri
+    import schema_check
+    assert ri.OWNED is gate_cli.OWNED and set(ri.OWNED) >= {"key", "intended", "stale", "lapsed", "act"}
+    finding = schema_check.load("register-impact")["$defs"]["finding"]
+    assert set(ri.OWNED) <= set(finding["properties"]["kind"]["enum"]) and "act" in finding["properties"]
+    gate_finding = schema_check.load("gate-report")["$defs"]["finding"]
+    assert finding["properties"]["act"] == gate_finding["properties"]["act"], "the act object as the gate report has it"
+
+
 def test_register_impact_reads_levels_as_gate_verdict_and_writes_nothing():
     """With a scenario held, the landed keys carry the levels gate_verdict gives that key set on the
     same as_of; the store sees reads only."""
@@ -623,7 +637,7 @@ def test_register_impact_reads_levels_as_gate_verdict_and_writes_nothing():
     assert {k["key"]: k["level"] for k in got["keys"]} == want["levels"]
     assert got["gate"]["verdict"] == want["verdict"] and got["gate"]["exit_code"] == want["exit_code"]
     for k in got["keys"]:
-        assert k["findings"] == [f for f in want["findings"] if f["kind"] in ("key", "stale", "lapsed") and f["key"] == k["key"]]
+        assert k["findings"] == [f for f in want["findings"] if f["kind"] in gate_cli.OWNED and f["key"] == k["key"]]
         assert k["stale"] == [] and k["suspect"] == [] and k["via"]
     assert writes == []
     held_none = _call(_server(Stub(scenario=None))[0], "register_impact", {"node": start})["result"]["structuredContent"]
@@ -748,7 +762,7 @@ def test_register_impact_reads_the_keys_under_the_task_class_named_and_refuses_k
         assert on["gate"]["task"] == task and on["gate"]["verdict"] == want["verdict"] and on["gate"]["why"] == want["why"], task
         assert {k["key"]: k["level"] for k in on["keys"]} == want["levels"], task
         for k in on["keys"]:
-            assert k["findings"] == [f for f in want["findings"] if f["kind"] in ("key", "stale", "lapsed") and f["key"] == k["key"]], (task, k["key"])
+            assert k["findings"] == [f for f in want["findings"] if f["kind"] in gate_cli.OWNED and f["key"] == k["key"]], (task, k["key"])
         got[task] = on
     if "codegen" in TASKS:
         assert _call(s, "register_impact", args)["result"]["structuredContent"] == got["codegen"]

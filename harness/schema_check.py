@@ -15,7 +15,8 @@ from typing import Any
 SCHEMAS = Path(__file__).resolve().parent / "schemas"
 _ANNOTATIONS = {"$schema", "$id", "title", "description", "$comment"}
 _CONSTRAINTS = {"type", "required", "enum", "const", "minimum", "pattern", "minItems", "properties", "additionalProperties",
-                "items", "$ref", "$defs"}   # pattern and minItems: the MCP tools' inputSchema (task-0281)
+                "propertyNames", "items", "$ref", "$defs"}   # pattern and propertyNames: a register's rule ids (task-0261);
+# minItems: the MCP tools' inputSchema (task-0281)
 
 
 def load(name: str) -> dict:
@@ -39,7 +40,7 @@ def _supported(node: Any) -> None:
             if k in ("properties", "$defs"):
                 for sub in v.values():
                     _supported(sub)
-            elif k in ("items", "additionalProperties") and isinstance(v, dict):
+            elif k in ("items", "additionalProperties", "propertyNames") and isinstance(v, dict):
                 _supported(v)
 
 
@@ -62,28 +63,6 @@ def same(a: Any, b: Any) -> bool:
     return a == b
 
 
-def _ecma(pattern: str) -> str:
-    """JSON Schema's pattern is an ECMA-262 search, where a final ``$`` ends the string; Python's ``$``
-    also matches before a final newline, so ``"CAP-0001\\n"`` would pass. A final unescaped ``$`` becomes ``\\Z``."""
-    if pattern.endswith("$") and not pattern.endswith("\\$"):
-        return pattern[:-1] + r"\Z"
-    return pattern
-
-
-def _values(v: Any, s: dict, path: str, errors: list[str]) -> None:
-    """The keywords that read the value itself: enum, const, minimum, pattern, minItems."""
-    if "enum" in s and not any(same(v, e) for e in s["enum"]):
-        errors.append(f"{path}: {v!r} is not one of {s['enum']}")
-    if "const" in s and not same(v, s["const"]):
-        errors.append(f"{path}: {v!r} is not {s['const']!r}")
-    if "minimum" in s and isinstance(v, (int, float)) and v < s["minimum"]:
-        errors.append(f"{path}: {v} is below {s['minimum']}")
-    if "pattern" in s and isinstance(v, str) and re.search(_ecma(s["pattern"]), v) is None:
-        errors.append(f"{path}: {v!r} does not match {s['pattern']}")
-    if "minItems" in s and isinstance(v, list) and len(v) < s["minItems"]:
-        errors.append(f"{path}: {len(v)} item(s), fewer than {s['minItems']}")
-
-
 def _check(v: Any, s: dict, root: dict, path: str, errors: list[str]) -> None:
     if "$ref" in s:
         ref = s["$ref"]
@@ -95,20 +74,48 @@ def _check(v: Any, s: dict, root: dict, path: str, errors: list[str]) -> None:
         if not any(_type_ok(v, t) for t in types):
             errors.append(f"{path}: {type(v).__name__} is not {'/'.join(types)}")
             return
-    _values(v, s, path, errors)
+    _check_value(v, s, path, errors)
     if isinstance(v, dict):
-        for k in s.get("required", []):
-            if k not in v:
-                errors.append(f"{path}: missing {k!r}")
-        props = s.get("properties", {})
-        extra = s.get("additionalProperties", True)
-        for k, item in v.items():
-            if k in props:
-                _check(item, props[k], root, f"{path}.{k}", errors)
-            elif extra is False:
-                errors.append(f"{path}: unexpected {k!r}")
-            elif isinstance(extra, dict):
-                _check(item, extra, root, f"{path}.{k}", errors)
+        _check_object(v, s, root, path, errors)
     if isinstance(v, list) and isinstance(s.get("items"), dict):
         for i, item in enumerate(v):
             _check(item, s["items"], root, f"{path}[{i}]", errors)
+
+
+def _ecma(pattern: str) -> str:
+    """A JSON Schema pattern as ECMA-262 reads it: unanchored, with a final ``$`` the end of the string. Python's
+    ``$`` also matches before a trailing newline, so it is read as ``\\Z`` (``C5\\n`` is no rule id)."""
+    return pattern[:-1] + r"\Z" if pattern.endswith("$") and not pattern.endswith("\\$") else pattern
+
+
+def _check_value(v: Any, s: dict, path: str, errors: list[str]) -> None:
+    """enum, const, minimum, pattern and minItems: the keywords that read the value itself."""
+    if "minItems" in s and isinstance(v, list) and len(v) < s["minItems"]:   # task-0281
+        errors.append(f"{path}: {len(v)} item(s), fewer than {s['minItems']}")
+    if "enum" in s and not any(same(v, e) for e in s["enum"]):
+        errors.append(f"{path}: {v!r} is not one of {s['enum']}")
+    if "const" in s and not same(v, s["const"]):
+        errors.append(f"{path}: {v!r} is not {s['const']!r}")
+    if "minimum" in s and isinstance(v, (int, float)) and v < s["minimum"]:
+        errors.append(f"{path}: {v} is below {s['minimum']}")
+    if "pattern" in s and isinstance(v, str) and not re.search(_ecma(s["pattern"]), v):
+        errors.append(f"{path}: {v!r} does not match {s['pattern']!r}")
+
+
+def _check_object(v: dict, s: dict, root: dict, path: str, errors: list[str]) -> None:
+    """required, propertyNames, properties and additionalProperties."""
+    for k in s.get("required", []):
+        if k not in v:
+            errors.append(f"{path}: missing {k!r}")
+    if isinstance(s.get("propertyNames"), dict):   # a register's rule ids (task-0261)
+        for k in v:
+            _check(k, s["propertyNames"], root, f"{path}[{k!r}]", errors)
+    props = s.get("properties", {})
+    extra = s.get("additionalProperties", True)
+    for k, item in v.items():
+        if k in props:
+            _check(item, props[k], root, f"{path}.{k}", errors)
+        elif extra is False:
+            errors.append(f"{path}: unexpected {k!r}")
+        elif isinstance(extra, dict):
+            _check(item, extra, root, f"{path}.{k}", errors)
