@@ -210,7 +210,9 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
 
     tasks = m.get("tasks", {})
     for name, t in (tasks.items() if isinstance(tasks, dict) else []):
-        where = f"[tasks.{name}]"
+        where = task_policy.table(name)
+        for p in [x for x in [task_policy.name_problem(name)] if x]:   # task-0278: the runtime refuses the manifest on it
+            rep.error(p["code"], where, p["message"], p["hint"])
         if not isinstance(t, dict):
             rep.error("required", where, "not a table", f"write [tasks.{name}] with keys, block_levels and max_unverified_share")
             continue
