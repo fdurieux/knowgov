@@ -1,6 +1,6 @@
 """Statement and branch coverage of the test suite, standard library only (task-0159, V1).
 
-    python tools/coverage_stdlib.py [--out FILE] [--subject DIR]
+    python tools/coverage_stdlib.py [--out FILE] [--subject DIR] [--root DIR] [--lines]
 
 Runs ``tests/run_tests.py`` in this process under ``sys.monitoring`` (CPython 3.12 or later; no
 coverage package, no new dependency) and reports, per module and in total, the statements and the
@@ -16,6 +16,11 @@ jump in the bytecode (``POP_JUMP_IF_*`` and ``FOR_ITER``): each has two, taken a
 that runs in this process is seen. A child process the suite starts (a check tool, a server, the
 worker) is not instrumented, so nothing here claims integration coverage. Exit 0 when the suite
 passed, else the suite's exit code; the report is written either way.
+
+``--lines`` adds, per module, the statements' line numbers (``lines``), those reached (``lines_hit``) and, per
+line holding a branch, its outcomes and those taken (``branch_lines``: ``{line: [outcomes, taken]}``), which
+``tools/quality/coverage_xml.py`` turns into SonarQube's generic coverage format (task-0250). Without it the
+report is as before.
 """
 from __future__ import annotations
 
@@ -77,11 +82,44 @@ def denominator(path: Path) -> tuple[set[int], set[tuple], dict]:
     return lines, branches, targets
 
 
+def branch_lines(path: Path) -> dict[tuple, int]:
+    """Each branch's line: ``{(code key, offset): line}``, from the instruction's source position."""
+    code = compile(path.read_text(encoding="utf-8"), str(path), "exec")
+    out = {}
+    for c in _codes(code):
+        for ins in dis.get_instructions(c):
+            if ins.opname in BRANCH_OPS and ins.positions is not None and ins.positions.lineno:
+                out[(_key(c), ins.offset)] = ins.positions.lineno
+    return out
+
+
+def line_detail(path: Path, lines: set[int], hit: set[int], branches: set[tuple], hit_branches: set[tuple]) -> dict:
+    """``--lines``: the module's statements, those reached, and per branch line its outcomes and those taken."""
+    where = branch_lines(path)
+    per: dict[int, list[int]] = {}
+    for b in branches:
+        ln = where.get(b[:2])
+        if ln is None:
+            continue
+        cell = per.setdefault(ln, [0, 0])
+        cell[0] += 1
+        cell[1] += b in hit_branches
+    return {"lines": sorted(lines), "lines_hit": sorted(hit & lines),
+            "branch_lines": {str(k): per[k] for k in sorted(per)}}
+
+
 def main(argv: list[str] | None = None) -> int:
+    global ROOT
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--out", default=str(ROOT / "runs" / "coverage.json"))
     ap.add_argument("--subject", help="KG_SUBJECT for the suite (default: the environment's)")
+    ap.add_argument("--root", help="the checkout whose suite to measure (default: this file's own); the advisory scan "
+                                   "measures a past tag with today's measurer, kept outside that checkout (task-0250)")
+    ap.add_argument("--lines", action="store_true",
+                    help="add each module's statement lines, those reached and its branch lines (for tools/quality/coverage_xml.py)")
     args = ap.parse_args(argv)
+    if args.root:
+        ROOT = Path(args.root).resolve()
     if sys.version_info < (3, 12) or not hasattr(sys, "monitoring"):
         print("coverage_stdlib: needs CPython 3.12 or later (sys.monitoring)", file=sys.stderr)
         return 2
@@ -137,7 +175,8 @@ def main(argv: list[str] | None = None) -> int:
         got_l = hit_lines[f] & lines
         got_b = {b for b in hit_branches if b[0][0] == f} & branches
         modules.append({"module": Path(f).relative_to(ROOT).as_posix(), "statements": len(lines), "statements_hit": len(got_l),
-                        "branches": len(branches), "branches_hit": len(got_b)})
+                        "branches": len(branches), "branches_hit": len(got_b),
+                        **(line_detail(Path(f), lines, got_l, branches, got_b) if args.lines else {})})
     tot = {k: sum(m[k] for m in modules) for k in ("statements", "statements_hit", "branches", "branches_hit")}
     report = {"schema": "coverage", "version": 1, "python": sys.version.split()[0], "subject": os.environ.get("KG_SUBJECT") or "",
               "suite_exit": code, "seconds": round(time.monotonic() - t0, 1),

@@ -1,0 +1,122 @@
+# A proposal, read against your register before anyone approves it (harness/proposal_impact.py;
+# instance/README.md, "Planning refinement"; demo/README.md, "A proposal read before approval").
+#
+# Copy this file, fill it in, and run:
+#
+#     python harness/proposal_impact.py my-proposal.toml --no-store
+#
+# The report says what the proposal would add, reach and leave uncovered, as if it were approved.
+# Nothing is written anywhere: the proposal becomes record only through a pull request on the register.
+#
+# How to fill it in:
+#
+# - A value in double braces, such as {{OWNER_UNIT}}, is a placeholder. Replace each one, braces included, with a real id
+#   from your register. To find the id, list the register's nodes by kind or owner:
+#       python harness/register_nodes.py --kind capability
+#       python harness/register_nodes.py --taxonomy organisation
+#   or ask an assistant to call the MCP tool register_nodes.
+# - Delete any block you do not need. Only `title`, at least one node or link, and the fields marked
+#   "required" below are needed. Every field that proposal_impact reads is in this file.
+# - Ids for new things are provisional: pick any word that is not already a register id, such as
+#   "new-contract-quote". knowgov never mints a register id, and neither should you here. The
+#   register's own pull request gives the real one. A provisional id written as a register id
+#   (CAP-0042, say) is kept as it is if the register does not hold it yet. One that the register
+#   already holds is refused: list that node under [[reused]] instead.
+
+# Required: a one-line name for the proposal, as the report heads it.
+title = "Contract freight quote"
+
+# ---- New nodes: one [[nodes]] block per thing the register does not have yet ----
+
+[[nodes]]
+id = "new-contract-quote"          # required: a provisional id, unique in this file (see above)
+kind = "product"                   # required: a kind from your register's metamodel/types.toml:
+                                   #   products: portfolio, family, product, variant
+                                   #   capabilities: capability_domain, capability, sub_capability
+                                   #   journeys: journey_family, journey, stage, step, touchpoint
+                                   #   processes: process_domain, end_to_end_process, subprocess, activity
+                                   #   applications: application_portfolio, application, module
+                                   #   information: information_domain, business_entity, logical_entity, attribute
+name = "Contract freight quote"    # required: the name people use; a forbidden synonym in your glossary is flagged
+parent = "{{PRODUCT_PORTFOLIO}}"   # optional: the register node it sits under (a product's parent is a family or
+                                   #   a portfolio), or another new node's provisional id
+owner = "{{OWNER_UNIT}}"           # the organisation unit that owns it and approves it (an ORG- id)
+# The tool it is modelled in, when it already exists in one, as a register node's [source] table.
+# Leave it out for a node no tool holds yet: the report then says "in no tool yet".
+source = { system = "kit", kit_path = "requirements/contract-quote.md" }
+
+[[nodes]]
+id = "new-credit-check"
+kind = "capability"
+name = "Check a shipper's credit"
+parent = "{{CAPABILITY_DOMAIN}}"   # a capability's parent is a capability_domain
+owner = "{{OWNER_UNIT}}"
+
+[[nodes]]
+id = "new-contract-journey"
+kind = "journey"
+name = "Get a contract quote"
+owner = "{{OWNER_UNIT}}"
+# parent = "JRN-...": a journey's parent is a journey_family, when your register has one; without it the
+# report warns, and reads the journey all the same
+
+[[nodes]]
+id = "new-contract-step"
+kind = "step"
+name = "Negotiate the terms"
+parent = "new-contract-journey"    # a new node may sit under another new node
+owner = "{{OWNER_UNIT}}"
+
+# ---- New links: one [[links]] block per relationship the proposal adds ----
+
+[[links]]
+id = "needs-pricing"               # optional: a provisional id; the report numbers links it is not given
+type = "requires"                  # required: a relationship type, a file under your register's relationships/:
+                                   #   requires (product -> capability), concerns (journey -> product),
+                                   #   is_supported_by (step -> process), realizes (process or application ->
+                                   #   capability), and the others your register defines
+source = "new-contract-quote"      # required: a new node's provisional id or a register id
+target = "{{REUSED_CAPABILITY}}"   # required: the same
+rationale = "A contract quote is a priced quote"   # why the link holds, in a sentence; the register asks for one
+owner = "{{OWNER_UNIT}}"           # optional: the unit that owns the link; the source's owner when left out.
+                                   #   A link whose two ends have different owners needs both to approve it
+
+[[links]]
+type = "requires"
+source = "new-contract-quote"
+target = "new-credit-check"
+rationale = "Contract terms need the shipper's credit checked"
+
+[[links]]
+type = "concerns"
+source = "new-contract-journey"
+target = "new-contract-quote"
+rationale = "The journey a shipper takes to a contract quote"
+
+[[links]]
+type = "is_supported_by"
+source = "new-contract-step"
+target = "{{REUSED_PROCESS}}"
+rationale = "Terms are negotiated in the same process that validates a request"
+
+# ---- Register nodes the proposal reuses ----
+# A register node a link names is counted as reused anyway. List it here to say how it is reused.
+# "changed" flags it in the report, so its owner sees what the change reaches.
+
+[[reused]]
+id = "{{REUSED_CAPABILITY}}"       # required: a register id
+mode = "as_is"                     # "as_is" (the default) or "changed"
+
+[[reused]]
+id = "{{REUSED_PROCESS}}"
+mode = "changed"
+
+# ---- Exceptions the proposal asks for (optional) ----
+# A coverage rule waived for named nodes until a date, as the register's exceptions/ hold them.
+
+[[exceptions]]
+id = "contract-terms-later"        # optional: a provisional id
+rule = "C2"                        # required: the coverage rule waived, C1 to C4 (your register's tools/check_register.py)
+scope = ["new-credit-check"]       # required: the ids it covers, new or register
+expires = "2027-06-30"             # required: the day it lapses, YYYY-MM-DD; an exception never lasts for ever
+rationale = "The credit check is bought in; nothing realises it until the supplier is chosen"
