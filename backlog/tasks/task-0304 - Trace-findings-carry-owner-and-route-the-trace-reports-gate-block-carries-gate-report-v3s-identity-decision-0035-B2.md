@@ -3,11 +3,11 @@ id: TASK-0304
 title: >-
   Trace findings carry owner and route; the trace report's gate block carries
   gate-report v3's identity (decision-0035 B2)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-09T21:29:00Z'
-updated_date: '2026-11-09T22:04:00Z'
+updated_date: '2026-11-09T22:49:00Z'
 labels:
   - contracts
   - validation
@@ -32,10 +32,10 @@ Repro: `$T/tw/trace-stage2.json`'s findings, after `tools/check_trace_walkthroug
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Each trace finding that rests on keys carries the keys' `owner` and `route`, as the gate report's key findings do (task-0102); a finding with no key names none.
-- [ ] #2 The trace report's gate block carries `task_profile`, `register` and `knowgov`, read as the gate report reads them.
-- [ ] #3 The trace-report schema, the CI annotations (`harness/annotate.py`) and the docs say so, and `check_trace_walkthrough` holds the fields.
-- [ ] #4 The record does not move, and a CHANGELOG line names it under Contract changes.
+- [x] #1 Each trace finding that rests on keys carries the keys' `owner` and `route`, as the gate report's key findings do (task-0102); a finding with no key names none.
+- [x] #2 The trace report's gate block carries `task_profile`, `register` and `knowgov`, read as the gate report reads them.
+- [x] #3 The trace-report schema, the CI annotations (`harness/annotate.py`) and the docs say so, and `check_trace_walkthrough` holds the fields.
+- [x] #4 The record does not move, and a CHANGELOG line names it under Contract changes.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -60,3 +60,15 @@ With no load held, _routing passes no route, so a finding on keys two units own 
 
 Verified on the walkthrough: every finding on keys names ORG-0001 and its route, and the gate block's task_profile 42781013abbc... equals the gate report's.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Each trace finding that rests on keys now carries their owner and route through gate_cli.owner_route, the lint branch's code now shared. These are suspect (the invalidated or changed statements' keys), missing, drift and unbound (the entry's keys); a gate finding carries the gate's own. A finding on no key names neither, and no route is given when no load is held.
+
+The trace report's gate block carries task_profile, register and knowgov, read as gate report v3 reads them. On the walkthrough, the task_profile equals the gate report's.
+
+trace-report.schema.json gains them additively and stays version 1. annotate.py ends a finding's message with Owner and Route, which the gate's key findings now show too. harness.yml greps the owner on the suspect annotation. instance/README.md and CLAUDE.md say so. check_trace_walkthrough holds the fields.
+
+Tests: tests/test_traceability_answers.py. The record held, CI at 1c5102e had tests, rdflib and stack green, and a CHANGELOG Contract changes line names it.
+<!-- SECTION:FINAL_SUMMARY:END -->

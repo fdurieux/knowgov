@@ -229,3 +229,13 @@ def test_the_annotations_carry_a_findings_owner_and_route():
         assert fs["unmapped"]["message"] == "x.py is unmapped"
         text = annotate.convert(rep, "github", instance=inst, root=Path(td))
         assert "Owner%3A" not in text and "Owner: ORG-0001." in text, "the owner is in the message, escaped as data"
+
+
+def test_a_ledger_entrys_keys_are_reported_in_nfc():
+    # task-0301 (decision-0034 A2): a key in a ledger written before NFC reads as key_nodes takes it
+    import unicodedata
+    composed = "société|adresse"
+    decomposed = unicodedata.normalize("NFD", composed)
+    assert decomposed != composed
+    e = {"keys": [decomposed], "used": [{"id": "A:1@v1", "key": decomposed, "value": "1", "sha256": "0" * 64}]}
+    assert trace.entry_keys(e) == [composed]

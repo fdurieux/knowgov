@@ -3,11 +3,11 @@ id: TASK-0303
 title: >-
   code_path's ledger leg returns the assertion ids and keys, and the leg's
   suspect state (decision-0035 B1)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-09T21:29:00Z'
-updated_date: '2026-11-09T22:04:00Z'
+updated_date: '2026-11-09T22:49:00Z'
 labels:
   - contracts
   - validation
@@ -32,10 +32,10 @@ Repro: `tools/check_trace_walkthrough.py $T/tw`, then `harness/upward.py code --
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `code_path`'s ledger leg returns the entry's assertion ids and its keys, sorted, and states whether the entry is suspect, drifted or current, as `trace check` reads it.
-- [ ] #2 The code-path schema says so, and `check_mcp_server` holds the leg's ids and keys on the walkthrough's ledger.
-- [ ] #3 From the returned keys, `key_nodes` reaches the register's nodes in a test: file → keys → nodes.
-- [ ] #4 The record does not move, and a CHANGELOG line names it under Contract changes.
+- [x] #1 `code_path`'s ledger leg returns the entry's assertion ids and its keys, sorted, and states whether the entry is suspect, drifted or current, as `trace check` reads it.
+- [x] #2 The code-path schema says so, and `check_mcp_server` holds the leg's ids and keys on the walkthrough's ledger.
+- [x] #3 From the returned keys, `key_nodes` reaches the register's nodes in a test: file → keys → nodes.
+- [x] #4 The record does not move, and a CHANGELOG line names it under Contract changes.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -56,4 +56,16 @@ Correction to the finding, at main f194aac: the leg already returned entry.asser
 Choice (b) for suspect, confirmed by the coordinator: it delivers decision-0035's 'the leg's suspect state' within the tool's read-or-unchecked convention, reading the store only through the MCP reader's read handle when it holds the subject, so the CLI stays files-only. (a), unchecked everywhere, would have left the leg without the suspect state the decision names; (c), opening a store from upward.py, would have made a files-only command store-backed. It is implementation within the accepted decision, so it needs no new word from the maintainer.
 
 Verified: the MCP leg's suspect equals trace check's stage-2 report on the walkthrough (reference_impl.py and hand/tariff_rules.py suspect, hand/Screening.java not); check_mcp_server S1 reads 88 statement ids, 36 keys, current, suspect False.
+
+After merging main ac64d59 (task-0301), trace.entry_keys reports the keys in NFC, so a ledger written before task-0301 reads as key_nodes takes it (test_a_ledger_entrys_keys_are_reported_in_nfc).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+code_path's ledger leg now returns the entry's statement ids and keys, sorted, and keys is always present: the registration's keys with those of the used records, in NFC. It returns state (current, drift or missing) as trace check reads it, and suspect. Suspect is read by the MCP reader on one read handle by trace check's rule (trace.ledger_suspicion over store.suspicion) when the store holds the subject's scenario. Otherwise it is unchecked with the reason, and it is always unchecked from upward.py code (choice (b), coordinator).
+
+The code-path schema requires the three fields. check_mcp_server holds the leg on the walkthrough's ledger: S1 reads 88 ids, 36 keys, current, suspect False. check_trace_walkthrough holds it through the CLI. tests/test_traceability_answers.py covers file -> keys -> key_nodes -> register nodes, the three states, the schema and the suspect leg against trace check's finding.
+
+The record held: CQ comparator 0 differing leaves over 7 scenarios, J-F 0 over 6, both round trips, check_mcp_server on both subjects. CI at 1c5102e: tests, rdflib and stack green. A CHANGELOG Contract changes line names it.
+<!-- SECTION:FINAL_SUMMARY:END -->
