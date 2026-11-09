@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-09T09:33:00Z'
-updated_date: '2026-11-09T16:02:00Z'
+updated_date: '2026-11-09T16:12:00Z'
 labels:
   - validation
   - correctness
@@ -56,6 +56,12 @@ Source: group 1 F9, F10, F17 and F18, decision-0032 (task-0256), probed on main 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+Re-probe and spot check at main 9861953 (decision-0032 points 4 and 5, task-0256); pulled forward before the 0.9.0 cut by the coordinator, because AC #1 fails open:
+- Spot check GL-1: git quotes non-ASCII names (`core.quotepath`), so committing `<code root>/módulo.py` and running `KG_GATE=trace-check` reports 'no code changed since <base>', exit 0; `new module.py` checks 'module.py'. Use `git -c core.quotepath=off diff -z --name-only`.
+- Spot check GL-2, AC #2: `KG_ANNOTATE=nope:x.json` and `,,` log 'annotate … failed' (one with a Python traceback) and exit 0 with no report. Unknown formats and empty elements exit 2 before the core command; a write failure (`gitlab:sub dir/x.json`) stays a logged warning with the command's exit.
+- Group 1 N2: `KG_BASE=--output=/tmp/x` reaches `git diff` as an option (git created /tmp/x). Use `--end-of-options`, or refuse a leading `-`.
+- Group 1 N6: `KG_SPECTRAL=/nonexistent/spectral tools/preload_check.py` exits 0, file unchecked, 'Spectral is not installed here'. A named linter that cannot run exits 2 naming the setting; unset keeps 'not installed'.
+
 Places that read git's path list or KG_FILES (the coordinator's list, from the spot check of 2026-11-09): (1) instance/ci/knowgov-gate.sh changed(), used by trace-check (--changed) and trace-register (--file), shared by instance/ci/gitlab/knowgov.gitlab-ci.yml and instance/ci/github/action.yml (which calls the script with KG_BASE from its base input or the pull request's base): now git -c core.quotepath=off diff -z --name-only --end-of-options BASE, the helper shlex-quoting each path into 'FLAG path' that the shell takes by eval; (2) knowgov-gate.sh's KG_FILES loop (trace-register; the action's files input): whitespace-separated as documented, now with globbing off; (3) instance/ci/claude/knowgov_hook.py _committed (git diff --cached / --name-only) and _status (git status --porcelain=v1): now -z with core.quotepath=off, a rename's source skipped; (4) harness/proposal_impact.py branch_overlay, run by instance/ci/proposal-impact.sh: git diff --name-status -z; (5) tools/preload_check.py _since, run by instance/ci/preload-check.sh: already -z, now with core.quotepath=off and --end-of-options. Spot check: the non-ASCII form failed open beyond the space split (git quoted módulo.py, so trace-check read 'no code changed', exit 0); a space read 'new module.py' as 'module.py'; tested with módulo.py, new module.py and glob[1]*.py on both wrappers. AC2: ',,' and 'nope:x.json' exit 2 before the core command naming KG_ANNOTATE and its four formats; 'gitlab:<dir>/sub dir/x.json' unwritable is a warning beside the command's exit; the traceback form was annotate.py's unwritable -o, now a message. N2: KG_BASE=--output=FILE made git write FILE; now refused with exit 2 naming KG_BASE, and --end-of-options guards changed(), preload_check --since and proposal_impact --base. N6: KG_SPECTRAL (and siblings) naming nothing executable exits 2 naming the setting; unset keeps not installed.
 <!-- SECTION:NOTES:END -->
 
