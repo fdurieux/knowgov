@@ -3,9 +3,10 @@ id: TASK-0282
 title: >-
   Suspect derived outputs block a class's gate only when their used statements
   sit on that class's keys (decision-0033 choice 8)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-09T10:10:00Z'
+updated_date: '2026-11-09T11:19:00Z'
 labels:
   - contracts
   - validation
@@ -30,8 +31,22 @@ Source: validation-pass group 3 CB6, task-0256.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A suspect derived output is a blocker for a class's gate only when at least one of its invalidated used statements sits on one of that class's keys. Otherwise it is listed at info, with the output and its keys named.
-- [ ] #2 Group 3's reproduction no longer exits 1 under `design` for the `codegen` output, and the same run under `codegen` still does.
-- [ ] #3 The record does not move: the comparator, S6's stage-2 gates, `check_gate_after_change` and `check_trace_walkthrough`.
-- [ ] #4 `CHANGELOG.md`'s Unreleased section names the change under Contract changes.
+- [x] #1 A suspect derived output is a blocker for a class's gate only when at least one of its invalidated used statements sits on one of that class's keys. Otherwise it is listed at info, with the output and its keys named.
+- [x] #2 Group 3's reproduction no longer exits 1 under `design` for the `codegen` output, and the same run under `codegen` still does.
+- [x] #3 The record does not move: the comparator, S6's stage-2 gates, `check_gate_after_change` and `check_trace_walkthrough`.
+- [x] #4 `CHANGELOG.md`'s Unreleased section names the change under Contract changes.
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Built in #420 (decision-0033 choice 8(a)). `gate_cli.evaluate` computes `suspect_scope`: for each suspect derived output, the keys its invalidated or changed used statements sit on (read through the port's `derived_outputs`), and whether any is one of the task class's keys. On them the output is a blocker as before. Off them it is an info finding naming the output and its keys, and `--baseline`'s `new_suspect` counts only on-task outputs. The classification is never stored in the gate's result, so `run.py`'s `gate_summary` and the record do not move.
+
+Verification, after merging main (`ee84120`):
+- `tests/test_suspect_scope.py`: with the register-changed fixture, `gate_cli` S1 `design` exits 0 with the `codegen` output at info, and `codegen` exits 1 with it a blocker.
+- On rdflib: the comparator shows 0 differing leaves over seven scenarios, and `check_gate_after_change` (S6's stage-2 gates), `check_trace_walkthrough` and `check_register_change` all exit 0.
+- The full suite passes 887/938 (51 skipped), and `tools/complexity.py --check` holds.
+- CHANGELOG Unreleased names it under Contract changes; CLAUDE.md notes it beside task-0048.
+
+The stack job carries the Neo4j side.
+<!-- SECTION:FINAL_SUMMARY:END -->

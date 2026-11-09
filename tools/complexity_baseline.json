@@ -38,8 +38,8 @@
    "floor": 20
   },
   "demo/app/server.py::Runner.start": {
-   "value": 33,
-   "floor": 33
+   "value": 31,
+   "floor": 31
   },
   "demo/app/views.py::_arm_colour": {
    "value": 18,
@@ -182,8 +182,8 @@
    "floor": 19
   },
   "harness/gate_cli.py::findings": {
-   "value": 88,
-   "floor": 88
+   "value": 78,
+   "floor": 78
   },
   "harness/gate_cli.py::render": {
    "value": 34,
@@ -337,10 +337,6 @@
    "value": 19,
    "floor": 19
   },
-  "harness/schema_check.py::_check": {
-   "value": 34,
-   "floor": 34
-  },
   "harness/schema_check.py::_supported": {
    "value": 16,
    "floor": 16
@@ -356,10 +352,6 @@
   "harness/store_neo4j.py::_Unit.pin": {
    "value": 17,
    "floor": 17
-  },
-  "harness/store_neo4j.py::_Unit.publish": {
-   "value": 16,
-   "floor": 16
   },
   "harness/store_rdflib.py::RdflibStore._stale_candidates": {
    "value": 35,

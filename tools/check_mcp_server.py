@@ -354,6 +354,7 @@ def check_task_classes(client: "StdioClient", sc: str, failures: list[str], labe
     answer; keys is refused. Classes may agree where no finding carries a route (S6 at stage 1); with
 ``must_differ`` (stage 2, stale findings routed by class) they must not all agree."""
     sys.path.insert(0, str(HARNESS))
+    from gate_cli import OWNED   # the kinds a key's findings are, one definition (task-0260)
     from tasks import TASKS
     base = {"node": start, "children": True, "scenario": sc, "as_of": "record"}
     answers = {}
@@ -362,7 +363,7 @@ def check_task_classes(client: "StdioClient", sc: str, failures: list[str], labe
         keys = [k["key"] for k in got["keys"]]
         want = client.call("gate_verdict", {"scenario": sc, "task": task, "keys": keys, "as_of": "record"}) if keys else None
         mine = {k["key"]: (k["level"], k["findings"]) for k in got["keys"]}
-        theirs = {k: (want["levels"][k], [f for f in want["findings"] if f["kind"] in ("key", "stale", "lapsed") and f["key"] == k]) for k in keys} if want else {}
+        theirs = {k: (want["levels"][k], [f for f in want["findings"] if f["kind"] in OWNED and f["key"] == k]) for k in keys} if want else {}
         if not keys or mine != theirs or got["gate"]["task"] != task or got["gate"]["verdict"] != want["verdict"]:
             failures.append(f"{label}: register_impact from {start} under {task} differs from gate_verdict --task {task} on its {len(keys)} key(s)")
         answers[task] = (mine, got["gate"]["verdict"])
@@ -770,6 +771,19 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
           f"{ALLOWLIST.name} admits {mcp_server.SERVER['name']}")
 
 
+def held_gate_failures(client, sc: str, label: str, held: dict) -> list[str]:
+    """task-0283: held_keys' gate is each task class's own verdict and why, gate_verdict's for the same store,
+    class and as_of, never the held key set gated as if every held key were required."""
+    from tasks import TASKS
+    out = []
+    for task in sorted(TASKS):
+        hk = held if task == held["task"] else client.call("held_keys", {"scenario": sc, "task": task, "as_of": "record"})
+        gv = client.call("gate_verdict", {"scenario": sc, "task": task, "as_of": "record"})
+        if hk["gate"] != {"task": task, "verdict": gv["verdict"], "why": gv["why"]}:
+            out.append(f"{label}: held_keys' gate under {task} reads {hk['gate']}, gate_verdict {gv['verdict']}: {gv['why']}")
+    return out
+
+
 def check_store_reads(client: "StdioClient", sc: str, failures: list[str], label: str, stage: int = 1) -> None:
     """held_keys, derived_outputs, document_statements (task-0144): each equal to the port's read on the store as
     it stands, through a read handle in-process; held_keys' levels gate_verdict's for that key set; every output's
@@ -795,6 +809,7 @@ def check_store_reads(client: "StdioClient", sc: str, failures: list[str], label
         gate = client.call("gate_verdict", {"scenario": sc, "keys": [k["key"] for k in port_keys], "as_of": "record"})
         if {r["key"]: r["level"] for r in held["keys"]} != gate["levels"]:
             failures.append(f"{label}: held_keys' levels differ from gate_verdict's for the held key set")
+        failures.extend(held_gate_failures(client, sc, label, held))
     outs = []
     for key in sorted({u["key"] for d in port_derived for u in d["used"] if u["key"]})[:5]:
         got = client.call("derived_outputs", {"scenario": sc, "key": key})
@@ -820,7 +835,8 @@ def check_store_reads(client: "StdioClient", sc: str, failures: list[str], label
             failures.append(f"{label}: document_statements {doc} lists {got['total']}, the port's read {len(rows)}")
     states = sorted({u["state"] for d in port_derived for u in client.call("derived_outputs", {"scenario": sc, "derived": d["id"]})["outputs"][0]["used"]}) \
         if port_derived else []
-    print(f"{label}: held_keys {held['total']} key(s) ({len(held['unrequired'])} unrequired) at gate_verdict's levels; "
+    print(f"{label}: held_keys {held['total']} key(s) ({len(held['unrequired'])} unrequired) at gate_verdict's levels, "
+          f"its gate gate_verdict's under every task class; "
           f"derived_outputs {len(port_derived)} output(s), used read {states or 'none'}; "
           f"document_statements on {len(port_docs)} document(s), each the port's read")
 

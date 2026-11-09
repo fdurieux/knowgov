@@ -40,7 +40,8 @@ Exit codes, the contract's three:
 
     0  no finding at or above the threshold (--fail-on, blocker by default: PROCEED and QUALIFIED pass)
     1  a finding at or above it (BLOCKED always; QUALIFIED with --fail-on major or minor)
-    2  the gate could not run: no such subject, scenario or task, an unreachable store, no baseline
+    2  the gate could not run: no such subject, scenario or task, an unreachable store, no baseline,
+       or a baseline report of another run, a newer version or an invalid shape
 
 With a baseline the gate ratchets instead: exit 1 only on a regression, a verdict worse than the
 baseline's, a required key at a lower level than the baseline's, or a derived output suspect that
@@ -48,7 +49,10 @@ the baseline did not hold suspect. ``--baseline record`` is the
 subject's record for the same scenario (its deterministic run; the record's gate is the codegen
 task, read at stage 1: ``--stage 2 --baseline record`` exits 2, since the record keeps stage 2's
 verdicts, not its keys' levels, task-0209); ``--baseline FILE`` is an earlier report of this command
-(at stage 2, a stage-2 report) or a deterministic.json. The gate
+(at stage 2, a stage-2 report) or a deterministic.json. A report is held to that before it is compared
+(task-0258): one of another subject, scenario, task class or stage, one of a schema version above this
+command's (decision-0023), and one that is not valid against the gate-report schema of its own version
+(versions 1 and 2 frozen beside the current one), each exit 2 naming the file and what differs. The gate
 never writes a baseline: recording one is a separate, deliberate act (``-o``, then commit it).
 
 A capture (harness/capture.py) does not trip the ratchet by agreeing (decision-0004): a person's
@@ -239,8 +243,24 @@ def lint_finding(g: dict) -> dict:
     return f
 
 
+def suspect_finding(d: dict, scope: dict | None) -> dict:
+    """One suspect derived output as a finding: a blocker, or ``info`` when ``scope`` says its invalidated or changed
+    statements sit on none of this task's keys (task-0282, decision-0033 choice 8): listed, naming the keys it rests
+    on, and the class whose keys it rests on blocks on it. ``scope`` None (not read) blocks, as before."""
+    used, changed = sorted(d.get("used_invalidated") or []), sorted(d.get("used_changed") or [])
+    why = f"used {len(used)} statement(s) now invalidated ({', '.join(used)})" if used else ""
+    if changed:   # task-0199: a statement changed under its id since trace registered the output
+        why += ("; and " if why else "used ") + f"{len(changed)} statement(s) whose value or digest changed since it was built ({', '.join(changed)})"
+    what = f"{d['id']} ({d.get('kind') or 'derived output'}) {why}"
+    if scope is not None and not scope["on_task"]:
+        return _finding("info", "suspect_derived", f"{what}; they sit on {', '.join(scope['keys']) or 'no key held'}, none of this "
+                        "task's keys: listed, not blocking this task", ref=d["id"], related=used + changed)
+    return _finding("blocker", "suspect_derived", f"{what}: it may not be reused as it is: regenerate it from the current statements",
+                    ref=d["id"], related=used + changed)
+
+
 def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None = None,
-             route=None, closers: dict[str, dict] | None = None) -> list[dict]:
+             route=None, closers: dict[str, dict] | None = None, suspect_scope: dict[str, dict] | None = None) -> list[dict]:
     """The gate's result as findings on the severity ladder, worst first, then by kind, key and ref.
     With ``owners`` (key -> {unit, name}, ``capture.finding_owners``) and ``route`` ((unit, key) -> text or None),
     each key, stale and lapsed finding also names its key's owner unit and the route to approval
@@ -276,13 +296,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
         else:
             out.append(_finding("major", "stale", f"{x['id']} on {x['key']} was invalidated by {x['invalidated_by']} (verifications ended: {ended}); "
                                 "no verified or approved successor replaces it", key=x["key"], level="invalidated", ref=x["id"]))
-    for d in res.get("suspect_derived") or []:
-        used, changed = sorted(d.get("used_invalidated") or []), sorted(d.get("used_changed") or [])
-        why = f"used {len(used)} statement(s) now invalidated ({', '.join(used)})" if used else ""
-        if changed:   # task-0199: a statement changed under its id since trace registered the output
-            why += ("; and " if why else "used ") + f"{len(changed)} statement(s) whose value or digest changed since it was built ({', '.join(changed)})"
-        out.append(_finding("blocker", "suspect_derived", f"{d['id']} ({d.get('kind') or 'derived output'}) {why}"
-                            ": it may not be reused as it is: regenerate it from the current statements", ref=d["id"], related=used + changed))
+    out += [suspect_finding(d, (suspect_scope or {}).get(d["id"])) for d in res.get("suspect_derived") or []]
     for x in res.get("lapsed") or []:
         out.append(_finding("major", "lapsed", f"{x['id']} on {x['key']} {cadence.describe(x, res.get('as_of'))}",
                             key=x["key"], level=x.get("to", "validated"), ref=x["id"], related=x["verifications"]))
@@ -345,10 +359,11 @@ def baseline_of(data: dict) -> dict:
     raise CannotRun("the baseline file is neither a gate report nor a deterministic.json")
 
 
-def compare(res: dict, base: dict, source: str) -> dict:
+def compare(res: dict, base: dict, source: str, suspect_scope: dict[str, dict] | None = None) -> dict:
     """A regression is a verdict worse than the baseline's, a required key whose level ranks below
     the baseline's for the same key (a key the baseline did not have counts from absent), or a
-    derived output suspect now that the baseline did not hold suspect."""
+    derived output suspect now that the baseline did not hold suspect and that rests on this task's keys
+    (task-0282: one resting on none of them is listed at info, so it is no regression either)."""
     worse = VERDICTS.index(res["verdict"]) > VERDICTS.index(base["verdict"])
     regressed = []
     for key, v in res["keys"].items():
@@ -356,7 +371,8 @@ def compare(res: dict, base: dict, source: str) -> dict:
         if was is not None and LEVELS.index(v["level"]) < LEVELS.index(was):
             regressed.append({"key": key, "level": v["level"], "baseline_level": was})
     held = set(base.get("suspect") or [])
-    new_suspect = sorted(d["id"] for d in res.get("suspect_derived") or [] if d["id"] not in held)
+    new_suspect = sorted(d["id"] for d in res.get("suspect_derived") or [] if d["id"] not in held
+                         and (suspect_scope or {}).get(d["id"], {"on_task": True})["on_task"])
     return {"source": source, "verdict": base["verdict"], "regression": worse or bool(regressed) or bool(new_suspect),
             "worse_verdict": worse, "regressed_keys": regressed, "new_suspect": new_suspect}
 
@@ -385,7 +401,8 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
            block_levels: set[str], threshold: str, baseline: dict | None,
            version: str | None = None, change: dict | None = None, owners: dict[str, dict] | None = None,
            route_task: str | None = None, route_keys=None, closers: dict[str, dict] | None = None,
-           register_change: dict | None = None, task_profile: str | None = None) -> dict:
+           register_change: dict | None = None, task_profile: str | None = None,
+           suspect_scope: dict[str, dict] | None = None) -> dict:
     """``task_profile`` is the digest of the task table the gate read (``profile_digest``; None when the
     report is built without one). ``route_task`` is the task class whose questionnaire a finding's route names (``task`` by default;
     the MCP server's agent-chosen key set, task ``keys``, names the class it was resolved under), and
@@ -396,7 +413,7 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
     def route(unit, key):   # the files routing names, so the route points where the questionnaire is written (G8)
         files = ((owners or {}).get(key) or {}).get("files")
         return questionnaire_route(subject, scenario, rt, unit, files) if route_keys is None or key in route_keys else None
-    fs = findings(res, block_levels, owners, route, closers)
+    fs = findings(res, block_levels, owners, route, closers, suspect_scope)
     fail = baseline["regression"] if baseline is not None else bool(at_or_above(fs, threshold))
     if baseline is not None:
         mark_held(fs, baseline)
@@ -415,6 +432,26 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
             # task-0237, decision-0029 (version 3): what the gate decided on, so a retained report names it
             "task_profile": task_profile, "register": register_identity(), "knowgov": knowgov_identity(),
             **({"register_change": register_change} if register_change is not None else {})}   # task-0122, additive
+
+
+def suspect_scope(st, res: dict, spec: dict) -> dict[str, dict] | None:
+    """task-0282 (decision-0033 choice 8): for each suspect derived output, the keys its invalidated or changed
+    statements sit on, read through the port (``derived_outputs``, the store's own Assertion keys), and whether
+    one of them is a key of this task. A statement whose key cannot be read (no longer held) counts as on the
+    task, so the gate blocks rather than guess. None when nothing is suspect. Read here, never stored in the
+    gate's result, so the record's gate rows read as before."""
+    sus = res.get("suspect_derived") or []
+    if not sus:
+        return None
+    key_of = {u["id"]: u.get("key") for d in st.derived_outputs() for u in d.get("used") or [] if u.get("id")}
+    task_keys = set(spec.get("keys") or [])
+    out = {}
+    for d in sus:
+        ids = list(d.get("used_invalidated") or []) + list(d.get("used_changed") or [])
+        keys = sorted({key_of[i] for i in ids if key_of.get(i)})
+        unknown = any(not key_of.get(i) for i in ids)
+        out[d["id"]] = {"keys": keys, "on_task": unknown or bool(task_keys & set(keys))}
+    return out
 
 
 def profile_digest(table: dict | None) -> str | None:
@@ -483,7 +520,40 @@ def render(rep: dict) -> str:
     return "\n".join(out)
 
 
-def _baseline(arg: str, subject, scenario: str, task: str) -> tuple[dict, str] | None:
+# a gate report written at each version is validated against the schema as it stood then (task-0258):
+# versions 1 and 2 are frozen copies, from the commits that last wrote them, beside the current one
+REPORT_SCHEMAS = {1: "gate-report-v1", 2: "gate-report-v2", SCHEMA_VERSION: "gate-report"}
+
+
+def check_report_baseline(data: dict, where: str, *, subject: str, scenario: str, task: str, stage: int) -> None:
+    """A gate report read as a baseline is an earlier report of this command for the same run (task-0258, the
+    flag's own promise: "an earlier report of this command (at stage 2, a stage-2 report)"): its schema version
+    one this knowgov reads, newer refused under decision-0023's rule; valid against the schema of that version
+    before anything is compared; and the same subject, scenario, task class and stage. Each failure is CannotRun,
+    exit 2, naming the file and what differs. A deterministic.json is the record's, checked by its path."""
+    v = data.get("schema_version")
+    if isinstance(v, bool) or not isinstance(v, int) or v < 1:
+        raise CannotRun(f"--baseline {where}: schema_version {v!r} is not a version of the gate report")
+    if v > SCHEMA_VERSION:
+        raise CannotRun(f"--baseline {where}: schema_version = {v}, and this knowgov reads gate reports of version "
+                        f"{SCHEMA_VERSION} and earlier; refused rather than misread (decision-0023)")
+    if v not in REPORT_SCHEMAS:
+        raise CannotRun(f"--baseline {where}: no gate-report schema of version {v} to read it by")
+    import schema_check
+    errors = schema_check.validate(data, schema_check.load(REPORT_SCHEMAS[v]))
+    if errors:
+        more = f" (and {len(errors) - 1} more)" if len(errors) > 1 else ""
+        raise CannotRun(f"--baseline {where}: not a valid version-{v} gate report: {errors[0]}{more}")
+    was = {"subject": data.get("subject"), "scenario": data.get("scenario"), "task": data.get("task"),
+           "stage": 2 if data.get("change") else 1}
+    now = {"subject": subject, "scenario": scenario, "task": task, "stage": stage}
+    for field in ("subject", "scenario", "task", "stage"):
+        if was[field] != now[field]:
+            raise CannotRun(f"--baseline {where}: a report of {field} {was[field]!r}, and this run's {field} is "
+                            f"{now[field]!r}: a baseline is an earlier report of the same run")
+
+
+def _baseline(arg: str, subject, scenario: str, task: str, stage: int = 1) -> tuple[dict, str] | None:
     if arg == "none":
         return None
     if arg == "record":
@@ -497,14 +567,22 @@ def _baseline(arg: str, subject, scenario: str, task: str) -> tuple[dict, str] |
     p = Path(arg)
     if not p.exists():
         raise CannotRun(f"no baseline at {p}")
-    return _read_baseline(p), str(p)
+    return _read_baseline(p, run=(subject.id, scenario, task, stage)), str(p)
 
 
-def _read_baseline(p: Path) -> dict:
-    """An earlier report or deterministic.json as a baseline; one that cannot be read is a cannot-run (G6)."""
+def _read_baseline(p: Path, run: tuple[str, str, str, int] | None = None) -> dict:
+    """An earlier report or deterministic.json as a baseline; one that cannot be read is a cannot-run (G6). With
+    ``run`` (subject, scenario, task, stage), a gate report is first held to it (``check_report_baseline``)."""
     try:
-        return baseline_of(json.loads(p.read_text(encoding="utf-8")))
-    except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise CannotRun(f"--baseline {p}: not a gate report or deterministic.json: {type(e).__name__}: {e}") from e
+    if run is not None and isinstance(data, dict) and data.get("tool") == "knowgov gate":
+        subject, scenario, task, stage = run
+        check_report_baseline(data, str(p), subject=subject, scenario=scenario, task=task, stage=stage)
+    try:
+        return baseline_of(data)
+    except (ValueError, KeyError, TypeError, AttributeError) as e:
         raise CannotRun(f"--baseline {p}: not a gate report or deterministic.json: {type(e).__name__}: {e}") from e
 
 
@@ -535,7 +613,7 @@ def run(args) -> dict:
     if args.stage == 2 and args.baseline == "record":   # task-0209, doc-0030 G9
         raise CannotRun("--baseline record compares with stage 1: the record keeps stage 2's verdicts, not its keys' "
                         "levels; for stage 2, pass --baseline FILE, an earlier stage-2 report of this command")
-    base = _baseline(args.baseline, SUBJECT, scenario, args.task)
+    base = _baseline(args.baseline, SUBJECT, scenario, args.task, args.stage)
     import cadence
     try:
         on = cadence.as_of(args.as_of).isoformat()
@@ -634,6 +712,7 @@ def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshol
     from gate import resolve_spec
     res = resolve_spec(st, task, spec, as_of)
     from subject import SUBJECT
+    scope = suspect_scope(st, res, spec)   # task-0282: which suspect outputs rest on this task's keys
     table = None   # task-0237: the subject's [tasks.<class>] as read, the keys asked for in place of its own
     if SUBJECT.id == subject and (route_task or task) in SUBJECT.tasks:
         table = dict(SUBJECT.tasks[route_task or task])
@@ -648,9 +727,9 @@ def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshol
             closers = gap_closers(SUBJECT, {k: v.get("declared_gaps") or [] for k, v in res["keys"].items()})
     return report(res, subject=subject, scenario=scenario, task=task, store=st.name, loaded=loaded,
                   block_levels=set(spec["block_levels"]), threshold=threshold,
-                  baseline=compare(res, *baseline) if baseline else None, version=version, change=change, owners=owners,
+                  baseline=compare(res, *baseline, suspect_scope=scope) if baseline else None, version=version, change=change, owners=owners,
                   route_task=route_task, route_keys=_route_keys(route_task) if route_task and route_task != task else None,
-                  closers=closers, register_change=register_change, task_profile=profile_digest(table))
+                  closers=closers, register_change=register_change, task_profile=profile_digest(table), suspect_scope=scope)
 
 
 def _route_keys(task: str) -> set[str] | None:

@@ -44,6 +44,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HARNESS = ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
+import dates  # noqa: E402  (task-0262: one strict YYYY-MM-DD parse)
 import review  # noqa: E402  (KG_TODAY and KG_CLOCK for every command, task-0075)
 OUT = "QuoteAPI|on_screening_outage"
 STATUSES = "error: store_unavailable|held_unscreened|quoted|refused_screening|rejected: invalid_request|review_hold"
@@ -53,7 +54,7 @@ DECIDED = 'new = "| REQ-06 | behaviour on a screening outage: decided by complia
 ANSWERED_ON = "2026-11-02"   # employee-1's answers
 ON = "2026-11-03"            # the reviews, and the walkthrough's today (KG_TODAY)
 # the first day the approvals no longer hold: the day after six months from the answers' on (ieam-register decision 0008)
-LAPSED = (review.add_months(dt.date.fromisoformat(ANSWERED_ON), review.LAPSE_MONTHS) + dt.timedelta(days=1)).isoformat()
+LAPSED = (review.add_months(dates.parse(ANSWERED_ON), review.LAPSE_MONTHS) + dt.timedelta(days=1)).isoformat()
 
 
 def run(env: dict, *args: str) -> tuple[int, str]:

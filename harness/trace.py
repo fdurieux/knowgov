@@ -107,14 +107,19 @@ def read_map(instance: Path) -> tuple[dict, Path]:
 
 
 def read_ledger(path: Path, *, missing_ok: bool) -> dict:
+    """The ledger at ``path``. Its ``schema_version`` is its format version (``harness/formats.py``, task-0280):
+    missing reads as 1, a newer one raises ``FormatTooNew`` (exit 2 through ``cli_exit``); not one, ``CannotRun``."""
+    import formats
     if not path.exists():
         if missing_ok:
-            return {"tool": LEDGER_TOOL, "schema_version": SCHEMA_VERSION, "entries": []}
+            return {"tool": LEDGER_TOOL, "schema_version": formats.CURRENT[formats.LEDGER], "entries": []}
         raise CannotRun(f"no ledger at {path}; trace register writes it")
     try:
         led = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         raise CannotRun(f"the ledger {path} does not parse: {e}") from e
+    if isinstance(led, dict):   # task-0280: a ledger written for a newer knowgov is refused, FormatTooNew, exit 2
+        formats.version(led, str(path), formats.LEDGER)
     ok = isinstance(led, dict) and led.get("tool") == LEDGER_TOOL and isinstance(led.get("entries"), list) and all(
         isinstance(e, dict) and all(isinstance(e.get(k), str) for k in ("id", "path", "app", "sha256", "commit"))
         and isinstance(e.get("assertions"), list) and isinstance(e.get("as_of", ""), str)
