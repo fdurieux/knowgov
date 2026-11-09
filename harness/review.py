@@ -94,6 +94,13 @@ class WallClock(RuntimeError):
     """Today's date was asked for under ``KG_CLOCK=pinned`` with no ``KG_TODAY``."""
 
 
+def _pinned() -> bool:
+    """KG_CLOCK through switches (task-0287): ``pinned`` exactly; empty or unset reads the wall clock; any other
+    value is BadSwitch, so ``Pinned`` or ``1`` no longer read the wall clock silently."""
+    import switches
+    return switches.on(CLOCK)
+
+
 def today() -> dt.date:
     """KG_TODAY (YYYY-MM-DD) for a reproducible run, else the wall clock: the one place under
     harness/ that reads it (tests/test_clock.py holds that). Under ``KG_CLOCK=pinned`` (every check
@@ -102,7 +109,7 @@ def today() -> dt.date:
     v = os.environ.get("KG_TODAY")
     if v:
         return dates.parse(v, "KG_TODAY")   # task-0262: YYYY-MM-DD only, refused naming the value
-    if os.environ.get(CLOCK) == "pinned":
+    if _pinned():
         raise WallClock("KG_CLOCK=pinned and no KG_TODAY: this check reads today's date and must pin it "
                         "(KG_TODAY, or --as-of record; task-0075)")
     return dt.date.today()
@@ -116,7 +123,7 @@ def now() -> dt.datetime:
     if v:
         t = dt.datetime.fromisoformat(v)
         return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
-    if os.environ.get(CLOCK) == "pinned":
+    if _pinned():
         raise WallClock("KG_CLOCK=pinned and no KG_NOW: this read compares a run's heartbeat with the clock "
                         "and must pin it (KG_NOW; task-0128)")
     return dt.datetime.now(dt.timezone.utc)

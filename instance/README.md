@@ -1689,7 +1689,8 @@ are in [`docs/security.md`](../docs/security.md).
 **On and off.** A setting that switches something on or off reads one way everywhere (decision-0033, task-0276):
 `1` is on, and `0`, empty or unset is off. The two checks this guide and `docs/security.md` switch off by name keep
 their word: `KG_LOAD_MEMORY_CHECK=off` and `KG_KEY_CHECK=off`, in any case, with `on`, empty or unset leaving them on.
-Any other value stops the command with exit 2 and names the setting and what it accepts; before 0.9.0,
+`KG_CLOCK` takes `pinned`, exactly, or nothing (task-0287). No value is trimmed: `' 1'` or `'pinned '` is refused, not
+read. Any other value stops the command with exit 2 and names the setting and what it accepts; before 0.9.0,
 `KG_NO_LOAD=true` was silently off. The list is `harness/switches.py`'s `SWITCHES`. The GitHub action's `publish`,
 `annotate` and `sarif` inputs take `true` or `false`, in any case, and any other value fails the step, naming the
 input; the GitLab include's `KG_PUBLISH` and `KG_NO_LOAD` follow the rule above.
@@ -1769,7 +1770,7 @@ input; the GitLab include's `KG_PUBLISH` and `KG_NO_LOAD` follow the rule above.
 | `KG_WORKER_JOBS` | Worker | the jobs folder the app and the worker share; see `docs/security.md` | the compose file's `/jobs` | yes |
 | `KG_WORKER_WORK` | Worker | the worker's own work folder; see `docs/security.md` | `/work` | yes |
 | `KG_ALLOW_UNCONTAINED_EXECUTION` | Worker | `1` runs model-written code on the host, uncontained; see `docs/security.md` | none | no: an escape, never to be relied on |
-| `KG_CLOCK` | Clock | `pinned` makes a command that would read the wall clock fail; see "Capturing what people know" | none | yes |
+| `KG_CLOCK` | Clock | `pinned`, exactly, makes a command that would read the wall clock fail; any other value but empty exits 2 (task-0287); see "Capturing what people know" | none | yes |
 | `KG_TODAY` | Clock | a fixed today, `YYYY-MM-DD`, for a reproducible run | the wall clock | yes |
 
 ## What stays stable from 1.0: the contracts
