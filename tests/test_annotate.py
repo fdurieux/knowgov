@@ -22,7 +22,7 @@ def _f(severity, kind, key, ref, message, related=()):
 
 
 GATE = {
-    "schema_version": 2, "tool": "knowgov gate", "subject": "s", "scenario": "S6", "task": "codegen", "store": "rdflib",
+    "schema_version": 3, "tool": "knowgov gate", "subject": "s", "scenario": "S6", "task": "codegen", "store": "rdflib",
     "loaded": True, "verdict": "BLOCKED", "why": "1 required key(s) at a blocking level: P2|surcharge (invalidated)",
     "threshold": "major",
     "findings": [
@@ -36,6 +36,9 @@ GATE = {
     "keys": {"total": 3, "below_verified": 2, "flagged": 0}, "conflicts": 0,
     "stale": ["A:dt:P2|surcharge@v1", "A:dt:P3|order@v1"], "suspect_derived": ["derived:S1:G:run1"],
     "levels": {"P2|surcharge": "invalidated"}, "baseline": None, "exit_code": 1,
+    # version 3 (task-0237): what the gate decided on
+    "task_profile": "0" * 64, "register": {"tag": "v0.2.11", "commit": "f" * 40, "why": None},
+    "knowgov": {"version": "0.8.0", "commit": "e" * 40, "describe": None},
 }
 
 TRACE = {

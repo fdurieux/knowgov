@@ -153,7 +153,7 @@ def test_after_s6s_change_a_suspect_derived_output_fails_the_gate_whatever_the_v
     assert after["verdict"] == "PROCEED" and after["suspect_derived"], "the record's measurement this task answers"
     rep = _report(after)
     assert schema_check.validate(rep, SCHEMA) == [], schema_check.validate(rep, SCHEMA)[:3]
-    assert rep["schema_version"] == 2 and rep["verdict"] == "PROCEED" and rep["exit_code"] == 1
+    assert rep["schema_version"] == 3 and rep["verdict"] == "PROCEED" and rep["exit_code"] == 1
     sus = [f for f in rep["findings"] if f["kind"] == "suspect_derived"]
     assert [(f["severity"], f["ref"]) for f in sus] == [("blocker", "derived:S1:G:run1")]
     assert set(sus[0]["related"]) == {"A:dt:P2|threshold@v1", "A:dt:P2|surcharge@v1", "A:dt:P3|order@v1"}

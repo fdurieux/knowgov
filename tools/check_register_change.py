@@ -37,6 +37,7 @@ VENDORED = ROOT / "demo" / "register"
 sys.path[:0] = [str(HARNESS), str(ROOT / "tools")]
 import cadence  # noqa: E402
 import register_fixture  # noqa: E402
+import register_impact  # noqa: E402  (task-0237: the register each report names)
 import schema_check  # noqa: E402
 
 SCENARIO = "S1"
@@ -125,7 +126,13 @@ def main(argv: list[str] | None = None) -> int:
         runs[store]["same_change"] = src
         if src.get("nodes") or src.get("links") or src.get("keys") or src.get("invalidated") or src.get("derived"):
             failures.append(f"{store} same: a register update with no state change invalidated something: {src}")
-        if sm != plain or plain["exit_code"] != 0 or plain["verdict"] != "PROCEED":
+        # task-0237: each report names the register it read, the fixture's copy for "same" (its SOURCE.md retagged
+        # TAG, the vendored commit) and the vendored register for "plain"; everything else must be equal
+        want_same = {"tag": register_fixture.TAG, "commit": register_impact.identity(VENDORED)["commit"], "why": None}
+        if sm.get("register") != want_same or plain.get("register") != register_impact.identity(VENDORED):
+            failures.append(f"{store} same: the reports do not name the registers they read: {sm.get('register')} and {plain.get('register')}")
+        if {k: v for k, v in sm.items() if k != "register"} != {k: v for k, v in plain.items() if k != "register"} \
+                or plain["exit_code"] != 0 or plain["verdict"] != "PROCEED":
             failures.append(f"{store} same: the report differs from the gate's without the flag, or the record's PROCEED moved")
         print(f"{store}: changed exit {ch['exit_code']} {ch['verdict']}, {len(rc.get('keys', []))} keys, {len(rc.get('invalidated', []))} statements "
               f"invalidated, {len(stale)} stale findings, {ch['suspect_derived']} suspect; same exit {plain['exit_code']} {plain['verdict']}, nothing invalidated")
