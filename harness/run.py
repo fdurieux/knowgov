@@ -363,4 +363,4 @@ def _write_usage(out_root, summary, resume: bool = False) -> None:
 
 if __name__ == "__main__":
     import cli_exit   # task-0200 (doc-0030 F6): every failure to run is exit 2 with its cause, never 1
-    sys.exit(cli_exit.run(main, "run"))
+    sys.exit(cli_exit.run(main, "run", register=True))   # task-0288: a named register it cannot read, exit 2

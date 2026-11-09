@@ -208,6 +208,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("-o", "--output", type=Path, default=None)
     a = ap.parse_args(argv)
     try:
+        import register_impact
+        register_impact.require()   # task-0288: the register this grid reads, refused by name when it cannot be read
         g = grid(a.dirs, record=a.record, scopes=a.scope)
     except (GridError, ValueError) as e:
         print(f"step_grid: {e}", file=sys.stderr)

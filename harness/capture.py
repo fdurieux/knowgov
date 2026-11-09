@@ -567,4 +567,4 @@ def _review(args) -> int:
 
 if __name__ == "__main__":
     import cli_exit   # task-0174: a capture or review for a newer knowgov, like any failure to run, exits 2 (doc-0030 F6)
-    sys.exit(cli_exit.run(main, "capture"))
+    sys.exit(cli_exit.run(main, "capture", register=True))   # task-0288: a named register it cannot read, exit 2

@@ -20,6 +20,16 @@ names that section with the version.
   absent at the gate, is now a `key-syntax` error there and -32602 on the wire. Every key in the public subjects and
   the record already matches it.
 
+- **Every command that reads a register refuses a named one it cannot read** (task-0288, decision-0033 choice 5,
+  after task-0279). `harness/run.py`, `harness/trace.py`, `harness/capture.py`, `harness/transcript.py` and
+  `harness/step_grid.py` now exit 2 on a `KG_REGISTER` they cannot read, naming the path and what is missing,
+  before they read or write anything (`-h` and `--help` still print the usage), and the page refuses to start. Before, `capture ingest` skipped the
+  issued-handle check and wrote a capture the register would refuse, `capture due`, `trace check` and
+  `run.py --deterministic` went on with exit 0 (`trace` read twelve review months without saying so), and the
+  page started and answered `/api/register` with a 404 naming the path. `check_subject` now uses the same test
+  as the other readers, the register's own `tools/register.py` included, so a folder with only
+  `metamodel/types.toml` is exit 2, not exit 1 with every row's node unknown. An unnamed register reads as before,
+  and the record does not move.
 - **`KG_CLOCK` takes only `pinned`** (task-0287, decision-0033 choice 2, G9-17). It is read through
   `harness/switches.py`: `pinned`, exactly, refuses the wall clock; empty or unset reads it; any other value exits 2,
   naming the setting. Before, `Pinned`, `pinned ` or `1` silently read the wall clock. No on/off setting is trimmed of
