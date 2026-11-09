@@ -43,6 +43,10 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+if __name__ == "__main__":   # task-0295: a subject that does not load (a bad scenario id) stops the page, exit 2, its cause named
+    sys.path.insert(0, str(HERE.parent.parent / "harness"))
+    import cli_exit  # noqa: E402
+    cli_exit.guard("kg demo")
 import cascade  # noqa: E402
 import views  # noqa: E402
 import register_project  # noqa: E402  (the register projected into the store, its own namespace)

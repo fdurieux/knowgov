@@ -165,6 +165,13 @@ A subject that declares a task declares at least one scenario: the gate loads on
 smallest is a pristine scenario, the pattern `subjects/minimal/scenarios.toml` follows: the kit as
 committed, nothing planted.
 
+Each scenario's `id` matches `[A-Za-z0-9][A-Za-z0-9_-]{0,31}` and is its own within the subject: it names
+the scenario to the gate (`--scenario`), to `run.py`'s output folder, to the page and to the MCP servers. A
+scenario with no id, a duplicate or an id outside the pattern is an error in the check (rule `scenario-id`),
+and the loader refuses the subject, so every command exits 2 naming the id before it writes anything
+(`harness/scenario_ids.py`, task-0295, decision-0034 choice 2). A `[[scenario.sources]]` id and a stage-2
+`derived` id name other things and follow no such rule.
+
 ```toml
 [[scenario]]
 id = "S0"
