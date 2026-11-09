@@ -7,7 +7,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-11-09T08:55:00Z'
-updated_date: '2026-11-09T13:35:00Z'
+updated_date: '2026-11-09T15:38:00Z'
 labels:
   - contracts
   - validation
@@ -68,4 +68,14 @@ Each prober keeps its scratchpad reproductions for the bounded re-probe. The pro
 **2026-11-09, decision-0033 accepted** ("decision-0033 all as advised"). Its nine builds are task-0275 to task-0283, and each holds the cut beside task-0257 to task-0262. SNAP-04's fix is task-0274 (decision-0014 A1, accepted; #415). It is fix-only.
 
 **2026-11-09 afternoon.** decision-0033's builds and the documented-promise fixes are landing: #411, #412, #416, #421, #423 and train #426. task-0276 is closed: AC #4 is proven by #421's green run. Open: task-0275 (#418, rows confirmed), task-0281 (#422), task-0278 and task-0279. Then the bounded re-probe and the spot check. The architecture review's C3 is task-0284, fix-only for 0.9.x; its C1–C8 scoping is in task-0247's notes.
+
+Bounded re-probe and independent spot check at main 9861953 (2026-11-09, coordinator):
+- Group 1: 10 of 10 surfaces re-probed, no regression. Contract-bearing, holding the cut: task-0286 (--baseline with a deterministic.json), task-0287 (KG_CLOCK's value domain), task-0288 (the cadence.register_root readers under choice 5). N7, settings read by code with no table row, goes to the maintainer.
+- Group 3: 8 of 8 re-probed, 7 fixed, no regression. Its 3(a) is task-0286's gap, plus the D6_gate shape bypass.
+- Spot check (point 5): 8 of 8 surfaces, rdflib only.
+  - SC-1, subject_check's confinement bypassed through the register map, is fix-only but breaks H7: task-0289, before the cut.
+  - GL-1 and GL-2 are task-0267's round-1 finding, independently confirmed; GL-1 fails open on non-ASCII paths. task-0267 is pulled forward before the cut, as is task-0264, whose N4 lets a blank token pass the wide-bind check.
+  - D1 (scenario ids) and D3 (gate_verdict keys pattern) go to the maintainer. D2 (KG_ANNOTATE values) is task-0267 AC #2.
+  - The rest are fix-only: task-0290 (hooks N12, N13), task-0291 (run folders read defensively, run_status's next), and notes on task-0263, 0265, 0266 and 0269.
+- Group 2's re-probe is pending.
 <!-- SECTION:NOTES:END -->

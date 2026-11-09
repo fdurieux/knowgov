@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-09T09:32:00Z'
+updated_date: '2026-11-09T15:38:00Z'
 labels:
   - validation
   - correctness
@@ -49,3 +50,14 @@ Source: group 1 F5 and F6, and group 2 F10 and F12, decision-0032 (task-0256), p
 - [ ] #3 An unparseable register_map, scenarios or plants file is a `manifest` finding, on the CLI and through `subject_check`.
 - [ ] #4 `scenario_runs` lists a record source only where `scenario_result` can answer it, and `check_mcp_server` passes on `subjects/minimal`.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Re-probe and spot check at main 9861953 (decision-0032 points 4 and 5, task-0256):
+- Group 3: a class with no `keys` still crashes the gate (ZeroDivisionError), while check_subject flags `required` and `task_policy.build` accepts it; duplicate keys pass; a key-syntax error passes the gate; `block_levels = []` is accepted, which may need a decision; a stored date of 9999-06-30 overflows `cadence.due`'s add_months, exit 2, and check_subject passes it.
+- Spot check CS-1: check_subject exits 1 with a traceback (exit 1 is 'manifest refused') for a non-UTF-8 subject.toml, an invalid scenarios.toml or register_map.toml, and `[register] map = 5` (TypeError); MCP subject_check answers 'could not answer'. Each should be an error finding (rule `manifest`).
+- Spot check CS-2: `[[subject]]` and `[[tasks]]` pass check_subject (exit 0); gate_cli refuses them ('list' object has no attribute 'get'/'items'), exit 2. Type-check the tables.
+- Spot check CS-4, each exit 0: `[record] as_of = "tomorrow"`; `[register] map = "nope.toml"` with no finding, so the rows go unchecked; a key holding a zero-width space, which KEY_RE's \s misses.
+- Scenario ids (duplicates, `""`, `"../x"`, which run.py joins under --out) go to the maintainer as the spot check's D1. If they decide on a format rule, that task carries the duplicate-id item here.
+<!-- SECTION:NOTES:END -->
