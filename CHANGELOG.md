@@ -528,6 +528,19 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **Numeric settings and tokens are checked at start** (task-0264, decision-0032 group 1 F13 and group 2 F7 to F9;
+  a fix, no contract moves). `harness/settings.py` reads every numeric setting, which must parse as its kind, be
+  finite and lie within its bounds. Anything else stops `mcp_server`, `mcp_runs`, the page and the worker at
+  start with exit 2 and a line naming the setting, not a traceback or a silent default. This covers:
+  - `KG_SUBJECT_CALL_TIMEOUT`, `KG_RDFLIB_LOCK_TIMEOUT` and `KG_WORKER_JOB_SECONDS`;
+  - the worker's limits;
+  - `KG_MCP_PORT`, `KG_DEMO_PORT` and `--port`;
+  - each transport's `*_MAX_BODY`, `*_READ_TIMEOUT`, `*_IDLE_TIMEOUT` and `*_MAX_CONNECTIONS`;
+  - the port in `KG_NEO4J_URI`.
+
+  Before, `nan` gave a call no timeout, `inf` disabled the absolute read deadline, and `KG_MCP_PORT=abc` crashed
+  the server. A `KG_MCP_TOKEN` or `KG_PAGE_TOKEN` that is blank once stripped now reads as unset. So a wide bind
+  refuses, and a page published beyond this machine refuses writes. The defaults are unchanged.
 - **The servers survive deep nesting and answer JSON-RPC's protocol edge cases** (task-0272, decision-0032 group 2
   F6, F11, F12; fixes, no contract moves).
   - **Deep nesting.** A request nested past the parser's depth is now a parse error, not a `RecursionError`: -32700 on

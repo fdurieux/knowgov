@@ -118,7 +118,8 @@ class Page:
 
     def __init__(self, url: str | None = None, token: str | None = None, opener=None):
         self.url = (url or os.environ.get("KG_PAGE_URL") or DEFAULT_PAGE).rstrip("/")
-        self._token = token if token is not None else (os.environ.get("KG_PAGE_TOKEN") or None)
+        import settings
+        self._token = token if token is not None else settings.token("KG_PAGE_TOKEN")   # blank is none (task-0264)
         self._open = opener or urllib.request.urlopen
 
     def _redact(self, text: str) -> str:
@@ -297,10 +298,12 @@ def main(argv: list[str] | None = None) -> int:
         print("mcp_runs.py takes no arguments: stdio only; KG_PAGE_URL, KG_PAGE_TOKEN, KG_MCP_RUN_MODES configure it",
               file=sys.stderr)
         return 2
+    import settings
     try:
         server = make_server()
-    except ValueError as e:   # KG_MCP_MAX_RESPONSE out of its bounds (task-0177): refused at start, named
-        print(f"mcp_runs: {e}", file=sys.stderr)
+        settings.check(names=("KG_SUBJECT_CALL_TIMEOUT",))   # task-0264: what this server reads, refused at start
+    except ValueError as e:   # KG_MCP_MAX_RESPONSE out of its bounds (task-0177; task-0264): refused at start, named
+        print(f"mcp_runs: cannot start: {e}", file=sys.stderr)
         return 2
     mcp_server.serve_stdio(server)
     return 0
