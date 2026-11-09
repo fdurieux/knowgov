@@ -170,3 +170,33 @@ It also found that `\s` differs between the engines (K2): Python's str `\s` matc
 ### Acceptance of A1
 
 Accepted by the maintainer on 2026-11-09: "K1 (a) as advised". The build is task-0297, which holds the 0.9.0 cut.
+
+### A1's reach above U+FFFF (accepted 2026-11-09)
+
+**Context.** Building task-0297 found 127 Cc and Cf code points above U+FFFF, the tag characters U+E0000 to U+E007F among them. ECMA-262 without the `u` flag, which JSON Schema does not guarantee, reads an astral character as two surrogate units, and Python reads it as one code point. So no single pattern refuses those 127 while allowing other astral characters in both engines alike.
+
+**Options:**
+- **(a)** The pattern is a positive list of BMP ranges, without the surrogates or the refused categories. Every astral character is refused, in every engine.
+- **(b)** Allow every astral character, the 127 included.
+- **(c)** Rely on the `u` flag.
+
+**Canvas.**
+- Problem: invisible keys above U+FFFF.
+- Users: subject authors and MCP clients.
+- Cost: none beyond task-0297, whose test covers every code point.
+- Value: the frozen rule closes the invisible class whole.
+
+**Fit/gap.**
+- (a) meets A1's aim, with the engines provably agreeing; its gap is astral letters.
+- (b) leaves the class partly open.
+- (c) breaks decision-0033 choice 7's executable inputSchema.
+
+**SWOT, (a).**
+- Strengths: no engine difference, and an exhaustive test.
+- Weaknesses: no emoji, no CJK Extension B onward, and no historic scripts in a key.
+- Opportunities: allowing them later widens the rule without breaking a key.
+- Threats: an adopter with such names. No public key uses an astral character.
+
+**Advice: (a).** Name it in 0.9.0's Known limits: keys use characters up to U+FFFF.
+
+Accepted by the maintainer on 2026-11-09: "astral (a) as advised".

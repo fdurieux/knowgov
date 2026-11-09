@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-09T19:01:00Z'
+updated_date: '2026-11-09T19:28:00Z'
 labels:
   - contracts
   - validation
@@ -38,3 +39,9 @@ The rule: each side of the `|` is non-empty and holds no `|`, no whitespace and 
 - [ ] #4 `DESCRIPTION` and the docstring state the rule; every public key still matches, and the record does not move.
 - [ ] #5 `CHANGELOG.md`'s Unreleased section names the widened rule under Contract changes.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+decision-0034 A1's reach above U+FFFF, accepted 2026-11-09 ('astral (a) as advised'): the pattern is a positive list of BMP ranges, so every astral character is refused, the 127 astral Cc and Cf code points among them. 0.9.0's Known limits name it: keys use characters up to U+FFFF.
+<!-- SECTION:NOTES:END -->
