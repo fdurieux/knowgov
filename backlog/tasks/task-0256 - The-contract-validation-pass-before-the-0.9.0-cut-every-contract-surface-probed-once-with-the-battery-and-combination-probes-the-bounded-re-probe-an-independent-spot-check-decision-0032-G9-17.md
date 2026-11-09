@@ -7,7 +7,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-11-09T08:55:00Z'
-updated_date: '2026-11-09T15:43:00Z'
+updated_date: '2026-11-09T16:51:00Z'
 labels:
   - contracts
   - validation
@@ -80,4 +80,6 @@ Bounded re-probe and independent spot check at main 9861953 (2026-11-09, coordin
 - Group 2's re-probe is pending.
 
 Group 2's re-probe (point 4) at 9861953: 7 of 7 surfaces re-probed, 7 fixed, no regression, Neo4j 5.26 included (SNAP-11 and a 90 s race clean). N1, held_keys' gate null on an empty store, contradicts choice 9(a) as accepted: task-0292, contract-bearing, completing task-0283. N2 goes to task-0263, N3 and N4 to task-0293, and F10 is confirmed on task-0265. Every re-probe and the spot check are in.
+
+decision-0034 accepted on the maintainer's word, "N7, D1, D3 as advised": choice 1 (the settings table's reach) is task-0294, choice 2 (scenario ids) task-0295, choice 3 (the gate_verdict key pattern) task-0296. Each holds the cut.
 <!-- SECTION:NOTES:END -->
