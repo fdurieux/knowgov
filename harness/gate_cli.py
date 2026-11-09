@@ -240,7 +240,7 @@ def lint_finding(g: dict) -> dict:
 
 
 def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None = None,
-             route=None, closers: dict[str, dict] | None = None) -> list[dict]:
+             route=None, closers: dict[str, dict] | None = None, suspect_scope: dict[str, dict] | None = None) -> list[dict]:
     """The gate's result as findings on the severity ladder, worst first, then by kind, key and ref.
     With ``owners`` (key -> {unit, name}, ``capture.finding_owners``) and ``route`` ((unit, key) -> text or None),
     each key, stale and lapsed finding also names its key's owner unit and the route to approval
@@ -281,6 +281,14 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
         why = f"used {len(used)} statement(s) now invalidated ({', '.join(used)})" if used else ""
         if changed:   # task-0199: a statement changed under its id since trace registered the output
             why += ("; and " if why else "used ") + f"{len(changed)} statement(s) whose value or digest changed since it was built ({', '.join(changed)})"
+        scope = (suspect_scope or {}).get(d["id"])
+        if scope is not None and not scope["on_task"]:
+            # task-0282 (decision-0033 choice 8): its invalidated or changed statements sit on none of this task's
+            # keys, so it is listed and does not block this class; the class whose keys it rests on blocks on it
+            out.append(_finding("info", "suspect_derived", f"{d['id']} ({d.get('kind') or 'derived output'}) {why}; they sit on "
+                                f"{', '.join(scope['keys']) or 'no key held'}, none of this task's keys: listed, not blocking this task",
+                                ref=d["id"], related=used + changed))
+            continue
         out.append(_finding("blocker", "suspect_derived", f"{d['id']} ({d.get('kind') or 'derived output'}) {why}"
                             ": it may not be reused as it is: regenerate it from the current statements", ref=d["id"], related=used + changed))
     for x in res.get("lapsed") or []:
@@ -345,10 +353,11 @@ def baseline_of(data: dict) -> dict:
     raise CannotRun("the baseline file is neither a gate report nor a deterministic.json")
 
 
-def compare(res: dict, base: dict, source: str) -> dict:
+def compare(res: dict, base: dict, source: str, suspect_scope: dict[str, dict] | None = None) -> dict:
     """A regression is a verdict worse than the baseline's, a required key whose level ranks below
     the baseline's for the same key (a key the baseline did not have counts from absent), or a
-    derived output suspect now that the baseline did not hold suspect."""
+    derived output suspect now that the baseline did not hold suspect and that rests on this task's keys
+    (task-0282: one resting on none of them is listed at info, so it is no regression either)."""
     worse = VERDICTS.index(res["verdict"]) > VERDICTS.index(base["verdict"])
     regressed = []
     for key, v in res["keys"].items():
@@ -356,7 +365,8 @@ def compare(res: dict, base: dict, source: str) -> dict:
         if was is not None and LEVELS.index(v["level"]) < LEVELS.index(was):
             regressed.append({"key": key, "level": v["level"], "baseline_level": was})
     held = set(base.get("suspect") or [])
-    new_suspect = sorted(d["id"] for d in res.get("suspect_derived") or [] if d["id"] not in held)
+    new_suspect = sorted(d["id"] for d in res.get("suspect_derived") or [] if d["id"] not in held
+                         and (suspect_scope or {}).get(d["id"], {"on_task": True})["on_task"])
     return {"source": source, "verdict": base["verdict"], "regression": worse or bool(regressed) or bool(new_suspect),
             "worse_verdict": worse, "regressed_keys": regressed, "new_suspect": new_suspect}
 
@@ -385,7 +395,8 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
            block_levels: set[str], threshold: str, baseline: dict | None,
            version: str | None = None, change: dict | None = None, owners: dict[str, dict] | None = None,
            route_task: str | None = None, route_keys=None, closers: dict[str, dict] | None = None,
-           register_change: dict | None = None, task_profile: str | None = None) -> dict:
+           register_change: dict | None = None, task_profile: str | None = None,
+           suspect_scope: dict[str, dict] | None = None) -> dict:
     """``task_profile`` is the digest of the task table the gate read (``profile_digest``; None when the
     report is built without one). ``route_task`` is the task class whose questionnaire a finding's route names (``task`` by default;
     the MCP server's agent-chosen key set, task ``keys``, names the class it was resolved under), and
@@ -396,7 +407,7 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
     def route(unit, key):   # the files routing names, so the route points where the questionnaire is written (G8)
         files = ((owners or {}).get(key) or {}).get("files")
         return questionnaire_route(subject, scenario, rt, unit, files) if route_keys is None or key in route_keys else None
-    fs = findings(res, block_levels, owners, route, closers)
+    fs = findings(res, block_levels, owners, route, closers, suspect_scope)
     fail = baseline["regression"] if baseline is not None else bool(at_or_above(fs, threshold))
     if baseline is not None:
         mark_held(fs, baseline)
@@ -415,6 +426,26 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
             # task-0237, decision-0029 (version 3): what the gate decided on, so a retained report names it
             "task_profile": task_profile, "register": register_identity(), "knowgov": knowgov_identity(),
             **({"register_change": register_change} if register_change is not None else {})}   # task-0122, additive
+
+
+def suspect_scope(st, res: dict, spec: dict) -> dict[str, dict] | None:
+    """task-0282 (decision-0033 choice 8): for each suspect derived output, the keys its invalidated or changed
+    statements sit on, read through the port (``derived_outputs``, the store's own Assertion keys), and whether
+    one of them is a key of this task. A statement whose key cannot be read (no longer held) counts as on the
+    task, so the gate blocks rather than guess. None when nothing is suspect. Read here, never stored in the
+    gate's result, so the record's gate rows read as before."""
+    sus = res.get("suspect_derived") or []
+    if not sus:
+        return None
+    key_of = {u["id"]: u.get("key") for d in st.derived_outputs() for u in d.get("used") or [] if u.get("id")}
+    task_keys = set(spec.get("keys") or [])
+    out = {}
+    for d in sus:
+        ids = list(d.get("used_invalidated") or []) + list(d.get("used_changed") or [])
+        keys = sorted({key_of[i] for i in ids if key_of.get(i)})
+        unknown = any(not key_of.get(i) for i in ids)
+        out[d["id"]] = {"keys": keys, "on_task": unknown or bool(task_keys & set(keys))}
+    return out
 
 
 def profile_digest(table: dict | None) -> str | None:
@@ -634,6 +665,7 @@ def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshol
     from gate import resolve_spec
     res = resolve_spec(st, task, spec, as_of)
     from subject import SUBJECT
+    scope = suspect_scope(st, res, spec)   # task-0282: which suspect outputs rest on this task's keys
     table = None   # task-0237: the subject's [tasks.<class>] as read, the keys asked for in place of its own
     if SUBJECT.id == subject and (route_task or task) in SUBJECT.tasks:
         table = dict(SUBJECT.tasks[route_task or task])
@@ -648,9 +680,9 @@ def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshol
             closers = gap_closers(SUBJECT, {k: v.get("declared_gaps") or [] for k, v in res["keys"].items()})
     return report(res, subject=subject, scenario=scenario, task=task, store=st.name, loaded=loaded,
                   block_levels=set(spec["block_levels"]), threshold=threshold,
-                  baseline=compare(res, *baseline) if baseline else None, version=version, change=change, owners=owners,
+                  baseline=compare(res, *baseline, suspect_scope=scope) if baseline else None, version=version, change=change, owners=owners,
                   route_task=route_task, route_keys=_route_keys(route_task) if route_task and route_task != task else None,
-                  closers=closers, register_change=register_change, task_profile=profile_digest(table))
+                  closers=closers, register_change=register_change, task_profile=profile_digest(table), suspect_scope=scope)
 
 
 def _route_keys(task: str) -> set[str] | None:

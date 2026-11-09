@@ -12,6 +12,13 @@ names that section with the version.
 
 ### Contract changes
 
+- **A suspect derived output blocks only the task classes whose keys it rests on** (task-0282, decision-0033
+  choice 8). Before, any suspect output was a blocker in every class's gate: a register change that invalidated
+  15 codegen statements made the `design` gate exit 1 on `derived:S1:G:run1`, though none of them sits on a design
+  key. A suspect output now blocks a class's gate only when one of its invalidated or changed statements sits on
+  that class's keys. Otherwise its `suspect_derived` finding is `info`, naming the output and the keys it rests on,
+  and a `--baseline` does not count it as a regression. A statement whose key cannot be read counts as on the task.
+  The codegen gate in that example still exits 1, and the scored record's gates are unchanged.
 - **A slice reads its task class's keys, and the class's keys on no slice are named** (task-0252, doc-0034 D1).
   `proposal_impact` (CLI `--task`, MCP `task`, `codegen` by default) now keeps each slice's keys to the
   `[tasks.<class>]` keys among the register-map rows on its thread. Before, every mapped key was read under
