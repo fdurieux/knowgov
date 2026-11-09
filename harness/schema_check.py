@@ -73,6 +73,16 @@ def _check(v: Any, s: dict, root: dict, path: str, errors: list[str]) -> None:
         if not any(_type_ok(v, t) for t in types):
             errors.append(f"{path}: {type(v).__name__} is not {'/'.join(types)}")
             return
+    _check_value(v, s, path, errors)
+    if isinstance(v, dict):
+        _check_object(v, s, root, path, errors)
+    if isinstance(v, list) and isinstance(s.get("items"), dict):
+        for i, item in enumerate(v):
+            _check(item, s["items"], root, f"{path}[{i}]", errors)
+
+
+def _check_value(v: Any, s: dict, path: str, errors: list[str]) -> None:
+    """enum, const, minimum and pattern: the keywords that read the value itself."""
     if "enum" in s and not any(same(v, e) for e in s["enum"]):
         errors.append(f"{path}: {v!r} is not one of {s['enum']}")
     if "const" in s and not same(v, s["const"]):
@@ -81,22 +91,22 @@ def _check(v: Any, s: dict, root: dict, path: str, errors: list[str]) -> None:
         errors.append(f"{path}: {v} is below {s['minimum']}")
     if "pattern" in s and isinstance(v, str) and not re.search(s["pattern"], v):   # unanchored, as JSON Schema reads it
         errors.append(f"{path}: {v!r} does not match {s['pattern']!r}")
-    if isinstance(v, dict) and isinstance(s.get("propertyNames"), dict):
+
+
+def _check_object(v: dict, s: dict, root: dict, path: str, errors: list[str]) -> None:
+    """required, propertyNames, properties and additionalProperties."""
+    for k in s.get("required", []):
+        if k not in v:
+            errors.append(f"{path}: missing {k!r}")
+    if isinstance(s.get("propertyNames"), dict):   # a register's rule ids (task-0261)
         for k in v:
             _check(k, s["propertyNames"], root, f"{path}[{k!r}]", errors)
-    if isinstance(v, dict):
-        for k in s.get("required", []):
-            if k not in v:
-                errors.append(f"{path}: missing {k!r}")
-        props = s.get("properties", {})
-        extra = s.get("additionalProperties", True)
-        for k, item in v.items():
-            if k in props:
-                _check(item, props[k], root, f"{path}.{k}", errors)
-            elif extra is False:
-                errors.append(f"{path}: unexpected {k!r}")
-            elif isinstance(extra, dict):
-                _check(item, extra, root, f"{path}.{k}", errors)
-    if isinstance(v, list) and isinstance(s.get("items"), dict):
-        for i, item in enumerate(v):
-            _check(item, s["items"], root, f"{path}[{i}]", errors)
+    props = s.get("properties", {})
+    extra = s.get("additionalProperties", True)
+    for k, item in v.items():
+        if k in props:
+            _check(item, props[k], root, f"{path}.{k}", errors)
+        elif extra is False:
+            errors.append(f"{path}: unexpected {k!r}")
+        elif isinstance(extra, dict):
+            _check(item, extra, root, f"{path}.{k}", errors)

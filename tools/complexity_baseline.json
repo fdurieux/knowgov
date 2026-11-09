@@ -341,10 +341,6 @@
    "value": 19,
    "floor": 19
   },
-  "harness/schema_check.py::_check": {
-   "value": 34,
-   "floor": 34
-  },
   "harness/schema_check.py::_supported": {
    "value": 16,
    "floor": 16
