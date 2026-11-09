@@ -309,3 +309,78 @@ def test_the_three_snippets_read_the_spec_commit_under_design_and_agree():
     for s in ("`--task-for spec=design`", "`[tasks.design]`", "drop the two arguments", "exit 2 at the spec commit"):
         assert s in sec, s
     assert "[tasks.design]" in (ROOT / "subjects" / "cargo_quote" / "subject.toml").read_text(encoding="utf-8")
+
+
+def test_every_command_form_reads_as_its_transition_or_fails_closed():
+    """task-0268 (decision-0032 F11): backticks, an inline -c alias and a configured one, a variable holding git or
+    its subcommand (git${IFS}push, x=git; $x push): each reads as its transition or blocks; what is plain stays none."""
+    with tempfile.TemporaryDirectory() as d:
+        repo = Path(d)
+        g = lambda *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True)  # noqa: E731
+        g("init", "-q")
+        g("config", "alias.ship", "push")
+        g("config", "alias.deliver", "!git push origin HEAD")
+        g("config", "alias.chain", "ship --force")
+        t = lambda cmd: hook.transition({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": str(repo)}, ["spec.md"])  # noqa: E731
+        for cmd in ["echo `git push`", 'echo "`git push`"', "a=`git push origin main`", "$(git push)",
+                    "git -c alias.x=push x", "git -c alias.X=push x origin", "git ship", "git deliver", "git chain",
+                    "bash -c 'git${IFS}push'", "git${IFS}push", "x=git; $x push", "x=push; git $x", "eval \"$x push\""]:
+            assert t(cmd) == "push", cmd
+        for cmd in ["x=git; $x commit -m m", "git${IFS}commit -m m"]:
+            assert t(cmd) == "spec", cmd
+        for cmd in ["git status", "echo gitpush", "git log --oneline | head", 'git commit -m "$msg"', "echo $HOME; git status",
+                    "cd \"$REPO\" && git diff"]:
+            assert t(cmd) is None, cmd
+        # an alias of a builtin's name never hides the builtin (git runs the builtin): expanding only adds
+        g("config", "alias.commit", "status")
+        (repo / "docs").mkdir()
+        (repo / "docs" / "spec.md").write_text("# spec\n")
+        g("add", "docs/spec.md")
+        assert t("git commit -m s") == "spec"
+
+
+def test_a_field_that_is_not_a_string_blocks_in_every_profile():
+    """task-0268 (task-0200 P8): a tool_name, a tool_input or a command of another type is refused, never allowed."""
+    for ev in [{"tool_name": ["Bash"], "tool_input": {"command": "git push"}},
+               {"tool_name": None, "tool_input": {}},
+               {"tool_name": "Bash", "tool_input": {"command": ["git", "push"]}},
+               {"tool_name": "Bash", "tool_input": "git push"},
+               {"tool_name": "Bash", "tool_input": {"command": "git push"}, "cwd": 3}]:
+        try:
+            hook.transition(ev, ["spec.md"])
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"transition read {ev}")
+        with tempfile.TemporaryDirectory() as t:
+            for extra in ((), ("--advisory",)):
+                p, called = _fake(Path(t), ev, 0, "PROCEED", *extra)
+                assert p.returncode == 2 and "refused" in p.stderr and "unreadable hook event" in p.stderr and not called, (ev, extra, p.stderr)
+
+
+def test_the_checkout_is_absolute_the_timeout_finite_and_a_stage_named_once():
+    """task-0268: a relative --knowgov or KG_HOME is resolved where the hook starts, before the gate runs from the
+    instance; --timeout takes a finite number of seconds above 0; a stage given two classes is refused."""
+    with tempfile.TemporaryDirectory() as t:
+        tmp = Path(t)
+        kg = _stub(tmp)
+        inst = tmp / "inst"
+        inst.mkdir()
+        mark = tmp / "called"
+        env = _env(FAKE_RC="0", FAKE_VERDICT="PROCEED", FAKE_MARK=str(mark))
+        rel = os.path.relpath(kg, tmp)
+        for args, e in ((("--knowgov", rel), env), ((), {**env, "KG_HOME": rel})):
+            mark.unlink(missing_ok=True)
+            p = subprocess.run([sys.executable, str(SCRIPT), "gate", "--task", "codegen", "--instance", str(inst), *args],
+                               input=json.dumps(PLAN), capture_output=True, text=True, env=e, timeout=120, cwd=str(tmp))
+            assert p.returncode == 0 and mark.exists(), (args, p.stderr)
+        assert hook._knowgov(rel) is None or hook._knowgov(rel).is_absolute()
+        for bad in ("nan", "inf", "-inf", "0", "-5", "soon"):
+            p = _hook(PLAN, "gate", "--task", "codegen", "--knowgov", str(kg), "--instance", str(inst), "--timeout", bad, env=env)
+            assert p.returncode == 2 and "timeout" in p.stderr and "Traceback" not in p.stderr, (bad, p.stderr)
+        p = _hook(PLAN, "gate", "--task", "codegen", "--knowgov", str(kg), "--instance", str(inst), "--timeout", "30", env=env)
+        assert p.returncode == 0, p.stderr
+        for extra in ((), ("--advisory",)):
+            p = _hook(PLAN, "gate", "--task", "codegen", "--task-for", "plan=design", "--task-for", "plan=codegen",
+                      "--knowgov", str(kg), "--instance", str(inst), *extra, env=env)
+            assert p.returncode == 2 and "refused" in p.stderr and "plan twice" in p.stderr, (extra, p.stderr)

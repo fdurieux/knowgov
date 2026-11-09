@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 import urllib.error
 import urllib.parse
@@ -44,6 +43,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import dates  # noqa: E402  (task-0262: one strict YYYY-MM-DD parse)
 import mcp_server  # noqa: E402
 from mcp_server import READ_ONLY, ToolError  # noqa: E402
 
@@ -238,8 +238,8 @@ class RunTools:
             if v is not None:
                 if not isinstance(v, str):
                     raise ToolError(f"{k} must be a string")
-                if k == "as_of" and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
-                    raise ToolError("as_of must be YYYY-MM-DD")
+                if k == "as_of" and not dates.is_date(v):   # task-0262: [0-9], never \d, which takes fullwidth digits
+                    raise ToolError(f"as_of {v!r} is not a date (YYYY-MM-DD)")
                 if mode == "deterministic" and k in ("row", "effort"):
                     raise ToolError(f"{k} is for an arms run; a deterministic run calls no model")
                 body[k] = v

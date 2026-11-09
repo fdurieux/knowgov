@@ -22,6 +22,7 @@ import os
 import tomllib
 from pathlib import Path
 
+import dates   # task-0262: one strict YYYY-MM-DD parse
 from review import LAPSE_MONTHS, add_months, pinned, today
 from subject import ROOT, SUBJECT
 
@@ -93,13 +94,9 @@ def kind_for(key: str, subject=None) -> str | None:
 
 def _date(v) -> dt.date | None:
     """The calendar date of a verification's ``at`` or ``valid_until`` (an ISO date or timestamp); None
-    for anything else, such as the version tag a source change writes."""
-    if isinstance(v, dt.date):
-        return v if not isinstance(v, dt.datetime) else v.date()
-    try:
-        return dt.date.fromisoformat(str(v)[:10]) if v and len(str(v)) >= 10 else None
-    except ValueError:
-        return None
+    for anything else, such as the version tag a source change writes. ``dates.day`` reads it: a date,
+    YYYY-MM-DD, alone or followed by an ISO time (task-0262)."""
+    return dates.day(v)
 
 
 def due(at, key: str, subject=None) -> str | None:
@@ -142,10 +139,12 @@ def as_of(value=None, subject=None) -> dt.date:
         return today()
     if value == "record":
         return record_date(subject) or today()
-    d = _date(value)
-    if d is None or len(str(value)) != 10:
-        raise ValueError(f"{value!r} is not a date (YYYY-MM-DD), 'today' or 'record'")
-    return d
+    if isinstance(value, dt.date) and not isinstance(value, dt.datetime):
+        return value
+    try:
+        return dates.parse(value)   # task-0262: YYYY-MM-DD in ASCII digits, never a week, basic or suffixed form
+    except dates.NotADate:
+        raise dates.NotADate(f"{value!r} is not a date (YYYY-MM-DD), 'today' or 'record'") from None
 
 
 def lapse(row: dict, key: str, on: dt.date, subject=None) -> dict | None:

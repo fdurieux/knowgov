@@ -38,6 +38,7 @@ sys.path.insert(0, str(HERE))
 import views  # noqa: E402  (the controlled-English registry and glossary live there)
 import page_subject  # noqa: E402  (the subject as a value: how its requirements are cited, its slice's source system; task-0032.01)
 from page_subject import takes_subject  # noqa: E402
+import dates  # noqa: E402  (task-0262: one strict YYYY-MM-DD parse; page_subject puts harness/ on the path)
 _ps = page_subject.current   # the subject of the call in progress; the environment's when no call names one
 
 _tools: dict | None = None
@@ -95,7 +96,7 @@ def source_info() -> dict:
         return m.group(1) if m else ""
     commit = re.search(r"\| commit \| `([0-9a-f]{40})`", note)
     tag = re.search(r"^\| tag \| `(v[0-9][^`]*)`", note, re.M)
-    pinned = re.search(r"pinned date for the checker \| `(\d{4}-\d{2}-\d{2})`", note)
+    pinned = re.search(r"pinned date for the checker \| `([0-9]{4}-[0-9]{2}-[0-9]{2})`", note)   # [0-9]: ASCII only (task-0262)
     listed = dict(re.findall(r"^\| `([^`]+)` \| `([0-9a-f]{64})` \|$", note, re.M))
     mismatched = sorted(k for k in set(listed) | set(actual) if listed.get(k) != actual.get(k))
     return {"kind": "copy", "repo": "fdurieux/ieam-register", "commit": commit.group(1) if commit else "",
@@ -808,8 +809,8 @@ def build(today: str | None = None) -> dict:
     T = _load_tools()
     reg = T["register"].load_register(REGISTER)
     src = source_info()
-    pinned = dt.date.fromisoformat(src["pinned_date"]) if src["pinned_date"] else None   # a checkout has none
-    run_date = dt.date.today() if today == "wall" or (today is None and pinned is None) else dt.date.fromisoformat(today) if today else pinned
+    pinned = dates.parse(src["pinned_date"], "SOURCE.md's pinned date") if src["pinned_date"] else None   # a checkout has none
+    run_date = dt.date.today() if today == "wall" or (today is None and pinned is None) else dates.parse(today, "today") if today else pinned
     findings, summary = T["check_register"].run(REGISTER, today=run_date)
     reg_sentences: list[dict] = []
     C = lambda *s: views._reg(reg_sentences, "controlled", *s)  # noqa: E731

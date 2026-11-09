@@ -8,7 +8,9 @@ each on the port's reads only (``store.READS``):
                          store_status, listing declared keys only, never shows). The levels are the
                          gate's own, ``gate_cli.evaluate`` over the held key set under one declared class
                          (codegen by default) on one ``as_of``, as ``register_impact`` reads them: never a
-                         second computation.
+                         second computation. Its ``gate`` is the class's own verdict and why on its own
+                         required keys, ``gate_verdict``'s for the same store, class and ``as_of`` (task-0283),
+                         never the held key set gated as if every held key were required.
 ``derived_outputs``      with ``key``, every derived output that used a statement on the key, any state;
                          with ``derived``, that one output. Each with the statements it used, each read
                          live (not invalidated), stale (invalidated, nothing settled replaces it) or
@@ -43,10 +45,16 @@ def held_keys(st, *, subject: str, scenario: str, task: str, as_of: str) -> dict
     levels: dict[str, str] = {}
     verdict = None
     if keys:
-        spec = dict(TASKS[task], keys=keys)
+        version = gate_cli.held_version(st)
+        spec = dict(TASKS[task], keys=keys)   # the levels: every held key's, as gate_verdict reads that key set
         rep = gate_cli.evaluate(st, subject=subject, scenario=scenario, task="keys", spec=spec, threshold="blocker",
-                                baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=as_of, route_task=task)
-        levels, verdict = rep["levels"], {"task": task, "verdict": rep["verdict"], "why": rep["why"]}
+                                baseline=None, loaded=False, version=version, as_of=as_of, route_task=task)
+        levels = rep["levels"]
+        # the verdict: the task class's own, on its own required keys, as gate_verdict gives it (task-0283,
+        # decision-0033 choice 9); never the held key set gated under the class's bar as if all were required
+        own = gate_cli.evaluate(st, subject=subject, scenario=scenario, task=task, spec=dict(TASKS[task]), threshold="blocker",
+                                baseline=None, loaded=False, version=version, as_of=as_of, route_task=task)
+        verdict = {"task": task, "verdict": own["verdict"], "why": own["why"]}
     mapped = {r["key"] for r in SUBJECT.register_map().get("row", []) if isinstance(r.get("key"), str)}
     rows = [{**k, "level": levels.get(k["key"]), "required_by": sorted(t for t, spec in TASKS.items() if k["key"] in spec["keys"]),
              "mapped": k["key"] in mapped} for k in held]
