@@ -33,7 +33,11 @@ A ruling binds to content, not to its id (task-0199, doc-0030 F2): every load bi
 of its key with its value and digest, the one it names when that one still holds them, else the one
 statement that does (a reordered table, a renumbered answer); one that changed or vanished is not applied,
 and the load records it for the gate (``act`` findings, never stderr only). A close binds to its gap's
-text the same way. Read rule for a file written before 0.9.0, with no ``key``, ``value`` or ``sha256``:
+text the same way. A captured answer has no fragments, so its ``sha256`` is the empty text's digest
+(``e3b0c442...``) and two people's identical answers hold the same content: a ruling on one binds by giver, key and
+value, so only the same person's answer stands in for it when its id has vanished (a re-ingested capture), never
+another person's (task-0302, decision-0032 C2-1); that ruling reads ``gone``, an act finding naming the vanished
+id. Read rule for a file written before 0.9.0, with no ``key``, ``value`` or ``sha256``:
 it binds by id as it did, and the gate lists it at info as bound by id only; a new review binds it.
 
 ``capture.py review`` refuses a file whole, each reason naming the rule it breaks (decision-0002 point 5);
@@ -204,6 +208,37 @@ def _stem(aid: str) -> str:
     return aid.rsplit("@", 1)[0]
 
 
+# a capture's file stem, harness/capture.py ingest's: {on}-{owner unit}-{handle}, a second file the same day -<n>
+_CAPTURE_STEM = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}-(?:[A-Z][A-Z0-9]*-[0-9]+|unassigned)-(?P<giver>.+)")   # ASCII digits
+
+
+def _giver(aid: str) -> str | None:
+    """The handle a captured answer's id names (``A:cap:<file stem>:<n>@capture``), read whole; None for another id."""
+    if not aid.startswith("A:cap:"):
+        return None
+    m = _CAPTURE_STEM.fullmatch(_stem(aid)[len("A:cap:"):].rsplit(":", 1)[0])
+    return m["giver"] if m else None
+
+
+def _holding(rows: list[dict], aid: str, value, digest) -> list[dict]:
+    """The rows holding the ruling's value and digest that may stand in for ``aid``: any such statement, but for a
+    captured answer only the same giver's (``_same_giver``, task-0302)."""
+    return [r for r in rows if str(r["value"]) == str(value) and content_digest(r.get("fragments") or []) == str(digest)
+            and (r["id"] == aid or _same_giver(aid, r))]
+
+
+def _same_giver(aid: str, row: dict) -> bool:
+    """Whether ``row`` may stand in for the ruled statement ``aid`` (task-0302, decision-0032 C2-1). A captured answer
+    has no fragments, so its digest is the empty text's and any person's identical answer would carry it: a captured
+    answer is repaired only by an answer the same person gave (its id's giver, read whole, the candidate's agent).
+    A file that a second capture the same day renamed (``-2``) names no giver whole, so nothing stands in for it.
+    Every other statement repairs by its content, as before."""
+    if aid.startswith("A:cap:") or str(row["id"]).startswith("A:cap:"):
+        giver = _giver(aid)
+        return giver is not None and str(row["id"]).startswith("A:cap:") and row.get("agent") == giver
+    return True
+
+
 def bind(st, ru: dict) -> tuple[dict | None, dict]:
     """(the statement a ruling lands on, or None; how it bound). ``how["why"]``: ``content`` (the statement it
     names, holding its value and digest), ``repaired`` (another statement holding them: a reordered table, a
@@ -212,12 +247,13 @@ def bind(st, ru: dict) -> tuple[dict | None, dict]:
     stem is extracted), ``ambiguous`` (several statements hold its content, none the one it names). ``how["to"]``
     names what the store holds instead: its key's statements of the same stem, each with value and digest."""
     aid = str(ru.get("assertion", ""))
-    key, value, digest = ru.get("key"), ru.get("value"), ru.get("sha256")
+    import key_rule   # task-0301: a ruling's key in NFC, as the store holds it
+    key, value, digest = key_rule.normalise(ru.get("key")), ru.get("value"), ru.get("sha256")
     if key is None or value is None or digest is None:   # the read rule: a review file written before 0.9.0
         b = statement(st, aid)
         return b, {"why": "unbound" if b else "gone", "to": []}
     rows = st.key_evidence(str(key), list(CURRENT))
-    same = [r for r in rows if str(r["value"]) == str(value) and content_digest(r.get("fragments") or []) == str(digest)]
+    same = _holding(rows, aid, value, digest)
     pick = next((r for r in same if r["id"] == aid), None) or (same[0] if len(same) == 1 else None)
     if pick is not None:
         return statement(st, pick["id"]), {"why": "content" if pick["id"] == aid else "repaired", "to": []}
