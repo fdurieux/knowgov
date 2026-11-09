@@ -810,6 +810,10 @@ reuses, each `as_is` or `changed`; and any exception it asks for.
 example, synthetic: a *Contract freight quote* product that requires
 three existing capabilities and a new one, *Check a shipper's credit*,
 with a three-step journey whose first step copies the instant quote's.
+To write your own, start from `instance/templates/proposal.toml`: every
+field the reader takes, each explained, with placeholders for the register
+ids to reuse and provisional ids that cannot collide with the register's
+(`instance/README.md`, "Writing a proposal before the pull request").
 
 ```bash
 docker compose exec -T app python harness/proposal_impact.py tools/fixtures/proposal_contract_quote.json
@@ -888,7 +892,10 @@ date you name. The slice then says:
 
 These are facts with their denominators, never a score. A product's id
 (`--scope PRD-0002`) gives its journeys' steps. An MCP client passes
-`scope` instead of, or beside, `proposal`.
+`scope` instead of, or beside, `proposal`. To slice a change that is not in
+the register yet, fill in `instance/templates/proposal.toml` and pass it with
+`--scope`. `instance/README.md`'s "Feeding your prioritisation, and planning
+refinement" turns each slice's keys into refinement items.
 
 To see every step against every scenario at once, run the scenarios
 deterministically into a folder, on a scratch store of their own, then

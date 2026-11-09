@@ -419,6 +419,11 @@ names that section with the version.
   so readers wait until the data is all there. Every open gap is closed forward (`end = begin`): a writer killed
   between its commit and that step is refused while its lease is live, then recovered and read whole. No shape
   changes; the guarantee decision-0014 documents now holds.
+- **Prioritisation inputs and refinement planning, and a proposal template** (task-0253, task-0255, doc-0034). `instance/README.md`
+  gains "Feeding your prioritisation, and planning refinement": the facts knowgov gives a team's own method (WSJF, cost
+  of delay, RICE), with the command that yields each, what it does not supply, and how to turn each slice's keys below
+  the bar into refinement items by level. `instance/templates/proposal.toml` is an annotated template of every field
+  `harness/proposal_impact.py` reads, pointed to from `demo/README.md`; `tests/test_proposal_template.py` holds it to the reader.
 - **No `.env` file reaches the image** (security; task-0245, doc-0033 R4). `demo/Dockerfile.dockerignore` now
   leaves out every `.env` and `.env.*`, at the root and in any folder. Only a values-free `.env.example` is let
   back in. Compose still reads a `.env` beside the compose file to fill in its variables. The compose file's
