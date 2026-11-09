@@ -5,6 +5,7 @@ subject. One process can now answer for two subjects, which the drop-down (task-
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import tempfile
@@ -178,8 +179,12 @@ def _get(url, method="GET", body=None):
 def test_every_route_answers_within_the_subject_the_request_names():
     """One server, both subjects, concurrent requests: each answers with its own scenarios and page
     title; no ?subject= gets the default; an id the page does not serve is 404 on the page, the API
-    and a POST alike."""
+    and a POST alike. KG_PAGE_LISTEN is pinned to the loopback this test serves on (task-0246): with the
+    image's 0.0.0.0 the page refuses an untokened POST before it reaches the subject (403), so the
+    POSTs' 404 holds only for a page that listens on this machine alone."""
     from concurrent.futures import ThreadPoolExecutor
+    saved = os.environ.get("KG_PAGE_LISTEN")
+    os.environ["KG_PAGE_LISTEN"] = "127.0.0.1"
     httpd, base = _serve()
     try:
         code, body = _get(base + "/api/subjects")
@@ -203,6 +208,10 @@ def test_every_route_answers_within_the_subject_the_request_names():
         assert _get(base + "/api/run", "POST", {"scenario": "S1", "mode": "deterministic", "subject": "nope"})[0] == 404
     finally:
         httpd.shutdown()
+        if saved is None:
+            os.environ.pop("KG_PAGE_LISTEN", None)
+        else:
+            os.environ["KG_PAGE_LISTEN"] = saved
 
 
 def test_the_page_names_its_subject_on_every_call_and_keeps_the_arms_choice_per_subject():

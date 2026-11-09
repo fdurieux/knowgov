@@ -145,10 +145,10 @@ def summary(rep: dict, fs: list[dict]) -> str:
 
 def _fingerprint(rep: dict, f: dict, seen: set[str]) -> str:
     base = "|".join([rep["tool"], f["kind"], f["id"], f["path"] or "", str(f["line"])])
-    fp, n = hashlib.md5(base.encode()).hexdigest(), 1   # noqa: S324 - an identifier GitLab compares, not a secret
+    fp, n = hashlib.md5(base.encode(), usedforsecurity=False).hexdigest(), 1   # an identifier GitLab compares, not a secret
     while fp in seen:
         n += 1
-        fp = hashlib.md5(f"{base}|{n}".encode()).hexdigest()   # noqa: S324
+        fp = hashlib.md5(f"{base}|{n}".encode(), usedforsecurity=False).hexdigest()
     seen.add(fp)
     return fp
 
