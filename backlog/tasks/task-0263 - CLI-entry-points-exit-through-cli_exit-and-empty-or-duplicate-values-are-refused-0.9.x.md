@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-09T09:32:00Z'
-updated_date: '2026-11-09T15:43:00Z'
+updated_date: '2026-11-09T19:02:00Z'
 labels:
   - validation
   - correctness
@@ -55,4 +55,6 @@ Re-probe and spot check at main 9861953 (decision-0032 points 4 and 5, task-0256
 - Spot check PI-2, task-0281's falsy rule not carried to the CLIs: `proposal_impact --task ''` reads as codegen, exit 0, where MCP refuses `task:''`; `--scenario ''` passes the held-scenario guard because `held.refusal` tests `if scenario and …`, shared with `gate_cli --no-load` (gate_cli.py:684). Fix: `scenario is not None`.
 
 Group 2's re-probe at 9861953 (N2): the page's `POST /api/run` still reads an empty `as_of` as absent (`{"scenario":"S1","mode":"deterministic","as_of":""}` gives 202, run as of the record date), where the MCP reader and knowgov-runs refuse it. `row`, `effort` and `by` are the same (`or None` / `or "page"` in `_post`). Refuse the empty string in `run_request`.
+
+Re-check of the pass's second-round fixes (decision-0032 point 4, task-0256): group 1 at c94dfa5 re-confirmed PI-1 (B2-3): `proposal_impact … -o /dev/full` or `-o <a directory>` gives a traceback and exit 1; `proposal-impact.sh` maps it to 2, but the command line alone breaks the contract.
 <!-- SECTION:NOTES:END -->

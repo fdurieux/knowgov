@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-09T09:32:00Z'
-updated_date: '2026-11-09T16:51:00Z'
+updated_date: '2026-11-09T19:02:00Z'
 labels:
   - validation
   - correctness
@@ -64,4 +64,10 @@ Re-probe and spot check at main 9861953 (decision-0032 points 4 and 5, task-0256
 Group 2's re-probe at 9861953: round-1 F10 still reproduces. `subject_check` with `register_map_toml: "x"` answers isError TOMLDecodeError.
 
 decision-0034 (accepted 2026-11-09): the duplicate scenario id item moves to task-0295 (choice 2), and CS-4's zero-width space in a key to task-0296 (choice 3). The other items stay here.
+
+Re-check of the pass's second-round fixes (decision-0032 point 4, task-0256), the spot check at 0682e16 and 946c72e, all fix-only:
+- N1: a document named `plants.toml` or `scenarios.toml`, with no plants_toml or scenarios_toml passed, is refused as 'the same file as … passed already'. It is a reserved name, so say so.
+- N2: `documents {"subject.toml/x": …}` is refused as 'document path 'subject.toml' is also a folder', which names the manifest a document.
+- `[register] map = 5` still answers 'could not answer: TypeError' (CS-1).
+- T1: a scenarios.toml written with `[scenario]` (a table) instead of `[[scenario]]` passes check_subject (exit 0, CLI and MCP). gate_cli exits 2 with 'string indices must be integers', and the MCP reader exits 1 at start with a TypeError traceback. `scenario_ids.problems` treats a non-list as empty. It should report 'scenario must be an array of tables', and the loader should raise ScenarioIdError, exit 2 everywhere.
 <!-- SECTION:NOTES:END -->
