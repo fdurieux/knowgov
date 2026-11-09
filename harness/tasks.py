@@ -1,12 +1,18 @@
 """Required keys per task class (pre-registration §6), frozen in the subject's manifest. A class may
-state its ``rationale`` (why these keys; task-0101), which store_status reports as one line."""
+state its ``rationale`` (why these keys; task-0101), which store_status reports as one line.
+
+Each class is built by ``task_policy.build`` (task-0242, doc-0033 R1): a table the gate cannot apply as
+written raises ``TaskPolicyError``, naming the subject, the class and the field, and nothing is coerced."""
 
 from subject import SUBJECT
+from task_policy import TaskPolicyError, build
 
-TASKS = {name: {"keys": list(spec.get("keys", [])),
-                "block_levels": set(spec.get("block_levels", ["absent", "declared_gap", "disputed", "invalidated"])),
-                "max_unverified_share": float(spec.get("max_unverified_share", 0.25)),
-                # task-0215 (decision-0018 point 4): opt-in, the class's keys must be approved, not only verified
-                "require_approved": spec.get("require_approved") is True,
-                "rationale": " ".join(str(spec.get("rationale", "")).split()) or None}
-         for name, spec in SUBJECT.tasks.items()}
+
+def _build(name: str, spec) -> dict:
+    try:
+        return build(name, spec)
+    except TaskPolicyError as e:
+        raise TaskPolicyError(e.task, e.field, f"{e.why} (subject {SUBJECT.id})") from None
+
+
+TASKS = {name: _build(name, spec) for name, spec in SUBJECT.tasks.items()}
