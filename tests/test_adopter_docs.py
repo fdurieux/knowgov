@@ -280,10 +280,23 @@ def test_the_twenty_contract_settings_are_documented_where_decision_0027_puts_th
     assert not unread, f"a 1.0 contract setting no code reads: {unread}"
 
 
+# decision-0034 choice 1 (task-0294): the settings table reaches every setting the code reads or a compose file
+# passes, so fifteen of the nineteen now have a row there, each "no" but KG_NOW, the pinned clock's instant, a
+# contract. They are named only in their row; the other four stay out of the contract documents altogether.
+TABLED_BY_0034 = {"KG_NOW": "yes"} | {n: "no" for n in NOT_CONTRACTS if n not in
+                                     ("KG_NOW", "KG_MUTANT", "KG_ROOT", "KG_DEMO_URL", "KG_THINKING_UNCOUNTED")}
+
+
 def test_none_of_the_nineteen_is_named_in_a_contract_document():
+    assert len(TABLED_BY_0034) == 15 and set(TABLED_BY_0034) <= set(NOT_CONTRACTS)
     docs = _docs()
-    named = [f"{d}: {n}" for d in CONTRACT_DOCS for n in NOT_CONTRACTS if re.search(rf"\b{n}\b", docs[d])]
-    assert not named, f"decision-0027 keeps these out of the contracts, so out of {CONTRACT_DOCS}: {named}"
+    rows = {ln.split("|")[1].strip().strip("`"): ln.rsplit("|", 2)[1].strip()
+            for ln in docs["instance/README.md"].splitlines() if ln.startswith("| `KG_")}
+    for n, mark in TABLED_BY_0034.items():
+        assert n in rows and rows[n].split(":")[0] == mark, (n, rows.get(n))
+    untabled = {d: "\n".join(ln for ln in docs[d].splitlines() if not ln.startswith("| `KG_")) for d in CONTRACT_DOCS}
+    named = [f"{d}: {n}" for d in CONTRACT_DOCS for n in NOT_CONTRACTS if re.search(rf"\b{n}\b", untabled[d])]
+    assert not named, f"decision-0027 keeps these out of the contracts, so out of {CONTRACT_DOCS} but for a table row: {named}"
 
 
 # task-0181 (decision-0016 point 3; doc-0028 P4): instance/README.md's "What stays stable from 1.0" lists every

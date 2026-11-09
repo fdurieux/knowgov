@@ -11,6 +11,15 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **Two more settings are contracts, and the settings table reaches every one the code reads** (task-0294,
+  decision-0034 choice 1). `KG_REGISTER_PREVIOUS`, which `demo/docker-compose.instance.yml` passes, and `KG_NOW`,
+  the instant `KG_CLOCK=pinned` requires for the live-run read, are now contracts. `instance/README.md`'s table
+  gains 30 rows, 105 in all and 65 of them contracts: besides those two, every setting a shipped compose file
+  passes and every operator-facing knob (the worker's own limits, the servers' boundary limits, the agent ceilings,
+  `KG_ARMS_EFFORT`, the demo's ports and folders, `KG_TRACEBACK`), each `no` with its reason.
+  `tests/test_settings_table.py` now fails on any `KG_*` the code (`harness/`, `demo/app/`, `tools/`, `instance/`)
+  reads or a compose file under `demo/` passes that has neither a row nor an entry, with its reason, on its
+  internal list.
 - **Every command that reads a register refuses a named one it cannot read** (task-0288, decision-0033 choice 5,
   after task-0279). `harness/run.py`, `harness/trace.py`, `harness/capture.py`, `harness/transcript.py` and
   `harness/step_grid.py` now exit 2 on a `KG_REGISTER` they cannot read, naming the path and what is missing,
