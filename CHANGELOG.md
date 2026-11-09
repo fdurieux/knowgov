@@ -18,6 +18,12 @@ names that section with the version.
   beside the current one. A malformed baseline names the file and its first error, never "the store did not
   answer". `--baseline record` and a deterministic.json read as before, and the MCP reader still serves no report
   baseline. The record does not move.
+- **`held_keys`' `gate` is the task class's own verdict** (task-0283, decision-0033 choice 9). It gated every held
+  key under the class's bar as if each were required. On CargoQuote S1 it read "codegen BLOCKED: 34 of 93
+  required keys (37%) are below verified" where `gate_verdict` codegen gives PROCEED. It now gives
+  `gate_verdict`'s verdict and why for the same store, class and `as_of`, on the class's own required keys. The
+  keys' levels are still the held key set's. The tool's description and the held-keys schema say what the
+  field is. The record does not move.
 
 - **The GitLab include and the pre-load workflow template run their own release by default** (task-0259, G9-17,
   decision-0032 C5). `instance/ci/gitlab/knowgov.gitlab-ci.yml`'s `KNOWGOV_REF` and `instance/ci/preload-check.yml`'s
