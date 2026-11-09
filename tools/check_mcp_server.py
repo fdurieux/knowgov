@@ -759,7 +759,8 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
             # task-0296: a key outside the one entity|attribute rule, a zero-width space in it included, as well
             for params in ({"name": "gate_verdict", "arguments": {"senario": "S4"}}, {"name": ["gate_verdict"]},
                            {"name": "gate_verdict", "arguments": {"keys": ["nonsense"]}},
-                           {"name": "evidence_bundle", "arguments": {"keys": ["thing\u200b|property"]}}):
+                           {"name": "evidence_bundle", "arguments": {"keys": ["thing\u200b|property"]}},
+                           {"name": "gate_verdict", "arguments": {"keys": ["thing\u202e|property"]}}):   # task-0297: RLO
                 err = client.request("tools/call", params).get("error") or {}
                 if err.get("code") != -32602:
                     failures.append(f"{name}: tools/call {params} answered {err or 'a result'}, not -32602 (M5, M6, task-0296)")

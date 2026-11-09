@@ -11,6 +11,15 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **The key rule refuses every control and format character** (task-0297, decision-0034 Amendment A1). A key's
+  sides now hold only Basic Multilingual Plane characters outside Unicode categories Cc, Cf, Zs, Zl, Zp and Cs, and
+  no `|`. `harness/key_rule.py` writes this as explicit `\uXXXX` ranges, with no `\s`, so ECMA-262 and Python read
+  the `inputSchema` pattern alike. The bidi marks and overrides (U+200E, U+202E), the soft hyphen, U+2061, U+180E,
+  NUL and U+001C to U+001F, U+0085 are refused, on the wire as -32602 and in `check_subject` as an error. Before,
+  they passed and read absent at the gate, and a JavaScript client's `\s` let U+001C through. Combining marks are
+  kept. A character beyond U+FFFF is refused by every engine alike. Every public key still matches, and the record
+  does not move.
+
 - **Two more settings are contracts, and the settings table reaches every one the code reads** (task-0294,
   decision-0034 choice 1). `KG_REGISTER_PREVIOUS`, which `demo/docker-compose.instance.yml` passes, and `KG_NOW`,
   the instant `KG_CLOCK=pinned` requires for the live-run read, are now contracts. `instance/README.md`'s table

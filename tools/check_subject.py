@@ -171,7 +171,7 @@ def _fields(rep: Report, where: str, table: dict, known: set[str]) -> None:
 def _key(rep: Report, where: str, key) -> bool:
     if isinstance(key, str) and KEY_RE.fullmatch(key):
         return True
-    rep.error("key-syntax", where, f"{key!r} is not a key: a key is <entity>|<predicate>, one '|', no spaces and no invisible format character",
+    rep.error("key-syntax", where, f"{key!r} is not a key: a key is <entity>|<predicate>, one '|', no space and no control or format character (key_rule)",
               "write it as entity|predicate, as the mappers name it (REQ-01|text, QuoteAPI|notified)")
     return False
 
