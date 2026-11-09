@@ -4,7 +4,7 @@ title: >-
   Nine contract choices from the validation pass before the 0.9.0 cut
   (decision-0032, G9-17)
 date: '2026-11-09T09:33:00Z'
-status: proposed
+status: accepted
 ---
 ## Context
 
@@ -278,10 +278,24 @@ doc-0030 F6 and CLAUDE.md already say "an argument outside a tool's inputSchema 
 
 ## Decision
 
-**Proposed.** Each choice is the maintainer's word. The build tasks are minted once the choices are answered.
+**Accepted on the maintainer's word (2026-11-09): "decision-0033 all as advised".** Each choice takes the drafter's advice:
+
+| Choice | Taken | What it means | Built in |
+|---|---|---|---|
+| 1. Which `KG_*` settings are contracts | (b) | One table in `instance/README.md` lists every setting the two contract files name, each marked contract or not, held by a test. decision-0016 point 3 now reads "a setting the table marks as a contract". The maintainer confirms the rows in the build's PR | task-0275 |
+| 2. On/off values | (a) | `1` on; `0`, empty or unset off; anything else exits 2 naming the setting. A setting that documents a word (`off`) keeps that spelling and refuses others. The action's boolean inputs compare without case | task-0276 |
+| 3. The image's tags | (a) | `:vX.Y.Z` per release and `:latest` for the last main are the contract; `:<short-sha>` is a build of main, not a contract | task-0277 |
+| 4. Task-class names | (a) | `keys` is reserved, and names match `[a-z][a-z0-9_-]{0,31}`, refused otherwise by the checker and the runtime | task-0278 |
+| 5. A named register that cannot be read | (a) | Exit 2 when a register is named and unreadable; unchecked only when none is named | task-0279 |
+| 6. Ledger and overlay versions | (a) | decision-0023's rule extends to the trace ledger (`schema_version`) and the proposal overlay (an optional top-level `format`) | task-0280 |
+| 7. MCP argument values and the run body | (a) | Every argument is validated against its tool's `inputSchema` before dispatch, -32602 on any violation; the page's `POST /api/run` refuses unknown fields with 400 | task-0281 |
+| 8. Suspect derived outputs per class | (a) | Blocker severity only for outputs whose used statements sit on the class's keys; the rest are listed at info; the record must not move, and the build stops and comes back if it would | task-0282 |
+| 9. `held_keys`' `gate` | (a) | Computed on the task's own required keys, so it equals `gate_verdict`'s verdict on the same store | task-0283 |
+
+Each build holds the 0.9.0 cut beside task-0257 to task-0262, and is re-probed under decision-0032 point 4.
 
 ## Consequences
 
-- **Once the choices are answered,** each one taken is minted as a build task. Its fix holds the cut beside task-0257 to task-0262.
+- **The nine builds** are task-0275 to task-0283. Each holds the cut beside task-0257 to task-0262.
 - **The bounded re-probe** (decision-0032 point 4) covers what those builds touch, plus the contract settings the pass did not probe under choice 1.
 - **doc-0028's G9-17** stays open until the pass is done, as decision-0032 point 6 defines it.

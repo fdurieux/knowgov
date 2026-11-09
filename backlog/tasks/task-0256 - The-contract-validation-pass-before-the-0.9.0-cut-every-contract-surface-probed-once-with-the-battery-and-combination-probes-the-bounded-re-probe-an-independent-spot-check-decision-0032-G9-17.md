@@ -7,7 +7,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-11-09T08:55:00Z'
-updated_date: '2026-11-09T09:34:00Z'
+updated_date: '2026-11-09T10:10:00Z'
 labels:
   - contracts
   - validation
@@ -64,4 +64,6 @@ The coordinator checked these on `main`: group 1's C1, C2, C5 and C6; group 2's 
 - the runs-server outputs live.
 
 Each prober keeps its scratchpad reproductions for the bounded re-probe. The prober sessions stay available, and the spot check goes to a fresh session.
+
+**2026-11-09, decision-0033 accepted** ("decision-0033 all as advised"). Its nine builds are task-0275 to task-0283, and each holds the cut beside task-0257 to task-0262. SNAP-04's fix is task-0274 (decision-0014 A1, accepted; #415). It is fix-only.
 <!-- SECTION:NOTES:END -->
