@@ -54,7 +54,9 @@ jobs:
       SONAR_SCANNER_VERSION: 8.3.1.16491
       # binaries.sonarsource.com's published SHA-256 of sonar-scanner-cli-8.3.1.16491-linux-x64.zip
       SONAR_SCANNER_SHA256: 0f304e4c5982f0cfbd06762306d6e60e6ed9c8e3853629ae3b8ec2f4dc9bdc04
-      TOOLS: .quality-tools   # this workflow's own commit: the scanned ref may predate tools/quality/
+      TOOLS: ${{ github.workspace }}/../quality-tools   # this workflow's own commit, outside the scanned checkout:
+                                                       # the scanned ref may predate tools/quality/, and the suite's
+                                                       # every-file check must not see a second tree
     steps:
       - name: The ref to scan, and the name its results go by
         id: ref
@@ -77,14 +79,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: .quality-tools
+      - name: This workflow's tools, moved out of the scanned checkout
+        run: mv .quality-tools "${TOOLS}"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"   # as tests.yml's coverage step
       - name: Coverage of the scanned ref's suite, in-process, per line (task-0159's measurer; advisory, a red suite does not stop the scan)
         run: |
-          # the measurer from this workflow's commit, placed so that its root is the scanned checkout
-          mkdir -p .quality-cov && cp "${TOOLS}/tools/coverage_stdlib.py" .quality-cov/coverage_stdlib.py
-          python .quality-cov/coverage_stdlib.py --lines --out outcomes/coverage.json \
+          # the measurer from this workflow's commit, measuring the scanned checkout
+          python "${TOOLS}/tools/coverage_stdlib.py" --root "${GITHUB_WORKSPACE}" --lines --out outcomes/coverage.json \
             || echo "::warning::the suite did not pass under the measurer; its coverage is still imported"
           python "${TOOLS}/tools/quality/coverage_xml.py" outcomes/coverage.json outcomes/sonar-coverage.xml \
             || echo "::warning::no coverage to import"

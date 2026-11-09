@@ -1,6 +1,6 @@
 """Statement and branch coverage of the test suite, standard library only (task-0159, V1).
 
-    python tools/coverage_stdlib.py [--out FILE] [--subject DIR] [--lines]
+    python tools/coverage_stdlib.py [--out FILE] [--subject DIR] [--root DIR] [--lines]
 
 Runs ``tests/run_tests.py`` in this process under ``sys.monitoring`` (CPython 3.12 or later; no
 coverage package, no new dependency) and reports, per module and in total, the statements and the
@@ -109,12 +109,17 @@ def line_detail(path: Path, lines: set[int], hit: set[int], branches: set[tuple]
 
 
 def main(argv: list[str] | None = None) -> int:
+    global ROOT
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--out", default=str(ROOT / "runs" / "coverage.json"))
     ap.add_argument("--subject", help="KG_SUBJECT for the suite (default: the environment's)")
+    ap.add_argument("--root", help="the checkout whose suite to measure (default: this file's own); the advisory scan "
+                                   "measures a past tag with today's measurer, kept outside that checkout (task-0250)")
     ap.add_argument("--lines", action="store_true",
                     help="add each module's statement lines, those reached and its branch lines (for tools/quality/coverage_xml.py)")
     args = ap.parse_args(argv)
+    if args.root:
+        ROOT = Path(args.root).resolve()
     if sys.version_info < (3, 12) or not hasattr(sys, "monitoring"):
         print("coverage_stdlib: needs CPython 3.12 or later (sys.monitoring)", file=sys.stderr)
         return 2

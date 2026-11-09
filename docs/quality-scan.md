@@ -10,7 +10,7 @@ ratchet in the test suite (task-0251).
   `release.yml` does. Patch releases scan too; their delta is small. The first scan, v0.9.0, is the frozen
   baseline.
 - **On demand.** A `workflow_dispatch` takes a `ref`, so a past tag can be scanned with today's tooling: the
-  workflow checks out the ref to scan, and its own commit beside it for `tools/quality/` and the measurer.
+  workflow checks out the ref to scan, and its own commit outside that checkout for `tools/quality/` and the measurer (`coverage_stdlib.py --root`), so the suite's every-file check sees one tree.
 - **On its own pull requests.** A pull request touching the workflow, `tools/quality/` or
   `tools/coverage_stdlib.py` runs it, so a change to the scan proves one complete run.
 
