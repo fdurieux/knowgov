@@ -298,7 +298,7 @@ def snap_11(s1: str, s2: str, g1: dict, g2: dict) -> None:
                 seen["read"] = "answered"
             except store.StoreBusy:
                 seen["read"] = "refused"
-        saved = store_neo4j._on_committed
+        saved = getattr(store_neo4j, "_on_committed", None)   # absent on an adapter from before: the check then fails, never crashes
         store_neo4j._on_committed = at_commit
         try:
             got = publish(s2)
