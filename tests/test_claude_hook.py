@@ -384,3 +384,26 @@ def test_the_checkout_is_absolute_the_timeout_finite_and_a_stage_named_once():
             p = _hook(PLAN, "gate", "--task", "codegen", "--task-for", "plan=design", "--task-for", "plan=codegen",
                       "--knowgov", str(kg), "--instance", str(inst), *extra, env=env)
             assert p.returncode == 2 and "refused" in p.stderr and "plan twice" in p.stderr, (extra, p.stderr)
+
+
+def test_a_staged_or_changed_path_with_a_space_or_a_non_ascii_character_is_read_as_itself():
+    """task-0267: the hook reads git's path lists NUL-separated and unquoted (core.quotepath=off, -z). Before, a
+    staged ``docs/my spec.md`` split into ``docs/my`` and ``spec.md``, and ``docs/especificación.md`` came back
+    quoted with octal escapes, so neither matched its glob and the commit passed the spec transition unseen."""
+    with tempfile.TemporaryDirectory() as t:
+        repo = Path(t) / "repo"
+        repo.mkdir()
+        g = lambda *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True)  # noqa: E731
+        g("init", "-q")
+        g("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "--allow-empty", "-m", "base")
+        (repo / "docs").mkdir()
+        for name in ("my spec.md", "especificación.md"):
+            (repo / "docs" / name).write_text("# spec\n", encoding="utf-8")
+            g("add", f"docs/{name}")
+            commit = {"tool_name": "Bash", "tool_input": {"command": "git commit -m 'a spec'"}, "cwd": str(repo)}
+            assert hook.transition(commit, ["docs/*.md"]) == "spec", name
+            assert hook._committed(str(repo), "git commit -m x") == [f"docs/{name}"], name
+            g("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qm", name)
+        g("mv", "docs/my spec.md", "docs/mi especificación.md")   # a rename: the new name, its source skipped
+        (repo / "notas nuevas.txt").write_text("x\n", encoding="utf-8")
+        assert sorted(hook._status(str(repo))) == ["docs/mi especificación.md", "notas nuevas.txt"]

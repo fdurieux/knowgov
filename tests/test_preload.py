@@ -458,3 +458,55 @@ def test_the_node_linters_run_under_the_same_contract():
                 assert f"{r['tool']} is not installed here" in r["why"], r
     for name, (cfg, key) in {"bpmnlintrc": ("bpmnlint:recommended", "extends"), "dmnlintrc": ("dmnlint:recommended", "extends")}.items():
         assert json.loads((ROOT / "instance" / "ci" / name).read_text(encoding="utf-8"))[key] == cfg
+
+
+def _cli(*args: str, env: dict | None = None):
+    import os
+    import subprocess
+    return subprocess.run([sys.executable, str(ROOT / "tools" / "preload_check.py"), *args], capture_output=True, text=True,
+                          env={**os.environ, **(env or {})})
+
+
+def test_paths_outside_the_instance_and_a_directory_that_is_not_one_are_refused_alike_and_named():
+    """task-0267 (doc-0032 group 1 F18): --changed ../../../etc/passwd and --changed /etc/passwd are one refusal, exit 2,
+    each naming the path; a directory with no subjects/ is not an instance, refused with or without --layout."""
+    with tempfile.TemporaryDirectory() as t:
+        out = Path(t) / "inst"
+        example_instance.build(out)
+        for bad in ("../../../etc/passwd", "/etc/passwd", "subjects/../../outside.md"):
+            p = _cli(str(out), "--changed", bad)
+            assert p.returncode == 2 and f"--changed {bad}: outside the instance" in p.stderr, (bad, p.returncode, p.stderr)
+        assert _cli(str(out), "--changed", "artefacts/plantuml-models/quote_flow.puml").returncode == 0
+        bare = Path(t) / "bare"
+        bare.mkdir()
+        for extra in ((), ("--layout",)):
+            p = _cli(str(bare), *extra)
+            assert p.returncode == 2 and "is not an instance" in p.stderr and "Traceback" not in p.stderr, (extra, p.stderr)
+
+
+def test_a_linter_named_by_its_setting_that_cannot_run_is_exit_2_naming_the_setting():
+    """task-0267 (N6): KG_SPECTRAL and its siblings naming nothing runnable are a cannot-run, exit 2, naming the
+    setting, as decision-0033 choice 5 has a named register; unset keeps PATH's answer and "not installed"."""
+    with tempfile.TemporaryDirectory() as t:
+        out = Path(t) / "inst"
+        example_instance.build(out)
+        for var in preload_check.NAMED:
+            p = _cli(str(out), env={var: "/nonexistent/linter"})
+            assert p.returncode == 2 and f"{var}=/nonexistent/linter" in p.stderr, (var, p.returncode, p.stderr)
+        assert _cli(str(out)).returncode == 0
+
+
+def test_the_ci_script_takes_an_absolute_baseline_as_given():
+    """task-0267 (F18): preload-check.sh joined an absolute KG_PRELOAD_BASELINE as <instance>//abs and could not run;
+    an absolute path is used as given, a relative one under the instance."""
+    import os
+    import subprocess
+    with tempfile.TemporaryDirectory() as t:
+        out = Path(t) / "inst"
+        example_instance.build(out)
+        base = Path(t) / "baseline.json"
+        assert _cli(str(out), "-o", str(base)).returncode == 0
+        for given in (str(base), os.path.relpath(base, out)):
+            p = subprocess.run(["sh", str(ROOT / "instance" / "ci" / "preload-check.sh"), str(ROOT), str(out)], capture_output=True,
+                               text=True, env={**os.environ, "KG_PRELOAD_BASELINE": given})
+            assert p.returncode == 0, (given, p.returncode, p.stderr[-500:])
