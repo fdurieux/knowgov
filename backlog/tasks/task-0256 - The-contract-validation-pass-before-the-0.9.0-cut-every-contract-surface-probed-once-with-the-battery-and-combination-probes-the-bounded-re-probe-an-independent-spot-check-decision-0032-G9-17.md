@@ -7,7 +7,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-11-09T08:55:00Z'
-updated_date: '2026-11-09T19:02:00Z'
+updated_date: '2026-11-09T21:13:00Z'
 labels:
   - contracts
   - validation
@@ -88,4 +88,6 @@ Re-check of the second-round fixes, complete (decision-0032 point 4):
 - One new contract-bearing finding, K1 (other control and format characters pass the key rule): decision-0034 Amendment A1, accepted as 'K1 (a) as advised', built as task-0297, which holds the cut.
 - Fix-only findings are tasked as task-0298 (settings parser and scan reach), task-0299 (the `--baseline record` path) and task-0300 (CI paths with a leading dash, non-UTF-8 names, silent linters), with notes on task-0263 and task-0265.
 - The pass report, doc-0036, is filed after task-0297's re-check.
+
+The spot check's re-check of task-0297 at f194aac: fixed, exhaustive over every code point in Python and in Node v22 (ICU 17.0), with and without u, 0 mismatches, no regression. It found N3 (the NFC and NFD spellings of a name are different keys), put to the maintainer. After 'In Belgium we have many French names with accents', the advice was re-evaluated to (a). Accepted as decision-0034 Amendment A2 ('N3 (a) as advised'), built as task-0301, which holds the cut. N4 (unassigned code points and noncharacters accepted) is a note; tests/test_key_rule.py regenerates against the running interpreter.
 <!-- SECTION:NOTES:END -->
