@@ -24,6 +24,12 @@ On the store KG_STORE names, persisted under OUT_DIR for rdflib:
 4. ``preload`` with the merge request's diff base, on a broken sequence diagram committed after it:
    exit 1, KG_REPORT the pre-load report, valid against its schema, on that file alone, and the
    code-quality report puts SEQ001 on the diagram's file and line (task-0106).
+5. ``trace-check`` on a merge request adding ``módulo.py``, then ``new module.py``, then ``glob[1]*.py``, through
+   the GitLab template's script and the GitHub action's gate step: each reports the one path, as itself (task-0267);
+   before, git's quoting and the shell's word-splitting read "no code changed" (exit 0) and "module.py".
+6. ``KG_ANNOTATE=,,`` and ``nope:x.json`` exit 2 before the core command, naming KG_ANNOTATE and its four formats; an
+   annotation file it cannot write is a warning beside the command's exit, no traceback; a base of
+   ``--output=FILE`` exits 2 naming KG_BASE and git writes nothing (task-0267), each through both wrappers.
 Needs pyyaml (harness.yml installs it) to read the template.
 """
 from __future__ import annotations
@@ -62,6 +68,25 @@ def job(env: dict, gate: str, **kg: str) -> int:
     return p.returncode
 
 
+ACTION = ROOT / "instance" / "ci" / "github" / "action.yml"
+
+
+def action(env: dict, gate: str, out: Path, **inputs: str) -> tuple[int, str]:
+    """The GitHub action's gate step: its run: lines in one shell, its inputs mapped to the KG_* its env: names,
+    from the action's own checkout (GITHUB_ACTION_PATH), on a pull request with base CI_MERGE_REQUEST_DIFF_BASE_SHA."""
+    step = yaml.safe_load(ACTION.read_text(encoding="utf-8"))["runs"]["steps"][0]
+    e = {**env, "GITHUB_ACTION_PATH": str(ACTION.parent), "GITHUB_OUTPUT": str(out / "github-output"),
+         "GITHUB_STEP_SUMMARY": str(out / "github-summary.md"), "RUNNER_TEMP": str(out),
+         "KG_GATE": gate, "KG_INSTANCE": "instance", "KG_COMMIT": env["CI_COMMIT_SHA"], "KG_BASE": env["CI_MERGE_REQUEST_DIFF_BASE_SHA"],
+         "KG_FAIL_ON": "", "KG_SUBJECT_IN": "", "KG_SCENARIO": "", "KG_TASK": "codegen", "KG_STAGE": "", "KG_AS_OF": "",
+         "KG_LEDGER": str(Path(env["KG_LEDGER"]).relative_to(out)), "KG_FILES": "", "KG_REPORT": "", "KG_CODE_REPO": "cargo-quote",
+         "KNOWGOV_PUBLISH": "false", "KNOWGOV_ANNOTATE": "false", "KNOWGOV_SARIF": "false", **inputs}
+    p = subprocess.run(["sh", "-ec", step["run"]], cwd=out, env=e, capture_output=True, text=True)
+    print(f"exit {p.returncode}: GitHub action, gate {gate} {' '.join(f'{k}={v}' for k, v in inputs.items())}\n    "
+          + "\n    ".join((p.stdout + p.stderr).strip().splitlines()[-4:]))
+    return p.returncode, p.stdout + p.stderr
+
+
 def code_quality(out: Path) -> list[dict]:
     """The code-quality report the job left, checked for what GitLab requires of each issue."""
     f = out / "gl-code-quality-report.json"
@@ -76,6 +101,77 @@ def code_quality(out: Path) -> list[dict]:
         sys.exit("FAIL: code-quality fingerprints repeat")
     f.unlink()
     return issues
+
+
+def changed_paths(env: dict, inst: Path, root: Path, out: Path) -> None:
+    """task-0267: a changed path with a non-ASCII character, then one with a space, reaches trace-check as itself,
+    through both wrappers: git lists it NUL-separated and unquoted, and nothing splits it on whitespace."""
+    for name in ("módulo.py", "new module.py", "glob[1]*.py"):
+        before = git(inst, "rev-parse", "HEAD")
+        (root / name).write_text("# a module the merge request adds\n", encoding="utf-8")
+        git(inst, "add", "-A")
+        git(inst, "-c", "user.name=ci", "-c", "user.email=ci@example.invalid", "commit", "-qm", f"add {name}")
+        env.update(CI_COMMIT_SHA=git(inst, "rev-parse", "HEAD"), CI_MERGE_REQUEST_DIFF_BASE_SHA=before)
+        for wrapper in ("GitLab", "GitHub"):
+            checked_as_itself(env, out, wrapper, name)
+
+
+def refusals(env: dict, out: Path) -> None:
+    """task-0267: a KG_ANNOTATE list the script cannot follow, and a base that is an option, exit 2 before the core
+    command, through both wrappers; a file the annotator cannot write stays a warning beside the command's exit."""
+    (out / "sub dir").write_text("a file, so nothing can be written under it\n", encoding="utf-8")
+    for spec in (",,", "nope:x.json"):
+        for wrapper in ("GitLab", "GitHub"):
+            code, text = run_wrapper(env, out, wrapper, "trace-check", KG_ANNOTATE=spec)
+            if code != 2 or "KG_ANNOTATE" not in text or "github, summary, gitlab or sarif" not in text or "knowgov trace" in text:
+                sys.exit(f"FAIL: {wrapper}: KG_ANNOTATE={spec!r}: want exit 2 before the core command naming KG_ANNOTATE and its "
+                         f"four formats; exit {code}: {text[-400:]}")
+            print(f"    {wrapper}: KG_ANNOTATE={spec!r} refused, exit 2")
+    code, text = run_wrapper(env, out, "GitLab", "trace-check", KG_ANNOTATE=f"gitlab:{out}/sub dir/x.json")
+    if code == 2 or "annotate gitlab failed" not in text or "Traceback" in text:
+        sys.exit(f"FAIL: an unwritable annotation file: want the command's exit and a warning, no traceback; exit {code}: {text[-600:]}")
+    print(f"    an annotation file it cannot write: a warning, the command's exit {code}")
+    base_refused(env, out)
+
+
+def base_refused(env: dict, out: Path) -> None:
+    """task-0267 (N2): a merge request base that is an option exits 2 naming KG_BASE, and git writes nothing."""
+    canary = out / "canary"
+    for wrapper in ("GitLab", "GitHub"):
+        code, text = run_wrapper(dict(env, CI_MERGE_REQUEST_DIFF_BASE_SHA=f"--output={canary}"), out, wrapper, "trace-check")
+        if code != 2 or canary.exists() or "KG_BASE" not in text:
+            sys.exit(f"FAIL: {wrapper}: a base that is an option: want exit 2 naming KG_BASE and no file written; exit {code}, "
+                     f"{canary} {'written' if canary.exists() else 'absent'}: {text[-400:]}")
+        print(f"    {wrapper}: a base of --output=... refused, exit 2, nothing written")
+
+
+def run_wrapper(env: dict, out: Path, wrapper: str, gate: str, **kg: str) -> tuple[int, str]:
+    """One gate through the GitLab template's script or the GitHub action's step, with its output."""
+    if wrapper == "GitHub":
+        inputs = {k: v for k, v in kg.items() if k != "KG_ANNOTATE"}
+        if "KG_ANNOTATE" in kg:   # the action's own input is true or false; the KG_* reach the script as the step sets them
+            return action({**env, "KG_ANNOTATE": kg["KG_ANNOTATE"]}, gate, out, **inputs)
+        return action(env, gate, out, **inputs)
+    tpl = yaml.safe_load(TEMPLATE.read_text(encoding="utf-8"))[".knowgov-gate"]
+    script = "\n".join(line.replace(CLONE, str(ROOT)) for line in tpl["script"])
+    e = {**env, **{k: str(v) for k, v in tpl["variables"].items()}, "KG_GATE": gate, **kg}
+    p = subprocess.run(["sh", "-ec", script], cwd=env["CI_PROJECT_DIR"], env=e, capture_output=True, text=True)
+    return p.returncode, p.stdout + p.stderr
+
+
+def checked_as_itself(env: dict, out: Path, wrapper: str, name: str) -> None:
+    report = out / f"trace-check-{wrapper}-{len(name)}.json"
+    if wrapper == "GitLab":
+        code = job(env, "trace-check", KG_ANNOTATE="", KG_REPORT=str(report))
+    else:
+        code, _ = action(env, "trace-check", out, KG_REPORT=str(report.relative_to(out)))
+    if code == 2 or not report.exists():
+        sys.exit(f"FAIL: {wrapper}: trace-check on a merge request adding {name!r} wrote no report (exit {code}); "
+                 "a changed path it cannot read is not 'no code changed'")
+    got = json.loads(report.read_text(encoding="utf-8"))["changed"]
+    if got != [name]:
+        sys.exit(f"FAIL: {wrapper}: trace-check checked {got} for a merge request adding {name!r}")
+    print(f"    {wrapper}: trace-check reads the changed path {name!r} as itself (exit {code})")
 
 
 def main() -> None:
@@ -183,6 +279,9 @@ def main() -> None:
         sys.exit(f"FAIL: want the unread story's layout problems in the report and the code-quality report, the exit the lint's: "
                  f"{rep['exit_code']} {lay} {mine}")
     print(f"    preload: the layout's problems on {at} as code quality, {sorted(mine)}; the exit still the lint's ({rep['exit_code']})")
+    changed_paths(env, inst, root, out)   # task-0267
+    refusals(env, out)   # task-0267
+
     print("GitLab include: the same command line as the action and the shell snippet; S6's change fails the merge request naming APP-0001; "
           f"KG_AS_OF reads both gates and the registration as of {LAPSE_DAY}")
 

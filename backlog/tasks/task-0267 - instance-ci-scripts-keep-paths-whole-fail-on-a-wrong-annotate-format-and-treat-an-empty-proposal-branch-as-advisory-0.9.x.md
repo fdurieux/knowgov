@@ -3,9 +3,11 @@ id: TASK-0267
 title: >-
   instance/ci scripts keep paths whole, fail on a wrong annotate format, and
   treat an empty proposal branch as advisory (0.9.x)
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-11-09T09:33:00Z'
+updated_date: '2026-11-09T16:02:00Z'
 labels:
   - validation
   - correctness
@@ -38,9 +40,27 @@ Source: group 1 F9, F10, F17 and F18, decision-0032 (task-0256), probed on main 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Paths travel NUL-separated (`git -z`) with globbing off, held by a test with a space and a glob character in a path.
-- [ ] #2 An unknown `KG_ANNOTATE` format exits 2.
-- [ ] #3 `proposal-impact.sh` exits 0 with a report naming `not_read` when a branch adds nothing.
-- [ ] #4 Absolute and escaping paths are handled one way, and named. A directory that is not an instance is refused.
-- [ ] #5 `check_ci_wrappers` and `harness.yml`'s instance/ci steps pass.
+- [x] #1 Paths travel NUL-separated (`git -z`) with globbing off, held by a test with a space and a glob character in a path.
+- [x] #2 An unknown `KG_ANNOTATE` format exits 2.
+- [x] #3 `proposal-impact.sh` exits 0 with a report naming `not_read` when a branch adds nothing.
+- [x] #4 Absolute and escaping paths are handled one way, and named. A directory that is not an instance is refused.
+- [x] #5 `check_ci_wrappers` and `harness.yml`'s instance/ci steps pass.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. AC1: knowgov-gate.sh changed() reads git -c core.quotepath=off diff -z --name-only --end-of-options BASE; the Python helper shlex-quotes each path into 'FLAG path' pairs the shell takes by eval, never word-split or globbed; KG_FILES split with globbing off. The same NUL-separated read in the Claude hook (_committed, _status with renames) and proposal_impact's branch mode. 2. AC2: annotate_ok refuses an empty element, an unknown format or FORMAT: before the core command, exit 2 naming KG_ANNOTATE and its four formats; annotate.py's unwritable -o a message, never a traceback (a warning beside the command's exit). 3. AC3: evaluate_branch reads a branch that adds nothing (empty overlay), so proposal-impact.sh exits 0 with a report naming not_read. 4. AC4: preload-check.sh takes an absolute KG_PRELOAD_BASELINE as given; preload_check refuses --changed outside the instance (absolute or by ..) alike, naming it, and a directory with no subjects/. 5. N2: KG_BASE starting with - refused (exit 2); --end-of-options before every base git reads. N6: a KG_* linter setting naming nothing executable exits 2 naming it. 6. Tests: check_ci_wrappers on both wrappers (space, glob character, non-ASCII; KG_ANNOTATE; a base of --output=); tests/ for the hook, branch mode, preload_check and proposal-impact.sh; each failing on main.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Places that read git's path list or KG_FILES (the coordinator's list, from the spot check of 2026-11-09): (1) instance/ci/knowgov-gate.sh changed(), used by trace-check (--changed) and trace-register (--file), shared by instance/ci/gitlab/knowgov.gitlab-ci.yml and instance/ci/github/action.yml (which calls the script with KG_BASE from its base input or the pull request's base): now git -c core.quotepath=off diff -z --name-only --end-of-options BASE, the helper shlex-quoting each path into 'FLAG path' that the shell takes by eval; (2) knowgov-gate.sh's KG_FILES loop (trace-register; the action's files input): whitespace-separated as documented, now with globbing off; (3) instance/ci/claude/knowgov_hook.py _committed (git diff --cached / --name-only) and _status (git status --porcelain=v1): now -z with core.quotepath=off, a rename's source skipped; (4) harness/proposal_impact.py branch_overlay, run by instance/ci/proposal-impact.sh: git diff --name-status -z; (5) tools/preload_check.py _since, run by instance/ci/preload-check.sh: already -z, now with core.quotepath=off and --end-of-options. Spot check: the non-ASCII form failed open beyond the space split (git quoted módulo.py, so trace-check read 'no code changed', exit 0); a space read 'new module.py' as 'module.py'; tested with módulo.py, new module.py and glob[1]*.py on both wrappers. AC2: ',,' and 'nope:x.json' exit 2 before the core command naming KG_ANNOTATE and its four formats; 'gitlab:<dir>/sub dir/x.json' unwritable is a warning beside the command's exit; the traceback form was annotate.py's unwritable -o, now a message. N2: KG_BASE=--output=FILE made git write FILE; now refused with exit 2 naming KG_BASE, and --end-of-options guards changed(), preload_check --since and proposal_impact --base. N6: KG_SPECTRAL (and siblings) naming nothing executable exits 2 naming the setting; unset keeps not installed.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+The CI templates read paths and settings one way and refuse what they cannot follow. Changed paths travel NUL-separated and unquoted (git -z, core.quotepath=off) through knowgov-gate.sh, the Claude hook and proposal_impact's branch mode, the helper quoting each into the argv with globbing off: módulo.py no longer reads 'no code changed' (fail-open) and 'new module.py' is no longer 'module.py'. KG_ANNOTATE that the script cannot follow exits 2 before the core command; an unwritable annotation is a warning, no traceback. A KG_BASE starting with '-' is refused and --end-of-options guards every base git reads (N2). proposal-impact.sh exits 0 with a report naming not_read on a branch that adds nothing. preload_check refuses --changed outside the instance alike (absolute or by ..), a directory with no subjects/, and a named linter setting that cannot run (N6); preload-check.sh takes an absolute KG_PRELOAD_BASELINE as given. Tests: check_ci_wrappers through both wrappers (space, glob character, non-ASCII; KG_ANNOTATE; a base of --output=), and tests/ for the hook, branch mode, preload_check and proposal-impact.sh, each failing on main. The record held (the comparator on S1-S7 and J-F, the round trip).
+<!-- SECTION:FINAL_SUMMARY:END -->

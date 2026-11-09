@@ -6,7 +6,8 @@
 #
 #     sh knowgov-gate.sh <knowgov checkout> <instance checkout> preload|gate|trace-check|trace-register
 #
-#   KG_BASE         a git ref to diff against (a pull request's base); unset: every file
+#   KG_BASE         a git ref to diff against (a pull request's base); unset: every file; one starting with
+#                   '-' is refused, exit 2 (task-0267)
 #   KG_COMMIT       the commit being checked or registered (trace-register needs it)
 #   KG_FAIL_ON      the severity at or above which the gate exits 1 (each core command's default)
 #   KG_SUBJECT      the subject root (gate, trace-*; default: the instance's only subject)
@@ -27,7 +28,8 @@
 #                   unset: the code files changed since KG_BASE
 #   KG_REPORT       every gate: also write the JSON report here (-o), for the platform to annotate or keep
 #   KG_ANNOTATE     every gate: the report as annotations (harness/annotate.py; task-0083), a comma-separated
-#                   list of FORMAT[:FILE], FORMAT github, summary, gitlab or sarif; no FILE: the job's log.
+#                   list of FORMAT[:FILE], FORMAT github, summary, gitlab or sarif; no FILE: the job's log;
+#                   anything else (an empty element, another format, FORMAT: alone) exits 2 before the command.
 #                   summary appends to its FILE, the others overwrite theirs. Paths in them are relative to
 #                   the working directory the script was called from; a run that exits 2 writes none
 #   KG_STORE, KG_RDFLIB_FILE, KG_NEO4J_*   the store, as the harness reads them
@@ -74,9 +76,12 @@ subject() {
     dirname "$one"
 }
 
-changed() {   # the code files changed since KG_BASE, relative to the code map's root, one per line
-    "$PY" - "$KG" "$INST" "$KG_BASE" "${1:-}" <<'PY' || exit 2
-import subprocess, sys
+changed() {   # FLAG [git diff option]: the code files changed since KG_BASE, relative to the code map's root, as the
+    # shell-quoted arguments "FLAG path" for each, ready for eval; nothing when none changed (task-0267). git lists the
+    # paths NUL-separated and unquoted, and nothing here splits them on whitespace, so a space or a non-ASCII
+    # character in a name is that name.
+    "$PY" - "$KG" "$INST" "$KG_BASE" "$1" "${2:-}" <<'PY' || exit 2
+import shlex, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1] + "/harness")
 import code_map
@@ -85,10 +90,12 @@ try:
     cm, root = trace.read_map(Path(sys.argv[2]))
 except trace.CannotRun as e:
     sys.exit(f"knowgov-gate: {e}")
-p = subprocess.run(["git", "-C", str(root), "diff", "--name-only", "--relative", *[a for a in sys.argv[4:5] if a], sys.argv[3], "--", "."], capture_output=True, text=True)
+p = subprocess.run(["git", "-C", str(root), "-c", "core.quotepath=off", "diff", "-z", "--name-only", "--relative",
+                    *[a for a in sys.argv[5:6] if a], "--end-of-options", sys.argv[3], "--", "."], capture_output=True)
 if p.returncode:
-    sys.exit(f"knowgov-gate: git diff against {sys.argv[3]} failed in {root}: {p.stderr.strip()}")
-print("\n".join(f for f in p.stdout.split() if code_map.is_code(cm, f)))
+    sys.exit(f"knowgov-gate: git diff against {sys.argv[3]} failed in {root}: {p.stderr.decode(errors='replace').strip()}")
+names = [n.decode("utf-8", "surrogateescape") for n in p.stdout.split(b"\0") if n]
+print(" ".join(f"{sys.argv[4]} {shlex.quote(f)}" for f in names if code_map.is_code(cm, f)))
 PY
 }
 
@@ -122,6 +129,27 @@ finish() {   # the annotations of the report just written, then the command's ex
     [ -n "${TMP_REPORT:-}" ] && rm -f "$TMP_REPORT"
     exit "$1"
 }
+
+annotate_ok() {   # task-0267: KG_ANNOTATE is checked before anything runs, so a list it cannot follow is exit 2, not a pass
+    [ -n "${KG_ANNOTATE:-}" ] || return 0
+    why=
+    case ",$KG_ANNOTATE," in *,,*) why="it holds an empty element" ;; esac
+    if [ -z "$why" ]; then
+        set -f; old=$IFS; IFS=,
+        for spec in $KG_ANNOTATE; do
+            case "${spec%%:*}" in github|summary|gitlab|sarif) ;; *) why="'${spec%%:*}' is not a format"; break ;; esac
+            case "$spec" in *:) why="'$spec' names no FILE after its colon"; break ;; esac
+        done
+        IFS=$old; set +f
+    fi
+    [ -z "$why" ] && return 0
+    echo "knowgov-gate: KG_ANNOTATE='$KG_ANNOTATE': $why; it takes a comma-separated list of FORMAT[:FILE], FORMAT one of github, summary, gitlab or sarif" >&2
+    exit 2
+}
+annotate_ok
+case "${KG_BASE:-}" in   # task-0267 (N2): a base is a ref, never an option git would act on (--output=FILE writes FILE)
+-*) echo "knowgov-gate: KG_BASE='$KG_BASE' is not a git ref: it starts with '-'" >&2; exit 2 ;;
+esac
 
 REPORT=
 if [ -n "${KG_REPORT:-}" ]; then REPORT=$(abspath "$KG_REPORT")
@@ -160,17 +188,22 @@ trace-check|trace-register)
     if [ "$GATE" = trace-check ]; then
         [ -n "${KG_FAIL_ON:-}" ] && set -- "$@" --fail-on "$KG_FAIL_ON"
         if [ -n "${KG_BASE:-}" ]; then
-            paths=$(changed) || exit 2
+            paths=$(changed --changed) || exit 2
             [ -z "$paths" ] && { echo "knowgov-gate: no code changed since $KG_BASE"; exit 0; }
-            for p in $paths; do set -- "$@" --changed "$p"; done
+            eval "set -- \"\$@\" $paths"   # the helper quoted each path: no word-splitting on a name (task-0267)
         fi
     else
         [ -n "${KG_COMMIT:-}" ] || { echo "knowgov-gate: trace-register needs KG_COMMIT" >&2; exit 2; }
         set -- "$@" --repo "${KG_CODE_REPO:-code}"
-        files=${KG_FILES:-}
-        if [ -z "$files" ] && [ -n "${KG_BASE:-}" ]; then files=$(changed --diff-filter=d) || exit 2; fi   # a deleted file has nothing to register
-        [ -n "$files" ] || { echo "knowgov-gate: nothing to register: set KG_FILES or KG_BASE" >&2; exit 2; }
-        for p in $files; do set -- "$@" --file "$p"; done
+        if [ -n "${KG_FILES:-}" ]; then   # the caller's list, whitespace-separated, as documented
+            set -f; for p in $KG_FILES; do set -- "$@" --file "$p"; done; set +f   # split, never globbed (task-0267)
+        elif [ -n "${KG_BASE:-}" ]; then
+            files=$(changed --file --diff-filter=d) || exit 2   # a deleted file has nothing to register
+            [ -n "$files" ] || { echo "knowgov-gate: nothing to register: no code changed since $KG_BASE" >&2; exit 2; }
+            eval "set -- \"\$@\" $files"   # git's names, quoted by the helper (task-0267)
+        else
+            echo "knowgov-gate: nothing to register: set KG_FILES or KG_BASE" >&2; exit 2
+        fi
     fi
     core trace.py "$@"
     ;;

@@ -23,9 +23,11 @@ PY=$("${PYTHON:-python3}" -c 'import sys; sys.exit(1) if sys.version_info < (3, 
 export PYTHON="$PY"
 
 # KG_PRELOAD_BASELINE: a report the instance's owner committed (preload_check.py -o), relative to the
-# instance; findings it holds do not fail. The check never writes it; moving it on is a commit.
+# instance (or an absolute path); findings it holds do not fail. The check never writes it; moving it on is a commit.
 set -- --fail-on "${KG_FAIL_ON:-major}"
-if [ -n "${KG_PRELOAD_BASELINE:-}" ]; then set -- "$@" --baseline "$INST/$KG_PRELOAD_BASELINE"; fi
+if [ -n "${KG_PRELOAD_BASELINE:-}" ]; then   # relative to the instance; an absolute path as given (task-0267)
+    case "$KG_PRELOAD_BASELINE" in /*) set -- "$@" --baseline "$KG_PRELOAD_BASELINE" ;; *) set -- "$@" --baseline "$INST/$KG_PRELOAD_BASELINE" ;; esac
+fi
 if [ -n "$BASE" ]; then set -- "$@" --since "$BASE"; fi
 # KG_REPORT: also write the JSON report here (preload_check.py -o), for the platform to annotate or keep
 # (harness/annotate.py; task-0106), the layout check's problems in its layout block (--layout, task-0115);

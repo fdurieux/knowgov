@@ -433,6 +433,56 @@ def test_branch_mode_equals_the_held_overlay_ids_aside_and_leaves_the_checkout_a
         pi.ri.load_tools(ri.register_root())
 
 
+def test_branch_mode_reads_a_path_with_a_space_or_a_non_ascii_character_as_itself():
+    """task-0267: the branch's changed paths come NUL-separated from git, so a register file under a name git would
+    quote (a non-ASCII character) or a space is listed as itself; before, its quoted form ("exceptions/... with octal
+    escapes) matched no taxonomy and it was dropped from not_read unseen."""
+    import check_proposal_branch as cpb
+    top = Path(tempfile.mkdtemp(prefix="kg-proposal-branch-test-"))
+    try:
+        reg = cpb.scratch_branch(top, _proposal())
+        odd = reg / "exceptions" / "borradores de diseño" / "excepción.toml"
+        odd.parent.mkdir()
+        odd.write_text('id = "EXC-9999"\n', encoding="utf-8")
+        cpb.git(reg, "add", "-A")
+        cpb.git(reg, "commit", "-qm", "a nested draft")
+        r = pi.evaluate_branch(reg, "main", today=TODAY)
+        _valid(r)
+        assert [(x["path"], x["status"]) for x in r["branch"]["not_read"]] == \
+            [("exceptions/borradores de diseño/excepción.toml", "A")], r["branch"]["not_read"]
+    finally:
+        shutil.rmtree(top, ignore_errors=True)
+
+
+def test_the_ci_step_on_a_branch_that_adds_nothing_exits_0_with_a_report_naming_not_read():
+    """task-0267 (F17): the step is advisory, 0 with a report, 2 only when it cannot run; a register branch that only
+    removes a link adds no node and no link, so it was exit 2. Now its report names what it changes in not_read."""
+    import check_proposal_branch as cpb
+    top = Path(tempfile.mkdtemp(prefix="kg-proposal-branch-test-"))
+    try:
+        reg = cpb.scratch_branch(top, _proposal())
+        cpb.git(reg, "reset", "-q", "--hard", "main")   # the proposal branch back at main: it adds nothing
+        rel = reg / "relationships" / "realizes.toml"
+        text = rel.read_text(encoding="utf-8")
+        first = text.index("[[link]]")
+        rel.write_text(text[:first] + text[text.index("[[link]]", first + 1):], encoding="utf-8")
+        cpb.git(reg, "commit", "-qam", "a link removed")
+        out = top / "report.json"
+        p = subprocess.run(["sh", str(ROOT / "instance" / "ci" / "proposal-impact.sh"), str(ROOT), str(reg), "main"], capture_output=True,
+                           text=True, env={**os.environ, "KG_AS_OF": DAY, "KG_PROPOSAL_REPORT": str(out)})
+        assert p.returncode == 0, p.stderr[-800:]
+        r = json.loads(out.read_text(encoding="utf-8"))
+        _valid(r)
+        assert (r["nodes"], r["links"], r["coverage"]["new_gaps"]) == ([], [], [])
+        assert [(x["path"].split(" ")[0], x["status"]) for x in r["branch"]["not_read"]] == [("relationships/realizes.toml", "D")]
+        assert "--end-of-options" not in p.stderr
+        bad = subprocess.run(["sh", str(ROOT / "instance" / "ci" / "proposal-impact.sh"), str(ROOT), str(reg), f"--output={top}/x"],
+                             capture_output=True, text=True, env={**os.environ, "KG_AS_OF": DAY})
+        assert bad.returncode == 2 and not (top / "x").exists(), bad.stderr[-400:]
+    finally:
+        shutil.rmtree(top, ignore_errors=True)
+
+
 def test_branch_mode_reads_a_changed_node_as_changed_and_lists_what_is_not_an_addition():
     import check_proposal_branch as cpb
     top = Path(tempfile.mkdtemp(prefix="kg-proposal-branch-test-"))
