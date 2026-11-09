@@ -101,7 +101,8 @@ show you later, or not at all:
   `[tasks.codegen]`. It would otherwise be ignored without a word. The check names the nearest
   real name;
 - a task's missing or malformed settings: its `keys`, its `block_levels` and its
-  `max_unverified_share`. A key is written `<entity>|<predicate>`, for example `REQ-01|text`.
+  `max_unverified_share`. A key is written `<entity>|<predicate>`, for example `REQ-01|text`: one `|`, each
+  side non-empty, of characters up to U+FFFF with no space, no control and no format character (task-0297).
   `block_levels` is a list, such as `["absent"]`, never a bare `"absent"`. A task class's name is
   lower case, such as `codegen` or `design`: a letter first, then letters, digits, `_` or `-`, at
   most 32 characters. It is never `keys`, which is the name a report gives a set of keys an
