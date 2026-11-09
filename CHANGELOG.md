@@ -393,7 +393,8 @@ names that section with the version.
   `gate_cli.py`, the MCP reader, `run.py`, the agent-key path), and coerces nothing. `block_levels` is a list
   of gate levels, `keys` a non-empty list of keys, `max_unverified_share` a number from 0 to 1,
   `require_approved` true or false, `rationale` text. A malformed field is a checker error and, unchecked,
-  the gate's exit 2 (an error result from the MCP reader), naming the class and the field.
+  the gate's exit 2 (an error result from the MCP reader), naming the class and the field. A subject with a
+  malformed task class does not load: every gate call exits 2 naming the field.
 - **A key resting only on inference carries every basis, not one chosen by the hash seed** (task-0244,
   doc-0033 R3). A key whose statements are all inferred, assumed or hypothesised was flagged with one of
   those bases, picked by Python's set order, so the same store could report different flags from run to

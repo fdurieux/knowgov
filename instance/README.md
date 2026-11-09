@@ -101,7 +101,9 @@ show you later, or not at all:
   `[tasks.codegen]`. It would otherwise be ignored without a word. The check names the nearest
   real name;
 - a task's missing or malformed settings: its `keys`, its `block_levels` and its
-  `max_unverified_share`. A key is written `<entity>|<predicate>`, for example `REQ-01|text`;
+  `max_unverified_share`. A key is written `<entity>|<predicate>`, for example `REQ-01|text`.
+  `block_levels` is a list, such as `["absent"]`, never a bare `"absent"`. A subject with a malformed
+  task class does not load: every gate call exits 2 naming the field;
 - a subject with a task and no scenario. The gate runs on a scenario, so it cannot run on such a
   subject. Copy the pristine scenario `S0` from `subjects/minimal/scenarios.toml` and rename it
   `<id>-S0`;
