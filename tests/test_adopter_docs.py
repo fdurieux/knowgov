@@ -284,3 +284,63 @@ def test_none_of_the_nineteen_is_named_in_a_contract_document():
     docs = _docs()
     named = [f"{d}: {n}" for d in CONTRACT_DOCS for n in NOT_CONTRACTS if re.search(rf"\b{n}\b", docs[d])]
     assert not named, f"decision-0027 keeps these out of the contracts, so out of {CONTRACT_DOCS}: {named}"
+
+
+# task-0181 (decision-0016 point 3; doc-0028 P4): instance/README.md's "What stays stable from 1.0" lists every
+# contract point 3 names, one table row each, none missing and none invented, and quotes points 2, 3, 5 and 6 as
+# the record has them. Each pair: the item as point 3 words it, and the start of its row in the plain-English table.
+POINT3 = (
+    ("the gate command's exit codes and flags", "the gate command's flags and its exit codes"),
+    ("the JSON shapes under `harness/schemas/`", "the shape of every JSON report"),
+    ("the instance layout", "the folders and files of your instance"),
+    ("the store port", "what a store must offer the platform (the store port)"),
+    ("the subject manifest format", "the fields of `subject.toml`"),
+    ("the MCP reader's and the runs server's tools, prompts, and their inputs and outputs", "the tools and prompts of both assistant servers"),
+    ("the `KG_*` settings that `instance/README.md` or `docs/security.md` documents", "the `KG_*` settings this file or"),
+    ("the page's HTTP API, as `demo/README.md` documents it", "the page's `/api/*` routes"),
+    ("the inputs and outputs of `instance/ci/`", "the CI action, the GitLab include, the shell wrappers and the hooks' settings files"),
+    ("the image's name and tag scheme", "the image's name and tags"),
+    ("the format versions of the instance's inputs", "the format version each of your input files declares"),
+    ("the ieam-register format versions an instance's register may be in", "which ieam-register format versions your register may be in"),
+)
+
+
+def _decision_0016() -> str:
+    return next((ROOT / "backlog" / "decisions").glob("decision-0016 *")).read_text(encoding="utf-8")
+
+
+def _point(text: str, n: int) -> str:
+    """Point n of decision-0016's Decision, its own line and any indented lines that follow it, as one string."""
+    m = re.search(rf"(?ms)^{n}\. (\*\*.*?)(?=^\d+\. \*\*|^## )", text)
+    return " ".join(ln.strip() for ln in m.group(1).splitlines() if ln.strip())
+
+
+def _stable_section() -> str:
+    text = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
+    return text[text.index("## What stays stable from 1.0: the contracts"):]
+
+
+def _flat(s: str) -> str:
+    return " ".join(s.replace("> ", " ").split())
+
+
+def test_the_contracts_section_lists_every_contract_of_point_3_once_and_none_besides():
+    p3 = _point(_decision_0016(), 3)
+    listed = p3.split("decision-0003 §2's list (", 1)[1].split("), and also:", 1)[0].split(", ")
+    bullets = [b.strip().rstrip(";.") for b in p3.split("), and also:", 1)[1].split(" - ") if b.strip()]
+    items = listed + bullets[:-1] + bullets[-1].split(", and ")
+    assert len(items) == len(POINT3) == 12, items
+    for (said, _), item in zip(POINT3, items):
+        assert item.startswith(said), (said, item)   # the pairs follow point 3, in its order
+    rows = [ln for ln in _stable_section().splitlines() if ln.startswith("| ") and not ln.startswith(("| You can rely on", "|---"))]
+    rows = rows[:rows.index(next(r for r in rows if r.startswith("| which ieam-register"))) + 1]
+    assert len(rows) == len(POINT3), [r[:60] for r in rows]   # none missing, none invented
+    for (_, starts), row in zip(POINT3, rows):
+        assert row.startswith(f"| {starts}"), (starts, row[:80])
+        assert len([c for c in row.strip().strip("|").split("|")]) == 3, row[:80]   # what, where, how told
+
+
+def test_the_contracts_section_quotes_points_2_3_5_and_6_as_the_record_has_them():
+    d16, section = _decision_0016(), _flat(_stable_section())
+    for n in (2, 3, 5, 6):
+        assert _flat(_point(d16, n)) in section, f"decision-0016 point {n} is not quoted as accepted"

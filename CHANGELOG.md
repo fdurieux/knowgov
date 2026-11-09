@@ -384,6 +384,13 @@ names that section with the version.
   and `proposal_impact` still read coverage C1 to C3 by name, so C4 has no coverage line and no new-gap entry. A
   C4 error in an instance's register still shows in the register view's findings list and its error count,
   which list every checker finding. Nothing in the record moves.
+
+- **What stays stable from 1.0, and how a change reaches you** (task-0181, decision-0016, doc-0028 P4).
+  `instance/README.md`'s contracts table now says, for each contract, how you are told when it changes. A new
+  subsection quotes decision-0016's points 2, 5 and 6: 0.9.x carries fixes only, the deprecation rule from
+  1.0.0, and the support window. `tests/test_adopter_docs.py` holds the table to point 3's list, none missing
+  and none invented, and holds the quotes to the record.
+
 - **A job's processes can no longer outlast the worker's clean-up under load** (task-0233). After each job the
   worker kills every process the job left. It used to stop at the first look at the process table that found
   none, but a process can fork and exit between the moment the table is listed and the moment it is read, so a
