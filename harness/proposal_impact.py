@@ -329,18 +329,24 @@ def placement(ov: Overlay, reg: dict, CR, today: dt.date) -> list[dict]:
     return out
 
 
+def coverage_rules(CR) -> tuple[str, ...]:
+    """Every coverage rule the register's own checker defines, in its order (C1 to C4 at ieam-register v0.2.13,
+    decision 0020): read from its ``COVERAGE_RULES``, so a later rule needs no code here (task-0241)."""
+    return tuple(CR.COVERAGE_RULES)
+
+
 def _cov(CR, reg: dict, ov: Overlay, today: dt.date) -> dict:
     f = CR.Findings()
     s = CR.check_coverage(reg, f, today)
     return {r: {"denominator": s[r]["denominator"], "covered": s[r]["covered"], "excepted": s[r]["excepted"],
                 "uncovered": [{"id": ov.name(x), "hypothetical": ov.is_new(x)} for x in s[r]["uncovered"]]}
-            for r in ("C1", "C2", "C3")}
+            for r in coverage_rules(CR)}
 
 
 def coverage(CR, base: dict, read: dict, ov: Overlay, today: dt.date) -> dict:
     before, after = _cov(CR, base, ov, today), _cov(CR, read, ov, today)
     gaps = []
-    for r in ("C1", "C2", "C3"):
+    for r in coverage_rules(CR):
         had = {x["id"] for x in before[r]["uncovered"]}
         gaps += [{"rule": r, **x} for x in after[r]["uncovered"] if x["id"] not in had]
     return {"before": before, "after": after, "new_gaps": gaps}
@@ -1154,7 +1160,7 @@ def render_text(r: dict) -> str:
         b = r["branch"]
         lines.append(f"  branch {b['head'][:12]} against {b['base']} (merge base {b['merge_base'][:12]}); not read: "
                      f"{[x['path'] for x in b['not_read']] or 'nothing'}")
-    for c in ("C1", "C2", "C3"):
+    for c in r["coverage"]["after"]:   # every rule the register's checker defines, in its order (task-0241)
         b, a = r["coverage"]["before"][c], r["coverage"]["after"][c]
         lines.append(f"  {c}: {b['covered']}/{b['denominator']} -> {a['covered']}/{a['denominator']} covered; "
                      f"uncovered {[x['id'] for x in a['uncovered']] or 'none'}")
