@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-08T19:53:00Z'
+updated_date: '2026-11-08T23:53:00Z'
 tags:
   - brief
   - release
@@ -93,22 +93,22 @@ Every item here is the maintainer's to meet.
 | G9-14 | One id per conflict on every store (decision-0020, the maintainer, 2026-11-08: "accept decision-0020's advice") | Not built: document conflicts are numbered in store order (doc-0030 S2) | task-0223 |
 | G9-15 | pumllint 0.35.0 as the record's pin, so the image runs step 4's feature trace (G9-4; the maintainer, 2026-11-08: "bump pumllint to 0.35.0") | 0.33.0 pinned; trace --features first in 0.35.0 | task-0224, then task-0217 |
 
-### Status at `main` `73a41da` (2026-11-08)
+### Status at `main` `4c7fcb0` (2026-11-08, late)
 
-*Filed by the coordinating session. The table above is the list as accepted; this records where each row stands. decision-0016 point 1 cuts 0.9.0 when G9-1 to G9-10 are met; G9-11 to G9-15 were added to the list since.*
+*Filed by the coordinating session, refreshed after the reconciliation of the v1.0 scope handover (decision-0023 A1 and decision-0028 to decision-0031, all proposed). The table above is the list as accepted; this records where each row stands. decision-0016 point 1 cuts 0.9.0 when G9-1 to G9-10 are met; G9-11 to G9-15 were added to the list since.*
 
 | # | state | evidence |
 |--:|---|---|
 | G9-1 | met | decision-0016, accepted 2026-11-06 |
-| G9-2 | **open** | task-0174 (P1, the format-version plan), To Do |
+| G9-2 | met | task-0174 Done (#382): `[format] version` and `format = 1` (decision-0023). What a missing version means after 0.9.0 is decision-0023 Amendment A1, proposed for the maintainer (R1 reads it as 1 in every release, recommended; R0 refuses it from 0.9.0); task-0236 builds the chosen rule before the cut |
 | G9-3 | **open: one task** | task-0157 and task-0160 Done; task-0148 In Progress, its AC #5 waiting on the maintainer's Claude Desktop test (K10) |
 | G9-4 | met for 0.8.0; met again at the cut | v0.8.0 published (tag `0c629d8`), the compose file pins its digest; 0.9.0's image is the release's own build, carrying pumllint 0.35.0 (G9-15) and naming its commit (task-0227, #375) |
-| G9-5 | met | task-0163 Done (rdflib and rdflib-readers in parallel). rdflib-readers is not yet a required check, which is the maintainer's to add |
-| G9-6 | **met, but K10** (decision-0024, 2026-11-08) | P3 done (task-0173). The proposed 1.0 limits of §10 wait to be named (decision-0016 point 1); K21 is a 1.0 limit by decision-0021 |
+| G9-5 | met, on decision-0016 point 1's text ("task-0163 merged") | task-0163 Done (rdflib and rdflib-readers in parallel). The CI budget (task-0084: 12 min uncontended) is not shown: task-0163 AC #2 stays open (contended rdflib-readers runs of 12.5, 13.9 and 16.8 min), task-0180 To Do. rdflib-readers is not yet a required check, which is the maintainer's to add. Neither is a cut condition |
+| G9-6 | **met, but K10** (decision-0024, 2026-11-08) | P3 done (task-0173). The proposed 1.0 limits of §10 are named (decision-0024); K21 is a 1.0 limit by decision-0021; K22, the worker's manual restart after (A'), is tasked (task-0238) |
 | G9-7 | met (decision-0025, 2026-11-08: the technical name stays knowgov) | task-0061 stays To Do for the buyer-facing name |
 | G9-8 | met (decision-0026, 2026-11-08: the platform GPL-3.0-or-later; `harness/schemas/`, `instance/` and any SDK Apache-2.0) | the re-stamp and README's section (task-0058 AC #2, #3) after counsel's check |
-| G9-9 | **open** | #291 (merged 2026-11-06) fixed the two stale claims. The pass holding every adopter-facing claim against the code (P2) is not run; `docs/reverse-engineering.md` (#361) and `tests/test_reverse_engineering_guide.py` hold one guide's commands and flags |
-| G9-10 | met | decision-0016 point 3 names the contracts at 1.0 and the formats an instance may use |
+| G9-9 | met | task-0230 (#384): every adopter-facing claim held against the code, and a docs gate; task-0234 (#388) and task-0235 (#387) its follow-ups. task-0181's statement of the contracts (AC #1 to #4; #5 and #6 once decision-0028 and decision-0030 are answered) lands before the cut |
+| G9-10 | met for the category | decision-0016 point 3 names it. The versions themselves are decision-0028, proposed for the maintainer: the ieam-register tag a release vendors and tests, `v0.2.13` at 0.9.0 on the maintainer's word (the re-vendor in flight), written by task-0181 once accepted |
 | G9-11 | met | H1–H7 and M3: task-0194 to task-0199 Done; the tranche F1–F8 and the singles 0205–0209 merged (task-0204 open as #376, task-0228 as #377) |
 | G9-12 | met | task-0214 (#356), task-0215 (#352), task-0216 (#357); step 4's checks, task-0217 (#371) |
 | G9-13 | met | task-0221 (#354, #355) |
@@ -116,8 +116,14 @@ Every item here is the maintainer's to meet.
 | G9-15 | met | task-0224 (#362); `pumllint trace --features` smoke step in rdflib-readers |
 
 **Left before the cut:**
-- work: G9-2 (task-0174) and G9-9's adopter-docs pass;
-- the maintainer's: G9-3's Desktop test (the maintainer, 2026-11-08: tomorrow). G9-6, G9-7 and G9-8 decided the same day (decision-0024 to decision-0026).
+- **work**, dispatched on 2026-11-08: the re-vendor at ieam-register `v0.2.13` (the maintainer: "yes, re-vendor the register at v0.2.13 before 0.9.0"), and task-0181 AC #1 to #4 (the contracts stated). Prepared alongside, with their pull requests held for the maintainer's word: task-0236 (decision-0023 A1), task-0181 AC #5 and #6 (decision-0028, decision-0030) and task-0237 (decision-0029);
+- **the maintainer's**: G9-3's Desktop test (2026-11-09), and the four contract questions, each proposed with the four parts and each a 0.10.0 if settled after the cut. They are decision-0023 A1 (what a missing format version means after 0.9.0), decision-0028 (the register versions an instance may use), decision-0029 (the report's identity in 0.9.0) and decision-0030 (the page's HTTP API);
+- **the release PR**: its Known limits. These are decision-0024's thirteen, decision-0021's K21, K10 unless the Desktop test closes it, and the tasked K16, K19, K22 and U1, with K1 at the current Landlock floor (ABI 3, task-0203).
+
+**Not cut conditions:**
+- task-0058's re-stamp. decision-0016 point 1 needs the boundary decided, and decision-0026 decided it. The re-stamp lands in a 0.9.x when counsel answers, or before the cut if counsel answers first.
+- The CI budget (task-0180).
+- decision-0031 (proposed): the acceptance matrix as the lighthouse's protocol.
 
 ## 5. 1.0: the contracts proven (proposed gap list)
 
@@ -182,7 +188,7 @@ No released `CHANGELOG.md` section is edited.
 |--:|---|---|---|
 | K-a | Code a model writes is not yet contained (0.7.0) | closed | task-0141.05, #271, decision-0012; shipped in 0.8.0, and the compose file now pins the v0.8.0 image that carries the worker (Unreleased) |
 | K-b | A load is not yet published whole on Neo4j (0.7.0) | closed | task-0141.06, #278, decision-0014; shipped in 0.8.0 |
-| K1 | Contained execution needs Linux with Landlock; Docker Desktop for Mac's kernel lacks it (0.8.0) | **1.0 limit** (decision-0024; task-0162 found Docker Desktop for Mac 4.48.0 without Landlock, the EC2 route attested) | task-0162 tests an engine whose VM kernel enables Landlock. If none does, this becomes a 1.0 limit |
+| K1 | Contained execution needs Linux with Landlock; Docker Desktop for Mac's kernel lacks it (0.8.0) | **1.0 limit** (decision-0024; task-0162 found Docker Desktop for Mac 4.48.0 without Landlock, the EC2 route attested) | task-0162 tests an engine whose VM kernel enables Landlock. If none does, this becomes a 1.0 limit; since task-0203 the floor is Landlock ABI 3 (Linux 6.2 or later), which 0.9.0's Known limits state |
 | K2 | Neo4j keeps no earlier generation: a read across a publication is refused and read again, then refused after `KG_STORE_READ_ATTEMPTS` (0.8.0) | **1.0 limit** (decision-0024; proposed by the pass) | decision-0014 chose whole publication without history. Keeping earlier generations is a second read path, which is task-0164's question, parked until the pilot |
 | K3 | A writer killed between raising the publication counter and committing makes reads wait up to `KG_NEO4J_READ_WAIT`, then refuse, until the next writer takes the lease (0.8.0) | to mint | no task: the window is named in task-0159's description only. `store_neo4j.py` (the pin and the lease) has no recovery for a reader. Minted as task-0175 (T-a) |
 | K4 | The server's transaction memory bounds a Neo4j load (41 MiB CargoQuote, 64 MiB J-F, against 70% of a 1 GiB heap) (0.8.0) | to mint | no task: the bound is measured on the public subjects only. An instance's load size is unknown until the pilot. Minted as task-0176 (T-b) |
@@ -203,6 +209,7 @@ No released `CHANGELOG.md` section is edited.
 | K19 | The GitLab include is proven by shell, not on a GitLab runner (0.7.0) | tasked | task-0108, at the pilot |
 | K20 | The hooks see Edit and Write, not a shell command writing the same file (0.7.0) | **1.0 limit** (decision-0024; proposed by the pass) | Claude Code's PreToolUse hook on Bash sees a command string, not the files it writes, and parsing shell is unreliable. The pre-load check, the review files and the pull request remain the backstop (task-0147) |
 | K21 | An execution verification is not bound to the code the suite last passed on: its digest is the reference code's at load, so a changed reference code loads verified (Unreleased, task-0219's H7 probe) | **1.0 limit** (decision-0021, the maintainer, 2026-11-08: "Agreed") | `load.py` `load_verifications` records `sha256(SUBJECT.reference_code())` at load. Nothing records the code the oracle passed on. The probe's two mutants read PROCEED (#366). The guard is `trace check --fail-on minor`, named in the guide's step 8. task-0225 proposes the binding at m-8 with the lighthouse's instance |
+| K22 | A worker whose reaper cannot confirm a job's processes gone within its bound exits with code 4, and arms runs are refused until it is restarted by hand; nothing restarts it (Unreleased, task-0233 (A')) | tasked (task-0238, parked past the lighthouse). The manual restart is what the maintainer's "(A') yes" accepted on 2026-11-08; naming it a 1.0 limit is the maintainer's | `harness/worker.py` `ReapIncomplete`; `docs/security.md` ("exits with code 4 … refuses arms until it is restarted"). Seen once in 260 hostile jobs under load before task-0233's fix. (B) to (D) and an automatic restart are task-0238, parked |
 | U1 | A store-backed tool answers only for the subject whose scenario the store holds; for another subject it refuses, naming the run that would load it (Unreleased, task-0157) | tasked | task-0164, per-subject read snapshots, parked until the pilot and needing its own decision (decision-0013 A1) |
 | U2 | A call naming another subject runs a child process: about 0.4 s a call on Neo4j (p95 0.51 s), bounded by `KG_SUBJECT_CALL_TIMEOUT` (Unreleased) | **1.0 limit** (decision-0024; proposed by the pass) | the isolation decision-0013 chose: one process per other-subject call, with no shared state. A latency fact, not a defect |
 | U3 | A page older than task-0167, which reports no `execution`, reads as refused to `knowgov-runs` (Unreleased) | **1.0 limit** (decision-0024; proposed by the pass) | a compatibility rule between two components, fail-closed by design. It lapses once every page reports `execution` |
