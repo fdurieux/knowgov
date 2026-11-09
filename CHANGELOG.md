@@ -377,6 +377,14 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **The vendored register moves to ieam-register v0.2.13** (`7980708`, from v0.2.11). It adds the register's
+  decision 0019, four eyes: a session that drafted a change is its author and may not approve it. It also adds
+  decision 0020, coverage rule C4: an approved process that realises an approved capability is supported by an
+  approved application or module. The vendored register is C4-clean (5 of 5 covered). knowgov's register view
+  and `proposal_impact` still read coverage C1 to C3 by name, so C4 has no coverage line and no new-gap entry. A
+  C4 error in an instance's register still shows in the register view's findings list and its error count,
+  which list every checker finding. Nothing in the record moves.
+
 - **What stays stable from 1.0, and how a change reaches you** (task-0181, decision-0016, doc-0028 P4).
   `instance/README.md`'s contracts table now says, for each contract, how you are told when it changes. A new
   subsection quotes decision-0016's points 2, 5 and 6: 0.9.x carries fixes only, the deprecation rule from
