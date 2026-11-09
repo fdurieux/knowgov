@@ -16,6 +16,7 @@ and pairs with nothing.
 from __future__ import annotations
 
 import re
+from decimal import Decimal, InvalidOperation
 
 from extract import NONE
 from subject import SUBJECT
@@ -37,19 +38,37 @@ def _fields(v: str) -> dict | None:
 NUMERIC = {"min", "max", "threshold", "surcharge", "factor", "rounding"}
 
 
-def _is_num(v: str) -> bool:
+def _decimal(v: str) -> Decimal | None:
+    """The exact number a value writes, or None: not a number, or one with no finite value (inf, nan and
+    their spellings, which float() would take). Exact, never a float (task-0243): two integers past 2**53, or
+    two values past the double range, are as different as their digits."""
     try:
-        float(v)
-        return True
-    except ValueError:
+        d = Decimal(v.strip())
+    except (InvalidOperation, ValueError, AttributeError):
+        return None
+    return d if d.is_finite() else None
+
+
+def _non_finite(v: str) -> bool:
+    try:
+        return not Decimal(v.strip()).is_finite()
+    except (InvalidOperation, ValueError, AttributeError):
         return False
+
+
+def _is_num(v: str) -> bool:
+    return _decimal(v) is not None
 
 
 def compatible(a: str, b: str, predicate: str = "") -> str:
     """'equal' | 'conflict' | 'incomparable' for two values of one key.
     A numeric predicate with a non-numeric side (vague text, an
     unresolved symbol) is incomparable: R-VAGUE flags it, nothing
-    corroborates or contradicts it."""
+    corroborates or contradicts it. Numbers compare exactly (316.00 is
+    316; no tolerance), and a non-finite one (inf, nan) is incomparable,
+    as R-VAGUE reads it, even beside the same spelling (task-0243)."""
+    if _non_finite(a) or _non_finite(b):
+        return "incomparable"
     if a == b:
         return "equal"
     if predicate in NUMERIC and not (_is_num(a) and _is_num(b)):
@@ -62,11 +81,10 @@ def compatible(a: str, b: str, predicate: str = "") -> str:
         if all(fa[k] == fb[k] for k in shared):
             return "equal" if len(shared) >= 2 else "incomparable"
         return "conflict"
-    # numbers written differently (316.00 vs 316)
-    try:
-        return "equal" if float(a) == float(b) else "conflict"
-    except ValueError:
-        pass
+    # numbers written differently (316.00 vs 316), compared exactly
+    da, db = _decimal(a), _decimal(b)
+    if da is not None and db is not None:
+        return "equal" if da == db else "conflict"
     if a == NONE or b == NONE:
         return "conflict"
     return "conflict"
