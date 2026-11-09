@@ -38,6 +38,7 @@ RETRY_S = 5.0           # the driver's max_transaction_retry_time: how long a ma
 CONNECT_S = 30.0        # the driver's default connection_timeout, when the handle names none
 LEASE_S = 60.0          # the lease's default; KG_NEO4J_LEASE_SECONDS, KG_NEO4J_LOCK_TIMEOUT and KG_NEO4J_READ_WAIT in store.SETTINGS
 _on_publish = None      # test hook (SNAP-03): called between raising begin and committing the unit
+_on_committed = None    # test hook (SNAP-11): called between the unit's commit and closing the gap (end = begin)
 
 CONSTRAINTS = [
     ("uniqueness", "CREATE CONSTRAINT assertion_id IF NOT EXISTS FOR (n:Assertion) REQUIRE n.id IS UNIQUE"),
@@ -487,8 +488,9 @@ class _Unit:
 
     def recover(self) -> dict | None:
         """Clear a publication its writer abandoned (task-0175): under the sequence lock, and only while
-        ``begin`` is still above ``end`` and no live lease holds the node, close the gap at the last
-        committed generation (``begin = end``), free the lease and move the epoch on, so the abandoning
+        ``begin`` is still above ``end`` and no live lease holds the node, close the gap forward (``end = begin``,
+        the abandoning writer's unit may have committed before it died, so the store holds the last
+        committed data under a number no earlier reader pinned), free the lease and move the epoch on, so the abandoning
         writer, were it alive, can neither raise ``begin`` nor commit. A writer that took the lease first
         closed the gap itself (``acquire``), so this finds nothing; one that comes after finds the lease
         free. Returns what was cleared (the abandoning owner and epoch), or None when there was nothing."""
@@ -496,7 +498,7 @@ class _Unit:
             tx.run(f"{PUB_MATCH} SET p.lock_seq = coalesce(p.lock_seq, 0) + 1").consume()   # the node's write lock, then read
             r = tx.run(f"{PUB_MATCH} WHERE p.begin <> p.end AND (p.owner IS NULL OR coalesce(p.expires < datetime(), true)) "
                        "WITH p, p.owner AS owner, p.epoch AS epoch, p.begin AS begin "
-                       "SET p.begin = p.end, p.owner = null, p.expires = null, p.epoch = p.epoch + 1, "
+                       "SET p.end = p.begin, p.owner = null, p.expires = null, p.epoch = p.epoch + 1, "
                        "p.abandoned_owner = owner, p.abandoned_epoch = epoch, p.abandoned_begin = begin, p.recovered_at = datetime() "
                        "RETURN owner, epoch, begin, p.end AS end").single()
             return dict(r) if r else None
@@ -549,31 +551,48 @@ class _Unit:
         return self.tx
 
     def publish(self) -> None:
-        """Raise ``begin`` in its own transaction, then set ``end`` and commit the unit's transaction;
-        a writer that lost its lease publishes nothing (StoreFenced)."""
+        """Raise ``begin`` in its own transaction, commit the unit's transaction, and only then set ``end`` in a
+        transaction of its own; a writer that lost its lease publishes nothing (StoreFenced).
+
+        ``end`` is never written in the unit's transaction. Neo4j applies a committing transaction's
+        changes to lock-free readers one record at a time, so a reader could see the publication node's new
+        ``end`` before the rest of the unit and pin a generation whose data was still arriving (SNAP-04, a
+        complete S1 count with no extraction activity yet). ``commit()`` returns once the unit is applied, so
+        ``end`` set after it is never visible before the data it publishes; until then ``begin`` stays above
+        ``end`` and readers wait. The unit still checks ownership under the sequence lock before it commits
+        (the fence), and every gap is closed forward, ``end = begin``, never back: the unit may have
+        committed even when what follows its commit failed."""
         if self.token is None:
             raise StoreBusy(f"{self.uri}: this writer was closed; it no longer holds the store and cannot publish")
         if not self.dirty and not self.wipe_pending:
             self.drop()   # nothing written (a writer that only read): nothing to publish, its reads rolled back (S7)
             return
         tx = self.begin()
-        raised = False
+        raised = committed = False
         try:
             if self.lost or self.meta(lambda t: self.owned(t, "SET p.begin = p.end + 1")) is None:
                 raise StoreFenced(f"{self.uri}: this writer's lease was taken by another; nothing published")
             raised = True
             if _on_publish is not None:
                 _on_publish(self)
-            if self.owned(tx, "SET p.end = p.begin") is None:
+            # the fence: the sequence lock, held to the commit, and this writer still the owner
+            if self.owned(tx) is None:
                 raise StoreFenced(f"{self.uri}: this writer's lease was taken by another; nothing published")
             tx.commit()
+            committed = True
             self.dirty = False
+            if _on_committed is not None:
+                _on_committed(self)
+            # the gap closed after the data is applied; a writer that took the lease meanwhile closed it at
+            # acquisition (end = begin), which publishes this unit just the same
+            self.meta(lambda t: self.owned(t, "SET p.end = p.begin"))
         except BaseException:
-            self.drop()
-            if raised:   # the unit never committed: close the gap it opened, while this writer still owns the store
+            if not committed:
+                self.drop()
+            if raised:   # close the gap this writer opened, forward: the unit may have committed
                 try:
-                    self.meta(lambda t: self.owned(t, "SET p.begin = p.end"))
-                except Exception:  # noqa: BLE001 — the next writer closes it at acquisition
+                    self.meta(lambda t: self.owned(t, "SET p.end = p.begin"))
+                except Exception:  # noqa: BLE001 — the next writer, or a reader once the lease runs out, closes it
                     pass
             raise
         self.tx = None
