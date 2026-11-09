@@ -26,6 +26,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "harness"), str(ROOT / "tools")]
 import check_review_walkthrough as w  # noqa: E402  (its instance, answers and review files: one fixture)
+import review  # noqa: E402
 
 ON = w.ON
 KEY = "QuoteAPI|on_screening_outage"   # employee-1's first answer
@@ -84,7 +85,7 @@ def main(out: Path) -> int:
         os.environ.setdefault("KG_RDFLIB_FILE", str(out / "store.ttl"))
 
     print("== 1: group 3's reproduction: a capture, a review whose digest does not bind, S2 published")
-    env = w.instance(out, "s2", decided=True)
+    env = review.pinned(w.instance(out, "s2", decided=True), ON)   # every command on the walkthrough's day (task-0075)
     d = out / "s2"
     cap = w.answer(env, d)
     got = w.expect(env, 0, "2 ruling(s)", "capture.py", "review",
@@ -111,7 +112,7 @@ def main(out: Path) -> int:
     print(f"    gate_verdict: {len(acts)} act finding(s) on {KEY}; register_impact from {NODE}: {len(mine)}")
 
     print("== 2: S1, S4 and S6: every landed key reads as gate_verdict reports it")
-    env = w.instance(out, "plain", decided=False)
+    env = review.pinned(w.instance(out, "plain", decided=False), ON)
     import subject
     nodes = sorted({n for row in subject.Subject(Path(env["KG_SUBJECT"])).register_map().get("row", []) for n in row.get("nodes", [])})
     for scenario in ("S1", "S4", "S6"):
