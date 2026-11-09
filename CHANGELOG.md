@@ -25,6 +25,15 @@ names that section with the version.
   keys' levels are still the held key set's. The tool's description and the held-keys schema say what the
   field is. The record does not move.
 
+- **One table says which `KG_*` settings are contracts** (task-0275, decision-0033 choice 1, amending
+  decision-0016 point 3). `instance/README.md`'s "The settings an instance may rely on" now has one row for each of
+  the 75 settings it or `docs/security.md` names, with its group, what it does, its default, and whether it is a
+  contract: 63 are, the settings an instance's CI, compose file or hook sets in order to run, decision-0027's twenty
+  among them, and the clock (`KG_CLOCK`, `KG_TODAY`), which the guides advise in a pipeline; 12 are not (two demo
+  ports, nine tuning knobs, and `KG_ALLOW_UNCONTAINED_EXECUTION`). The maintainer confirmed the rows (2026-11-09).
+  A setting is a contract when the table marks it so; before, the section read as if only the twenty were.
+  `tests/test_settings_table.py` fails on a setting either file names without a row, and on a row for one it does not.
+
 - **The GitLab include and the pre-load workflow template run their own release by default** (task-0259, G9-17,
   decision-0032 C5). `instance/ci/gitlab/knowgov.gitlab-ci.yml`'s `KNOWGOV_REF` and `instance/ci/preload-check.yml`'s
   default to `v<VERSION>`, the tag they come from, instead of `main`, so an include taken from a tag no longer clones
