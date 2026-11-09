@@ -200,3 +200,39 @@ Accepted by the maintainer on 2026-11-09: "K1 (a) as advised". The build is task
 **Advice: (a).** Name it in 0.9.0's Known limits: keys use characters up to U+FFFF.
 
 Accepted by the maintainer on 2026-11-09: "astral (a) as advised".
+
+## Amendment A2 (2026-11-09; accepted 2026-11-09): a key is compared, stored and reported in Unicode NFC
+
+**Context.** The spot check's re-check of task-0297, at `main` `f194aac`, found N3: the NFC and NFD spellings of one name are both accepted and stay different keys. The coordinator confirmed on `main` that `société|adresse` in NFC (15 code points) and in NFD (17) both pass `key_rule.is_key` and are unequal, and that nothing in knowgov or the vendored register normalises. The decomposed form comes routinely from macOS paths and clipboards, PDF copies and some exports. The maintainer: "In Belgium we have many French names with accents". So a lighthouse instance will meet it constantly, as a key that looks identical and reads absent at the gate.
+
+**Options:**
+- **(a)** Normalise every key to NFC wherever it enters: the MCP tools' arguments, `check_subject`, the loader, the mappers' yielded keys, the register-map rows, code citations, captures, `proposal_impact` and the CLIs. The store holds NFC, and reports echo NFC.
+- **(b)** Refuse a key that is not NFC. A document whose source tool writes NFD would then fail to load over an invisible difference.
+- **(c)** Leave it, document code-point comparison, and warn in `check_subject`. That reaches only the manifest's own keys, not those yielded from documents or sent by an agent.
+
+**Canvas.**
+- Problem: identical-looking accented names that never match.
+- Users: every Belgian instance's authors, assistants and approvers.
+- Cost: one helper applied at each key boundary, with a test through every entry point.
+- Value: accented names work whatever tool produced them.
+
+**Fit/gap.**
+- (a) fits choice 3's one key rule from the manifest to the wire, and the lighthouse's language.
+- Its gap: an answer echoes the NFC form, which may differ in bytes from what a client sent. The rule states it.
+- The record does not move, since every public key is ASCII.
+
+**SWOT, (a).**
+- Strengths: no silent mismatch, and nothing for a user to learn.
+- Weaknesses: every boundary must apply it.
+- Opportunities: settled before the freeze. After 1.0, changing how keys compare would break.
+- Threats: a missed boundary, which the test closes by sending NFD through every entry point.
+
+**Advice: (a), with NFC and not NFKC.** NFKC would also merge compatibility forms (full-width letters, ligatures), which can collapse different names. NFC merges only what Unicode defines as the same text.
+
+**Related, outside the key rule.**
+- ieam-register's `check_register.py` compares a node's name with the export's byte for byte. That is the register's own tooling, so it is raised there.
+- Document paths with accents: `instance/README.md` gains `git config core.precomposeunicode true` for macOS checkouts.
+
+### Acceptance of A2
+
+Accepted by the maintainer on 2026-11-09: "N3 (a) as advised". The build is task-0301, which holds the 0.9.0 cut.
