@@ -14,7 +14,7 @@ names that section with the version.
 - **Every command that reads a register refuses a named one it cannot read** (task-0288, decision-0033 choice 5,
   after task-0279). `harness/run.py`, `harness/trace.py`, `harness/capture.py`, `harness/transcript.py` and
   `harness/step_grid.py` now exit 2 on a `KG_REGISTER` they cannot read, naming the path and what is missing,
-  before they read or write anything, and the page refuses to start. Before, `capture ingest` skipped the
+  before they read or write anything (`-h` and `--help` still print the usage), and the page refuses to start. Before, `capture ingest` skipped the
   issued-handle check and wrote a capture the register would refuse, `capture due`, `trace check` and
   `run.py --deterministic` went on with exit 0 (`trace` read twelve review months without saying so), and the
   page started and answered `/api/register` with a 404 naming the path. `check_subject` now uses the same test

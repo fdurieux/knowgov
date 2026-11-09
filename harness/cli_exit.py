@@ -20,8 +20,9 @@ one line and the process exits 2.
 
 ``run(main, tool, register=True)``, for a command that reads the register, first refuses a register named by
 ``KG_REGISTER`` that it cannot read (``register_impact.require_named``; task-0288, decision-0033 choice 5): exit 2,
-naming the setting, the path and what is missing, before ``main`` reads anything. An unnamed register is the
-command's own business, as before.
+naming the setting, the path and what is missing, before ``main`` reads anything. ``-h`` or ``--help`` among the
+arguments passes, so a person with a bad ``KG_REGISTER`` can still read the command's usage. An unnamed register is
+the command's own business, as before.
 
 ``KG_TRACEBACK=1`` prints the traceback after the line, for a person debugging; nothing reads it. It is read
 through ``switches`` (task-0276): ``run`` refuses any other value but ``0`` or empty with exit 2 before ``main``.
@@ -72,13 +73,19 @@ def guard(tool: str) -> None:
     sys.excepthook = hook
 
 
+def asks_help(argv: list[str] | None = None) -> bool:
+    """``-h`` or ``--help`` among the command's arguments (``sys.argv`` by default), before any ``--``."""
+    args = sys.argv[1:] if argv is None else argv
+    return any(a in ("-h", "--help") for a in (args[:args.index("--")] if "--" in args else args))
+
+
 def run(main, tool: str, *args, register: bool = False) -> int:
     """``main(*args)``'s exit code, None read as 0; anything raised but SystemExit and KeyboardInterrupt
     mapped to exit 2 with its cause on stderr. With ``register``, a named register that cannot be read is
     refused first."""
     try:
         _traceback(strict=True)
-        if register:
+        if register and not asks_help():   # the usage needs no register
             import register_impact
             register_impact.require_named()
         rc = main(*args)

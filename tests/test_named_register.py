@@ -129,6 +129,23 @@ def test_the_readers_through_register_root_refuse_it_too():
     assert not Path(_env()["KG_RDFLIB_FILE"]).exists(), "a refused register opens no store"
 
 
+def test_help_passes_the_check_so_the_usage_can_be_read():
+    """A person with a bad KG_REGISTER can still read a command's usage: -h and --help pass the check."""
+    import cli_exit
+    assert cli_exit.asks_help(["due", "--help"]) and cli_exit.asks_help(["-h"]) and not cli_exit.asks_help(["due"])
+    assert not cli_exit.asks_help(["ingest", "--", "--help"]), "after --, --help is an argument, not the flag"
+    for args in ([ROOT / "harness" / "capture.py", "--help"],
+                 [ROOT / "harness" / "capture.py", "due", "--help"],
+                 [ROOT / "harness" / "trace.py", "check", "-h"],
+                 [ROOT / "harness" / "transcript.py", "--help"],
+                 [ROOT / "harness" / "step_grid.py", "--help"],
+                 [ROOT / "tools" / "check_subject.py", "--help"]):
+        code, out, err = _run(args, KG_REGISTER=NOPE)
+        assert code == 0 and "usage:" in out and "readable register" not in err, (args[0].name, args[1:], code, err[-300:])
+    code, _, err = _run([ROOT / "harness" / "capture.py", "due", "--out", "x"], KG_REGISTER=NOPE)
+    assert code == 2 and "is not a readable register" in err, "without --help the check still refuses"
+
+
 def test_run_refuses_it_too():
     import importlib.util
     if importlib.util.find_spec("pyshacl") is None:
@@ -138,6 +155,8 @@ def test_run_refuses_it_too():
         code, _, err = _run([ROOT / "harness" / "run.py", "--deterministic", "--out", Path(td) / "out"], KG_REGISTER=NOPE)
         assert code == 2 and f"run: cannot run: KG_REGISTER {NOPE} is not a readable register" in err, (code, err[-300:])
         assert not (Path(td) / "out").exists()
+        code, out, err = _run([ROOT / "harness" / "run.py", "--help"], KG_REGISTER=NOPE)
+        assert code == 0 and "usage:" in out, (code, err[-300:])
 
 
 def test_check_subject_reads_a_register_as_the_others_do():
