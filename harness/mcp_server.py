@@ -28,7 +28,7 @@ The question an agent asks is "may I build on this?". Sixteen tools answer it, a
                           withdrawn descendant, flagged ``withdrawn``, task-0120)
     proposal_impact       a proposed addition (new nodes, links, reused nodes, proposed exceptions) read
                           against the register as if approved, without approving it: placement findings,
-                          the deterministic link candidates D1-D5, coverage C1-C3 before and after, the
+                          the deterministic link candidates D1-D5, every coverage rule the register's checker defines (C1-C4) before and after, the
                           reach from every reused node before and after, what each new node rests on, the
                           reused nodes' keys as register_impact reads them, the new nodes left unmapped and
                           the approvals per owning unit; every overlay element hypothetical, nothing stored
@@ -246,7 +246,7 @@ TOOLS.append(
                     "D1 (a register id the proposal names, authored), D2 (an external id matched through a node's source or "
                     "the newest landed export, authored), D3 (the same name as an approved node of the same kind, its links "
                     "offered, inferred; 'same step as JRN-...'), D4 (a pool of processes for an unsupported step, none "
-                    "chosen), each with status proposed only; coverage C1-C3 before and after with denominators and the "
+                    "chosen), each with status proposed only; every coverage rule the register's checker defines (C1-C4 at ieam-register v0.2.13) before and after with denominators and the "
                     "new gaps; the reach from every reused node before and after; what each new node rests on; the slice "
                     "map, one vertical slice per journey step (per delivering process for a product no journey concerns) "
                     "by the register's thread walk, every overlay element in one slice or a named remainder, with the "

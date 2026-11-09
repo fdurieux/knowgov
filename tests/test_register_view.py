@@ -34,8 +34,9 @@ def test_register_view_builds_from_the_vendored_copy_at_the_pinned_date():
     assert v["source"]["tag"] == "v0.2.13" and v["source"]["commit"].startswith("7980708")  # the tag sits on the vendored commit
     assert v["pinned"] and v["run_date"] == v["source"]["pinned_date"]
     assert v["summary"] == {"nodes": 57, "links": 65, "errors": 0, "warnings": 10}   # the J-F slice (decisions 0005 and 0006): 29 nodes, 37 links, seven parentless nodes; ORG-0004 (decision 0011); A1's three (decision 0018)
-    assert sum(1 for f in v["findings"] if f["level"] == "warning" and f["check"] == "A1") == 3 and set(v["coverage"]) == {"C1", "C2", "C3"}   # A1 is listed, never a coverage line
+    assert sum(1 for f in v["findings"] if f["level"] == "warning" and f["check"] == "A1") == 3 and list(v["coverage"]) == ["C1", "C2", "C3", "C4"]   # A1 is listed, never a coverage line; C4, decision 0020 (task-0241)
     assert v["coverage_lines"][0] == "C1: 7/8 covered, 1 excepted, 0 uncovered"
+    assert v["coverage_lines"][3] == "C4: 5/5 covered, 0 excepted, 0 uncovered" and len(v["coverage_lines"]) == 4   # the checker's own lines
     assert v["coverage"]["C2"]["uncovered"] == [] and v["coverage"]["C3"]["uncovered"] == []
     assert sorted(v["nodes_by_taxonomy"]) == sorted(["capabilities", "products", "journeys", "processes", "applications", "information", "organisation"])
     assert sum(len(ns) for ns in v["nodes_by_taxonomy"].values()) == 57 and len(v["links"]) == 65
