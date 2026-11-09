@@ -1,9 +1,10 @@
 ---
 id: TASK-0309
 title: NFC at the remaining entry points (task-0301 re-check B1-B4)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-09T22:59:00Z'
+updated_date: '2026-11-09T23:59:00Z'
 labels:
   - contracts
   - keys
@@ -26,8 +27,26 @@ B4: check_subject gives no duplicate warning for a task class's keys equal after
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 B1: an NFD baseline reports the same regressions as its NFC twin; a test fails on ac64d59
-- [ ] #2 B2: a ruling whose assertion id is NFD binds as its NFC twin does (by id for pre-0.9, by content for 0.9)
-- [ ] #3 B3: every key is refused when its raw value or its NFC fails the rule; U+2F800 and U+FA6C both refused with the value as sent
-- [ ] #4 B4: check_subject warns duplicate for keys equal after NFC
+- [x] #1 B1: an NFD baseline reports the same regressions as its NFC twin; a test fails on ac64d59
+- [x] #2 B2: a ruling whose assertion id is NFD binds as its NFC twin does (by id for pre-0.9, by content for 0.9)
+- [x] #3 B3: every key is refused when its raw value or its NFC fails the rule; U+2F800 and U+FA6C both refused with the value as sent
+- [x] #4 B4: check_subject warns duplicate for keys equal after NFC
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Normalise to NFC at the remaining entry points: --baseline's levels and gate_keys (and held keys read by mark_held), review.bind's assertion id; refuse a key whose raw value or its NFC fails the rule; check_subject warns duplicate on keys equal after NFC.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Built by session_01HTAA1RY37AukHuJsZcGjsM (#453) on the spot check's re-check of task-0301; recorded by the coordinator (no backlog CLI there); merged through train #454, where baseline_of keeps both task-0307's identity and B1's _nfc_levels.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+The NFC rule now holds at the entry points the re-check of task-0301 found open. B1 (failed open): a baseline written with NFD level keys reports the regressions its NFC twin does. B2: a ruling's NFD assertion id binds as its NFC twin. B3: a key is refused when its raw value or its NFC fails the rule, so the published pattern holds of what was sent (U+2F800..U+2FA1D and U+FA6C refused, the value named as sent). B4: check_subject warns duplicate on keys equal after NFC. Tests in tests/test_key_nfc_entry.py, each failing on ac64d59. The contract does not move; the record holds.
+<!-- SECTION:FINAL_SUMMARY:END -->
