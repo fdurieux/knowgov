@@ -56,6 +56,13 @@ KG=$(cd "$KG" 2>/dev/null && pwd) || { echo "knowgov-gate: the knowgov checkout 
 INST=$(cd "$INST" 2>/dev/null && pwd) || { echo "knowgov-gate: the instance '$inst_named' does not resolve to a directory" >&2; exit 2; }
 
 abspath() { case "$1" in /*) echo "$1" ;; *) echo "$(pwd)/$1" ;; esac; }
+flag() {   # an on/off setting (task-0276, harness/switches.py's FLAG): 1 on; 0, empty or unset off; else exit 2
+    case "$2" in
+    1) return 0 ;;
+    0|"") return 1 ;;
+    *) echo "knowgov-gate: $1='$2' is not a value it accepts: 1 (on), or 0, empty or unset (off)" >&2; exit 2 ;;
+    esac
+}
 
 subject() {
     if [ -n "${KG_SUBJECT:-}" ]; then abspath "$KG_SUBJECT"; return; fi
@@ -138,8 +145,8 @@ gate)
     [ -n "${KG_SCENARIO:-}" ] && set -- "$@" --scenario "$KG_SCENARIO"
     [ -n "${KG_FAIL_ON:-}" ] && set -- "$@" --fail-on "$KG_FAIL_ON"
     [ -n "${KG_STAGE:-}" ] && set -- "$@" --stage "$KG_STAGE"
-    [ "${KG_NO_LOAD:-}" = 1 ] && set -- "$@" --no-load
-    [ "${KG_PUBLISH:-}" = 1 ] && set -- "$@" --publish
+    if flag KG_NO_LOAD "${KG_NO_LOAD:-}"; then set -- "$@" --no-load; fi
+    if flag KG_PUBLISH "${KG_PUBLISH:-}"; then set -- "$@" --publish; fi
     [ -n "${KG_AS_OF:-}" ] && set -- "$@" --as-of "$KG_AS_OF"
     [ -n "$REPORT" ] && set -- "$@" -o "$REPORT"
     core gate_cli.py "$@"

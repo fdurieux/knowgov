@@ -28,7 +28,6 @@ Environment:
 from __future__ import annotations
 
 import datetime as dt
-import hmac
 import html
 import ipaddress
 import json
@@ -441,6 +440,18 @@ def impact_guide(start: str, form: str, variant: str = "dependants") -> str | No
 
 # ------------------------------------------------------------------ the store
 
+def store_named(env=None) -> str:
+    """The store in use as the startup line names it (task-0272): the bolt URL under neo4j, the rdflib file
+    (or "in memory") under rdflib, never a bolt URL the page does not use."""
+    env = os.environ if env is None else env
+    kind = (env.get("KG_STORE") or "neo4j").lower()
+    if kind == "neo4j":
+        return env.get("KG_NEO4J_URI", "bolt://localhost:7687")
+    if kind == "rdflib":
+        return f"rdflib {env.get('KG_RDFLIB_FILE') or 'in memory'}"
+    return kind
+
+
 def store_status() -> dict:
     """What the store holds, through the driver when it is installed."""
     kind = (os.environ.get("KG_STORE") or "neo4j").lower()
@@ -785,8 +796,7 @@ def write_guard(headers) -> tuple[int, str, dict] | None:
     without it, a page published beyond this machine refuses every write."""
     token = page_token()
     if token:
-        got = headers.get("Authorization") or ""
-        if not (got.startswith("Bearer ") and hmac.compare_digest(got[7:].encode(), token.encode())):
+        if not http_boundary.bearer_matches(headers.get("Authorization"), token):   # scheme any case (task-0272)
             return 401, "this page asks for its token (KG_PAGE_TOKEN): enter it in the Page token box, or send Authorization: Bearer <token>", {"WWW-Authenticate": "Bearer"}
         return None
     why = write_refusal()
@@ -1063,6 +1073,12 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    import switches
+    try:
+        switches.check()   # task-0276: an on/off setting with a value it does not accept stops the page, exit 2
+    except switches.BadSwitch as e:
+        print(f"kg demo: cannot start: {e}", file=sys.stderr, flush=True)
+        sys.exit(2)
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     for rid in close_stale_runs():
         print(f"closed {rid}: its run.json read running with a stale heartbeat ({runs_index.RESTARTED})", flush=True)
@@ -1076,7 +1092,7 @@ def main() -> None:
         for ps in SUBJECTS:
             with page_subject.using(ps):
                 check_keys(wait=0)
-    print(f"kg demo on http://{host}:{PORT}  published on {exposure()}  store {NEO4J_URI}  runs {RUNS_DIR}  writes: {writes}", flush=True)
+    print(f"kg demo on http://{host}:{PORT}  published on {exposure()}  store {store_named()}  runs {RUNS_DIR}  writes: {writes}", flush=True)
     httpd.serve_forever()
 
 

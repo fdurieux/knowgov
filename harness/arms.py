@@ -54,7 +54,8 @@ def thinking_uncounted() -> bool:
     row declares it (models.toml, thinking_uncounted) and the server passes KG_THINKING_UNCOUNTED.
     Measured 2026-11-02: LiteLLM's streamed usage for Gemini had total = prompt + completion, while
     Google's own endpoint, streamed, reports the thinking in its total (task-0034, doc-0006)."""
-    return (os.environ.get("KG_THINKING_UNCOUNTED") or "").strip().lower() in ("1", "true", "yes")
+    import switches   # 1 on; 0, empty or unset off; else BadSwitch (task-0276)
+    return switches.on("KG_THINKING_UNCOUNTED")
 
 
 def usage_fields(usage_obj, host: str = "") -> dict:

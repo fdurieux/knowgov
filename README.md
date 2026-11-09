@@ -30,9 +30,11 @@ standard library only.
 The standard-library tests (`python tests/run_tests.py`) need no packages; CI
 runs them on Python 3.13 as well as 3.12.
 
-Releases are listed in [`CHANGELOG.md`](CHANGELOG.md); each publishes the image
-`ghcr.io/fdurieux/knowgov:<version>`, so an instance can run a named release rather than
-whatever `:latest` holds. An adopter's guide is [`docs/guide.md`](docs/guide.md); a security reviewer reads [`docs/security.md`](docs/security.md).
+Releases are listed in [`CHANGELOG.md`](CHANGELOG.md). The image's tags are a contract
+(decision-0033, task-0277): each release publishes `ghcr.io/fdurieux/knowgov:vX.Y.Z`, its tag
+(`v0.8.0`, say), so an instance can run a named release, and `:latest` is the last build of `main`.
+A build of `main` is also tagged with its commit's short SHA, `:<short-sha>`: a build of `main`,
+not a contract, and it may be cleaned away. An adopter's guide is [`docs/guide.md`](docs/guide.md); a security reviewer reads [`docs/security.md`](docs/security.md).
 To describe an existing code base and find what nobody wrote down about it, follow
 [`docs/reverse-engineering.md`](docs/reverse-engineering.md), with its pre-registration template
 [`docs/reverse-engineering-preregistration.md`](docs/reverse-engineering-preregistration.md).

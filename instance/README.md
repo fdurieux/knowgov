@@ -1659,6 +1659,14 @@ such as `KG_STORE`, `KG_SUBJECT` or `KG_PUBLISH`, are described where they are u
 worker that runs model-written code are in [`docs/security.md`](../docs/security.md). A setting that
 neither file names is not a contract.
 
+**On and off.** A setting that switches something on or off reads one way everywhere (decision-0033, task-0276):
+`1` is on, and `0`, empty or unset is off. The two checks this guide and `docs/security.md` switch off by name keep
+their word: `KG_LOAD_MEMORY_CHECK=off` and `KG_KEY_CHECK=off`, in any case, with `on`, empty or unset leaving them on.
+Any other value stops the command with exit 2 and names the setting and what it accepts; before 0.9.0,
+`KG_NO_LOAD=true` was silently off. The list is `harness/switches.py`'s `SWITCHES`. The GitHub action's `publish`,
+`annotate` and `sarif` inputs take `true` or `false`, in any case, and any other value fails the step, naming the
+input; the GitLab include's `KG_PUBLISH` and `KG_NO_LOAD` follow the rule above.
+
 **The CI templates and the Claude Code hook.** Each of these is read by
 `instance/ci/knowgov-gate.sh`, the GitHub action, the GitLab include or the hook:
 
@@ -1727,7 +1735,7 @@ named in the last column.
 | the `KG_*` settings this file or [`docs/security.md`](../docs/security.md) names | "The settings an instance may rely on", above, and `docs/security.md` | `CHANGELOG.md`, Contract changes |
 | the page's HTTP API: the four routes the demo's guide names, `POST /api/run`, `GET /api/scenarios`, `GET /api/subjects` and `POST /api/models/check` (decision-0030); every other route may change in any release | the [demo's guide](../demo/README.md), "The page's HTTP API" | `CHANGELOG.md`, Contract changes |
 | the CI action, the GitLab include, the shell wrappers and the hooks' settings files | "Running the gates in your pipeline" and "A fail-closed hook for Claude Code", above | `CHANGELOG.md`, Contract changes; you run them from the knowgov tag you pin |
-| the image's name and tags: `ghcr.io/fdurieux/knowgov:<tag>` for a release, `:latest` for the last main | the [README](../README.md) | each release's tag; `CHANGELOG.md`, Contract changes |
+| the image's name and tags: `ghcr.io/fdurieux/knowgov:vX.Y.Z` for a release (its tag, `v` included), `:latest` for the last build of `main`; `:<short-sha>` is a build of `main`, not a contract (decision-0033) | the [README](../README.md) | each release's tag; `CHANGELOG.md`, Contract changes |
 | the format version each of your input files declares (built: decision-0023 and its Amendment A1, task-0174, task-0236): a file with no number is read as version 1, in every release | "Format versions", above | the number in the file moves, and `CHANGELOG.md` says what changed and how to bring an older file up to date |
 | which ieam-register format versions your register may be in: this release of knowgov reads a register in the format of ieam-register `v0.2.13`, the tag it vendors (`demo/register/SOURCE.md`) and tests. A register at another tag may load, but is untested (decision-0028) | `demo/register/SOURCE.md` | `CHANGELOG.md`, when a release vendors another tag; one that changes a contract output is listed under Contract changes |
 
