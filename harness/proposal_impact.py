@@ -147,6 +147,16 @@ def _str(v, what: str) -> str:
 
 # ---- the overlay, read into the register's own dict shape ----
 
+def _check_format(proposal: dict) -> None:
+    """task-0280 (decision-0033 choice 6): the overlay's optional ``format``; missing reads as 1, a newer one or one
+    that is not a version is refused as the proposal's error."""
+    import formats
+    try:
+        formats.version(proposal, "the proposal", formats.PROPOSAL)
+    except formats.FormatError as e:
+        raise ProposalError(str(e)) from None
+
+
 class Overlay:
     """The proposal checked and given in-memory ids; ``out`` maps an in-memory id back to the
     provisional one the report names."""
@@ -157,11 +167,7 @@ class Overlay:
         extra = set(proposal) - {"nodes", "links", "reused", "exceptions", "title", "format"}
         if extra:
             raise ProposalError(f"the proposal has no field(s) {sorted(extra)}")
-        import formats   # task-0280 (decision-0033 choice 6): an optional format; missing reads as 1, a newer one refused
-        try:
-            formats.version(proposal, "the proposal", formats.PROPOSAL)
-        except formats.FormatError as e:
-            raise ProposalError(str(e)) from None
+        _check_format(proposal)
         k2t = T["register"].kind_taxonomy(reg)
         prefixes = {tax: spec["prefix"] for tax, spec in reg["types"]["taxonomy"].items()}
         nodes, links = proposal.get("nodes") or [], proposal.get("links") or []
