@@ -11,6 +11,13 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **Two keys that are canonically equivalent are one key** (task-0301, decision-0034 Amendment A2). knowgov
+  stores and reports a key in Unicode NFC (not NFKC), whichever form enters: `société|adresse` composed and decomposed
+  read alike in the MCP tools' `key` and `keys`, the task classes, the register map, the verification map, captures,
+  reviews, proposals, code-header citations, `trace register --keys` and `check_subject`, and a document is
+  composed before its mapper reads it, so a decomposed document yields the composed keys. Every public key is ASCII
+  and unchanged, and the record does not move. On macOS, set `git config core.precomposeunicode true`.
+
 - **"Not followed" is not "withdrawn"** (task-0305, decision-0035, doc-0037 §3.4). Every list of edges or
   descendants a walk does not follow was named `withdrawn`, a proposed link included. It is now `not_followed`,
   with the edge's state: proposal-impact's `slices.map[].not_followed` and `keys.behind_not_followed`,
