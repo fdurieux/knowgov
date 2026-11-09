@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-09T09:32:00Z'
-updated_date: '2026-11-09T15:43:00Z'
+updated_date: '2026-11-09T16:51:00Z'
 labels:
   - validation
   - correctness
@@ -62,4 +62,6 @@ Re-probe and spot check at main 9861953 (decision-0032 points 4 and 5, task-0256
 - Scenario ids (duplicates, `""`, `"../x"`, which run.py joins under --out) go to the maintainer as the spot check's D1. If they decide on a format rule, that task carries the duplicate-id item here.
 
 Group 2's re-probe at 9861953: round-1 F10 still reproduces. `subject_check` with `register_map_toml: "x"` answers isError TOMLDecodeError.
+
+decision-0034 (accepted 2026-11-09): the duplicate scenario id item moves to task-0295 (choice 2), and CS-4's zero-width space in a key to task-0296 (choice 3). The other items stay here.
 <!-- SECTION:NOTES:END -->
