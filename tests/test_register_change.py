@@ -127,9 +127,9 @@ def test_a_descendant_left_below_the_withdrawn_node_is_descended_and_a_moved_one
         left = {k["key"]: k for k in rc.resting(ch, SUBJECT.register_map(), VENDORED, cur)}
         w = ri.walk("CAP-0001", "dependants", root=VENDORED, children=True)
         want = ri.landed_rows(SUBJECT.register_map(), "CAP-0001", w["reached_ids"], [x["id"] for x in w["children"] if x["walked"]],
-                              [x["id"] for x in w["children"] if x["withdrawn"]])
+                              [x["id"] for x in w["children"] if x["not_followed"]])
         assert len(left) == 32 and set(left) == {r["key"] for r in want}, "register_impact's own landing"
-        flagged = [k for k, v in left.items() if any(c.get("withdrawn") for c in v["causes"])]
+        flagged = [k for k, v in left.items() if any(c.get("not_followed") for c in v["causes"])]
         assert flagged == ["QuoteAPI|on_notification_failure"] and left[flagged[0]]["causes"][0]["via"] == ["CAP-0005"]
         assert all(c["moved"] == [] for v in left.values() for c in v["causes"])
         parent("CAP-0003", "CAP-0006")

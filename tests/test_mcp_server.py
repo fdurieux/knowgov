@@ -668,11 +668,11 @@ def test_register_impact_children_off_by_default_and_equal_to_the_registers_walk
             off = _call(s, "register_impact", {"node": nid, "walk": which, "children": False})["result"]["structuredContent"]
             on = _call(s, "register_impact", {"node": nid, "walk": which, "children": True})["result"]["structuredContent"]
             assert plain == off and plain["children_walked"] is False and on["children_walked"] is True, (nid, which)
-            assert all(c["walked"] is False and "withdrawn" not in c for c in plain["children"])
+            assert all(c["walked"] is False and "not_followed" not in c for c in plain["children"])
             want = T["impact"].walk_children(reg, nid, T["impact"].WALKS[which])
             assert on["edges"] == want["edges"], (nid, which)
             assert sorted(x["id"] for xs in on["reached"].values() for x in xs) == sorted(want["reached"]), (nid, which)
-            assert [(c["id"], c["state"], c["walked"], c["withdrawn"]) for c in on["children"]] == \
+            assert [(c["id"], c["state"], c["walked"], c["not_followed"]) for c in on["children"]] == \
                 [(d["id"], d["state"], d["live"], not d["live"]) for d in want["descendants"]], (nid, which)
             assert all(c["walked"] == (c["state"] == "approved") and reg["nodes"][c["parent"]] for c in on["children"])
             assert [c["id"] for c in on["children"] if c["parent"] == nid] == [c["id"] for c in plain["children"]]
@@ -698,15 +698,15 @@ def test_register_impact_children_reaches_what_cap_0001s_children_reach_and_skip
     assert sorted(x["id"] for xs in on["reached"].values() for x in xs) == ["JRN-0001", "PRD-0002", "PROC-0001"]
     assert [(c["id"], c["walked"]) for c in on["children"]] == [("CAP-0002", True), ("CAP-0003", True), ("CAP-0004", True), ("CAP-0005", False)]
     assert next(c for c in on["children"] if c["id"] == "CAP-0005") == {"id": "CAP-0005", "name": on["children"][3]["name"], "state": "proposed",
-                                                                         "parent": "CAP-0001", "walked": False, "withdrawn": True}
+                                                                         "parent": "CAP-0001", "walked": False, "not_followed": True}
     assert "CAP-0005" not in {e["from"] for e in on["edges"]}   # a withdrawn descendant is not walked from
     assert not {"CAP-0001", "CAP-0002", "CAP-0003", "CAP-0004", "CAP-0005"} & {x["id"] for xs in on["reached"].values() for x in xs}
-    live = [k for k in on["keys"] if not k.get("withdrawn")]
+    live = [k for k in on["keys"] if not k.get("not_followed")]
     assert all("CAP-0005" not in k["via"] for k in live)   # a walked key never comes through the proposed one
     if mcp_server_subject() == "cargo_quote":   # task-0120: the key resting only on CAP-0005, listed last, flagged
         assert len(on["keys"]) == 32 and on["keys"][:31] == live
         last = on["keys"][31]
-        assert (last["key"], last["via"], last["withdrawn"], last["owner"]) == ("QuoteAPI|on_notification_failure", ["CAP-0005"], True, "ORG-0002")
+        assert (last["key"], last["via"], last["not_followed"], last["owner"]) == ("QuoteAPI|on_notification_failure", ["CAP-0005"], True, "ORG-0002")
         assert last["level"]   # listed with its level, as the others are
     for bad in ("yes", 1, None):
         assert _refused(s, "register_impact", {"node": "CAP-0001", "children": bad}), bad
@@ -723,11 +723,11 @@ def test_register_impact_children_lands_the_subjects_keys_at_gate_verdicts_level
     for (start, which), (n, nflag) in want_counts.items():
         off = _call(s, "register_impact", {"node": start, "walk": which, "as_of": DAY})["result"]["structuredContent"]
         on = _call(s, "register_impact", {"node": start, "walk": which, "children": True, "as_of": DAY})["result"]["structuredContent"]
-        flagged = [k for k in on["keys"] if k.get("withdrawn")]
+        flagged = [k for k in on["keys"] if k.get("not_followed")]
         assert off["keys"] == [] and len(on["keys"]) == n and len(flagged) == nflag, (start, which, len(on["keys"]), len(flagged))
-        assert on["keys"][n - nflag:] == flagged and all(k["withdrawn"] is True for k in flagged)
+        assert on["keys"][n - nflag:] == flagged and all(k["not_followed"] is True for k in flagged)
         walked = {c["id"] for c in on["children"] if c["walked"]}
-        withdrawn = {c["id"] for c in on["children"] if c["withdrawn"]}
+        withdrawn = {c["id"] for c in on["children"] if c["not_followed"]}
         reached = {x["id"] for xs in on["reached"].values() for x in xs}
         assert all(set(k["via"]) <= {start} | walked | reached for k in on["keys"] if k not in flagged)
         assert all(k["via"] and set(k["via"]) <= withdrawn for k in flagged)

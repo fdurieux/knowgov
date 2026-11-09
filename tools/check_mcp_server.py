@@ -15,8 +15,8 @@ task's verbatim documents from the scenario's kit, named by the scenario's promp
 Then ask ``register_impact`` from the first node of the subject's first register-map row and require
 every key it lands on at the level ``gate_verdict`` gives that key set (task-0111); and, when that node
 has a parent, from the parent with ``children`` (the register's decision 0014, task-0118): every key the
-child lands lands again, each at ``gate_verdict``'s level; the keys resting only on a withdrawn
-descendant come last, flagged ``withdrawn``, and no withdrawn one is walked from; and under each declared
+child lands lands again, each at ``gate_verdict``'s level; the keys resting only on a descendant
+not followed come last, flagged ``not_followed`` (task-0305), and none is walked from; and under each declared
 task class every landed key, its findings and the gate line are ``gate_verdict --task``'s for that key
 set, no task being codegen's and ``keys`` refused (task-0120); at stage 2, the same from the first stale
 key's node, where the stale findings carry each class's route and the classes must not all agree.
@@ -312,7 +312,7 @@ def check_impact(client: "StdioClient", sc: str, failures: list[str], label: str
                                 f"{first['nodes'][0]}'s or not at gate_verdict's levels")
             print(f"{label}: register_impact from {parent} with children walks {sum(c['walked'] for c in up['children'])} of "
                   f"{len(up['children'])} descendant(s) and lands {len(ukeys)} key(s), each at gate_verdict's level")
-            check_withdrawn(up, parent, failures, label)
+            check_not_followed(up, parent, failures, label)
             check_task_classes(client, sc, failures, label, parent)
         return
     for x in sorted(rec.get("stale") or [], key=lambda x: x["key"]):
@@ -332,18 +332,18 @@ def check_impact(client: "StdioClient", sc: str, failures: list[str], label: str
         check_task_classes(client, sc, failures, label, rows[stale[0]["key"]]["nodes"][0], must_differ=True)
 
 
-def check_withdrawn(got: dict, start: str, failures: list[str], label: str) -> None:
-    """task-0120: with children, the keys whose rows name only a withdrawn descendant come last, each
-    flagged withdrawn and coming through withdrawn descendants only, and no withdrawn one is walked from."""
-    withdrawn = {c["id"] for c in got["children"] if c.get("withdrawn")}
-    flagged = [k for k in got["keys"] if k.get("withdrawn")]
+def check_not_followed(got: dict, start: str, failures: list[str], label: str) -> None:
+    """task-0120: with children, the keys whose rows name only a descendant not followed come last, each
+    flagged not_followed (task-0305) and coming through such descendants only, and none is walked from."""
+    unfollowed = {c["id"] for c in got["children"] if c.get("not_followed")}
+    flagged = [k for k in got["keys"] if k.get("not_followed")]
     ok = (got["keys"][len(got["keys"]) - len(flagged):] == flagged
-          and all(k["withdrawn"] is True and k["via"] and set(k["via"]) <= withdrawn for k in flagged)
-          and not withdrawn & {e["from"] for e in got["edges"]})
+          and all(k["not_followed"] is True and k["via"] and set(k["via"]) <= unfollowed for k in flagged)
+          and not unfollowed & {e["from"] for e in got["edges"]})
     if not ok:
         failures.append(f"{label}: register_impact from {start} with children flags {[k['key'] for k in flagged]} "
-                        f"not as resting only on the withdrawn {sorted(withdrawn)}, or walks on from one")
-    print(f"{label}: register_impact from {start} with children lists {len(flagged)} key(s) flagged withdrawn"
+                        f"not as resting only on the descendants not followed {sorted(unfollowed)}, or walks on from one")
+    print(f"{label}: register_impact from {start} with children lists {len(flagged)} key(s) flagged not_followed"
           + (f" ({', '.join(k['key'] + ' via ' + '+'.join(k['via']) for k in flagged)})" if flagged else ""))
 
 
@@ -481,7 +481,7 @@ def check_slice_classes(client: "StdioClient", sc: str, failures: list[str], lab
         want, on = list(dict.fromkeys(spec["keys"])), []
         for sl in rep["slices"]["map"]:
             k = sl["keys"]
-            ks = list(dict.fromkeys(r["key"] for r in k["rows"] if not r.get("withdrawn")))
+            ks = list(dict.fromkeys(r["key"] for r in k["rows"] if not r.get("not_followed")))
             on += ks
             if k["task"] != task or k["of"] != len(want) or set(ks) - set(want) \
                     or any(r["level"] != whole["levels"][r["key"]] for r in k["rows"]):
