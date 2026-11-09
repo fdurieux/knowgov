@@ -204,8 +204,8 @@ def test_a_stem_that_reads_as_two_givers_names_none_task_0308():
     st = Store([_answer("2026-11-07-ORG-0002-ops-2", 1, "ops-2")])
     b, how = review.bind(st, _answer_ruling(ruled), HANDLES)
     assert b is None and how["why"] == "ambiguous", (b, how)
-    # the ruled statement itself still binds while it is extracted, and no holder at all reads gone
-    assert review.bind(Store([_answer("2026-11-05-ORG-0002-ops-2", 1, "ops-2")]), _answer_ruling(ruled), HANDLES)[1]["why"] == "content"
+    # the same id again (either person's file may carry it) proves nothing; no holder at all reads gone
+    assert review.bind(Store([_answer("2026-11-05-ORG-0002-ops-2", 1, "ops-2")]), _answer_ruling(ruled), HANDLES)[1]["why"] == "ambiguous"
     assert review.bind(Store([]), _answer_ruling(ruled), HANDLES)[1]["why"] == "gone"
 
 

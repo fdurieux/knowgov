@@ -233,7 +233,7 @@ def _holding(rows: list[dict], aid: str, value, digest, handles: dict | None = N
     """The rows holding the ruling's value and digest that may stand in for ``aid``: any such statement, but for a
     captured answer only the same giver's (``_same_giver``, task-0302)."""
     return [r for r in rows if str(r["value"]) == str(value) and content_digest(r.get("fragments") or []) == str(digest)
-            and (r["id"] == aid or (not _ambiguous_giver(aid, handles) and _same_giver(aid, r)))]
+            and not _ambiguous_giver(aid, handles) and (r["id"] == aid or _same_giver(aid, r))]
 
 
 def _stem_holders(rows: list[dict], aid: str, value, digest, handles: dict | None) -> bool:
@@ -247,7 +247,8 @@ def _same_giver(aid: str, row: dict) -> bool:
     has no fragments, so its digest is the empty text's and any person's identical answer would carry it: a captured
     answer is repaired only by an answer the same person gave (its id's giver, read whole, the candidate's agent).
     A stem that reads as two givers (``…-ops-2``: ``ops-2``'s first file or ``ops``'s second, both issued) names no
-    giver (``_ambiguous_giver``, task-0308): nothing stands in for it, and ``bind`` reports it ``ambiguous``.
+    giver (``_ambiguous_giver``, task-0308): not even the same id binds, since either person's file may carry it, and
+    ``bind`` reports it ``ambiguous`` when a statement holds the content.
     Every other statement repairs by its content, as before."""
     if aid.startswith("A:cap:") or str(row["id"]).startswith("A:cap:"):
         giver = _giver(aid)
