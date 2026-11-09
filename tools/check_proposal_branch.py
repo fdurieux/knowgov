@@ -4,7 +4,8 @@
 
 Copies the vendored register (``demo/register``) into a temporary git repository, commits it on
 ``main``, then on a branch ``proposal`` writes doc-0017's worked example
-(``tools/fixtures/proposal_contract_quote.json``) as the register's own files, in state ``draft``, as an
+(``tools/fixtures/proposal_contract_quote.json``), and then task-0241's process no application supports
+(``tools/fixtures/proposal_c4_gap.json``, coverage rule C4), as the register's own files, in state ``draft``, as an
 author would, and commits it. Then runs ``instance/ci/proposal-impact.sh`` on the checkout against
 ``main``, the CI template's optional step, and requires: exit 0; the report it writes valid under its
 schema; the report equal, ids aside, to the report for the same proposal held in the call; and the
@@ -24,6 +25,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURE = ROOT / "tools" / "fixtures" / "proposal_contract_quote.json"
+C4_FIXTURE = ROOT / "tools" / "fixtures" / "proposal_c4_gap.json"   # task-0241: a process no application supports
+# each fixture and the new coverage gaps its branch must report, every one on a hypothetical element
+CASES = ((FIXTURE, [("C1", "JRN-0014"), ("C1", "JRN-0015"), ("C2", "CAP-0009")]),
+         (C4_FIXTURE, [("C4", "PROC-0011")]))
 DAY = "2026-11-04"
 sys.path.insert(0, str(ROOT / "harness"))
 
@@ -43,6 +48,8 @@ def write_as_files(root: Path, proposal: dict) -> None:
     for n in proposal["nodes"]:
         lines = [f"{k} = {_q(n[k])}" for k in ("id", "kind", "name", "parent") if n.get(k)]
         lines += ['state = "draft"', f"owner = {_q(n['owner'])}"]
+        if n.get("source"):   # its system of record and diagram, as the held overlay reads them (task-0241)
+            lines += ["", "[source]"] + [f"{k} = {_q(v)}" for k, v in n["source"].items()]
         (root / k2t[n["kind"]] / f"{n['id']}.toml").write_text("\n".join(lines) + "\n", encoding="utf-8")
     for i, ln in enumerate(proposal["links"]):
         p = root / "relationships" / f"{ln['type']}.toml"
@@ -107,10 +114,22 @@ def _sorted(x):
 
 
 def main(argv: list[str] | None = None) -> int:
+    failures = []
+    for fixture, want in CASES:
+        failures += [f"{fixture.name}: {f}" for f in one(fixture, want)]
+    for f in failures:
+        print("FAIL " + f, file=sys.stderr)
+    print("proposal branch mode: " + ("every check holds" if not failures else f"{len(failures)} failure(s)"))
+    return 1 if failures else 0
+
+
+def one(fixture: Path, want: list[tuple[str, str]]) -> list[str]:
+    """One fixture on its own scratch branch: the CI step's report valid, equal to the held overlay's, ids
+    aside, with the new gaps ``want``, each on a hypothetical element; the checkout untouched."""
     import proposal_impact as pi
     import schema_check
     failures = []
-    proposal = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    proposal = json.loads(fixture.read_text(encoding="utf-8"))
     top = Path(tempfile.mkdtemp(prefix="kg-proposal-branch-"))
     try:
         reg = scratch_branch(top, proposal)
@@ -132,19 +151,15 @@ def main(argv: list[str] | None = None) -> int:
                 a, b = ids_aside(got), ids_aside(held)
                 failures.append(f"the branch report differs from the held overlay's on {sorted(k for k in a if a[k] != b.get(k))}")
             gaps = sorted((g["rule"], g["id"]) for g in got["coverage"]["new_gaps"])
-            if gaps != [("C1", "JRN-0014"), ("C1", "JRN-0015"), ("C2", "CAP-0009")]:
-                failures.append(f"the branch report's new gaps are {gaps}")
-            print(f"branch mode: {len(got['nodes'])} node(s), {len(got['links'])} link(s) read from {got['branch']['head'][:12]} "
-                  f"against main; new gaps {gaps}")
+            if gaps != want or not all(g["hypothetical"] for g in got["coverage"]["new_gaps"]):
+                failures.append(f"the branch report's new gaps are {got['coverage']['new_gaps']}, want {want}, each hypothetical")
+            print(f"branch mode ({fixture.name}): {len(got['nodes'])} node(s), {len(got['links'])} link(s) read from "
+                  f"{got['branch']['head'][:12]} against main; new gaps {gaps}")
         if digests(reg) != before or git(reg, "rev-parse", "HEAD") != head or git(reg, "status", "--porcelain"):
             failures.append("the register checkout changed")
     finally:
         shutil.rmtree(top, ignore_errors=True)
-    for f in failures:
-        print("FAIL " + f, file=sys.stderr)
-    print("proposal branch mode: " + ("every check holds" if not failures else f"{len(failures)} failure(s)"))
-    return 1 if failures else 0
-
+    return failures
 
 if __name__ == "__main__":
     import _outcomes   # task-0159: the outcome recorded when KG_OUTCOMES names a file
