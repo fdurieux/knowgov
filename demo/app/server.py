@@ -54,6 +54,7 @@ ROOT = HERE.parent.parent
 HARNESS = ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
 import build_identity  # noqa: E402  (task-0227: which knowgov this is, read once at start)
+import dates  # noqa: E402  (task-0262: one strict YYYY-MM-DD parse)
 import execution  # noqa: E402  (task-0141.05: model output runs in the contained worker, or nowhere)
 import page_subject  # noqa: E402  (the subject as a value: task-0032.01)
 import http_boundary  # noqa: E402  (the HTTP trust boundary and limits, task-0141.03, task-0141.04)
@@ -582,12 +583,8 @@ class Runner:
             raise ValueError(f"unknown mode {mode}")
         if as_of is not None:
             # the date the run's gate reads review currency on (decision-0005); none is the record date
-            try:
-                if len(as_of) != 10:
-                    raise ValueError
-                dt.date.fromisoformat(as_of)
-            except ValueError:
-                raise ValueError(f"as_of {as_of!r} is not a date (YYYY-MM-DD)") from None
+            if not dates.is_date(as_of):   # task-0262: YYYY-MM-DD in ASCII digits, never a week, basic or suffixed form
+                raise ValueError(f"as_of {as_of!r} is not a date (YYYY-MM-DD)")
         chosen, model_env, deviation = None, {}, False
         if mode == "arms":
             if ps.subject.oracle_script() is None:
@@ -955,8 +952,8 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
                 return _busy_json(self, store_status())
             if parts == ["api", "register"]:
                 today = q.get("today", [None])[0]
-                if today not in (None, "wall") and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", today):
-                    return self._json({"error": "today must be 'wall' or YYYY-MM-DD"}, 400)
+                if today not in (None, "wall") and not dates.is_date(today):   # task-0262
+                    return self._json({"error": f"today {today!r} must be 'wall' or a date (YYYY-MM-DD)"}, 400)
                 return self._json(register_view.build(today))
             if parts[:3] == ["api", "register", "footprint"] and len(parts) == 4 and parts[3] in views.SCENARIOS:
                 if not register_view.has_map():

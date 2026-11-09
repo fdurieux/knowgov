@@ -12,6 +12,26 @@ names that section with the version.
 
 ### Contract changes
 
+- **Every date is YYYY-MM-DD, and nothing looser** (task-0262, decision-0032, G9-17). One parse,
+  `harness/dates.py`, now reads every date knowgov takes:
+  - `--as-of` on `gate_cli`, `run`, `trace` and `proposal_impact`;
+  - `KG_AS_OF` and the MCP readers' `as_of`;
+  - `KG_TODAY`;
+  - `capture due --on` and `connector --exported-on`;
+  - the page's `POST /api/run` `as_of` and `GET /api/register?today=`.
+
+  Before, Python's `date.fromisoformat` also read the ISO week form and the basic form, so `2026-W45-1` was
+  read as 2026-11-02 and `20261105xx` as 2026-11-05, and the MCP runs reader's `\d` let fullwidth digits
+  through. Such a value is now refused, naming it: exit 2 on a command, a tool error on MCP, 400 on the page.
+  A stored date, such as a verification's `at` or `valid_until`, is read the same way, alone or followed by
+  an ISO time. `record`, `today` and valid dates read as before, and the record does not move.
+
+- **The subject-check report's `finding.rule` names three more rules** (task-0257, decision-0032, G9-17).
+  `require-approved` and `rationale` (a malformed `[tasks.<class>]` field, task-0242) and `attestation` (an
+  attestation with no day or no attester, task-0199) were emitted by `tools/check_subject.py` but missing from
+  `harness/schemas/subject-check.schema.json`. A report carrying one failed its own schema, from the CLI's
+  `--json` and from the MCP `subject_check`. Schema version 1, additive.
+
 - **A slice reads its task class's keys, and the class's keys on no slice are named** (task-0252, doc-0034 D1).
   `proposal_impact` (CLI `--task`, MCP `task`, `codegen` by default) now keeps each slice's keys to the
   `[tasks.<class>]` keys among the register-map rows on its thread. Before, every mapped key was read under
