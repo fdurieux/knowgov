@@ -9,6 +9,12 @@ U+180E, U+FEFF), Zs, Zl and Zp (every space and line or paragraph separator), an
 Such a character would otherwise pass as part of a name and read absent at the gate. Combining marks (Mn) are
 kept: an accented name in NFD needs them.
 
+Two keys that are canonically equivalent are one key; knowgov stores and reports the NFC form (task-0301,
+decision-0034 Amendment A2). ``normalise`` turns a key to NFC (not NFKC) wherever one enters: the MCP tools'
+``key`` and ``keys``, the task classes, the register map, the verification map, the three-valued keys, the
+mappers' entities and predicates (``extract.mapped_text`` composes a document before it is mapped), captures,
+reviews, proposals, code-header citations and every command's ``--keys``; the rule is checked after it.
+
 The rule is written as the explicit ``\\uXXXX`` ranges a side may hold, never ``\\s``, ``\\d`` or ``\\w``, whose sets
 differ between engines (Python's ``\\s`` holds U+001C to U+001F and U+0085, ECMA-262's does not). Because the
 ranges stay inside the BMP and leave the surrogates out, a character beyond U+FFFF is refused alike by Python,
@@ -22,6 +28,7 @@ only.
 from __future__ import annotations
 
 import re
+import unicodedata
 
 # The BMP less Cc, Cf, Zs, Zl, Zp, Cs and "|", from Unicode 15.1 (tests/test_key_rule.py regenerates and compares)
 ALLOWED = (r"\u0021-\u007b\u007d-\u007e\u00a1-\u00ac\u00ae-\u05ff\u0606-\u061b\u061d-\u06dc\u06de-\u070e"
@@ -33,9 +40,22 @@ KEY_RE = re.compile(rf"{SIDE}\|{SIDE}")   # for fullmatch: PATTERN's body, unanc
 REFUSED_CATEGORIES = ("Cc", "Cf", "Zs", "Zl", "Zp", "Cs")
 DESCRIPTION = ("entity|attribute: one '|', each side non-empty, of characters up to U+FFFF (the Basic Multilingual "
                "Plane; none above it) with no '|', no space or separator and no control or format character "
-               "(Unicode categories Cc, Cf, Zs, Zl, Zp)")
+               "(Unicode categories Cc, Cf, Zs, Zl, Zp); two keys that are canonically equivalent are one key, and "
+               "knowgov stores and reports the NFC form")
+
+
+def normalise(key):
+    """``key`` in Unicode NFC (task-0301, decision-0034 Amendment A2): two keys that are canonically equivalent
+    are one key, and knowgov stores and reports the NFC form. Not NFKC, which would merge full-width forms and
+    ligatures into other names. A value that is not a string is returned as it is, for the rule to refuse."""
+    return unicodedata.normalize("NFC", key) if isinstance(key, str) else key
+
+
+def normalise_all(keys):
+    """Each of ``keys`` normalised, in order; a value that is not a list is returned as it is."""
+    return [normalise(k) for k in keys] if isinstance(keys, list) else keys
 
 
 def is_key(value) -> bool:
-    """Whether ``value`` is a key by the one rule."""
-    return isinstance(value, str) and KEY_RE.fullmatch(value) is not None
+    """Whether ``value``, once normalised, is a key by the one rule."""
+    return isinstance(value, str) and KEY_RE.fullmatch(normalise(value)) is not None

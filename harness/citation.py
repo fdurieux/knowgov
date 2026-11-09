@@ -45,7 +45,8 @@ def parse(text: str, prefix: str) -> list[str]:
         m = line_re.match(line)
         if not m:
             continue
-        got = [k.strip() for k in m.group(1).split(",")]
+        import key_rule   # task-0301: a cited key in NFC, whichever form the editor saved the header in
+        got = [key_rule.normalise(k.strip()) for k in m.group(1).split(",")]
         if not any(got) or not all(got):
             raise Malformed(f"line {n}: {MARK} names {'no key' if not any(got) else 'an empty key'}")
         keys += [k for k in got if k not in keys]

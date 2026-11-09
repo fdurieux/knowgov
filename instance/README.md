@@ -36,6 +36,11 @@ checkout, write to it. The connector adds an export to your register. `harness/c
 and `review`, and `harness/transcript.py`, add answers, reviews and suggestions to a subject's
 `captures/`. You commit what they write like any other change.
 
+Keys are compared in Unicode NFC: two keys that are canonically equivalent are one key, and
+knowgov stores and reports the NFC form, so `société|adresse` typed composed and a document that
+spells it decomposed name the same key. On a macOS checkout, run
+`git config core.precomposeunicode true` once, so file names reach git composed.
+
 ## Kinds of document, and which ones the platform reads
 
 A *kind* is one row of the programme's table *Artefact by artefact* on
