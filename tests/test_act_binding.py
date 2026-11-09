@@ -214,3 +214,31 @@ def test_a_digit_ending_handle_with_one_reading_still_binds_task_0308():
     st = Store([_answer("2026-11-07-ORG-0002-employee-1", 1, "employee-1")])
     b, how = review.bind(st, _answer_ruling(ruled), HANDLES)
     assert b is not None and how["why"] == "repaired", (b, how)
+
+
+def _gone_act():
+    return {"review": "r.toml", "act": "ruling", "n": 1, "by": "employee-2", "on": "2026-11-03", "outcome": "approved",
+            "statement": "A:cap:2026-11-05-ORG-0002-employee-1:1@capture", "key": "response|hold_presence", "from_value": "x",
+            "from_sha256": "e3b0c442" + "0" * 56, "to": [], "reasons": [], "why": "gone"}
+
+
+def test_the_gone_message_says_only_another_persons_identical_answer_may_remain_task_0308():
+    """R2: the message does not claim that no answer of the key is extracted when another person's identical one is."""
+    import gate_cli
+    msg = gate_cli.act_finding(_gone_act())["message"]
+    assert "no statement of it is extracted any more" in msg, msg
+    assert "if only another person's identical answer remains, this ruling does not cover it" in msg, msg
+
+
+def _run_check(*args):
+    with tempfile.TemporaryDirectory() as d:
+        p = subprocess.run([sys.executable, str(ROOT / "tools" / "check_act_binding.py"), *args], cwd=d, capture_output=True, text=True)
+        return p, sorted(os.listdir(d))
+
+
+def test_the_check_tool_prints_usage_on_help_and_refuses_a_stray_option_task_0308():
+    """R3: an argument starting with ``-`` was taken as the output folder (``./--help/`` was created)."""
+    p, left = _run_check("--help")
+    assert p.returncode == 0 and "check_act_binding.py OUT_DIR" in p.stdout and left == [], (p.returncode, p.stderr, left)
+    p, left = _run_check("-x")
+    assert p.returncode == 2 and left == [], (p.returncode, p.stderr, left)
