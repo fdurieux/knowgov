@@ -1,6 +1,6 @@
 """The register's checks: types, directions, required metadata, hierarchy cycles, duplicate
 identities, cardinalities, dangling links, lifecycle consistency, approvals, knowledge a person
-gave and the handles it is given under (decisions 0008, 0009), glossary, the coverage rules C1 to C3 with expiring exceptions, and the product–journey alignment
+gave and the handles it is given under (decisions 0008, 0009), glossary, the coverage rules C1 to C4 with expiring exceptions (C4, decision 0020), and the product–journey alignment
 rule A1 at warning level (decision 0018). Exit 1 on any error; warnings exit 0.
 
     python tools/check_register.py                 # check the working tree
@@ -28,6 +28,8 @@ COVERAGE_RULES = {
     "C1": "an approved journey step or touchpoint has at least one is_supported_by link, or an unexpired exception",
     "C2": "a capability that an approved product requires has at least one realizes link, or an unexpired exception",
     "C3": "a process with an approved realizes link names a diagram of record in its source, or an unexpired exception",
+    "C4": ("an approved process with an approved realizes link to an approved capability has at least one approved supports "
+           "link from an approved application or module, or an unexpired exception"),
 }
 ALIGNMENT_RULE = ("an approved product is concerned by an approved journey, and the capabilities it requires are the ones "
                   "that journey's steps reach by the thread walk; a warning, never an error")
@@ -407,6 +409,17 @@ def check_coverage(reg: dict, f: Findings, today: dt.date) -> dict:
     for pid in miss3:
         f.error("C3", f"processes/{pid}.toml", COVERAGE_RULES["C3"])
     summary["C3"] = {"denominator": len(realizing), "covered": len(realizing) - len(miss3) - len([p for p in realizing if p in live.get("C3", set())]), "excepted": len([p for p in realizing if p in live.get("C3", set())]), "uncovered": miss3}
+    # C4 (decision 0020): every node at both ends approved, so a sunset shows: a deprecated application supports nothing
+    nodes = reg["nodes"]
+    def approved(nid):
+        return nodes.get(nid, {}).get("state") == "approved"
+    realizing4 = sorted({ln["source"] for ln in approved_links("realizes") if approved(ln["source"]) and approved(ln["target"])})
+    supported4 = {ln["target"] for ln in approved_links("supports") if approved(ln["source"])}
+    excepted4 = [p for p in realizing4 if p not in supported4 and p in live.get("C4", set())]
+    miss4 = [p for p in realizing4 if p not in supported4 and p not in live.get("C4", set())]
+    for pid in miss4:
+        f.error("C4", f"processes/{pid}.toml", COVERAGE_RULES["C4"])
+    summary["C4"] = {"denominator": len(realizing4), "covered": len([p for p in realizing4 if p in supported4]), "excepted": len(excepted4), "uncovered": miss4}
     return summary
 
 
@@ -529,7 +542,7 @@ def main(argv=None) -> int:
     f, summary = run(a.root, a.previous, today)
     for it in f.items:
         print(f"{it['level'].upper():7} {it['check']:12} {it['where']}: {it['message']}")
-    for rule in ("C1", "C2", "C3"):
+    for rule in ("C1", "C2", "C3", "C4"):
         s = summary[rule]
         print(f"{rule}: {s['covered']}/{s['denominator']} covered, {s['excepted']} excepted, {len(s['uncovered'])} uncovered")
     a1 = summary["A1"]

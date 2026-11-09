@@ -12,7 +12,7 @@ rejected = ["draft"]
 retired = []
 
 [approval]
-four_eyes = true              # the approver may not be the pull request's author
+four_eyes = true              # the approver did not draft the change; a session that drafted it is its author (decision 0019)
 cross_domain_both_owners = true
 
 [review]
