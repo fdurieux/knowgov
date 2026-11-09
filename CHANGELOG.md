@@ -12,6 +12,19 @@ names that section with the version.
 
 ### Contract changes
 
+- **One reading of every on/off setting** (task-0276, decision-0033 choice 2, G9-17). `harness/switches.py` lists
+  them and reads each one: a flag (`KG_NO_LOAD`, `KG_PUBLISH`, `KG_ALLOW_UNCONTAINED_EXECUTION`, `KG_TRACEBACK`,
+  `KG_THINKING_UNCOUNTED`) is on with `1` and off with `0`, empty or unset; `KG_LOAD_MEMORY_CHECK` and `KG_KEY_CHECK`
+  keep their word, `off` in any case. Any other value now exits 2, naming the setting and what it accepts; before,
+  `KG_NO_LOAD=true` silently meant off. A behaviour change: `KG_LOAD_MEMORY_CHECK` or `KG_KEY_CHECK` set to `0`,
+  `no` or `false`, spellings no document named, turned the check off before and now exit 2; set `off`. `instance/ci/knowgov-gate.sh`
+  reads its flags under the same rule. The GitHub action's `publish`, `annotate` and `sarif` take `true` or `false`
+  in any case, and any other value fails the step, naming the input. Every documented spelling keeps its meaning.
+- **The image's tags, stated once** (task-0277, decision-0033 choice 3, G9-17). The contract is
+  `ghcr.io/fdurieux/knowgov:vX.Y.Z` for a release (the tag, `v` included, as `release.yml` publishes it) and
+  `:latest` for the last build of `main`. `:<short-sha>`, which `demo.yml` also publishes, is a build of `main`,
+  not a contract. The README, `instance/README.md`'s contracts table and the demo's guide say so, and
+  `tests/test_image_tags.py` holds them to both workflows.
 - **A slice reads its task class's keys, and the class's keys on no slice are named** (task-0252, doc-0034 D1).
   `proposal_impact` (CLI `--task`, MCP `task`, `codegen` by default) now keeps each slice's keys to the
   `[tasks.<class>]` keys among the register-map rows on its thread. Before, every mapped key was read under

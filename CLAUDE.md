@@ -181,7 +181,7 @@ a PR whose change an adopter would notice (a contract, a feature, a known limit)
 PR renames that section to the version (maintainer, 2026-11-04; `tests/test_release.py` admits one
 leading Unreleased, `release.yml` stays strict at tag time). A hosted
 session cannot push a tag: the owner publishes the GitHub Release on the release PR's merge
-commit, typing the tag as new, and the tag's `release.yml` publishes `ghcr.io/fdurieux/knowgov:<tag>`.
+commit, typing the tag as new, and the tag's `release.yml` publishes `ghcr.io/fdurieux/knowgov:vX.Y.Z` (decision-0033).
 The session that prepares a release PR also hands the owner, in its reply, the Release's title and
 Markdown description, ready to paste, as part of the release. The title is one line, `knowgov X.Y.Z — <what moved>`.
 The description is in the adopter register (the README's reader, not this file's). It covers:

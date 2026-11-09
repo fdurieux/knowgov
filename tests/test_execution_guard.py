@@ -52,7 +52,14 @@ def test_the_rule_reads_the_watched_variables_against_this_checkout():
     why = eg.refusal(MOUNTED)
     assert why and "task-0141.05 (X1)" in why and f"{eg.OPT_IN}=1" in why and "/instance/subjects" in why, why
     assert eg.refusal(dict(MOUNTED, **{eg.OPT_IN: "1"})) is None
-    assert eg.refusal(dict(MOUNTED, **{eg.OPT_IN: "yes"})), "only 1 opts in"
+    import switches   # only 1 opts in; any other spelling is refused by name, never read as on (task-0276)
+    try:
+        eg.refusal(dict(MOUNTED, **{eg.OPT_IN: "yes"}))
+    except switches.BadSwitch as e:
+        assert eg.OPT_IN in str(e)
+    else:
+        raise AssertionError("only 1 opts in")
+    assert eg.refusal(dict(MOUNTED, **{eg.OPT_IN: "0"})), "0 is off"
     for name in eg.WATCHED:   # any one of them outside the checkout, a sibling whose name starts like it included
         assert eg.refusal(dict(PUBLIC, **{name: str(ROOT) + "-instance/x"})), name
 

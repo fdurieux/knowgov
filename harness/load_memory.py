@@ -34,7 +34,6 @@ import os
 BASE = 25_563_415             # bytes (24.4 MiB): the plane's intercept, raised by its largest residual
 PER_WRITTEN = 9_583           # bytes per statement the unit writes
 PER_DELETED = 9_610           # bytes per statement the unit's wipes delete
-OFF = ("off", "0", "no", "false")
 
 
 class LoadTooLarge(RuntimeError):
@@ -43,7 +42,8 @@ class LoadTooLarge(RuntimeError):
 
 
 def enabled() -> bool:
-    return (os.environ.get("KG_LOAD_MEMORY_CHECK") or "on").strip().lower() not in OFF
+    import switches   # off, in any case, turns it off; on, empty or unset leaves it on; else BadSwitch (task-0276)
+    return switches.on("KG_LOAD_MEMORY_CHECK")
 
 
 def margin() -> float:
