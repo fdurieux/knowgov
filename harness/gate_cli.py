@@ -544,6 +544,7 @@ def check_report_baseline(data: dict, where: str, *, subject: str, scenario: str
     if errors:
         more = f" (and {len(errors) - 1} more)" if len(errors) > 1 else ""
         raise CannotRun(f"--baseline {where}: not a valid version-{v} gate report: {errors[0]}{more}")
+    _levels_known(data.get("levels") or {}, where, "$.levels")
     was = {"subject": data.get("subject"), "scenario": data.get("scenario"), "task": data.get("task"),
            "stage": 2 if data.get("change") else 1}
     now = {"subject": subject, "scenario": scenario, "task": task, "stage": stage}
@@ -551,6 +552,36 @@ def check_report_baseline(data: dict, where: str, *, subject: str, scenario: str
         if was[field] != now[field]:
             raise CannotRun(f"--baseline {where}: a report of {field} {was[field]!r}, and this run's {field} is "
                             f"{now[field]!r}: a baseline is an earlier report of the same run")
+
+
+def _levels_known(levels: dict, where: str, field: str) -> None:
+    """Every level a baseline holds is one of the gate's (task-0286): a value the ladder lacks is named, never
+    left to fail the comparison as "the store did not answer"."""
+    for key, level in levels.items():
+        if level not in LEVELS:
+            raise CannotRun(f"--baseline {where}: {field}.{key} is {level!r}, not a level of the gate ({', '.join(LEVELS)})")
+
+
+RECORD_TASK = "codegen"   # the record's gate is the codegen task, read at stage 1 (task-0209)
+
+
+def check_record_baseline(data: dict, where: Path, *, record_dir: Path, scenario: str, task: str, stage: int) -> None:
+    """A deterministic.json read as a baseline is this subject's record for the same run (task-0286): a file of
+    the subject's own record tree, its ``scenario`` the run's, its task the record's (codegen, or the one it
+    names) and its stage 1 (or the one it names), every level one of the gate's. Each failure is CannotRun,
+    exit 2, naming the file and what differs."""
+    root = Path(record_dir).resolve()
+    if not Path(where).resolve().is_relative_to(root):
+        raise CannotRun(f"--baseline {where}: a deterministic.json outside this subject's record ({root}): "
+                        "a record baseline is the subject's own")
+    was = {"scenario": data.get("scenario"), "task": data.get("task", RECORD_TASK), "stage": data.get("stage", 1)}
+    now = {"scenario": scenario, "task": task, "stage": stage}
+    for field in ("scenario", "task", "stage"):
+        if was[field] != now[field]:
+            raise CannotRun(f"--baseline {where}: a record of {field} {was[field]!r}, and this run's {field} is "
+                            f"{now[field]!r}: a baseline is the record of the same run")
+    keys = data.get("gate_keys") or {}
+    _levels_known({k: (v.get("level") if isinstance(v, dict) else v) for k, v in keys.items()}, str(where), "$.gate_keys")
 
 
 def _baseline(arg: str, subject, scenario: str, task: str, stage: int = 1) -> tuple[dict, str] | None:
@@ -567,10 +598,10 @@ def _baseline(arg: str, subject, scenario: str, task: str, stage: int = 1) -> tu
     p = Path(arg)
     if not p.exists():
         raise CannotRun(f"no baseline at {p}")
-    return _read_baseline(p, run=(subject.id, scenario, task, stage)), str(p)
+    return _read_baseline(p, run=(subject.id, scenario, task, stage), record_dir=subject.record_dir), str(p)
 
 
-def _read_baseline(p: Path, run: tuple[str, str, str, int] | None = None) -> dict:
+def _read_baseline(p: Path, run: tuple[str, str, str, int] | None = None, record_dir: Path | None = None) -> dict:
     """An earlier report or deterministic.json as a baseline; one that cannot be read is a cannot-run (G6). With
     ``run`` (subject, scenario, task, stage), a gate report is first held to it (``check_report_baseline``)."""
     try:
@@ -580,6 +611,9 @@ def _read_baseline(p: Path, run: tuple[str, str, str, int] | None = None) -> dic
     if run is not None and isinstance(data, dict) and data.get("tool") == "knowgov gate":
         subject, scenario, task, stage = run
         check_report_baseline(data, str(p), subject=subject, scenario=scenario, task=task, stage=stage)
+    elif run is not None and isinstance(data, dict) and "D6_gate" in data:
+        _, scenario, task, stage = run
+        check_record_baseline(data, p, record_dir=record_dir, scenario=scenario, task=task, stage=stage)
     try:
         return baseline_of(data)
     except (ValueError, KeyError, TypeError, AttributeError) as e:

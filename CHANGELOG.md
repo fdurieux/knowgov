@@ -11,6 +11,12 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **`gate_cli --baseline FILE` holds a deterministic.json to the run too** (task-0286, G9-17). A record file of
+  another scenario, one outside this subject's own record tree (another subject's, or a copy), or one read under
+  another task class or stage than its own (codegen, stage 1, unless the file names them) is refused with exit 2,
+  naming the file and what differs. A baseline level the gate's ladder lacks, in a report or a record, is named
+  the same way, never "the store did not answer". The record's own file for the same run reads as before. The
+  record does not move.
 - **`gate_cli --baseline FILE` keeps its promise: an earlier report of the same run** (task-0258, G9-17). A report
   baseline of another subject, scenario, task class or stage is refused with exit 2, naming the field and both
   values. So is one whose `schema_version` is above this command's, under decision-0023's rule. Each report is
