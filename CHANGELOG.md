@@ -412,6 +412,19 @@ names that section with the version.
   - `harness/annotate.py`'s fingerprints say `usedforsecurity=False`, with the same values.
   - `harness/store.py` checks a setting for NaN with `math.isnan`. A test refuses NaN for every float setting.
 
+- **A task policy the gate cannot apply is refused, never read loosely** (task-0242, doc-0033 R1).
+  `block_levels = "absent"` became the set of its letters, so nothing blocked and the gate read QUALIFIED,
+  exit 0. `block_levels = 7` passed `tools/check_subject.py` and failed only at run time. One validator,
+  `harness/task_policy.py`, now serves the checker and every runtime reader of `[tasks.<class>]` (the gate,
+  `gate_cli.py`, the MCP reader, `run.py`, the agent-key path), and coerces nothing. `block_levels` is a list
+  of gate levels, `keys` a non-empty list of keys, `max_unverified_share` a number from 0 to 1,
+  `require_approved` true or false, `rationale` text. A malformed field is a checker error and, unchecked,
+  the gate's exit 2 (an error result from the MCP reader), naming the class and the field. A subject with a
+  malformed task class does not load: every gate call exits 2 naming the field.
+- **A key resting only on inference carries every basis, not one chosen by the hash seed** (task-0244,
+  doc-0033 R3). A key whose statements are all inferred, assumed or hypothesised was flagged with one of
+  those bases, picked by Python's set order, so the same store could report different flags from run to
+  run. Its flags now list every basis among them, sorted. The verdict never depended on it.
 - **The vendored register moves to ieam-register v0.2.13** (`7980708`, from v0.2.11). It adds the register's
   decision 0019, four eyes: a session that drafted a change is its author and may not approve it. It also adds
   decision 0020, coverage rule C4: an approved process that realises an approved capability is supported by an

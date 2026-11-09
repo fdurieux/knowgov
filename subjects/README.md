@@ -112,7 +112,8 @@ verbatim = ["contracts/cli.md"]      # optional: kit files the governed bundle c
                                      # (an artefact key, or a directory artefact's key plus the part's path inside it);
                                      # for what the task needs byte for byte and an assertion cannot stand in for
 block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
-max_unverified_share = 0.25
+max_unverified_share = 0.25          # block_levels a list, never a bare string; a share from 0 to 1. A subject with a
+                                     # malformed task class does not load: every gate call exits 2 naming the field (task-0242)
 rationale = "..."                    # optional: why these keys; store_status reports it (task-0101)
 require_approved = true              # optional, default false: the intended bar (task-0215, decision-0018 point 4).
                                      # A key verified but not approved then reads below the class's bar: an
@@ -304,7 +305,10 @@ every mapping, and `tools/check_claim_probe.py` holds it on the store `KG_STORE`
 `tools/check_subject.py <subject root> [--register DIR] [--json]` reads a root before it is loaded,
 and `tools/check_instance.py` runs it on every subject of an instance (task-0135, doc-0018 F2 to
 F5). It refuses (exit 1) a table or field this file does not document, a task without `keys`,
-`block_levels` or `max_unverified_share`, a `require_approved` that is not true or false, a key that
+`block_levels` or `max_unverified_share`, a task setting of the wrong type or out of range (`block_levels`
+not a list of gate levels, `keys` not a list of keys, `max_unverified_share` outside 0 to 1, a
+`require_approved` that is not true or false; `harness/task_policy.py`, the validator the gate itself uses,
+task-0242), a key that
 is not `<entity>|<predicate>`, a task with no
 scenario, a `register_map.toml` node the register does not hold or an `owner` of none of its row's
 nodes, a mapper that cannot read its document, and a claim that is not `observed`, `inferred` or
