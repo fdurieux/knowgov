@@ -137,7 +137,8 @@ class Subject:
         self.verification: dict = m.get("verification", {})
         self.tasks: dict = m.get("tasks", {})
         self.arms: dict = m.get("arms", {})   # kind = "reply" (one JSON reply, the default) or "agent" (a tool loop; [arms.agent])
-        self.three_valued: list[str] = list(m.get("three_valued", {}).get("keys", []))
+        import key_rule   # task-0301: the keys the three-valued answer measures, in NFC
+        self.three_valued: list[str] = key_rule.normalise_all(list(m.get("three_valued", {}).get("keys", [])))
         self.rules: dict = m.get("rules", {})
         self.register: dict = m.get("register", {})
         self.page: dict = m.get("page", {})
@@ -244,7 +245,13 @@ class Subject:
 
     def verification_map(self) -> dict:
         rel = self.verification.get("map")
-        return _toml(self.path(rel)) if rel else {}
+        m = _toml(self.path(rel)) if rel else {}
+        import key_rule   # task-0301: the keys it verifies in NFC, as the store holds them
+        for scen, keys in list((m.get("execution") or {}).items()):
+            m["execution"][scen] = key_rule.normalise_all(keys)
+        if isinstance(m.get("review"), dict) and "keys" in m["review"]:
+            m["review"]["keys"] = key_rule.normalise_all(m["review"]["keys"])
+        return m
 
     def prompt(self, name: str) -> str:
         return (self.root / "prompts" / f"{name}.md").read_text(encoding="utf-8")
@@ -261,7 +268,12 @@ class Subject:
 
     def register_map(self) -> dict:
         rel = self.register.get("map")
-        return _toml(self.path(rel)) if rel else {}
+        m = _toml(self.path(rel)) if rel else {}
+        import key_rule   # task-0301: each row's key in NFC, as the store holds it
+        for row in m.get("row", []) if isinstance(m.get("row"), list) else []:
+            if isinstance(row, dict) and "key" in row:
+                row["key"] = key_rule.normalise(row["key"])
+        return m
 
     def definition_files(self) -> list[Path]:
         """Every file of the subject root that is not the record: what a run's SHA256SUMS lists."""

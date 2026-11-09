@@ -212,7 +212,8 @@ def bind(st, ru: dict) -> tuple[dict | None, dict]:
     stem is extracted), ``ambiguous`` (several statements hold its content, none the one it names). ``how["to"]``
     names what the store holds instead: its key's statements of the same stem, each with value and digest."""
     aid = str(ru.get("assertion", ""))
-    key, value, digest = ru.get("key"), ru.get("value"), ru.get("sha256")
+    import key_rule   # task-0301: a ruling's key in NFC, as the store holds it
+    key, value, digest = key_rule.normalise(ru.get("key")), ru.get("value"), ru.get("sha256")
     if key is None or value is None or digest is None:   # the read rule: a review file written before 0.9.0
         b = statement(st, aid)
         return b, {"why": "unbound" if b else "gone", "to": []}
