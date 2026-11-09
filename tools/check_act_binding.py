@@ -106,6 +106,34 @@ def written(out: str) -> dict:
     return tomllib.loads(Path(m.group(1)).read_text(encoding="utf-8"))
 
 
+def giver_cases(out: Path) -> list[str]:
+    """task-0302 (decision-0032 C2-1): employee-2 approves employee-1's answer, its capture is deleted, and the same
+    value is given again by employee-3 (the approval must not follow) or by employee-1 (it must)."""
+    errs: list[str] = []
+    print("== task-0302: an approved answer's capture deleted, then another person's identical answer (S2')")
+    hold = "response|hold_presence"
+    for who, on, repairs in (("employee-3", ON, False), ("employee-1", ON, True)):
+        env = fresh(out, f"giver-{who}", decided=True)
+        d = out / f"giver-{who}"
+        cap = w.answer(env, d)
+        capdir = d / "subjects" / "cargo_quote" / "captures"
+        capfile = next(capdir.glob("*.toml"))
+        n = 1 + [a["key"] for a in tomllib.loads(capfile.read_text(encoding="utf-8"))["answer"]].index(hold)
+        ruled = f"{cap}:{n}@capture"
+        w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
+        capfile.unlink()   # the approved answer's capture gone; an identical answer given again, by another person or the same
+        again = w.answer(env, d, handle=who, on=on, want={hold: "held_unscreened only"})
+        got = {k: v for k, v in approvals(env, "S2", hold).items() if v}
+        gone = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "gone"]
+        if repairs and (not any(k.startswith(again) for k in got) or gone):
+            errs.append(f"task-0302: the same giver's re-ingested answer should carry the approval; got {got}, acts {gone}")
+        if not repairs and (got or len(gone) != 1 or gone[0]["severity"] != "major"):
+            errs.append(f"task-0302: {who}'s identical answer inherited employee-1's approval: approved {got}, gone acts {gone}")
+        print(f"    {who} again on {on}: approved on {sorted(got) or 'nothing'}; "
+              f"{gone[0]['severity'] + ' act: ' + gone[0]['message'] if gone else 'no gone act'}")
+    return errs
+
+
 def main(out: Path) -> int:
     errs: list[str] = []
     out.mkdir(parents=True, exist_ok=True)
@@ -195,27 +223,7 @@ def main(out: Path) -> int:
         errs.append(f"renumbered answers: the approval of answer 1 stayed on its id, which now carries another answer: {moved}")
     print(f"    {before['verdict']} -> {after['verdict']}; {w.OUT} approved on {sorted(moved)}")
 
-    print("== task-0302: an approved answer's capture deleted, then another person's identical answer (S2')")
-    hold = "response|hold_presence"
-    for who, on, repairs in (("employee-3", ON, False), ("employee-1", ON, True)):
-        env = fresh(out, f"giver-{who}", decided=True)
-        d = out / f"giver-{who}"
-        cap = w.answer(env, d)
-        capdir = d / "subjects" / "cargo_quote" / "captures"
-        capfile = next(capdir.glob("*.toml"))
-        n = 1 + [a["key"] for a in tomllib.loads(capfile.read_text(encoding="utf-8"))["answer"]].index(hold)
-        ruled = f"{cap}:{n}@capture"
-        w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
-        capfile.unlink()   # the approved answer's capture gone; an identical answer given again, by another person or the same
-        again = w.answer(env, d, handle=who, on=on, want={hold: "held_unscreened only"})
-        got = {k: v for k, v in approvals(env, "S2", hold).items() if v}
-        gone = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "gone"]
-        if repairs and (not any(k.startswith(again) for k in got) or gone):
-            errs.append(f"task-0302: the same giver's re-ingested answer should carry the approval; got {got}, acts {gone}")
-        if not repairs and (got or len(gone) != 1 or gone[0]["severity"] != "major"):
-            errs.append(f"task-0302: {who}'s identical answer inherited employee-1's approval: approved {got}, gone acts {gone}")
-        print(f"    {who} again on {on}: approved on {sorted(got) or 'nothing'}; "
-              f"{gone[0]['severity'] + ' act: ' + gone[0]['message'] if gone else 'no gone act'}")
+    errs += giver_cases(out)
 
     print("== item 7 at stage 2 (S6): a ruling on P2's surcharge, then the tariff change")
     env = fresh(out, "s6", decided=False)

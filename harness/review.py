@@ -209,7 +209,7 @@ def _stem(aid: str) -> str:
 
 
 # a capture's file stem, harness/capture.py ingest's: {on}-{owner unit}-{handle}, a second file the same day -<n>
-_CAPTURE_STEM = re.compile(r"\d{4}-\d{2}-\d{2}-(?:[A-Z][A-Z0-9]*-\d+|unassigned)-(?P<giver>.+)")
+_CAPTURE_STEM = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}-(?:[A-Z][A-Z0-9]*-[0-9]+|unassigned)-(?P<giver>.+)")   # ASCII digits
 
 
 def _giver(aid: str) -> str | None:
@@ -218,6 +218,13 @@ def _giver(aid: str) -> str | None:
         return None
     m = _CAPTURE_STEM.fullmatch(_stem(aid)[len("A:cap:"):].rsplit(":", 1)[0])
     return m["giver"] if m else None
+
+
+def _holding(rows: list[dict], aid: str, value, digest) -> list[dict]:
+    """The rows holding the ruling's value and digest that may stand in for ``aid``: any such statement, but for a
+    captured answer only the same giver's (``_same_giver``, task-0302)."""
+    return [r for r in rows if str(r["value"]) == str(value) and content_digest(r.get("fragments") or []) == str(digest)
+            and (r["id"] == aid or _same_giver(aid, r))]
 
 
 def _same_giver(aid: str, row: dict) -> bool:
@@ -245,8 +252,7 @@ def bind(st, ru: dict) -> tuple[dict | None, dict]:
         b = statement(st, aid)
         return b, {"why": "unbound" if b else "gone", "to": []}
     rows = st.key_evidence(str(key), list(CURRENT))
-    same = [r for r in rows if str(r["value"]) == str(value) and content_digest(r.get("fragments") or []) == str(digest)
-            and (r["id"] == aid or _same_giver(aid, r))]
+    same = _holding(rows, aid, value, digest)
     pick = next((r for r in same if r["id"] == aid), None) or (same[0] if len(same) == 1 else None)
     if pick is not None:
         return statement(st, pick["id"]), {"why": "content" if pick["id"] == aid else "repaired", "to": []}
