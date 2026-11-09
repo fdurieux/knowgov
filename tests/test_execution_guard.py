@@ -83,9 +83,15 @@ def test_every_execution_path_refuses_before_running_model_output():
 
 def test_run_py_refuses_an_arms_run_before_the_store_or_a_model_call_and_exits_2():
     need_rdflib()   # run.py imports the pins (pyshacl, rdflib) before it reads its arguments
+    import shutil
     with tempfile.TemporaryDirectory() as td:
         env = {k: v for k, v in os.environ.items() if k not in (*eg.WATCHED, eg.OPT_IN) and "KEY" not in k}
-        env.update(MOUNTED, KG_STORE="rdflib", KG_RDFLIB_FILE=str(Path(td) / "store.ttl"), KG_CLOCK="pinned")
+        # a mounted instance's register is a readable one outside this checkout (task-0288: run.py refuses a named
+        # register it cannot read before main, so the overlay's /instance/register, absent here, would refuse first)
+        mounted_register = Path(td) / "instance" / "register"
+        shutil.copytree(ROOT / "demo" / "register", mounted_register, ignore=shutil.ignore_patterns("__pycache__"))
+        env.update(MOUNTED, KG_REGISTER=str(mounted_register), KG_STORE="rdflib", KG_RDFLIB_FILE=str(Path(td) / "store.ttl"),
+                   KG_CLOCK="pinned")
         p = subprocess.run([sys.executable, "run.py", "--scenarios", "S1", "--n", "1", "--out", str(Path(td) / "out")],
                            cwd=ROOT / "harness", env=env, capture_output=True, text=True, timeout=120)
         assert p.returncode == 2 and "task-0141.05 (X1)" in p.stderr and eg.OPT_IN in p.stderr, (p.returncode, p.stderr[-400:])

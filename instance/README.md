@@ -150,11 +150,18 @@ It prints the same findings, each with its fix, and exits 0, 1 or 2 like the lay
 The register map's rows are checked against the register you name, with `--register` or with
 `KG_REGISTER`. If the register you name cannot be read (a typo in the path, or a folder that is not
 a register), the check stops with exit 2 and names the path; it never skips the register check
-without saying so. Only when you name no register, and the public register this copy of knowgov
-carries cannot be read either, are the rows reported as unchecked. The other commands that read a
-register (`harness/register_nodes.py`, `harness/upward.py`, `harness/proposal_impact.py`,
-`harness/gate_cli.py` with `--register-previous`) and the MCP reader follow the same rule: a register
-named and not readable exits 2, naming it.
+without saying so. A folder counts as a register when its `metamodel/types.toml` lists its
+taxonomies and it holds the register's own loader, `register.py` in its tools folder, the same test
+every command uses.
+Only when you name no register, and the public register this copy of knowgov carries cannot be read
+either, are the rows reported as unchecked.
+
+Every other command that reads a register follows the same rule: a register named, by a flag or by
+`KG_REGISTER`, that cannot be read stops it with exit 2, naming the path, before it reads or writes
+anything. That covers `harness/gate_cli.py` (and its `--register-previous`), `harness/run.py`,
+`harness/trace.py`, `harness/capture.py`, `harness/transcript.py`, `harness/register_nodes.py`,
+`harness/upward.py`, `harness/proposal_impact.py` and `harness/step_grid.py`. The MCP reader and the
+page refuse to start.
 
 ### Format versions
 
