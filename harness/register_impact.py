@@ -38,7 +38,7 @@ from pathlib import Path
 
 NODE_ID = re.compile(r"^[A-Z]+-\d{4,}$")
 WALKS = ("dependants", "realisers")
-OWNED = ("key", "stale", "lapsed")   # the findings that concern one key (gate_cli.OWNED)
+from gate_cli import OWNED  # noqa: E402  the finding kinds that concern one key: gate_cli's own, one definition (task-0260)
 
 _tools: dict[str, dict] = {}
 _lock = threading.Lock()
@@ -226,7 +226,8 @@ def landed_rows(register_map: dict, node: str, reached: list[str], walked: list[
 
 
 def with_levels(keys: list[dict], report: dict) -> list[dict]:
-    """Each landed key with its level, its key, stale and lapsed findings, the ids of its stale
+    """Each landed key with its level, its findings of the owned kinds (key, intended, stale, lapsed and act, as
+    gate_cli.OWNED names them, task-0260), the ids of its stale
     statements and the suspect derived outputs that used one of them, all read off ``report``: the
     gate's report over the landed keys (``gate_cli.evaluate``, as ``gate_verdict`` makes it for a
     key set), so a key reads here exactly as ``gate_verdict`` reports it on the same as_of."""

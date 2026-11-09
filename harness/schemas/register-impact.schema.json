@@ -384,12 +384,14 @@
      "enum": [
       "key",
       "task",
+      "intended",
       "stale",
       "suspect_derived",
       "lapsed",
+      "act",
       "preload"
      ],
-     "description": "key: a required key's level or flags; task: the task as a whole; stale: an invalidated statement on a required key; suspect_derived: a derived output that used an invalidated statement; lapsed: a statement on a required key whose review has lapsed (decision-0005), its verifications in related; preload: a document behind the keys whose form the pre-load check left unchecked or found findings in (info, task-0064)"
+     "description": "key: a required key's level or flags; task: the task as a whole; stale: an invalidated statement on a required key; suspect_derived: a derived output that used an invalidated statement; lapsed: a statement on a required key whose review has lapsed (decision-0005), its verifications in related; preload: a document behind the keys whose form the pre-load check left unchecked or found findings in (info, task-0064); intended and act as gate_verdict reports them on the key (task-0260): register_impact takes gate_cli.OWNED"
     },
     "key": {
      "type": [
@@ -448,6 +450,109 @@
       "null"
      ],
      "description": "key, on a declared gap (task-0110, decision-0002 point 3): the unit that closes the gap, the owner its declaration names, else the key's owners; null when that is no unit of the register or several; absent elsewhere and on a report from before"
+    },
+    "act": {
+     "type": "object",
+     "required": [
+      "review",
+      "act",
+      "n",
+      "outcome",
+      "by",
+      "on",
+      "why",
+      "from",
+      "to",
+      "reasons"
+     ],
+     "additionalProperties": false,
+     "description": "act (task-0199, doc-0032 §6): the act as its review file records it and what the store holds instead; absent on the other kinds",
+     "properties": {
+      "review": {
+       "type": "string",
+       "description": "the review file, relative to the subject root"
+      },
+      "act": {
+       "enum": [
+        "ruling",
+        "close",
+        "resolve",
+        "review"
+       ],
+       "description": "review: the file as a whole, refused; resolve: a lint gap's resolution (task-0216)"
+      },
+      "n": {
+       "type": "integer",
+       "description": "the act's place in its file, from 1; 0 for the file"
+      },
+      "outcome": {
+       "type": "string"
+      },
+      "by": {
+       "type": "string",
+       "description": "the author's issued handle"
+      },
+      "on": {
+       "type": "string"
+      },
+      "why": {
+       "enum": [
+        "changed",
+        "gone",
+        "ambiguous",
+        "unbound",
+        "refused"
+       ]
+      },
+      "from": {
+       "type": "object",
+       "required": [
+        "value",
+        "sha256"
+       ],
+       "additionalProperties": false,
+       "properties": {
+        "value": {
+         "type": "string"
+        },
+        "sha256": {
+         "type": "string"
+        }
+       },
+       "description": "what the act ruled on: the value and the content digest its file records; empty under the read rule"
+      },
+      "to": {
+       "type": "array",
+       "description": "what the store holds instead: the statements of its key and stem, each with value and digest",
+       "items": {
+        "type": "object",
+        "required": [
+         "id",
+         "value",
+         "sha256"
+        ],
+        "additionalProperties": false,
+        "properties": {
+         "id": {
+          "type": "string"
+         },
+         "value": {
+          "type": "string"
+         },
+         "sha256": {
+          "type": "string"
+         }
+        }
+       }
+      },
+      "reasons": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "refused: why"
+      }
+     }
     }
    }
   },
