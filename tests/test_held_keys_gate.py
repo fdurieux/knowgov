@@ -66,10 +66,16 @@ def test_a_store_holding_no_key_still_has_the_classs_own_gate():
     assert rep["gate"]["task"] == task and rep["gate"]["verdict"] == "PROCEED" and rep["keys"] == []
 
 
+def test_with_no_task_class_the_gate_is_null_and_nothing_is_evaluated():
+    rep, calls, _ = _run(["Extra|one"], task=None)
+    assert rep["gate"] is None and calls == [] and rep["keys"][0]["level"] is None
+
+
 def test_the_description_and_the_schema_say_what_the_field_is():
     import json
     src = (ROOT / "harness" / "mcp_server.py").read_text(encoding="utf-8")
     assert "gate is gate_verdict's verdict and why for the task class itself" in src
+    assert "null only when the subject declares no task class" in src
     schema = json.loads((ROOT / "harness" / "schemas" / "held-keys.schema.json").read_text(encoding="utf-8"))
     assert "own required keys" in schema["properties"]["gate"]["description"]
     assert "whatever the store holds" in schema["properties"]["gate"]["description"]
