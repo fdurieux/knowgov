@@ -386,6 +386,11 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **Prioritisation inputs and refinement planning, and a proposal template** (task-0253, doc-0034). `instance/README.md`
+  gains "Feeding your prioritisation, and planning refinement": the facts knowgov gives a team's own method (WSJF, cost
+  of delay, RICE), with the command that yields each, what it does not supply, and how to turn each slice's keys below
+  the bar into refinement items by level. `instance/templates/proposal.toml` is an annotated template of every field
+  `harness/proposal_impact.py` reads, pointed to from `demo/README.md`; `tests/test_proposal_template.py` holds it to the reader.
 - **The vendored register moves to ieam-register v0.2.13** (`7980708`, from v0.2.11). It adds the register's
   decision 0019, four eyes: a session that drafted a change is its author and may not approve it. It also adds
   decision 0020, coverage rule C4: an approved process that realises an approved capability is supported by an

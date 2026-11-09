@@ -482,6 +482,136 @@ failure, because your register's own checker decides at approval. It posts nothi
 read, never written; the base register is taken from git into a temporary directory and removed. It
 does not open the store, so the reused nodes' keys carry no level here. Ask the MCP tool for those.
 
+### Writing a proposal before the pull request
+
+You can read a proposal before anyone has written a register file for it.
+`instance/templates/proposal.toml` is an annotated template: the new nodes, the links that join them
+to what exists, the register nodes the proposal reuses, and any exception it asks for, each field
+explained in plain English. Copy it, replace every `{{PLACEHOLDER}}` with an id from your register,
+delete what you do not need, and run:
+
+```bash
+python harness/proposal_impact.py my-proposal.toml --no-store
+```
+
+New things get a provisional id of your choosing, such as `new-contract-quote`, so nothing collides
+with an id your register already holds. knowgov never mints a register id: your register's own pull
+request gives the real one. To find the ids to reuse, ask an assistant to call the MCP tool
+`register_nodes`, or run `python harness/register_nodes.py` with a kind, a taxonomy or an owner.
+
+## Feeding your prioritisation, and planning refinement
+
+knowgov does not rank your work. Your team already has a way to choose what comes next, such as WSJF,
+cost of delay or RICE. knowgov supplies some of the facts that method asks for, each with its
+denominator, and never a score. It also tells a team, slice by slice, what stands between a slice
+and your definition of ready.
+
+The commands below run on the public example instance (`python tools/example_instance.py <folder>`),
+with its subject at `KG_SUBJECT`. On your own instance, name your subject, your journeys and your
+dates instead.
+
+### The inputs knowgov gives your method
+
+**Time criticality: what lapses, and what a change reaches.**
+
+- Reviews that lapse before a date. Read the gate as of that date, such as the end of the next
+  sprint. Every review whose currency runs out by then is a `lapsed` finding, with its key, its
+  owner and the day it lapses:
+
+  ```bash
+  python harness/gate_cli.py --task codegen --as-of 2027-01-31 -f json -o gate-2027-01-31.json
+  ```
+
+  `python harness/capture.py due --on 2027-01-31 --out due/` writes the questionnaires that would
+  renew the people's answers falling due by then.
+- What a change reaches. For a proposal, the report's "reach" says which products and journeys each
+  reused node reaches, before and after. For a node that already exists, ask an assistant to call the
+  MCP tool `register_impact`, or run your register's own walk:
+  `python register/tools/impact.py --from CAP-0002`.
+
+**Risk: what is not known yet.**
+
+- Keys the gate reads as absent (nobody has stated them), as a declared gap (someone said nobody
+  knows), or as disputed (two sources disagree). Each is a finding in the gate report, with the unit
+  that owns the key.
+- For a product, the capabilities it requires that its journeys' steps do not reach. The proposal's
+  slice map lists them as `required_not_reached`: enablers that nothing in the slices delivers yet.
+
+**A job-size proxy: how much is new.**
+
+For each slice of a proposal or a journey, the slice map counts:
+
+- the new elements against the reused ones;
+- the gaps;
+- the owners;
+- the handoffs, where ownership changes along the thread.
+
+```bash
+python harness/proposal_impact.py --scope JRN-0001 --task design --as-of 2027-01-31
+```
+
+These hint at size. They are not an estimate of effort.
+
+**Dependencies: what must happen first.**
+
+- What each new node rests on, through the register's `realisers` chain. A capability that nothing
+  realises yet is shown as a gap.
+- Approval order. Your register's checker refuses an approved link whose ends are not approved, so a
+  node is approved before the links that name it.
+- Owners. The report lists which unit must approve each new node and link. A link whose two ends
+  have different owners needs both of them, which is often the cross-team dependency.
+
+**What knowgov does not supply.**
+
+Business value, user reach, confidence in that value, and effort all come from your team. A key's
+level is confidence in the *knowledge*, how well what the documents say is checked, not confidence
+in the *value* of the work. A slice whose keys are all approved can still be the wrong thing to
+build.
+
+### Planning refinement: getting slices to ready
+
+Before refinement, read each slice under the task classes your definition of ready asks for: first
+`design`, then `codegen`. Read them as of the refinement date:
+
+```bash
+python harness/proposal_impact.py --scope JRN-0001 --task design --as-of 2026-12-01
+python harness/proposal_impact.py --scope JRN-0001 --task codegen --as-of 2026-12-01
+```
+
+Until task-0252 lands (in flight, for 0.9.0), the per-slice `design` reading counts the keys the register map puts on the slice, not the `design` task's own keys; for `design`, read the subject's gate instead: `python harness/gate_cli.py --task design --as-of 2026-12-01`.
+
+Every key below the task's bar becomes a refinement item for the person who can move it. What the
+item is depends on the key's level:
+
+| The key reads | The item | Who |
+|---|---|---|
+| absent | elicit it: send the owner's questionnaire (`harness/capture.py questionnaire`) | the key's owner unit |
+| declared gap | a decision that closes the gap | the unit named as `closer` in the gate report |
+| disputed | a ruling on which source is right, in a review file | a reviewer who is not the author |
+| invalidated | reconfirm it against the changed document | the key's owner unit |
+| proposed | a four-eyes review | a reviewer who is not the author |
+| validated, but the task asks for more | verify it (a test) or approve it (a review) | the key's owner unit and a reviewer |
+| lapsed by the end of the sprint | renew the review (`harness/capture.py due`) | the person who answered, or the owner unit |
+
+Two more items come from the slice map, not from a key:
+
+- **A step that reads "0 of N" keys.** No register-map row lands on the slice, so nothing says what
+  knowledge it needs. The item is to define that knowledge: rows in `register_map.toml`, and the
+  keys in the task class.
+- **A coverage gap.** The report's coverage lists a step nothing supports, or a capability nothing
+  realises. The architecture owner models the missing link in the register.
+
+To track progress, read again as of a later date and compare. Keep a report with `-o`, then read
+with `--baseline`: the gate exits 1 only on a key that got worse, so the comparison shows what moved:
+
+```bash
+python harness/gate_cli.py --task codegen --as-of 2026-12-15 --baseline gate-2026-12-01.json
+```
+
+To see every step against every scenario at once, run the scenarios into a folder and read it with
+`python harness/step_grid.py <folder>`: one row per step, one column per scenario, the lowest level
+and the counts in each cell (`demo/README.md`, "What exists, step by step").
+
 ## Checking a document before the load
 
 ```bash
