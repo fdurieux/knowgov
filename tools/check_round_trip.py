@@ -22,6 +22,9 @@ row for row; ``--expect-parts`` fails a scenario whose first store recorded none
 directory artefact, J-F). A subject inside an instance with a pre-load report (``tools/preload_check.py -o
 <instance>/preload-report.json``) records them; ``--expect-preload`` fails a scenario whose first
 store recorded none, so a run meant to prove they survive cannot pass on a store that never held one.
+Each gate report must also name what it decided on (task-0237, decision-0029): ``task_profile``, the
+digest of the subject's task table, ``register`` and ``knowgov`` as this process reads them, and each
+hop must give the same.
 
 The chain names store kinds (``KG_STORE``'s values), first the one loaded: ``rdflib,rdflib`` needs
 no database (harness.yml); ``neo4j,rdflib,neo4j`` is Neo4j to Turtle to rdflib and back, the stack
@@ -170,6 +173,14 @@ def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = 
         failures.append(f"{label} {chain[0]}: the register change invalidated nothing: does KG_REGISTER withdraw what the subject's keys rest on?")
     if expect_preload and not base["preload"]["verdicts"]:
         failures.append(f"{label} {chain[0]}: the load recorded no pre-load verdict: is there a report at the instance's root or in KG_PRELOAD_REPORT?")
+    # task-0237, decision-0029: each report names what the gate decided on, the task table's digest, the
+    # register and the build, as this process reads them; differences() then holds them equal across the hops
+    for t, rep in base["gate"].items():
+        want = {"task_profile": gate_cli.profile_digest(SUBJECT.tasks.get(t)), "register": gate_cli.register_identity(),
+                "knowgov": gate_cli.knowgov_identity()}
+        off = sorted(f for f, w in want.items() if rep.get(f) != w or w is None)
+        if off:
+            failures.append(f"{label} {chain[0]}: gate {t} does not name what it decided on: {off}")
     if expect_parts and not base["parts"]:
         failures.append(f"{label} {chain[0]}: the load recorded no file digest of a directory artefact: does the subject load one?")
     for i, kind in enumerate(chain[1:], 1):
@@ -187,7 +198,8 @@ def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = 
         failures.append(f"{label} {'→'.join(chain)}: the graph changed: nodes {len(n0)} -> {len(n1)} "
                         f"({len(set(n0) ^ set(n1))} differ), edges {len(e0)} -> {len(e1)} ({len(set(e0) ^ set(e1))} differ)")
     v = base["gate"].get("codegen", next(iter(base["gate"].values()), {}))
-    print(f"{label}: {'→'.join(chain)}: {len(base['gate'])} gate report(s) (codegen {v.get('verdict')}), "
+    print(f"{label}: {'→'.join(chain)}: {len(base['gate'])} gate report(s) (codegen {v.get('verdict')}, "
+          f"task profile {(v.get('task_profile') or '')[:12]}, register {(v.get('register') or {}).get('tag')}), "
           f"{len(base['three_valued'])} three-valued answer(s), {base['census']['nodes']} nodes, "
           f"{base['census']['relationships']} relationships, "
           f"{len(base['parts'])} file digest(s) of directory artefacts, "

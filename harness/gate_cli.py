@@ -99,9 +99,10 @@ it (``closer``: the owner its declaration names, decision-0002 point 3, else the
 when that is no unit of the register), and its route ends with the close (task-0110); the text form
 adds ``; closed by UNIT``.
 
-The JSON report (-f json) is pinned by harness/schemas/gate-report.schema.json, version 2 (the
-schema's description says what changed from 1 and what was added since), and validated before it
-is printed.
+The JSON report (-f json) is pinned by harness/schemas/gate-report.schema.json, version 3 (the
+schema's description says what changed from 1 and 2 and what was added since), and validated before
+it is printed. Version 3 (task-0237, decision-0029) names what the gate decided on: ``task_profile``,
+the sha256 of the task table read; ``register``, its tag and commit; ``knowgov``, the build.
 """
 from __future__ import annotations
 
@@ -125,7 +126,7 @@ class CannotRun(Exception):
     """The gate could not run: exit 2."""
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3   # task-0237, decision-0029: task_profile, register and knowgov, what the gate decided on
 SETTLED = ("verified", "approved")   # a successor at one of these replaces a stale statement
 
 
@@ -384,8 +385,9 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
            block_levels: set[str], threshold: str, baseline: dict | None,
            version: str | None = None, change: dict | None = None, owners: dict[str, dict] | None = None,
            route_task: str | None = None, route_keys=None, closers: dict[str, dict] | None = None,
-           register_change: dict | None = None) -> dict:
-    """``route_task`` is the task class whose questionnaire a finding's route names (``task`` by default;
+           register_change: dict | None = None, task_profile: str | None = None) -> dict:
+    """``task_profile`` is the digest of the task table the gate read (``profile_digest``; None when the
+    report is built without one). ``route_task`` is the task class whose questionnaire a finding's route names (``task`` by default;
     the MCP server's agent-chosen key set, task ``keys``, names the class it was resolved under), and
     ``route_keys`` the keys that questionnaire covers (None: every key): a key outside them has no route."""
     from capture import questionnaire_route
@@ -410,7 +412,43 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
             "as_of": res.get("as_of"), "lapsed": [x["id"] for x in res.get("lapsed") or []],   # decision-0005, added in version 2
             "levels": {k: v["level"] for k, v in res["keys"].items()},   # what a later run's --baseline FILE compares with
             "baseline": baseline, "exit_code": 1 if fail else 0,
+            # task-0237, decision-0029 (version 3): what the gate decided on, so a retained report names it
+            "task_profile": task_profile, "register": register_identity(), "knowgov": knowgov_identity(),
             **({"register_change": register_change} if register_change is not None else {})}   # task-0122, additive
+
+
+def profile_digest(table: dict | None) -> str | None:
+    """The sha256 of a task table's canonical JSON (sorted keys, no whitespace, UTF-8): the subject's
+    ``[tasks.<class>]`` as its manifest gives it, with the keys asked for in place of the table's own when a
+    key set was asked for (the MCP reader's ``keys``). None when there is no table (task-0237)."""
+    if table is None:
+        return None
+    import hashlib
+    text = json.dumps(table, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+_IDENTITY: dict = {}
+
+
+def register_identity() -> dict:
+    """The register this process reads (``KG_REGISTER``), its tag and commit (``register_impact.identity``),
+    read once per register root: the files and git only, no network, no clock (task-0237)."""
+    import cadence
+    import register_impact
+    root = cadence.register_root().resolve()
+    key = ("register", str(root))
+    if key not in _IDENTITY:
+        _IDENTITY[key] = register_impact.identity(root)
+    return dict(_IDENTITY[key])
+
+
+def knowgov_identity() -> dict:
+    """task-0227's build identity, ``{version, commit, describe}``, as store_status reports it; read once."""
+    if "knowgov" not in _IDENTITY:
+        import build_identity
+        _IDENTITY["knowgov"] = build_identity.identity()
+    return dict(_IDENTITY["knowgov"])
 
 
 def render(rep: dict) -> str:
@@ -596,6 +634,11 @@ def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshol
     from gate import resolve_spec
     res = resolve_spec(st, task, spec, as_of)
     from subject import SUBJECT
+    table = None   # task-0237: the subject's [tasks.<class>] as read, the keys asked for in place of its own
+    if SUBJECT.id == subject and (route_task or task) in SUBJECT.tasks:
+        table = dict(SUBJECT.tasks[route_task or task])
+        if task == "keys" or list(spec.get("keys") or []) != list(table.get("keys") or []):
+            table["keys"] = list(spec.get("keys") or [])
     if SUBJECT.id == subject:
         if owners is None:
             from capture import finding_owners
@@ -607,7 +650,7 @@ def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshol
                   block_levels=set(spec["block_levels"]), threshold=threshold,
                   baseline=compare(res, *baseline) if baseline else None, version=version, change=change, owners=owners,
                   route_task=route_task, route_keys=_route_keys(route_task) if route_task and route_task != task else None,
-                  closers=closers, register_change=register_change)
+                  closers=closers, register_change=register_change, task_profile=profile_digest(table))
 
 
 def _route_keys(task: str) -> set[str] | None:
