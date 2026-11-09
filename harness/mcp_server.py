@@ -111,8 +111,6 @@ the body (``-32020``) and an error is a 400, or a 404 for an unknown method. A r
 from __future__ import annotations
 
 import argparse
-import datetime as dt
-import hmac
 import ipaddress
 import json
 import os
@@ -265,7 +263,7 @@ TOOLS.append(
      "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
          "proposal": {"type": "object", "description": "the overlay: nodes [{id, kind, name, parent, owner, source}], links "
                       "[{type, source, target, rationale, owner}], reused [{id, mode: as_is|changed}], exceptions "
-                      "[{rule, scope, expires, rationale}], title; ids are provisional, a link end is a register id or a proposed "
+                      "[{rule, scope, expires, rationale}], title, an optional format (1; a newer one is refused); ids are provisional, a link end is a register id or a proposed "
                       "node's (required unless scope is given)"},
          "scope": {"type": "string", "description": "an approved journey, step, touchpoint or product id: its slices only, each "
                    "with its keys; with no proposal, the approved register read alone (task-0191)"},
@@ -398,7 +396,8 @@ TOOLS.append(
                     "count by status, its level as the gate reads it under the task class named (codegen by default) on "
                     "the server's date, the task classes whose required keys include it (required_by; empty for a key no "
                     "class asks for, which store_status never shows) and whether the subject's register map places it; "
-                    "and the required keys the store holds no statement on. The levels are gate_verdict's for that key set.",
+                    "and the required keys the store holds no statement on. The levels are gate_verdict's for that key set; "
+                    "gate is gate_verdict's verdict and why for the task class itself, on its own required keys.",
      "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
          "task": {"type": "string", "description": "the task class whose block levels and bar the levels are read under (default: codegen)"},
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another"},
@@ -1015,6 +1014,7 @@ class Tools:
 
     def three_valued_answer(self, args: dict) -> dict:
         import cadence
+        import dates   # task-0262: the session's date, parsed as every date is
         from gate import THREE_VALUED_STATUSES, invalidated_on_key, three_valued
         from subject import SUBJECT
         key = args.get("key")
@@ -1030,7 +1030,7 @@ class Tools:
             statements = [prov.get(r["id"], r) for r in ans.get("assertions", [])]
             on = self.session_as_of()
             for r in statements:   # task-0198 (doc-0030 M8): currency as of the session's date, as gate_verdict reads it
-                gone = cadence.lapse(r, key, dt.date.fromisoformat(on))   # resolved once, by _resolve
+                gone = cadence.lapse(r, key, dates.parse(on))   # resolved once, by _resolve
                 if gone:
                     r["status"], r["lapsed"] = gone["to"], gone
             out = {"subject": SUBJECT.id, "store": st.name, "scenario": scenario, "key": key, "answer": ans["answer"],
@@ -1052,6 +1052,29 @@ def _error(id_, code: int, message: str, data=None) -> dict:
     if data is not None:
         err["data"] = data
     return {"jsonrpc": "2.0", "id": id_, "error": err}
+
+
+def _id_ok(id_) -> bool:
+    """A JSON-RPC 2.0 id: a string, a whole number or null (task-0272: never an array, an object, a
+    boolean or a fraction, which a client could not match a response to)."""
+    return id_ is None or isinstance(id_, str) or (isinstance(id_, int) and not isinstance(id_, bool))
+
+
+def malformed(msg) -> dict | None:
+    """The error for a message that is not a JSON-RPC 2.0 request this server can answer, else None:
+    -32600 for a non-object, a wrong ``jsonrpc`` or an id that is not a string, a whole number or null;
+    -32602 for a ``_meta`` protocol version that is not a string, which would otherwise read as the
+    handshake era and skip that era's checks (task-0272)."""
+    if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0":
+        id_ = msg.get("id") if isinstance(msg, dict) else None
+        return _error(id_ if _id_ok(id_) else None, -32600, "not a JSON-RPC 2.0 message")
+    if "id" in msg and not _id_ok(msg["id"]):
+        return _error(None, -32600, "the id must be a string, a whole number or null")
+    params = msg.get("params")
+    meta = params.get("_meta") if isinstance(params, dict) else None
+    if isinstance(meta, dict) and META_VERSION in meta and not isinstance(meta[META_VERSION], str):
+        return _error(msg.get("id"), -32602, f"_meta {META_VERSION} must be a string")
+    return None
 
 
 def modern_version(msg) -> str | None:
@@ -1139,8 +1162,9 @@ class Server:
             return _error(id_, -32603, f"internal error: {type(e).__name__}")
 
     def _handle(self, msg) -> dict | None:
-        if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0":
-            return _error(msg.get("id") if isinstance(msg, dict) else None, -32600, "not a JSON-RPC 2.0 message")
+        bad = malformed(msg)
+        if bad:
+            return bad
         if "method" not in msg:
             return None                      # a response to something we never send
         method, id_ = msg["method"], msg.get("id")
@@ -1253,19 +1277,25 @@ class Server:
         return _error(id_, -32601, f"method not found: {method}")   # ping and initialize are not methods of this era
 
     def handle_text(self, text: str) -> dict | None:
+        import http_boundary
         try:
-            msg = json.loads(text)
-        except json.JSONDecodeError as e:
+            msg = http_boundary.parse_json(text)
+        except http_boundary.NotJson as e:   # a nesting past the parser's depth included (task-0272)
             return _error(None, -32700, f"parse error: {e}")
         return self.handle(msg)
 
-    def handle_http(self, text: str, headers) -> tuple[int, dict | None]:
+    def handle_http(self, text: str | bytes, headers) -> tuple[int, dict | None]:
         """One POST body and its headers: the HTTP status and the response. A modern request's
-        headers must match its body before anything else is read."""
+        headers must match its body before anything else is read. Bytes are read as strict UTF-8:
+        invalid UTF-8 is a parse error, never a "replace" decode (task-0272)."""
+        import http_boundary
         try:
-            msg = json.loads(text)
-        except json.JSONDecodeError as e:
+            msg = http_boundary.parse_json(text)
+        except http_boundary.NotJson as e:
             return 400, _error(None, -32700, f"parse error: {e}")
+        bad = malformed(msg)
+        if bad:
+            return 400, bad
         modern = isinstance(msg, dict) and "id" in msg and "method" in msg and modern_version(msg) is not None
         if modern:
             why = header_mismatch(msg, headers)
@@ -1397,8 +1427,7 @@ def make_handler(server: Server, token: str | None):
                 self.refuse(lambda: self._send(refused[0], _error(None, -32600, refused[1])))
                 return False
             if token:
-                got = self.headers.get("Authorization", "")
-                if not (got.startswith("Bearer ") and hmac.compare_digest(got[7:].encode(), token.encode())):
+                if not http_boundary.bearer_matches(self.headers.get("Authorization"), token):   # scheme any case (task-0272)
                     self.refuse(lambda: self._send(401, _error(None, -32600, "a bearer token is required"), {"WWW-Authenticate": "Bearer"}))
                     return False
             return True
@@ -1416,7 +1445,7 @@ def make_handler(server: Server, token: str | None):
             except http_boundary.Refused as e:
                 self.refuse(lambda: self._send(e.status, _error(None, -32600, e.reason)))
                 return
-            code, resp = server.handle_http(data.decode("utf-8", "replace"), self.headers)
+            code, resp = server.handle_http(data, self.headers)   # strict UTF-8 (task-0272)
             self._send(code, resp)
 
         def do_GET(self):

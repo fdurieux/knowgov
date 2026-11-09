@@ -18,7 +18,7 @@ SECURITY = ROOT / "docs" / "security.md"
 HEADING = "## The settings an instance may rely on"
 KG = re.compile(r"\bKG_[A-Z0-9_]*[A-Z0-9_]")
 # Settings whose description is their row: the CI-template, hook, store and model rows task-0234 wrote as tables.
-TABLE_ONLY = {"KG_GATE", "KG_TASK", "KG_STAGE", "KG_NO_LOAD", "KG_CODE_REPO", "KG_SUBJECT_IN", "KG_HOME",
+TABLE_ONLY = {"KG_GATE", "KG_TASK", "KG_STAGE", "KG_CODE_REPO", "KG_SUBJECT_IN", "KG_HOME",
               "KG_NEO4J_URI", "KG_NEO4J_USER", "KG_SUBJECT_CALL_TIMEOUT", "KG_ARMS_MODEL", "KG_MODEL_API_KEY_VAR",
               "KG_MODEL_API_KEY", "KG_MODELS"}
 

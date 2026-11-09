@@ -147,7 +147,7 @@ It prints the same findings, each with its fix, and exits 0, 1 or 2 like the lay
 ### Format versions
 
 Each file you keep in your instance says which version of its format it is written in, so a
-knowgov never misreads a file written for a newer one. There are three places the number goes:
+knowgov never misreads a file written for a newer one. The number goes in five places:
 
 - **A subject**: `subject.toml` carries one number for the whole subject root. It covers
   `subject.toml` itself, `scenarios.toml`, `plants.toml`, `queries.toml` and the register map it
@@ -169,6 +169,11 @@ knowgov never misreads a file written for a newer one. There are three places th
   writes it when it stores an answer or a review. These files are records that are never edited,
   so each keeps the version it was written in, whatever happens to the subject's number later.
 
+- **The trace ledger** (`KG_LEDGER`, `--ledger`): its `schema_version` is its format. `harness/trace.py
+  register` writes it; `trace check` and the MCP tool `code_path` refuse a newer one.
+- **A proposal** (`harness/proposal_impact.py`, the MCP tool `proposal_impact`): an optional top-level
+  `format = 1`, as `instance/templates/proposal.toml` has it.
+
 In plain English:
 
 - **A file with no number is read as version 1, in every release.** Nothing you wrote before
@@ -177,7 +182,8 @@ In plain English:
 - **A file at the current version, or an older one, is read.**
 - **A file with a newer number is refused.** Every reader stops with exit 2, "cannot run", and
   names the file, the version it carries and the version this knowgov reads. That covers the gate,
-  the trace, the capture and review commands, the connector, the MCP server's `subject_check` and
+  the trace, the capture and review commands, the connector, `proposal_impact`, the MCP server's `subject_check`,
+  `code_path` and `proposal_impact` (as an error answer), and
   the two checks above. For example:
 
   ```text
@@ -402,6 +408,12 @@ GitLab include as the variable `KG_PUBLISH`. A pipeline that runs only the gate 
 
 - **GitLab CI**: an include, `instance/ci/gitlab/knowgov.gitlab-ci.yml`, with a hidden job
   `.knowgov-gate` your jobs extend. It maps `CI_COMMIT_SHA` and `CI_MERGE_REQUEST_DIFF_BASE_SHA`.
+  Its job clones knowgov at `KNOWGOV_REF`, which defaults to the include's own release tag, so the
+  include you take from a tag runs that tag's harness. To move to a later release, change the tag in
+  the include's URL; the default follows it. Setting `KNOWGOV_REF` on its own would run another
+  release's harness under this release's job, so move the two together. `KNOWGOV_PIP` installs what an
+  rdflib store needs. Against Neo4j, add the driver at `demo/Dockerfile`'s pin, `neo4j==6.4.1`: the gate
+  with `KG_PUBLISH=1` and the trace jobs after it connect to that store.
 - **Anything else** (Jenkins, Azure DevOps, Bitbucket): set the `KG_*` variables from your platform's
   own and call the script.
 
@@ -683,7 +695,7 @@ so a value such as 41.5 matches no rule. These are real findings about the docum
 of the check: adopt over them with a baseline (below), or fix the documents.
 
 To run it on every pull request, copy `instance/ci/preload-check.yml` into your instance's
-`.github/workflows/`, pin `KNOWGOV_REF` to a knowgov tag, and make the job a required check with
+`.github/workflows/` from the knowgov tag you run (its `KNOWGOV_REF` defaults to that tag), and make the job a required check with
 a reviewer who is not the author. It lints the documents the pull request changes, then runs
 `tools/check_instance.py`; the script it calls, `instance/ci/preload-check.sh`, is the one this
 repository's CI runs on the example instance (`tools/check_preload_linters.py` for the Node
@@ -1566,7 +1578,10 @@ tool call is a transition, so the snippets need no fragile command pattern:
   whether it was staged earlier or by the same command (`git add docs && git commit`, `git commit -a`,
   `git commit spec.md`); when the hook cannot read the command or the worktree, it treats the commit
   as this transition;
-- **push**: before `git push`, written `/usr/bin/git push`, `git -C dir push` or `bash -c 'git push'` as well.
+- **push**: before `git push`, written `/usr/bin/git push`, `git -C dir push`, `bash -c 'git push'`,
+  `` echo `git push` `` or through an alias (`git -c alias.ship=push ship`, or one in your git configuration)
+  as well. Where a variable stands for git or its subcommand (`x=git; $x push`), the hook cannot tell what runs,
+  so a command that names `push` is treated as the push.
 
 Any other tool call gets no decision from it, and goes on through the normal permissions.
 
@@ -1658,6 +1673,14 @@ twenty among them. A row marked *no* is named so you can find it: the demo stack
 one escape. It may change in any release, so do not build on it. A setting that neither
 file names is not a contract. Where a row says "see", the setting is described there; the worker's limits
 are in [`docs/security.md`](../docs/security.md).
+
+**On and off.** A setting that switches something on or off reads one way everywhere (decision-0033, task-0276):
+`1` is on, and `0`, empty or unset is off. The two checks this guide and `docs/security.md` switch off by name keep
+their word: `KG_LOAD_MEMORY_CHECK=off` and `KG_KEY_CHECK=off`, in any case, with `on`, empty or unset leaving them on.
+Any other value stops the command with exit 2 and names the setting and what it accepts; before 0.9.0,
+`KG_NO_LOAD=true` was silently off. The list is `harness/switches.py`'s `SWITCHES`. The GitHub action's `publish`,
+`annotate` and `sarif` inputs take `true` or `false`, in any case, and any other value fails the step, naming the
+input; the GitLab include's `KG_PUBLISH` and `KG_NO_LOAD` follow the rule above.
 
 | Setting | Group | What it does | Default | Contract |
 |---|---|---|---|---|
@@ -1769,7 +1792,7 @@ named in the last column.
 | the `KG_*` settings this file or [`docs/security.md`](../docs/security.md) names that the settings table marks as contracts (decision-0016 point 3, as amended by decision-0033 choice 1) | "The settings an instance may rely on", above, and `docs/security.md` | `CHANGELOG.md`, Contract changes |
 | the page's HTTP API: the four routes the demo's guide names, `POST /api/run`, `GET /api/scenarios`, `GET /api/subjects` and `POST /api/models/check` (decision-0030); every other route may change in any release | the [demo's guide](../demo/README.md), "The page's HTTP API" | `CHANGELOG.md`, Contract changes |
 | the CI action, the GitLab include, the shell wrappers and the hooks' settings files | "Running the gates in your pipeline" and "A fail-closed hook for Claude Code", above | `CHANGELOG.md`, Contract changes; you run them from the knowgov tag you pin |
-| the image's name and tags: `ghcr.io/fdurieux/knowgov:<tag>` for a release, `:latest` for the last main | the [README](../README.md) | each release's tag; `CHANGELOG.md`, Contract changes |
+| the image's name and tags: `ghcr.io/fdurieux/knowgov:vX.Y.Z` for a release (its tag, `v` included), `:latest` for the last build of `main`; `:<short-sha>` is a build of `main`, not a contract (decision-0033) | the [README](../README.md) | each release's tag; `CHANGELOG.md`, Contract changes |
 | the format version each of your input files declares (built: decision-0023 and its Amendment A1, task-0174, task-0236): a file with no number is read as version 1, in every release | "Format versions", above | the number in the file moves, and `CHANGELOG.md` says what changed and how to bring an older file up to date |
 | which ieam-register format versions your register may be in: this release of knowgov reads a register in the format of ieam-register `v0.2.13`, the tag it vendors (`demo/register/SOURCE.md`) and tests. A register at another tag may load, but is untested (decision-0028) | `demo/register/SOURCE.md` | `CHANGELOG.md`, when a release vendors another tag; one that changes a contract output is listed under Contract changes |
 

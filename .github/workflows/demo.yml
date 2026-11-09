@@ -322,6 +322,8 @@ jobs:
         run: docker compose exec -T app sh -c 'rm -rf runs/lint-gaps && python tools/check_lint_gaps.py runs/lint-gaps'
       - name: The kit's claim (task-0214) on the Neo4j store, the probe kit's five mappers read observed, inferred and intended into the basis, an inferred statement stays proposed and a ruling approving it is refused
         run: docker compose exec -T app python tools/check_claim_probe.py
+      - name: register_impact reads each key as gate_verdict reports it (task-0260) on the Neo4j store, an unbound review's act finding on the key both ways, S1, S4 and S6 equal key for key
+        run: docker compose exec -T app sh -c 'rm -rf runs/owned-findings && python tools/check_owned_findings.py runs/owned-findings'
 
       - name: A person's statement against the documents' (task-0038) on the Neo4j store, on S2 a contradiction raises a conflict, an agreement corroborates
         run: docker compose exec -T app python tools/check_capture_pairing.py runs/pairing

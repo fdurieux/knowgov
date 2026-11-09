@@ -38,8 +38,8 @@
    "floor": 20
   },
   "demo/app/server.py::Runner.start": {
-   "value": 33,
-   "floor": 33
+   "value": 31,
+   "floor": 31
   },
   "demo/app/views.py::_arm_colour": {
    "value": 18,
@@ -182,8 +182,8 @@
    "floor": 19
   },
   "harness/gate_cli.py::findings": {
-   "value": 88,
-   "floor": 88
+   "value": 78,
+   "floor": 78
   },
   "harness/gate_cli.py::render": {
    "value": 34,
@@ -221,10 +221,6 @@
    "value": 19,
    "floor": 19
   },
-  "harness/mcp_server.py::Server._handle": {
-   "value": 17,
-   "floor": 17
-  },
   "harness/mcp_server.py::Server._tools": {
    "value": 25,
    "floor": 25
@@ -242,8 +238,8 @@
    "floor": 19
   },
   "harness/mcp_server.py::make_handler": {
-   "value": 37,
-   "floor": 37
+   "value": 36,
+   "floor": 36
   },
   "harness/mcp_server.py::route_to_child": {
    "value": 17,
@@ -341,10 +337,6 @@
    "value": 19,
    "floor": 19
   },
-  "harness/schema_check.py::_check": {
-   "value": 34,
-   "floor": 34
-  },
   "harness/schema_check.py::_supported": {
    "value": 16,
    "floor": 16
@@ -360,10 +352,6 @@
   "harness/store_neo4j.py::_Unit.pin": {
    "value": 17,
    "floor": 17
-  },
-  "harness/store_neo4j.py::_Unit.publish": {
-   "value": 16,
-   "floor": 16
   },
   "harness/store_rdflib.py::RdflibStore._stale_candidates": {
    "value": 35,
@@ -441,10 +429,6 @@
    "value": 27,
    "floor": 27
   },
-  "harness/wizard.py::get": {
-   "value": 16,
-   "floor": 16
-  },
   "harness/worker.py::_group_settled": {
    "value": 17,
    "floor": 17
@@ -465,10 +449,6 @@
    "value": 31,
    "floor": 31
   },
-  "instance/ci/claude/attestation_paths.py::after_text": {
-   "value": 19,
-   "floor": 19
-  },
   "instance/ci/claude/attestation_paths.py::check": {
    "value": 22,
    "floor": 22
@@ -477,21 +457,13 @@
    "value": 33,
    "floor": 33
   },
-  "instance/ci/claude/knowgov_hook.py::git_calls": {
-   "value": 29,
-   "floor": 29
-  },
   "instance/ci/claude/knowgov_hook.py::main": {
-   "value": 19,
-   "floor": 19
+   "value": 17,
+   "floor": 17
   },
   "instance/ci/claude/knowgov_hook.py::run_gate": {
    "value": 16,
    "floor": 16
-  },
-  "instance/ci/claude/knowgov_hook.py::transition": {
-   "value": 19,
-   "floor": 19
   },
   "tools/_outcomes.py::run": {
    "value": 16,

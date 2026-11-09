@@ -42,7 +42,7 @@ def backend(env=None) -> str:
     env = os.environ if env is None else env
     if (env.get(JOBS_VAR) or "").strip():
         return "worker"
-    if env.get(execution_guard.OPT_IN) == "1":
+    if execution_guard.switches.on(execution_guard.OPT_IN, env):   # 1 only, else BadSwitch (task-0276)
         return "host"
     raise ExecutionRefused(
         "refused: no contained worker is configured (KG_WORKER_JOBS), and code a model wrote never runs on the "

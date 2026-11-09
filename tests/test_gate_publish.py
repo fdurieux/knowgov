@@ -117,9 +117,10 @@ def test_without_rdflib_the_default_names_the_install():
 
 def test_the_pipeline_wrappers_pass_publish_on():
     sh = (ROOT / "instance" / "ci" / "knowgov-gate.sh").read_text(encoding="utf-8")
-    assert '[ "${KG_PUBLISH:-}" = 1 ] && set -- "$@" --publish' in sh
+    assert 'if flag KG_PUBLISH "${KG_PUBLISH:-}"; then set -- "$@" --publish; fi' in sh   # task-0276: 1 only, else exit 2
     action = (ROOT / "instance" / "ci" / "github" / "action.yml").read_text(encoding="utf-8")
-    assert "  publish:\n" in action and "KG_PUBLISH: ${{ inputs.publish == 'true' && '1' || '' }}" in action
+    assert "  publish:\n" in action and "KNOWGOV_PUBLISH: ${{ inputs.publish }}" in action \
+        and 'if [ "$publish" = true ]; then export KG_PUBLISH=1; fi' in action   # task-0276: true or false, in any case
     assert "KG_PUBLISH:" in (ROOT / "instance" / "ci" / "gitlab" / "knowgov.gitlab-ci.yml").read_text(encoding="utf-8")
     hook = (ROOT / "instance" / "ci" / "claude" / "knowgov_hook.py").read_text(encoding="utf-8")
     assert "--publish" not in hook and "KG_PUBLISH" not in hook   # the hook reads the report only: the default

@@ -45,6 +45,22 @@ def test_both_wrappers_call_the_same_script_with_the_platforms_commit_and_base()
     assert "${{ inputs." not in script and "${{" not in script, "inputs reach the shell through env, never inline"
 
 
+def test_the_templates_default_to_their_own_release_and_the_action_runs_its_own_checkout():
+    """task-0259 (G9-17, decision-0032 C5): an include or workflow template taken from tag vX runs vX's harness
+    unless told otherwise, so KNOWGOV_REF defaults to v<VERSION> and the release PR moves it with VERSION. The
+    GitHub action needs no such default: it calls knowgov-gate.sh from its own checkout, the tag in uses:."""
+    want = "v" + (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    for path in (GITLAB, CI / "preload-check.yml"):
+        got = re.findall(r"^\s+KNOWGOV_REF:\s*(\S+)", path.read_text(encoding="utf-8"), re.M)
+        assert got == [want], (path.name, got, want)
+    gitlab = GITLAB.read_text(encoding="utf-8")
+    assert '--branch "$KNOWGOV_REF"' in gitlab and "neo4j==" in gitlab, "the include clones the ref and names the Neo4j driver"
+    pin = re.search(r'"neo4j==([\d.]+)"', (ROOT / "demo" / "Dockerfile").read_text(encoding="utf-8")).group(1)
+    assert f"neo4j=={pin}" in gitlab and f"neo4j=={pin}" in (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
+    action = ACTION.read_text(encoding="utf-8")
+    assert "KNOWGOV_REF" not in action and "$GITHUB_ACTION_PATH/../knowgov-gate.sh" in action
+
+
 def test_both_wrappers_annotate_by_default_and_gitlab_keeps_the_code_quality_report():
     action, gitlab = ACTION.read_text(encoding="utf-8"), GITLAB.read_text(encoding="utf-8")
     assert 'export KG_ANNOTATE="github,summary:$GITHUB_STEP_SUMMARY"' in action and re.search(r'annotate:\n.*\n\s+default: "true"', action)

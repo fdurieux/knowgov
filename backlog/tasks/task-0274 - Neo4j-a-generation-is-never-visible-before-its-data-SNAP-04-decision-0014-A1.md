@@ -3,9 +3,10 @@ id: TASK-0274
 title: >-
   Neo4j: a generation is never visible before its data (SNAP-04, decision-0014
   A1)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-09T10:09:00Z'
+updated_date: '2026-11-09T11:08:00Z'
 labels:
   - store
   - correctness
@@ -30,9 +31,24 @@ decision-0014 Amendment A1, accepted 2026-11-09 ("accept A1"), sets `end` after 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `store_neo4j`'s publish raises `begin`, fences in the unit (the epoch checked under the node's lock, held to the commit), commits, then sets `end = begin` in its own transaction.
-- [ ] #2 Every gap closes forward: the writer's failure path, a reader's recovery of an abandoned publication, and a takeover. No backward close can reuse a pinned generation number.
-- [ ] #3 A new race check, holding a writer between commit and `end` and racing publications under several readers, fails on the old code and passes on the fix. `check_snapshots --disposable` holds every check on Neo4j and on rdflib.
-- [ ] #4 `tests/test_store_generations.py` holds the publish order, the forward close and the absence of a backward close.
-- [ ] #5 The record does not move.
+- [x] #1 `store_neo4j`'s publish raises `begin`, fences in the unit (the epoch checked under the node's lock, held to the commit), commits, then sets `end = begin` in its own transaction.
+- [x] #2 Every gap closes forward: the writer's failure path, a reader's recovery of an abandoned publication, and a takeover. No backward close can reuse a pinned generation number.
+- [x] #3 A new race check, holding a writer between commit and `end` and racing publications under several readers, fails on the old code and passes on the fix. `check_snapshots --disposable` holds every check on Neo4j and on rdflib.
+- [x] #4 `tests/test_store_generations.py` holds the publish order, the forward close and the absence of a backward close.
+- [x] #5 The record does not move.
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Built in #415 (decision-0014 amendment A1, accepted 2026-11-09). `store_neo4j` `_Unit.publish` now raises `begin` in its own transaction, fences in the unit (`owned(tx)` under the node's lock, held to the commit), commits, then sets `end = begin` in its own transaction (`committed()`). Every gap closes forward: the writer's failure path (`abandon`), a reader's `recover` and a takeover; no backward close remains, so no pinned generation number is reused.
+
+Verification:
+- SNAP-11 in `tools/check_snapshots.py`: a writer held between commit and `end` is refused with the data in, then read whole; one killed there is refused while its lease is live, then closed forward and read whole; 24 publications under six readers, every read whole. On main's code every such batch read partials (11 to 21).
+- `check_snapshots --disposable` exits 0 on Neo4j 5.26 and on rdflib after merging main.
+- `tests/test_store_generations.py` holds the order, the forward close and the absence of a backward close.
+- The record does not move: the deterministic run on Neo4j against the comparator shows 0 differing leaves over seven scenarios.
+- `tools/complexity.py --check` holds.
+
+It is fix-only under decision-0032: no report, schema, port or setting changes. Residual risk: a writer killed between its commit and `end` leaves readers waiting one lease (bounded).
+<!-- SECTION:FINAL_SUMMARY:END -->

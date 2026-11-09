@@ -1,4 +1,4 @@
-"""Store generations, proven on a real store (task-0141.06, decision-0014): SNAP-01..SNAP-10.
+"""Store generations, proven on a real store (task-0141.06, decision-0014): SNAP-01..SNAP-11.
 
     python tools/check_snapshots.py --disposable                 # KG_STORE=neo4j: the database it names
     KG_STORE=rdflib python tools/check_snapshots.py --disposable  # a file-backed store in a temporary folder
@@ -36,6 +36,11 @@ read together: the held scenario, the census, the register's census and the gate
   SNAP-10  a writer closed while its lease heartbeat is in the middle of a send (task-0229): on Neo4j, ten
            closes, each while a beat holds its connection's outbox, every one clean and the lease free after
            it (the close joins the beat before the driver closes); on rdflib a writer starts no thread to race
+  SNAP-11  a generation is never visible before its data (task-0274): on Neo4j a writer held between its unit's
+           commit and closing the gap leaves begin above end, so a read is refused though the data is in; one
+           killed there is refused while its lease is live, then closed forward by a read and read whole; then
+           24 publications under six readers, every read a complete generation (before, every such batch read
+           partials: the publication's end, written in the unit, was visible before its last records)
 
 Exit 0 when every check holds, 1 otherwise. No model is called; the clock is pinned.
 """
@@ -266,6 +271,109 @@ def snap_02(s1: str, s2: str, g1: dict, g2: dict) -> None:
     publish(s1)
 
 
+RACE_11, READERS_11 = 24, 6   # SNAP-11's race: on the code before it, every such batch read partials (11 to 21 of ~300 reads)
+
+
+def snap_11(s1: str, s2: str, g1: dict, g2: dict) -> None:
+    """A generation is never visible before its data. On Neo4j a writer is held between its unit's commit and
+    closing the gap: the data is committed, yet ``begin`` stays above ``end`` and a read is refused (never the new
+    data under a published number); one killed there is refused, then recovered forward and read whole. Then, on
+    both stores, RACE_11 publications under READERS_11 readers (S1 and S2 in turn), every read a complete generation."""
+    if kind() == "neo4j":
+        _snap_11_held(s2, g2)
+        _snap_11_killed(s1, s2, g2)
+    _snap_11_race(s1, s2, {json.dumps(x, sort_keys=True) for x in (g1, g2)})
+
+
+def _snap_11_held(s2: str, g2: dict) -> None:
+    """A writer held between its unit's commit and closing the gap: the data in, the gap open, a read refused."""
+    import store
+    import store_neo4j
+    seen: dict = {}
+
+    def at_commit(unit):
+        p = store_neo4j.publication()
+        seen["pair"] = (p.get("begin"), p.get("end"))
+        seen["nodes"] = store_neo4j.committed_nodes()
+        try:
+            with _env(KG_NEO4J_READ_WAIT="0"):
+                store.read(snapshot, instance=_sid(), attempts=1)
+            seen["read"] = "answered"
+        except store.StoreBusy:
+            seen["read"] = "refused"
+    saved = getattr(store_neo4j, "_on_committed", None)   # absent on an adapter from before: the check then fails, never crashes
+    store_neo4j._on_committed = at_commit
+    try:
+        got = publish(s2)
+    finally:
+        store_neo4j._on_committed = saved
+    pair = seen.get("pair") or (None, None)
+    check(pair[0] is not None and pair[0] == pair[1] + 1 and seen.get("nodes") == g2["nodes"] and seen.get("read") == "refused",
+          f"SNAP-11 between the unit's commit and end = begin the data is in ({seen.get('nodes')} nodes) and the gap open "
+          f"({pair}): a read is refused, never the new data under a published number: {seen.get('read')}")
+    p = _pub()
+    check(got == g2 and p.get("begin") == p.get("end"), f"SNAP-11 then the gap closes and the new generation is read whole: {p.get('begin')}, {p.get('end')}")
+
+
+def _snap_11_killed(s1: str, s2: str, g2: dict) -> None:
+    """A writer killed between its unit's commit and end = begin: its data is in, its gap open; while its lease is
+    live a read is refused, and once it has run out a read closes the gap forward and answers the data whole."""
+    import store
+    publish(s1)
+    code = (f"import os, sys; sys.path[:0] = [{str(ROOT / 'harness')!r}, {str(ROOT / 'tools')!r}]\n"
+            "import check_snapshots as c, store_neo4j\n"
+            "store_neo4j._on_committed = lambda u: os._exit(9)\n"
+            "st = c.opener('write')\n"
+            f"c.load(st, {s2!r})\n"
+            "st.commit()\n"
+            "os._exit(3)   # it closed the gap: not the case this sets up\n")
+    t0 = time.monotonic()
+    proc = subprocess.run([sys.executable, "-c", code], env={**os.environ, "KG_NEO4J_LEASE_SECONDS": f"{LEASE_08:g}"},
+                          capture_output=True, text=True, timeout=600)
+    before = _pub()
+    check(proc.returncode == 9 and before.get("begin") == before.get("end", 0) + 1,
+          f"SNAP-11 a writer killed between its commit and closing the gap leaves it open: exit {proc.returncode}, "
+          f"begin {before.get('begin')}, end {before.get('end')} {proc.stderr[-200:]}")
+    try:
+        with _env(KG_NEO4J_READ_WAIT="0"):
+            store.read(snapshot, instance=_sid(), attempts=1)
+        check(False, "SNAP-11 while the killed writer's lease is live a read is refused (StoreBusy)")
+    except store.StoreBusy:
+        check(True, "SNAP-11 while the killed writer's lease is live a read is refused (StoreBusy)")
+    time.sleep(max(0.0, LEASE_08 + 0.5 - (time.monotonic() - t0)))
+    after = read_now()
+    p = _pub()
+    check(after == g2 and p.get("begin") == p.get("end") == before.get("begin") and p.get("owner") is None,
+          f"SNAP-11 once its lease has run out a read closes the gap forward and answers the committed data whole: "
+          f"held {after.get('held')}, begin {p.get('begin')}, end {p.get('end')}")
+
+
+def _snap_11_race(s1: str, s2: str, states: set) -> None:
+    """RACE_11 publications, S1 and S2 in turn, under READERS_11 readers: every read a complete generation."""
+    import store
+    stop = threading.Event()
+    reads: list[str] = []
+
+    def reader():
+        while not stop.is_set():
+            try:
+                reads.append(json.dumps(read_now(), sort_keys=True))
+            except (store.StoreBusy, store.StoreChanged):
+                pass
+    ts = [threading.Thread(target=reader, daemon=True) for _ in range(READERS_11)]
+    for t in ts:
+        t.start()
+    for i in range(RACE_11):
+        with opener("write", lock_timeout=300) as st:
+            load(st, s1 if i % 2 else s2)
+    stop.set()
+    for t in ts:
+        t.join(60)
+    partial = sorted({r for r in reads if r not in states})
+    check(reads and not partial, f"SNAP-11 {RACE_11} publications under {READERS_11} readers: every one of {len(reads)} reads a complete "
+                                 f"generation; partial: {partial[:2]}")
+
+
 def snap_03(s1: str, s2: str, g1: dict) -> None:
     code = (f"import os, sys; sys.path[:0] = [{str(ROOT / 'harness')!r}, {str(ROOT / 'tools')!r}]\n"
             "import check_snapshots as c\n"
@@ -396,7 +504,7 @@ def snap_08(s1: str, s2: str, g1: dict) -> None:
     check(read_now() == g1, "SNAP-08 once the lease has run out, a read with no new writer answers the last committed generation")
     check(cleared is not None and cleared.get("epoch") == before.get("epoch") and cleared.get("owner") == before.get("owner"),
           f"SNAP-08 the reader cleared the abandoned begin and names the abandoning writer: {cleared}")
-    check(after.get("begin") == after.get("end") == before.get("end") and after.get("owner") is None
+    check(after.get("begin") == after.get("end") == before.get("begin") and after.get("owner") is None   # closed forward (SNAP-11)
           and after.get("epoch") == before.get("epoch") + 1 and after.get("abandoned_epoch") == before.get("epoch"),
           f"SNAP-08 the generation is the last committed one, the lease free and the epoch moved past the abandoning writer: {after}")
     check(publish(s1) == g1, "SNAP-08 the next writer then takes the free lease and publishes")
@@ -732,6 +840,8 @@ def main() -> int:
     publish(s1)
     snap_09(s1, g1)
     snap_10()
+    publish(s1)
+    snap_11(s1, s2, g1, g2)
     print(f"snapshots ({kind()}): " + ("every check holds" if not FAILURES else f"{len(FAILURES)} failure(s)"))
     if tmp:
         tmp.cleanup()

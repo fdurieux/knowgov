@@ -29,6 +29,11 @@ tell: an event it cannot read, an Edit whose ``old_string`` is not in the file, 
 does not parse before or after) and task-0099's ``decide``, imported from ``knowgov_hook.py`` beside this
 file and never copied, maps that to the hook's exit: 1 and 2 both block (exit 2, the reason on stderr).
 
+Every write tool is read, NotebookEdit included: its ``new_source`` is checked as a review or a capture would be,
+and one on a ``subject.toml`` cannot be read and blocks. Every name is compared case-folded (``Register/``,
+``Captures/``, ``Preload-Baseline.json``), since macOS's and Windows' default filesystems match names whatever their
+case (task-0268).
+
 The instance is ``--instance``, else ``CLAUDE_PROJECT_DIR``, else the event's ``cwd``; a path outside it
 is not this hook's to judge and passes. A manifest that does not parse adds no ``[capture] dir`` or map
 path (the default ``captures/`` stays guarded), so the edit that repairs it is not itself blocked.
@@ -70,8 +75,20 @@ def _load(name: str, path: Path):
     return mod
 
 
+def _cf(p: Path) -> tuple[str, ...]:
+    """A path's parts case-folded: macOS's and Windows' default filesystems match names whatever their case, so
+    Register/ is register/ and Preload-Baseline.json the baseline there (task-0268)."""
+    return tuple(x.casefold() for x in p.parts)
+
+
 def _inside(p: Path, tree: Path) -> bool:
-    return p == tree or tree in p.parents
+    t = _cf(tree)
+    return _cf(p)[:len(t)] == t
+
+
+def _rel(p: Path, inst: Path) -> Path:
+    """``p`` under ``inst`` (which ``_inside`` has established), whatever the case of the instance's own parts."""
+    return Path(*p.parts[len(inst.parts):]) if len(p.parts) > len(inst.parts) else Path(".")
 
 
 def target(event: dict, cwd: Path) -> Path | None:
@@ -91,7 +108,9 @@ def target(event: dict, cwd: Path) -> Path | None:
 
 
 def after_text(event: dict, p: Path) -> str | None:
-    """The file's text once the write is applied; None for a NotebookEdit (no TOML is a notebook)."""
+    """The file's text once the write is applied. A NotebookEdit on a notebook (``.ipynb``) is None: no TOML is a
+    notebook. On any other file its ``new_source`` is the text the content checks read, and on a ``subject.toml``
+    the check cannot tell what the file becomes, so it says so (task-0268: every write tool is read)."""
     tool, ti = event["tool_name"], event["tool_input"]
     if tool == "Write":
         c = ti.get("content")
@@ -99,9 +118,25 @@ def after_text(event: dict, p: Path) -> str | None:
             raise ValueError("Write carries no content")
         return c
     if tool == "NotebookEdit":
+        return _notebook_text(ti, p)
+    return _edited(p.read_text(encoding="utf-8") if p.exists() else "", ti.get("edits") if tool == "MultiEdit" else [ti], tool, p)
+
+
+def _notebook_text(ti: dict, p: Path) -> str | None:
+    """A NotebookEdit's text for the content checks: None on a notebook, ``new_source`` on any other file, and no
+    reading at all of a ``subject.toml``, whose TOML it would leave cannot be known (task-0268)."""
+    if p.suffix.casefold() == ".ipynb":
         return None
-    text = p.read_text(encoding="utf-8") if p.exists() else ""
-    edits = ti.get("edits") if tool == "MultiEdit" else [ti]
+    if p.name.casefold() == "subject.toml":
+        raise ValueError(f"a NotebookEdit on {p.name} cannot be read as the TOML it would leave")
+    src = ti.get("new_source", "")
+    if not isinstance(src, str):
+        raise ValueError("NotebookEdit carries a new_source that is not text")
+    return src
+
+
+def _edited(text: str, edits, tool: str, p: Path) -> str:
+    """``text`` with an Edit's or a MultiEdit's edits applied, as the tool would apply them."""
     if not isinstance(edits, list) or not edits:
         raise ValueError(f"{tool} carries no edits")
     for e in edits:
@@ -179,24 +214,26 @@ def check(event: dict, inst: Path) -> tuple[int, str]:
     p = target(event, Path(str(event.get("cwd") or inst)))
     if p is None or not _inside(p, inst):
         return CLEAR, ""
-    rel = p.relative_to(inst).as_posix()
-    if _inside(p, (inst / "register").resolve()):
+    relp = _rel(p, inst)
+    rel = relp.as_posix()
+    low = _cf(relp)   # every name below compared case-folded (task-0268)
+    if low[:1] == ("register",):
         return PROTECTED, (f"{rel} is in the instance's register. The register changes by its own pull request, "
                            "checked by its tools/check_register.py and approved there, never by an assistant's edit.")
-    if p.name == "preload-baseline.json":
+    if p.name.casefold() == "preload-baseline.json":
         return PROTECTED, (f"{rel} is a pre-load baseline: the owner's commit of the findings they accept "
                            "(tools/preload_check.py -o). An assistant does not write it.")
     trees, files = guarded_files(inst)
-    if "captures" in p.relative_to(inst).parts[:-1] or any(_inside(p, t) for t in trees):
+    if "captures" in low[:-1] or any(_inside(p, t) for t in trees):
         return PROTECTED, (f"{rel} is under a subject's captures: answers people gave (harness/capture.py ingest) "
                            "and the reviews that rule on them. Only a person's handle enters them.")
-    if p in files:
+    if any(_cf(p) == _cf(f) for f in files):
         return PROTECTED, (f"{rel} is a subject's verification map, named by its [verification] map: which keys a "
                            "suite scenario or a dated review verifies. A person attests it.")
     after = after_text(event, p)
     if after is None:
         return CLEAR, ""
-    if p.name == "subject.toml":
+    if p.name.casefold() == "subject.toml":
         before = p.read_text(encoding="utf-8") if p.exists() else ""
         b, a = _tables(before, f"{rel} before the write"), _tables(after, f"{rel} after the write")
         changed = [t for t in ATTESTING if a[t] is not None and a[t] != b[t]]
@@ -206,10 +243,10 @@ def check(event: dict, inst: Path) -> tuple[int, str]:
             return PROTECTED, (f"{rel}: the write adds or changes [{'], ['.join(changed)}]. These tables say who "
                                "attests and when (decision-0009); the person of record writes them.")
         return CLEAR, ""
-    if p.suffix.lower() == ".toml" and _is_review(after):
+    if p.suffix.casefold() == ".toml" and _is_review(after):
         return PROTECTED, (f"{rel} would be a review file ([review] or [[ruling]]): a second person's ruling on what "
                            "the store holds (decision-0002). The reviewer writes it.")
-    if p.suffix.lower() == ".toml" and _is_capture(after):
+    if p.suffix.casefold() == ".toml" and _is_capture(after):
         return PROTECTED, (f"{rel} would be capture-shaped ([[answer]], [[unknown]], [capture] or a signed [answered]): "
                            "a person's answers under their handle, which harness/capture.py ingest writes from their "
                            "questionnaire. Only a person's handle enters them, wherever the file lies.")

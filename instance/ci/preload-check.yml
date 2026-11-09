@@ -3,7 +3,8 @@
 # before the load"). Make it a required check in the default branch's protection, with a
 # reviewer who is not the author: the load reads only the merged tree.
 #
-# Set KNOWGOV_REF to the knowgov tag your instance is pinned to, and PUMLLINT, SPECTRAL, MARKDOWNLINT,
+# KNOWGOV_REF defaults to the release this template comes from (task-0259); to move to a later knowgov, copy
+# that tag's template, whose KNOWGOV_REF and pins move together. Set PUMLLINT, SPECTRAL, MARKDOWNLINT,
 # GPLINT, BPMNLINT and DMNLINT to the pins the tag's harness.yml installs (drop the install of a kind
 # your instance does not hold: its files, if any arrive, are then listed as unchecked, naming it). Other linters your organisation runs go in as steps of their own
 # before the check; this workflow runs only what knowgov can run and lists every other
@@ -23,7 +24,7 @@ permissions:
   contents: read
 
 env:
-  KNOWGOV_REF: main        # pin a tag
+  KNOWGOV_REF: v0.8.0      # this template's release, held equal to VERSION (tests/test_ci_wrappers.py); a later tag: copy that tag's template
   PUMLLINT: "0.35.0"
   SPECTRAL: "6.17.0"       # @stoplight/spectral-cli, for artefacts/api-contracts/
   MARKDOWNLINT: "0.24.0"   # markdownlint-cli2, for artefacts/specification-prose/
