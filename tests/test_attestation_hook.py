@@ -200,3 +200,31 @@ def test_the_snippet_wires_it_on_the_write_tools_fail_closed():
     for t in ("settings.attestations.json", "[verification]", "[provenance]", "captures/", "preload-baseline.json",
               "register/", "shell command", "51-knowgov-attestations.json"):
         assert t in sec, t
+
+
+def test_a_notebook_edit_is_read_like_every_other_write_and_names_are_case_folded():
+    """task-0268 (decision-0032 F12): NotebookEdit runs the content checks (a subject.toml it cannot read blocks,
+    a review or capture in its new_source is blocked), and every name is compared case-folded, so Register/,
+    Captures/ and Preload-Baseline.json are what they are on a case-insensitive filesystem."""
+    inst = _instance()
+    review = '[review]\nby = "employee-2"\non = 2026-11-09\n\n[[ruling]]\nassertion = "A:x"\noutcome = "approved"\n'
+    capture = '[capture]\nfrom = "employee-1"\non = 2026-11-05\n\n[[answer]]\nkey = "k"\nvalue = "v"\n'
+    p = _run(inst, "NotebookEdit", M, new_source="[verification]\nmap = 'x'\n")
+    assert p.returncode == 2 and "cannot be read" in p.stderr and "Fail-closed" in p.stderr, p.stderr
+    for path, src, said in (("notes/r.toml", review, "review file"), ("notes/c.toml", capture, "capture-shaped")):
+        p = _run(inst, "NotebookEdit", path, new_source=src)
+        assert p.returncode == 2 and said in p.stderr, (path, p.stderr)
+    assert _run(inst, "NotebookEdit", "notes/plain.toml", new_source="x = 1\n").returncode == 0
+    assert _run(inst, "NotebookEdit", "notes/n.ipynb", new_source=review).returncode == 0   # a notebook holds no TOML
+    for path, said in (("Register/nodes/x.toml", "register"), ("REGISTER/people/handles.toml", "register"),
+                       ("Preload-Baseline.json", "pre-load baseline"), ("subjects/probe/PRELOAD-BASELINE.JSON", "pre-load baseline"),
+                       ("subjects/probe/Captures/a.toml", "captures"), ("subjects/probe/Answers/a.toml", "captures"),
+                       ("subjects/probe/Verification_Map.toml", "verification map")):
+        p = _run(inst, "Write", path, content="x = 1\n")
+        assert p.returncode == 2 and said in p.stderr and "BLOCKED" in p.stderr, (path, p.stderr)
+    # Subject.toml is subject.toml there: a change to its attesting tables is blocked as the manifest's is
+    p = _run(inst, "Write", "subjects/probe/Subject.toml", content=MANIFEST.replace('"2026-11-04"', '"2026-11-05"'))
+    assert p.returncode == 2 and "decision-0009" in p.stderr, p.stderr
+    # the instance named in another case is the same instance
+    up = Path(str(inst).upper()) if str(inst) != str(inst).upper() else inst
+    assert ap._inside(inst / "register" / "x", up / "REGISTER") and ap._inside(inst / "a", up)
