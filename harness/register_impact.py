@@ -3,17 +3,18 @@ it lands on, and, with a scenario held, each key's level, stale statements and s
 
 The walk is the vendored register's (``tools/impact.py``, loaded by path from ``KG_REGISTER``, the
 register ``cadence.register_root`` reads, as ``demo/app/register_view`` loads it): approved links only,
-a deprecated or retired node is not expanded, a withdrawn edge is listed and not followed. By default
+a deprecated or retired node is not expanded, an edge not followed is listed with its state. By default
 a node's ``parent`` is not descended: its children are listed, each with its state, as not walked. With
 ``children`` (task-0118) the descent is the register's own (its decision 0014, ``impact.walk_children``,
 v0.2.8 on): the walk also starts from every descendant by ``parent``, recursively, each by its own
-taxonomy's row; an approved one is walked, any other is listed withdrawn and not walked from, and what
+taxonomy's row; an approved one is walked, any other is listed not followed, with its state, and not walked from, and what
 is reached is the union less the start and its descendants. Either way the start is never counted
 reached (decision 0016, v0.2.9 on: an edge back to it is listed, ``to_start``, and ``impact.reached``
 drops it). ``parent`` is never climbed. The rows are
 the subject's ``register_map.toml``: a row whose nodes name the start, a walked descendant or a reached
-node lands, with the nodes it came through; with ``children``, a row that names only a withdrawn
-descendant lands after them, flagged ``withdrawn`` (task-0120). Its owner is the row's, as the gate's
+node lands, with the nodes it came through; with ``children``, a row that names only a
+descendant not followed lands after them, flagged ``not_followed`` (task-0120; never ``withdrawn``, which is
+deprecated or retired alone, task-0305). Its owner is the row's, as the gate's
 findings name it.
 
 The levels come from the gate itself, ``gate_cli.evaluate`` over the landed keys on one ``as_of``
@@ -210,7 +211,7 @@ def owning_unit(reg: dict, nid: str) -> dict:
 def walk(node: str, which: str = "dependants", root: Path | None = None, children: bool = False) -> dict:
     """The register part of the answer, without the store: the node, its children, the edges, what
     they reach. With ``children``, every descendant by ``parent`` with its parent, its state, whether
-    it was walked (approved) and, if not, ``withdrawn``; the edges and what is reached are
+    it was walked (approved) and, if not, ``not_followed`` (task-0305), its state saying why; the edges and what is reached are
     ``impact.walk_children``'s. Raises ImpactError on a malformed or unknown id, a walk the register
     lacks, or ``children`` asked of a register without the descent."""
     if not isinstance(node, str) or not NODE_ID.match(node):
@@ -233,7 +234,7 @@ def walk(node: str, which: str = "dependants", root: Path | None = None, childre
         got = T["impact"].walk_children(reg, node, rows)
         edges, reached = got["edges"], sorted(got["reached"])
         listed = [{"id": d["id"], "name": reg["nodes"][d["id"]].get("name", ""), "state": d["state"],
-                   "parent": reg["nodes"][d["id"]].get("parent"), "walked": d["live"], "withdrawn": not d["live"]}
+                   "parent": reg["nodes"][d["id"]].get("parent"), "walked": d["live"], "not_followed": not d["live"]}
                   for d in got["descendants"]]
     else:
         edges = T["impact"].walk(reg, node) if rows is None else T["impact"].walk(reg, node, rows)
@@ -255,13 +256,13 @@ def walk(node: str, which: str = "dependants", root: Path | None = None, childre
 
 
 def landed_rows(register_map: dict, node: str, reached: list[str], walked: list[str] = (),
-                withdrawn: list[str] = ()) -> list[dict]:
+                not_followed: list[str] = ()) -> list[dict]:
     """The map's rows that name the start, a walked descendant or a reached node, each with the nodes it
     came through (``via``: the start first when the row names it, then the walked descendants, then the
     reached nodes it names, as ``walk`` lists them). Then (task-0120) every other row that names a
-    withdrawn descendant, flagged ``withdrawn: true`` with the withdrawn descendants it names as ``via``:
-    a key that rests on what the descent reached but did not walk, listed and walked no further. A
-    withdrawn edge's far node is not touched."""
+    descendant not followed, flagged ``not_followed: true`` with those descendants it names as ``via``:
+    a key that rests on what the descent reached but did not walk, listed and walked no further. The far
+    node of an edge not followed is not touched."""
     touched = [node, *walked, *reached]
     out, flagged = [], []
     for row in register_map.get("row", []):
@@ -269,9 +270,9 @@ def landed_rows(register_map: dict, node: str, reached: list[str], walked: list[
         via = [x for x in touched if x in names]
         if via:
             out.append({"key": row["key"], "owner": row.get("owner"), "anchor": row.get("anchor"), "via": via})
-        elif any(x in names for x in withdrawn):
+        elif any(x in names for x in not_followed):
             flagged.append({"key": row["key"], "owner": row.get("owner"), "anchor": row.get("anchor"),
-                            "via": [x for x in withdrawn if x in names], "withdrawn": True})
+                            "via": [x for x in not_followed if x in names], "not_followed": True})
     return out + flagged
 
 

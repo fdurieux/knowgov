@@ -156,8 +156,10 @@ WALKS = ("dependants", "realisers")   # the register's named walks (its decision
 def followed(e: dict) -> str:
     """The panel's and the rows form's followed column: an edge back to the walk's start (the register's
     decision 0016, v0.2.9, ``to_start``) is followed and never counted among what is reached."""
-    if not e["live"]:
-        return "no, withdrawn"
+    if not e["live"]:   # task-0305: not followed, and why; withdrawn is deprecated or retired alone
+        if e.get("state") != "approved":
+            return f"no, not followed (link {e.get('state') or 'without a state'})"
+        return "no, not followed (far node deprecated or retired)"
     return "yes, back to the start, not counted" if e.get("to_start") else "yes"
 
 
@@ -168,10 +170,10 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
     for an unknown id or walk. The walk follows approved links only, stops at a deprecated or retired
     node and does not climb a node's parent (the register's decision 0007, v0.2.2); from each node
     it takes the steps its kind has: by default toward what rests on it (decision 0010, v0.2.6), with
-    ``walk="realisers"`` toward what implements a capability (decision 0012, v0.2.7). A withdrawn
+    ``walk="realisers"`` toward what implements a capability (decision 0012, v0.2.7). An unapproved
     edge is listed and not followed, and only the far ends of live edges count as reached. With
     ``children`` (decision 0014, v0.2.8; task-0112) it also starts from every approved descendant by
-    parent, as ``impact.walk_children`` does: every descendant is listed, a withdrawn one is not
+    parent, as ``impact.walk_children`` does: every descendant is listed, one not followed is not
     walked from, and the start and its descendants are not counted among what is reached. An edge
     back to a walk's start is listed and never counted (decision 0016, v0.2.9; ``reached``). That is
     the register tool's behaviour, shown as it is."""
@@ -193,7 +195,7 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
     owners = {nid: owning_unit(reg, nid) for nid in {start} | {e["to"] for e in edges} | {d["id"] for d in descendants or []}}
     rows = [[e["from"], e["rel"], e["to"], names.get(e["to"], ""), unit_text(owners[e["to"]]), reg["nodes"].get(e["to"], {}).get("state", ""), e["state"],
              followed(e), e["owner"], ", ".join(e["evidence"])] for e in edges]
-    withdrawn = sum(1 for e in edges if not e["live"])
+    not_followed = sum(1 for e in edges if not e["live"])
     by_prefix = lambda p: [x for x in reached if x.startswith(p + "-")]  # noqa: E731
     products, journeys, processes, applications = by_prefix("PRD"), by_prefix("JRN"), by_prefix("PROC"), by_prefix("APP")
     start_node = reg["nodes"][start]
@@ -208,24 +210,24 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
         intro += " " + C("This is the realiser walk: it follows approved links toward what implements a capability.",
                          "A capability leads to the processes that realise it; a process to the applications that support it.",
                          "An application leads nowhere, so the walk never turns back to what rests on the capability.")
-    intro += " " + C("It stops at a deprecated or retired node.", "A withdrawn edge is listed and not followed.",
+    intro += " " + C("It stops at a deprecated or retired node.", "An edge that is not approved is listed with its state and not followed.",
                      "Its link is not approved, or its far node is deprecated or retired.")
     intro += " " + C("An edge back to the start is listed and not counted: the start is never among what it reaches.")
     if children:
         intro += " " + C("It also starts from every descendant by parent, at any depth, each by its own kind.",
-                         "An approved descendant is walked; any other is listed as withdrawn and not walked from.",
+                         "An approved descendant is walked; any other is listed as not followed, with its state, and not walked from.",
                          "The start and its descendants are not counted among what is reached.",
                          "It never climbs a node's parent.")
     else:
         intro += " " + C("It does not climb a node's parent, so a module's application is not reached.")
     intro += " " + D(f"Name: {names.get(start, '')}.")
     if walk == "dependants":
-        summary = C(f"{views._plural(len(edges), 'edge')} walked, {withdrawn} withdrawn; {views._plural(len(processes), 'process', 'processes')}, "
+        summary = C(f"{views._plural(len(edges), 'edge')} walked, {not_followed} not followed; {views._plural(len(processes), 'process', 'processes')}, "
                     f"{views._plural(len(products), 'product')} and {views._plural(len(journeys), 'journey element')} reached.")
         if not products and (processes or journeys):
             summary += " " + C("No product is reached: no approved link leads from a reached node to a product.")
     else:
-        summary = C(f"{views._plural(len(edges), 'edge')} walked, {withdrawn} withdrawn; {views._plural(len(processes), 'process', 'processes')} "
+        summary = C(f"{views._plural(len(edges), 'edge')} walked, {not_followed} not followed; {views._plural(len(processes), 'process', 'processes')} "
                     f"and {views._plural(len(applications), 'application')} reached.")
     if not edges:
         summary += " " + C("No link starts at this node in a direction the walk follows." if not children else
@@ -248,10 +250,10 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
     if children:
         walked_n = sum(1 for d in descendants if d["live"])
         sections.insert(0, {"heading": C("Descendants by parent"),
-                            "text": C(f"{views._plural(len(descendants), 'descendant')}, {walked_n} walked, {len(descendants) - walked_n} withdrawn."),
+                            "text": C(f"{views._plural(len(descendants), 'descendant')}, {walked_n} walked, {len(descendants) - walked_n} not followed."),
                             "table": {"cols": ["descendant", "name", "parent", "node state", "walked"],
                                       "rows": [[d["id"], names.get(d["id"], ""), reg["nodes"][d["id"]].get("parent", ""), d["state"],
-                                                "yes" if d["live"] else "no, withdrawn"] for d in descendants]}})
+                                                "yes" if d["live"] else f"no, not followed ({d['state']})"] for d in descendants]}})
     title = C((f"Impact of retiring {start}" if walk == "dependants" else f"What realises {start}") + (", with its descendants" if children else ""))
     out = {"from": start, "walk": walk, "children": children, "edges": edges, "rows": rows, "owners": owners,
            "reached": {"products": products, "journeys": journeys, "processes": processes, "applications": applications, "all": reached},
@@ -259,7 +261,7 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
            "text_registry": reg_sentences}
     if children:
         out["descendants"] = [{"id": d["id"], "name": names.get(d["id"], ""), "parent": reg["nodes"][d["id"]].get("parent"),
-                               "state": d["state"], "walked": d["live"], "withdrawn": not d["live"]} for d in descendants]
+                               "state": d["state"], "walked": d["live"], "not_followed": not d["live"]} for d in descendants]
     return out
 
 

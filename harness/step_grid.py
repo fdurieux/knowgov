@@ -29,10 +29,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2   # task-0305: behind_not_followed, renamed from behind_withdrawn (not additive)
 TOOL = "knowgov step_grid"
 CELL_WHY = {
-    "landed": "the step's keys: the register-map rows landed_rows lands on its thread, rows on a withdrawn descendant left out",
+    "landed": "the step's keys: the register-map rows landed_rows lands on its thread, rows on a descendant not followed left out",
     "levels": "count of the step's keys at each level, as the scenario's gate report (gate_keys) has them",
     "unread": "the step's keys the gate report does not hold (no task class of the run required them)",
     "worst": "the lowest level read, by the gate's order; null when none was read. Not a score",
@@ -138,8 +138,8 @@ def steps(scopes: list[str] | None, register_map: dict, today) -> tuple[list[str
             sid = s["start"]["id"]
             ent = by.setdefault(sid, {"id": sid, "name": s["start"]["name"], "kind": s["start"]["kind"], "axis": s["axis"],
                                       "scopes": [], "products": [], "of": s["keys"]["of"],
-                                      "keys": sorted({x["key"] for x in s["keys"]["rows"] if not x.get("withdrawn")}),
-                                      "behind_withdrawn": sorted({k for b in s["keys"]["behind_withdrawn"] for k in b["only_behind"]})})
+                                      "keys": sorted({x["key"] for x in s["keys"]["rows"] if not x.get("not_followed")}),
+                                      "behind_not_followed": sorted({k for b in s["keys"]["behind_not_followed"] for k in b["only_behind"]})})
             ent["scopes"].append(scope)
             ent["products"] = sorted(set(ent["products"]) | set(s["products"]))
     return used, list(by.values())

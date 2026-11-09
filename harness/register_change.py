@@ -118,7 +118,8 @@ def descent(T, reg: dict, now: dict, node: str) -> dict:
     the previous register ``reg``, less what the update moved (the maintainer, 2026-11-04): a
     descendant the new register ``now`` no longer places below ``node``, in any state, is skipped with
     its subtree, since it was moved, not withdrawn; one still below it is descended as
-    ``impact.walk_children`` does (approved: walked; any other: withdrawn, not walked from). The start
+    ``impact.walk_children`` does (approved: walked; any other: not followed, not walked from; task-0305: never
+    called withdrawn, which is the change's own deprecated or retired). The start
     and every descendant are never counted reached (decision 0016)."""
     imp = T["impact"]
     rows = getattr(imp, "WALKS", {}).get(WALK)
@@ -131,7 +132,7 @@ def descent(T, reg: dict, now: dict, node: str) -> dict:
     walked = [x for x in kept if reg["nodes"][x].get("state") == "approved"]
     edges = [e for start in [node, *walked] for e in walk(start)]
     return {"moved": sorted(set(moved) | below_moved), "walked": walked,
-            "withdrawn": [x for x in kept if x not in walked],
+            "not_followed": [x for x in kept if x not in walked],
             "reached": sorted(imp.reached(edges) - {node, *desc})}
 
 
@@ -157,9 +158,9 @@ def resting(change: dict, register_map: dict, previous: Path, current: Path) -> 
     now = ri.load_tools(Path(current).resolve())["register"].load_register(Path(current).resolve()) if change["nodes"] else None
     for n in change["nodes"]:
         d = descent(T, reg, now, n["id"])
-        for row in ri.landed_rows(register_map, n["id"], d["reached"], d["walked"], d["withdrawn"]):
+        for row in ri.landed_rows(register_map, n["id"], d["reached"], d["walked"], d["not_followed"]):
             land(row, {"node": n["id"], "walk": WALK, "children": True, "reason": n["reason"], "moved": d["moved"],
-                       **({"withdrawn": True} if row.get("withdrawn") else {})})
+                       **({"not_followed": True} if row.get("not_followed") else {})})
     if change["links"]:
         for ln in change["links"]:
             ends = [ln["source"], ln["target"]]
