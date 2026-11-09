@@ -45,6 +45,13 @@ names that section with the version.
   `harness/schemas/subject-check.schema.json`. A report carrying one failed its own schema, from the CLI's
   `--json` and from the MCP `subject_check`. Schema version 1, additive.
 
+- **A suspect derived output blocks only the task classes whose keys it rests on** (task-0282, decision-0033
+  choice 8). Before, any suspect output was a blocker in every class's gate: a register change that invalidated
+  15 codegen statements made the `design` gate exit 1 on `derived:S1:G:run1`, though none of them sits on a design
+  key. A suspect output now blocks a class's gate only when one of its invalidated or changed statements sits on
+  that class's keys. Otherwise its `suspect_derived` finding is `info`, naming the output and the keys it rests on,
+  and a `--baseline` does not count it as a regression. A statement whose key cannot be read counts as on the task.
+  The codegen gate in that example still exits 1, and the scored record's gates are unchanged.
 - **One reading of every on/off setting** (task-0276, decision-0033 choice 2, G9-17). `harness/switches.py` lists
   them and reads each one: a flag (`KG_NO_LOAD`, `KG_PUBLISH`, `KG_ALLOW_UNCONTAINED_EXECUTION`, `KG_TRACEBACK`,
   `KG_THINKING_UNCOUNTED`) is on with `1` and off with `0`, empty or unset; `KG_LOAD_MEMORY_CHECK` and `KG_KEY_CHECK`
