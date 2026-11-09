@@ -75,3 +75,29 @@ def test_a_report_level_off_the_ladder_is_named_never_the_store():
 def test_the_changelog_names_it_under_contract_changes():
     log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
     assert "task-0286" in log.split("### Contract changes", 1)[1].split("### Changes", 1)[0]
+
+
+def test_group_3s_reproductions():
+    _refused(CQ / "S2" / "deterministic.json", "scenario 'S2'", "'S1'", scenario="S1")
+    _refused(CQ / "S1" / "deterministic.json", "task 'codegen'", "'design'", scenario="S1", task="design")
+
+
+def test_a_report_with_its_tool_removed_and_a_d6_gate_added_is_neither():
+    forged = {k: v for k, v in tbi._report(scenario="S2").items() if k != "tool"}
+    forged["D6_gate"] = {"verdict": "BLOCKED"}
+    inside = CQ / "S2" / "forged.json"   # in the record tree: the shape alone refuses it, before the tree or scenario
+    for data in (forged, {"D6_gate": {"verdict": "BLOCKED"}, "scenario": "S2"}):
+        try:
+            gate_cli.check_record_baseline(data, inside, record_dir=CQ, scenario="S2", task="codegen", stage=1)
+        except gate_cli.CannotRun as e:
+            assert "not a gate report or the record's deterministic.json" in str(e) or "not the record's" in str(e), str(e)
+        else:
+            raise AssertionError(f"accepted: {sorted(data)}")
+    real = json.loads((CQ / "S2" / "deterministic.json").read_text(encoding="utf-8"))
+    real["D6_gate"]["verdict"] = "FOO"
+    try:
+        gate_cli.check_record_baseline(real, inside, record_dir=CQ, scenario="S2", task="codegen", stage=1)
+    except gate_cli.CannotRun as e:
+        assert "'FOO'" in str(e)
+    else:
+        raise AssertionError("a verdict off the gate's accepted")
