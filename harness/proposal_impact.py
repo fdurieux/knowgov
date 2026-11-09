@@ -905,32 +905,34 @@ def approvals(base: dict, ov: Overlay) -> list[dict]:
 DEFAULT_TASK = "default"   # the command's and the tool's default class: codegen where declared, else the first
 
 
-def _task(task: str | None) -> str | None:
+def _task(task: str | None, tasks: dict) -> str | None:
     """The class ``task`` names (task-0252): ``DEFAULT_TASK`` is codegen where the subject declares it, else its
     first class, else none; None is no class, every register-map key read."""
     if task != DEFAULT_TASK:
         return task
-    from tasks import TASKS
-    return "codegen" if "codegen" in TASKS else next(iter(TASKS), None)
+    return "codegen" if "codegen" in tasks else next(iter(tasks), None)
 
 
-def _task_keys(task: str | None) -> list[str] | None:
-    """The keys ``[tasks.<task>]`` requires, or None when no class is named (task-0252)."""
+def _task_keys(task: str | None, tasks: dict) -> list[str] | None:
+    """The keys ``tasks[task]`` requires, or None when no class is named (task-0252)."""
     if task is None:
         return None
-    from tasks import TASKS
-    if task not in TASKS:
-        raise ProposalError(f"no task {task!r}; the subject declares {sorted(TASKS)}")
-    return list(TASKS[task]["keys"])
+    if task not in tasks:
+        raise ProposalError(f"no task {task!r}; the subject declares {sorted(tasks)}")
+    return list(tasks[task].get("keys", []))
 
 
 def evaluate(proposal: dict | None, root: Path | None = None, today: dt.date | None = None, children: bool = False,
-             register_map: dict | None = None, scope: str | None = None, task: str | None = DEFAULT_TASK) -> dict:
+             register_map: dict | None = None, scope: str | None = None, task: str | None = DEFAULT_TASK,
+             tasks: dict | None = None) -> dict:
     """The report, without the store: everything but the keys' levels (``with_levels`` adds those).
     ``today`` is the date exceptions and reviews are read on (the as_of). ``scope`` names a journey, a step
     or a product (task-0191): the slices are its own, and the overlay may add nothing, so the approved
     register is read alone. ``task`` names the class whose keys the slices read (task-0252); none, every
-    register-map key; by default the command's own default class."""
+    register-map key; by default the command's own default class. ``tasks`` is the class table those keys come
+    from, ``{class: {"keys": [...]}}``, and must be the same subject's as ``register_map``: both default to
+    the process's subject (``KG_SUBJECT``: ``SUBJECT.register_map()`` and ``tasks.TASKS``), which is what the
+    command and the MCP tool read, so a caller passing another subject's map passes its tasks too."""
     if not isinstance(children, bool):
         raise ProposalError("children must be true or false")
     root = (root or ri.register_root()).resolve()
@@ -950,6 +952,8 @@ def evaluate(proposal: dict | None, root: Path | None = None, today: dt.date | N
     if register_map is None:
         from subject import SUBJECT
         register_map = SUBJECT.register_map()
+    if tasks is None:
+        from tasks import TASKS as tasks
     mapped = {x for row in register_map.get("row", []) for x in row.get("nodes") or []}
     keys = [{"node": r["id"], "mode": r["mode"], "keys": landed_keys(register_map, r["id"], root, children)} for r in ov.reused]
     return {
@@ -970,8 +974,8 @@ def evaluate(proposal: dict | None, root: Path | None = None, today: dt.date | N
         "coverage": coverage(CR, base, read, ov, today),
         "reach": reach(T, base, read, ov, children),
         "rests_on": rests_on(T, read, ov),
-        "slices": slices(T, CR, read, ov, scope=scope, register_map=register_map, task=_task(task),
-                         task_keys=_task_keys(_task(task))),
+        "slices": slices(T, CR, read, ov, scope=scope, register_map=register_map, task=_task(task, tasks),
+                         task_keys=_task_keys(_task(task, tasks), tasks)),
         "keys": {"task": None, "scenario": None, "store": None, "gate": None, "by_node": keys},
         "unmapped": [{"id": n["_provisional"], "why": "no register-map row names it and no subject has asked about it: unmapped, not unknown"}
                      for n in ov.nodes if n["id"] not in mapped],
@@ -1100,7 +1104,8 @@ def branch_overlay(checkout: Path, base: str, taxonomies: tuple[str, ...]) -> tu
 
 
 def evaluate_branch(checkout: Path, base: str, today: dt.date | None = None, children: bool = False,
-                    register_map: dict | None = None, scope: str | None = None, task: str | None = DEFAULT_TASK) -> dict:
+                    register_map: dict | None = None, scope: str | None = None, task: str | None = DEFAULT_TASK,
+                    tasks: dict | None = None) -> dict:
     """The report for a register branch: the merge base's register, from ``git archive`` into a
     temporary directory, read with the branch's additions as the overlay. Nothing in the checkout is
     written; the temporary copy is removed."""
@@ -1120,7 +1125,7 @@ def evaluate_branch(checkout: Path, base: str, today: dt.date | None = None, chi
         with tarfile.open(fileobj=io.BytesIO(data)) as tar:
             tar.extractall(tmp, filter="data")
         report = evaluate(proposal, root=tmp, today=today, children=children, register_map=register_map, scope=scope,
-                          task=task)
+                          task=task, tasks=tasks)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
         _checks.pop(str(tmp.resolve()), None)
