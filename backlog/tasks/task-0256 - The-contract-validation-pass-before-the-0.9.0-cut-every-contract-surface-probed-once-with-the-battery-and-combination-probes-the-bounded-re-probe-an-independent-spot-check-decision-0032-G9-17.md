@@ -4,9 +4,10 @@ title: >-
   The contract validation pass before the 0.9.0 cut: every contract surface
   probed once with the battery and combination probes, the bounded re-probe, an
   independent spot check (decision-0032, G9-17)
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-09T08:55:00Z'
+updated_date: '2026-11-09T09:34:00Z'
 labels:
   - contracts
   - validation
@@ -29,3 +30,38 @@ decision-0032 (accepted 2026-11-09, the maintainer: "middle option, and yes, onl
 - [ ] #3 An independent spot check, by a reviewer who ran no part of the pass, probes a random sample of surfaces and its result is recorded
 - [ ] #4 The pass's report is filed as a backlog doc with the list, the findings, the re-probe and the spot check; fix-only findings are tasked for 0.9.x
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+**2026-11-09, first pass done.** All three read-only groups probed `main` at `2a8bbeb`, with `KG_CLOCK` pinned and no model calls. Each prober was a fresh session.
+
+| Group | Session | Surfaces | Contract-bearing | Fix-only |
+|---|---|---|---|---|
+| 1, command lines and configuration | `session_01HTAA1RC6Yp5MDx977euXkS` | 41 of 41 | C1 to C8 | F1 to F20 |
+| 2, the servers | `session_01HTAA1RS8eDPksPaVa9ZdWe` | 27 of 27 | F1 to F4, and F5 if fixed by meaning | F6 to F12 |
+| 3, shapes and semantics | `session_01HTAA1SgVd34dfq1MYU7WzS` | 37 of 39, plus 2 partial on Neo4j | CB1 to CB6 | F1 to F13 |
+
+There are 16 distinct contract-bearing findings. The groups reported 19, but three were found twice:
+- group 1 C1 and group 2 F3;
+- group 1 C2 and group 3 CB4;
+- group 2 F1 and group 3 CB3.
+
+The coordinator checked these on `main`: group 1's C1, C2, C5 and C6; group 2's F1, F3 and F5; and group 3's CB1, CB2 and CB3.
+
+**Where the findings went:**
+- Six keep a documented promise. They are tasked as task-0257 to task-0262 and hold the cut.
+- Ten choose contract content. They are put to the maintainer as decision-0033's nine choices.
+- The fix-only findings are tasked for 0.9.x as task-0263 to task-0272.
+
+**The settings denominator.** decision-0032 point 1 counted 20 settings, but the two contract files name 75; decision-0033 choice 1 settles which of them are contracts. The probers covered the twenty, plus `KG_STORE`, `KG_RDFLIB_FILE`, `KG_RDFLIB_LOCK_TIMEOUT` and `KG_STORE_READ_ATTEMPTS` (group 1), and the MCP and page settings (group 2).
+
+**Not probed:**
+- Neo4j under racing writers, left to SNAP-04;
+- the Node linters, which are not installed;
+- `action.yml` and the GitLab include, which were read but not run;
+- the arms, which are off by rule;
+- the runs-server outputs live.
+
+Each prober keeps its scratchpad reproductions for the bounded re-probe. The prober sessions stay available, and the spot check goes to a fresh session.
+<!-- SECTION:NOTES:END -->
