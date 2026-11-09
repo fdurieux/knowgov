@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-09T09:32:00Z'
-updated_date: '2026-11-09T15:38:00Z'
+updated_date: '2026-11-09T15:43:00Z'
 labels:
   - validation
   - correctness
@@ -60,4 +60,6 @@ Re-probe and spot check at main 9861953 (decision-0032 points 4 and 5, task-0256
 - Spot check CS-2: `[[subject]]` and `[[tasks]]` pass check_subject (exit 0); gate_cli refuses them ('list' object has no attribute 'get'/'items'), exit 2. Type-check the tables.
 - Spot check CS-4, each exit 0: `[record] as_of = "tomorrow"`; `[register] map = "nope.toml"` with no finding, so the rows go unchecked; a key holding a zero-width space, which KEY_RE's \s misses.
 - Scenario ids (duplicates, `""`, `"../x"`, which run.py joins under --out) go to the maintainer as the spot check's D1. If they decide on a format rule, that task carries the duplicate-id item here.
+
+Group 2's re-probe at 9861953: round-1 F10 still reproduces. `subject_check` with `register_map_toml: "x"` answers isError TOMLDecodeError.
 <!-- SECTION:NOTES:END -->

@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-09T09:32:00Z'
-updated_date: '2026-11-09T15:38:00Z'
+updated_date: '2026-11-09T15:43:00Z'
 labels:
   - validation
   - correctness
@@ -53,4 +53,6 @@ Re-probe and spot check at main 9861953 (decision-0032 points 4 and 5, task-0256
 - Group 1: F2 still reproduces, `gate_cli --register-previous ''` silently skipped, exit 0.
 - Spot check PI-1: `proposal_impact` exits 1 with a traceback for `-o /nonexistent/dir/x.json` (FileNotFoundError), `-o <a directory>` (IsADirectoryError) and a non-UTF-8 proposal file; route it through `cli_exit.run` as task-0228 did for preload_check. Not probed, read from the code: StoreChanged is not caught in its main(), so a racing writer gives a traceback.
 - Spot check PI-2, task-0281's falsy rule not carried to the CLIs: `proposal_impact --task ''` reads as codegen, exit 0, where MCP refuses `task:''`; `--scenario ''` passes the held-scenario guard because `held.refusal` tests `if scenario and …`, shared with `gate_cli --no-load` (gate_cli.py:684). Fix: `scenario is not None`.
+
+Group 2's re-probe at 9861953 (N2): the page's `POST /api/run` still reads an empty `as_of` as absent (`{"scenario":"S1","mode":"deterministic","as_of":""}` gives 202, run as of the record date), where the MCP reader and knowgov-runs refuse it. `row`, `effort` and `by` are the same (`or None` / `or "page"` in `_post`). Refuse the empty string in `run_request`.
 <!-- SECTION:NOTES:END -->
