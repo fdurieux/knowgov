@@ -1328,3 +1328,19 @@ def test_the_register_panel_draws_the_change_each_way():
     assert c.count("<table") == 2 and "CAP-0001" in c and "REL-06001" in c and "gone" in c and "weight_kg|max" in c and "ORG-0001" in c, c
     assert "<b>r</b>" not in c and "&lt;b&gt;r&lt;/b&gt;" in c, "a reason is data, escaped"
     assert "${registerChange(r.register_change)}" in page
+
+
+def test_the_register_views_coverage_reader_follows_the_checkers_rules():
+    """task-0261, AC 3: the register view's output has no schema; its coverage reader (task-0241) takes the
+    checker's COVERAGE_RULES, so a checker defining C5 gives a C5 line and no code changes."""
+    import types
+    real = register_view._load_tools
+    checker = types.SimpleNamespace(COVERAGE_RULES={"C1": "", "C2": "", "C3": "", "C4": "", "C5": ""})
+    cell = {"denominator": 2, "covered": 1, "excepted": 0, "uncovered": ["PROC-0099"]}
+    try:
+        register_view._load_tools = lambda: {"check_register": checker}
+        lines = register_view._coverage_lines({r: cell for r in checker.COVERAGE_RULES})
+    finally:
+        register_view._load_tools = real
+    assert [x.split(":")[0] for x in lines] == ["C1", "C2", "C3", "C4", "C5"]
+    assert lines[4] == "C5: 1/2 covered, 0 excepted, 1 uncovered (PROC-0099)"

@@ -12,6 +12,18 @@ names that section with the version.
 
 ### Contract changes
 
+- **`register_impact` reports a key's findings as `gate_verdict` does, `intended` and `act` included** (task-0260,
+  doc-0032 group 3 CB1). `register_impact` now takes the owned finding kinds from `gate_cli.OWNED`, one
+  definition: key, intended, stale, lapsed and act. Before, a key whose review ruling no longer bound showed the
+  act finding on `gate_verdict` and none on `register_impact`; the same gap reached `proposal_impact`'s keys and
+  slices. `register-impact` schema, additive: a finding's `kind` admits `intended` and `act`, and it carries the
+  gate report's `act` object. `tools/check_owned_findings.py` reproduces group 3's case and holds S1, S4 and S6
+  equal key for key, on rdflib and Neo4j.
+- **The `proposal-impact` schema names no coverage rule** (task-0261, doc-0032 group 3 CB2). `coverage.before`
+  and `after` are keyed by the register's rule ids, each a coverage cell, and a new gap's `rule` is a rule id
+  (`^C[0-9]+$`). So a register whose checker defines C5 yields a valid report, and every earlier report still
+  validates. The schema validator gains `pattern` and `propertyNames`. The register view's output has no schema;
+  its coverage reader already follows the checker's rules (task-0241).
 - **A slice reads its task class's keys, and the class's keys on no slice are named** (task-0252, doc-0034 D1).
   `proposal_impact` (CLI `--task`, MCP `task`, `codegen` by default) now keeps each slice's keys to the
   `[tasks.<class>]` keys among the register-map rows on its thread. Before, every mapped key was read under

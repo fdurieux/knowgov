@@ -8,12 +8,14 @@ unknown keyword would turn the check into a rubber stamp. Modelled on pumllint's
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 SCHEMAS = Path(__file__).resolve().parent / "schemas"
 _ANNOTATIONS = {"$schema", "$id", "title", "description", "$comment"}
-_CONSTRAINTS = {"type", "required", "enum", "const", "minimum", "properties", "additionalProperties", "items", "$ref", "$defs"}
+_CONSTRAINTS = {"type", "required", "enum", "const", "minimum", "pattern", "properties", "additionalProperties", "propertyNames",
+                "items", "$ref", "$defs"}   # pattern and propertyNames: a register's rule ids (task-0261)
 
 
 def load(name: str) -> dict:
@@ -37,7 +39,7 @@ def _supported(node: Any) -> None:
             if k in ("properties", "$defs"):
                 for sub in v.values():
                     _supported(sub)
-            elif k in ("items", "additionalProperties") and isinstance(v, dict):
+            elif k in ("items", "additionalProperties", "propertyNames") and isinstance(v, dict):
                 _supported(v)
 
 
@@ -77,6 +79,11 @@ def _check(v: Any, s: dict, root: dict, path: str, errors: list[str]) -> None:
         errors.append(f"{path}: {v!r} is not {s['const']!r}")
     if "minimum" in s and isinstance(v, (int, float)) and v < s["minimum"]:
         errors.append(f"{path}: {v} is below {s['minimum']}")
+    if "pattern" in s and isinstance(v, str) and not re.search(s["pattern"], v):   # unanchored, as JSON Schema reads it
+        errors.append(f"{path}: {v!r} does not match {s['pattern']!r}")
+    if isinstance(v, dict) and isinstance(s.get("propertyNames"), dict):
+        for k in v:
+            _check(k, s["propertyNames"], root, f"{path}[{k!r}]", errors)
     if isinstance(v, dict):
         for k in s.get("required", []):
             if k not in v:

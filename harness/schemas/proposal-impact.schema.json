@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/proposal-impact.schema.json",
  "title": "knowgov proposal impact report",
- "description": "What `python harness/proposal_impact.py PROPOSAL -f json` prints and the MCP tool proposal_impact returns (task-0130, task-0131): a proposed addition read against the register as if approved, without approving it. Every overlay node, link and exception is hypothetical (const true) and read_as approved; nothing is stored (stored const false). Candidates carry their rule (D1-D4), their basis (authored or inferred) and the status proposed, never more; D5 is a placement finding. branch is null for a proposal held in the call and, in branch mode (task-0132, additive), names the checkout, the base, the merge base and head commits and what the diff holds that is not an addition. slices (task-0152, additive) is the slice map, one vertical slice per journey step by the register's thread walk. coverage reads every rule the register's checker defines (task-0241, additive): C4 (ieam-register decision 0020) beside C1 to C3, required only where the register defines it, so a report on an earlier register validates. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "description": "What `python harness/proposal_impact.py PROPOSAL -f json` prints and the MCP tool proposal_impact returns (task-0130, task-0131): a proposed addition read against the register as if approved, without approving it. Every overlay node, link and exception is hypothetical (const true) and read_as approved; nothing is stored (stored const false). Candidates carry their rule (D1-D4), their basis (authored or inferred) and the status proposed, never more; D5 is a placement finding. branch is null for a proposal held in the call and, in branch mode (task-0132, additive), names the checkout, the base, the merge base and head commits and what the diff holds that is not an addition. slices (task-0152, additive) is the slice map, one vertical slice per journey step by the register's thread walk. coverage reads every rule the register's checker defines (task-0241), and the schema names none (task-0261, a widening): before and after are keyed by the register's rule ids, each a coverage cell, and a new gap's rule is a rule id, so a register defining C5 needs no schema change and every earlier report still validates. Version 1; a change is additive or a new version. Exit 2 prints no report.",
  "type": "object",
  "additionalProperties": false,
  "required": [
@@ -236,6 +236,42 @@
      }
     }
    }
+  },
+  "rule_id": {
+   "type": "string",
+   "pattern": "^C[0-9]+$",
+   "description": "a coverage rule's id as the register's checker names it in its COVERAGE_RULES (C1 to C4 at ieam-register v0.2.13); the schema names none (task-0261)"
+  },
+  "coverage_cell": {
+   "type": "object",
+   "required": [
+    "denominator",
+    "covered",
+    "excepted",
+    "uncovered"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "denominator": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "covered": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "excepted": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "uncovered": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/marked"
+     }
+    }
+   },
+   "description": "one coverage rule before or after: its denominator, how many are covered and excepted, and the uncovered elements, each marked hypothetical or not"
   }
  },
  "properties": {
@@ -588,265 +624,23 @@
    "properties": {
     "before": {
      "type": "object",
-     "required": [
-      "C1",
-      "C2",
-      "C3"
-     ],
-     "additionalProperties": false,
-     "properties": {
-      "C1": {
-       "type": "object",
-       "required": [
-        "denominator",
-        "covered",
-        "excepted",
-        "uncovered"
-       ],
-       "additionalProperties": false,
-       "properties": {
-        "denominator": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "covered": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "excepted": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "uncovered": {
-         "type": "array",
-         "items": {
-          "$ref": "#/$defs/marked"
-         }
-        }
-       }
-      },
-      "C2": {
-       "type": "object",
-       "required": [
-        "denominator",
-        "covered",
-        "excepted",
-        "uncovered"
-       ],
-       "additionalProperties": false,
-       "properties": {
-        "denominator": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "covered": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "excepted": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "uncovered": {
-         "type": "array",
-         "items": {
-          "$ref": "#/$defs/marked"
-         }
-        }
-       }
-      },
-      "C3": {
-       "type": "object",
-       "required": [
-        "denominator",
-        "covered",
-        "excepted",
-        "uncovered"
-       ],
-       "additionalProperties": false,
-       "properties": {
-        "denominator": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "covered": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "excepted": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "uncovered": {
-         "type": "array",
-         "items": {
-          "$ref": "#/$defs/marked"
-         }
-        }
-       }
-      },
-      "C4": {
-       "type": "object",
-       "required": [
-        "denominator",
-        "covered",
-        "excepted",
-        "uncovered"
-       ],
-       "additionalProperties": false,
-       "properties": {
-        "denominator": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "covered": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "excepted": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "uncovered": {
-         "type": "array",
-         "items": {
-          "$ref": "#/$defs/marked"
-         }
-        }
-       }
-      }
-     }
+     "propertyNames": {
+      "$ref": "#/$defs/rule_id"
+     },
+     "additionalProperties": {
+      "$ref": "#/$defs/coverage_cell"
+     },
+     "description": "every coverage rule the register's checker defines, keyed by its id, in its order (task-0241, task-0261)"
     },
     "after": {
      "type": "object",
-     "required": [
-      "C1",
-      "C2",
-      "C3"
-     ],
-     "additionalProperties": false,
-     "properties": {
-      "C1": {
-       "type": "object",
-       "required": [
-        "denominator",
-        "covered",
-        "excepted",
-        "uncovered"
-       ],
-       "additionalProperties": false,
-       "properties": {
-        "denominator": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "covered": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "excepted": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "uncovered": {
-         "type": "array",
-         "items": {
-          "$ref": "#/$defs/marked"
-         }
-        }
-       }
-      },
-      "C2": {
-       "type": "object",
-       "required": [
-        "denominator",
-        "covered",
-        "excepted",
-        "uncovered"
-       ],
-       "additionalProperties": false,
-       "properties": {
-        "denominator": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "covered": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "excepted": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "uncovered": {
-         "type": "array",
-         "items": {
-          "$ref": "#/$defs/marked"
-         }
-        }
-       }
-      },
-      "C3": {
-       "type": "object",
-       "required": [
-        "denominator",
-        "covered",
-        "excepted",
-        "uncovered"
-       ],
-       "additionalProperties": false,
-       "properties": {
-        "denominator": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "covered": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "excepted": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "uncovered": {
-         "type": "array",
-         "items": {
-          "$ref": "#/$defs/marked"
-         }
-        }
-       }
-      },
-      "C4": {
-       "type": "object",
-       "required": [
-        "denominator",
-        "covered",
-        "excepted",
-        "uncovered"
-       ],
-       "additionalProperties": false,
-       "properties": {
-        "denominator": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "covered": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "excepted": {
-         "type": "integer",
-         "minimum": 0
-        },
-        "uncovered": {
-         "type": "array",
-         "items": {
-          "$ref": "#/$defs/marked"
-         }
-        }
-       }
-      }
-     }
+     "propertyNames": {
+      "$ref": "#/$defs/rule_id"
+     },
+     "additionalProperties": {
+      "$ref": "#/$defs/coverage_cell"
+     },
+     "description": "every coverage rule the register's checker defines, keyed by its id, in its order (task-0241, task-0261)"
     },
     "new_gaps": {
      "type": "array",
@@ -860,12 +654,7 @@
       "additionalProperties": false,
       "properties": {
        "rule": {
-        "enum": [
-         "C1",
-         "C2",
-         "C3",
-         "C4"
-        ]
+        "$ref": "#/$defs/rule_id"
        },
        "id": {
         "type": "string"
