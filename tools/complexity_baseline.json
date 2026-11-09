@@ -222,20 +222,16 @@
    "floor": 19
   },
   "harness/mcp_server.py::Server._tools": {
-   "value": 25,
-   "floor": 25
-  },
-  "harness/mcp_server.py::Tools.gate_verdict": {
-   "value": 16,
-   "floor": 16
+   "value": 19,
+   "floor": 19
   },
   "harness/mcp_server.py::Tools.proposal_impact": {
    "value": 21,
    "floor": 21
   },
   "harness/mcp_server.py::Tools.register_impact": {
-   "value": 19,
-   "floor": 19
+   "value": 18,
+   "floor": 18
   },
   "harness/mcp_server.py::make_handler": {
    "value": 36,

@@ -73,7 +73,8 @@ def _tools(runs: Path, stub=None):
 def _call(tools, name, args=None):
     srv = mcp_server.Server(tools)
     with _Day():
-        return srv.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": args or {}}})["result"]
+        from tests.test_mcp_server import _as_result   # a schema violation is refused before dispatch, -32602 (task-0281)
+        return _as_result(srv.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": args or {}}}))
 
 
 # ------------------------------------------------------------------ AC 1: the record per subject

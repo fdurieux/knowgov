@@ -817,10 +817,18 @@ def page_limits():
 MAX_RUNS = 5   # a run's n at most, unless KG_PAGE_MAX_RUNS says: the record's own count per arm and scenario
 
 
+RUN_FIELDS = ("scenario", "mode", "n", "row", "effort", "as_of", "by", "subject")   # POST /api/run's body (task-0281)
+
+
 def run_request(body: dict) -> dict:
     """A run's fields, typed before anything is chosen or started (task-0141.04): scenario and mode
     strings; n an integer in 1..KG_PAGE_MAX_RUNS (a boolean, a float or a numeric string is refused,
-    no longer coerced); row, effort, as_of, by and subject strings when present."""
+    no longer coerced); row, effort, as_of, by and subject strings when present. A key outside
+    ``RUN_FIELDS`` is refused, named (task-0281, decision-0033 choice 7(a)): ``as-of`` for ``as_of`` would
+    otherwise run as of the record date without a word."""
+    unknown = sorted(set(body) - set(RUN_FIELDS))
+    if unknown:
+        raise ValueError(f"unknown field(s) {', '.join(map(repr, unknown))}; a run takes {', '.join(RUN_FIELDS)}")
     out = {}
     for k in ("scenario", "mode"):
         v = body.get(k, "")

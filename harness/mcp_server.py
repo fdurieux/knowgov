@@ -549,7 +549,7 @@ def _check_scenario(st, scenario: str | None) -> str:
     held = _held(st)
     if held is None:
         raise ToolError(f"the store holds no scenario; {_start_run(SUBJECT.id, SUBJECT.order)}")
-    if scenario and scenario != held:
+    if scenario is not None and scenario != held:   # "" is a scenario this store does not hold, never the held one (task-0281)
         raise ToolError(f"the store holds {held}, not {scenario!r}")
     return held
 
@@ -593,7 +593,7 @@ class Tools:
         if value is not None and not isinstance(value, str):
             raise ToolError("as_of: a string, YYYY-MM-DD, today or record")
         try:
-            return self._resolve(value) if value else self.session_as_of()
+            return self._resolve(value) if value is not None else self.session_as_of()
         except ValueError as e:
             raise ToolError(f"as_of: {e}") from e
 
@@ -707,16 +707,16 @@ class Tools:
         import gate_cli
         from subject import SUBJECT
         from tasks import TASKS
-        task = args.get("task") or "codegen"
+        task = args.get("task", "codegen")   # a default only when absent (task-0281)
         if task not in TASKS:
             raise ToolError(f"{SUBJECT.id}: no task {task!r}; the subject declares {sorted(TASKS) or 'none'}")
         keys = args.get("keys")
         if keys is not None and (not isinstance(keys, list) or not keys or not all(isinstance(k, str) and k for k in keys)):
             raise ToolError("keys must be a non-empty list of entity|attribute strings")
-        threshold = args.get("fail_on") or "blocker"
+        threshold = args.get("fail_on", "blocker")
         if threshold not in gate_cli.SEVERITIES:
             raise ToolError(f"fail_on must be one of {gate_cli.SEVERITIES}")
-        which = args.get("baseline") or "none"
+        which = args.get("baseline", "none")
         if which not in ("none", "record"):
             raise ToolError("baseline must be none or record; a file path is not served")
         if keys is not None and which == "record":
@@ -752,7 +752,7 @@ class Tools:
         from kitio import kit_for, verbatim_documents
         from subject import SUBJECT
         from tasks import TASKS
-        task = args.get("task") or "codegen"
+        task = args.get("task", "codegen")
         if task not in TASKS:
             raise ToolError(f"{SUBJECT.id}: no task {task!r}; the subject declares {sorted(TASKS) or 'none'}")
         keys = args.get("keys")
@@ -793,7 +793,7 @@ class Tools:
         import register_impact as ri
         from subject import SUBJECT
         from tasks import TASKS
-        which = args.get("walk") or "dependants"
+        which = args.get("walk", "dependants")
         task = args.get("task")
         if task is None:   # gate_verdict's default class: its block levels, bar and route
             task = "codegen" if "codegen" in TASKS else next(iter(TASKS), None)
@@ -1054,6 +1054,29 @@ def _error(id_, code: int, message: str, data=None) -> dict:
     return {"jsonrpc": "2.0", "id": id_, "error": err}
 
 
+def argument_refusal(name: str, args, schema: dict) -> str | None:
+    """Why a call's ``args`` are refused before dispatch (-32602), else None: not an object; an argument the
+    tool does not list, its schema's ``additionalProperties: false`` (M5); or any other way they break the
+    schema, each naming its property (task-0281)."""
+    if not isinstance(args, dict):
+        return "arguments must be an object"
+    if schema.get("additionalProperties") is False:   # M5: the schema's own promise, kept for every tool
+        unknown = sorted(set(args) - set(schema.get("properties") or {}))
+        if unknown:
+            return (f"{name}: unknown argument(s) {', '.join(map(repr, unknown))}; "
+                    f"it takes {', '.join(sorted(schema.get('properties') or {})) or 'none'}")
+    wrong = argument_errors(args, schema)   # type, enum, pattern, minimum, minItems, required
+    return f"{name}: {'; '.join(wrong)}" if wrong else None
+
+
+def argument_errors(args: dict, schema: dict) -> list[str]:
+    """Every way ``args`` breaks the tool's ``inputSchema``, each naming its property (``scenario: int is not
+    string``), by ``schema_check``, the validator every schema here is held to (task-0281, decision-0033
+    choice 7(a)): a call is refused before dispatch, never answered with a value the schema does not admit."""
+    import schema_check
+    return [e[2:] if e.startswith("$.") else e.replace("$: ", "", 1) for e in schema_check.validate(args, schema)]
+
+
 def _id_ok(id_) -> bool:
     """A JSON-RPC 2.0 id: a string, a whole number or null (task-0272: never an array, an object, a
     boolean or a fraction, which a client could not match a response to)."""
@@ -1208,20 +1231,17 @@ class Server:
         stamp = stamp or {}
         if method == "tools/list":
             return _result(id_, {"tools": self.table, **stamp, **(CACHE if stamp else {})})
-        name, args = params.get("name"), params.get("arguments") or {}
+        name = params.get("name")
+        args = params.get("arguments", {})   # absent or null is no arguments; [] or "" is refused, never read as {} (task-0281)
+        args = {} if args is None else args
         if not isinstance(name, str):   # M6: an unhashable name raised out of handle
             return _error(id_, -32602, "the tool's name must be a string")
         tool = next((t for t in self.table if t["name"] == name), None)
         if tool is None:
             return _error(id_, -32602, f"unknown tool {name!r}")
-        if not isinstance(args, dict):
-            return _error(id_, -32602, "arguments must be an object")
-        schema = tool.get("inputSchema") or {}
-        if schema.get("additionalProperties") is False:   # M5: the schema's own promise, kept for every tool
-            unknown = sorted(set(args) - set(schema.get("properties") or {}))
-            if unknown:
-                return _error(id_, -32602, f"{name}: unknown argument(s) {', '.join(map(repr, unknown))}; "
-                                          f"it takes {', '.join(sorted(schema.get('properties') or {})) or 'none'}")
+        refused = argument_refusal(name, args, tool.get("inputSchema") or {})
+        if refused:
+            return _error(id_, -32602, refused)
         if self.route is not None and "subject" in args:
             import subject_ids
             try:

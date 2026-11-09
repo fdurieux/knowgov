@@ -14,8 +14,9 @@ from typing import Any
 
 SCHEMAS = Path(__file__).resolve().parent / "schemas"
 _ANNOTATIONS = {"$schema", "$id", "title", "description", "$comment"}
-_CONSTRAINTS = {"type", "required", "enum", "const", "minimum", "pattern", "properties", "additionalProperties", "propertyNames",
-                "items", "$ref", "$defs"}   # pattern and propertyNames: a register's rule ids (task-0261)
+_CONSTRAINTS = {"type", "required", "enum", "const", "minimum", "pattern", "minItems", "properties", "additionalProperties",
+                "propertyNames", "items", "$ref", "$defs"}   # pattern and propertyNames: a register's rule ids (task-0261);
+# minItems: the MCP tools' inputSchema (task-0281)
 
 
 def load(name: str) -> dict:
@@ -88,7 +89,9 @@ def _ecma(pattern: str) -> str:
 
 
 def _check_value(v: Any, s: dict, path: str, errors: list[str]) -> None:
-    """enum, const, minimum and pattern: the keywords that read the value itself."""
+    """enum, const, minimum, pattern and minItems: the keywords that read the value itself."""
+    if "minItems" in s and isinstance(v, list) and len(v) < s["minItems"]:   # task-0281
+        errors.append(f"{path}: {len(v)} item(s), fewer than {s['minItems']}")
     if "enum" in s and not any(same(v, e) for e in s["enum"]):
         errors.append(f"{path}: {v!r} is not one of {s['enum']}")
     if "const" in s and not same(v, s["const"]):
