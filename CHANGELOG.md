@@ -389,6 +389,12 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **Two numeric values of a key compare exactly** (task-0243, doc-0033 R2, doc-0028 G9-16). `rules.compatible`,
+  which the rules, the review's dispute check, the capture and the load share, compared numbers as floats.
+  9007199254740992 and 9007199254740993, or 1e309 and 2e309, read equal: R-CORROBORATE promoted them and
+  R-CONFLICT stayed silent. They now compare as `decimal.Decimal`, with no tolerance; 316.00 is still 316. A
+  non-finite value (`inf`, `nan` and their spellings) is incomparable, as R-VAGUE reads a vague one. Nothing in
+  the record moves.
 - **The vendored register moves to ieam-register v0.2.13** (`7980708`, from v0.2.11). It adds the register's
   decision 0019, four eyes: a session that drafted a change is its author and may not approve it. It also adds
   decision 0020, coverage rule C4: an approved process that realises an approved capability is supported by an
