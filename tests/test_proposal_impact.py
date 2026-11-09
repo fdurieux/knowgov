@@ -591,7 +591,7 @@ def test_a_named_journey_or_product_with_no_overlay_gives_its_slices_on_the_appr
             assert [c["id"] for c in s["descendants"]] == [d["id"] for d in t["descendants"] if d["live"]]
     one = pi.evaluate(None, today=TODAY, scope="JRN-0002", register_map=CARGO_MAP)["slices"]
     assert [s["start"]["id"] for s in one["map"]] == ["JRN-0002"] and one["scope"]["kind"] == "step"
-    jf = pi.evaluate(None, today=TODAY, scope="JRN-0005", register_map=JF_MAP)["slices"]
+    jf = pi.evaluate(None, today=TODAY, scope="JRN-0005", register_map=JF_MAP, task=None)["slices"]
     assert [s["start"]["id"] for s in jf["map"]] == ["JRN-0006", "JRN-0007", "JRN-0009", "JRN-0010", "JRN-0011"]
     # with an overlay, a scope narrows the slices to its own; the overlay's elements are placed as before
     both = _report(scope="PRD-0002")
@@ -632,7 +632,7 @@ def test_each_slice_lists_the_keys_register_impact_lands_on_its_nodes_with_the_d
     assert len(behind[0]["keys"]) == 4 and behind[0]["only_behind"] == ["QuoteAPI|on_notification_failure"]
     assert all(h["owners"][0] != h["owners"][1] for s in by.values() for h in s["handoffs"])
     assert by["JRN-0002"]["handoffs"] and '"score"' not in json.dumps(r["slices"]).casefold()   # facts only: no score field
-    jf = {s["start"]["id"]: s["keys"] for s in pi.evaluate(None, today=TODAY, scope="JRN-0005", register_map=JF_MAP)["slices"]["map"]}
+    jf = {s["start"]["id"]: s["keys"] for s in pi.evaluate(None, today=TODAY, scope="JRN-0005", register_map=JF_MAP, task=None)["slices"]["map"]}
     assert {k: (v["landed"], v["of"]) for k, v in jf.items()} == \
         {"JRN-0006": (65, 163), "JRN-0007": (66, 163), "JRN-0009": (100, 163), "JRN-0010": (100, 163), "JRN-0011": (100, 163)}
 
@@ -688,3 +688,81 @@ def test_the_command_and_the_mcp_tool_take_the_scope_alone_and_agree():
     log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
     contract = log.split("### Contract changes", 1)[1].split("### Changes", 1)[0]
     assert "task-0191" in contract and "scope" in contract
+
+
+# ---- task-0252 (doc-0034 D1): a slice reads its task class's keys; the class's keys on no slice are named
+
+def test_under_a_task_class_each_slice_reads_only_its_keys_and_the_rest_are_on_no_slice():
+    """AC1, AC2: under design, a slice's rows are the class's keys among the rows on its thread; every one of
+    the class's 36 keys is in a slice or in task_keys, never both; REQ-06|text, which no register-map row
+    names, is on no slice, mapped false. The denominator is the class's key count."""
+    from tasks import TASKS
+    want = TASKS["design"]["keys"]
+    r = pi.evaluate(None, today=TODAY, scope="JRN-0001", register_map=CARGO_MAP, task="design")
+    _valid(r)
+    on = set()
+    for s in r["slices"]["map"]:
+        k = s["keys"]
+        assert k["task"] == "design" and k["of"] == len(want)
+        assert {x["key"] for x in k["rows"]} <= set(want), s["start"]["id"]
+        assert all(set(b["keys"]) <= set(want) for b in k["behind_withdrawn"])
+        on |= {x["key"] for x in k["rows"] if not x.get("withdrawn")}
+    tk = r["slices"]["task_keys"]
+    off = [x["key"] for x in tk["keys"]]
+    assert tk["task"] == "design" and tk["group"] == "on_no_slice" and tk["denominator"] == len(want) == 36
+    assert not on & set(off) and on | set(off) == set(want)
+    assert (tk["in_slices"], tk["on_no_slice"]) == (len(on), len(off)) and tk["in_slices"] + tk["on_no_slice"] == 36
+    req6 = next(x for x in tk["keys"] if x["key"] == "REQ-06|text")
+    assert req6["mapped"] is False and req6["owner"] is None and req6["nodes"] == [] and req6["via"] == []
+    assert "response|hold_presence" not in on   # a codegen key design does not require is on no design slice
+    by = {s["start"]["id"]: s["keys"]["landed"] for s in r["slices"]["map"]}
+    assert by == {"JRN-0002": 8, "JRN-0003": 9}
+
+
+def test_under_codegen_the_slices_verdicts_and_counts_do_not_move():
+    """AC3: codegen's keys are CargoQuote's whole map, so the slices under codegen are the slices read with no
+    class but for the class named; task-0191's equality with register_impact's landed_rows holds."""
+    plain = pi.evaluate(None, today=TODAY, scope="JRN-0001", register_map=CARGO_MAP, task=None)["slices"]
+    cg = pi.evaluate(None, today=TODAY, scope="JRN-0001", register_map=CARGO_MAP, task="codegen")["slices"]
+    assert plain["task_keys"]["task"] is None and cg["task_keys"]["task"] == "codegen"
+    for a, b in zip(plain["map"], cg["map"], strict=True):
+        assert a["keys"]["task"] is None and b["keys"]["task"] == "codegen"
+        assert {**a["keys"], "task": "codegen"} == b["keys"] and {**a, "keys": None} == {**b, "keys": None}
+        t = _thread(b["start"]["id"])
+        assert b["keys"]["rows"] == ri.landed_rows(CARGO_MAP, b["start"]["id"], sorted(t["reached"]),
+                                                   [d["id"] for d in t["descendants"] if d["live"]],
+                                                   [d["id"] for d in t["descendants"] if not d["live"]])
+    assert {s["start"]["id"]: (s["keys"]["landed"], s["keys"]["of"]) for s in cg["map"]} == {"JRN-0002": (22, 36), "JRN-0003": (22, 36)}
+    assert [x["key"] for x in cg["task_keys"]["keys"]] == ["S-accept|max", "S-review|min", "S-review|max", "S-refuse|min"]
+    assert {k: v for k, v in cg["task_keys"].items() if k != "task"} == {k: v for k, v in plain["task_keys"].items() if k != "task"}
+
+
+def test_with_a_scenario_held_a_design_slice_reads_the_design_gates_levels_and_its_rest_too():
+    """AC1: over MCP with a scenario held, a design slice's rows and the keys on no slice are at the levels the
+    subject's design gate reads them, each slice's verdict gate_verdict's on its keys; REQ-06|text, with no
+    statement in the store, reads absent on no slice. The command and the tool agree on the slices."""
+    from tasks import TASKS
+    s, _ = _server(Stub())
+    rep = _call(s, "proposal_impact", {"scope": "JRN-0001", "task": "design", "as_of": DAY})["result"]["structuredContent"]
+    _valid(rep)
+    whole = _call(s, "gate_verdict", {"task": "design", "as_of": DAY})["result"]["structuredContent"]
+    for sl in rep["slices"]["map"]:
+        k = sl["keys"]
+        assert all(x["level"] == whole["levels"][x["key"]] for x in k["rows"]), sl["start"]["id"]
+        keys = list(dict.fromkeys(x["key"] for x in k["rows"]))
+        one = _call(s, "gate_verdict", {"task": "design", "keys": keys, "as_of": DAY})["result"]["structuredContent"]
+        assert k["gate"]["verdict"] == one["verdict"] and k["gate"]["task"] == "design"
+    tk = rep["slices"]["task_keys"]
+    assert all(x["level"] == whole["levels"][x["key"]] for x in tk["keys"])
+    assert next(x for x in tk["keys"] if x["key"] == "REQ-06|text")["level"] == "absent"
+    assert tk["gate"]["task"] == "design" and tk["cells"]["read"] is True and "REQ-06|text" in tk["cells"]["unknown"]
+    assert len(TASKS["design"]["keys"]) == tk["denominator"]
+    try:   # a report read under one class is never levelled under another
+        pi.with_levels(pi.evaluate(None, today=TODAY, scope="JRN-0001", register_map=CARGO_MAP, task="design"),
+                       mcp_server.ReadOnlyStore(Stub()), task="codegen", as_of=DAY)
+    except pi.ProposalError as e:
+        assert "design" in str(e)
+    else:
+        raise AssertionError("a design report levelled under codegen")
+    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
+    assert "task-0252" in log.split("### Contract changes", 1)[1].split("### Changes", 1)[0]

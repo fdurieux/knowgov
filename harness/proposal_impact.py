@@ -460,7 +460,8 @@ def scope_of(read: dict, scope: str | None) -> dict | None:
     return {"id": scope, "kind": n.get("kind"), "taxonomy": n.get("_taxonomy"), "name": n.get("name", "")}
 
 
-def slices(T, CR, read: dict, ov: Overlay, scope: str | None = None, register_map: dict | None = None) -> dict:
+def slices(T, CR, read: dict, ov: Overlay, scope: str | None = None, register_map: dict | None = None,
+           task: str | None = None, task_keys: list[str] | None = None) -> dict:
     """The overlay grouped into vertical slices, one per approved step of a journey that concerns a
     product in scope (a touchpoint under no step is its own), or, for a product no journey concerns,
     one per process that delivers it. A slice is the register's thread walk with parent descent from
@@ -468,7 +469,10 @@ def slices(T, CR, read: dict, ov: Overlay, scope: str | None = None, register_ma
     finding. A product is in scope when its footprint (itself, its journeys and their descendants,
     its slices' threads, its required capabilities and their realisers) holds an overlay node or both
     ends of an overlay link. Every overlay element is placed once: in the one slice whose thread holds
-    it, else in a named remainder. Facts only: no label, estimate or order beyond the register's ids."""
+    it, else in a named remainder. Facts only: no label, estimate or order beyond the register's ids.
+    With ``task`` and its ``task_keys`` (task-0252), a slice's keys are the class's keys among the rows
+    landing on its thread, and the class's keys that land on no slice are the named key remainder
+    ``task_keys``, the class's key count its denominator."""
     imp, nodes = T["impact"], read["nodes"]
     withdrawn = imp.WITHDRAWN
     changed = {r["id"] for r in ov.reused if r["mode"] == "changed"}
@@ -609,7 +613,8 @@ def slices(T, CR, read: dict, ov: Overlay, scope: str | None = None, register_ma
 
     layer_of = dict(LAYERS)
     rows_all = (register_map or {}).get("row", [])
-    of = len({r["key"] for r in rows_all})
+    wanted = list(dict.fromkeys(task_keys)) if task_keys is not None else None
+    of = len(wanted) if wanted is not None else len({r["key"] for r in rows_all})
     items = []
     for s, pids in starts.items():
         t = thread(s)
@@ -635,7 +640,7 @@ def slices(T, CR, read: dict, ov: Overlay, scope: str | None = None, register_ma
             "owners": sorted({o for o in ((nodes.get(x) or {}).get("owner") for x in shown) if o}),
             "handoffs": handoffs,
             "elements": home[s],
-            "keys": slice_keys(register_map, s, t, of) if register_map is not None else None,
+            "keys": slice_keys(register_map, s, t, of, wanted, task) if register_map is not None else None,
         })
     caps = [{"capability": cell(c), "required_by": [ov.name(p) for p in pids],
              "realisers": [cell(x) for x in sorted(realisers(c)[0], key=key)]}
@@ -658,13 +663,14 @@ def slices(T, CR, read: dict, ov: Overlay, scope: str | None = None, register_ma
         "remainder": [{"group": g, "why": why, "elements": groups[g], **({"capabilities": caps} if g == "required_not_reached" else {})}
                       for g, why in GROUPS.items()],
         "elements": {"denominator": len(elements) + len(ov.exceptions), "in_slices": in_slices, "in_remainder": in_rest},
+        "task_keys": key_remainder(register_map, items, wanted, task) if register_map is not None else None,
     }
 
 
 # ---- keys per slice (task-0191, doc-0024 J1) ----
 
 CELL_WHY = {
-    "of": "the subject's register-map keys: every slice's denominator",
+    "of": "the task class's keys (the subject's register-map keys when no class is named): every slice's denominator",
     "landed": "distinct keys the slice's rows land, the rows on a withdrawn descendant left out",
     "unread": "keys whose level was not read: no scenario held, or the slice not read",
     "worst": "the lowest level read, by the gate's order; null when none was read. Not a score",
@@ -675,24 +681,55 @@ CELL_WHY = {
 }
 
 
-def slice_keys(register_map: dict, start: str, t: dict, of: int) -> dict:
+def slice_keys(register_map: dict, start: str, t: dict, of: int, wanted: list[str] | None = None,
+               task: str | None = None) -> dict:
     """A slice's keys: the register-map rows ``register_impact.landed_rows`` lands for the slice's start, its
     walked descendants and every node its thread reaches, as register_impact computes them for the same
-    nodes (task-0191); the rows behind each edge the thread does not follow; the cells, unread until
-    ``with_levels`` reads a store. Facts only, with the denominator."""
+    nodes (task-0191), kept to the task class's keys when ``wanted`` names them (task-0252: the class's
+    keys, never every key a change reaches, which is register_impact's question); the rows behind each
+    edge the thread does not follow; the cells, unread until ``with_levels`` reads a store. Facts only,
+    with the denominator."""
     live = list(t["live"])
     withdrawn = [d["id"] for d in t["descendants"] if not d["live"]]
-    rows = ri.landed_rows(register_map, start, sorted(t["reached"]), live, withdrawn)
+    keep = None if wanted is None else set(wanted)
+    rows = [r for r in ri.landed_rows(register_map, start, sorted(t["reached"]), live, withdrawn)
+            if keep is None or r["key"] in keep]
     landed = {r["key"] for r in rows if not r.get("withdrawn")}
     behind = []
     for e in t["edges"]:
         if e["live"]:
             continue
-        ks = sorted({r["key"] for r in register_map.get("row", []) if e["to"] in (r.get("nodes") or [])})
+        ks = sorted({r["key"] for r in register_map.get("row", []) if e["to"] in (r.get("nodes") or [])
+                     and (keep is None or r["key"] in keep)})
         behind.append({"from": e["from"], "rel": e["rel"], "to": e["to"], "state": e["state"], "keys": ks,
                        "only_behind": [k for k in ks if k not in landed]})
-    return {"of": of, "landed": len(landed), "rows": rows, "behind_withdrawn": behind, "gate": None,
+    return {"task": task, "of": of, "landed": len(landed), "rows": rows, "behind_withdrawn": behind, "gate": None,
             "cells": cells(rows, read=False)}
+
+
+KEY_REMAINDER_WHY = ("the task class's keys (the subject's register-map keys when no class is named) that land on no "
+                     "slice's thread: mapped onto register nodes no slice reaches, or on no register-map row (mapped "
+                     "false, owner null); the class's key count is the denominator, every key in a slice or here")
+
+
+def key_remainder(register_map: dict, items: list[dict], wanted: list[str] | None, task: str | None) -> dict:
+    """The keys of ``task`` (every register-map key when none is named) that no slice lands (task-0252), each
+    with its rows' owner, anchor and nodes; ``mapped`` false when no register-map row names it. With the
+    denominator, so every one of the class's keys is in a slice or here. ``with_levels`` reads their levels."""
+    rows_all = register_map.get("row", [])
+    universe = wanted if wanted is not None else list(dict.fromkeys(r["key"] for r in rows_all))
+    on = {r["key"] for i in items for r in (i.get("keys") or {}).get("rows", []) if not r.get("withdrawn")}
+    rest = []
+    for k in universe:
+        if k in on:
+            continue
+        mine = [r for r in rows_all if r["key"] == k]
+        rest.append({"key": k, "owner": next((r.get("owner") for r in mine if r.get("owner")), None),
+                     "anchor": next((r.get("anchor") for r in mine if r.get("anchor")), None), "via": [],
+                     "mapped": bool(mine), "nodes": sorted({x for r in mine for x in r.get("nodes") or []})})
+    return {"task": task, "group": "on_no_slice", "why": KEY_REMAINDER_WHY, "denominator": len(universe),
+            "in_slices": len(on & set(universe)), "on_no_slice": len(rest), "keys": rest, "gate": None,
+            "cells": cells(rest, read=False)}
 
 
 def cells(rows: list[dict], read: bool) -> dict:
@@ -859,12 +896,35 @@ def approvals(base: dict, ov: Overlay) -> list[dict]:
     return [{"unit": u, "name": (base["nodes"].get(u) or {}).get("name", ""), "approve": xs} for u, xs in sorted(units.items())]
 
 
+DEFAULT_TASK = "default"   # the command's and the tool's default class: codegen where declared, else the first
+
+
+def _task(task: str | None) -> str | None:
+    """The class ``task`` names (task-0252): ``DEFAULT_TASK`` is codegen where the subject declares it, else its
+    first class, else none; None is no class, every register-map key read."""
+    if task != DEFAULT_TASK:
+        return task
+    from tasks import TASKS
+    return "codegen" if "codegen" in TASKS else next(iter(TASKS), None)
+
+
+def _task_keys(task: str | None) -> list[str] | None:
+    """The keys ``[tasks.<task>]`` requires, or None when no class is named (task-0252)."""
+    if task is None:
+        return None
+    from tasks import TASKS
+    if task not in TASKS:
+        raise ProposalError(f"no task {task!r}; the subject declares {sorted(TASKS)}")
+    return list(TASKS[task]["keys"])
+
+
 def evaluate(proposal: dict | None, root: Path | None = None, today: dt.date | None = None, children: bool = False,
-             register_map: dict | None = None, scope: str | None = None) -> dict:
+             register_map: dict | None = None, scope: str | None = None, task: str | None = DEFAULT_TASK) -> dict:
     """The report, without the store: everything but the keys' levels (``with_levels`` adds those).
     ``today`` is the date exceptions and reviews are read on (the as_of). ``scope`` names a journey, a step
     or a product (task-0191): the slices are its own, and the overlay may add nothing, so the approved
-    register is read alone."""
+    register is read alone. ``task`` names the class whose keys the slices read (task-0252); none, every
+    register-map key; by default the command's own default class."""
     if not isinstance(children, bool):
         raise ProposalError("children must be true or false")
     root = (root or ri.register_root()).resolve()
@@ -904,7 +964,8 @@ def evaluate(proposal: dict | None, root: Path | None = None, today: dt.date | N
         "coverage": coverage(CR, base, read, ov, today),
         "reach": reach(T, base, read, ov, children),
         "rests_on": rests_on(T, read, ov),
-        "slices": slices(T, CR, read, ov, scope=scope, register_map=register_map),
+        "slices": slices(T, CR, read, ov, scope=scope, register_map=register_map, task=_task(task),
+                         task_keys=_task_keys(_task(task))),
         "keys": {"task": None, "scenario": None, "store": None, "gate": None, "by_node": keys},
         "unmapped": [{"id": n["_provisional"], "why": "no register-map row names it and no subject has asked about it: unmapped, not unknown"}
                      for n in ov.nodes if n["id"] not in mapped],
@@ -929,6 +990,9 @@ def with_levels(report: dict, st, *, task: str, as_of: str, scenario: str | None
     if why:
         raise ProposalError(why)
     held = h["scenario"]
+    sl_task = ((report.get("slices") or {}).get("task_keys") or {}).get("task")
+    if sl_task is not None and sl_task != task:
+        raise ProposalError(f"the slices were read under the task {sl_task!r}, not {task!r}")
     report["keys"].update(task=task, scenario=held)
     verdicts = []
     for entry in report["keys"]["by_node"]:
@@ -951,6 +1015,14 @@ def with_levels(report: dict, st, *, task: str, as_of: str, scenario: str | None
         k["gate"] = {"task": task, "verdict": rep["verdict"], "why": rep["why"], "exit_code": rep["exit_code"]}
         k["cells"] = cells(k["rows"], read=True)
         verdicts.append(rep["verdict"])
+    rest = (report.get("slices") or {}).get("task_keys")
+    if rest and rest["keys"]:   # task-0252: the class's keys on no slice, read as the slices' are
+        spec = dict(TASKS[task], keys=[r["key"] for r in rest["keys"]])
+        rep = gate_cli.evaluate(st, subject=SUBJECT.id, scenario=held, task="keys", spec=spec, threshold="blocker",
+                                baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=as_of, route_task=task)
+        rest["keys"] = ri.with_levels(rest["keys"], rep)
+        rest["gate"] = {"task": task, "verdict": rep["verdict"], "why": rep["why"], "exit_code": rep["exit_code"]}
+        rest["cells"] = cells(rest["keys"], read=True)
     report["keys"]["gate"] = {"task": task, "verdicts": sorted(set(verdicts))}
     return report
 
@@ -1022,7 +1094,7 @@ def branch_overlay(checkout: Path, base: str, taxonomies: tuple[str, ...]) -> tu
 
 
 def evaluate_branch(checkout: Path, base: str, today: dt.date | None = None, children: bool = False,
-                    register_map: dict | None = None, scope: str | None = None) -> dict:
+                    register_map: dict | None = None, scope: str | None = None, task: str | None = DEFAULT_TASK) -> dict:
     """The report for a register branch: the merge base's register, from ``git archive`` into a
     temporary directory, read with the branch's additions as the overlay. Nothing in the checkout is
     written; the temporary copy is removed."""
@@ -1041,7 +1113,8 @@ def evaluate_branch(checkout: Path, base: str, today: dt.date | None = None, chi
         data = _git(checkout, "archive", "--format=tar", info["merge_base"], binary=True)
         with tarfile.open(fileobj=io.BytesIO(data)) as tar:
             tar.extractall(tmp, filter="data")
-        report = evaluate(proposal, root=tmp, today=today, children=children, register_map=register_map, scope=scope)
+        report = evaluate(proposal, root=tmp, today=today, children=children, register_map=register_map, scope=scope,
+                          task=task)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
         _checks.pop(str(tmp.resolve()), None)
@@ -1116,6 +1189,11 @@ def render_text(r: dict) -> str:
         if g["elements"] or g.get("capabilities"):
             caps = f" capabilities {[c['capability']['id'] for c in g['capabilities']]}" if g.get("capabilities") else ""
             lines.append(f"  remainder {g['group']}:{caps} holds {[e['id'] for e in g['elements']] or 'nothing'}")
+    tk = sl.get("task_keys")
+    if tk is not None:
+        lines.append(f"  task keys{' (' + tk['task'] + ')' if tk['task'] else ''}: {tk['in_slices']} in slices, {tk['on_no_slice']} "
+                     f"on no slice, of {tk['denominator']}" + (f": {[k['key'] for k in tk['keys']]}" if tk["keys"] else "")
+                     + (f"; gate {tk['gate']['verdict']}" if tk.get("gate") else ""))
     e = sl["elements"]
     lines.append(f"  slices: {e['in_slices']} in slices, {e['in_remainder']} in the remainder, of {e['denominator']} overlay element(s)")
     for k in r["keys"]["by_node"]:
@@ -1136,7 +1214,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--register-branch", type=Path, default=None, help="a register checkout whose branch is the proposal (task-0132)")
     ap.add_argument("--base", default=None, help="with --register-branch: the ref the branch is read against, such as origin/main")
     ap.add_argument("--children", action="store_true", help="walk every approved descendant by parent too (the register's decision 0014)")
-    ap.add_argument("--task", default=None, help="the task class each reused node's keys are read under (default: codegen)")
+    ap.add_argument("--task", default=None, help="the task class whose keys each slice reads, and each reused node's keys are read under (default: codegen)")
     ap.add_argument("--scenario", default=None, help="the scenario the store must hold (default: whatever it holds)")
     ap.add_argument("--as-of", default=None, help="YYYY-MM-DD, record or today (default: KG_AS_OF, else today)")
     ap.add_argument("--no-store", action="store_true", help="do not open the store: the keys carry no level")
@@ -1162,9 +1240,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         if a.register_branch is not None:
-            report = evaluate_branch(a.register_branch, a.base, today=on, children=a.children, scope=a.scope)
+            report = evaluate_branch(a.register_branch, a.base, today=on, children=a.children, scope=a.scope, task=task)
         else:
-            report = evaluate(read_proposal(a.proposal) if a.proposal else None, today=on, children=a.children, scope=a.scope)
+            report = evaluate(read_proposal(a.proposal) if a.proposal else None, today=on, children=a.children, scope=a.scope,
+                              task=task)
     except (ProposalError, ri.ImpactError) as e:
         print(f"proposal_impact: {e}", file=sys.stderr)
         return 2
