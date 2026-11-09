@@ -147,12 +147,12 @@ def _str(v, what: str) -> str:
 
 # ---- the overlay, read into the register's own dict shape ----
 
-def _check_format(proposal: dict) -> None:
+def _check_format(proposal: dict, where: str = "the proposal") -> None:
     """task-0280 (decision-0033 choice 6): the overlay's optional ``format``; missing reads as 1, a newer one or one
-    that is not a version is refused as the proposal's error."""
+    that is not a version is refused as the proposal's error, naming ``where`` (the file, on the command line)."""
     import formats
     try:
-        formats.version(proposal, "the proposal", formats.PROPOSAL)
+        formats.version(proposal, where, formats.PROPOSAL)
     except formats.FormatError as e:
         raise ProposalError(str(e)) from None
 
@@ -1159,9 +1159,12 @@ def read_proposal(path: Path) -> dict:
     except OSError as e:
         raise ProposalError(f"{path}: {e}") from e
     try:
-        return tomllib.loads(text) if path.suffix == ".toml" else json.loads(text)
+        doc = tomllib.loads(text) if path.suffix == ".toml" else json.loads(text)
     except (ValueError, tomllib.TOMLDecodeError) as e:
         raise ProposalError(f"{path}: {e}") from e
+    if isinstance(doc, dict):
+        _check_format(doc, str(path))   # task-0280: the refusal names the file
+    return doc
 
 
 def render_text(r: dict) -> str:

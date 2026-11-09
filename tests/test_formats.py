@@ -344,7 +344,7 @@ def test_a_proposal_overlay_takes_an_optional_format_by_the_rule():
         f = Path(t) / "p.json"
         f.write_text(json.dumps({**fixture, "format": 2}), encoding="utf-8")
         p = _py(ROOT / "harness" / "proposal_impact.py", f, "--no-store", "--as-of", "2026-11-09")
-        assert p.returncode == 2 and "format = 2" in p.stderr and "Traceback" not in p.stderr, p.stderr
+        assert p.returncode == 2 and f"{f}: format = 2" in p.stderr and "proposal format 1" in p.stderr and "Traceback" not in p.stderr, p.stderr
     import mcp_server
     _raises(lambda: mcp_server.Tools().proposal_impact({"proposal": {**fixture, "format": 2}, "as_of": "2026-11-09"}),
             mcp_server.ToolError, "format = 2")
