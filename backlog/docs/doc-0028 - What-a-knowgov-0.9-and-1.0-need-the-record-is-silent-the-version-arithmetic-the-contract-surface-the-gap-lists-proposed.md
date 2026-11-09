@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-09T13:34:00Z'
+updated_date: '2026-11-09T14:12:00Z'
 tags:
   - brief
   - release
@@ -127,18 +127,27 @@ Every item here is the maintainer's to meet.
 **Not cut conditions:**
 - task-0058's re-stamp. decision-0016 point 1 needs the boundary decided, and decision-0026 decided it. The re-stamp lands in a 0.9.x when counsel answers, or before the cut if counsel answers first.
 - The CI budget (task-0180).
-- decision-0031 (accepted 2026-11-09): the acceptance matrix becomes the lighthouse's protocol, and decision-0016 point 4 stays.
+- decision-0031 (accepted 2026-11-09): the acceptance matrix becomes the lighthouse's protocol. Its note that point 4's three conditions stay is superseded by decision-0016 A1 (2026-11-09).
 
 ## 5. 1.0: the contracts proven (proposed gap list)
+
+**Amended 2026-11-09 by decision-0016 A1** (the maintainer: "A1 as advised"). 1.0.0 now means ready for a lighthouse, not run by one. It is cut when four conditions hold:
+1. 0.9.0 is cut.
+2. The 0.9 contracts have held for 30 days, across at least one 0.9.x patch, with no contract change.
+3. A lighthouse's path is complete and proven on the example instance (task-0285).
+4. The Known limits name G1-1, G1-2 and G1-4.
+
+In the table below, G1-1, G1-2 and G1-4 are now Known limits, not conditions; G1-3 is condition 2; G1-7 is condition 3.
 
 | # | gap | control | today |
 |--:|---|---|---|
 | G1-1 | A foreign corpus: an instance whose documents and register the maintainer did not write | third party | task-0062 AC #2 and #3 wait for the pilot organisation's go |
 | G1-2 | The incumbent's export route verified on a real installation | third party | task-0063 AC #2 and #5. The register's `mapping/matrix.toml` reads 16 rows, all `unverified`, at `v0.2.13` (17 at `0826ebc`) |
-| G1-3 | 0.9's contracts unchanged through the pilot | both | a change means 0.10.0, and the freeze restarts (decision-0016 point 2) |
+| G1-3 | 0.9's contracts unchanged for 30 days after 0.9.0, across at least one 0.9.x patch (A1 condition 2) | maintainer | a change means 0.10.0, and the soak restarts (decision-0016 point 2) |
 | G1-4 | A counterparty that supports a 1.0 | the maintainer, with a third party | task-0060 is To Do |
 | G1-5 | An ordering, not a version condition: the outcome study pre-registered before the pilot's first governed change | maintainer | task-0057 is To Do |
 | G1-6 | At the pilot, not blocking: the gate-unavailable case (task-0103) and the GitLab include on a real runner (task-0108) | third party | To Do |
+| G1-7 | A lighthouse's path complete and proven on the example instance: decision-0031's protocol in `docs/lighthouse-evaluation.md` and runnable, task-0057's template ready, the onboarding walked end to end (A1 condition 3) | maintainer | task-0285, after 0.9.0 |
 
 ## 6. Not blockers
 
