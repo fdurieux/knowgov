@@ -595,10 +595,12 @@ def check_subject_tool(failures: list[str]) -> None:
             # H7 (task-0196): a manifest naming a path outside the call is refused, with nothing of the server in it
             escape = dict(args, subject_toml=args["subject_toml"].replace('path = "requirements.md"', f'path = "{ROOT / "README.md"}"'),
                           documents={**args["documents"], "x/../subject.toml": "[subject]\nid = \"over\"\n"})
-            for bad in (dict(escape, documents=args["documents"]), dict(args, documents=escape["documents"])):
+            alias = dict(args, subject_toml='[register]\nmap = "subject.toml"\n', register_map_toml=escape["subject_toml"])   # task-0289
+            for bad in (dict(escape, documents=args["documents"]), dict(args, documents=escape["documents"]), alias):
                 r = client.request("tools/call", {"name": "subject_check", "arguments": bad})["result"]
                 if not r.get("isError") or "structuredContent" in r:
-                    failures.append(f"subject_check over {kind.__name__}: a path outside the call was not refused (H7)")
+                    failures.append(f"subject_check over {kind.__name__}: a path outside the call, or a map aliasing the manifest, "
+                                    "was not refused (H7, task-0289)")
             if kind is HttpClient:   # the stateless era over HTTP needs its headers; stdio carries it here
                 check_refusal_closes(client, failures)
                 continue

@@ -528,6 +528,12 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **`subject_check` can no longer alias the register map onto the manifest** (task-0289, decision-0032 point 5). A
+  proposed `[register] map = "subject.toml"` (or `scenarios.toml`, `plants.toml`, or a document's path) wrote the
+  `register_map_toml` text over that file after the manifest's paths had been confined, so the manifest that landed could
+  name server files the yield read. The map's path now joins the call's files, compared normalised, and the loader's own
+  files are reserved, passed or not; the text that lands at `subject.toml` is the one confined; and a file that another
+  path needs as a folder (`a` beside `a/b`) is refused by name in either order, no longer `FileExistsError`.
 - **The servers survive deep nesting and answer JSON-RPC's protocol edge cases** (task-0272, decision-0032 group 2
   F6, F11, F12; fixes, no contract moves).
   - **Deep nesting.** A request nested past the parser's depth is now a parse error, not a `RecursionError`: -32700 on

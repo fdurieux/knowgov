@@ -390,8 +390,8 @@
    "floor": 18
   },
   "harness/subject_check.py::plan": {
-   "value": 23,
-   "floor": 23
+   "value": 16,
+   "floor": 16
   },
   "harness/task_policy.py::problems": {
    "value": 34,
