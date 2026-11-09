@@ -7,7 +7,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-11-09T08:55:00Z'
-updated_date: '2026-11-09T10:10:00Z'
+updated_date: '2026-11-09T13:35:00Z'
 labels:
   - contracts
   - validation
@@ -66,4 +66,6 @@ The coordinator checked these on `main`: group 1's C1, C2, C5 and C6; group 2's 
 Each prober keeps its scratchpad reproductions for the bounded re-probe. The prober sessions stay available, and the spot check goes to a fresh session.
 
 **2026-11-09, decision-0033 accepted** ("decision-0033 all as advised"). Its nine builds are task-0275 to task-0283, and each holds the cut beside task-0257 to task-0262. SNAP-04's fix is task-0274 (decision-0014 A1, accepted; #415). It is fix-only.
+
+**2026-11-09 afternoon.** decision-0033's builds and the documented-promise fixes are landing: #411, #412, #416, #421, #423 and train #426. task-0276 is closed: AC #4 is proven by #421's green run. Open: task-0275 (#418, rows confirmed), task-0281 (#422), task-0278 and task-0279. Then the bounded re-probe and the spot check. The architecture review's C3 is task-0284, fix-only for 0.9.x; its C1–C8 scoping is in task-0247's notes.
 <!-- SECTION:NOTES:END -->
