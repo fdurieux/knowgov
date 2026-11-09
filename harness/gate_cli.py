@@ -204,8 +204,8 @@ def act_finding(a: dict) -> dict:
                else "the declaration's text changed since the close") + "; its owner closes it again or the gap stands")
     else:
         msg = (f"{who} ({a['outcome']} {a['statement']} on {a['key']}) was not applied: it ruled on {was}, and "
-               + {"changed": f"the statement now reads {now}", "gone": "no statement of it is extracted any more",
-                  "ambiguous": "several statements hold that content and none is the one it names"}[why]
+               + {"changed": f"the statement now reads {now}", "gone": "no statement of it is extracted any more (if only another person's identical answer remains, this ruling does not cover it)",
+                  "ambiguous": "several statements hold that content and none is the one it names, or its id reads as two givers' and names neither"}[why]
                + "; its owner rules again")
     sev = "info" if a["act"] == "resolve" and why == "gone" else ACT_SEVERITY[why]
     f = _finding(sev, "act", msg, key=a["key"] or None, ref=a["statement"] or a["review"],

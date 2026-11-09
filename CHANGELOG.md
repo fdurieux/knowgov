@@ -587,6 +587,11 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **A capture stem that reads as two givers names none** (task-0308, the re-check of task-0302). `ops`'s second file
+  the same day and `ops-2`'s first share a stem, so a deleted capture's approval could pass to `ops-2`'s later
+  identical answer. When the whole tail and the tail without its trailing `-<n>` are both issued handles, nothing
+  stands in and the gate reads an `ambiguous` act at major. The `gone` message no longer claims no answer is
+  extracted, and `tools/check_act_binding.py` refuses an option as its output folder. No format or schema moves.
 - **An approval of a captured answer no longer passes to another person's identical answer** (task-0302, decision-0032
   C2-1). A captured answer has no fragments, so its digest is the empty text's: when the approved answer's capture was
   deleted, another person's answer with the same key and value bound the ruling as "repaired" and the gate read the key

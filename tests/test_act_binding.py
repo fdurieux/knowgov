@@ -192,3 +192,25 @@ def test_the_same_givers_answer_given_again_still_repairs():
     b, how = review.bind(st, _answer_ruling(ruled))
     assert b["id"] == "A:cap:2026-11-06-ORG-0002-employee-1:2@capture" and how["why"] == "repaired", (b, how)
     assert review.bind(Store([_answer("2026-11-05-ORG-0002-employee-1", 1, "employee-1")]), _answer_ruling(ruled))[1]["why"] == "content"
+
+
+HANDLES = {h: {"unit": "ORG-0002", "roles": set(), "issued": None, "withdrawn": None} for h in ("ops", "ops-2", "employee-1", "employee-2")}
+
+
+def test_a_stem_that_reads_as_two_givers_names_none_task_0308():
+    """R1: ``ops``'s second file the day and ``ops-2``'s first have one stem; the approval of the first must not pass
+    to ``ops-2``'s later identical answer, and the gate reads it ambiguous."""
+    ruled = "A:cap:2026-11-05-ORG-0002-ops-2:1@capture"
+    st = Store([_answer("2026-11-07-ORG-0002-ops-2", 1, "ops-2")])
+    b, how = review.bind(st, _answer_ruling(ruled), HANDLES)
+    assert b is None and how["why"] == "ambiguous", (b, how)
+    # the ruled statement itself still binds while it is extracted, and no holder at all reads gone
+    assert review.bind(Store([_answer("2026-11-05-ORG-0002-ops-2", 1, "ops-2")]), _answer_ruling(ruled), HANDLES)[1]["why"] == "content"
+    assert review.bind(Store([]), _answer_ruling(ruled), HANDLES)[1]["why"] == "gone"
+
+
+def test_a_digit_ending_handle_with_one_reading_still_binds_task_0308():
+    ruled = "A:cap:2026-11-05-ORG-0002-employee-1:1@capture"
+    st = Store([_answer("2026-11-07-ORG-0002-employee-1", 1, "employee-1")])
+    b, how = review.bind(st, _answer_ruling(ruled), HANDLES)
+    assert b is not None and how["why"] == "repaired", (b, how)
