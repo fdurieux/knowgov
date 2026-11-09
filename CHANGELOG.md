@@ -411,6 +411,18 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **No `.env` file reaches the image** (security; task-0245, doc-0033 R4). `demo/Dockerfile.dockerignore` now
+  leaves out every `.env` and `.env.*`, at the root and in any folder. Only a values-free `.env.example` is let
+  back in. Compose still reads a `.env` beside the compose file to fill in its variables. The compose file's
+  comment and `docs/security.md` say both, and `tests/test_demo.py` holds the rule.
+
+- **Four small corrections** (task-0246, doc-0033). None changes behaviour.
+  - `tests/test_page_subject.py` pins the `KG_PAGE_LISTEN` its POST checks depend on, so it passes whether the
+    variable is unset or `0.0.0.0`.
+  - The page loses a dead line.
+  - `harness/annotate.py`'s fingerprints say `usedforsecurity=False`, with the same values.
+  - `harness/store.py` checks a setting for NaN with `math.isnan`. A test refuses NaN for every float setting.
+
 - **A task policy the gate cannot apply is refused, never read loosely** (task-0242, doc-0033 R1).
   `block_levels = "absent"` became the set of its letters, so nothing blocked and the gate read QUALIFIED,
   exit 0. `block_levels = 7` passed `tools/check_subject.py` and failed only at run time. One validator,
