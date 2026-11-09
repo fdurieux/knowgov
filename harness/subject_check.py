@@ -141,6 +141,41 @@ def confine_manifest(manifest: str, name: str) -> None:
         _norm(PurePosixPath(value), name)
 
 
+RESERVED = ("subject.toml", "scenarios.toml", "plants.toml")   # the files the loader reads by their own name
+
+
+def _map_path(manifest: str) -> PurePosixPath:
+    """Where the proposed manifest's ``[register] map`` puts the register map, ``register_map.toml`` by default."""
+    cs = _check_subject()
+    try:
+        m = cs.tomllib.loads(manifest)
+    except cs.tomllib.TOMLDecodeError:
+        m = {}
+    reg = m.get("register") if isinstance(m.get("register"), dict) else {}
+    rel = reg.get("map", "register_map.toml")
+    return _rel(rel if isinstance(rel, str) else "register_map.toml")
+
+
+def _add(files: dict, seen: dict, rel: PurePosixPath, text: str, what: str, name: str) -> None:
+    """One more file of the call, refused when it lands, compared normalised, on one already passed: the
+    manifest, the scenarios, the plants, the register map or a document (H7; task-0289: a map named
+    ``subject.toml`` would replace the manifest after its paths were confined)."""
+    key = _norm(rel, name)
+    if key in seen:
+        raise SubjectCheckError(f"{what} is the same file as {seen[key].as_posix()!r}, passed already")
+    seen[key] = rel
+    files[rel] = text
+
+
+def _no_folder_clash(seen: dict) -> None:
+    """Refuse a file that another path of the call needs as a folder (``a`` and ``a/b``), in either order."""
+    keys = sorted(seen)
+    for a, b in zip(keys, keys[1:]):
+        if b[:len(a)] == a:
+            raise SubjectCheckError(f"document path {seen[a].as_posix()!r} is also a folder another path names "
+                                    f"({seen[b].as_posix()!r})")
+
+
 def plan(args: dict) -> tuple[str, str, dict[PurePosixPath, str]]:
     """The call read and bounded, before anything is written: the root's name, its label and every
     file to write, relative to the subject root."""
@@ -156,29 +191,20 @@ def plan(args: dict) -> tuple[str, str, dict[PurePosixPath, str]]:
     for field, fname in (("scenarios_toml", "scenarios.toml"), ("plants_toml", "plants.toml")):
         if args.get(field) is not None:
             files[PurePosixPath(fname)] = _text(field, args[field])
-    if args.get("register_map_toml") is not None:
-        cs = _check_subject()
-        try:
-            m = cs.tomllib.loads(manifest)
-        except cs.tomllib.TOMLDecodeError:
-            m = {}
-        reg = m.get("register") if isinstance(m.get("register"), dict) else {}
-        rel = reg.get("map", "register_map.toml") if isinstance(reg.get("map", "register_map.toml"), str) else "register_map.toml"
-        files[_rel(rel)] = _text("register_map_toml", args["register_map_toml"])
+    seen = {_norm(r, name): r for r in files}
+    for fname in RESERVED:   # task-0289: what the loader reads by name is no other file's place, passed or not
+        seen.setdefault(_norm(PurePosixPath(fname), name), PurePosixPath(fname))
+    if args.get("register_map_toml") is not None:   # task-0289: the map's path is a file of the call like any other
+        _add(files, seen, _map_path(manifest), _text("register_map_toml", args["register_map_toml"]), "the register map", name)
     docs = {} if args.get("documents") is None else args["documents"]
     if not isinstance(docs, dict):
         raise SubjectCheckError("documents must be an object: {path relative to the subject root: the document's text}")
     if len(docs) > MAX_DOCUMENTS:
         raise SubjectCheckError(f"{len(docs)} documents; a call carries at most {MAX_DOCUMENTS}")
-    seen = {_norm(r, name): r for r in files}
     for path, text in docs.items():
-        rel = _rel(path)
-        key = _norm(rel, name)
-        if key in seen:   # compared normalised: x/../subject.toml is the manifest (H7)
-            raise SubjectCheckError(f"document {path!r} is the same file as {seen[key].as_posix()!r}, passed already")
-        seen[key] = rel
-        files[rel] = _text(f"documents[{path!r}]", text)
-    confine_manifest(manifest, name)
+        _add(files, seen, _rel(path), _text(f"documents[{path!r}]", text), f"document {path!r}", name)
+    _no_folder_clash(seen)
+    confine_manifest(files[seen[_norm(PurePosixPath("subject.toml"), name)]], name)   # the text that lands there (task-0289)
     size = sum(len(t.encode("utf-8")) for t in files.values())
     if size > MAX_BYTES:
         raise SubjectCheckError(f"the call carries {size} bytes of text; at most {MAX_BYTES}")

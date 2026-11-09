@@ -167,3 +167,42 @@ def test_h7_document_keys_are_compared_normalised_so_the_manifest_cannot_be_over
         r = _call("subject_check", b)
         assert r["isError"] is True and "same file as" in r["content"][0]["text"], (key, r)
     assert _call("subject_check", a)["structuredContent"]["exit_code"] == 1   # the probe, unflipped
+
+
+def test_the_register_map_cannot_alias_the_manifest_or_another_file_of_the_call():
+    """task-0289 (decision-0032 point 5): [register] map = "subject.toml" wrote the register_map_toml text over the
+    manifest after confine_manifest had checked the decoy, so the manifest that landed named server files the
+    yield child read (an existence oracle: "does not exist", a zero-yield warning, or nothing). The map's path now
+    joins the call's files, compared normalised, and the text that lands at subject.toml is the one confined."""
+    a = _args(PROBE)
+    hostile = (PROBE / "subject.toml").read_text(encoding="utf-8").replace('path = "requirements.md"', 'path = "/etc/hostname"')
+    before = set(Path(tempfile.gettempdir()).glob("kg-subject-check-*"))
+    answers = set()
+    for target in ("subject.toml", "./subject.toml", "x/../subject.toml", "/etc/hostname"):
+        for planted in (hostile, hostile.replace("/etc/hostname", "/no/such/file")):
+            r = _call("subject_check", dict(a, subject_toml=f'[register]\nmap = "{target}"\n', register_map_toml=planted))
+            text = r["content"][0]["text"]
+            assert r["isError"] is True and "structuredContent" not in r, (target, r)
+            assert "does not exist" not in text and "zero-yield" not in text and "hostname" not in text.replace(target, ""), text
+            answers.add(text.replace("/no/such/file", "/etc/hostname"))
+    assert all("same file as" in t or "absolute" in t for t in answers), answers
+    # scenarios.toml and plants.toml are the loader's, passed or not; a document cannot take the map's place either
+    for target in ("scenarios.toml", "./plants.toml"):
+        for extra in ({}, {"scenarios_toml": a.get("scenarios_toml", "")}):
+            r = _call("subject_check", dict(a, **extra, subject_toml=a["subject_toml"] + f'\n[register]\nmap = "{target}"\n',
+                                            register_map_toml="[[row]]\n"))
+            assert r["isError"] is True and "same file as" in r["content"][0]["text"], (target, extra, r)
+    r = _call("subject_check", dict(a, register_map_toml="[[row]]\n", documents={**a["documents"], "./register_map.toml": "x"}))
+    assert r["isError"] is True and "same file as" in r["content"][0]["text"], r
+    assert set(Path(tempfile.gettempdir()).glob("kg-subject-check-*")) == before, "refused before anything was written"
+    assert _call("subject_check", a)["structuredContent"]["exit_code"] == 1   # the probe, as it was
+
+
+def test_a_file_another_path_needs_as_a_folder_is_refused_by_name_in_either_order():
+    """task-0289: documents "a" then "a/b" answered "could not answer: FileExistsError"; the reverse order the named
+    refusal. Both orders, and the map against a document, now give the named refusal before anything is written."""
+    a = _args(PROBE)
+    for docs in ({"notes": "x", "notes/b.md": "y"}, {"notes/b.md": "y", "notes": "x"}):
+        r = _call("subject_check", dict(a, documents={**a["documents"], **docs}))
+        text = r["content"][0]["text"]
+        assert r["isError"] is True and "is also a folder another path names" in text and "FileExistsError" not in text, (docs, r)
