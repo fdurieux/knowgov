@@ -1651,46 +1651,91 @@ other than its author, guards the rest.
 
 Most of what you configure is in files: `subject.toml`, `code_map.toml`, the CI templates. A few things
 are *environment variables*, set in the shell, the CI job or the compose file before a command starts.
-This section lists the ones that are contracts from 1.0 (decision-0027). The others this guide names,
-such as `KG_STORE`, `KG_SUBJECT` or `KG_PUBLISH`, are described where they are used. The limits of the
-worker that runs model-written code are in [`docs/security.md`](../docs/security.md). A setting that
-neither file names is not a contract.
+The table below has one row for every `KG_*` setting this guide or [`docs/security.md`](../docs/security.md)
+names. **A setting is a contract when the table marks it so** (decision-0016 point 3, as amended by
+decision-0033 choice 1): the settings an instance's CI, compose file or hook sets in order to run, decision-0027's
+twenty among them. A row marked *no* is named so you can find it: the test clock, the demo stack's ports,
+tuning knobs and one escape. It may change in any release, so do not build on it. A setting that neither
+file names is not a contract. Where a row says "see", the setting is described there; the worker's limits
+are in [`docs/security.md`](../docs/security.md).
 
-**The CI templates and the Claude Code hook.** Each of these is read by
-`instance/ci/knowgov-gate.sh`, the GitHub action, the GitLab include or the hook:
-
-| Setting | What it does | Default | Who sets it |
-|---|---|---|---|
-| `KG_GATE` | which gate the job runs: `preload`, `gate`, `trace-check` or `trace-register` | `gate` in the GitLab include | you, as a variable of the GitLab include; the GitHub action sets it from its `gate` input |
-| `KG_TASK` | the task class the gate and the trace read. `keys` is refused with exit 2: a pipeline checks a task class, never a key set an assistant chose | `codegen` | you, in the job's environment; the GitHub action from its `task` input; the hook, per stage, from its settings snippet |
-| `KG_STAGE` | `2` brings in the scenario's later version (the gate's `--stage 2`) | none: the first stage | you; the GitHub action from its `stage` input |
-| `KG_NO_LOAD` | `1` makes the gate read the store as your instance's load left it, instead of loading a private copy (the gate's `--no-load`) | none: the gate loads a private copy | you, in the job's environment |
-| `KG_CODE_REPO` | the name of your code repository, in the id `trace-register` gives each file it registers | `code`. The GitHub action fills in the repository's name, and the GitLab include the project's | you, or the GitHub action's `code-repo` input |
-| `KG_SUBJECT_IN` | the GitHub action's own carrier for its `subject` input: when it is set, the action passes it on as `KG_SUBJECT` | none: the instance's only subject | the GitHub action, from its `subject` input. You set the input, not this variable |
-| `KG_HOME` | where the Claude Code hook finds the knowgov checkout | the checkout the hook file is in; the hook's `--knowgov` option overrides both | the hook's settings snippets, as `/opt/knowgov`: change it to your checkout's path |
-
-**The store.** Read by `harness/store_neo4j.py`, and by the page for its store chip:
-
-| Setting | What it does | Default | Who sets it |
-|---|---|---|---|
-| `KG_NEO4J_URI` | the address of the Neo4j store, as a bolt URL | `bolt://localhost:7687`. The image and the compose file set `bolt://neo4j:7687`, the stack's own Neo4j | you, for a Neo4j outside the stack |
-| `KG_NEO4J_USER` | the Neo4j user name. Its password is `KG_NEO4J_PASSWORD` ([`docs/security.md`](../docs/security.md)) | `neo4j` | you, when your Neo4j has another user |
-
-**Asking about another subject.** Read by `harness/mcp_server.py`:
-
-| Setting | What it does | Default | Who sets it |
-|---|---|---|---|
-| `KG_SUBJECT_CALL_TIMEOUT` | how many seconds the MCP reader lets one call for another subject take. That call runs in a process of its own; past the time it ends, and the tool answers with an error naming the subject | `300` | you, in the server's environment |
-
-**The model endpoint.** Only the Arms mode and the transcript route call a model. Read by
-`harness/arms.py` and the page's model table, `demo/app/models.py`:
-
-| Setting | What it does | Default | Who sets it |
-|---|---|---|---|
-| `KG_ARMS_MODEL` | the model the arms call | the subject's record model, else `gpt-5.5` | you; each row of the model table names its own model |
-| `KG_MODEL_API_KEY_VAR` | the *name* of the environment variable that holds the model key, never the key itself | `OPENAI_API_KEY` | you |
-| `KG_MODEL_API_KEY` | a variable the compose file passes into the page, for a key, so that `KG_MODEL_API_KEY_VAR` or a row's key variable can name it | none | you, in your shell before `docker compose up`, never in a file you commit |
-| `KG_MODELS` | the table of model rows the page's Arms drop-down lists | `demo/models.toml` (inside the container, `/repo/demo/models.toml`) | you, to list your own endpoints |
+| Setting | Group | What it does | Default | Contract |
+|---|---|---|---|---|
+| `KG_GATE` | CI templates and hook | which gate the job runs: `preload`, `gate`, `trace-check` or `trace-register`. You set it as a variable of the GitLab include; the GitHub action sets it from its `gate` input | `gate` in the GitLab include | yes |
+| `KG_TASK` | CI templates and hook | the task class the gate and the trace read. `keys` is refused with exit 2: a pipeline checks a task class, never a key set an assistant chose. The GitHub action sets it from its `task` input; the hook, per stage, from its settings snippet | `codegen` | yes |
+| `KG_STAGE` | CI templates and hook | `2` brings in the scenario's later version (the gate's `--stage 2`); the GitHub action sets it from its `stage` input | none: the first stage | yes |
+| `KG_NO_LOAD` | CI templates and hook | `1` makes the gate read the store as your instance's load left it, instead of loading a private copy (the gate's `--no-load`) | none: the gate loads a private copy | yes |
+| `KG_PUBLISH` | CI templates and hook | `1` makes the gate load into the store `KG_STORE` names and publish it, for a later step that reads it; see "Running the gates in your pipeline" | none: the gate's own private copy | yes |
+| `KG_SCENARIO` | CI templates and hook | the scenario the gate loads | the subject's first | yes |
+| `KG_FAIL_ON` | CI templates and hook | the severity at or above which a gate exits 1 | each command's own | yes |
+| `KG_AS_OF` | CI templates and hook | the date review currency is read on: `YYYY-MM-DD`, `record` or `today`; see "Running the gates in your pipeline" | `today` | yes |
+| `KG_BASE` | CI templates and hook | the git ref the changed files are taken against, a pull request's base | none: every file | yes |
+| `KG_COMMIT` | CI templates and hook | the commit being checked or registered; `trace-register` needs it | none | yes |
+| `KG_FILES` | CI templates and hook | the files `trace-register` registers, relative to `code_map.toml`'s root | the files changed since `KG_BASE` | yes |
+| `KG_LEDGER` | CI templates and hook | the trace ledger `trace-check` reads and `trace-register` writes (`--ledger`) | `trace-ledger.json` in the working directory | yes |
+| `KG_CODE_REPO` | CI templates and hook | the name of your code repository, in the id `trace-register` gives each file it registers. The GitHub action fills in the repository's name, and the GitLab include the project's | `code` | yes |
+| `KG_REPORT` | CI templates and hook | where a gate also writes its JSON report, to keep or annotate | none | yes |
+| `KG_ANNOTATE` | CI templates and hook | the report as your platform's annotations, `FORMAT[:FILE]`, comma-separated; see "Running the gates in your pipeline" | none | yes |
+| `KG_PRELOAD_BASELINE` | CI templates and hook | the baseline the pre-load check fails against only on regression (`--baseline`); see "Checking a document before the load" | none | yes |
+| `KG_PROPOSAL_REPORT` | CI templates and hook | where the optional proposal step also writes its JSON report; see "A register pull request read before approval" | none | yes |
+| `KG_SUBJECT_IN` | CI templates and hook | the GitHub action's own carrier for its `subject` input: when it is set, the action passes it on as `KG_SUBJECT`. You set the input, not this variable | none: the instance's only subject | yes |
+| `KG_HOME` | CI templates and hook | where the Claude Code hook finds the knowgov checkout. The hook's settings snippets set `/opt/knowgov`: change it to your checkout's path | the checkout the hook file is in; the hook's `--knowgov` option overrides both | yes |
+| `KG_SPECTRAL` | Pre-load linters | the Spectral command, when it is not on `PATH` | `spectral` on `PATH` | yes |
+| `KG_MARKDOWNLINT` | Pre-load linters | the markdownlint command, when it is not on `PATH` | on `PATH` | yes |
+| `KG_GPLINT` | Pre-load linters | the gplint command, when it is not on `PATH` | on `PATH` | yes |
+| `KG_BPMNLINT` | Pre-load linters | the bpmnlint command, when it is not on `PATH` | on `PATH` | yes |
+| `KG_DMNLINT` | Pre-load linters | the dmnlint command, when it is not on `PATH` | on `PATH` | yes |
+| `KG_SUBJECT` | Subject and register | the subject root a command reads | in the CI templates, the instance's only subject | yes |
+| `KG_SUBJECTS` | Subject and register | the folder of subjects the page and both MCP servers list | `subjects/` of the checkout | yes |
+| `KG_REGISTER` | Subject and register | the register checkout every subject joins | `demo/register`, the public register | yes |
+| `KG_INSTANCE` | Subject and register | your instance's checkout, for the stack's compose file and the upward joins | none | yes |
+| `KG_PRELOAD_REPORT` | Subject and register | the pre-load report the load records per document version | `preload-report.json` at your instance's root | yes |
+| `KG_STORE` | Store | which store: `neo4j` or `rdflib` | `neo4j` | yes |
+| `KG_RDFLIB_FILE` | Store | the file an rdflib store is kept in | none: in memory | yes |
+| `KG_NEO4J_URI` | Store | the address of the Neo4j store, as a bolt URL. The image and the compose file set `bolt://neo4j:7687`, the stack's own Neo4j | `bolt://localhost:7687` | yes |
+| `KG_NEO4J_USER` | Store | the Neo4j user name, when your Neo4j has another user | `neo4j` | yes |
+| `KG_NEO4J_PASSWORD` | Store | the Neo4j password; on a wider bind the stack refuses to start without it. See `docs/security.md` | the demo's own, on the default bind only | yes |
+| `KG_LOAD_MEMORY_CHECK` | Store | `off` loads a Neo4j load the forecast refuses; see "Sizing the Neo4j heap" | on | yes |
+| `KG_LOAD_MEMORY_MARGIN` | Store tuning | the margin the load's memory forecast keeps, 0 to 4 | `0.25` | no: a tuning knob |
+| `KG_NEO4J_LEASE_SECONDS` | Store tuning | how long a Neo4j writer's lease lasts, renewed while it runs; see `docs/security.md` | `60` | no: a tuning knob |
+| `KG_NEO4J_LOCK_TIMEOUT` | Store tuning | how long a second Neo4j writer waits; see `docs/security.md` | `60` | no: a tuning knob |
+| `KG_NEO4J_READ_WAIT` | Store tuning | how long a Neo4j read waits on a live publication; see `docs/security.md` | `10` | no: a tuning knob |
+| `KG_RDFLIB_LOCK_TIMEOUT` | Store tuning | how long a second rdflib writer waits for the file's lock; see `docs/security.md` | `60` | no: a tuning knob |
+| `KG_STORE_READ_ATTEMPTS` | Store tuning | how many times a read retries a changed generation; see `docs/security.md` | `3` | no: a tuning knob |
+| `KG_BIND` | Page and MCP servers | the address the stack publishes the page, Neo4j Browser and bolt on | `127.0.0.1` | yes |
+| `KG_PAGE_TOKEN` | Page and MCP servers | the bearer token the page's state-changing requests must carry; knowgov-runs sends it | none | yes |
+| `KG_PAGE_AUTHORITIES` | Page and MCP servers | the further `host:port` names the page answers for, behind a proxy | none | yes |
+| `KG_PAGE_ORIGINS` | Page and MCP servers | the further web origins the page accepts a request from | none | yes |
+| `KG_DEMO_HOST` | Page and MCP servers | the host name the page answers for on its published port, besides the loopback names | `localhost` | yes |
+| `KG_BROWSER_URL` | Page and MCP servers | Neo4j Browser's address, for the page's links; its origin reads the impact guides | `http://localhost:7474` | yes |
+| `KG_MCP_HOST` | Page and MCP servers | the MCP reader's HTTP bind address (`--host`) | `127.0.0.1` | yes |
+| `KG_MCP_PORT` | Page and MCP servers | the MCP reader's HTTP port (`--port`) | `8765` | yes |
+| `KG_MCP_TOKEN` | Page and MCP servers | the secret every HTTP request to an MCP server must carry; a wider bind is refused without it | none | yes |
+| `KG_MCP_AUTHORITIES` | Page and MCP servers | the further `host:port` names the MCP server answers for | none | yes |
+| `KG_MCP_ORIGINS` | Page and MCP servers | the further web origins the MCP server accepts a request from | none | yes |
+| `KG_MCP_RUN_MODES` | Page and MCP servers | what knowgov-runs' `start_run` accepts: `deterministic`, or `deterministic,arms` | `deterministic` | yes |
+| `KG_PAGE_URL` | Page and MCP servers | where knowgov-runs finds the page | `http://localhost:8080` | yes |
+| `KG_SUBJECT_CALL_TIMEOUT` | Page and MCP servers | how many seconds the MCP reader lets one call for another subject take; past it the call's own process ends and the tool answers with an error naming the subject | `300` | yes |
+| `KG_PAGE_MAX_RESPONSE` | Server limits | the largest page response, in bytes; see `docs/security.md` | 8 MiB | no: a tuning knob |
+| `KG_PAGE_MAX_RUNS` | Server limits | the largest `n` a page run takes | `5` | no: a tuning knob |
+| `KG_MCP_MAX_RESPONSE` | Server limits | the largest MCP tool result, in bytes; see `docs/security.md` | 16 MiB | no: a tuning knob |
+| `KG_PORT_APP` | Demo stack | the host port the stack publishes the page on | `8080` | no: a demo port |
+| `KG_PUBLIC_PORT` | Demo stack | the compose file's carrier of `KG_PORT_APP` into the page; you set `KG_PORT_APP`, not this | `KG_PORT_APP` | no: a demo port |
+| `KG_MODEL_BASE_URL` | Model endpoint | the endpoint the arms call | `https://api.openai.com/v1` | yes |
+| `KG_ARMS_MODEL` | Model endpoint | the model the arms call; each row of the model table names its own | the subject's record model, else `gpt-5.5` | yes |
+| `KG_MODEL_API_KEY_VAR` | Model endpoint | the *name* of the environment variable that holds the model key, never the key itself | `OPENAI_API_KEY` | yes |
+| `KG_MODEL_API_KEY` | Model endpoint | a variable the compose file passes into the page, for a key, so that `KG_MODEL_API_KEY_VAR` or a row's key variable can name it. Set it in your shell before `docker compose up`, never in a file you commit | none | yes |
+| `KG_MODELS` | Model endpoint | the table of model rows the page's Arms drop-down lists | `demo/models.toml` (inside the container, `/repo/demo/models.toml`) | yes |
+| `KG_KEY_CHECK` | Model endpoint | `off` sends nothing to check a row's key; see `docs/security.md` | on | yes |
+| `KG_WORKERS` | Worker | how many of an arm's runs the harness makes at once; see `docs/security.md` | `5` | yes |
+| `KG_WORKER_CPUS` | Worker | the worker container's CPUs; see `docs/security.md` | `2` | yes |
+| `KG_WORKER_MEM` | Worker | the worker container's memory; see `docs/security.md` | `4g` | yes |
+| `KG_WORKER_JOB_SECONDS` | Worker | the wall time one job may take; see `docs/security.md` | `900` | yes |
+| `KG_WORKER_JOBS` | Worker | the jobs folder the app and the worker share; see `docs/security.md` | the compose file's `/jobs` | yes |
+| `KG_WORKER_WORK` | Worker | the worker's own work folder; see `docs/security.md` | `/work` | yes |
+| `KG_ALLOW_UNCONTAINED_EXECUTION` | Worker | `1` runs model-written code on the host, uncontained; see `docs/security.md` | none | no: an escape, never to be relied on |
+| `KG_CLOCK` | Test clock | `pinned` makes a command that would read the wall clock fail; see "Capturing what people know" | none | no: the test clock |
+| `KG_TODAY` | Test clock | a fixed today, `YYYY-MM-DD` | the wall clock | no: the test clock |
 
 ## What stays stable from 1.0: the contracts
 
@@ -1721,15 +1766,17 @@ named in the last column.
 | what a store must offer the platform (the store port) | `harness/store.py` | `CHANGELOG.md`, Contract changes |
 | the fields of `subject.toml` | the [subjects guide](../subjects/README.md) | `CHANGELOG.md`, Contract changes; its `[format] version` moves with its format ("Format versions", above) |
 | the tools and prompts of both assistant servers (the reader and the runs server), what they take and what they return | "Letting an AI assistant ask the gate", above | `CHANGELOG.md`, Contract changes; each server names the knowgov version it runs |
-| the `KG_*` settings this file or [`docs/security.md`](../docs/security.md) names | "The settings an instance may rely on", above, and `docs/security.md` | `CHANGELOG.md`, Contract changes |
+| the `KG_*` settings this file or [`docs/security.md`](../docs/security.md) names that the settings table marks as contracts (decision-0016 point 3, as amended by decision-0033 choice 1) | "The settings an instance may rely on", above, and `docs/security.md` | `CHANGELOG.md`, Contract changes |
 | the page's HTTP API: the four routes the demo's guide names, `POST /api/run`, `GET /api/scenarios`, `GET /api/subjects` and `POST /api/models/check` (decision-0030); every other route may change in any release | the [demo's guide](../demo/README.md), "The page's HTTP API" | `CHANGELOG.md`, Contract changes |
 | the CI action, the GitLab include, the shell wrappers and the hooks' settings files | "Running the gates in your pipeline" and "A fail-closed hook for Claude Code", above | `CHANGELOG.md`, Contract changes; you run them from the knowgov tag you pin |
 | the image's name and tags: `ghcr.io/fdurieux/knowgov:<tag>` for a release, `:latest` for the last main | the [README](../README.md) | each release's tag; `CHANGELOG.md`, Contract changes |
 | the format version each of your input files declares (built: decision-0023 and its Amendment A1, task-0174, task-0236): a file with no number is read as version 1, in every release | "Format versions", above | the number in the file moves, and `CHANGELOG.md` says what changed and how to bring an older file up to date |
 | which ieam-register format versions your register may be in: this release of knowgov reads a register in the format of ieam-register `v0.2.13`, the tag it vendors (`demo/register/SOURCE.md`) and tests. A register at another tag may load, but is untested (decision-0028) | `demo/register/SOURCE.md` | `CHANGELOG.md`, when a release vendors another tag; one that changes a contract output is listed under Contract changes |
 
-Two things follow from the quoted text. A `KG_*` setting that neither this file nor
-`docs/security.md` names is not a contract, so do not build on it. A setting the demo's guide
+Two things follow from the quoted text, with decision-0033 choice 1, which amends its `KG_*` item to "a
+setting the table marks as a contract". A `KG_*` setting that neither this file nor `docs/security.md` names
+is not a contract, and one they name is a contract only when the table in "The settings an instance may rely
+on" marks it so; do not build on the others. A setting the demo's guide
 alone describes is a convenience of the demo, not a promise. And the page's HTTP API is the
 contract only as far as the demo's guide documents it.
 

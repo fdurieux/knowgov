@@ -12,6 +12,14 @@ names that section with the version.
 
 ### Contract changes
 
+- **One table says which `KG_*` settings are contracts** (task-0275, decision-0033 choice 1, amending
+  decision-0016 point 3). `instance/README.md`'s "The settings an instance may rely on" now has one row for each of
+  the 75 settings it or `docs/security.md` names, with its group, what it does, its default, and whether it is a
+  contract: 61 are, the settings an instance's CI, compose file or hook sets in order to run, decision-0027's twenty
+  among them; 14 are not (the test clock, two demo ports, nine tuning knobs, and `KG_ALLOW_UNCONTAINED_EXECUTION`).
+  A setting is a contract when the table marks it so; before, the section read as if only the twenty were.
+  `tests/test_settings_table.py` fails on a setting either file names without a row, and on a row for one it does not.
+
 - **A slice reads its task class's keys, and the class's keys on no slice are named** (task-0252, doc-0034 D1).
   `proposal_impact` (CLI `--task`, MCP `task`, `codegen` by default) now keeps each slice's keys to the
   `[tasks.<class>]` keys among the register-map rows on its thread. Before, every mapped key was read under
