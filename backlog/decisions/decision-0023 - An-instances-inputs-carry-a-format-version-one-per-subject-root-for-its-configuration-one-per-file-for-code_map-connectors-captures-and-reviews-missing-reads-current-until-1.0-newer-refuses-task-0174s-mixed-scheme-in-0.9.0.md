@@ -82,7 +82,7 @@ The mixed scheme, the drafter's recommendation, which the maintainer took:
 - **`instance/README.md`** documents the key in the adopter register.
 - **doc-0028** G9-2 reads met once task-0174 merges.
 
-## Amendment A1 (2026-11-08, proposed): what a missing version means after 0.9.0
+## Amendment A1 (2026-11-08; accepted 2026-11-09, R1): what a missing version means after 0.9.0
 
 *Drafted by the coordinating session during the maintainer's overnight delegation (2026-11-08) and **parked for the maintainer**. It would change the choice of a decision the maintainer accepted in their own words, and it has two coherent options. Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0` (its D1). The advice is the drafter's recommendation; the maintainer's word decides. This record's status stays accepted for everything else.*
 
@@ -131,3 +131,7 @@ The drafter recommends **R1**, with the `check_instance.py` note. The leniency c
 - **If R1**, task-0236 builds it. The build is prepared overnight, and its pull request waits for the maintainer's word.
 - **If R0**, task-0236's acceptance criteria are restated through the CLI: refuse a missing version, keep the message naming the key, and stamp the remaining fixtures.
 - **Either way**, `instance/README.md`, `harness/formats.py`'s docstring and the CHANGELOG's task-0174 line drop "until 1.0", and doc-0028 G9-2 stays met.
+
+### Acceptance of A1 (2026-11-09)
+
+The maintainer, 2026-11-09: "all as advised", answering the six questions the coordinator set out with their four parts on the queue page (fdurieux/knowgov#392). **R1 is accepted:** a missing version reads as version 1, in every release. It replaces the Decision's fourth bullet, "A missing version reads as the current one until 1.0". task-0236 builds it in #397.

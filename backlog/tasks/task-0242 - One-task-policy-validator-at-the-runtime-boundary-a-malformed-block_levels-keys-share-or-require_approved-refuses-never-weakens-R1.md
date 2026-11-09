@@ -1,0 +1,29 @@
+---
+id: TASK-0242
+title: >-
+  One task-policy validator at the runtime boundary: a malformed block_levels,
+  keys, share or require_approved refuses, never weakens (R1)
+status: To Do
+assignee: []
+created_date: '2026-11-09T06:59:00Z'
+labels:
+  - gate
+  - subject
+  - correctness
+dependencies: []
+priority: high
+ordinal: 236000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+R1 of the third-party code review at 4c7fcb0, re-verified at main 6d27961 (doc-0033). tools/check_subject.py validates block levels only when block_levels is already a list, and harness/tasks.py builds set(spec.get("block_levels", …)), so block_levels = "absent" becomes a set of letters: nothing blocks, the verdict reads QUALIFIED, exit 0. An integer passes the checker and fails at runtime (exit 2). max_unverified_share is coerced by float() at runtime. One validator (types, item values, ranges; no coercion into a weaker policy) serves the checker, the task construction the gate, gate_cli, the MCP reader and run.py use, and the agent-key path; a malformed policy at runtime is the gate contract's exit 2 with the field named. The reviewer's probe (string, integer, list) is the regression case.
+<!-- SECTION:DESCRIPTION:END -->
+
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [ ] #1 harness/ holds one task-policy validator; tools/check_subject.py and the runtime task construction both call it, and nothing coerces block_levels, keys, max_unverified_share or require_approved into another type
+- [ ] #2 block_levels = "absent" and = 7 are a check_subject error and, unchecked, a gate exit 2 naming the field; ["absent"] blocks as today; a test holds all three, on gate_cli and the MCP reader's gate_verdict
+- [ ] #3 The deterministic comparator on both subjects and the round trip pass with the record unchanged; CHANGELOG Unreleased › Changes names the fix
+<!-- AC:END -->

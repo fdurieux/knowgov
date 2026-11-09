@@ -105,11 +105,17 @@ def source_info() -> dict:
             "digest_ok": not mismatched, "mismatched": mismatched}
 
 
+def _rules() -> tuple[str, ...]:
+    """Every coverage rule the vendored checker defines, in its order (C1 to C4 at ieam-register v0.2.13): its own
+    ``COVERAGE_RULES``, so a later rule needs no code here (task-0241)."""
+    return tuple(_load_tools()["check_register"].COVERAGE_RULES)
+
+
 def _coverage_lines(summary: dict) -> list[str]:
     """The checker's own coverage print format, verbatim: data, not prose."""
     return [f"{rule}: {s['covered']}/{s['denominator']} covered, {s['excepted']} excepted, {len(s['uncovered'])} uncovered"
             + (f" ({', '.join(s['uncovered'])})" if s["uncovered"] else "")
-            for rule, s in ((r, summary[r]) for r in ("C1", "C2", "C3"))]
+            for rule, s in ((r, summary[r]) for r in _rules())]
 
 
 def _node_panel(nid: str, n: dict, reg: dict, C, D) -> dict:
@@ -858,7 +864,7 @@ def build(today: str | None = None) -> dict:
     return {"source": src, "run_date": run_date.isoformat(), "pinned": today is None and pinned is not None,
             "pinned_date": pinned.isoformat() if pinned else "",
             "summary": {"nodes": summary["nodes"], "links": summary["links"], "errors": len(errors), "warnings": len(warnings)},
-            "coverage": {r: summary[r] for r in ("C1", "C2", "C3")}, "coverage_lines": _coverage_lines(summary),
+            "coverage": {r: summary[r] for r in _rules()}, "coverage_lines": _coverage_lines(summary),
             "findings": findings.items, "intro": intro, "health": health,
             "subject_system": _ps().system, "slice": {"nodes": len(mine), "links": slice_links, "other_nodes": len(nodes) - len(mine), "other_systems": others},
             "impact_default": default_start,

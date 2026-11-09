@@ -4,7 +4,7 @@ title: >-
   The v1.0 scope handover's acceptance matrix becomes the lighthouse's
   acceptance protocol; decision-0016 point 4's three conditions stay
 date: '2026-11-08T23:45:00Z'
-status: proposed
+status: accepted
 ---
 ## Context
 
@@ -34,7 +34,7 @@ Raised as the reconciliation's D5.
 - **(b) Keep point 4 as accepted.** The matrix becomes the lighthouse's acceptance protocol instead: A07–A14 and AT01–AT12 go into `docs/lighthouse-evaluation.md`, task-0057's pre-registration and task-0062's pilot plan. Only the contract-bearing items go forward before the cut (D1–D4, proposed the same night: decision-0023 A1 and decision-0028 to decision-0030).
 - **(c) Record the matrix only**, as a reference, with no protocol change.
 
-## Decision (proposed)
+## Decision
 
 (b), the drafter's recommendation. The maintainer's word decides.
 
@@ -75,3 +75,7 @@ Raised as the reconciliation's D5.
 - **If (b):** the protocol changes are minted at the pilot's go, by reusing task-0062, task-0103 and task-0069's protocol first. Nothing is minted before then.
 - **If (a):** decision-0016 gains an amendment with the four parts, and doc-0028 §5 lists A01–A18.
 - **Either way:** GAP-06, the tested platforms and clients, is a docs task now (task-0239), and is not a cut item.
+
+## Acceptance (2026-11-09)
+
+The maintainer, 2026-11-09: "all as advised", answering the six questions the coordinator set out with their four parts on the queue page (fdurieux/knowgov#392). The decision is accepted as written: (b). decision-0016 point 4's three conditions stay. The handover's A01–A18 and AT01–AT12 become the lighthouse's acceptance protocol, and its protocol changes (GAP-03, GAP-04, GAP-05) are minted at the pilot's go, reusing task-0062, task-0103 and task-0069's protocol first.
