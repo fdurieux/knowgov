@@ -19,6 +19,19 @@ names that section with the version.
   that class's keys. Otherwise its `suspect_derived` finding is `info`, naming the output and the keys it rests on,
   and a `--baseline` does not count it as a regression. A statement whose key cannot be read counts as on the task.
   The codegen gate in that example still exits 1, and the scored record's gates are unchanged.
+- **One reading of every on/off setting** (task-0276, decision-0033 choice 2, G9-17). `harness/switches.py` lists
+  them and reads each one: a flag (`KG_NO_LOAD`, `KG_PUBLISH`, `KG_ALLOW_UNCONTAINED_EXECUTION`, `KG_TRACEBACK`,
+  `KG_THINKING_UNCOUNTED`) is on with `1` and off with `0`, empty or unset; `KG_LOAD_MEMORY_CHECK` and `KG_KEY_CHECK`
+  keep their word, `off` in any case. Any other value now exits 2, naming the setting and what it accepts; before,
+  `KG_NO_LOAD=true` silently meant off. A behaviour change: `KG_LOAD_MEMORY_CHECK` or `KG_KEY_CHECK` set to `0`,
+  `no` or `false`, spellings no document named, turned the check off before and now exit 2; set `off`. `instance/ci/knowgov-gate.sh`
+  reads its flags under the same rule. The GitHub action's `publish`, `annotate` and `sarif` take `true` or `false`
+  in any case, and any other value fails the step, naming the input. Every documented spelling keeps its meaning.
+- **The image's tags, stated once** (task-0277, decision-0033 choice 3, G9-17). The contract is
+  `ghcr.io/fdurieux/knowgov:vX.Y.Z` for a release (the tag, `v` included, as `release.yml` publishes it) and
+  `:latest` for the last build of `main`. `:<short-sha>`, which `demo.yml` also publishes, is a build of `main`,
+  not a contract. The README, `instance/README.md`'s contracts table and the demo's guide say so, and
+  `tests/test_image_tags.py` holds them to both workflows.
 - **A slice reads its task class's keys, and the class's keys on no slice are named** (task-0252, doc-0034 D1).
   `proposal_impact` (CLI `--task`, MCP `task`, `codegen` by default) now keeps each slice's keys to the
   `[tasks.<class>]` keys among the register-map rows on its thread. Before, every mapped key was read under
@@ -418,6 +431,18 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **The servers survive deep nesting and answer JSON-RPC's protocol edge cases** (task-0272, decision-0032 group 2
+  F6, F11, F12; fixes, no contract moves).
+  - **Deep nesting.** A request nested past the parser's depth is now a parse error, not a `RecursionError`: -32700 on
+    both MCP servers (`knowgov`, `knowgov-runs`) and both transports, 400 on the page. The stdio loop answers the next
+    request.
+  - **Protocol edges.** An `id` that is not a string, a whole number or null is -32600. A `_meta` protocol version that
+    is not a string is -32602, rather than being read as the handshake era. Invalid UTF-8 in an HTTP body is -32700,
+    not a "replace" decode. The Bearer scheme is compared without regard to case on both servers and the page
+    (RFC 7235).
+  - **Content edges.** The page's startup line names the store in use (rdflib and its file under `KG_STORE=rdflib`).
+    `add_artefact`'s `file` refuses control characters, a backslash, `~`, absolute paths and `..`, as `subject_check`
+    confines a manifest's paths.
 - **Prioritisation inputs and refinement planning, and a proposal template** (task-0253, task-0255, doc-0034). `instance/README.md`
   gains "Feeding your prioritisation, and planning refinement": the facts knowgov gives a team's own method (WSJF, cost
   of delay, RICE), with the command that yields each, what it does not supply, and how to turn each slice's keys below
