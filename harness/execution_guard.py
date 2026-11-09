@@ -15,6 +15,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import switches
+
 ROOT = Path(__file__).resolve().parent.parent   # the checkout: what ships with knowgov
 OPT_IN = "KG_ALLOW_UNCONTAINED_EXECUTION"
 WATCHED = ("KG_SUBJECT", "KG_SUBJECTS", "KG_REGISTER")
@@ -43,7 +45,7 @@ def refusal(env=None) -> str | None:
     """None when model output may run here, else why it may not."""
     env = os.environ if env is None else env
     found = mounted(env)
-    if not found or env.get(OPT_IN) == "1":
+    if not found or switches.on(OPT_IN, env):   # 1 only; any other spelling but 0 or empty is BadSwitch (task-0276)
         return None
     named = ", ".join(f"{k}={v}" for k, v in found.items())
     return (f"refused: an organisation's instance is mounted ({named}) and code a model wrote would run "

@@ -40,7 +40,8 @@ Exit codes, the contract's three:
 
     0  no finding at or above the threshold (--fail-on, blocker by default: PROCEED and QUALIFIED pass)
     1  a finding at or above it (BLOCKED always; QUALIFIED with --fail-on major or minor)
-    2  the gate could not run: no such subject, scenario or task, an unreachable store, no baseline
+    2  the gate could not run: no such subject, scenario or task, an unreachable store, no baseline,
+       or a baseline report of another run, a newer version or an invalid shape
 
 With a baseline the gate ratchets instead: exit 1 only on a regression, a verdict worse than the
 baseline's, a required key at a lower level than the baseline's, or a derived output suspect that
@@ -48,7 +49,10 @@ the baseline did not hold suspect. ``--baseline record`` is the
 subject's record for the same scenario (its deterministic run; the record's gate is the codegen
 task, read at stage 1: ``--stage 2 --baseline record`` exits 2, since the record keeps stage 2's
 verdicts, not its keys' levels, task-0209); ``--baseline FILE`` is an earlier report of this command
-(at stage 2, a stage-2 report) or a deterministic.json. The gate
+(at stage 2, a stage-2 report) or a deterministic.json. A report is held to that before it is compared
+(task-0258): one of another subject, scenario, task class or stage, one of a schema version above this
+command's (decision-0023), and one that is not valid against the gate-report schema of its own version
+(versions 1 and 2 frozen beside the current one), each exit 2 naming the file and what differs. The gate
 never writes a baseline: recording one is a separate, deliberate act (``-o``, then commit it).
 
 A capture (harness/capture.py) does not trip the ratchet by agreeing (decision-0004): a person's
@@ -483,7 +487,40 @@ def render(rep: dict) -> str:
     return "\n".join(out)
 
 
-def _baseline(arg: str, subject, scenario: str, task: str) -> tuple[dict, str] | None:
+# a gate report written at each version is validated against the schema as it stood then (task-0258):
+# versions 1 and 2 are frozen copies, from the commits that last wrote them, beside the current one
+REPORT_SCHEMAS = {1: "gate-report-v1", 2: "gate-report-v2", SCHEMA_VERSION: "gate-report"}
+
+
+def check_report_baseline(data: dict, where: str, *, subject: str, scenario: str, task: str, stage: int) -> None:
+    """A gate report read as a baseline is an earlier report of this command for the same run (task-0258, the
+    flag's own promise: "an earlier report of this command (at stage 2, a stage-2 report)"): its schema version
+    one this knowgov reads, newer refused under decision-0023's rule; valid against the schema of that version
+    before anything is compared; and the same subject, scenario, task class and stage. Each failure is CannotRun,
+    exit 2, naming the file and what differs. A deterministic.json is the record's, checked by its path."""
+    v = data.get("schema_version")
+    if isinstance(v, bool) or not isinstance(v, int) or v < 1:
+        raise CannotRun(f"--baseline {where}: schema_version {v!r} is not a version of the gate report")
+    if v > SCHEMA_VERSION:
+        raise CannotRun(f"--baseline {where}: schema_version = {v}, and this knowgov reads gate reports of version "
+                        f"{SCHEMA_VERSION} and earlier; refused rather than misread (decision-0023)")
+    if v not in REPORT_SCHEMAS:
+        raise CannotRun(f"--baseline {where}: no gate-report schema of version {v} to read it by")
+    import schema_check
+    errors = schema_check.validate(data, schema_check.load(REPORT_SCHEMAS[v]))
+    if errors:
+        more = f" (and {len(errors) - 1} more)" if len(errors) > 1 else ""
+        raise CannotRun(f"--baseline {where}: not a valid version-{v} gate report: {errors[0]}{more}")
+    was = {"subject": data.get("subject"), "scenario": data.get("scenario"), "task": data.get("task"),
+           "stage": 2 if data.get("change") else 1}
+    now = {"subject": subject, "scenario": scenario, "task": task, "stage": stage}
+    for field in ("subject", "scenario", "task", "stage"):
+        if was[field] != now[field]:
+            raise CannotRun(f"--baseline {where}: a report of {field} {was[field]!r}, and this run's {field} is "
+                            f"{now[field]!r}: a baseline is an earlier report of the same run")
+
+
+def _baseline(arg: str, subject, scenario: str, task: str, stage: int = 1) -> tuple[dict, str] | None:
     if arg == "none":
         return None
     if arg == "record":
@@ -497,14 +534,22 @@ def _baseline(arg: str, subject, scenario: str, task: str) -> tuple[dict, str] |
     p = Path(arg)
     if not p.exists():
         raise CannotRun(f"no baseline at {p}")
-    return _read_baseline(p), str(p)
+    return _read_baseline(p, run=(subject.id, scenario, task, stage)), str(p)
 
 
-def _read_baseline(p: Path) -> dict:
-    """An earlier report or deterministic.json as a baseline; one that cannot be read is a cannot-run (G6)."""
+def _read_baseline(p: Path, run: tuple[str, str, str, int] | None = None) -> dict:
+    """An earlier report or deterministic.json as a baseline; one that cannot be read is a cannot-run (G6). With
+    ``run`` (subject, scenario, task, stage), a gate report is first held to it (``check_report_baseline``)."""
     try:
-        return baseline_of(json.loads(p.read_text(encoding="utf-8")))
-    except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise CannotRun(f"--baseline {p}: not a gate report or deterministic.json: {type(e).__name__}: {e}") from e
+    if run is not None and isinstance(data, dict) and data.get("tool") == "knowgov gate":
+        subject, scenario, task, stage = run
+        check_report_baseline(data, str(p), subject=subject, scenario=scenario, task=task, stage=stage)
+    try:
+        return baseline_of(data)
+    except (ValueError, KeyError, TypeError, AttributeError) as e:
         raise CannotRun(f"--baseline {p}: not a gate report or deterministic.json: {type(e).__name__}: {e}") from e
 
 
@@ -535,7 +580,7 @@ def run(args) -> dict:
     if args.stage == 2 and args.baseline == "record":   # task-0209, doc-0030 G9
         raise CannotRun("--baseline record compares with stage 1: the record keeps stage 2's verdicts, not its keys' "
                         "levels; for stage 2, pass --baseline FILE, an earlier stage-2 report of this command")
-    base = _baseline(args.baseline, SUBJECT, scenario, args.task)
+    base = _baseline(args.baseline, SUBJECT, scenario, args.task, args.stage)
     import cadence
     try:
         on = cadence.as_of(args.as_of).isoformat()

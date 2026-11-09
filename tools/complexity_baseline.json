@@ -221,10 +221,6 @@
    "value": 19,
    "floor": 19
   },
-  "harness/mcp_server.py::Server._handle": {
-   "value": 17,
-   "floor": 17
-  },
   "harness/mcp_server.py::Server._tools": {
    "value": 25,
    "floor": 25
@@ -242,8 +238,8 @@
    "floor": 19
   },
   "harness/mcp_server.py::make_handler": {
-   "value": 37,
-   "floor": 37
+   "value": 36,
+   "floor": 36
   },
   "harness/mcp_server.py::route_to_child": {
    "value": 17,
@@ -436,10 +432,6 @@
   "harness/upward.py::document_links": {
    "value": 27,
    "floor": 27
-  },
-  "harness/wizard.py::get": {
-   "value": 16,
-   "floor": 16
   },
   "harness/worker.py::_group_settled": {
    "value": 17,
