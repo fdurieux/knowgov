@@ -19,7 +19,7 @@ import re
 
 PATTERN = "[A-Za-z0-9][A-Za-z0-9_-]{0,31}"
 _ID = re.compile(PATTERN)   # ASCII only: a letter or digit first, then letters, digits, '_' or '-'
-HINT = "give the scenario an id of a letter or digit, then letters, digits, '_' or '-', at most 32 characters (S1, billing-S0)"
+HINT = "give the scenario an id of a letter or digit, then letters, digits, '_' or '-', at most 32 characters (such as baseline or billing-change-2)"
 
 
 class ScenarioIdError(ValueError):
