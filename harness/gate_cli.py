@@ -586,6 +586,18 @@ def _read_baseline(p: Path, run: tuple[str, str, str, int] | None = None) -> dic
         raise CannotRun(f"--baseline {p}: not a gate report or deterministic.json: {type(e).__name__}: {e}") from e
 
 
+
+def _require_registers(args) -> None:
+    """task-0279 (decision-0033 choice 5): a register named by ``KG_REGISTER``, or by ``--register-previous`` on a
+    load, that cannot be read is a cannot-run, exit 2 naming it, never a report read without it."""
+    import register_impact
+    try:
+        register_impact.require_named()
+        if args.register_previous and not args.no_load:   # with --no-load, the flag's own refusal names the clash
+            register_impact.require(Path(args.register_previous), "--register-previous")
+    except register_impact.RegisterUnreadable as e:
+        raise CannotRun(str(e)) from None
+
 def run(args) -> dict:
     """Load, resolve and report; raises CannotRun for what exit 2 covers."""
     if args.subject:
@@ -620,20 +632,12 @@ def run(args) -> dict:
     except ValueError as e:
         raise CannotRun(f"--as-of: {e}") from e
     reg_change = previous = None
-    import register_impact
-    try:   # task-0279: a register named by KG_REGISTER that cannot be read is a cannot-run, never a report without it
-        register_impact.require_named()
-    except register_impact.RegisterUnreadable as e:
-        raise CannotRun(str(e)) from None
+    _require_registers(args)
     if args.register_previous:
         if args.no_load:
             raise CannotRun("--register-previous marks statements stale on a load; --no-load reads the store as it is: drop one")
         import register_change as rc
         previous = Path(args.register_previous)
-        try:
-            register_impact.require(previous, "--register-previous")
-        except register_impact.RegisterUnreadable as e:
-            raise CannotRun(str(e)) from None
         try:
             reg_change = rc.diff(previous, rc.ri.register_root())
         except Exception as e:  # noqa: BLE001 — a register that does not load is a cannot-run

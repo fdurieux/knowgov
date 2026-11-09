@@ -1231,6 +1231,14 @@ def render_text(r: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _require_registers(a) -> None:
+    """task-0279 (decision-0033 choice 5): the register this process reads, and a branch checkout named by
+    ``--register-branch``, must be readable; ``register_impact.RegisterUnreadable`` names the one that is not."""
+    ri.require()
+    if a.register_branch is not None:
+        ri.require(a.register_branch, "--register-branch", tools=False)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="proposal_impact.py", description="A proposed addition read against the register as if "
                                  "approved, without approving it (task-0130). Nothing is written.")
@@ -1264,14 +1272,8 @@ def main(argv: list[str] | None = None) -> int:
             or (a.proposal is None and a.register_branch is None and a.scope is None):
         print("proposal_impact: give a proposal file, --scope ID, or --register-branch DIR with --base REF", file=sys.stderr)
         return 2
-    try:   # task-0279: the register read, and a branch checkout named by --register-branch, must be readable
-        ri.require()
-        if a.register_branch is not None:
-            ri.require(a.register_branch, "--register-branch", tools=False)
-    except ri.RegisterUnreadable as e:
-        print(f"proposal_impact: cannot run: {e}", file=sys.stderr)
-        return 2
     try:
+        _require_registers(a)   # task-0279: an ImpactError, so the message below names the register and exits 2
         if a.register_branch is not None:
             report = evaluate_branch(a.register_branch, a.base, today=on, children=a.children, scope=a.scope, task=task)
         else:

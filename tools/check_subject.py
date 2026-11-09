@@ -142,6 +142,14 @@ class Report:
         self.notes.append({"rule": rule, "where": where, "message": message})
 
 
+def _class_name(rep: Report, name, where: str) -> None:
+    """task-0278 (decision-0033 choice 4): a class named ``keys``, or outside ``[a-z][a-z0-9_-]{0,31}``; the runtime
+    refuses the manifest on it (``task_policy.build``)."""
+    p = task_policy.name_problem(name)
+    if p:
+        rep.error(p["code"], where, p["message"], p["hint"])
+
+
 def _fields(rep: Report, where: str, table: dict, known: set[str]) -> None:
     for f in table:
         if f not in known:
@@ -213,8 +221,7 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
     tasks = m.get("tasks", {})
     for name, t in (tasks.items() if isinstance(tasks, dict) else []):
         where = task_policy.table(name)
-        for p in [x for x in [task_policy.name_problem(name)] if x]:   # task-0278: the runtime refuses the manifest on it
-            rep.error(p["code"], where, p["message"], p["hint"])
+        _class_name(rep, name, where)
         if not isinstance(t, dict):
             rep.error("required", where, "not a table", f"write [tasks.{name}] with keys, block_levels and max_unverified_share")
             continue

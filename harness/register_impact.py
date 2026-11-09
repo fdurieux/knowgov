@@ -54,7 +54,7 @@ def register_root() -> Path:
     return cadence.register_root()
 
 
-class RegisterUnreadable(ValueError):
+class RegisterUnreadable(ImpactError):
     """A register the reader was given that it cannot read (task-0279, decision-0033 choice 5): the commands exit
     2 and the MCP reader refuses to start, naming who named it and the path."""
 
