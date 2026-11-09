@@ -482,6 +482,12 @@ names that section with the version.
   - **Content edges.** The page's startup line names the store in use (rdflib and its file under `KG_STORE=rdflib`).
     `add_artefact`'s `file` refuses control characters, a backslash, `~`, absolute paths and `..`, as `subject_check`
     confines a manifest's paths.
+- **The two Claude Code hooks fail closed on every form they cannot read** (task-0268, decision-0032 F11, F12).
+  `knowgov_hook.py` reads a push in backticks, through an alias (inline `-c alias.X=push` or configured) and behind a
+  variable (`git${IFS}push`, `x=git; $x push`, failing closed); refuses a non-string `tool_name` or command, a
+  repeated `--task-for` stage and a `--timeout` that is not a finite number above 0; resolves `--knowgov` and
+  `KG_HOME` to absolute paths. `attestation_paths.py` reads NotebookEdit like every other write tool and compares
+  names case-folded, so `Register/`, `Captures/` and `Preload-Baseline.json` are guarded on macOS. Settings unchanged.
 - **Prioritisation inputs and refinement planning, and a proposal template** (task-0253, task-0255, doc-0034). `instance/README.md`
   gains "Feeding your prioritisation, and planning refinement": the facts knowgov gives a team's own method (WSJF, cost
   of delay, RICE), with the command that yields each, what it does not supply, and how to turn each slice's keys below

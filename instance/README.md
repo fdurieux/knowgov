@@ -1572,7 +1572,10 @@ tool call is a transition, so the snippets need no fragile command pattern:
   whether it was staged earlier or by the same command (`git add docs && git commit`, `git commit -a`,
   `git commit spec.md`); when the hook cannot read the command or the worktree, it treats the commit
   as this transition;
-- **push**: before `git push`, written `/usr/bin/git push`, `git -C dir push` or `bash -c 'git push'` as well.
+- **push**: before `git push`, written `/usr/bin/git push`, `git -C dir push`, `bash -c 'git push'`,
+  `` echo `git push` `` or through an alias (`git -c alias.ship=push ship`, or one in your git configuration)
+  as well. Where a variable stands for git or its subcommand (`x=git; $x push`), the hook cannot tell what runs,
+  so a command that names `push` is treated as the push.
 
 Any other tool call gets no decision from it, and goes on through the normal permissions.
 
