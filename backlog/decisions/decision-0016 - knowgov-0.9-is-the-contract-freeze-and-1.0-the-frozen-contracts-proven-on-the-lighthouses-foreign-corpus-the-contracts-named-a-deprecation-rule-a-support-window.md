@@ -149,3 +149,74 @@ The maintainer, 2026-11-06 ~16:5x UTC: "approve decision-0016 option (b)". The d
 - doc-0028 P4 is minted as task-0181: `instance/README.md` states the contracts at 1.0.
 - CLAUDE.md's Releases paragraph names this decision.
 - `CHANGELOG.md` gains an adopter line under Unreleased.
+
+## Amendment A1 (2026-11-09; accepted 2026-11-09): 1.0.0 means ready for a lighthouse, not run by one
+
+### Context
+
+Point 4 cut 1.0.0 only when three conditions held:
+- the lighthouse's instance had run on the 0.9 contracts unchanged (task-0062);
+- the incumbent's route was verified on its installation (task-0063);
+- a support counterparty existed (task-0060).
+
+decision-0031 kept them. All three wait on third parties.
+
+The maintainer, 2026-11-09, answered the open question of who the lighthouse is: "I do not have a confirmed lighthouse yet, so float 1.0 without one", then: 1.0 = "ready for lighthouse". Without a lighthouse, point 4 gives 1.0.0 no date and no condition knowgov controls.
+
+### Options
+
+- **(a) Readiness plus a soak.** The drafter's advice; see "What changes" below.
+- **(b) Readiness, no soak.** 1.0.0 as soon as conditions 1, 3 and 4 below hold. That could be days after 0.9.0.
+- **(c) A soak only.** 1.0.0 after a stated time on 0.9 without a contract change. This is the fallback the original record named for option (a).
+
+### What changes
+
+Point 4 now reads: **1.0.0 is cut when all of these hold.**
+1. 0.9.0 is cut: doc-0028's G9 met, the validation pass (G9-17) included.
+2. The 0.9 contracts have held for **30 days** from 0.9.0 with no contract change, across at least one 0.9.x patch release. Any contract change in that time is a 0.10.0 and restarts the freeze (point 2).
+3. A lighthouse can start without the maintainer's hand. Its path is complete and proven on the example instance:
+   - decision-0031's acceptance protocol (A07 to A14, AT01 to AT12) is in `docs/lighthouse-evaluation.md` and runnable;
+   - task-0057's pre-registration template is ready;
+   - the onboarding path works end to end, with G9-3's Desktop test done.
+4. The release's Known limits name what only a lighthouse or a third party can prove:
+   - no lighthouse has run on the contracts (task-0062);
+   - the incumbent's route is unverified on a real installation (task-0063);
+   - no support counterparty exists, so support stays best-effort on the latest minor (point 6, task-0060).
+
+Points 1 to 3 and 5 to 7 stand. Point 5's deprecation rule and point 7's SemVer apply from 1.0.0, as before.
+
+### Opportunity canvas
+
+| Box | Content |
+|---|---|
+| Problem | 1.0.0 waited on a lighthouse that does not exist yet, so it had no date, and a prospective lighthouse is asked to adopt a 0.x |
+| Users | A prospective lighthouse's platform team, which can now adopt a 1.0 with a deprecation promise. The maintainer, whose 1.0 no longer waits on a third party |
+| Proposal | (a): 0.9.0, a 30-day soak with no contract change, a lighthouse path proven on the example instance, and the third-party items named as Known limits |
+| Unique value | 1.0 means what it promises: the contracts held, a lighthouse can start, and what is still unproven is stated |
+| Cost | The soak (30 days after 0.9.0), and making decision-0031's protocol runnable before a pilot exists (task-0285) |
+| Risk | A lighthouse later needs a contract change. After 1.0.0 that is a minor or a major under point 7, with point 5's deprecation window, not a restarted freeze |
+
+### Fit/gap
+
+| Must satisfy | (a) | (b) | (c) |
+|---|---|---|---|
+| The maintainer's "1.0 = ready for lighthouse" | Fit | Fit | **Gap:** time says nothing about readiness |
+| Conditions knowgov controls | Fit | Fit | Fit |
+| Stability shown before the contracts are promised (SemVer 2.0.0 §5) | Fit: 30 days and a patch | **Gap:** frozen with no time in use | Fit |
+| Honesty about what is unproven (decision-0016 point 6, decision-0031) | Fit: the Known limits | Fit | Partial |
+| decision-0031's protocol as the lighthouse's | Fit: made ready now, run at the pilot | Fit | Gap: not required |
+
+### SWOT
+
+| | Helpful | Harmful |
+|---|---|---|
+| **Internal** | **S:** a date the maintainer controls; a checkable list; the soak catches a contract change before the promise | **W:** the soak delays 1.0 by 30 days; the protocol work moves before a pilot |
+| **External** | **O:** a prospective lighthouse can sign on to a 1.0; the matrix's tests become a sales asset | **T:** the first real corpus finds a contract gap after 1.0. That is a minor or a major, with point 5's window, not a 0.10 restart |
+
+### Advice
+
+(a). It is the only option that makes 1.0 mean what the maintainer said, keeps a stability proof the record can measure, and states plainly what a lighthouse has yet to prove. The 30 days are the drafter's figure, as point 5's ninety days were.
+
+### Acceptance of A1 (2026-11-09)
+
+The maintainer, 2026-11-09: "I do not have a confirmed lighthouse yet, so float 1.0 without one"; then: 1.0 = "ready for lighthouse"; and, on the options the coordinator set out, "A1 as advised". **A1 is accepted: (a), with a 30-day soak.** It replaces point 4's three conditions with the four above. decision-0031's choice stands: the matrix is the lighthouse's acceptance protocol. Its note that "point 4's three conditions stay" is superseded by A1, and its "minted at the pilot's go" becomes "made ready before 1.0" (task-0285).
