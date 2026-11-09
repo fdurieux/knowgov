@@ -3,10 +3,10 @@ id: TASK-0276
 title: >-
   On/off settings accept only their documented spellings; anything else exits 2
   naming the setting (decision-0033 choice 2)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-09T10:09:00Z'
-updated_date: '2026-11-09T10:58:00Z'
+updated_date: '2026-11-09T13:34:00Z'
 labels:
   - contracts
   - validation
@@ -34,7 +34,7 @@ Source: validation-pass group 1 C4, task-0256.
 - [x] #1 The task lists every on/off `KG_*` setting with its documented spellings, and one parser reads them all. A value outside a setting's spellings exits 2 naming the setting and the spellings accepted.
 - [x] #2 `action.yml`'s and the GitLab include's boolean inputs compare without case. A value other than true or false fails the step, naming the input.
 - [x] #3 Every spelling documented today keeps its meaning, and the record does not move.
-- [ ] #4 `check_ci_wrappers`, `harness.yml`'s instance/ci steps and `tests/run_tests.py` pass.
+- [x] #4 `check_ci_wrappers`, `harness.yml`'s instance/ci steps and `tests/run_tests.py` pass.
 - [x] #5 `CHANGELOG.md`'s Unreleased section names the change under Contract changes.
 <!-- AC:END -->
 
@@ -59,4 +59,12 @@ action.yml: publish, annotate and sarif go through a shell bool(), true/false in
 Behaviour change, in the CHANGELOG line and the PR body: KG_LOAD_MEMORY_CHECK and KG_KEY_CHECK set to 0, no or false, spellings no document named, turned the check off before and now exit 2; KG_ALLOW_UNCONTAINED_EXECUTION=yes read as not opted in and now raises. Every documented spelling keeps its meaning. tests/test_load_memory.py and tests/test_execution_guard.py are updated to match.
 Checks at 9c07512: run_tests 896/946, 0 failed; with the pins 939/940; check_ci_wrappers exit 0; the CargoQuote comparator on rdflib, 0 differing over 7 (the record unmoved); complexity --check holds.
 AC #4's harness.yml instance/ci steps (the composite action run for real, publish: "true") run in #421's CI; checked once that is green.
+
+AC #4 checked by the coordinator after the merge: #421's whole matrix was green at `ad19646`. That run covered tests (https://github.com/fdurieux/knowgov/actions/runs/42605534213/job/129120446859), rdflib (https://github.com/fdurieux/knowgov/actions/runs/42605534202/job/129120447709) and rdflib-readers, harness.yml's jobs that carry the instance/ci steps, and stack. `check_ci_wrappers` runs in rdflib-readers. #421 merged as `27627e4`.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Merged in #421 (`27627e4`) on a whole green matrix, so AC #4's CI steps are proven by that run.
+<!-- SECTION:FINAL_SUMMARY:END -->

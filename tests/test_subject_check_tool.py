@@ -48,7 +48,8 @@ def _cli(root: Path) -> dict:
 
 def _call(name, args):
     s = mcp_server.Server(mcp_server.Tools(opener=lambda: (_ for _ in ()).throw(AssertionError("no store is opened"))))
-    return s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": args}})["result"]
+    from tests.test_mcp_server import _as_result   # a schema violation is refused before dispatch, -32602 (task-0281)
+    return _as_result(s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": args}}))
 
 
 def test_the_probe_reads_as_the_cli_reads_it_and_the_schema_holds():
@@ -82,7 +83,7 @@ def test_a_document_two_levels_up_lands_in_the_instance_and_one_further_is_refus
 
 def test_the_call_is_bounded_and_needs_a_manifest():
     for args, said in [({}, "subject_toml"), ({"subject_toml": 3}, "subject_toml"),
-                       ({"subject_toml": "", "documents": []}, "documents must be an object"),
+                       ({"subject_toml": "", "documents": []}, "documents: list is not object"),   # the schema's -32602 (task-0281)
                        ({"subject_toml": "", "documents": {f"d{i}.md": "" for i in range(subject_check.MAX_DOCUMENTS + 1)}}, "at most"),
                        ({"subject_toml": "x" * (subject_check.MAX_BYTES + 1)}, "bytes"),
                        ({"subject_toml": "", "documents": {"subject.toml": ""}}, "same file as")]:

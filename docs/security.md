@@ -340,7 +340,8 @@ the real container,
 `tools/check_worker.py` in `demo.yml` (EXEC-01 to EXEC-14, and loosened workers refusing: network on, a key in
 its environment, and the seccomp profile off where the runner's kernel has vsock).
 
-**The worker's limits.** These six settings are contracts from 1.0 (decision-0027). The operator sets
+**The worker's limits.** These six settings are contracts from 1.0 (decision-0027), marked so in
+`instance/README.md`'s settings table. The operator sets
 them in the shell before `docker compose up`, or in the compose file. Each item gives what the setting
 bounds, its default, and what reads it.
 

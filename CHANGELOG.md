@@ -46,6 +46,14 @@ names that section with the version.
   Before, `register_nodes`, `upward` and `proposal_impact` crashed with exit 1, and `gate_cli` reported the
   register as null with exit 0. "Unchecked" stays for `check_subject` when no register is named and the
   default cannot be read. The record does not move.
+- **One table says which `KG_*` settings are contracts** (task-0275, decision-0033 choice 1, amending
+  decision-0016 point 3). `instance/README.md`'s "The settings an instance may rely on" now has one row for each of
+  the 75 settings it or `docs/security.md` names, with its group, what it does, its default, and whether it is a
+  contract: 63 are, the settings an instance's CI, compose file or hook sets in order to run, decision-0027's twenty
+  among them, and the clock (`KG_CLOCK`, `KG_TODAY`), which the guides advise in a pipeline; 12 are not (two demo
+  ports, nine tuning knobs, and `KG_ALLOW_UNCONTAINED_EXECUTION`). The maintainer confirmed the rows (2026-11-09).
+  A setting is a contract when the table marks it so; before, the section read as if only the twenty were.
+  `tests/test_settings_table.py` fails on a setting either file names without a row, and on a row for one it does not.
 
 - **The GitLab include and the pre-load workflow template run their own release by default** (task-0259, G9-17,
   decision-0032 C5). `instance/ci/gitlab/knowgov.gitlab-ci.yml`'s `KNOWGOV_REF` and `instance/ci/preload-check.yml`'s
@@ -188,12 +196,22 @@ names that section with the version.
   from a checkout without `KG_BUILD_DESCRIBE` names its commit but not its distance from the release.
   `demo/README.md` shows how to compare the chip with `git describe --tags --always`. Additive, and listed
   here because decision-0016 point 3 makes the page's HTTP API a 1.0 contract.
-- **The MCP servers refuse an argument a tool does not take** (task-0200, doc-0030 M5). Every tool's
-  input schema says `additionalProperties: false`; both servers, `knowgov` and `knowgov-runs`, now keep
-  it, on stdio and HTTP and in both protocol eras. A call naming an argument the tool does not list
-  answers the JSON-RPC error -32602, naming the argument and the ones the tool takes, and runs nothing.
-  Before, only `register_nodes` refused one: `gate_verdict {"senario": "S4"}` answered for the store's
-  scenario unguarded, and `start_run`'s `n` was set to 1 in silence.
+- **The MCP servers refuse any argument outside a tool's input schema** (task-0200, doc-0030 M5; task-0281,
+  decision-0033 choice 7(a)). Both servers, `knowgov` and `knowgov-runs`, keep every tool's `inputSchema`
+  before anything runs, on stdio and HTTP and in both protocol eras. A call answers the JSON-RPC error
+  -32602, naming the property, and runs nothing, when it:
+  - names an argument the tool does not list (`additionalProperties: false`);
+  - gives a value of the wrong type, outside an `enum`, not matching a `pattern`, below a `minimum` or
+    with fewer items than `minItems`;
+  - leaves out a `required` one;
+  - passes `arguments` that are not an object (`[]` and `""` are no longer read as `{}`).
+
+  A default applies only when the argument is absent. Before, a falsy value fell back to it:
+  `gate_verdict {"scenario": ""}` answered for the held scenario past its guard, and `walk: ""` read as
+  `dependants`. `gate_verdict {"senario": "S4"}` and `start_run`'s unknown arguments stay refused as
+  task-0200 made them. The page's `POST /api/run` refuses a body key outside `scenario`, `mode`, `n`,
+  `row`, `effort`, `as_of`, `by` and `subject` with 400, naming the key, so `as-of` no longer runs as of
+  the record date in silence. `harness/schema_check.py` gains `pattern` and `minItems`.
 
 - **Under `--baseline`, the gate's held findings are no longer annotated as errors** (task-0207,
   doc-0030 R8). With a baseline the gate exits on a regression only, yet `harness/annotate.py` marked

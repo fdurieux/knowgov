@@ -30,6 +30,10 @@ from tests.test_mcp_server import Stub, _call, _server  # noqa: E402
 OTHER = next(x["id"] for x in subject_ids.subjects() if x["id"] != SUBJECT.id)
 
 
+REQUIRED_SAMPLE = {"key": "P2|surcharge", "node": "CAP-0001", "scenario": "S1", "source": "record", "path": "a.py",
+                   "document": "docs/pricing.md", "subject_toml": ""}   # a well-typed value for each required argument
+
+
 def _text(r) -> str:
     return r["content"][0]["text"]
 
@@ -92,7 +96,8 @@ def test_a_path_or_an_unknown_subject_is_refused_on_every_tool():
     for t in mcp_server.TOOLS:
         if t["name"] == "list_subjects":
             continue
-        r = _call(s, t["name"], {"subject": "../" + SUBJECT.id})["result"]
+        need = {k: REQUIRED_SAMPLE[k] for k in t["inputSchema"].get("required", [])}   # task-0281: a call missing one is -32602 first
+        r = _call(s, t["name"], {**need, "subject": "../" + SUBJECT.id})["result"]
         assert r["isError"] is True and "never a path" in _text(r), t["name"]
     r = _call(s, "register_nodes", {"subject": "no_such_subject"})["result"]
     assert r["isError"] is True and "no subject 'no_such_subject' under KG_SUBJECTS" in _text(r)

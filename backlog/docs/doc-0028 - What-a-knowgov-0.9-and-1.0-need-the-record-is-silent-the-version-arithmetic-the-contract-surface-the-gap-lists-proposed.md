@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-09T08:55:00Z'
+updated_date: '2026-11-09T13:34:00Z'
 tags:
   - brief
   - release
@@ -95,7 +95,7 @@ Every item here is the maintainer's to meet.
 | G9-16 | The third-party code review's reproduced defects fixed (doc-0033; the maintainer, 2026-11-09: "all as advised") | R1 a malformed block_levels weakens the gate; R2 float comparison corroborates distinct numbers; R3 inference-basis flags by hash seed; R4 .env files enter a locally built image; a test leak and three hygiene items | task-0242 to task-0246 |
 | G9-17 | A contract validation pass done (decision-0032; the maintainer, 2026-11-09: "middle option, and yes, only contract-bearing findings hold the cut") | every review found a contract-bearing defect; none from CI | task-0256 |
 
-### Status at `main` `6d27961` (2026-11-09)
+### Status at `main` `ada71ce` (2026-11-09, afternoon)
 
 *Filed by the coordinating session, refreshed after the reconciliation of the v1.0 scope handover (decision-0023 A1 and decision-0028 to decision-0031, accepted by the maintainer on 2026-11-09: "all as advised"). The table above is the list as accepted; this records where each row stands. decision-0016 point 1 cuts 0.9.0 when G9-1 to G9-10 are met; G9-11 to G9-15 were added to the list since.*
 
@@ -116,11 +116,11 @@ Every item here is the maintainer's to meet.
 | G9-13 | met | task-0221 (#354, #355) |
 | G9-14 | met | task-0223 (#359) |
 | G9-15 | met | task-0224 (#362); `pumllint trace --features` smoke step in rdflib-readers |
-| G9-16 | **open: five tasks** | task-0242 (R1), task-0244 (R3), task-0243 (R2), task-0245 (R4) and task-0246, dispatched 2026-11-09 |
-| G9-17 | **open** | task-0256: the pass dispatched 2026-11-09; only its contract-bearing findings hold the cut |
+| G9-16 | met | task-0242 to task-0246 Done: #400 (R1, R3), #404 (R2), #406 (R4 and hygiene), each on a whole green matrix |
+| G9-17 | **open: four builds, then the re-probe and the spot check** | task-0256's first round is done: three groups, 16 distinct contract-bearing findings. Six keep a documented promise (task-0257 to task-0262), and nine are decision-0033's choices (accepted 2026-11-09, "all as advised": task-0275 to task-0283). In `main`: task-0257, task-0258, task-0259, task-0260, task-0261, task-0262, task-0276, task-0277, task-0280, task-0282 and task-0283 (#411, #416, #417, #419, #420, #421, #423, #425; train #426). Open: task-0275 (#418, its rows confirmed by the maintainer), task-0281 (#422), task-0278 and task-0279. Then the bounded re-probe (decision-0032 point 4), the independent spot check (point 5) and the pass report |
 
 **Left before the cut:**
-- **work**: #397 (task-0236, task-0181 AC #4 to #6), merging on green; task-0241, C4 in `proposal_impact` and the register view (in 0.9.0 on the maintainer's word, 2026-11-09), dispatched. G9-16's five fixes (task-0242 to task-0246, doc-0033), dispatched. task-0252, a slice's readiness read over its task class's keys (doc-0034 D1; the maintainer, 2026-11-09: "(a), fix it in 0.9.0"), dispatched. Merged on 2026-11-08 and 09: the re-vendor at `v0.2.13` (#393), task-0181 AC #1 to #3 (#395), and task-0237, the report's identity (#396, decision-0029);
+- **work**: G9-17's last four builds (task-0275 in #418, task-0281 in #422, task-0278 and task-0279), then the bounded re-probe by the original probers, the independent spot check and the pass report, doc-0036. Merged on 2026-11-09: #397 (task-0236, task-0181 AC #4 to #6); #399 (task-0241); G9-16 (#400, #404, #406); #402 (task-0252); and the pass's builds so far (#411, #412, #416, #421, #423, and train #426 carrying #414, #415, #417, #419, #420, #424, #425). The fix-only task-0268, task-0272 and task-0274 (SNAP-04, decision-0014 A1) landed with them;
 - **the maintainer's**: G9-3's Desktop test (2026-11-09);
 - **the release PR**: its Known limits. These are decision-0024's thirteen, decision-0021's K21, K10 unless the Desktop test closes it, and the tasked K16, K19, K22 and U1, with K1 at the current Landlock floor (ABI 3, task-0203).
 
@@ -134,7 +134,7 @@ Every item here is the maintainer's to meet.
 | # | gap | control | today |
 |--:|---|---|---|
 | G1-1 | A foreign corpus: an instance whose documents and register the maintainer did not write | third party | task-0062 AC #2 and #3 wait for the pilot organisation's go |
-| G1-2 | The incumbent's export route verified on a real installation | third party | task-0063 AC #2 and #5. The register's `mapping/matrix.toml` reads 17 rows `unverified` and 0 verified (`0826ebc`) |
+| G1-2 | The incumbent's export route verified on a real installation | third party | task-0063 AC #2 and #5. The register's `mapping/matrix.toml` reads 16 rows, all `unverified`, at `v0.2.13` (17 at `0826ebc`) |
 | G1-3 | 0.9's contracts unchanged through the pilot | both | a change means 0.10.0, and the freeze restarts (decision-0016 point 2) |
 | G1-4 | A counterparty that supports a 1.0 | the maintainer, with a third party | task-0060 is To Do |
 | G1-5 | An ordering, not a version condition: the outcome study pre-registered before the pilot's first governed change | maintainer | task-0057 is To Do |

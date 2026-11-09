@@ -28,7 +28,8 @@ def _server():
 
 def _call(s, args):
     r = s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "register_nodes", "arguments": args}})
-    return r["result"]
+    from tests.test_mcp_server import _as_result
+    return _as_result(r)   # a schema violation is refused before dispatch, -32602 (task-0281)
 
 
 def _ok(s, args):
