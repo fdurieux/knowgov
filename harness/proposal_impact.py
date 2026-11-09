@@ -8,7 +8,8 @@ doc-0017 candidate 1), with its deterministic link candidates D1 to D5 (task-013
 A proposal is an overlay on the register ``KG_REGISTER`` names (``cadence.register_root``, at its tag):
 register-shaped ``nodes`` (a provisional id, kind, name, parent, owner, an optional ``source``),
 ``links`` (type, source, target, rationale, an optional owner), the ``reused`` register nodes, each
-``as_is`` or ``changed``, and optional proposed ``exceptions`` (rule, scope, expires, rationale). A
+``as_is`` or ``changed``, optional proposed ``exceptions`` (rule, scope, expires, rationale), and an optional
+``format``, the overlay's format version (task-0280: missing reads as 1, a newer one is refused, exit 2). A
 JSON or TOML file on the command line; the same object as the MCP tool's ``proposal``.
 
 Only the register's own functions decide, loaded by path from the register as ``register_impact``
@@ -153,9 +154,14 @@ class Overlay:
     def __init__(self, proposal: dict, reg: dict, T: dict, scoped: bool = False):
         if not isinstance(proposal, dict):
             raise ProposalError("the proposal is an object with nodes, links, reused and exceptions")
-        extra = set(proposal) - {"nodes", "links", "reused", "exceptions", "title"}
+        extra = set(proposal) - {"nodes", "links", "reused", "exceptions", "title", "format"}
         if extra:
             raise ProposalError(f"the proposal has no field(s) {sorted(extra)}")
+        import formats   # task-0280 (decision-0033 choice 6): an optional format; missing reads as 1, a newer one refused
+        try:
+            formats.version(proposal, "the proposal", formats.PROPOSAL)
+        except formats.FormatError as e:
+            raise ProposalError(str(e)) from None
         k2t = T["register"].kind_taxonomy(reg)
         prefixes = {tax: spec["prefix"] for tax, spec in reg["types"]["taxonomy"].items()}
         nodes, links = proposal.get("nodes") or [], proposal.get("links") or []

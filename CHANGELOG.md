@@ -12,6 +12,12 @@ names that section with the version.
 
 ### Contract changes
 
+- **The trace ledger and the proposal overlay carry a format version** (task-0280, decision-0033 choice 6), by
+  decision-0023's rule in `harness/formats.py`. The ledger's `schema_version` is its format: missing reads as 1, and a
+  newer one is refused by `trace check` and `trace register` (exit 2) and by `code_path` (exit 2 on `upward.py`, an
+  error answer from the MCP server); until now a ledger at 99 was read. A proposal takes an optional top-level
+  `format`, until now refused as an unknown field: missing reads as 1, a newer one is refused, exit 2 on the CLI and an
+  error answer from the MCP `proposal_impact`. `instance/templates/proposal.toml` writes `format = 1`.
 - **A slice reads its task class's keys, and the class's keys on no slice are named** (task-0252, doc-0034 D1).
   `proposal_impact` (CLI `--task`, MCP `task`, `codegen` by default) now keeps each slice's keys to the
   `[tasks.<class>]` keys among the register-map rows on its thread. Before, every mapped key was read under

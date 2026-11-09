@@ -92,7 +92,7 @@ def test_a_missing_version_stays_1_when_a_kind_moves_to_2():
             formats.CURRENT.update(saved)
             formats.CURRENT[kind] = 2
             unstamped, two, three = ({"subject": {}}, {"format": {"version": 2}}, {"format": {"version": 3}}) \
-                if kind == formats.SUBJECT else ({}, {"format": 2}, {"format": 3})
+                if kind == formats.SUBJECT else ({}, {formats.KEY.get(kind, "format"): 2}, {formats.KEY.get(kind, "format"): 3})   # the ledger's is schema_version
             assert formats.version(unstamped, "f.toml", kind) == 1, kind
             assert formats.version(two, "f.toml", kind) == 2, kind
             _raises(lambda: formats.version(three, "f.toml", kind), formats.FormatTooNew, "f.toml", "= 3", f"{kind} format 2")
@@ -290,3 +290,61 @@ def test_the_attestation_hook_does_not_read_a_format_key_as_an_attestation():
         # a capture stays one with its format key, and so does a review
         assert ap.check(ev("Write", inst / "notes" / "c.toml", content=_capture(1)), inst)[0] == 1
         assert ap.check(ev("Write", inst / "notes" / "r.toml", content=_review(1)), inst)[0] == 1
+
+
+def _ledger(path: Path, version) -> Path:
+    led = {"tool": "knowgov trace ledger", "entries": []}
+    if version is not None:
+        led["schema_version"] = version
+    path.write_text(json.dumps(led), encoding="utf-8")
+    return path
+
+
+def test_the_trace_ledger_reads_its_schema_version_by_the_rule():
+    """task-0280 (decision-0033 choice 6): the ledger's schema_version is its format. Missing reads as 1; a newer one is
+    refused by trace (exit 2) and by code_path, on the CLI (exit 2) and the MCP server (an error answer)."""
+    import trace
+    import upward
+    with tempfile.TemporaryDirectory() as t:
+        tmp = Path(t)
+        for v in (None, 1):
+            assert trace.read_ledger(_ledger(tmp / f"l{v}.json", v), missing_ok=False)["entries"] == []
+            assert upward.code_path("x.py", {"instance": None, "ledger": str(tmp / f"l{v}.json")})["ledger"]["status"] == "read"
+        assert trace.read_ledger(tmp / "none.json", missing_ok=True)["schema_version"] == formats.CURRENT["ledger"]
+        new = _ledger(tmp / "new.json", 99)
+        _raises(lambda: trace.read_ledger(new, missing_ok=False), formats.FormatTooNew, "new.json", "schema_version = 99", "ledger format 1")
+        _raises(lambda: upward.code_path("x.py", {"instance": None, "ledger": str(new)}), upward.UpwardError, "schema_version = 99")
+        p = _py(ROOT / "harness" / "upward.py", "code", "x.py", "--ledger", new)
+        assert p.returncode == 2 and "schema_version = 99" in p.stderr and "Traceback" not in p.stderr, p.stderr
+        import mcp_server
+        tools = mcp_server.Tools()
+        tools.trace_cfg = {"instance": None, "ledger": str(new)}
+        _raises(lambda: tools.code_path({"path": "x.py"}), mcp_server.ToolError, "schema_version = 99")
+        if importlib.util.find_spec("rdflib") is not None:   # trace check opens its store before it reads the ledger
+            import example_instance
+            inst = example_instance.build(tmp / "inst")
+            env = {"KG_CLOCK": "pinned", "KG_STORE": "rdflib", "KG_RDFLIB_FILE": "", "KG_SUBJECT": str(inst / "subjects" / "cargo_quote")}
+            p = _py(ROOT / "harness" / "trace.py", "check", "--instance", inst, "--ledger", new, "--task", "codegen",
+                    "--as-of", "2026-11-04", env=env)
+            assert p.returncode == 2 and "schema_version = 99" in p.stderr and "Traceback" not in p.stderr, (p.returncode, p.stderr[-600:])
+
+
+def test_a_proposal_overlay_takes_an_optional_format_by_the_rule():
+    """task-0280: an overlay's top-level format is accepted (today it is an unknown field); missing reads as 1, a
+    newer one is refused, exit 2 on the CLI and an error answer from the MCP server."""
+    import proposal_impact
+    fixture = json.loads((ROOT / "tools" / "fixtures" / "proposal_contract_quote.json").read_text(encoding="utf-8"))
+    on = dt.date(2026, 11, 9)
+    base = proposal_impact.evaluate(fixture, today=on)
+    assert proposal_impact.evaluate({**fixture, "format": 1}, today=on)["coverage"] == base["coverage"]
+    _raises(lambda: proposal_impact.evaluate({**fixture, "format": 2}, today=on), proposal_impact.ProposalError,
+            "the proposal", "format = 2", "proposal format 1")
+    _raises(lambda: proposal_impact.evaluate({**fixture, "format": "1"}, today=on), proposal_impact.ProposalError, "format = '1'")
+    with tempfile.TemporaryDirectory() as t:
+        f = Path(t) / "p.json"
+        f.write_text(json.dumps({**fixture, "format": 2}), encoding="utf-8")
+        p = _py(ROOT / "harness" / "proposal_impact.py", f, "--no-store", "--as-of", "2026-11-09")
+        assert p.returncode == 2 and "format = 2" in p.stderr and "Traceback" not in p.stderr, p.stderr
+    import mcp_server
+    _raises(lambda: mcp_server.Tools().proposal_impact({"proposal": {**fixture, "format": 2}, "as_of": "2026-11-09"}),
+            mcp_server.ToolError, "format = 2")

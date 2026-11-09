@@ -147,7 +147,7 @@ It prints the same findings, each with its fix, and exits 0, 1 or 2 like the lay
 ### Format versions
 
 Each file you keep in your instance says which version of its format it is written in, so a
-knowgov never misreads a file written for a newer one. There are three places the number goes:
+knowgov never misreads a file written for a newer one. The number goes in five places:
 
 - **A subject**: `subject.toml` carries one number for the whole subject root. It covers
   `subject.toml` itself, `scenarios.toml`, `plants.toml`, `queries.toml` and the register map it
@@ -169,6 +169,11 @@ knowgov never misreads a file written for a newer one. There are three places th
   writes it when it stores an answer or a review. These files are records that are never edited,
   so each keeps the version it was written in, whatever happens to the subject's number later.
 
+- **The trace ledger** (`KG_LEDGER`, `--ledger`): its `schema_version` is its format. `harness/trace.py
+  register` writes it; `trace check` and the MCP tool `code_path` refuse a newer one.
+- **A proposal** (`harness/proposal_impact.py`, the MCP tool `proposal_impact`): an optional top-level
+  `format = 1`, as `instance/templates/proposal.toml` has it.
+
 In plain English:
 
 - **A file with no number is read as version 1, in every release.** Nothing you wrote before
@@ -177,7 +182,8 @@ In plain English:
 - **A file at the current version, or an older one, is read.**
 - **A file with a newer number is refused.** Every reader stops with exit 2, "cannot run", and
   names the file, the version it carries and the version this knowgov reads. That covers the gate,
-  the trace, the capture and review commands, the connector, the MCP server's `subject_check` and
+  the trace, the capture and review commands, the connector, `proposal_impact`, the MCP server's `subject_check`,
+  `code_path` and `proposal_impact` (as an error answer), and
   the two checks above. For example:
 
   ```text
