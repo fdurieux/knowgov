@@ -4,10 +4,10 @@ title: >-
   The contract validation pass before the 0.9.0 cut: every contract surface
   probed once with the battery and combination probes, the bounded re-probe, an
   independent spot check (decision-0032, G9-17)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-09T08:55:00Z'
-updated_date: '2026-11-09T21:13:00Z'
+updated_date: '2026-11-09T22:55:00Z'
 labels:
   - contracts
   - validation
@@ -25,10 +25,10 @@ decision-0032 (accepted 2026-11-09, the maintainer: "middle option, and yes, onl
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A surface list with its denominator is written, and every surface is ticked as probed with the battery and the combination probes that apply to it
-- [ ] #2 Every finding is reported with a reproduction and classified contract-bearing or fix-only; each contract-bearing finding has a task, is fixed, and its surfaces are re-probed with the same battery
-- [ ] #3 An independent spot check, by a reviewer who ran no part of the pass, probes a random sample of surfaces and its result is recorded
-- [ ] #4 The pass's report is filed as a backlog doc with the list, the findings, the re-probe and the spot check; fix-only findings are tasked for 0.9.x
+- [x] #1 A surface list with its denominator is written, and every surface is ticked as probed with the battery and the combination probes that apply to it
+- [x] #2 Every finding is reported with a reproduction and classified contract-bearing or fix-only; each contract-bearing finding has a task, is fixed, and its surfaces are re-probed with the same battery
+- [x] #3 An independent spot check, by a reviewer who ran no part of the pass, probes a random sample of surfaces and its result is recorded
+- [x] #4 The pass's report is filed as a backlog doc with the list, the findings, the re-probe and the spot check; fix-only findings are tasked for 0.9.x
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -90,4 +90,12 @@ Re-check of the second-round fixes, complete (decision-0032 point 4):
 - The pass report, doc-0036, is filed after task-0297's re-check.
 
 The spot check's re-check of task-0297 at f194aac: fixed, exhaustive over every code point in Python and in Node v22 (ICU 17.0), with and without u, 0 mismatches, no regression. It found N3 (the NFC and NFD spellings of a name are different keys), put to the maintainer. After 'In Belgium we have many French names with accents', the advice was re-evaluated to (a). Accepted as decision-0034 Amendment A2 ('N3 (a) as advised'), built as task-0301, which holds the cut. N4 (unassigned code points and noncharacters accepted) is a note; tests/test_key_rule.py regenerates against the running interpreter.
+
+Re-check of task-0301 (#446, ac64d59) by the spot check: N3 fixed, no regression; the record holds. Four fix-only findings, B1 to B4, are task-0309; B1 fails open, so it is pulled ahead of the cut with task-0308 (task-0302's re-check R1 to R3). No contract-bearing finding is open, so G9-17 is met (decision-0032 point 3).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+The contract validation pass is done (decision-0032). Round 1 by three fresh groups found 16 contract-bearing findings over 105 surfaces; six documented-promise fixes (task-0257 to task-0262), decision-0033's nine choices (task-0275 to task-0283) and the follow-ups from the re-probe, the spot check and the re-checks (task-0286 to task-0289, task-0292, task-0294 to task-0297, task-0301) are built, merged on whole green and re-checked by the session that found each, without regression. Fix-only findings are tasked: task-0263 to task-0272 and task-0290 to task-0300 for 0.9.x, and task-0308 and task-0309 pulled ahead of the cut. Report: doc-0036; G9-17 met in doc-0028. Not probed, by each session's account: doc-0036 §7.
+<!-- SECTION:FINAL_SUMMARY:END -->

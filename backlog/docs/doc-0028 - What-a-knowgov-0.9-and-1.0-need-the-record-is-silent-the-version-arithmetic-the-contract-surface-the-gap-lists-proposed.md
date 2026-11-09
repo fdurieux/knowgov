@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-09T14:12:00Z'
+updated_date: '2026-11-09T22:55:00Z'
 tags:
   - brief
   - release
@@ -117,10 +117,10 @@ Every item here is the maintainer's to meet.
 | G9-14 | met | task-0223 (#359) |
 | G9-15 | met | task-0224 (#362); `pumllint trace --features` smoke step in rdflib-readers |
 | G9-16 | met | task-0242 to task-0246 Done: #400 (R1, R3), #404 (R2), #406 (R4 and hygiene), each on a whole green matrix |
-| G9-17 | **open: four builds, then the re-probe and the spot check** | task-0256's first round is done: three groups, 16 distinct contract-bearing findings. Six keep a documented promise (task-0257 to task-0262), and nine are decision-0033's choices (accepted 2026-11-09, "all as advised": task-0275 to task-0283). In `main`: task-0257, task-0258, task-0259, task-0260, task-0261, task-0262, task-0276, task-0277, task-0280, task-0282 and task-0283 (#411, #416, #417, #419, #420, #421, #423, #425; train #426). Open: task-0275 (#418, its rows confirmed by the maintainer), task-0281 (#422), task-0278 and task-0279. Then the bounded re-probe (decision-0032 point 4), the independent spot check (point 5) and the pass report |
+| G9-17 | met (2026-11-09) | task-0256 done: round 1, the bounded re-probe, the independent spot check and the re-checks of every fix, reported in doc-0036. Every contract-bearing finding is fixed and re-checked, the last being task-0301 (#446, `ac64d59`). The fix-only findings are tasked; task-0308 and task-0309 are pulled ahead of the cut |
 
 **Left before the cut:**
-- **work**: G9-17's last four builds (task-0275 in #418, task-0281 in #422, task-0278 and task-0279), then the bounded re-probe by the original probers, the independent spot check and the pass report, doc-0036. Merged on 2026-11-09: #397 (task-0236, task-0181 AC #4 to #6); #399 (task-0241); G9-16 (#400, #404, #406); #402 (task-0252); and the pass's builds so far (#411, #412, #416, #421, #423, and train #426 carrying #414, #415, #417, #419, #420, #424, #425). The fix-only task-0268, task-0272 and task-0274 (SNAP-04, decision-0014 A1) landed with them;
+- **work**: G9-17 is met (doc-0036). Before the cut: the builds of decisions 0035, 0036 and 0037 (task-0303 to task-0307, from the functional review, doc-0037) and the fix-only task-0308 and task-0309 pulled ahead of it, each merged on a whole green matrix and re-checked;
 - **the maintainer's**: G9-3's Desktop test (2026-11-09);
 - **the release PR**: its Known limits. These are decision-0024's thirteen, decision-0021's K21, K10 unless the Desktop test closes it, and the tasked K16, K19, K22 and U1, with K1 at the current Landlock floor (ABI 3, task-0203).
 

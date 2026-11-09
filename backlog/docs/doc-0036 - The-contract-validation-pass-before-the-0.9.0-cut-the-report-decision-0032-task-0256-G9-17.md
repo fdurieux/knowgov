@@ -5,7 +5,7 @@ title: >-
   task-0256, G9-17)
 type: other
 created_date: '2026-11-09T21:24:00Z'
-updated_date: '2026-11-09T21:24:00Z'
+updated_date: '2026-11-09T22:55:00Z'
 ---
 # The contract validation pass before the 0.9.0 cut: the report (decision-0032, task-0256, G9-17)
 
@@ -17,7 +17,7 @@ Every contract-bearing finding but one is fixed on `main` at `f194aac`, and its 
 - by the round-1 probers in the bounded re-probe at `9861953`;
 - again after the second round of fixes (§5).
 
-The independent spot check found three choices for the maintainer, all accepted as decision-0034 and built. Its last re-check found N3 (NFC and NFD keys), accepted as decision-0034 A2 and building as task-0301: G9-17 is met when task-0301 is merged and re-checked, which this report records in an appendix. It also found one confinement bypass, task-0289, which is fixed. No fix regressed a surface. Fix-only findings are tasked for 0.9.x (§6).
+The independent spot check found three choices for the maintainer, all accepted as decision-0034 and built. Its last re-check found N3 (NFC and NFD keys), accepted as decision-0034 A2 and built as task-0301 (#446, `ac64d59`); the spot check re-checked it fixed, with no regression (§5). **G9-17 is met** (2026-11-09): no contract-bearing finding is open. The re-check's four fix-only findings, and one in task-0302's re-check, are pulled ahead of the cut by the coordinator because one fails open and the other breaks the binding promise (§6). It also found one confinement bypass, task-0289, which is fixed. No fix regressed a surface. Fix-only findings are tasked for 0.9.x (§6).
 
 ## 1. The surfaces and their denominator
 
@@ -121,7 +121,7 @@ Each fix was re-checked by the session that found it, at the `main` that carries
 | task-0295, scenario ids (D1) | #441, train #442 | spot check | `946c72e` | fixed, no regression; every reader refuses before it writes |
 | task-0296, one key rule (D3) | #440, train #442 | spot check | `946c72e` | fixed as specified; K1 found (below) |
 | task-0297, every control and format character, nothing above U+FFFF (K1, K2; decision-0034 A1) | #444 | spot check | `f194aac` | fixed, no regression; exhaustive over all 1,114,112 code points, Python and Node v22 (ICU 17.0) with and without `u`, 0 mismatches |
-| task-0301, keys in NFC (N3; decision-0034 A2) | building | spot check | | to be appended |
+| task-0301, keys in NFC (N3; decision-0034 A2) | #446 | spot check | `ac64d59` | fixed, no regression; N3's reproduction holds in all four forms (document × keys, NFC or NFD), every MCP read answers in NFC, K1 still refused after NFC, NFKC forms stay distinct, the record holds; B1 to B4 are fix-only (§6) |
 
 **K1** (the re-check of task-0296): other control and format characters passed the key rule, and the two engines' `\s` differed (K2). Put to the maintainer and accepted as decision-0034 Amendment A1 ("K1 (a) as advised"; "astral (a) as advised"), built as task-0297.
 
@@ -144,6 +144,14 @@ Each fix was re-checked by the session that found it, at the `main` that carries
 - task-0263's notes: PI-1 re-confirmed (B2-3).
 - task-0265's notes: the spot check's N1 and N2 (`subject_check`'s messages) and T1 (a `[scenario]` table read as no scenarios).
 
+**Pulled ahead of the cut** (fix-only; the coordinator pulls one that fails open or breaks a documented integrity promise, as with task-0289, task-0267, task-0264 and task-0302):
+- task-0308: task-0302's re-check (group 3, at `cee6833`). C2-1 is fixed. R1: a vanished capture's stem can name another issued handle (`X` and `X-n`), so an approval passes to another person. R2: the `gone` message's wording. R3: `check_act_binding.py --help`.
+- task-0309: task-0301's re-check (the spot check, at `ac64d59`).
+  - B1, which fails open: `--baseline` reads its levels as written, so an NFD baseline catches no regression.
+  - B2: `review.bind` reads a ruling's assertion id unnormalised.
+  - B3: 444 CJK compatibility code points, where the raw input and its NFC disagree on the key rule. 437 astral inputs are accepted, against decision-0034 A1.
+  - B4: no `duplicate` warning for a task's keys equal after NFC.
+
 None of them changes a contract.
 
 ## 7. Not probed, by every session's own account
@@ -152,3 +160,4 @@ None of them changes a contract.
 - GitLab on a real runner: task-0108, at the pilot.
 - The arms: off by rule.
 - A case-insensitive filesystem: Linux only.
+- task-0301's re-check: Neo4j (keys arrive normalised, read from the code); a pre-0.9 trace ledger entry spelled NFD (read from the code: fails closed); the capture CLI end to end (its functions run directly); `proposal_impact` and the page's register views with NFD keys (the same loader, read from the code).
