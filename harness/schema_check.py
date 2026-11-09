@@ -8,12 +8,14 @@ unknown keyword would turn the check into a rubber stamp. Modelled on pumllint's
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 SCHEMAS = Path(__file__).resolve().parent / "schemas"
 _ANNOTATIONS = {"$schema", "$id", "title", "description", "$comment"}
-_CONSTRAINTS = {"type", "required", "enum", "const", "minimum", "properties", "additionalProperties", "items", "$ref", "$defs"}
+_CONSTRAINTS = {"type", "required", "enum", "const", "minimum", "pattern", "minItems", "properties", "additionalProperties",
+                "items", "$ref", "$defs"}   # pattern and minItems: the MCP tools' inputSchema (task-0281)
 
 
 def load(name: str) -> dict:
@@ -60,6 +62,28 @@ def same(a: Any, b: Any) -> bool:
     return a == b
 
 
+def _ecma(pattern: str) -> str:
+    """JSON Schema's pattern is an ECMA-262 search, where a final ``$`` ends the string; Python's ``$``
+    also matches before a final newline, so ``"CAP-0001\\n"`` would pass. A final unescaped ``$`` becomes ``\\Z``."""
+    if pattern.endswith("$") and not pattern.endswith("\\$"):
+        return pattern[:-1] + r"\Z"
+    return pattern
+
+
+def _values(v: Any, s: dict, path: str, errors: list[str]) -> None:
+    """The keywords that read the value itself: enum, const, minimum, pattern, minItems."""
+    if "enum" in s and not any(same(v, e) for e in s["enum"]):
+        errors.append(f"{path}: {v!r} is not one of {s['enum']}")
+    if "const" in s and not same(v, s["const"]):
+        errors.append(f"{path}: {v!r} is not {s['const']!r}")
+    if "minimum" in s and isinstance(v, (int, float)) and v < s["minimum"]:
+        errors.append(f"{path}: {v} is below {s['minimum']}")
+    if "pattern" in s and isinstance(v, str) and re.search(_ecma(s["pattern"]), v) is None:
+        errors.append(f"{path}: {v!r} does not match {s['pattern']}")
+    if "minItems" in s and isinstance(v, list) and len(v) < s["minItems"]:
+        errors.append(f"{path}: {len(v)} item(s), fewer than {s['minItems']}")
+
+
 def _check(v: Any, s: dict, root: dict, path: str, errors: list[str]) -> None:
     if "$ref" in s:
         ref = s["$ref"]
@@ -71,12 +95,7 @@ def _check(v: Any, s: dict, root: dict, path: str, errors: list[str]) -> None:
         if not any(_type_ok(v, t) for t in types):
             errors.append(f"{path}: {type(v).__name__} is not {'/'.join(types)}")
             return
-    if "enum" in s and not any(same(v, e) for e in s["enum"]):
-        errors.append(f"{path}: {v!r} is not one of {s['enum']}")
-    if "const" in s and not same(v, s["const"]):
-        errors.append(f"{path}: {v!r} is not {s['const']!r}")
-    if "minimum" in s and isinstance(v, (int, float)) and v < s["minimum"]:
-        errors.append(f"{path}: {v} is below {s['minimum']}")
+    _values(v, s, path, errors)
     if isinstance(v, dict):
         for k in s.get("required", []):
             if k not in v:

@@ -89,12 +89,22 @@ names that section with the version.
   from a checkout without `KG_BUILD_DESCRIBE` names its commit but not its distance from the release.
   `demo/README.md` shows how to compare the chip with `git describe --tags --always`. Additive, and listed
   here because decision-0016 point 3 makes the page's HTTP API a 1.0 contract.
-- **The MCP servers refuse an argument a tool does not take** (task-0200, doc-0030 M5). Every tool's
-  input schema says `additionalProperties: false`; both servers, `knowgov` and `knowgov-runs`, now keep
-  it, on stdio and HTTP and in both protocol eras. A call naming an argument the tool does not list
-  answers the JSON-RPC error -32602, naming the argument and the ones the tool takes, and runs nothing.
-  Before, only `register_nodes` refused one: `gate_verdict {"senario": "S4"}` answered for the store's
-  scenario unguarded, and `start_run`'s `n` was set to 1 in silence.
+- **The MCP servers refuse any argument outside a tool's input schema** (task-0200, doc-0030 M5; task-0281,
+  decision-0033 choice 7(a)). Both servers, `knowgov` and `knowgov-runs`, keep every tool's `inputSchema`
+  before anything runs, on stdio and HTTP and in both protocol eras. A call answers the JSON-RPC error
+  -32602, naming the property, and runs nothing, when it:
+  - names an argument the tool does not list (`additionalProperties: false`);
+  - gives a value of the wrong type, outside an `enum`, not matching a `pattern`, below a `minimum` or
+    with fewer items than `minItems`;
+  - leaves out a `required` one;
+  - passes `arguments` that are not an object (`[]` and `""` are no longer read as `{}`).
+
+  A default applies only when the argument is absent. Before, a falsy value fell back to it:
+  `gate_verdict {"scenario": ""}` answered for the held scenario past its guard, and `walk: ""` read as
+  `dependants`. `gate_verdict {"senario": "S4"}` and `start_run`'s unknown arguments stay refused as
+  task-0200 made them. The page's `POST /api/run` refuses a body key outside `scenario`, `mode`, `n`,
+  `row`, `effort`, `as_of`, `by` and `subject` with 400, naming the key, so `as-of` no longer runs as of
+  the record date in silence. `harness/schema_check.py` gains `pattern` and `minItems`.
 
 - **Under `--baseline`, the gate's held findings are no longer annotated as errors** (task-0207,
   doc-0030 R8). With a baseline the gate exits on a regression only, yet `harness/annotate.py` marked

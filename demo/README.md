@@ -1074,6 +1074,8 @@ and answers with the rows.
 `POST /api/run`, `GET /api/scenarios`, `GET /api/subjects` and `POST /api/models/check`, with the fields
 this guide describes. Every other route serves the page itself and may change in any release
 (decision-0030).
+`POST /api/run`'s body takes `scenario`, `mode`, `n`, `row`, `effort`, `as_of`, `by` and `subject`, and
+nothing else: a body with any other key, such as `as-of`, is refused with 400, naming the key (task-0281).
 
 The token takes effect with an image built from this checkout (`docker compose up --build`) or a
 release after 0.2.0. A run or a projection is also refused when it comes from a page on another
