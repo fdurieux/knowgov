@@ -182,8 +182,8 @@
    "floor": 19
   },
   "harness/gate_cli.py::findings": {
-   "value": 78,
-   "floor": 78
+   "value": 60,
+   "floor": 60
   },
   "harness/gate_cli.py::render": {
    "value": 34,

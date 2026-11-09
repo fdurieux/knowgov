@@ -245,8 +245,78 @@ def used_content(st, ids: list[str]) -> list[dict]:
     return [{k: held[a][k] for k in ("id", "key", "value", "sha256")} for a in ids if a in held]
 
 
-def _finding(severity, kind, message, *, app=None, path=None, ref=None, related=()) -> dict:
-    return {"severity": severity, "kind": kind, "app": app, "path": path, "ref": ref, "related": list(related), "message": message}
+def _finding(severity, kind, message, *, app=None, path=None, ref=None, related=(), keys=None, carry=None) -> dict:
+    """A finding; ``keys``, the keys it rests on, gives it their owner and route (``_own``, task-0304), and ``carry``, a
+    gate finding, passes on the owner and route the gate gave it."""
+    f = {"severity": severity, "kind": kind, "app": app, "path": path, "ref": ref, "related": list(related), "message": message}
+    if keys:
+        f["_keys"] = list(keys)
+    for k in ("owner", "route"):
+        if carry is not None and k in carry:
+            f[k] = carry[k]
+    return f
+
+
+def entry_keys(e: dict) -> list[str]:
+    """The keys a ledger entry rests on, sorted: those it was registered on (--keys, --cited) and those of the
+    statements it recorded using (task-0303, task-0304)."""
+    used = e.get("used") if isinstance(e.get("used"), list) else []
+    keys = set(e.get("keys") or []) | {u["key"] for u in used if isinstance(u, dict) and u.get("key")}
+    return sorted({_nfc(k) for k in keys})   # task-0301: reported in NFC, a ledger written before it included
+
+
+def _keys_of(e: dict, ids: list[str], briefs: list[dict] | None = None) -> list[str]:
+    """The keys of the statements ``ids`` (by their briefs, else by the entry's own record of what it used), else the
+    entry's keys (task-0304)."""
+    rows = briefs if briefs is not None else (e.get("used") if isinstance(e.get("used"), list) else [])
+    return sorted({b["key"] for b in rows if isinstance(b, dict) and b.get("id") in ids and b.get("key")}) or entry_keys(e)
+
+
+def _routing(st, task: str):
+    """task-0304: the subject's key owners (``capture.finding_owners``, as the gate reads them) and the route a finding
+    names, the owner's questionnaire for the scenario the store holds and ``task``, as the gate report's (task-0102)."""
+    from capture import finding_owners, questionnaire_route
+    from subject import SUBJECT
+    owners = finding_owners(SUBJECT)
+    scenario = (st.held() or {}).get("scenario")
+
+    def route(unit, key):
+        return questionnaire_route(SUBJECT.id, scenario, task, unit, (owners.get(key) or {}).get("files"))
+    return owners, route if scenario else None   # no load held: no questionnaire to route to
+
+
+def _own(fs: list[dict], owners: dict, route) -> None:
+    """Each finding that rests on keys names their owner and route (``gate_cli.owner_route``); one that rests on none
+    names neither (task-0304)."""
+    import gate_cli
+    for f in fs:
+        keys = f.pop("_keys", None)
+        if keys:
+            f["owner"], f["route"] = gate_cli.owner_route(sorted(set(keys)), owners, route)
+
+
+def gate_identity(task: str) -> dict:
+    """What the trace's gate decided on, read as the gate report reads it (decision-0029, task-0304): the digest of the
+    subject's [tasks.<task>] table, the register's tag and commit, and this knowgov's build."""
+    import gate_cli
+    from subject import SUBJECT
+    table = dict(SUBJECT.tasks[task]) if task in SUBJECT.tasks else None
+    return {"task_profile": gate_cli.profile_digest(table), "register": gate_cli.register_identity(),
+            "knowgov": gate_cli.knowgov_identity()}
+
+
+def ledger_suspicion(st, entry: dict) -> dict:
+    """task-0303: whether a ledger entry is suspect on the store ``st`` holds, by the rule check reads
+    (``store.suspicion``: a statement it used now invalidated, or one it recorded now changed or no longer held),
+    from the entry's own record, with nothing registered or written: {status: read, suspect, used_invalidated,
+    used_changed}."""
+    import json
+    import store
+    used = [{"id": a, "status": (st.assertion_brief(a) or {}).get("status")} for a in entry.get("assertions") or []]
+    row = {"id": entry["id"], "kind": entry.get("kind", "code"), "sha256": entry["sha256"], "used": used,
+           "recorded": json.dumps(entry["used"]) if isinstance(entry.get("used"), list) else None}
+    [r] = store.suspicion(st, [row])
+    return {"status": "read", "suspect": r["suspect"], "used_invalidated": r["used_invalidated"], "used_changed": r["used_changed"]}
 
 
 def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None, commit: str | None = None,
@@ -263,6 +333,7 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
                                 e["used"] if isinstance(e.get("used"), list) else None)
     # task-0199 (doc-0030 R5, doc-0032 §6 item 6): suspect by the port's one read, the gate's and the MCP reader's
     sus = {d["id"]: d for d in st.suspect_derived()}
+    owners, route = _routing(st, task)   # task-0304: who answers for the keys a finding rests on
     now = {}
     fs: list[dict] = []
     scope_apps: set[str] | None = None
@@ -300,7 +371,8 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
             on = f", resting on the cited key(s) {', '.join(keys)}," if isinstance(e.get("keys"), list) else ""
             fs.append(_finding("blocker", "suspect", f"{e['path']} ({e['app']}), registered as {e['id']}{on} was built from {len(bad)} statement(s) "
                                f"now invalidated ({', '.join(bad)}); successors {', '.join(succ) or 'none'}: rebuild it from the current "
-                               "statements and register it again", app=e["app"], path=e["path"], ref=e["id"], related=bad))
+                               "statements and register it again", app=e["app"], path=e["path"], ref=e["id"], related=bad,
+                               keys=_keys_of(e, bad, used)))
         if changed:   # task-0199 (doc-0030 H6): the same id, another content, as after an edit and a reload
             was = {u["id"]: u for u in e.get("used") or []}
             if not now:
@@ -310,14 +382,15 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
                              + (f"{now[a]['value']!r} (sha256 {now[a]['sha256'][:12]})" if a in now else "no longer held") for a in changed)
             fs.append(_finding("blocker", "suspect", f"{e['path']} ({e['app']}), registered as {e['id']}, was built on statement(s) that "
                                f"changed under their id since: {what}: rebuild it from the current statements and register it again",
-                               app=e["app"], path=e["path"], ref=e["id"], related=changed))
+                               app=e["app"], path=e["path"], ref=e["id"], related=changed,
+                               keys=_keys_of(e, changed)))
         if not isinstance(e.get("used"), list):   # the read rule: an entry written before 0.9.0
             fs.append(_finding("info", "unbound", f"{e['path']} ({e['app']}), registered as {e['id']}, has a ledger entry from before 0.9.0: "
                                "it records ids only, so a change under the same id is not seen; register it again to bind it to content",
-                               app=e["app"], path=e["path"], ref=e["id"]))
+                               app=e["app"], path=e["path"], ref=e["id"], keys=entry_keys(e)))
         if state == "missing":
             fs.append(_finding("major", "missing", f"{e['path']} ({e['app']}), registered as {e['id']}, no longer exists",
-                               app=e["app"], path=e["path"], ref=e["id"]))
+                               app=e["app"], path=e["path"], ref=e["id"], keys=entry_keys(e)))
         elif state == "drift":
             by: dict[str, list[str]] = {}
             for b in used:
@@ -325,22 +398,23 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
             lst = f"{len(used)} statement(s): " + ", ".join(
                 f"{len(v)} {k}" + ("" if k in ("verified", "approved") else f" ({', '.join(sorted(v))})") for k, v in sorted(by.items()))
             fs.append(_finding("minor", "drift", f"{e['path']} ({e['app']}) changed since {e['id']}: it rested on {lst}; register the new version",
-                               app=e["app"], path=e["path"], ref=e["id"], related=[b["id"] for b in used]))
+                               app=e["app"], path=e["path"], ref=e["id"], related=[b["id"] for b in used], keys=entry_keys(e)))
     gate = None
     if ch is None or scope_apps or any(r["path"] in ch for r in rows):
         import gate_cli
         if resolve is None:
             from gate import resolve
         res = resolve(st, task, as_of) if as_of else resolve(st, task)
-        gate = {"task": task, "verdict": res["verdict"], "why": res["why"]}
+        gate = {"task": task, "verdict": res["verdict"], "why": res["why"], **gate_identity(task)}   # task-0304: what it decided on
         if res.get("as_of"):
             gate["as_of"] = res["as_of"]
         apps = sorted(scope_apps) if scope_apps is not None else sorted({e["app"] for e in led["entries"]})
-        for g in gate_cli.findings(res, block_levels or set()):
+        for g in gate_cli.findings(res, block_levels or set(), owners, route):   # task-0304: the gate's owner and route
             if g["kind"] == "suspect_derived":
                 continue
             fs.append(_finding(g["severity"], f"gate:{g['kind']}", f"{task}: {g['message']}",
-                               app=", ".join(apps) or None, ref=g.get("ref") or g.get("key"), related=g.get("related") or []))
+                               app=", ".join(apps) or None, ref=g.get("ref") or g.get("key"), related=g.get("related") or [], carry=g))
+    _own(fs, owners, route)
     order = ["suspect", "unknown_key", "malformed_citation", "unmapped", "uncited", "missing", "drift", "uncitable", "unbound"]
     fs.sort(key=lambda f: (SEVERITIES.index(f["severity"]), order.index(f["kind"]) if f["kind"] in order else len(order), f["path"] or "", f["ref"] or ""))
     counts = {s: sum(1 for f in fs if f["severity"] == s) for s in SEVERITIES}

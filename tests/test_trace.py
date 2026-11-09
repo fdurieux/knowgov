@@ -40,6 +40,9 @@ class FakeStore:
     def suspect_derived(self):
         return store.suspect_rows(store.suspicion(self, self._rows()))
 
+    def held(self):   # the port's read of the load the store holds (task-0195); none here, so a finding names no route
+        return None
+
     def assertion_brief(self, aid):
         return {"id": aid, "key": f"k{aid[2]}", "value": "1", "status": self.status[aid]} if aid in self.status else None
 

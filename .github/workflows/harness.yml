@@ -411,6 +411,7 @@ jobs:
           grep -c '^::error file=runs/wrap/instance/subjects/cargo_quote/subject.toml,line=1,title=knowgov gate suspect_derived derived%3AS1%3AG%3Arun1 (blocker)::' runs/wrap/gate-stage2.gh
           grep -c '^::warning file=runs/wrap/instance/subjects/cargo_quote/subject.toml,line=1,title=knowgov gate stale ' runs/wrap/gate-stage2.gh
           grep -c '^::error file=runs/wrap/instance/subjects/cargo_quote/vendor/stack_experiment/cargo_quote/reference_impl.py,line=1,title=knowgov trace suspect APP-0001 (blocker)::' runs/wrap/trace-check.gh
+          grep -c '^::error file=runs/wrap/instance/subjects/cargo_quote/vendor/stack_experiment/cargo_quote/reference_impl.py,line=1,title=knowgov trace suspect APP-0001 (blocker)::.* Owner: ORG-0001\. Route: ' runs/wrap/trace-check.gh   # task-0304
           python3 -c 'import json; cq=json.load(open("runs/wrap/trace-check.cq.json")); s=json.load(open("runs/wrap/gate-stage2.sarif")); r=s["runs"][0]["results"]; assert any(i["check_name"]=="knowgov-suspect" and i["severity"]=="blocker" and i["location"]["path"].endswith("cargo_quote/reference_impl.py") for i in cq), cq; assert s["version"]=="2.1.0" and {"suspect_derived","stale"} <= {x["ruleId"] for x in r}, r; print("code quality:", len(cq), "issues; SARIF:", len(r), "results")'
       - name: "A broken sequence diagram in the instance's repository (task-0106), after a story no subject names (task-0115)"
         run: |
