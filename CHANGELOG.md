@@ -424,6 +424,18 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **The servers survive deep nesting and answer JSON-RPC's protocol edge cases** (task-0272, decision-0032 group 2
+  F6, F11, F12; fixes, no contract moves).
+  - **Deep nesting.** A request nested past the parser's depth is now a parse error, not a `RecursionError`: -32700 on
+    both MCP servers (`knowgov`, `knowgov-runs`) and both transports, 400 on the page. The stdio loop answers the next
+    request.
+  - **Protocol edges.** An `id` that is not a string, a whole number or null is -32600. A `_meta` protocol version that
+    is not a string is -32602, rather than being read as the handshake era. Invalid UTF-8 in an HTTP body is -32700,
+    not a "replace" decode. The Bearer scheme is compared without regard to case on both servers and the page
+    (RFC 7235).
+  - **Content edges.** The page's startup line names the store in use (rdflib and its file under `KG_STORE=rdflib`).
+    `add_artefact`'s `file` refuses control characters, a backslash, `~`, absolute paths and `..`, as `subject_check`
+    confines a manifest's paths.
 - **Prioritisation inputs and refinement planning, and a proposal template** (task-0253, task-0255, doc-0034). `instance/README.md`
   gains "Feeding your prioritisation, and planning refinement": the facts knowgov gives a team's own method (WSJF, cost
   of delay, RICE), with the command that yields each, what it does not supply, and how to turn each slice's keys below
