@@ -1,0 +1,32 @@
+{
+ "title": "A credit check process no application supports yet (task-0241, coverage rule C4, synthetic)",
+ "nodes": [
+  {
+   "id": "PROC-0011",
+   "kind": "activity",
+   "name": "Check the shipper's credit",
+   "parent": "PROC-0001",
+   "owner": "ORG-0002",
+   "source": {
+    "system": "kit",
+    "kit_path": "kit/quote_process.bpmn",
+    "export": "exports/kit/2026-10-30",
+    "diagram": "kit/quote_process.bpmn"
+   }
+  }
+ ],
+ "links": [
+  {
+   "type": "realizes",
+   "source": "PROC-0011",
+   "target": "CAP-0003",
+   "rationale": "Screening the shipper includes its credit"
+  }
+ ],
+ "reused": [
+  {
+   "id": "CAP-0003",
+   "mode": "as_is"
+  }
+ ]
+}
