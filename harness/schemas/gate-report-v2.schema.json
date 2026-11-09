@@ -1,0 +1,162 @@
+{
+  "$comment": "gate-report.schema.json as it stood at version 2, frozen from commit 4c7fcb09fcb0037862f86facd89e95b9912d76e3 (task-0258): what a --baseline FILE written at version 2 is validated against before it is compared. Never edited.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/gate-report-v2.schema.json",
+  "title": "knowgov gate report",
+  "description": "What `python harness/gate_cli.py -f json` prints (task-0007): the gate's verdict for one task of one subject's scenario, its findings on the severity ladder, the threshold, the baseline comparison when one was asked for, and the exit code. Version 2 (task-0048); a change is additive or a new version. From version 1: a finding carries `kind` (key, task, stale, suspect_derived), `ref` (the statement or derived output it is about, null for a key or the task) and `related` (a stale statement's verified or approved successors; the invalidated statements a suspect derived output used); a stale statement on a required key is a finding (info when a verified or approved successor replaces it, major when none does) and a suspect derived output is a blocker, so both count toward --fail-on; `stale` and `suspect_derived` are lists of ids instead of counts; the baseline carries `new_suspect`, and a derived output suspect that the baseline did not hold suspect is a regression. A version-1 report still reads as a baseline, holding no derived output suspect. Added in version 2 (task-0049, additive, so not required: a report from before still validates): `version`, the version loaded, and `change`, --stage 2's change. Added since (task-0071, additive): `superseded_by`, each stale statement a verified or approved successor supersedes, with those successors. Added in version 2 (task-0068, decision-0005, additive): `as_of`, the date review currency was read on, and `lapsed`, the statements on required keys whose review has lapsed by then, each also a finding of kind `lapsed` (major). Added since, without a version change: findings of kind preload (info), when the load recorded pre-load verdicts (task-0064). Added since (task-0102, doc-0014 C7, additive, not required: a report from before still validates): a key, stale or lapsed finding carries `owner`, the key's owner unit from the subject's register_map.toml, and `route`, the route to approval (the owner's questionnaire). Added since (task-0110, additive, not required): a key finding on a declared gap carries `closer`, the unit that closes the gap (decision-0002), and its route names the close. Added since (task-0122, additive, not required): `register_change`, with --register-previous, what the register's update withdrew and the statements it invalidated, each also a stale finding naming the register's decision record, and the derived outputs that used them suspect.",
+  "type": "object",
+  "required": ["schema_version", "tool", "subject", "scenario", "task", "store", "loaded", "verdict", "why", "threshold", "findings", "counts", "keys", "conflicts", "stale", "suspect_derived", "levels", "baseline", "exit_code"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 2},
+    "tool": {"const": "knowgov gate"},
+    "subject": {"type": "string", "description": "the subject's id"},
+    "scenario": {"type": "string"},
+    "task": {"type": "string", "description": "the task class of the subject's [tasks] table"},
+    "store": {"type": "string", "description": "the store adapter the gate computed on: rdflib for the default load into the process's scratch store (decision-0017); KG_STORE's adapter with --publish or --no-load"},
+    "loaded": {"type": "boolean", "description": "true: the gate loaded the scenario first; false (--no-load): it read the configured store as it was"},
+    "published": {"type": "boolean", "description": "true (--publish): the load was published to the store KG_STORE names; false: that store is as it was (decision-0017). Absent with --no-load, from the MCP server's report (which equals --no-load's), and before 0.9.0"},
+    "version": {"type": ["string", "null"], "description": "the version loaded last (task-0049): v1 for stage 1, the subject's [scenario.stage2] version for --stage 2; with --no-load, the store's latest extraction"},
+    "change": {
+      "type": ["object", "null"],
+      "description": "--stage 2's change (task-0049); null for stage 1 or --no-load",
+      "required": ["artefact", "version", "invalidated", "reverified", "reverified_statements", "derived"],
+      "additionalProperties": false,
+      "properties": {
+        "artefact": {"type": "string", "description": "the changed artefact, re-ingested as its new version"},
+        "version": {"type": "string"},
+        "invalidated": {"type": "array", "items": {"type": "string"}, "description": "every statement R-STALE invalidated, by id, on a required key or not"},
+        "reverified": {"type": "boolean", "description": "true (--reverify): the owner's recorded re-verification ran before the gate"},
+        "reverified_statements": {"type": "array", "items": {"type": "string"}},
+        "derived": {"type": ["string", "null"], "description": "the earlier governed output registered as derived, from the subject's record; null when the record holds none"}
+      }
+    },
+    "register_change": {
+      "type": "object",
+      "description": "--register-previous's register change (task-0122): what the register's update withdrew, the keys resting on it and the statements it invalidated; absent without the flag",
+      "required": ["from", "to", "nodes", "links", "keys", "invalidated", "derived"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {"$ref": "#/$defs/register_source"},
+        "to": {"$ref": "#/$defs/register_source"},
+        "nodes": {"type": "array", "description": "every node that became deprecated or retired, or left the register", "items": {
+          "type": "object", "required": ["id", "from", "to", "reason"], "additionalProperties": false,
+          "properties": {"id": {"type": "string"}, "from": {"type": ["string", "null"]}, "to": {"type": ["string", "null"]},
+                         "reason": {"type": "string", "description": "the register's decision record for the change"}}}},
+        "links": {"type": "array", "description": "every link approved before and not approved now, or gone", "items": {
+          "type": "object", "required": ["id", "rel", "source", "target", "from", "to", "reason"], "additionalProperties": false,
+          "properties": {"id": {"type": "string"}, "rel": {"type": "string"}, "source": {"type": "string"}, "target": {"type": ["string", "null"]},
+                         "from": {"type": "string"}, "to": {"type": ["string", "null"]}, "reason": {"type": "string"}}}},
+        "keys": {"type": "array", "description": "the subject's keys resting on what was withdrawn: its map rows plus the register's dependants walk (decision 0016)", "items": {
+          "type": "object", "required": ["key", "owner", "reasons", "causes"], "additionalProperties": false,
+          "properties": {"key": {"type": "string"}, "owner": {"type": ["string", "null"]}, "reasons": {"type": "array", "items": {"type": "string"}},
+                         "causes": {"type": "array", "items": {"type": "string"}, "description": "the withdrawn nodes and links it rests on, by id"}}}},
+        "invalidated": {"type": "array", "items": {"type": "string"}, "description": "every statement the change invalidated, by id"},
+        "derived": {"type": ["string", "null"], "description": "the scenario's governed output registered as derived, from the subject's record; null when it holds none or nothing landed"}
+      }
+    },
+    "verdict": {"$ref": "#/$defs/verdict"},
+    "why": {"type": "string"},
+    "threshold": {"$ref": "#/$defs/severity"},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "counts": {
+      "type": "object",
+      "required": ["blocker", "critical", "major", "minor", "info"],
+      "additionalProperties": false,
+      "properties": {
+        "blocker": {"type": "integer", "minimum": 0},
+        "critical": {"type": "integer", "minimum": 0},
+        "major": {"type": "integer", "minimum": 0},
+        "minor": {"type": "integer", "minimum": 0},
+        "info": {"type": "integer", "minimum": 0}
+      }
+    },
+    "keys": {
+      "type": "object",
+      "required": ["total", "below_verified", "flagged"],
+      "additionalProperties": false,
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "below_verified": {"type": "integer", "minimum": 0},
+        "flagged": {"type": "integer", "minimum": 0},
+        "unintended": {"type": "integer", "minimum": 0, "description": "keys verified but not approved under a class that requires approved (task-0215); present only then"}
+      }
+    },
+    "conflicts": {"type": "integer", "minimum": 0},
+    "stale": {"type": "array", "items": {"type": "string"}, "description": "the invalidated statements on required keys, by id, superseded or not"},
+    "superseded_by": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}, "description": "each stale statement that a verified or approved successor supersedes, by id, with the successors' ids (task-0071): a reading of the store, never a stored status; a stale statement missing here still blocks its key"},
+    "suspect_derived": {"type": "array", "items": {"type": "string"}, "description": "the registered derived outputs that used a statement now invalidated, by id"},
+    "as_of": {"type": ["string", "null"], "description": "YYYY-MM-DD, the date review currency was read on (--as-of; decision-0005): today by default, the subject's pinned record date with --as-of record"},
+    "lapsed": {"type": "array", "items": {"type": "string"}, "description": "the statements on required keys whose review lapsed by as_of, by id: each reads validated until a new review (decision-0005)"},
+    "levels": {"type": "object", "additionalProperties": {"type": "string"}, "description": "every required key's level; what a later run's --baseline FILE compares with"},
+    "baseline": {
+      "type": ["object", "null"],
+      "required": ["source", "verdict", "regression", "worse_verdict", "regressed_keys", "new_suspect"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {"type": "string", "description": "record, or the path of the baseline file"},
+        "verdict": {"$ref": "#/$defs/verdict"},
+        "regression": {"type": "boolean"},
+        "worse_verdict": {"type": "boolean"},
+        "regressed_keys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key", "level", "baseline_level"],
+            "additionalProperties": false,
+            "properties": {
+              "key": {"type": "string"},
+              "level": {"type": "string"},
+              "baseline_level": {"type": ["string", "null"]}
+            }
+          }
+        },
+        "new_suspect": {"type": "array", "items": {"type": "string"}, "description": "derived outputs suspect now that the baseline did not hold suspect"}
+      }
+    },
+    "exit_code": {"enum": [0, 1]}
+  },
+  "$defs": {
+    "verdict": {"enum": ["PROCEED", "QUALIFIED", "BLOCKED"]},
+    "register_source": {"type": "object", "required": ["tag", "commit"], "additionalProperties": false,
+                        "properties": {"tag": {"type": "string"}, "commit": {"type": "string"}}},
+    "severity": {"enum": ["blocker", "critical", "major", "minor", "info"]},
+    "finding": {
+      "type": "object",
+      "required": ["severity", "kind", "key", "level", "flags", "ref", "related", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "severity": {"$ref": "#/$defs/severity"},
+        "kind": {"enum": ["key", "intended", "task", "stale", "suspect_derived", "lapsed", "act", "attestation", "lint", "preload"], "description": "key: a required key's level or flags; intended: under a task class that requires approved (require_approved, task-0215, decision-0018 point 4), a key verified but not approved, major, naming its owner and route; task: the task as a whole; stale: an invalidated statement on a required key; suspect_derived: a derived output that used an invalidated statement; lapsed: a statement on a required key whose review has lapsed (decision-0005), its verifications in related; act: a person's act a load did not apply as written (task-0199, doc-0032 §6): a ruling or close whose statement changed or vanished (major), a review file refused whole or one from before 0.9.0 bound by id only (info), the statements the store holds instead in related; attestation: a [verification] declaration that lists no Version, read per load (info, decision-0009 (a)), or an artefact Version a bound declaration does not attest, behind the keys in related (major, decision-0019, task-0221), its route the attester's listing; lint: one finding the pre-load check gave a document version behind the keys, kept as a gap (task-0216, decision-0018 point 5): the linter's severity at most major, info when the baseline holds it or a review resolved it as a choice or an exception, naming the document's owner and route; it never lowers a key's level; preload: a document behind the keys whose form the pre-load check left unchecked or found findings in (info, task-0064)"},
+        "key": {"type": ["string", "null"], "description": "the required key; null for a finding on the task as a whole or on a derived output"},
+        "level": {"type": ["string", "null"], "description": "the key's level; a stale statement's own status (invalidated)"},
+        "flags": {"type": "array", "items": {"type": "string"}},
+        "ref": {"type": ["string", "null"], "description": "the statement (stale, lapsed, act: the one the act names, or its gap; a refused file: the file) or derived output (suspect_derived) by id; null for a key or the task"},
+        "related": {"type": "array", "items": {"type": "string"}, "description": "stale: the verified or approved successors; suspect_derived: the invalidated statements it used; lapsed: the review verifications that lapsed"},
+        "message": {"type": "string"},
+        "owner": {"type": ["string", "null"], "description": "key, stale, lapsed, act on a key and attestation (task-0102, task-0199, task-0221): the unit that answers for the key, from the subject's register_map.toml (task-0043); null when no row maps the key or several units answer for it; absent on a report from before and on the other kinds"},
+        "route": {"type": ["string", "null"], "description": "key, stale, lapsed, act on a key and attestation (task-0102, task-0199, task-0221): the route to approval, the owner's questionnaire (task-0009): the command that writes it, the file the owner answers, its ingest and a review; null when that questionnaire does not cover the key (an agent-chosen key set's key outside the task class it was resolved under); on a declared gap it ends with the close by the closing unit (task-0110)"},
+        "held": {"type": "boolean", "description": "with --baseline only (task-0207, doc-0030 R8, additive, not required): false for a finding that is the regression (a key whose level fell, a derived output newly suspect; with a worse verdict, the task finding and every blocker), true for one the baseline held, which did not fail the command; absent without a baseline and on a report from before"},
+        "closer": {"type": ["string", "null"], "description": "key, on a declared gap (task-0110, decision-0002 point 3): the unit that closes the gap, the owner its declaration names, else the key's owners; null when that is no unit of the register or several; absent elsewhere and on a report from before"},
+        "lint": {"type": "object", "required": ["artefact", "version", "file", "tool", "tool_version", "rule", "severity", "line", "held", "resolution", "resolved_by", "resolved_on", "record"], "additionalProperties": false, "description": "lint (task-0216): the finding as the pre-load report gave it, and its resolution as a review recorded it (choice, exception, open; a slip is a new version, which holds no such finding); absent on the other kinds", "properties": {"artefact": {"type": "string"}, "version": {"type": "string"}, "file": {"type": ["string", "null"], "description": "relative to the instance"}, "tool": {"type": ["string", "null"]}, "tool_version": {"type": ["string", "null"]}, "rule": {"type": "string"}, "severity": {"enum": ["blocker", "critical", "major", "minor", "info"]}, "line": {"type": "integer", "minimum": 0}, "held": {"type": "boolean"}, "resolution": {"type": ["string", "null"], "enum": ["choice", "exception", "open", null]}, "resolved_by": {"type": ["string", "null"]}, "resolved_on": {"type": ["string", "null"]}, "record": {"type": ["string", "null"]}}},
+        "act": {"type": "object", "required": ["review", "act", "n", "outcome", "by", "on", "why", "from", "to", "reasons"], "additionalProperties": false,
+                "description": "act (task-0199, doc-0032 §6): the act as its review file records it and what the store holds instead; absent on the other kinds",
+                "properties": {
+                  "review": {"type": "string", "description": "the review file, relative to the subject root"},
+                  "act": {"enum": ["ruling", "close", "resolve", "review"], "description": "review: the file as a whole, refused; resolve: a lint gap's resolution (task-0216)"},
+                  "n": {"type": "integer", "description": "the act's place in its file, from 1; 0 for the file"},
+                  "outcome": {"type": "string"},
+                  "by": {"type": "string", "description": "the author's issued handle"},
+                  "on": {"type": "string"},
+                  "why": {"enum": ["changed", "gone", "ambiguous", "unbound", "refused"]},
+                  "from": {"type": "object", "required": ["value", "sha256"], "additionalProperties": false,
+                           "properties": {"value": {"type": "string"}, "sha256": {"type": "string"}},
+                           "description": "what the act ruled on: the value and the content digest its file records; empty under the read rule"},
+                  "to": {"type": "array", "description": "what the store holds instead: the statements of its key and stem, each with value and digest",
+                         "items": {"type": "object", "required": ["id", "value", "sha256"], "additionalProperties": false,
+                                   "properties": {"id": {"type": "string"}, "value": {"type": "string"}, "sha256": {"type": "string"}}}},
+                  "reasons": {"type": "array", "items": {"type": "string"}, "description": "refused: why"}}}
+      }
+    }
+  }
+}

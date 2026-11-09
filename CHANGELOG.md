@@ -11,6 +11,13 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **`gate_cli --baseline FILE` keeps its promise: an earlier report of the same run** (task-0258, G9-17). A report
+  baseline of another subject, scenario, task class or stage is refused with exit 2, naming the field and both
+  values. So is one whose `schema_version` is above this command's, under decision-0023's rule. Each report is
+  validated against the gate-report schema of its own version before it is compared; versions 1 and 2 are frozen
+  beside the current one. A malformed baseline names the file and its first error, never "the store did not
+  answer". `--baseline record` and a deterministic.json read as before, and the MCP reader still serves no report
+  baseline. The record does not move.
 
 - **One reading of every on/off setting** (task-0276, decision-0033 choice 2, G9-17). `harness/switches.py` lists
   them and reads each one: a flag (`KG_NO_LOAD`, `KG_PUBLISH`, `KG_ALLOW_UNCONTAINED_EXECUTION`, `KG_TRACEBACK`,
