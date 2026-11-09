@@ -115,6 +115,15 @@ def listing() -> list[dict]:
             for n, p in PROMPTS.items()]
 
 
+def _check_argument(a: dict, v: str) -> None:
+    """One argument's value: one token, and a ``file`` a path inside the instance (task-0272)."""
+    if not (FILE_TOKEN if a["name"] == "file" else TOKEN).fullmatch(v):
+        raise PromptError(f"{a['name']} {v!r} is not one token: {a['description']}")
+    why = file_refusal(v) if a["name"] == "file" else None
+    if why:
+        raise PromptError(f"file {v!r} {why}: {a['description']}")
+
+
 def get(name, arguments) -> dict:
     """prompts/get's result: one user message, the parts verbatim after a line naming the arguments."""
     if name not in PROMPTS:
@@ -134,11 +143,7 @@ def get(name, arguments) -> dict:
             if a["required"]:
                 raise PromptError(f"{name} needs {a['name']}: {a['description']}")
             continue
-        if not (FILE_TOKEN if a["name"] == "file" else TOKEN).fullmatch(v):
-            raise PromptError(f"{a['name']} {v!r} is not one token: {a['description']}")
-        why = file_refusal(v) if a["name"] == "file" else None
-        if why:
-            raise PromptError(f"file {v!r} {why}: {a['description']}")
+        _check_argument(a, v)
         named.append(f"{a['name']} `{v}`")
     have = parts()
     head = f"/{name} " + ("with " + ", ".join(named) if named else "with no arguments") + ".\n\n"
