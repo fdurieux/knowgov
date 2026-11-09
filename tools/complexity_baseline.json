@@ -38,8 +38,8 @@
    "floor": 20
   },
   "demo/app/server.py::Runner.start": {
-   "value": 33,
-   "floor": 33
+   "value": 31,
+   "floor": 31
   },
   "demo/app/views.py::_arm_colour": {
    "value": 18,
