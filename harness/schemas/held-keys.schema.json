@@ -104,7 +104,7 @@
    }
   },
   "gate": {
-   "description": "the task class's own verdict and why on its own required keys, gate_verdict's for the same store, class and as_of (task-0283); null when the store holds no key",
+   "description": "the task class's own verdict and why on its own required keys, gate_verdict's for the same store, class and as_of, whatever the store holds (task-0283, task-0292)",
    "type": [
     "object",
     "null"

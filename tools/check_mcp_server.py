@@ -595,10 +595,12 @@ def check_subject_tool(failures: list[str]) -> None:
             # H7 (task-0196): a manifest naming a path outside the call is refused, with nothing of the server in it
             escape = dict(args, subject_toml=args["subject_toml"].replace('path = "requirements.md"', f'path = "{ROOT / "README.md"}"'),
                           documents={**args["documents"], "x/../subject.toml": "[subject]\nid = \"over\"\n"})
-            for bad in (dict(escape, documents=args["documents"]), dict(args, documents=escape["documents"])):
+            alias = dict(args, subject_toml='[register]\nmap = "subject.toml"\n', register_map_toml=escape["subject_toml"])   # task-0289
+            for bad in (dict(escape, documents=args["documents"]), dict(args, documents=escape["documents"]), alias):
                 r = client.request("tools/call", {"name": "subject_check", "arguments": bad})["result"]
                 if not r.get("isError") or "structuredContent" in r:
-                    failures.append(f"subject_check over {kind.__name__}: a path outside the call was not refused (H7)")
+                    failures.append(f"subject_check over {kind.__name__}: a path outside the call, or a map aliasing the manifest, "
+                                    "was not refused (H7, task-0289)")
             if kind is HttpClient:   # the stateless era over HTTP needs its headers; stdio carries it here
                 check_refusal_closes(client, failures)
                 continue
@@ -771,6 +773,28 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
           f"{ALLOWLIST.name} admits {mcp_server.SERVER['name']}")
 
 
+def held_gate_only(scenarios: list[str]) -> int:
+    """task-0292: on each scenario loaded, held_keys' gate equals gate_verdict under every task class, whatever the
+    store holds (minimal S0's holds no key: gate_verdict BLOCKED, held_keys' gate the same, never null)."""
+    failures = []
+    for sc in scenarios:
+        load = gate_cli("--scenario", sc, "--as-of", "record", "--publish", "-f", "json")
+        if load.returncode == 2:
+            failures.append(f"{sc}: gate_cli could not load: {load.stderr.strip()}")
+            continue
+        client = StdioClient()
+        try:
+            held = client.call("held_keys", {"scenario": sc, "as_of": "record"})
+            failures.extend(held_gate_failures(client, sc, sc, held))
+            print(f"{sc}: held_keys holds {held['total']} key(s); its gate {held['gate']['verdict'] if held['gate'] else None}")
+        finally:
+            client.close()
+    for f in failures:
+        print(f"FAIL {f}")
+    print("held_keys' gate: " + ("every check holds" if not failures else f"{len(failures)} failure(s)"))
+    return 1 if failures else 0
+
+
 def held_gate_failures(client, sc: str, label: str, held: dict) -> list[str]:
     """task-0283: held_keys' gate is each task class's own verdict and why, gate_verdict's for the same store,
     class and as_of, never the held key set gated as if every held key were required."""
@@ -851,6 +875,9 @@ def census() -> dict:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--scenarios", help="comma-separated scenario ids (default: every scenario of the subject)")
+    ap.add_argument("--held-gate-only", action="store_true",
+                    help="only held_keys' gate against gate_verdict, every task class (task-0292): for a subject with "
+                         "no record or documents, such as minimal, whose store holds no key")
     args = ap.parse_args(argv)
     if (os.environ.get("KG_STORE") or "neo4j").lower() == "rdflib" and not os.environ.get("KG_RDFLIB_FILE"):
         os.environ["KG_RDFLIB_FILE"] = str(Path(tempfile.mkdtemp(prefix="kg-mcp-")) / "store.ttl")
@@ -859,6 +886,8 @@ def main(argv: list[str] | None = None) -> int:
     from subject import SUBJECT
     os.environ.update(cadence.pin_record({}))   # the record's day, the wall clock refused (task-0075)
     scenarios = args.scenarios.split(",") if args.scenarios else list(SUBJECT.order)
+    if args.held_gate_only:
+        return held_gate_only(scenarios)
     failures = []
     ex = example_trace(failures)
     for sc in scenarios:

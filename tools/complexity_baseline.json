@@ -390,8 +390,8 @@
    "floor": 18
   },
   "harness/subject_check.py::plan": {
-   "value": 23,
-   "floor": 23
+   "value": 16,
+   "floor": 16
   },
   "harness/task_policy.py::problems": {
    "value": 34,
@@ -542,8 +542,9 @@
    "floor": 18
   },
   "tools/check_mcp_server.py::main": {
-   "value": 42,
-   "floor": 42
+   "value": 43,
+   "floor": 42,
+   "reason": "the --held-gate-only dispatch (task-0292): one branch to the held_keys-only check for a subject with no record, minimal S0"
   },
   "tools/check_node_statements.py::main": {
    "value": 19,

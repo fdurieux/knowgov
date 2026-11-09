@@ -111,8 +111,8 @@ def test_a_malformed_report_names_the_file_and_its_first_error_never_the_store()
 def test_the_record_and_a_deterministic_json_read_as_before():
     base, source = gate_cli._baseline("record", Subject(), "S1", "codegen")
     assert source == "record" and base["verdict"] in gate_cli.VERDICTS
-    det = json.loads((Subject.record_dir / "S1" / "deterministic.json").read_text(encoding="utf-8"))
-    assert _read(det, scenario="S2", task="design", stage=2)[0] == base   # the record's file, checked by its path, not as a report
+    own = gate_cli._baseline(str(Subject.record_dir / "S1" / "deterministic.json"), Subject(), "S1", "codegen")
+    assert own[0] == base   # the record's own file, named by its path, reads as the record (task-0286 holds it to the run)
 
 
 def test_gate_cli_refuses_another_scenarios_report_before_the_store():

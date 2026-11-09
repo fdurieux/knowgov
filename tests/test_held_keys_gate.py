@@ -56,15 +56,28 @@ def test_the_gate_is_the_task_classs_own_verdict_on_its_own_keys():
     assert all(r["level"] == "proposed" for r in rep["keys"])   # the levels still the held set's
 
 
-def test_an_empty_store_has_no_gate():
-    rep, calls, _ = _run([])
-    assert rep["gate"] is None and calls == []
+def test_a_store_holding_no_key_still_has_the_classs_own_gate():
+    """task-0292 (group 2's re-probe): on minimal S0, holding no key, the field was null where gate_verdict gives
+    BLOCKED; it is now the class's own verdict whatever the store holds."""
+    from tasks import TASKS
+    task = sorted(TASKS)[0]
+    rep, calls, _ = _run([], task)
+    assert calls == [(task, list(TASKS[task]["keys"]))]   # no held-set evaluation, the class's own still
+    assert rep["gate"]["task"] == task and rep["gate"]["verdict"] == "PROCEED" and rep["keys"] == []
+
+
+def test_with_no_task_class_the_gate_is_null_and_nothing_is_evaluated():
+    rep, calls, _ = _run(["Extra|one"], task=None)
+    assert rep["gate"] is None and calls == [] and rep["keys"][0]["level"] is None
 
 
 def test_the_description_and_the_schema_say_what_the_field_is():
     import json
     src = (ROOT / "harness" / "mcp_server.py").read_text(encoding="utf-8")
     assert "gate is gate_verdict's verdict and why for the task class itself" in src
+    assert "null only when the subject declares no task class" in src
     schema = json.loads((ROOT / "harness" / "schemas" / "held-keys.schema.json").read_text(encoding="utf-8"))
     assert "own required keys" in schema["properties"]["gate"]["description"]
+    assert "whatever the store holds" in schema["properties"]["gate"]["description"]
+    assert "task-0292" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
     assert "task-0283" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
