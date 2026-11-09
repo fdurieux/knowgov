@@ -11,7 +11,8 @@ Three kinds of input carry a version:
 
 The rule, the same for every reader:
 
-- a missing version reads as the current one (until 1.0, decision-0023);
+- a missing version reads as version 1, in every release (``MISSING``; decision-0023 Amendment A1): the version a
+  file was written under before versions existed, never reinterpreted when a format's current number moves;
 - an equal or lower one is read (none lower exists yet: a migration note follows the first time one moves);
 - a higher one is refused, ``FormatTooNew``, naming the file, its version and the one this knowgov reads; the
   commands answer it with exit 2, "cannot run" (``harness/cli_exit.py``, ``tools/_outcomes.py``), never a misreading;
@@ -25,6 +26,9 @@ from __future__ import annotations
 # what this knowgov writes and reads, per kind of input; a kind moves its own number
 CURRENT = {"subject": 1, "code_map": 1, "connectors": 1, "capture": 1, "review": 1}
 SUBJECT, CODE_MAP, CONNECTORS, CAPTURE, REVIEW = "subject", "code_map", "connectors", "capture", "review"
+# decision-0023 Amendment A1: a file that names no version reads as version 1, for every kind and in every
+# release; held apart from CURRENT, which moves when a format does
+MISSING = 1
 
 
 class FormatError(ValueError):
@@ -49,7 +53,7 @@ def declared(doc: dict, kind: str):
 
 
 def version(doc: dict, where: str, kind: str) -> int:
-    """The version ``doc`` (the parsed ``where``) is read at: its own, or the current one when it names none.
+    """The version ``doc`` (the parsed ``where``) is read at: its own, or ``MISSING`` (1) when it names none.
     Raises ``FormatTooNew`` for a newer one and ``FormatError`` for one that is not a version."""
     cur = CURRENT[kind]
     try:
@@ -57,7 +61,7 @@ def version(doc: dict, where: str, kind: str) -> int:
     except FormatError as e:
         raise FormatError(f"{where}: {e}") from None
     if v is None:
-        return cur
+        return MISSING
     key = "[format] version" if kind == SUBJECT else "format"
     if isinstance(v, bool) or not isinstance(v, int) or v < 1:
         raise FormatError(f"{where}: {key} = {v!r} is not a format version (a whole number, 1 or more)")
