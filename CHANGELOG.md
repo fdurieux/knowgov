@@ -17,7 +17,7 @@ names that section with the version.
   the `inputSchema` pattern alike. The bidi marks and overrides (U+200E, U+202E), the soft hyphen, U+2061, U+180E,
   NUL and U+001C to U+001F, U+0085 are refused, on the wire as -32602 and in `check_subject` as an error. Before,
   they passed and read absent at the gate, and a JavaScript client's `\s` let U+001C through. Combining marks are
-  kept. A character beyond U+FFFF is refused by every engine alike. Every public key still matches, and the record
+  kept. Keys use characters up to U+FFFF only: one above it is refused by every engine alike (decision-0034). Every public key still matches, and the record
   does not move.
 
 - **Two more settings are contracts, and the settings table reaches every one the code reads** (task-0294,

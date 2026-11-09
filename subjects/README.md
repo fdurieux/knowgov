@@ -316,7 +316,8 @@ F5). It refuses (exit 1) a table or field this file does not document, a task wi
 not a list of gate levels, `keys` not a list of keys, `max_unverified_share` outside 0 to 1, a
 `require_approved` that is not true or false; `harness/task_policy.py`, the validator the gate itself uses,
 task-0242), a task class named `keys` or outside `[a-z][a-z0-9_-]{0,31}` (rule `task-class`, task-0278), a key that
-is not `<entity>|<predicate>`, a task with no
+is not `<entity>|<predicate>` (each side non-empty, of characters up to U+FFFF with no `|`, space, control or format
+character; `harness/key_rule.py`, task-0297), a task with no
 scenario, a `register_map.toml` node the register does not hold or an `owner` of none of its row's
 nodes, a mapper that cannot read its document, and a claim that is not `observed`, `inferred` or
 `intended` (task-0214). It warns on a required key no document yields

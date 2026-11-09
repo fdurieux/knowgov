@@ -1,7 +1,8 @@
 """The one rule for a knowledge key, ``entity|attribute`` (task-0296, decision-0034 choice 3(a); task-0297, its
 Amendment A1).
 
-Each side of the ``|`` is non-empty and holds only characters of the Basic Multilingual Plane outside these
+Each side of the ``|`` is non-empty and holds only characters up to U+FFFF (the Basic Multilingual Plane; every
+character above it is refused, the maintainer's "astral (a) as advised", decision-0034) outside these
 general categories: Cc (control characters, NUL, U+001C to U+001F and U+0085 included), Cf (format characters:
 the zero-width ones, the bidi marks and overrides such as U+200E and U+202E, the soft hyphen U+00AD, U+2061,
 U+180E, U+FEFF), Zs, Zl and Zp (every space and line or paragraph separator), and Cs (surrogates); and no ``|``.
@@ -30,9 +31,9 @@ SIDE = rf"[{ALLOWED}]+"
 PATTERN = rf"^{SIDE}\|{SIDE}$"
 KEY_RE = re.compile(rf"{SIDE}\|{SIDE}")   # for fullmatch: PATTERN's body, unanchored
 REFUSED_CATEGORIES = ("Cc", "Cf", "Zs", "Zl", "Zp", "Cs")
-DESCRIPTION = ("entity|attribute: one '|', each side non-empty, of characters in the Basic Multilingual Plane with "
-               "no '|', no space or separator and no control or format character (Unicode categories Cc, Cf, Zs, "
-               "Zl, Zp)")
+DESCRIPTION = ("entity|attribute: one '|', each side non-empty, of characters up to U+FFFF (the Basic Multilingual "
+               "Plane; none above it) with no '|', no space or separator and no control or format character "
+               "(Unicode categories Cc, Cf, Zs, Zl, Zp)")
 
 
 def is_key(value) -> bool:
