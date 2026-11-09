@@ -18,6 +18,10 @@ Every gate runs ``--as-of`` ON with KG_TODAY ON and the clock pinned (task-0075)
 - Item 8, renumbered answers (S2'): employee-1's answers ruled on as in the review walkthrough, then the
   capture's first answer moved last, so every answer has another id: the approvals follow their content (PROCEED, no
   act), and none lands on the answer that now carries the old id.
+- task-0302 (decision-0032 C2-1): employee-2 approves employee-1's answer on ``response|hold_presence``, its capture
+  is deleted and employee-3 gives the identical answer: a captured answer's digest is the empty text's, yet the
+  approval does not move to another person's answer (not approved, a major ``gone`` act naming the vanished id);
+  employee-1 giving it again on another day carries it (the same giver repairs).
 - Item 7 at stage 2 (S6): employee-3 approves P2's surcharge (316.00); ``--stage 2`` re-extracts the tariff
   change: the ruling is not moved onto the successor (341.00) and is an ``act`` finding naming both.
 - I4: employee-3 approving the model's statement on S5 is refused (rejecting it is not).
@@ -190,6 +194,28 @@ def main(out: Path) -> int:
     if f"{cap}:1@capture" in moved:
         errs.append(f"renumbered answers: the approval of answer 1 stayed on its id, which now carries another answer: {moved}")
     print(f"    {before['verdict']} -> {after['verdict']}; {w.OUT} approved on {sorted(moved)}")
+
+    print("== task-0302: an approved answer's capture deleted, then another person's identical answer (S2')")
+    hold = "response|hold_presence"
+    for who, on, repairs in (("employee-3", ON, False), ("employee-1", ON, True)):
+        env = fresh(out, f"giver-{who}", decided=True)
+        d = out / f"giver-{who}"
+        cap = w.answer(env, d)
+        capdir = d / "subjects" / "cargo_quote" / "captures"
+        capfile = next(capdir.glob("*.toml"))
+        n = 1 + [a["key"] for a in tomllib.loads(capfile.read_text(encoding="utf-8"))["answer"]].index(hold)
+        ruled = f"{cap}:{n}@capture"
+        w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
+        capfile.unlink()   # the approved answer's capture gone; an identical answer given again, by another person or the same
+        again = w.answer(env, d, handle=who, on=on, want={hold: "held_unscreened only"})
+        got = {k: v for k, v in approvals(env, "S2", hold).items() if v}
+        gone = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "gone"]
+        if repairs and (not any(k.startswith(again) for k in got) or gone):
+            errs.append(f"task-0302: the same giver's re-ingested answer should carry the approval; got {got}, acts {gone}")
+        if not repairs and (got or len(gone) != 1 or gone[0]["severity"] != "major"):
+            errs.append(f"task-0302: {who}'s identical answer inherited employee-1's approval: approved {got}, gone acts {gone}")
+        print(f"    {who} again on {on}: approved on {sorted(got) or 'nothing'}; "
+              f"{gone[0]['severity'] + ' act: ' + gone[0]['message'] if gone else 'no gone act'}")
 
     print("== item 7 at stage 2 (S6): a ruling on P2's surcharge, then the tariff change")
     env = fresh(out, "s6", decided=False)
