@@ -506,6 +506,14 @@ names that section with the version.
   repeated `--task-for` stage and a `--timeout` that is not a finite number above 0; resolves `--knowgov` and
   `KG_HOME` to absolute paths. `attestation_paths.py` reads NotebookEdit like every other write tool and compares
   names case-folded, so `Register/`, `Captures/` and `Preload-Baseline.json` are guarded on macOS. Settings unchanged.
+- **A Neo4j read never answers a generation before its data has arrived** (SNAP-11, task-0274; decision-0014, amendment
+  A1, accepted 2026-11-09). Under racing writers, a reader could pin a newly published generation while Neo4j was still
+  applying the writer's commit, and read it with records missing: CI's SNAP-04 saw S2's counts with no
+  extraction activity. Neo4j had shown the publication's `end`, written in the same transaction, before the
+  transaction's last records. `end` is now set in a transaction of its own once the unit's commit has returned,
+  so readers wait until the data is all there. Every open gap is closed forward (`end = begin`): a writer killed
+  between its commit and that step is refused while its lease is live, then recovered and read whole. No shape
+  changes; the guarantee decision-0014 documents now holds.
 - **Prioritisation inputs and refinement planning, and a proposal template** (task-0253, task-0255, doc-0034). `instance/README.md`
   gains "Feeding your prioritisation, and planning refinement": the facts knowgov gives a team's own method (WSJF, cost
   of delay, RICE), with the command that yields each, what it does not supply, and how to turn each slice's keys below
