@@ -275,69 +275,82 @@ RACE_11, READERS_11 = 24, 6   # SNAP-11's race: on the code before it, every suc
 
 
 def snap_11(s1: str, s2: str, g1: dict, g2: dict) -> None:
-    """a generation is never visible before its data. On Neo4j a writer is held between its unit's
-    commit and closing the gap: the data is committed, yet ``begin`` stays above ``end`` and a read is refused
-    (never the new data under a published number); one killed there is refused, then recovered forward and read
-    whole; then RACE_11 publications under READERS_11
-    readers (S1 and S2 in turn), every read a complete generation."""
-    import store
-    states = {json.dumps(x, sort_keys=True) for x in (g1, g2)}
+    """A generation is never visible before its data. On Neo4j a writer is held between its unit's commit and
+    closing the gap: the data is committed, yet ``begin`` stays above ``end`` and a read is refused (never the new
+    data under a published number); one killed there is refused, then recovered forward and read whole. Then, on
+    both stores, RACE_11 publications under READERS_11 readers (S1 and S2 in turn), every read a complete generation."""
     if kind() == "neo4j":
-        import store_neo4j
-        seen: dict = {}
+        _snap_11_held(s2, g2)
+        _snap_11_killed(s1, s2, g2)
+    _snap_11_race(s1, s2, {json.dumps(x, sort_keys=True) for x in (g1, g2)})
 
-        def at_commit(unit):
-            p = store_neo4j.publication()
-            seen["pair"] = (p.get("begin"), p.get("end"))
-            seen["nodes"] = store_neo4j.committed_nodes()
-            try:
-                with _env(KG_NEO4J_READ_WAIT="0"):
-                    store.read(snapshot, instance=_sid(), attempts=1)
-                seen["read"] = "answered"
-            except store.StoreBusy:
-                seen["read"] = "refused"
-        saved = getattr(store_neo4j, "_on_committed", None)   # absent on an adapter from before: the check then fails, never crashes
-        store_neo4j._on_committed = at_commit
-        try:
-            got = publish(s2)
-        finally:
-            store_neo4j._on_committed = saved
-        pair = seen.get("pair") or (None, None)
-        check(pair[0] is not None and pair[0] == pair[1] + 1 and seen.get("nodes") == g2["nodes"] and seen.get("read") == "refused",
-              f"SNAP-11 between the unit's commit and end = begin the data is in ({seen.get('nodes')} nodes) and the gap open "
-              f"({pair}): a read is refused, never the new data under a published number: {seen.get('read')}")
-        p = _pub()
-        check(got == g2 and p.get("begin") == p.get("end"), f"SNAP-11 then the gap closes and the new generation is read whole: {p.get('begin')}, {p.get('end')}")
-        # a writer killed between its unit's commit and end = begin: its data is in, its gap open; while its
-        # lease is live a read is refused, and once it has run out a read closes the gap forward and answers
-        # the committed data whole, never a generation read before the data arrived
-        publish(s1)
-        code = (f"import os, sys; sys.path[:0] = [{str(ROOT / 'harness')!r}, {str(ROOT / 'tools')!r}]\n"
-                "import check_snapshots as c, store_neo4j\n"
-                "store_neo4j._on_committed = lambda u: os._exit(9)\n"
-                "st = c.opener('write')\n"
-                f"c.load(st, {s2!r})\n"
-                "st.commit()\n"
-                "os._exit(3)   # it closed the gap: not the case this sets up\n")
-        t0 = time.monotonic()
-        proc = subprocess.run([sys.executable, "-c", code], env={**os.environ, "KG_NEO4J_LEASE_SECONDS": f"{LEASE_08:g}"},
-                              capture_output=True, text=True, timeout=600)
-        before = _pub()
-        check(proc.returncode == 9 and before.get("begin") == before.get("end", 0) + 1,
-              f"SNAP-11 a writer killed between its commit and closing the gap leaves it open: exit {proc.returncode}, "
-              f"begin {before.get('begin')}, end {before.get('end')} {proc.stderr[-200:]}")
+
+def _snap_11_held(s2: str, g2: dict) -> None:
+    """A writer held between its unit's commit and closing the gap: the data in, the gap open, a read refused."""
+    import store
+    import store_neo4j
+    seen: dict = {}
+
+    def at_commit(unit):
+        p = store_neo4j.publication()
+        seen["pair"] = (p.get("begin"), p.get("end"))
+        seen["nodes"] = store_neo4j.committed_nodes()
         try:
             with _env(KG_NEO4J_READ_WAIT="0"):
                 store.read(snapshot, instance=_sid(), attempts=1)
-            check(False, "SNAP-11 while the killed writer's lease is live a read is refused (StoreBusy)")
+            seen["read"] = "answered"
         except store.StoreBusy:
-            check(True, "SNAP-11 while the killed writer's lease is live a read is refused (StoreBusy)")
-        time.sleep(max(0.0, LEASE_08 + 0.5 - (time.monotonic() - t0)))
-        after = read_now()
-        p = _pub()
-        check(after == g2 and p.get("begin") == p.get("end") == before.get("begin") and p.get("owner") is None,
-              f"SNAP-11 once its lease has run out a read closes the gap forward and answers the committed data whole: "
-              f"held {after.get('held')}, begin {p.get('begin')}, end {p.get('end')}")
+            seen["read"] = "refused"
+    saved = getattr(store_neo4j, "_on_committed", None)   # absent on an adapter from before: the check then fails, never crashes
+    store_neo4j._on_committed = at_commit
+    try:
+        got = publish(s2)
+    finally:
+        store_neo4j._on_committed = saved
+    pair = seen.get("pair") or (None, None)
+    check(pair[0] is not None and pair[0] == pair[1] + 1 and seen.get("nodes") == g2["nodes"] and seen.get("read") == "refused",
+          f"SNAP-11 between the unit's commit and end = begin the data is in ({seen.get('nodes')} nodes) and the gap open "
+          f"({pair}): a read is refused, never the new data under a published number: {seen.get('read')}")
+    p = _pub()
+    check(got == g2 and p.get("begin") == p.get("end"), f"SNAP-11 then the gap closes and the new generation is read whole: {p.get('begin')}, {p.get('end')}")
+
+
+def _snap_11_killed(s1: str, s2: str, g2: dict) -> None:
+    """A writer killed between its unit's commit and end = begin: its data is in, its gap open; while its lease is
+    live a read is refused, and once it has run out a read closes the gap forward and answers the data whole."""
+    import store
+    publish(s1)
+    code = (f"import os, sys; sys.path[:0] = [{str(ROOT / 'harness')!r}, {str(ROOT / 'tools')!r}]\n"
+            "import check_snapshots as c, store_neo4j\n"
+            "store_neo4j._on_committed = lambda u: os._exit(9)\n"
+            "st = c.opener('write')\n"
+            f"c.load(st, {s2!r})\n"
+            "st.commit()\n"
+            "os._exit(3)   # it closed the gap: not the case this sets up\n")
+    t0 = time.monotonic()
+    proc = subprocess.run([sys.executable, "-c", code], env={**os.environ, "KG_NEO4J_LEASE_SECONDS": f"{LEASE_08:g}"},
+                          capture_output=True, text=True, timeout=600)
+    before = _pub()
+    check(proc.returncode == 9 and before.get("begin") == before.get("end", 0) + 1,
+          f"SNAP-11 a writer killed between its commit and closing the gap leaves it open: exit {proc.returncode}, "
+          f"begin {before.get('begin')}, end {before.get('end')} {proc.stderr[-200:]}")
+    try:
+        with _env(KG_NEO4J_READ_WAIT="0"):
+            store.read(snapshot, instance=_sid(), attempts=1)
+        check(False, "SNAP-11 while the killed writer's lease is live a read is refused (StoreBusy)")
+    except store.StoreBusy:
+        check(True, "SNAP-11 while the killed writer's lease is live a read is refused (StoreBusy)")
+    time.sleep(max(0.0, LEASE_08 + 0.5 - (time.monotonic() - t0)))
+    after = read_now()
+    p = _pub()
+    check(after == g2 and p.get("begin") == p.get("end") == before.get("begin") and p.get("owner") is None,
+          f"SNAP-11 once its lease has run out a read closes the gap forward and answers the committed data whole: "
+          f"held {after.get('held')}, begin {p.get('begin')}, end {p.get('end')}")
+
+
+def _snap_11_race(s1: str, s2: str, states: set) -> None:
+    """RACE_11 publications, S1 and S2 in turn, under READERS_11 readers: every read a complete generation."""
+    import store
     stop = threading.Event()
     reads: list[str] = []
 

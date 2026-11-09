@@ -580,22 +580,34 @@ class _Unit:
                 raise StoreFenced(f"{self.uri}: this writer's lease was taken by another; nothing published")
             tx.commit()
             committed = True
-            self.dirty = False
-            if _on_committed is not None:
-                _on_committed(self)
-            # the gap closed after the data is applied; a writer that took the lease meanwhile closed it at
-            # acquisition (end = begin), which publishes this unit just the same
-            self.meta(lambda t: self.owned(t, "SET p.end = p.begin"))
+            self.committed()
         except BaseException:
-            if not committed:
-                self.drop()
-            if raised:   # close the gap this writer opened, forward: the unit may have committed
-                try:
-                    self.meta(lambda t: self.owned(t, "SET p.end = p.begin"))
-                except Exception:  # noqa: BLE001 — the next writer, or a reader once the lease runs out, closes it
-                    pass
+            self.abandon(committed, raised)
             raise
         self.tx = None
+        self.housekeeping()
+
+    def committed(self) -> None:
+        """After the unit's commit: the gap closed once the data is applied. A writer that took the lease
+        meanwhile closed it at acquisition (end = begin), which publishes this unit just the same."""
+        self.dirty = False
+        if _on_committed is not None:
+            _on_committed(self)
+        self.meta(lambda t: self.owned(t, "SET p.end = p.begin"))
+
+    def abandon(self, committed: bool, raised: bool) -> None:
+        """A publication that failed: an uncommitted unit is dropped, and a gap this writer opened is closed
+        forward, since the unit may have committed; the next writer, or a reader once the lease runs out,
+        closes it otherwise."""
+        if not committed:
+            self.drop()
+        if raised:
+            try:
+                self.meta(lambda t: self.owned(t, "SET p.end = p.begin"))
+            except Exception:  # noqa: BLE001 — closed by the next writer or a reader past the lease
+                pass
+
+    def housekeeping(self) -> None:
         for cypher in self.after_commit:
             try:
                 self.schema(cypher)

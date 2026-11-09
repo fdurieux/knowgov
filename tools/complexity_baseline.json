@@ -361,10 +361,6 @@
    "value": 17,
    "floor": 17
   },
-  "harness/store_neo4j.py::_Unit.publish": {
-   "value": 16,
-   "floor": 16
-  },
   "harness/store_rdflib.py::RdflibStore._stale_candidates": {
    "value": 35,
    "floor": 35

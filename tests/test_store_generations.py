@@ -316,10 +316,12 @@ def test_end_is_set_after_the_units_commit_never_inside_it():
     src = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")
     pub = src.split("    def publish(self)", 1)[1].split("\n    def ", 1)[0]
     body = pub.split('"""', 2)[2]   # the code, past the docstring
-    fence, commit = body.index("self.owned(tx)"), body.index("tx.commit()")
-    end = body.index('self.meta(lambda t: self.owned(t, "SET p.end = p.begin"))')
-    assert fence < commit < end, "the fence in the unit, then its commit, then end in its own transaction"
-    assert 'self.owned(tx, "SET p.end' not in body, "end is never written in the unit's transaction"
-    assert "_on_committed(self)" in body and body.index("_on_committed(self)") < end
+    fence, commit, after = body.index("self.owned(tx)"), body.index("tx.commit()"), body.index("self.committed()")
+    assert fence < commit < after, "the fence in the unit, then its commit, then end in its own transaction"
+    assert 'self.owned(tx, "SET p.end' not in src, "end is never written in the unit's transaction"
+    done = src.split("    def committed(self)", 1)[1].split("\n    def ", 1)[0]
+    assert done.index("_on_committed(self)") < done.index('self.meta(lambda t: self.owned(t, "SET p.end = p.begin"))')
+    gone = src.split("    def abandon(self", 1)[1].split("\n    def ", 1)[0]
+    assert 'SET p.end = p.begin' in gone and "SET p.begin = p.end" not in gone, "a failed publication closes its gap forward"
     snaps = (ROOT / "tools" / "check_snapshots.py").read_text(encoding="utf-8")
     assert "def snap_11(" in snaps and "snap_11(s1, s2, g1, g2)" in snaps and "RACE_11, READERS_11 = 24, 6" in snaps
