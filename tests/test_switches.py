@@ -93,9 +93,10 @@ def test_the_ci_script_reads_its_flags_under_the_same_rule():
     for value in ("1", "0", "", None):
         rc, out = _shell_flag(value)
         assert rc == 0 and out == ("on" if switches.parse("KG_NO_LOAD", value) else "off"), (value, rc, out)
-    for bad in ("true", "yes", "on", "2"):
+    for bad in ("true", "yes", "on", "2", " 1", "1 ", " 0"):   # padded too: neither side strips (task-0287 N8)
         rc, out = _shell_flag(bad)
         assert rc == 2 and "KG_NO_LOAD" in out and "1 (on)" in out, (bad, rc, out)
+        assert _refused("KG_NO_LOAD", bad), bad
     text = GATE_SH.read_text(encoding="utf-8")
     assert 'if flag KG_NO_LOAD "${KG_NO_LOAD:-}"' in text and 'if flag KG_PUBLISH "${KG_PUBLISH:-}"' in text
     assert '= 1 ]' not in text
