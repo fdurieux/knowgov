@@ -123,6 +123,9 @@ def test_the_schema_holds_the_rule_id_form_and_the_cell():
     bad["coverage"]["after"]["C9"] = {"covered": 1}
     assert any("missing 'denominator'" in e for e in schema_check.validate(json.loads(json.dumps(bad, default=str)), SCHEMA))
     bad = copy.deepcopy(r)
+    bad["coverage"]["after"]["C5\n"] = bad["coverage"]["after"]["C1"]   # ECMA's $ is the end: a trailing newline is no rule id
+    assert any("does not match" in e for e in schema_check.validate(json.loads(json.dumps(bad, default=str)), SCHEMA))
+    bad = copy.deepcopy(r)
     bad["coverage"]["new_gaps"][0]["rule"] = "D5"
     assert any("does not match" in e for e in schema_check.validate(json.loads(json.dumps(bad, default=str)), SCHEMA))
 

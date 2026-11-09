@@ -81,6 +81,12 @@ def _check(v: Any, s: dict, root: dict, path: str, errors: list[str]) -> None:
             _check(item, s["items"], root, f"{path}[{i}]", errors)
 
 
+def _ecma(pattern: str) -> str:
+    """A JSON Schema pattern as ECMA-262 reads it: unanchored, with a final ``$`` the end of the string. Python's
+    ``$`` also matches before a trailing newline, so it is read as ``\\Z`` (``C5\\n`` is no rule id)."""
+    return pattern[:-1] + r"\Z" if pattern.endswith("$") and not pattern.endswith("\\$") else pattern
+
+
 def _check_value(v: Any, s: dict, path: str, errors: list[str]) -> None:
     """enum, const, minimum and pattern: the keywords that read the value itself."""
     if "enum" in s and not any(same(v, e) for e in s["enum"]):
@@ -89,7 +95,7 @@ def _check_value(v: Any, s: dict, path: str, errors: list[str]) -> None:
         errors.append(f"{path}: {v!r} is not {s['const']!r}")
     if "minimum" in s and isinstance(v, (int, float)) and v < s["minimum"]:
         errors.append(f"{path}: {v} is below {s['minimum']}")
-    if "pattern" in s and isinstance(v, str) and not re.search(s["pattern"], v):   # unanchored, as JSON Schema reads it
+    if "pattern" in s and isinstance(v, str) and not re.search(_ecma(s["pattern"]), v):
         errors.append(f"{path}: {v!r} does not match {s['pattern']!r}")
 
 
