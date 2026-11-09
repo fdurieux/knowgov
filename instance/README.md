@@ -1676,15 +1676,17 @@ other than its author, guards the rest.
 
 ## The settings an instance may rely on
 
-Most of what you configure is in files: `subject.toml`, `code_map.toml`, the CI templates. A few things
-are *environment variables*, set in the shell, the CI job or the compose file before a command starts.
-The table below has one row for every `KG_*` setting this guide or [`docs/security.md`](../docs/security.md)
-names. **A setting is a contract when the table marks it so** (decision-0016 point 3, as amended by
-decision-0033 choice 1): the settings an instance's CI, compose file or hook sets in order to run, decision-0027's
-twenty among them. A row marked *no* is named so you can find it: the demo stack's ports, tuning knobs and
-one escape. It may change in any release, so do not build on it. A setting that neither
-file names is not a contract. Where a row says "see", the setting is described there; the worker's limits
-are in [`docs/security.md`](../docs/security.md).
+Most of what you configure is in files: `subject.toml`, `code_map.toml`, the CI templates. A few things are
+*environment variables*, set in the shell, the CI job or the compose file before a command starts. The table
+below has one row for every `KG_*` setting this guide or [`docs/security.md`](../docs/security.md) names, and,
+since decision-0034 choice 1, for every one the code reads or a compose file under `demo/` passes, but for a
+short list of internal names, each with its reason, in `tests/test_settings_table.py`. **A setting is a
+contract when the table marks it so** (decision-0016 point 3, as amended by decision-0033 choice 1): the
+settings an instance's CI, compose file or hook sets in order to run, decision-0027's twenty among them. A row
+marked *no* is named so you can find it: the demo stack's own settings, tuning knobs, a debugging aid and one
+escape. It may change in any release, so do not build on it. A setting that neither file names is not a
+contract. Where a row says "see", the setting is described there; the worker's limits are in
+[`docs/security.md`](../docs/security.md).
 
 **On and off.** A setting that switches something on or off reads one way everywhere (decision-0033, task-0276):
 `1` is on, and `0`, empty or unset is off. The two checks this guide and `docs/security.md` switch off by name keep
@@ -1724,6 +1726,7 @@ input; the GitLab include's `KG_PUBLISH` and `KG_NO_LOAD` follow the rule above.
 | `KG_SUBJECT` | Subject and register | the subject root a command reads | in the CI templates, the instance's only subject | yes |
 | `KG_SUBJECTS` | Subject and register | the folder of subjects the page and both MCP servers list | `subjects/` of the checkout | yes |
 | `KG_REGISTER` | Subject and register | the register checkout every subject joins | `demo/register`, the public register | yes |
+| `KG_REGISTER_PREVIOUS` | Subject and register | the register checkout before an update, which the page's register view reads to show what the update withdrew; the gate's own option for it is `--register-previous` | none | yes |
 | `KG_INSTANCE` | Subject and register | your instance's checkout, for the stack's compose file and the upward joins | none | yes |
 | `KG_PRELOAD_REPORT` | Subject and register | the pre-load report the load records per document version | `preload-report.json` at your instance's root | yes |
 | `KG_STORE` | Store | which store: `neo4j` or `rdflib` | `neo4j` | yes |
@@ -1755,23 +1758,52 @@ input; the GitLab include's `KG_PUBLISH` and `KG_NO_LOAD` follow the rule above.
 | `KG_PAGE_MAX_RESPONSE` | Server limits | the largest page response, in bytes; see `docs/security.md` | 8 MiB | no: a tuning knob |
 | `KG_PAGE_MAX_RUNS` | Server limits | the largest `n` a page run takes | `5` | no: a tuning knob |
 | `KG_MCP_MAX_RESPONSE` | Server limits | the largest MCP tool result, in bytes; see `docs/security.md` | 16 MiB | no: a tuning knob |
+| `KG_PAGE_MAX_BODY` | Server limits | the largest request body the page reads, in bytes | 64 KiB | no: a tuning knob |
+| `KG_PAGE_READ_TIMEOUT` | Server limits | the seconds a page request has to arrive whole | `10` | no: a tuning knob |
+| `KG_PAGE_IDLE_TIMEOUT` | Server limits | the seconds the page waits through one silence in a request | `5` | no: a tuning knob |
+| `KG_PAGE_MAX_CONNECTIONS` | Server limits | the connections the page serves at once; more get 503 | `32` | no: a tuning knob |
+| `KG_MCP_MAX_BODY` | Server limits | the largest request body the MCP server reads, in bytes | 4 MiB | no: a tuning knob |
+| `KG_MCP_READ_TIMEOUT` | Server limits | the seconds an MCP request has to arrive whole | `10` | no: a tuning knob |
+| `KG_MCP_IDLE_TIMEOUT` | Server limits | the seconds the MCP server waits through one silence in a request | `5` | no: a tuning knob |
+| `KG_MCP_MAX_CONNECTIONS` | Server limits | the connections the MCP server serves at once; more get 503 | `32` | no: a tuning knob |
 | `KG_PORT_APP` | Demo stack | the host port the stack publishes the page on | `8080` | no: a demo port |
 | `KG_PUBLIC_PORT` | Demo stack | the compose file's carrier of `KG_PORT_APP` into the page; you set `KG_PORT_APP`, not this | `KG_PORT_APP` | no: a demo port |
+| `KG_PORT_BOLT` | Demo stack | the host port the stack publishes bolt on, and the one the page's Browser link names | `7687` | no: a demo port |
+| `KG_PORT_BROWSER` | Demo stack | the host port the stack publishes Neo4j Browser on | `7474` | no: a demo port |
+| `KG_DEMO_PORT` | Demo stack | the port the page listens on inside its container | `8080` | no: a demo port |
+| `KG_PAGE_LISTEN` | Demo stack | the address the page listens on inside its container; the image sets `0.0.0.0`, and `KG_BIND` decides what reaches it | `127.0.0.1` | no: the image's own; set `KG_BIND` |
+| `KG_DEMO_RUNS` | Demo stack | the folder the page keeps its runs in, and the MCP reader replays from | the checkout's `runs/`; the image sets `/repo/runs` | no: the demo's own folder |
+| `KG_BUILD_COMMIT` | Demo stack | a build argument: the commit the image says it was built from | none: read from `.git` | no: a label on the image; nothing decides on it |
+| `KG_BUILD_DESCRIBE` | Demo stack | a build argument: `git describe` for the image, its distance from the release | none: unknown | no: a label on the image; nothing decides on it |
+| `KG_ANTHROPIC_KEY` | Demo stack | the key the compose file passes to the demo's LiteLLM service, for its Claude row | none | no: the demo's own model row |
+| `KG_OUTCOMES` | Demo stack | a file each check tool appends its outcome to, one JSON line | none: nothing written | no: the check tools' log, for this repository's CI |
 | `KG_MODEL_BASE_URL` | Model endpoint | the endpoint the arms call | `https://api.openai.com/v1` | yes |
 | `KG_ARMS_MODEL` | Model endpoint | the model the arms call; each row of the model table names its own | the subject's record model, else `gpt-5.5` | yes |
 | `KG_MODEL_API_KEY_VAR` | Model endpoint | the *name* of the environment variable that holds the model key, never the key itself | `OPENAI_API_KEY` | yes |
 | `KG_MODEL_API_KEY` | Model endpoint | a variable the compose file passes into the page, for a key, so that `KG_MODEL_API_KEY_VAR` or a row's key variable can name it. Set it in your shell before `docker compose up`, never in a file you commit | none | yes |
 | `KG_MODELS` | Model endpoint | the table of model rows the page's Arms drop-down lists | `demo/models.toml` (inside the container, `/repo/demo/models.toml`) | yes |
 | `KG_KEY_CHECK` | Model endpoint | `off` sends nothing to check a row's key; see `docs/security.md` | on | yes |
+| `KG_ARMS_EFFORT` | Model endpoint | the reasoning effort sent with every arm call | none: the model's own | no: its values are the model API's |
+| `KG_ARMS_MAX_TOKENS` | Model endpoint | the most prompt and completion tokens one arms process spends | 6,000,000 | no: a tuning knob |
+| `KG_AGENT_MAX_CALLS` | Model endpoint | the most model calls one agent rebuild makes | `30` | no: a tuning knob |
+| `KG_AGENT_MAX_TOKENS` | Model endpoint | the most tokens one agent rebuild spends | 1,500,000 | no: a tuning knob |
+| `KG_AGENT_MAX_SECONDS` | Model endpoint | the longest one agent rebuild runs, in seconds | `1500` | no: a tuning knob |
+| `KG_AGENT_IDLE_SECONDS` | Model endpoint | the longest silence an agent's stream may keep, in seconds | `120` | no: a tuning knob |
 | `KG_WORKERS` | Worker | how many of an arm's runs the harness makes at once; see `docs/security.md` | `5` | yes |
 | `KG_WORKER_CPUS` | Worker | the worker container's CPUs; see `docs/security.md` | `2` | yes |
 | `KG_WORKER_MEM` | Worker | the worker container's memory; see `docs/security.md` | `4g` | yes |
 | `KG_WORKER_JOB_SECONDS` | Worker | the wall time one job may take; see `docs/security.md` | `900` | yes |
 | `KG_WORKER_JOBS` | Worker | the jobs folder the app and the worker share; see `docs/security.md` | the compose file's `/jobs` | yes |
 | `KG_WORKER_WORK` | Worker | the worker's own work folder; see `docs/security.md` | `/work` | yes |
+| `KG_WORKER_MEMORY` | Worker | the address space one job may use, in bytes, inside the container's own memory | 4 GiB | no: a bound inside the container's, which `KG_WORKER_MEM` sets |
+| `KG_WORKER_PROCESSES` | Worker | the processes one job may run | `128` | no: a bound inside the container's |
+| `KG_WORKER_FILE_BYTES` | Worker | the largest file one job may write, in bytes | 64 MiB | no: a bound inside the container's |
+| `KG_WORKER_MAX_JOB_SECONDS` | Worker | the longest wall time a job may ask for | `900` | no: a bound inside `KG_WORKER_JOB_SECONDS`'s |
 | `KG_ALLOW_UNCONTAINED_EXECUTION` | Worker | `1` runs model-written code on the host, uncontained; see `docs/security.md` | none | no: an escape, never to be relied on |
 | `KG_CLOCK` | Clock | `pinned`, exactly, makes a command that would read the wall clock fail; any other value but empty exits 2 (task-0287); see "Capturing what people know" | none | yes |
 | `KG_TODAY` | Clock | a fixed today, `YYYY-MM-DD`, for a reproducible run | the wall clock | yes |
+| `KG_NOW` | Clock | a fixed instant, ISO 8601 (naive reads as UTC), for the read that compares a live run's heartbeat with the clock; under `KG_CLOCK=pinned` that read refuses without it | the wall clock | yes |
+| `KG_TRACEBACK` | Diagnostics | `1` prints a command's traceback after its one-line cause, for a person debugging | none | no: a debugging aid |
 
 ## What stays stable from 1.0: the contracts
 

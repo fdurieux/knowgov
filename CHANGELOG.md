@@ -11,6 +11,15 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **Two more settings are contracts, and the settings table reaches every one the code reads** (task-0294,
+  decision-0034 choice 1). `KG_REGISTER_PREVIOUS`, which `demo/docker-compose.instance.yml` passes, and `KG_NOW`,
+  the instant `KG_CLOCK=pinned` requires for the live-run read, are now contracts. `instance/README.md`'s table
+  gains 30 rows, 105 in all and 65 of them contracts: besides those two, every setting a shipped compose file
+  passes and every operator-facing knob (the worker's own limits, the servers' boundary limits, the agent ceilings,
+  `KG_ARMS_EFFORT`, the demo's ports and folders, `KG_TRACEBACK`), each `no` with its reason.
+  `tests/test_settings_table.py` now fails on any `KG_*` the code (`harness/`, `demo/app/`, `tools/`, `instance/`)
+  reads or a compose file under `demo/` passes that has neither a row nor an entry, with its reason, on its
+  internal list.
 - **`KG_CLOCK` takes only `pinned`** (task-0287, decision-0033 choice 2, G9-17). It is read through
   `harness/switches.py`: `pinned`, exactly, refuses the wall clock; empty or unset reads it; any other value exits 2,
   naming the setting. Before, `Pinned`, `pinned ` or `1` silently read the wall clock. No on/off setting is trimmed of
