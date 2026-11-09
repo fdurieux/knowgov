@@ -122,6 +122,8 @@ class Subject:
         self.record_effort: str = s.get("record_effort", "")   # the reasoning effort the record's arms ran at; "" is the API default (task-0028)
         self.artefacts: list[dict] = list(m.get("artefact", []))
         sc = _toml(self.root / "scenarios.toml")
+        import scenario_ids   # task-0295, decision-0034 choice 2: an id the pattern refuses, a duplicate or none stops the load
+        scenario_ids.check(sc.get("scenario", []), (self.root / "scenarios.toml").as_posix())
         self.scenarios: dict[str, dict] = {x["id"]: x for x in sc.get("scenario", [])}
         self.order: list[str] = list(self.scenarios)
         pl = _toml(self.root / "plants.toml")

@@ -1525,6 +1525,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     import settings
     try:
+        import subject  # noqa: F401  (task-0295: a subject that does not load, such as a bad scenario id, refused at start, named)
         server = Server(Tools(as_of=args.as_of))
         settings.check(names=MCP_SETTINGS)   # task-0264: every numeric setting this server reads, refused at start, named
         if args.http:
