@@ -1093,6 +1093,28 @@ def nfc_keys(args):
     return out
 
 
+def sent_refusal(name: str, sent, schema: dict) -> str | None:
+    """Why a call's arguments are refused, the keys read as sent and in NFC (task-0301, task-0309 B3): the published
+    pattern holds of the value sent, so a key that fails the rule raw is refused even when its NFC would pass, and
+    one whose NFC fails it is refused too; the message names the value as sent."""
+    refused = argument_refusal(name, sent, schema)
+    if refused:
+        return refused
+    nfc = nfc_keys(sent)
+    return _renamed(argument_refusal(name, nfc, schema), nfc, sent)
+
+
+def _renamed(message: str | None, nfc, sent) -> str | None:
+    """``message``, which echoes the NFC keys, with each put back as sent."""
+    if message is None or not isinstance(nfc, dict):
+        return message
+    pairs = [(nfc.get("key"), sent.get("key"))] + list(zip(nfc.get("keys") or [], sent.get("keys") or []))
+    for new, old in pairs:
+        if isinstance(new, str) and isinstance(old, str) and new != old:
+            message = message.replace(repr(new), repr(old)).replace(new, old)
+    return message
+
+
 def argument_refusal(name: str, args, schema: dict) -> str | None:
     """Why a call's ``args`` are refused before dispatch (-32602), else None: not an object; an argument the
     tool does not list, its schema's ``additionalProperties: false`` (M5); or any other way they break the
@@ -1278,8 +1300,8 @@ class Server:
         tool = next((t for t in self.table if t["name"] == name), None)
         if tool is None:
             return _error(id_, -32602, f"unknown tool {name!r}")
-        args = nfc_keys(args)   # task-0301: a key in NFC before it is checked or read, whichever form the client sent
-        refused = argument_refusal(name, args, tool.get("inputSchema") or {})
+        refused = sent_refusal(name, args, tool.get("inputSchema") or {})
+        args = nfc_keys(args)   # task-0301: a key in NFC before it is read, whichever form the client sent
         if refused:
             return _error(id_, -32602, refused)
         if self.route is not None and "subject" in args:

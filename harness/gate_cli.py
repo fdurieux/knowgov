@@ -210,8 +210,8 @@ def act_finding(a: dict) -> dict:
                else "the declaration's text changed since the close") + "; its owner closes it again or the gap stands")
     else:
         msg = (f"{who} ({a['outcome']} {a['statement']} on {a['key']}) was not applied: it ruled on {was}, and "
-               + {"changed": f"the statement now reads {now}", "gone": "no statement of it is extracted any more",
-                  "ambiguous": "several statements hold that content and none is the one it names"}[why]
+               + {"changed": f"the statement now reads {now}", "gone": "no statement of it is extracted any more (if only another person's identical answer remains, this ruling does not cover it)",
+                  "ambiguous": "several statements hold that content and none is the one it names, or its id reads as two givers' and names neither"}[why]
                + "; its owner rules again")
     sev = "info" if a["act"] == "resolve" and why == "gone" else ACT_SEVERITY[why]
     f = _finding(sev, "act", msg, key=a["key"] or None, ref=a["statement"] or a["review"],
@@ -362,6 +362,13 @@ def at_or_above(fs: list[dict], threshold: str) -> list[dict]:
 IDENTITY_FIELDS = ("task_profile", "register", "knowgov", "corpus", "as_of")   # task-0307: what --baseline names when it differs
 
 
+def _nfc_levels(levels) -> dict:
+    """A baseline's key -> level map with its keys in NFC, as the gate holds them (task-0309 B1): a file written with
+    NFD keys must not read every current key as new."""
+    import key_rule
+    return {key_rule.normalise(k): v for k, v in levels.items()} if isinstance(levels, dict) else levels
+
+
 def baseline_of(data: dict) -> dict:
     """{verdict, levels, suspect, identity} from an earlier report of this command (version 1 or 2; a version-1
     report named no derived output, so it holds none suspect) or from a deterministic.json. ``identity`` holds
@@ -369,10 +376,10 @@ def baseline_of(data: dict) -> dict:
     deterministic.json names none: its ``identity`` is None, the record's (``record_identity``) set by the reader."""
     if data.get("tool") == "knowgov gate":
         sus = data.get("suspect_derived")
-        return {"verdict": data["verdict"], "levels": data.get("levels", {}), "suspect": list(sus) if isinstance(sus, list) else [],
+        return {"verdict": data["verdict"], "levels": _nfc_levels(data.get("levels", {})), "suspect": list(sus) if isinstance(sus, list) else [],
                 "identity": {f: data[f] for f in IDENTITY_FIELDS if f in data}}
     if "D6_gate" in data:
-        return {"verdict": data["D6_gate"]["verdict"], "levels": {k: v["level"] for k, v in data.get("gate_keys", {}).items()},
+        return {"verdict": data["D6_gate"]["verdict"], "levels": _nfc_levels({k: v["level"] for k, v in data.get("gate_keys", {}).items()}),
                 "suspect": [d["id"] for d in data["D6_gate"].get("suspect_derived") or []], "identity": None}
     raise CannotRun("the baseline file is neither a gate report nor a deterministic.json")
 
@@ -401,7 +408,8 @@ def mark_held(fs: list[dict], baseline: dict) -> None:
     finding that is the regression (a key whose level fell, a derived output newly suspect; with a worse
     verdict, the task finding and every blocker, what makes a verdict), true for the rest. CI annotations
     read it, so a held finding is never shown as an error."""
-    fell = {r["key"] for r in baseline.get("regressed_keys") or []}
+    import key_rule
+    fell = {key_rule.normalise(r["key"]) for r in baseline.get("regressed_keys") or []}
     new_suspect = set(baseline.get("new_suspect") or [])
     worse = bool(baseline.get("worse_verdict"))
     for f in fs:
