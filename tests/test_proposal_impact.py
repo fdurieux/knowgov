@@ -240,8 +240,8 @@ def test_proposal_impact_is_a_read_only_tool_that_refuses_a_bad_call():
     assert "required" not in tool["inputSchema"] and "scope" in tool["inputSchema"]["properties"]   # a proposal, a scope or both (task-0191)
     for bad in ({}, {"proposal": {}}, {"scope": "APP-0002"}, {"scope": "NOPE-0001"}, {"proposal": {"nodes": [], "links": []}}, {"proposal": _proposal(), "task": "keys"}, {"proposal": _proposal(), "children": "yes"},
                 {"proposal": _proposal(), "scenario": "S9"}, {"proposal": _proposal(), "as_of": "soon"}):
-        r = _call(s, "proposal_impact", bad)["result"]
-        assert r["isError"] is True, bad
+        from tests.test_mcp_server import _refused
+        assert _refused(s, "proposal_impact", bad), bad
 
 
 def test_children_walks_the_descendants_as_register_impact_does():

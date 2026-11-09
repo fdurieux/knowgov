@@ -144,7 +144,7 @@ def test_the_pages_run_body_refuses_a_key_outside_its_fields_naming_it():
             raise AssertionError(f"{bad} accepted")
     assert server.run_request({k: "S1" for k in ("scenario", "mode")})["n"] == 1
     readme = (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
-    assert all(f"`{k}`" in readme.split("`POST /api/run`'s body takes", 1)[1].split("\n\n", 1)[0] for k in server.RUN_FIELDS)
+    assert all(f"`{k}`" in readme.split("A run's body takes", 1)[1].split("\n\n", 1)[0] for k in server.RUN_FIELDS)
     with _page() as (httpd, calls, log):
         port = httpd.server_address[1]
         body = json.dumps({"scenario": "S1", "mode": "deterministic", "as-of": "2027-01-01"}).encode()

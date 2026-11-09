@@ -115,7 +115,7 @@ def test_document_statements_names_what_a_document_yields_by_version_and_what_wa
     v2 = _ok(s, "document_statements", {"document": "docs/pricing.md", "version": "v2"}, "document-statements")
     assert [x["id"] for x in v2["statements"]] == ["x2"] and v2["version"] == "v2"
     for bad in ({"document": "nope.md"}, {"document": "docs/pricing.md", "version": "v9"}, {}):
-        assert tm._call(s, "document_statements", bad)["result"]["isError"] is True, bad
+        assert tm._refused(s, "document_statements", bad), bad
 
 
 def test_the_store_reads_refuse_another_subjects_scenario_and_nothing_held():

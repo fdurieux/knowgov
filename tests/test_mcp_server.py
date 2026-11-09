@@ -117,6 +117,26 @@ def _call(server, name, args=None, id_=1):
         return server.handle({"jsonrpc": "2.0", "id": id_, "method": "tools/call", "params": {"name": name, "arguments": args or {}}})
 
 
+def _refused(server, name, args) -> bool:
+    """The call is refused as task-0281 has it: -32602 naming a property when ``args`` break the tool's
+    inputSchema (``mcp_server.argument_refusal`` says which), else the tool's own error result. Never both,
+    never an answer."""
+    tool = next(t for t in server.table if t["name"] == name)
+    r = _call(server, name, args)
+    if mcp_server.argument_refusal(name, args, tool["inputSchema"]):
+        return r.get("error", {}).get("code") == -32602
+    return r.get("result", {}).get("isError") is True
+
+
+def _as_result(r: dict) -> dict:
+    """A tools/call response as its result, a refusal before dispatch (-32602, task-0281) read as an error
+    result with its message as the text and the code kept as ``protocol_error``."""
+    if "error" in r:
+        assert r["error"]["code"] == -32602, r
+        return {"isError": True, "protocol_error": -32602, "content": [{"type": "text", "text": r["error"]["message"]}]}
+    return r["result"]
+
+
 def _port_methods() -> set[str]:
     tree = ast.parse(PORT.read_text(encoding="utf-8"))
     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Store")
@@ -216,8 +236,7 @@ def test_a_key_set_of_the_agents_own_resolves_through_the_same_gate():
     assert rep["verdict"] == "BLOCKED"
     for bad in ({"keys": []}, {"keys": [""]}, {"keys": "P2|surcharge"}, {"task": "nope"}, {"fail_on": "panic"},
                 {"baseline": "/etc/passwd"}, {"keys": keys, "baseline": "record"}):
-        r = _call(s, "gate_verdict", bad)["result"]
-        assert r["isError"] is True, bad
+        assert _refused(s, "gate_verdict", bad), bad
 
 
 def test_the_scenario_must_be_the_one_the_store_holds_and_nothing_is_ever_loaded():
@@ -275,7 +294,7 @@ def test_the_three_valued_answer_carries_each_statements_provenance():
     assert r["answer"] == "asserted" and r["statements"][0]["value"] == "42"
     r = _call(s, "three_valued_answer", {"key": "QuoteAPI|never_said"})["result"]["structuredContent"]
     assert r["answer"] == "unknown" and r["statements"] == [] and "not a documented absence" in r["why"]
-    assert _call(s, "three_valued_answer", {})["result"]["isError"]
+    assert _refused(s, "three_valued_answer", {})
 
 
 def test_the_evidence_bundle_is_the_text_the_governed_arm_reads():
@@ -301,7 +320,7 @@ def test_the_evidence_bundle_is_the_text_the_governed_arm_reads():
     assert sub["task"] == "keys" and sub["verbatim"] == [] and sub["verdict"] == "PROCEED"
     assert sub["bundle"] == render_bundle(resolve_spec(stub, "keys", dict(TASKS["codegen"], keys=keys), "record"), arms.policy())
     for bad in ({"keys": []}, {"task": "nope"}, {"verbatim": "yes"}, {"as_of": "soon"}, {"as_of": 20261104}, {"scenario": "not-held"}):
-        assert _call(s, "evidence_bundle", bad)["result"]["isError"] is True, bad
+        assert _refused(s, "evidence_bundle", bad), bad
     assert stub.writes == []
 
 
@@ -582,8 +601,7 @@ def test_register_impact_refuses_an_unknown_or_malformed_id():
     s, _ = _server()
     for bad in ({"node": "CAP-9999"}, {"node": "cap-0001"}, {"node": "CAP-01"}, {"node": 7}, {},
                 {"node": "CAP-0002", "walk": "ancestors"}):
-        r = _call(s, "register_impact", bad)["result"]
-        assert r["isError"] is True, bad
+        assert _refused(s, "register_impact", bad), bad
     assert _call(s, "register_impact", {"node": "CAP-0002", "scenario": "S9"})["result"]["isError"] is True
 
 
@@ -677,7 +695,7 @@ def test_register_impact_children_reaches_what_cap_0001s_children_reach_and_skip
         assert (last["key"], last["via"], last["withdrawn"], last["owner"]) == ("QuoteAPI|on_notification_failure", ["CAP-0005"], True, "ORG-0002")
         assert last["level"]   # listed with its level, as the others are
     for bad in ("yes", 1, None):
-        assert _call(s, "register_impact", {"node": "CAP-0001", "children": bad})["result"]["isError"] is True, bad
+        assert _refused(s, "register_impact", {"node": "CAP-0001", "children": bad}), bad
 
 
 def test_register_impact_children_lands_the_subjects_keys_at_gate_verdicts_levels():
@@ -738,8 +756,7 @@ def test_register_impact_reads_the_keys_under_the_task_class_named_and_refuses_k
         strip = lambda r: [(k["key"], k["level"], k["findings"]) for k in r["keys"]]   # noqa: E731
         assert strip(got["design"]) != strip(got["codegen"])
     for bad in ("keys", "nope", 7, ""):
-        r = _call(s, "register_impact", {**args, "task": bad})["result"]
-        assert r["isError"] is True, bad
+        assert _refused(s, "register_impact", {**args, "task": bad}), bad
 
 
 # Task-0117: the adopter section of instance/README.md, held to the server and the commands it names.

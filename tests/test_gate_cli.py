@@ -100,7 +100,7 @@ def test_a_task_blocked_by_its_share_of_unverified_keys_says_so_as_a_blocker():
 
 def test_the_schema_checker_refuses_what_it_cannot_check_and_catches_a_bad_report():
     try:
-        schema_check.validate({}, {"type": "object", "pattern": "x"})
+        schema_check.validate({}, {"type": "object", "maxLength": 3})   # pattern is read since task-0281
         raise AssertionError("an unsupported keyword passed")
     except ValueError:
         pass
