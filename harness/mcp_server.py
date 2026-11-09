@@ -1494,6 +1494,12 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as e:   # a setting out of its bounds (KG_MCP_MAX_RESPONSE, task-0177): refused at start, named
         print(f"mcp_server: {e}", file=sys.stderr)
         return 2
+    import register_impact
+    try:   # task-0279: KG_REGISTER names a register that cannot be read: refused at start, named, not per call
+        register_impact.require_named()
+    except register_impact.RegisterUnreadable as e:
+        print(f"mcp_server: cannot run: {e}", file=sys.stderr)
+        return 2
     import upward
     server.tools.trace_cfg = upward.config(args.instance, args.ledger)   # read once, at start, as as_of is
     try:

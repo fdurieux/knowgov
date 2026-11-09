@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import tomllib
 from pathlib import Path
 
 NODE_ID = re.compile(r"^[A-Z]+-\d{4,}$")
@@ -51,6 +52,55 @@ class ImpactError(ValueError):
 def register_root() -> Path:
     import cadence
     return cadence.register_root()
+
+
+class RegisterUnreadable(ValueError):
+    """A register the reader was given that it cannot read (task-0279, decision-0033 choice 5): the commands exit
+    2 and the MCP reader refuses to start, naming who named it and the path."""
+
+
+def unreadable(root: Path, tools: bool = True) -> str | None:
+    """Why ``root`` is not a register this knowgov reads, or None: a directory whose ``metamodel/types.toml``
+    names its taxonomies and, with ``tools``, holds the register's own ``tools/register.py``, which the walks
+    and the checker load from it."""
+    root = Path(root)
+    if not root.is_dir():
+        return "no such directory"
+    try:
+        types = tomllib.loads((root / "metamodel" / "types.toml").read_text(encoding="utf-8"))
+    except OSError:
+        return "no metamodel/types.toml"
+    except tomllib.TOMLDecodeError as e:
+        return f"metamodel/types.toml is not TOML: {e}"
+    if not types.get("taxonomy"):
+        return "metamodel/types.toml names no taxonomy"
+    if tools and not (root / "tools" / "register.py").is_file():
+        return "no tools/register.py, the register's own loader"
+    return None
+
+
+def named() -> tuple[Path, str] | None:
+    """(the register, who named it) when ``KG_REGISTER`` names one; None when the default is read."""
+    v = os.environ.get("KG_REGISTER")
+    return (Path(v), "KG_REGISTER") if v else None
+
+
+def require(root: Path | None = None, by: str | None = None, tools: bool = True) -> Path:
+    """``root`` (by default the register this process reads), or ``RegisterUnreadable`` naming ``by`` (by default
+    KG_REGISTER when it is set, else the default register) and the path."""
+    if root is None:
+        root, by = register_root(), (by or ("KG_REGISTER" if named() else "the default register"))
+    why = unreadable(root, tools)
+    if why:
+        raise RegisterUnreadable(f"{by or 'the register'} {Path(root).as_posix()} is not a readable register: {why}")
+    return Path(root)
+
+
+def require_named(tools: bool = True) -> None:
+    """``RegisterUnreadable`` when ``KG_REGISTER`` names a register that cannot be read; nothing when it is unset."""
+    n = named()
+    if n:
+        require(n[0], n[1], tools)
 
 
 @contextlib.contextmanager

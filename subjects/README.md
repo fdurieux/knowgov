@@ -308,14 +308,16 @@ F5). It refuses (exit 1) a table or field this file does not document, a task wi
 `block_levels` or `max_unverified_share`, a task setting of the wrong type or out of range (`block_levels`
 not a list of gate levels, `keys` not a list of keys, `max_unverified_share` outside 0 to 1, a
 `require_approved` that is not true or false; `harness/task_policy.py`, the validator the gate itself uses,
-task-0242), a key that
+task-0242), a task class named `keys` or outside `[a-z][a-z0-9_-]{0,31}` (rule `task-class`, task-0278), a key that
 is not `<entity>|<predicate>`, a task with no
 scenario, a `register_map.toml` node the register does not hold or an `owner` of none of its row's
 nodes, a mapper that cannot read its document, and a claim that is not `observed`, `inferred` or
 `intended` (task-0214). It warns on a required key no document yields
 when they yield a near one, the documents' yield taken from the load's own mappers in a child
-process, with no store. `tools/fixtures/subject_probe` carries every refusal on purpose; the report
-is pinned by `harness/schemas/subject-check.schema.json`.
+process, with no store. A register named by `--register` or `KG_REGISTER` that cannot be read is
+exit 2, naming the path; with neither, the rows are checked against `demo/register` and are
+unchecked only when it cannot be read (task-0279, decision-0033 choice 5). `tools/fixtures/subject_probe`
+carries every refusal on purpose; the report is pinned by `harness/schemas/subject-check.schema.json`.
 
 ## Vendoring
 

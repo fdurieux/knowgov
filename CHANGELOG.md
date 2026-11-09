@@ -25,6 +25,28 @@ names that section with the version.
   keys' levels are still the held key set's. The tool's description and the held-keys schema say what the
   field is. The record does not move.
 
+- **A task class's name is `[a-z][a-z0-9_-]{0,31}`, and never `keys`** (task-0278, decision-0033 choice 4).
+  `[tasks.keys]`, `[tasks.""]` and `[tasks."code gen"]` passed `check_subject` and `check_instance`. `keys` is
+  the task a report on an agent-chosen key set names (doc-0014 C4). Now `harness/task_policy.py` refuses them,
+  and so does everything built on it:
+  - the checker, the instance check and the MCP `subject_check` report an error, rule `task-class`, which
+    the subject-check schema adds (version 1, additive);
+  - every command that loads the subject's task classes exits 2 naming the class.
+
+  The public subjects' `codegen` and `design` are unchanged, and so is the record.
+
+- **A register that is named and cannot be read exits 2, naming it** (task-0279, decision-0033 choice 5).
+  `check_subject --register DIR` with a missing DIR, or a bad `KG_REGISTER`, gave an "unchecked" note and
+  exit 0, so a typo dropped the register check. Now a register named by a flag or by `KG_REGISTER` stops
+  these with exit 2, naming the path and what is missing, before a store is opened:
+  - `check_subject`, `register_nodes`, `upward` and `proposal_impact` (and its `--register-branch`);
+  - `gate_cli`, and its `--register-previous`;
+  - the MCP reader, which now refuses to start.
+
+  Before, `register_nodes`, `upward` and `proposal_impact` crashed with exit 1, and `gate_cli` reported the
+  register as null with exit 0. "Unchecked" stays for `check_subject` when no register is named and the
+  default cannot be read. The record does not move.
+
 - **The GitLab include and the pre-load workflow template run their own release by default** (task-0259, G9-17,
   decision-0032 C5). `instance/ci/gitlab/knowgov.gitlab-ci.yml`'s `KNOWGOV_REF` and `instance/ci/preload-check.yml`'s
   default to `v<VERSION>`, the tag they come from, instead of `main`, so an include taken from a tag no longer clones

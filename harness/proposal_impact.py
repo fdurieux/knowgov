@@ -1264,6 +1264,13 @@ def main(argv: list[str] | None = None) -> int:
             or (a.proposal is None and a.register_branch is None and a.scope is None):
         print("proposal_impact: give a proposal file, --scope ID, or --register-branch DIR with --base REF", file=sys.stderr)
         return 2
+    try:   # task-0279: the register read, and a branch checkout named by --register-branch, must be readable
+        ri.require()
+        if a.register_branch is not None:
+            ri.require(a.register_branch, "--register-branch", tools=False)
+    except ri.RegisterUnreadable as e:
+        print(f"proposal_impact: cannot run: {e}", file=sys.stderr)
+        return 2
     try:
         if a.register_branch is not None:
             report = evaluate_branch(a.register_branch, a.base, today=on, children=a.children, scope=a.scope, task=task)
