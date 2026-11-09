@@ -41,7 +41,7 @@ inputs:
     description: "gate: 2 to bring in the scenario's later version"
     default: ""
   publish:
-    description: "gate: true to load into the store KG_STORE names and publish the load, for a later step that reads it (trace-check, trace-register); default: the gate computes in a store of its own and leaves that store as it was (decision-0017)"
+    description: "gate: true (in any case) to load into the store KG_STORE names and publish the load, for a later step that reads it (trace-check, trace-register); default: the gate computes in a store of its own and leaves that store as it was (decision-0017)"
     default: "false"
   as-of:
     description: "gate, trace-*: the date review currency is read on (YYYY-MM-DD, record or today); trace-register records it in the ledger; default today"
@@ -59,7 +59,7 @@ inputs:
     description: "trace-register: the code repository's name in the derived id"
     default: ""
   annotate:
-    description: "every gate: show the report's findings as annotations on the run and the pull request, and as a table in the job summary (task-0083); false: neither"
+    description: "every gate: show the report's findings as annotations on the run and the pull request, and as a table in the job summary (task-0083); false: neither. true or false, in any case; anything else fails the step (task-0276)"
     default: "true"
   sarif:
     description: "every gate: also upload the report's findings to GitHub code scanning as SARIF 2.1.0 (task-0116), even when the gate fails; needs `security-events: write` on the job and code scanning enabled on the repository; off by default"
@@ -87,22 +87,34 @@ runs:
         KG_SCENARIO: ${{ inputs.scenario }}
         KG_TASK: ${{ inputs.task }}
         KG_STAGE: ${{ inputs.stage }}
-        KG_PUBLISH: ${{ inputs.publish == 'true' && '1' || '' }}
         KG_AS_OF: ${{ inputs.as-of }}
         KG_LEDGER: ${{ inputs.ledger }}
         KG_FILES: ${{ inputs.files }}
         KG_REPORT: ${{ inputs.report }}
         KG_CODE_REPO: ${{ inputs.code-repo || github.event.repository.name }}
+        KNOWGOV_PUBLISH: ${{ inputs.publish }}
         KNOWGOV_ANNOTATE: ${{ inputs.annotate }}
         KNOWGOV_SARIF: ${{ inputs.sarif }}
       run: |
+        # task-0276: publish, annotate and sarif take true or false in any case; anything else fails, naming the input
+        bool() {
+          case "$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')" in
+          true) echo true ;;
+          false) echo false ;;
+          *) echo "knowgov gate: input $1 is '$2': it takes true or false, in any case" >&2; return 2 ;;
+          esac
+        }
+        publish=$(bool publish "$KNOWGOV_PUBLISH") || exit 2
+        annotate=$(bool annotate "$KNOWGOV_ANNOTATE") || exit 2
+        sarif_on=$(bool sarif "$KNOWGOV_SARIF") || exit 2
         if [ -n "$KG_SUBJECT_IN" ]; then export KG_SUBJECT="$KG_SUBJECT_IN"; fi
-        if [ "$KNOWGOV_ANNOTATE" = true ]; then export KG_ANNOTATE="github,summary:$GITHUB_STEP_SUMMARY"; fi
+        if [ "$publish" = true ]; then export KG_PUBLISH=1; fi
+        if [ "$annotate" = true ]; then export KG_ANNOTATE="github,summary:$GITHUB_STEP_SUMMARY"; fi
         sarif="${RUNNER_TEMP:-/tmp}/knowgov-$KG_GATE.sarif"
-        if [ "$KNOWGOV_SARIF" = true ]; then rm -f "$sarif"; export KG_ANNOTATE="${KG_ANNOTATE:+$KG_ANNOTATE,}sarif:$sarif"; fi
+        if [ "$sarif_on" = true ]; then rm -f "$sarif"; export KG_ANNOTATE="${KG_ANNOTATE:+$KG_ANNOTATE,}sarif:$sarif"; fi
         rc=0
         sh "$GITHUB_ACTION_PATH/../knowgov-gate.sh" "$GITHUB_ACTION_PATH/../../.." "$KG_INSTANCE" "$KG_GATE" || rc=$?
-        if [ "$KNOWGOV_SARIF" = true ] && [ -s "$sarif" ]; then echo "sarif=$sarif" >> "$GITHUB_OUTPUT"; fi
+        if [ "$sarif_on" = true ] && [ -s "$sarif" ]; then echo "sarif=$sarif" >> "$GITHUB_OUTPUT"; fi
         exit "$rc"
     # task-0116: the SARIF the step above wrote, to code scanning, whatever the gate's exit (a run that
     # exits 2 writes no report, so nothing is uploaded); the action's own result stays the gate's

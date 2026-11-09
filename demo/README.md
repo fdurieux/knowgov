@@ -1194,9 +1194,10 @@ two addresses, and open the demo.
 ## Start it elsewhere
 
 **Another laptop, without building.** The compose file names a released
-image, `ghcr.io/fdurieux/knowgov:<version>`, pinned by its digest
+image, `ghcr.io/fdurieux/knowgov:vX.Y.Z`, pinned by its digest
 (task-0092); the repository also publishes every merge that touches the platform as `:latest` and
-as the commit's short SHA, which you can name in its place. So the two
+as the commit's short SHA, which you can name in its place: a build of `main`, not a contract, so it
+may be cleaned away (the release tag and `:latest` are the contract; the root README). So the two
 ways to start differ: `docker compose up --build` in this directory builds
 the checkout you have (main, or whatever you checked out), while a plain
 pull with `-f docker-compose.yml` runs the named release. Each release
