@@ -152,6 +152,55 @@ def _sep(t: str) -> bool:
     return t in SEPARATORS or (bool(t) and set(t) <= set(_PUNCT + "\n") and not set(t) <= set("<>"))
 
 
+def _tokens(cmd: str) -> list[str] | None:
+    """The command's shell words, a backtick and the other punctuation each its own; None when quotes do not balance."""
+    import shlex
+    try:
+        lex = shlex.shlex(cmd, posix=True, punctuation_chars=_PUNCT)
+        lex.whitespace_split = True
+        return list(lex)
+    except ValueError:
+        return None
+
+
+def _is_head(toks: list[str], i: int) -> bool:
+    """Whether word ``i`` is where a command name goes: first, after a separator, a runner (eval, env) or an assignment."""
+    if i == 0:
+        return True
+    prev = toks[i - 1]
+    return _sep(prev) or prev in _RUNNERS or ("=" in prev and not prev.startswith("-"))
+
+
+def _nested(t: str, depth: int) -> bool:
+    """A quoted word that is itself a command (``bash -c '...'``, ``eval "..."``), to be read in turn."""
+    return depth < 4 and ("git" in t or "$" in t) and any(c in t for c in " \n;&`")
+
+
+def _note_alias(value: str, aliases: dict | None) -> None:
+    """``-c alias.NAME=VALUE``: recorded, so that ``NAME`` reads as what it runs (task-0268)."""
+    if aliases is not None and value.lower().startswith("alias."):
+        name, _, run = value[len("alias."):].partition("=")
+        aliases[name.lower()] = run
+
+
+def _call_at(toks: list[str], j: int, aliases: dict | None) -> tuple[tuple[str, list[str]] | None, int]:
+    """The git call whose global options start at word ``j``, and the word after it; None when no subcommand follows."""
+    while j < len(toks) and toks[j].startswith("-") and not _sep(toks[j]):
+        if toks[j] in _GLOBAL_WITH_VALUE and j + 1 < len(toks):
+            if toks[j] == "-c":
+                _note_alias(toks[j + 1], aliases)
+            j += 2
+        else:
+            j += 1
+    if j >= len(toks) or _sep(toks[j]):
+        return None, j
+    k = j + 1
+    while k < len(toks) and not _sep(toks[k]):
+        k += 1
+    sub = toks[j]
+    return (("$", [sub]) if "$" in sub else (sub, toks[j + 1:k])), k   # git $x: the subcommand is not in the text
+
+
 def git_calls(cmd: str, depth: int = 0, aliases: dict | None = None) -> list[tuple[str, list[str]]] | None:
     """Every git subcommand the shell command runs, with its arguments: ``git``, ``/usr/bin/git``, after ``-C``
     and ``-c`` and other global options, inside ``bash -c '...'`` and ``sh -c``, across ``&&``, ``;``, pipes and
@@ -159,45 +208,24 @@ def git_calls(cmd: str, depth: int = 0, aliases: dict | None = None) -> list[tup
     caller fails closed. A token that expands a variable where git or a command could be (``git${IFS}push``,
     ``x=git; $x push``) is returned as the call ``("$", [token])``: the caller cannot tell what runs and fails closed.
     ``aliases``, when given, collects the ``-c alias.NAME=VALUE`` a call sets (task-0268)."""
-    import shlex
-    try:
-        lex = shlex.shlex(cmd, posix=True, punctuation_chars=_PUNCT)
-        lex.whitespace_split = True
-        toks = list(lex)
-    except ValueError:
+    toks = _tokens(cmd)
+    if toks is None:
         return None
     out: list[tuple[str, list[str]]] = []
     i = 0
     while i < len(toks):
         t = toks[i]
-        head = i == 0 or _sep(toks[i - 1]) or toks[i - 1] in _RUNNERS or "=" in toks[i - 1] and not toks[i - 1].startswith("-")
-        if depth < 4 and ("git" in t or "$" in t) and (" " in t or "\n" in t or ";" in t or "&" in t or "`" in t):   # bash -c '...', eval "..."
+        if _nested(t, depth):
             inner = git_calls(t, depth + 1, aliases)
             if inner is None:
                 return None
             out += inner
-            i += 1
-            continue
-        if "$" in t and ("git" in t or head):   # git${IFS}push, $x push: what runs is not in the text
+        elif "$" in t and ("git" in t or _is_head(toks, i)):   # git${IFS}push, $x push: what runs is not in the text
             out.append(("$", [t]))
-            i += 1
-            continue
-        if Path(t).name == "git":
-            j = i + 1
-            while j < len(toks) and toks[j].startswith("-") and not _sep(toks[j]):
-                if toks[j] in _GLOBAL_WITH_VALUE and j + 1 < len(toks):
-                    if toks[j] == "-c" and aliases is not None and toks[j + 1].lower().startswith("alias."):
-                        name, _, value = toks[j + 1][len("alias."):].partition("=")
-                        aliases[name.lower()] = value
-                    j += 2
-                else:
-                    j += 1
-            if j < len(toks) and not _sep(toks[j]):
-                sub, args, k = toks[j], [], j + 1
-                while k < len(toks) and not _sep(toks[k]):
-                    args.append(toks[k])
-                    k += 1
-                out.append(("$", [sub]) if "$" in sub else (sub, args))   # git $x: the subcommand is not in the text
+        elif Path(t).name == "git":
+            call, k = _call_at(toks, i + 1, aliases)
+            if call is not None:
+                out.append(call)
                 i = k
                 continue
         i += 1
@@ -218,24 +246,27 @@ def _repo_aliases(cwd: str) -> dict[str, str]:
     return out
 
 
+def _alias_runs(sub: str, run: str, args: list[str], aliases: dict[str, str], depth: int) -> list:
+    """What alias ``sub`` (``run``) runs: a shell alias's calls, a git alias's subcommand, or ``("$", ...)``."""
+    if depth >= 8:
+        return [("$", [sub])]
+    if run.startswith("!"):
+        inner = git_calls(run[1:])
+        return [("$", [sub])] if inner is None else _expand(inner, aliases, depth + 1)
+    words = run.split()
+    return _expand([(words[0], words[1:] + args)], aliases, depth + 1) if words else [("$", [sub])]
+
+
 def _expand(calls, aliases: dict[str, str], depth: int = 0):
     """The calls, each followed by what its alias runs: ``ship = push`` adds push, ``!git push`` its shell command's
     calls; a loop or a shell alias that cannot be read adds the call ``("$", ...)``, which fails closed. The call
     itself stays, since git runs a builtin over an alias of the same name: expanding only ever adds."""
     out = []
     for sub, args in calls:
-        out.append((sub, args))   # kept: git runs a builtin over an alias of its name, so the expansion only adds
-        a = aliases.get(sub.lower()) if sub != "$" else None
-        if a is None:
-            continue
-        if depth >= 8:
-            out.append(("$", [sub]))
-        elif a.startswith("!"):
-            inner = git_calls(a[1:])
-            out += [("$", [sub])] if inner is None else _expand(inner, aliases, depth + 1)
-        else:
-            words = a.split()
-            out += _expand([(words[0], words[1:] + args)], aliases, depth + 1) if words else [("$", [sub])]
+        out.append((sub, args))
+        run = aliases.get(sub.lower()) if sub != "$" else None
+        if run is not None:
+            out += _alias_runs(sub, run, args, aliases, depth)
     return out
 
 
@@ -312,6 +343,42 @@ def _stages_spec(cwd: str, calls, globs) -> bool | None:
     return False
 
 
+def _field(event: dict, key: str, kind: type, default):
+    """``event[key]`` when it is a ``kind``, ``default`` when it is absent or null; any other type is refused
+    (task-0268, task-0200 P8: what cannot be read is never allowed)."""
+    v = event.get(key)
+    if v is None:
+        return default
+    if not isinstance(v, kind):
+        raise ValueError(f"{key} is {type(v).__name__}, not {'an object' if kind is dict else 'a string'}")
+    return v
+
+
+def _bash(event: dict) -> tuple[str, str]:
+    """A Bash event's command and cwd, each a string, or ValueError."""
+    ti = _field(event, "tool_input", dict, {})
+    cmd = ti.get("command")
+    if cmd is not None and not isinstance(cmd, str):
+        raise ValueError(f"tool_input.command is {type(cmd).__name__}, not a string")
+    return cmd or "", _field(event, "cwd", str, "")
+
+
+def _commit_stage(cmd: str, cwd: str, calls, spec_globs: list[str]) -> str | None:
+    """``spec`` when the commit carries a spec file, staged before or by the command itself (P2), or when git
+    cannot tell (fail closed); None otherwise."""
+    paths = _committed(cwd, cmd)
+    if paths is None or _spec(paths, spec_globs):
+        return "spec"
+    named = _stages_spec(cwd, calls, spec_globs)
+    return "spec" if named is None or named else None
+
+
+def _by_name(cmd: str) -> str | None:
+    """What a command that cannot be read names, failing closed: ``push``, else ``spec`` for a commit."""
+    low = cmd.lower()
+    return "push" if "push" in low else "spec" if "commit" in low else None
+
+
 def transition(event: dict, spec_globs: list[str]) -> str | None:
     """The stage a tool call moves to, or None: not a transition, the hook has no decision."""
     tool = event.get("tool_name")
@@ -321,46 +388,19 @@ def transition(event: dict, spec_globs: list[str]) -> str | None:
         return "plan"
     if tool != "Bash":
         return None
-    ti = event.get("tool_input")
-    if ti is None:
-        ti = {}
-    if not isinstance(ti, dict):
-        raise ValueError(f"tool_input is {type(ti).__name__}, not an object")
-    cmd = ti.get("command")
-    if cmd is None:
-        cmd = ""
-    if not isinstance(cmd, str):
-        raise ValueError(f"tool_input.command is {type(cmd).__name__}, not a string")
-    cwd = event.get("cwd") or ""
-    if not isinstance(cwd, str):
-        raise ValueError(f"cwd is {type(cwd).__name__}, not a string")
+    cmd, cwd = _bash(event)
     inline: dict[str, str] = {}
     calls = git_calls(cmd, aliases=inline)
     if calls is None:   # a command that cannot be read: by pattern, failing closed on a commit
-        if _git(cmd, "push"):
-            return "push"
-        return "spec" if _git(cmd, "commit") else None
+        return "push" if _git(cmd, "push") else "spec" if _git(cmd, "commit") else None
     if any(sub != "$" for sub, _ in calls):   # an alias, inline (git -c alias.X=push X) or configured, is what it runs
         calls = _expand(calls, {**_repo_aliases(cwd), **inline})
     subs = {sub for sub, _ in calls}
-    if "$" in subs:   # a variable stands where git or its subcommand would: fail closed on what the text names
-        low = cmd.lower()
-        if "push" in low:
-            return "push"
-        if "commit" in low:
-            return "spec"
+    if "$" in subs and _by_name(cmd):   # a variable stands where git or its subcommand would: fail closed
+        return _by_name(cmd)
     if "push" in subs:
         return "push"
-    if "commit" in subs:
-        paths = _committed(cwd, cmd)
-        if paths is None:   # cannot tell what the commit carries: treat it as the transition (fail closed)
-            return "spec"
-        if _spec(paths, spec_globs):
-            return "spec"
-        named = _stages_spec(cwd, calls, spec_globs)   # what the command itself stages, before it runs (P2)
-        if named is None or named:
-            return "spec"
-    return None
+    return _commit_stage(cmd, cwd, calls, spec_globs) if "commit" in subs else None
 
 
 # --- the gate ----------------------------------------------------------------------------------
@@ -429,6 +469,21 @@ def run_gate(stage: str, task: str, kg: Path, inst: Path, *, advisory: bool, tim
             Path(tmp).unlink(missing_ok=True)
 
 
+def _per_stage(task_for: list[str], advisory: bool) -> tuple[dict[str, str], Decision | None]:
+    """--task-for's classes by stage, or the decision that refuses them: a bad entry, or a stage named twice
+    (task-0268: two classes for one stage is a configuration that cannot be read)."""
+    per: dict[str, str] = {}
+    for s in task_for:
+        stage, _, cls = s.partition("=")
+        if stage not in STAGES or not cls or cls == FREE_KEYS:
+            return per, decide(CANNOT_RUN, check="knowgov hook", unavailable=f"bad --task-for {s!r} (stages: {', '.join(STAGES)})",
+                               advisory=advisory)
+        if stage in per:
+            return per, refuse("knowgov hook", f"--task-for names the stage {stage} twice ({per[stage]} and {cls})")
+        per[stage] = cls
+    return per, None
+
+
 def _seconds(v: str) -> float:
     """--timeout: a finite number of seconds above 0 (task-0268); anything else is argparse's usage error, exit 2."""
     import math
@@ -488,14 +543,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if a.task == FREE_KEYS:
         return emit(refuse("knowgov hook", "--task keys is an agent-chosen key set, not a task class"))
-    per = {}
-    for s in a.task_for:
-        stage, _, cls = s.partition("=")
-        if stage not in STAGES or not cls or cls == FREE_KEYS:
-            return emit(decide(CANNOT_RUN, check="knowgov hook", unavailable=f"bad --task-for {s!r} (stages: {', '.join(STAGES)})", advisory=a.advisory))
-        if stage in per:   # task-0268: two classes for one stage is a configuration that cannot be read
-            return emit(refuse("knowgov hook", f"--task-for names the stage {stage} twice ({per[stage]} and {cls})"))
-        per[stage] = cls
+    per, bad = _per_stage(a.task_for, a.advisory)
+    if bad:
+        return emit(bad)
     try:
         stage = transition(ev, a.spec or ["spec.md"])
     except ValueError as e:   # task-0268: a field that is not what the event's shape says blocks in every profile

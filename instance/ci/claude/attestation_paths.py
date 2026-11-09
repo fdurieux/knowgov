@@ -118,16 +118,25 @@ def after_text(event: dict, p: Path) -> str | None:
             raise ValueError("Write carries no content")
         return c
     if tool == "NotebookEdit":
-        if p.suffix.casefold() == ".ipynb":
-            return None
-        if p.name.casefold() == "subject.toml":
-            raise ValueError(f"a NotebookEdit on {p.name} cannot be read as the TOML it would leave")
-        src = ti.get("new_source", "")
-        if not isinstance(src, str):
-            raise ValueError("NotebookEdit carries a new_source that is not text")
-        return src
-    text = p.read_text(encoding="utf-8") if p.exists() else ""
-    edits = ti.get("edits") if tool == "MultiEdit" else [ti]
+        return _notebook_text(ti, p)
+    return _edited(p.read_text(encoding="utf-8") if p.exists() else "", ti.get("edits") if tool == "MultiEdit" else [ti], tool, p)
+
+
+def _notebook_text(ti: dict, p: Path) -> str | None:
+    """A NotebookEdit's text for the content checks: None on a notebook, ``new_source`` on any other file, and no
+    reading at all of a ``subject.toml``, whose TOML it would leave cannot be known (task-0268)."""
+    if p.suffix.casefold() == ".ipynb":
+        return None
+    if p.name.casefold() == "subject.toml":
+        raise ValueError(f"a NotebookEdit on {p.name} cannot be read as the TOML it would leave")
+    src = ti.get("new_source", "")
+    if not isinstance(src, str):
+        raise ValueError("NotebookEdit carries a new_source that is not text")
+    return src
+
+
+def _edited(text: str, edits, tool: str, p: Path) -> str:
+    """``text`` with an Edit's or a MultiEdit's edits applied, as the tool would apply them."""
     if not isinstance(edits, list) or not edits:
         raise ValueError(f"{tool} carries no edits")
     for e in edits:

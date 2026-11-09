@@ -465,10 +465,6 @@
    "value": 31,
    "floor": 31
   },
-  "instance/ci/claude/attestation_paths.py::after_text": {
-   "value": 19,
-   "floor": 19
-  },
   "instance/ci/claude/attestation_paths.py::check": {
    "value": 22,
    "floor": 22
@@ -477,21 +473,13 @@
    "value": 33,
    "floor": 33
   },
-  "instance/ci/claude/knowgov_hook.py::git_calls": {
-   "value": 29,
-   "floor": 29
-  },
   "instance/ci/claude/knowgov_hook.py::main": {
-   "value": 19,
-   "floor": 19
+   "value": 17,
+   "floor": 17
   },
   "instance/ci/claude/knowgov_hook.py::run_gate": {
    "value": 16,
    "floor": 16
-  },
-  "instance/ci/claude/knowgov_hook.py::transition": {
-   "value": 19,
-   "floor": 19
   },
   "tools/_outcomes.py::run": {
    "value": 16,
