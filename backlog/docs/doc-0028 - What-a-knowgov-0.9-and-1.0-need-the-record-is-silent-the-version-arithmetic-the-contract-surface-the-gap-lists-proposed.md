@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-08T23:53:00Z'
+updated_date: '2026-11-09T07:34:00Z'
 tags:
   - brief
   - release
@@ -92,38 +92,40 @@ Every item here is the maintainer's to meet.
 | G9-13 | An attestation bound to the Versions it attests (decision-0019, the maintainer, 2026-11-08: "Build it in 0.9") | Not built; K12 below is decided for 0.9.0 by this row | task-0221 |
 | G9-14 | One id per conflict on every store (decision-0020, the maintainer, 2026-11-08: "accept decision-0020's advice") | Not built: document conflicts are numbered in store order (doc-0030 S2) | task-0223 |
 | G9-15 | pumllint 0.35.0 as the record's pin, so the image runs step 4's feature trace (G9-4; the maintainer, 2026-11-08: "bump pumllint to 0.35.0") | 0.33.0 pinned; trace --features first in 0.35.0 | task-0224, then task-0217 |
+| G9-16 | The third-party code review's reproduced defects fixed (doc-0033; the maintainer, 2026-11-09: "all as advised") | R1 a malformed block_levels weakens the gate; R2 float comparison corroborates distinct numbers; R3 inference-basis flags by hash seed; R4 .env files enter a locally built image; a test leak and three hygiene items | task-0242 to task-0246 |
 
-### Status at `main` `4c7fcb0` (2026-11-08, late)
+### Status at `main` `6d27961` (2026-11-09)
 
-*Filed by the coordinating session, refreshed after the reconciliation of the v1.0 scope handover (decision-0023 A1 and decision-0028 to decision-0031, all proposed). The table above is the list as accepted; this records where each row stands. decision-0016 point 1 cuts 0.9.0 when G9-1 to G9-10 are met; G9-11 to G9-15 were added to the list since.*
+*Filed by the coordinating session, refreshed after the reconciliation of the v1.0 scope handover (decision-0023 A1 and decision-0028 to decision-0031, accepted by the maintainer on 2026-11-09: "all as advised"). The table above is the list as accepted; this records where each row stands. decision-0016 point 1 cuts 0.9.0 when G9-1 to G9-10 are met; G9-11 to G9-15 were added to the list since.*
 
 | # | state | evidence |
 |--:|---|---|
 | G9-1 | met | decision-0016, accepted 2026-11-06 |
-| G9-2 | met | task-0174 Done (#382): `[format] version` and `format = 1` (decision-0023). What a missing version means after 0.9.0 is decision-0023 Amendment A1, proposed for the maintainer (R1 reads it as 1 in every release, recommended; R0 refuses it from 0.9.0); task-0236 builds the chosen rule before the cut |
+| G9-2 | met | task-0174 Done (#382): `[format] version` and `format = 1` (decision-0023). What a missing version means after 0.9.0 is decision-0023 Amendment A1, accepted 2026-11-09 as R1: it reads as version 1, in every release. task-0236 builds it in #397 |
 | G9-3 | **open: one task** | task-0157 and task-0160 Done; task-0148 In Progress, its AC #5 waiting on the maintainer's Claude Desktop test (K10) |
 | G9-4 | met for 0.8.0; met again at the cut | v0.8.0 published (tag `0c629d8`), the compose file pins its digest; 0.9.0's image is the release's own build, carrying pumllint 0.35.0 (G9-15) and naming its commit (task-0227, #375) |
 | G9-5 | met, on decision-0016 point 1's text ("task-0163 merged") | task-0163 Done (rdflib and rdflib-readers in parallel). The CI budget (task-0084: 12 min uncontended) is not shown: task-0163 AC #2 stays open (contended rdflib-readers runs of 12.5, 13.9 and 16.8 min), task-0180 To Do. rdflib-readers is not yet a required check, which is the maintainer's to add. Neither is a cut condition |
 | G9-6 | **met, but K10** (decision-0024, 2026-11-08) | P3 done (task-0173). The proposed 1.0 limits of §10 are named (decision-0024); K21 is a 1.0 limit by decision-0021; K22, the worker's manual restart after (A'), is tasked (task-0238) |
 | G9-7 | met (decision-0025, 2026-11-08: the technical name stays knowgov) | task-0061 stays To Do for the buyer-facing name |
 | G9-8 | met (decision-0026, 2026-11-08: the platform GPL-3.0-or-later; `harness/schemas/`, `instance/` and any SDK Apache-2.0) | the re-stamp and README's section (task-0058 AC #2, #3) after counsel's check |
-| G9-9 | met | task-0230 (#384): every adopter-facing claim held against the code, and a docs gate; task-0234 (#388) and task-0235 (#387) its follow-ups. task-0181's statement of the contracts (AC #1 to #4; #5 and #6 once decision-0028 and decision-0030 are answered) lands before the cut |
-| G9-10 | met for the category | decision-0016 point 3 names it. The versions themselves are decision-0028, proposed for the maintainer: the ieam-register tag a release vendors and tests, `v0.2.13` at 0.9.0 on the maintainer's word (the re-vendor in flight), written by task-0181 once accepted |
+| G9-9 | met | task-0230 (#384): every adopter-facing claim held against the code, and a docs gate; task-0234 (#388) and task-0235 (#387) its follow-ups. task-0181's statement of the contracts: AC #1 to #3 merged in #395; #4 to #6 (decision-0023 A1, decision-0028, decision-0030) in #397 |
+| G9-10 | met | decision-0016 point 3 names it; decision-0028 (accepted 2026-11-09) states the versions: the ieam-register tag a release vendors and tests, `v0.2.13` at 0.9.0 (task-0240, #393), written by task-0181 AC #5 in #397 |
 | G9-11 | met | H1–H7 and M3: task-0194 to task-0199 Done; the tranche F1–F8 and the singles 0205–0209 merged (task-0204 open as #376, task-0228 as #377) |
 | G9-12 | met | task-0214 (#356), task-0215 (#352), task-0216 (#357); step 4's checks, task-0217 (#371) |
 | G9-13 | met | task-0221 (#354, #355) |
 | G9-14 | met | task-0223 (#359) |
 | G9-15 | met | task-0224 (#362); `pumllint trace --features` smoke step in rdflib-readers |
+| G9-16 | **open: five tasks** | task-0242 (R1), task-0244 (R3), task-0243 (R2), task-0245 (R4) and task-0246, dispatched 2026-11-09 |
 
 **Left before the cut:**
-- **work**, dispatched on 2026-11-08: the re-vendor at ieam-register `v0.2.13` (the maintainer: "yes, re-vendor the register at v0.2.13 before 0.9.0"), and task-0181 AC #1 to #4 (the contracts stated). Prepared alongside, with their pull requests held for the maintainer's word: task-0236 (decision-0023 A1), task-0181 AC #5 and #6 (decision-0028, decision-0030) and task-0237 (decision-0029);
-- **the maintainer's**: G9-3's Desktop test (2026-11-09), and the four contract questions, each proposed with the four parts and each a 0.10.0 if settled after the cut. They are decision-0023 A1 (what a missing format version means after 0.9.0), decision-0028 (the register versions an instance may use), decision-0029 (the report's identity in 0.9.0) and decision-0030 (the page's HTTP API);
+- **work**: #397 (task-0236, task-0181 AC #4 to #6), merging on green; task-0241, C4 in `proposal_impact` and the register view (in 0.9.0 on the maintainer's word, 2026-11-09), dispatched. G9-16's five fixes (task-0242 to task-0246, doc-0033), dispatched. task-0252, a slice's readiness read over its task class's keys (doc-0034 D1; the maintainer, 2026-11-09: "(a), fix it in 0.9.0"), dispatched. Merged on 2026-11-08 and 09: the re-vendor at `v0.2.13` (#393), task-0181 AC #1 to #3 (#395), and task-0237, the report's identity (#396, decision-0029);
+- **the maintainer's**: G9-3's Desktop test (2026-11-09);
 - **the release PR**: its Known limits. These are decision-0024's thirteen, decision-0021's K21, K10 unless the Desktop test closes it, and the tasked K16, K19, K22 and U1, with K1 at the current Landlock floor (ABI 3, task-0203).
 
 **Not cut conditions:**
 - task-0058's re-stamp. decision-0016 point 1 needs the boundary decided, and decision-0026 decided it. The re-stamp lands in a 0.9.x when counsel answers, or before the cut if counsel answers first.
 - The CI budget (task-0180).
-- decision-0031 (proposed): the acceptance matrix as the lighthouse's protocol.
+- decision-0031 (accepted 2026-11-09): the acceptance matrix becomes the lighthouse's protocol, and decision-0016 point 4 stays.
 
 ## 5. 1.0: the contracts proven (proposed gap list)
 

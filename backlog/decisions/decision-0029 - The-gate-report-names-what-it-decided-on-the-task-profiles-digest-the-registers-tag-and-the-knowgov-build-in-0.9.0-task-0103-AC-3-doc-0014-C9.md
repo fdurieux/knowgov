@@ -4,7 +4,7 @@ title: >-
   The gate report names what it decided on: the task profile's digest, the
   register's tag and the knowgov build, in 0.9.0 (task-0103 AC 3, doc-0014 C9)
 date: '2026-11-08T23:45:00Z'
-status: proposed
+status: accepted
 ---
 ## Context
 
@@ -24,7 +24,7 @@ Raised by the reconciliation of the v1.0 scope handover against `main` `4c7fcb0`
 - **(b) All of task-0103 at the pilot.** AC #3 is then 0.10.0.
 - **(c) Not built.** A retained report stays without its identity.
 
-## Decision (proposed)
+## Decision
 
 **(a)**, the drafter's recommendation. The gate report gains, additively:
 - **`task_profile`**: the sha256 of the canonical JSON of the subject's `[tasks.<class>]` table the gate read.
@@ -71,3 +71,7 @@ The scored record does not move. If the comparator cannot pass without re-freezi
 - **If accepted**, task-0237 builds it, depending on task-0103. The build is prepared overnight, and its pull request waits for the maintainer's word. task-0103 AC #3 is checked when it merges, and AC #1 and #2 stay at m-8.
 - **If not**, task-0237 is archived, and AC #3 stays at the pilot, as a 0.10.0 when it is built.
 - **doc-0028**: "Left before the cut" lists it as the maintainer's.
+
+## Acceptance (2026-11-09)
+
+The maintainer, 2026-11-09: "all as advised", answering the six questions the coordinator set out with their four parts on the queue page (fdurieux/knowgov#392). The decision is accepted as written: (a), in 0.9.0. task-0237 built it, and it merged as #396 (`6d27961`) on a whole green matrix with `stack`, with the record unmoved. task-0103 AC #3 is checked there; AC #1 and #2 stay at m-8.
