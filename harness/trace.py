@@ -444,6 +444,7 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as e:
             raise CannotRun(f"--as-of: {e}") from e
         from store import open_store
+        import switches
         try:
             st = open_store(instance=SUBJECT.id, access="write")
         except Exception as e:  # noqa: BLE001
@@ -458,7 +459,7 @@ def main(argv: list[str] | None = None) -> int:
                             task=args.task, fail_on=args.fail_on, block_levels=set(TASKS[args.task]["block_levels"]), as_of=on,
                             known=known_keys())
             st.commit()   # task-0141.02: what it registered, published once the report is made
-        except CannotRun:
+        except (CannotRun, switches.BadSwitch):   # task-0287 N9: a misspelt switch is named as itself
             raise
         except Exception as e:  # noqa: BLE001
             raise CannotRun(f"the store did not answer: {type(e).__name__}: {e}") from e

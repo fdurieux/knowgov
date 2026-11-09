@@ -22,7 +22,8 @@ ACTION = ROOT / "instance" / "ci" / "github" / "action.yml"
 DOCUMENTED = {   # every spelling the documents give today, and what it meant then (decision-0033: it keeps it)
     "KG_NO_LOAD": {"1": True}, "KG_PUBLISH": {"1": True}, "KG_ALLOW_UNCONTAINED_EXECUTION": {"1": True},
     "KG_TRACEBACK": {"1": True}, "KG_THINKING_UNCOUNTED": {"1": True, "": False},
-    "KG_LOAD_MEMORY_CHECK": {"off": False}, "KG_KEY_CHECK": {"off": False, "on": True}}
+    "KG_LOAD_MEMORY_CHECK": {"off": False}, "KG_KEY_CHECK": {"off": False, "on": True},
+    "KG_CLOCK": {"pinned": True}}
 
 
 def _refused(name, value):
@@ -42,16 +43,16 @@ def test_every_switch_keeps_its_documented_spellings_and_unset_is_its_default():
         assert switches.parse(name, None) is default and switches.parse(name, "") is default, name
     for name in ("KG_NO_LOAD", "KG_TRACEBACK"):
         assert switches.parse(name, "0") is False
-    assert switches.parse("KG_KEY_CHECK", "OFF") is False and switches.parse("KG_LOAD_MEMORY_CHECK", " Off ") is False
+    assert switches.parse("KG_KEY_CHECK", "OFF") is False and switches.parse("KG_LOAD_MEMORY_CHECK", "Off") is False
 
 
 def test_any_other_value_is_refused_naming_the_setting_and_its_spellings():
     for name in ("KG_NO_LOAD", "KG_PUBLISH", "KG_ALLOW_UNCONTAINED_EXECUTION", "KG_TRACEBACK", "KG_THINKING_UNCOUNTED"):
-        for bad in ("true", "yes", "on", "TRUE", "2", "false"):
+        for bad in ("true", "yes", "on", "TRUE", "2", "false", " 1", "1 "):
             why = _refused(name, bad)
             assert why and name in why and "1 (on)" in why and repr(bad) in why, (name, bad, why)
     for name in ("KG_LOAD_MEMORY_CHECK", "KG_KEY_CHECK"):
-        for bad in ("0", "no", "false", "disabled", "1"):
+        for bad in ("0", "no", "false", "disabled", "1", " off", "off "):
             why = _refused(name, bad)
             assert why and name in why and "off (off)" in why, (name, bad, why)
 
@@ -129,3 +130,40 @@ def test_the_actions_switch_inputs_take_true_or_false_in_any_case_and_fail_other
     text = ACTION.read_text(encoding="utf-8")
     assert "inputs.publish == 'true'" not in text and '"$KNOWGOV_ANNOTATE" = true' not in text
     assert "if: always() && inputs.sarif == 'true'" in text   # a GitHub expression: compared without case already
+
+
+def test_kg_clock_takes_only_pinned_and_a_misspelling_never_reads_the_wall_clock():
+    """task-0287: KG_CLOCK=Pinned, 'pinned ' or 1 silently read the wall clock; now they are refused by name."""
+    import review
+    for bad in ("Pinned", "pinned ", " pinned", "1", "yes", "true"):
+        why = _refused("KG_CLOCK", bad)
+        assert why and "KG_CLOCK" in why and "pinned" in why, (bad, why)
+    saved = {k: os.environ.get(k) for k in ("KG_CLOCK", "KG_TODAY")}
+    try:
+        os.environ.pop("KG_TODAY", None)
+        for bad in ("Pinned", "1"):
+            os.environ["KG_CLOCK"] = bad
+            try:
+                review.today()
+            except switches.BadSwitch as e:
+                assert "KG_CLOCK" in str(e)
+            else:
+                raise AssertionError(f"KG_CLOCK={bad!r} read the wall clock")
+        os.environ["KG_CLOCK"] = "pinned"
+        try:
+            review.today()
+        except review.WallClock:
+            pass
+        else:
+            raise AssertionError("pinned without KG_TODAY must refuse the wall clock")
+    finally:
+        for k, v in saved.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+
+def test_a_misspelt_switch_reaches_the_exit_as_itself_never_as_the_store():
+    """task-0287 N9: the gate's and the trace's catch-all for the store lets BadSwitch through, so cli_exit names it."""
+    for path in ("harness/gate_cli.py", "harness/trace.py"):
+        text = (ROOT / path).read_text(encoding="utf-8")
+        assert re.search(r"except \([^)]*switches\.BadSwitch[^)]*\):[^\n]*\n\s+raise\n", text), path
+    assert "BadSwitch" in cli_exit.OWN

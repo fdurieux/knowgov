@@ -2,7 +2,8 @@
 
 A flag is on with ``1``; ``0``, empty or unset is off. A setting documented with a word keeps that word:
 ``KG_LOAD_MEMORY_CHECK=off`` and ``KG_KEY_CHECK=off`` turn their check off, ``on``, empty or unset leaves it on,
-in any case. Any other value raises ``BadSwitch``, a ``ValueError`` naming the setting and the spellings it
+in any case. ``KG_CLOCK=pinned``, exactly, refuses the wall clock; empty or unset reads it (task-0287). No value is
+stripped of spaces, here or in ``knowgov-gate.sh``. Any other value raises ``BadSwitch``, a ``ValueError`` naming the setting and the spellings it
 accepts, which a command's ``cli_exit.run`` turns into exit 2 with that line. Before, ``KG_NO_LOAD=true`` or
 ``KG_TRACEBACK=yes`` silently meant off.
 
@@ -17,6 +18,7 @@ import os
 
 FLAG = {"1": True, "0": False, "": False}            # 1 on; 0, empty or unset off
 WORD_ON = {"on": True, "off": False, "": True}       # a check that is on unless switched off by name
+CLOCK = {"pinned": True, "": False}                  # task-0287: pinned, exactly; empty or unset reads the wall clock
 
 # name -> (spellings, where it is documented, who reads it)
 SWITCHES = {
@@ -27,6 +29,7 @@ SWITCHES = {
     "KG_THINKING_UNCOUNTED": (FLAG, "demo/models.toml (thinking_uncounted)", "harness/arms.py"),
     "KG_LOAD_MEMORY_CHECK": (WORD_ON, "instance/README.md, docs/security.md", "harness/load_memory.py"),
     "KG_KEY_CHECK": (WORD_ON, "demo/README.md, docs/security.md", "harness/key_check.py"),
+    "KG_CLOCK": (CLOCK, "instance/README.md", "harness/review.py (today, now)"),
 }
 
 
@@ -39,13 +42,15 @@ def accepted(name: str) -> str:
     spellings = SWITCHES[name][0]
     if spellings is FLAG:
         return "1 (on), or 0, empty or unset (off)"
+    if spellings is CLOCK:
+        return "pinned (the wall clock refused), or empty or unset (the wall clock)"
     return "off (off), or on, empty or unset (on), in any case"
 
 
 def parse(name: str, raw: str | None) -> bool:
     """``raw`` read as ``name``'s spellings: True for on; BadSwitch for anything they do not name."""
     spellings = SWITCHES[name][0]
-    value = (raw or "").strip()
+    value = raw or ""   # never stripped: ' 1' is refused here as in knowgov-gate.sh's flag (task-0287, N8)
     if spellings is WORD_ON:
         value = value.lower()
     if value not in spellings:

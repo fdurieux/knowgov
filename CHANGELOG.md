@@ -21,6 +21,11 @@ names that section with the version.
   as the other readers, the register's own `tools/register.py` included, so a folder with only
   `metamodel/types.toml` is exit 2, not exit 1 with every row's node unknown. An unnamed register reads as before,
   and the record does not move.
+- **`KG_CLOCK` takes only `pinned`** (task-0287, decision-0033 choice 2, G9-17). It is read through
+  `harness/switches.py`: `pinned`, exactly, refuses the wall clock; empty or unset reads it; any other value exits 2,
+  naming the setting. Before, `Pinned`, `pinned ` or `1` silently read the wall clock. No on/off setting is trimmed of
+  spaces any more, in Python as in `knowgov-gate.sh`, so `KG_NO_LOAD=' 1'` is refused in both. A misspelt
+  `KG_LOAD_MEMORY_CHECK` now exits 2 naming the setting, not as "the store did not answer".
 - **`gate_cli --baseline FILE` keeps its promise: an earlier report of the same run** (task-0258, G9-17). A report
   baseline of another subject, scenario, task class or stage is refused with exit 2, naming the field and both
   values. So is one whose `schema_version` is above this command's, under decision-0023's rule. Each report is
