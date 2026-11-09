@@ -24,9 +24,6 @@ names that section with the version.
   A retained report, a `--baseline` file or the pre-push hook's, thus says which task profile, register and
   knowgov it judged by. `schema_version` is now 3. A version-2 report still reads as a `--baseline`. The
   scored record does not move: the deterministic comparator reads no gate report.
-- **`GET /api/store` carries the store's Browser link** (task-0235, additive). A new `browser_connect` field
-  gives the Neo4j Browser link connected to the bolt port the stack publishes (`KG_PORT_BOLT`), or `null`
-  for a store with no Browser. The page's store panel uses it.
 
 - **Twenty `KG_*` settings are contracts from 1.0** (task-0234, decision-0027, decision-0016 point 3).
   `instance/README.md`'s new section "The settings an instance may rely on" documents fourteen of them,
@@ -44,8 +41,8 @@ names that section with the version.
 - **Format versions on an instance's inputs** (task-0174, decision-0023, doc-0028 G9-2). `subject.toml` carries
   `[format] version = 1`, covering its subject root's `scenarios.toml`, `plants.toml`, `queries.toml` and register
   map; `code_map.toml` and `connectors.toml` each a top-level `format = 1`; each capture and review file its own
-  `format = 1`, stamped by `harness/capture.py` as it writes them. A file with no number reads as the current
-  version until 1.0; a file with a newer number is refused by every reader with exit 2, naming the file, its
+  `format = 1`, stamped by `harness/capture.py` as it writes them. A file with no number reads as version 1, in
+  every release (decision-0023 Amendment A1, task-0236); a file with a newer number is refused by every reader with exit 2, naming the file, its
   version and the one this knowgov reads. The public subjects, the wizard skill and `tools/example_instance.py`
   write the key; `check_subject.py`'s report (and the MCP `subject_check`'s) carries `format`, and
   `check_instance.py` lists it per subject. `capture.py` now exits through the one failure-to-run wrapper.
@@ -396,6 +393,11 @@ names that section with the version.
   and `proposal_impact` still read coverage C1 to C3 by name, so C4 has no coverage line and no new-gap entry. A
   C4 error in an instance's register still shows in the register view's findings list and its error count,
   which list every checker finding. Nothing in the record moves.
+
+- **The page's store panel links Neo4j Browser to the right bolt port** (task-0235). `GET /api/store`, a route
+  that serves the page, gains a `browser_connect` field: the Neo4j Browser link connected to the bolt port the
+  stack publishes (`KG_PORT_BOLT`), or `null` for a store with no Browser. It is not a contract: the page's
+  HTTP API is the four routes `demo/README.md` names (decision-0030).
 
 - **What stays stable from 1.0, and how a change reaches you** (task-0181, decision-0016, doc-0028 P4).
   `instance/README.md`'s contracts table now says, for each contract, how you are told when it changes. A new

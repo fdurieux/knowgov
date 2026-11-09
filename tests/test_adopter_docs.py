@@ -297,7 +297,7 @@ POINT3 = (
     ("the subject manifest format", "the fields of `subject.toml`"),
     ("the MCP reader's and the runs server's tools, prompts, and their inputs and outputs", "the tools and prompts of both assistant servers"),
     ("the `KG_*` settings that `instance/README.md` or `docs/security.md` documents", "the `KG_*` settings this file or"),
-    ("the page's HTTP API, as `demo/README.md` documents it", "the page's `/api/*` routes"),
+    ("the page's HTTP API, as `demo/README.md` documents it", "the page's HTTP API: the four routes"),
     ("the inputs and outputs of `instance/ci/`", "the CI action, the GitLab include, the shell wrappers and the hooks' settings files"),
     ("the image's name and tag scheme", "the image's name and tags"),
     ("the format versions of the instance's inputs", "the format version each of your input files declares"),
@@ -344,3 +344,36 @@ def test_the_contracts_section_quotes_points_2_3_5_and_6_as_the_record_has_them(
     d16, section = _decision_0016(), _flat(_stable_section())
     for n in (2, 3, 5, 6):
         assert _flat(_point(d16, n)) in section, f"decision-0016 point {n} is not quoted as accepted"
+
+
+
+def test_the_register_tag_the_contracts_table_names_is_the_one_vendored():
+    """decision-0028 (task-0181 AC #5): the contracts table names the ieam-register tag this release vendors and
+    tests, so a re-vendor that forgets the README is red."""
+    source = (ROOT / "demo" / "register" / "SOURCE.md").read_text(encoding="utf-8")
+    vendored = re.search(r"(?m)^\| tag \| `(v[\d.]+)`", source).group(1)
+    row = next(ln for ln in _stable_section().splitlines() if ln.startswith("| which ieam-register"))
+    named = re.findall(r"ieam-register `(v[\d.]+)`", row)
+    assert named == [vendored], (named, vendored)
+    assert "A register at another tag may load, but is untested" in row
+
+
+
+def test_the_pages_http_api_is_four_routes_the_server_serves_by_their_method():
+    """decision-0030 (task-0181 AC #6): demo/README.md names four routes as the page's HTTP API at 1.0 and says
+    every other route may change; each is one demo/app/server.py serves, by the method the guide gives it."""
+    guide = (ROOT / "demo" / "README.md").read_text(encoding="utf-8")
+    para = guide.split("**The page's HTTP API.**", 1)[1].split("\n\n", 1)[0]
+    named = re.findall(r"`(GET|POST) (/api/[\w/]+)`", para)
+    assert named == [("POST", "/api/run"), ("GET", "/api/scenarios"), ("GET", "/api/subjects"), ("POST", "/api/models/check")], named
+    assert "may change in any release" in para
+    server = (ROOT / "demo" / "app" / "server.py").read_text(encoding="utf-8")
+    def method(name: str) -> str:
+        return server.split(f"def {name}(", 1)[1].split("\n    def ", 1)[0]
+    # each handler hands a request on to its helper (do_GET to _get, do_POST to _post)
+    bodies = {"GET": method("do_GET") + method("_get"), "POST": method("do_POST") + method("_post")}
+    for verb, path in named:
+        segs = path.strip("/").split("/")
+        literal = "[" + ", ".join(f'"{s}"' for s in segs) + "]"
+        served = f"parts == {literal}" in bodies[verb] or f"parts[:{len(segs)}] == {literal}" in bodies[verb]
+        assert served, f"{verb} {path} is not a route demo/app/server.py serves"

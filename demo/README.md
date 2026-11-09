@@ -1056,8 +1056,14 @@ starts only when both hold, and `why` is the refusal that run would get. Each of
 carries `"key_check"`: `"state"` (`accepted`, `refused`, `unreachable` or `unchecked`), the HTTP
 `"status"`, `"checked_at"`, `"scope"` (`gateway` when the listing proves a gateway's own key only) and
 `"why"`; a refused row reads `"available": false`. `POST /api/models/check` checks every key again
-and answers with the rows. The
-token takes effect with an image built from this checkout (`docker compose up --build`) or a
+and answers with the rows.
+
+**The page's HTTP API.** Four routes are the page's HTTP API at 1.0, the ones a script may rely on:
+`POST /api/run`, `GET /api/scenarios`, `GET /api/subjects` and `POST /api/models/check`, with the fields
+this guide describes. Every other route serves the page itself and may change in any release
+(decision-0030).
+
+The token takes effect with an image built from this checkout (`docker compose up --build`) or a
 release after 0.2.0. A run or a projection is also refused when it comes from a page on another
 web address, so a site open in the same browser cannot start one.
 
