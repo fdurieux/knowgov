@@ -54,6 +54,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+import task_policy  # noqa: E402  (task-0242, doc-0033 R1: the one task-policy validator, also the runtime's)
 import formats  # noqa: E402  (task-0174, decision-0023: [format] version, standard library, binds no subject)
 KINDS_TABLE = ROOT / "instance" / "kinds.toml"
 MAPPERS_TABLE = ROOT / "instance" / "mappers.toml"   # what each mapper reads, in an adopter's words (task-0149)
@@ -70,7 +71,7 @@ ARTEFACT_REQUIRED = ("key", "family", "format")
 TASK_FIELDS = {"keys", "block_levels", "max_unverified_share", "verbatim", "rationale", "require_approved"}
 TASK_REQUIRED = ("keys", "block_levels", "max_unverified_share")
 RECORD_FIELDS = {"dir", "as_of"}
-LEVELS = ("absent", "declared_gap", "disputed", "invalidated", "proposed", "validated", "verified", "approved")   # harness/gate.py ORDER
+LEVELS = task_policy.LEVELS   # harness/gate.py ORDER (task-0242: one list, the validator's)
 KEY_RE = re.compile(r"[^|\s]+\|[^|\s]+")
 NEAR = 0.8   # difflib ratio for a did-you-mean
 YIELD_TIMEOUT = 300
@@ -217,23 +218,15 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
         for f in TASK_REQUIRED:
             if f not in t:
                 rep.error("required", where, f"no {f!r}: the gate needs it", "copy it from subjects/minimal/subject.toml and adjust")
+        for p in task_policy.problems(t):   # task-0242: the one validator the runtime builds the policy with
+            if p["code"] == "block-level" and isinstance(p["value"], str) and isinstance(t.get("block_levels"), list):
+                near = _near(p["value"], LEVELS)
+                p["hint"] = f"use {near!r}" if near else p["hint"]
+            rep.error(p["code"], where, p["message"], p["hint"])
         keys = t.get("keys")
-        if "keys" in t and (not isinstance(keys, list) or not keys):
-            rep.error("required", where, "keys is not a non-empty list", "list the keys the task needs")
         for k in keys if isinstance(keys, list) else []:
-            _key(rep, f"{where} keys", k)
-        bl = t.get("block_levels")
-        for lv in bl if isinstance(bl, list) else []:
-            if lv not in LEVELS:
-                near = _near(str(lv), LEVELS)
-                rep.error("block-level", where, f"block level {lv!r} is not a gate level",
-                          f"use {near!r}" if near else f"use one of {', '.join(LEVELS)}")
-        if "require_approved" in t and not isinstance(t["require_approved"], bool):   # task-0215: the intended bar
-            rep.error("require-approved", where, f"require_approved {t['require_approved']!r} is not true or false",
-                      "write require_approved = true for a class whose keys a person must have approved, or leave it out")
-        share = t.get("max_unverified_share")
-        if "max_unverified_share" in t and (isinstance(share, bool) or not isinstance(share, (int, float)) or not 0 <= share <= 1):
-            rep.error("share", where, f"max_unverified_share {share!r} is not a number from 0 to 1", "write a share such as 0.25")
+            if isinstance(k, str) and k:
+                _key(rep, f"{where} keys", k)
     tv = m.get("three_valued", {})
     for k in tv.get("keys", []) if isinstance(tv, dict) else []:
         _key(rep, "[three_valued] keys", k)

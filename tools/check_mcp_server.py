@@ -426,7 +426,7 @@ def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: s
     import register_impact as ri
     st = mcp_server.open_read_only()   # read with the same store, scenario and as_of: each slice's keys at their levels (task-0191)
     try:
-        mine = pi.with_levels(pi.evaluate(proposal, today=pi._date(got["as_of"], "as_of")), st, task="codegen",
+        mine = pi.with_levels(pi.evaluate(proposal, today=pi._date(got["as_of"], "as_of"), task="codegen"), st, task="codegen",
                               as_of=got["as_of"], scenario=sc)
     finally:
         st.release()
@@ -448,6 +448,7 @@ def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: s
             if k["rows"] != ri.with_levels(bare, gate) or sum(k["cells"]["levels"].values()) != k["landed"]:
                 failures.append(f"{label}: proposal_impact scope {scope}: slice {sl['start']['id']}'s keys differ from the gate's levels")
             scoped += 1
+    classes = check_slice_classes(client, sc, failures, label)
     n = 0
     for entry in got["keys"]["by_node"]:
         want = client.call("register_impact", {"node": entry["node"], "scenario": sc, "as_of": "record"})
@@ -458,7 +459,46 @@ def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: s
     print(f"{label}: proposal_impact names {len(gaps)} new gap(s); {n} key(s) on {len(got['keys']['by_node'])} reused node(s) "
           f"equal register_impact's; {len(got.get('slices', {}).get('map', []))} slice(s), {e.get('in_slices')} of "
           f"{e.get('denominator')} element(s) in them, equal the command's; scoped by JRN-0001 and JRN-0005, {scoped} slice(s) "
-          "with keys, each at the gate's levels (task-0191)")
+          f"with keys, each at the gate's levels (task-0191); under {classes}, each class's keys in a slice or on no "
+          "slice, at the class gate's levels (task-0252)")
+
+
+def check_slice_classes(client: "StdioClient", sc: str, failures: list[str], label: str) -> list[str]:
+    """task-0252: under each declared task class, every slice of the first scope the subject's map lands on
+    reads only that class's keys, each at the level the subject's own gate under the class reads it, with
+    each slice's verdict gate_verdict's on its keys; the class's keys on no slice are slices.task_keys, at
+    the same levels, so each of the class's keys is in a slice or there, and nowhere twice."""
+    from tasks import TASKS
+    from subject import SUBJECT
+    mapped = json.dumps(SUBJECT.register_map(), default=str)
+    scope = next((x for x in ("JRN-0001", "JRN-0005") if x in mapped), None)
+    if scope is None:
+        return []
+    for task, spec in TASKS.items():
+        rep = client.call("proposal_impact", {"scope": scope, "task": task, "scenario": sc, "as_of": "record"})
+        whole = client.call("gate_verdict", {"scenario": sc, "task": task, "as_of": "record"})
+        want, on = list(dict.fromkeys(spec["keys"])), []
+        for sl in rep["slices"]["map"]:
+            k = sl["keys"]
+            ks = list(dict.fromkeys(r["key"] for r in k["rows"] if not r.get("withdrawn")))
+            on += ks
+            if k["task"] != task or k["of"] != len(want) or set(ks) - set(want) \
+                    or any(r["level"] != whole["levels"][r["key"]] for r in k["rows"]):
+                failures.append(f"{label}: proposal_impact {scope} under {task}: slice {sl['start']['id']} reads keys "
+                                f"outside the class or at levels its gate does not")
+            elif ks and k["gate"]["verdict"] != client.call("gate_verdict", {"scenario": sc, "task": task, "keys": ks,
+                                                                             "as_of": "record"})["verdict"]:
+                failures.append(f"{label}: proposal_impact {scope} under {task}: slice {sl['start']['id']}'s verdict is not the gate's")
+        rest = rep["slices"]["task_keys"]
+        off = [x["key"] for x in rest["keys"]]
+        if rest["task"] != task or set(on) & set(off) or set(on) | set(off) != set(want) \
+                or rest["denominator"] != len(want) or rest["in_slices"] + rest["on_no_slice"] != len(want) \
+                or any(x["level"] != whole["levels"][x["key"]] for x in rest["keys"]):
+            failures.append(f"{label}: proposal_impact {scope} under {task}: the class's keys are not each in one slice or on no slice")
+        print(f"{label}: proposal_impact {scope} under {task}: {rest['in_slices']} of the class's {len(want)} key(s) in slices, "
+              f"{rest['on_no_slice']} on no slice ({rest['gate']['verdict'] if rest['gate'] else 'none'}); "
+              f"the class gate {whole['verdict']}")
+    return sorted(TASKS)
 
 
 def check_nodes(client: "StdioClient", failures: list[str], label: str) -> None:

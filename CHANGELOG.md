@@ -12,6 +12,16 @@ names that section with the version.
 
 ### Contract changes
 
+- **A slice reads its task class's keys, and the class's keys on no slice are named** (task-0252, doc-0034 D1).
+  `proposal_impact` (CLI `--task`, MCP `task`, `codegen` by default) now keeps each slice's keys to the
+  `[tasks.<class>]` keys among the register-map rows on its thread. Before, every mapped key was read under
+  the class's rule, so a `design` slice could block on a key `design` does not require. The slice's `keys`
+  gains `task`, and `of` is the class's key count. The new `slices.task_keys` lists the class's keys on no
+  slice, each with `mapped`, and with a scenario held its levels and gate; `in_slices + on_no_slice` is the
+  denominator. On CargoQuote S2 under `design`, the slices block on `QuoteAPI|on_screening_outage` and
+  `REQ-06|text` (absent, unmapped) sits in `task_keys`; under `codegen` the slices, verdicts and counts are
+  unchanged. `register_impact` keeps its reach: every mapped key a change reaches. Schema additive.
+
 - **`proposal_impact` and the register view read every coverage rule the register's checker defines** (task-0241;
   the maintainer, 2026-11-09). At ieam-register v0.2.13 these are C1 to C4, where C4 is the register's decision 0020:
   an approved process that realises an approved capability is supported by an approved application or module.
@@ -26,6 +36,7 @@ names that section with the version.
   - `tools/fixtures/proposal_c4_gap.json` is the worked case, held by the tests and by
     `tools/check_proposal_branch.py` in branch mode. The vendored register is C4-clean, so nothing in the
     record moves.
+
 - **The gate report names what it decided on: schema version 3** (task-0237, decision-0029; task-0103 AC #3,
   doc-0014 C9). `gate_cli.py -f json` and the MCP reader's `gate_verdict` now carry three required fields.
   - `task_profile`: the sha256 of the canonical JSON (sorted keys, no whitespace) of the subject's
@@ -400,6 +411,37 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **No `.env` file reaches the image** (security; task-0245, doc-0033 R4). `demo/Dockerfile.dockerignore` now
+  leaves out every `.env` and `.env.*`, at the root and in any folder. Only a values-free `.env.example` is let
+  back in. Compose still reads a `.env` beside the compose file to fill in its variables. The compose file's
+  comment and `docs/security.md` say both, and `tests/test_demo.py` holds the rule.
+
+- **Four small corrections** (task-0246, doc-0033). None changes behaviour.
+  - `tests/test_page_subject.py` pins the `KG_PAGE_LISTEN` its POST checks depend on, so it passes whether the
+    variable is unset or `0.0.0.0`.
+  - The page loses a dead line.
+  - `harness/annotate.py`'s fingerprints say `usedforsecurity=False`, with the same values.
+  - `harness/store.py` checks a setting for NaN with `math.isnan`. A test refuses NaN for every float setting.
+
+- **A task policy the gate cannot apply is refused, never read loosely** (task-0242, doc-0033 R1).
+  `block_levels = "absent"` became the set of its letters, so nothing blocked and the gate read QUALIFIED,
+  exit 0. `block_levels = 7` passed `tools/check_subject.py` and failed only at run time. One validator,
+  `harness/task_policy.py`, now serves the checker and every runtime reader of `[tasks.<class>]` (the gate,
+  `gate_cli.py`, the MCP reader, `run.py`, the agent-key path), and coerces nothing. `block_levels` is a list
+  of gate levels, `keys` a non-empty list of keys, `max_unverified_share` a number from 0 to 1,
+  `require_approved` true or false, `rationale` text. A malformed field is a checker error and, unchecked,
+  the gate's exit 2 (an error result from the MCP reader), naming the class and the field. A subject with a
+  malformed task class does not load: every gate call exits 2 naming the field.
+- **A key resting only on inference carries every basis, not one chosen by the hash seed** (task-0244,
+  doc-0033 R3). A key whose statements are all inferred, assumed or hypothesised was flagged with one of
+  those bases, picked by Python's set order, so the same store could report different flags from run to
+  run. Its flags now list every basis among them, sorted. The verdict never depended on it.
+- **Two numeric values of a key compare exactly** (task-0243, doc-0033 R2, doc-0028 G9-16). `rules.compatible`,
+  which the rules, the review's dispute check, the capture and the load share, compared numbers as floats.
+  9007199254740992 and 9007199254740993, or 1e309 and 2e309, read equal: R-CORROBORATE promoted them and
+  R-CONFLICT stayed silent. They now compare as `decimal.Decimal`, with no tolerance; 316.00 is still 316. A
+  non-finite value (`inf`, `nan` and their spellings) is incomparable, as R-VAGUE reads a vague one. Nothing in
+  the record moves.
 - **The vendored register moves to ieam-register v0.2.13** (`7980708`, from v0.2.11). It adds the register's
   decision 0019, four eyes: a session that drafted a change is its author and may not approve it. It also adds
   decision 0020, coverage rule C4: an approved process that realises an approved capability is supported by an

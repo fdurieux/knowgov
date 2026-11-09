@@ -285,3 +285,21 @@ def test_the_generation_settings_have_defaults_and_refuse_nonsense():
                 raise AssertionError(f"{name}={bad!r} accepted")
     with _env(KG_NEO4J_LEASE_SECONDS="5"):
         assert store.setting("KG_NEO4J_LEASE_SECONDS") == 5.0
+
+
+
+def test_a_nan_setting_is_refused_by_isnan():
+    """task-0246: the bound check reads math.isnan(v), not v != v, with the same meaning: every float setting
+    refuses a NaN however it is spelt."""
+    floats = [n for n, (default, _, _) in store.SETTINGS.items() if isinstance(default, float)]
+    assert floats
+    for name in floats:
+        for bad in ("nan", "NaN", "-nan", "+nan"):
+            with _env(**{name: bad}):
+                try:
+                    store.setting(name)
+                except ValueError as e:
+                    assert name in str(e), e
+                else:
+                    raise AssertionError(f"{name}={bad!r} accepted")
+    assert "math.isnan(v)" in (ROOT / "harness" / "store.py").read_text(encoding="utf-8")

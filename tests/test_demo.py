@@ -738,3 +738,36 @@ def test_the_worker_starts_only_with_its_arms_profile_and_the_stack_job_passes_i
     assert "docker compose --profile arms down -v" in wf and "docker compose --profile arms logs" in wf
     readme = (DEMO / "README.md").read_text(encoding="utf-8")
     assert "--profile arms" in readme and "Landlock" in readme, "the adopter is told how and where arms run"
+
+
+
+def _ignored(rules: list[str], path: str) -> bool:
+    """Whether a build-context path is left out, by .dockerignore's rule: the last pattern that matches wins, a
+    leading ! lets a path back in, a pattern with no **/ matches at the root, and **/ matches at any depth, the
+    root included."""
+    import fnmatch
+    out = False
+    for rule in rules:
+        keep = rule.startswith("!")
+        pat = rule[1:] if keep else rule
+        hit = fnmatch.fnmatchcase(path, pat) or (pat.startswith("**/") and fnmatch.fnmatchcase(path, pat[3:]))
+        if hit:
+            out = not keep
+    return out
+
+
+def test_no_env_file_reaches_the_image():
+    """task-0245: demo/Dockerfile.dockerignore keeps every .env and .env.* out of the build context, at the root and
+    in any folder, and lets a values-free .env.example back in; the compose file's comment and docs/security.md say
+    the same."""
+    text = (ROOT / "demo" / "Dockerfile.dockerignore").read_text(encoding="utf-8")
+    rules = [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
+    for path in (".env", ".env.local", ".env.production", "demo/.env", "demo/.env.local", "subjects/x/.env",
+                 "instance/ci/.env.prod"):
+        assert _ignored(rules, path), f"{path} would reach the image"
+    for path in (".env.example", "demo/.env.example", "demo/docker-compose.yml", "harness/arms.py", "README.md"):
+        assert not _ignored(rules, path), f"{path} is left out of the image"
+    compose = (ROOT / "demo" / "docker-compose.yml").read_text(encoding="utf-8")
+    assert "a .env file beside this compose file" in compose and "it never reaches the image" in compose
+    security = (ROOT / "docs" / "security.md").read_text(encoding="utf-8")
+    assert "never reaches the image" in security and "`tests/test_demo.py::test_no_env_file_reaches_the_image`" in security
