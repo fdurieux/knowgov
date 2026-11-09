@@ -1654,8 +1654,8 @@ are *environment variables*, set in the shell, the CI job or the compose file be
 The table below has one row for every `KG_*` setting this guide or [`docs/security.md`](../docs/security.md)
 names. **A setting is a contract when the table marks it so** (decision-0016 point 3, as amended by
 decision-0033 choice 1): the settings an instance's CI, compose file or hook sets in order to run, decision-0027's
-twenty among them. A row marked *no* is named so you can find it: the test clock, the demo stack's ports,
-tuning knobs and one escape. It may change in any release, so do not build on it. A setting that neither
+twenty among them. A row marked *no* is named so you can find it: the demo stack's ports, tuning knobs and
+one escape. It may change in any release, so do not build on it. A setting that neither
 file names is not a contract. Where a row says "see", the setting is described there; the worker's limits
 are in [`docs/security.md`](../docs/security.md).
 
@@ -1734,8 +1734,8 @@ are in [`docs/security.md`](../docs/security.md).
 | `KG_WORKER_JOBS` | Worker | the jobs folder the app and the worker share; see `docs/security.md` | the compose file's `/jobs` | yes |
 | `KG_WORKER_WORK` | Worker | the worker's own work folder; see `docs/security.md` | `/work` | yes |
 | `KG_ALLOW_UNCONTAINED_EXECUTION` | Worker | `1` runs model-written code on the host, uncontained; see `docs/security.md` | none | no: an escape, never to be relied on |
-| `KG_CLOCK` | Test clock | `pinned` makes a command that would read the wall clock fail; see "Capturing what people know" | none | no: the test clock |
-| `KG_TODAY` | Test clock | a fixed today, `YYYY-MM-DD` | the wall clock | no: the test clock |
+| `KG_CLOCK` | Clock | `pinned` makes a command that would read the wall clock fail; see "Capturing what people know" | none | yes |
+| `KG_TODAY` | Clock | a fixed today, `YYYY-MM-DD`, for a reproducible run | the wall clock | yes |
 
 ## What stays stable from 1.0: the contracts
 

@@ -64,10 +64,11 @@ def test_each_row_has_a_group_and_says_contract_or_why_not():
     marked = {r[0].strip("`"): r[4] for r in _rows()}
     assert all(marked[n] == "yes" for n in adopter.CONTRACT_SETTINGS), "decision-0027's twenty are contracts"
     for n in ("KG_STORE", "KG_SUBJECT", "KG_REGISTER", "KG_BIND", "KG_MCP_TOKEN", "KG_PAGE_TOKEN", "KG_AS_OF",
-              "KG_PUBLISH", "KG_REPORT", "KG_ANNOTATE"):
+              "KG_PUBLISH", "KG_REPORT", "KG_ANNOTATE", "KG_CLOCK", "KG_TODAY"):
         assert marked[n] == "yes", n
-    for n in ("KG_CLOCK", "KG_TODAY", "KG_PORT_APP", "KG_ALLOW_UNCONTAINED_EXECUTION"):
+    for n in ("KG_PORT_APP", "KG_PUBLIC_PORT", "KG_STORE_READ_ATTEMPTS", "KG_ALLOW_UNCONTAINED_EXECUTION"):
         assert marked[n].startswith("no: "), n
+    assert sum(v == "yes" for v in marked.values()) == 63 and len(marked) == 75, "as the maintainer confirmed (2026-11-09)"
 
 
 def test_the_wording_says_the_table_decides():
