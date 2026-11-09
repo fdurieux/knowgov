@@ -578,6 +578,29 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **The CI templates read paths and settings one way, and refuse what they cannot follow** (task-0267; security,
+  fail-open).
+  - **Changed paths.** `instance/ci/knowgov-gate.sh`'s changed-code list, shared by the GitLab include and the
+    GitHub action, split `git diff --name-only` on whitespace, and git quoted non-ASCII names. So a merge request
+    adding `módulo.py` read "no code changed" (exit 0), and one adding `new module.py` checked `module.py`.
+    - Git's path lists are now read NUL-separated and unquoted (`-z`, `core.quotepath=off`). The Python helper
+      quotes each path into the argv, and globbing is off, so a space, a glob character or a non-ASCII name is
+      that name.
+    - The same holds for the Claude Code hook's staged and worktree paths and for `proposal_impact`'s branch mode.
+    - `KG_FILES` stays whitespace-separated, never globbed.
+  - **`KG_ANNOTATE`.** An empty element, an unknown format or a format with an empty file now exits 2 before the
+    core command, naming the setting and its four formats. A file the annotator cannot write stays a warning
+    beside the command's exit, without a traceback.
+  - **`KG_BASE`.** A base starting with `-` is refused with exit 2. `--end-of-options` goes before every base
+    git reads, so `--output=FILE` writes nothing.
+  - **`proposal-impact.sh`.** A register branch that adds nothing now exits 0, with a report whose `not_read`
+    names what the branch changes.
+  - **`preload_check`.**
+    - An absolute `--changed` path and one escaping by `..` are now the same refusal, exit 2, naming the path.
+    - A directory with no `subjects/` is refused as not an instance.
+    - A linter named by `KG_SPECTRAL`, `KG_MARKDOWNLINT`, `KG_GPLINT`, `KG_BPMNLINT` or `KG_DMNLINT` that is not
+      an executable file exits 2, naming the setting.
+    - `preload-check.sh` takes an absolute `KG_PRELOAD_BASELINE` as given.
 - **`subject_check` can no longer alias the register map onto the manifest** (task-0289, decision-0032 point 5). A
   proposed `[register] map = "subject.toml"` (or `scenarios.toml`, `plants.toml`, or a document's path) wrote the
   `register_map_toml` text over that file after the manifest's paths had been confined, so the manifest that landed could

@@ -200,7 +200,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"knowgov annotate: {e}", file=sys.stderr)
         return 2
     if a.out:
-        a.out.write_text(text, encoding="utf-8")
+        try:
+            a.out.write_text(text, encoding="utf-8")
+        except OSError as e:   # task-0267: a file it cannot write is a message, never a traceback
+            print(f"knowgov annotate: cannot write {a.out}: {e.strerror or e}", file=sys.stderr)
+            return 2
     else:
         sys.stdout.write(text)
     return 0

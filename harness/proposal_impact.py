@@ -936,7 +936,7 @@ def _task_keys(task: str | None, tasks: dict) -> list[str] | None:
 
 def evaluate(proposal: dict | None, root: Path | None = None, today: dt.date | None = None, children: bool = False,
              register_map: dict | None = None, scope: str | None = None, task: str | None = DEFAULT_TASK,
-             tasks: dict | None = None) -> dict:
+             tasks: dict | None = None, empty: bool = False) -> dict:
     """The report, without the store: everything but the keys' levels (``with_levels`` adds those).
     ``today`` is the date exceptions and reviews are read on (the as_of). ``scope`` names a journey, a step
     or a product (task-0191): the slices are its own, and the overlay may add nothing, so the approved
@@ -958,7 +958,7 @@ def evaluate(proposal: dict | None, root: Path | None = None, today: dt.date | N
         if scope is None:
             raise ProposalError("give a proposal, a scope, or both")
         proposal = {"title": f"the approved register, scoped by {scope}"}
-    ov = Overlay(proposal, base, T, scoped=scope is not None)
+    ov = Overlay(proposal, base, T, scoped=scope is not None or empty)   # empty: a register branch that adds nothing (task-0267)
     read = ov.merged(base, "approved", today)
     scope_of(read, scope)   # refused before anything is read
     if register_map is None:
@@ -1068,13 +1068,22 @@ def _toml_at(repo: Path, rev: str, path: str) -> dict:
         raise ProposalError(f"{rev}:{path}: {e}") from e
 
 
+def _merge_base(checkout: Path, base: str) -> str:
+    """The merge base of HEAD with ``base``, a ref, never an option git would act on (task-0267, N2)."""
+    if base.startswith("-"):
+        raise ProposalError(f"--base {base}: not a git ref: it starts with '-'")
+    return _git(checkout, "merge-base", "--end-of-options", base, "HEAD")
+
+
 def branch_overlay(checkout: Path, base: str, taxonomies: tuple[str, ...]) -> tuple[dict, dict]:
     """The proposal a register branch makes against ``base``, and what the report says of the branch.
     Reads git only: the diff between the merge base and HEAD (committed work, never the working tree)."""
     checkout = checkout.resolve()
     head = _git(checkout, "rev-parse", "HEAD")
-    mb = _git(checkout, "merge-base", base, "HEAD")
-    rows = [ln.split("\t") for ln in _git(checkout, "diff", "--name-status", "--no-renames", mb, head).splitlines() if ln]
+    mb = _merge_base(checkout, base)
+    # NUL-separated (task-0267): "status\0path\0" per file, so a space or a non-ASCII character is part of the path
+    out = _git(checkout, "diff", "--name-status", "--no-renames", "-z", mb, head).split("\0")
+    rows = [[st, path] for st, path in zip(out[0::2], out[1::2]) if st]
     nodes, links, reused, excs, not_read = [], [], [], [], []
     for row in sorted(rows, key=lambda r: r[-1]):
         st, path = row[0], row[-1]
@@ -1136,8 +1145,10 @@ def evaluate_branch(checkout: Path, base: str, today: dt.date | None = None, chi
         data = _git(checkout, "archive", "--format=tar", info["merge_base"], binary=True)
         with tarfile.open(fileobj=io.BytesIO(data)) as tar:
             tar.extractall(tmp, filter="data")
+        # task-0267: a branch that adds nothing is still read and reported (its not_read names what it changes); the
+        # step is advisory, so that is exit 0 with a report, never a cannot-run
         report = evaluate(proposal, root=tmp, today=today, children=children, register_map=register_map, scope=scope,
-                          task=task, tasks=tasks)
+                          task=task, tasks=tasks, empty=True)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
         _checks.pop(str(tmp.resolve()), None)

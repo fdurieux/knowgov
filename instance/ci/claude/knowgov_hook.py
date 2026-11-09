@@ -292,10 +292,21 @@ def _paths_named(args: list[str]) -> tuple[list[str], bool]:
 
 def _status(cwd: str) -> list[str] | None:
     """Every path git reports changed or untracked in the worktree; None if git cannot tell."""
-    p = subprocess.run(["git", "-C", cwd or ".", "status", "--porcelain=v1", "-uall"], capture_output=True, text=True)
+    p = subprocess.run(["git", "-C", cwd or ".", "-c", "core.quotepath=off", "status", "--porcelain=v1", "-z", "-uall"],
+                       capture_output=True)
     if p.returncode:
         return None
-    return [ln[3:].split(" -> ")[-1].strip('"') for ln in p.stdout.splitlines() if len(ln) > 3]
+    # task-0267: NUL-separated and unquoted, so a space, a quote or a non-ASCII character is part of the name; a rename
+    # or copy entry ("R  new\0old") is followed by its source, which is skipped as the arrow form's left side was
+    out, items = [], p.stdout.decode("utf-8", "surrogateescape").split("\0")
+    i = 0
+    while i < len(items):
+        it = items[i]
+        if len(it) > 3:
+            out.append(it[3:])
+            i += 1 if it[0] in "RC" or it[1] in "RC" else 0
+        i += 1
+    return out
 
 
 def _committed(cwd: str, cmd: str) -> list[str] | None:
@@ -305,10 +316,10 @@ def _committed(cwd: str, cmd: str) -> list[str] | None:
         runs.append(["diff", "--name-only"])
     out: list[str] = []
     for r in runs:
-        p = subprocess.run(["git", "-C", cwd or ".", *r], capture_output=True, text=True)
+        p = subprocess.run(["git", "-C", cwd or ".", "-c", "core.quotepath=off", *r, "-z"], capture_output=True)
         if p.returncode:
             return None
-        out += p.stdout.split()
+        out += [n for n in p.stdout.decode("utf-8", "surrogateescape").split("\0") if n]   # task-0267: never split on a space
     return out
 
 

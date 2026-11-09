@@ -157,6 +157,20 @@ def run_spectral(files: list[Path], cwd: Path, threshold: str) -> dict:
     return {"rc": 1 if hit else 0, "version": version, "findings": findings, "error": None}
 
 
+NAMED = ("KG_SPECTRAL", "KG_MARKDOWNLINT", "KG_GPLINT", "KG_BPMNLINT", "KG_DMNLINT")   # a linter named by its setting
+
+
+def unrunnable() -> list[str]:
+    """The linter settings that name something this check cannot run (task-0267, N6; as decision-0033 choice 5 has
+    it for a named register): set, but not an executable file. Unset keeps PATH's answer and "not installed"."""
+    out = []
+    for var in NAMED:
+        v = os.environ.get(var)
+        if v and not (Path(v).is_file() and os.access(v, os.X_OK)):
+            out.append(f"{var}={v}")
+    return out
+
+
 def _exe(var: str, name: str) -> list[str] | None:
     """The command for a Node linter: the variable's path (an install outside PATH), else name on PATH, else None."""
     exe = os.environ.get(var) or shutil.which(name)
@@ -310,8 +324,33 @@ RUNNERS = {"plantuml-models": ("pumllint", run_pumllint), "api-contracts": ("Spe
 SUFFIXES = {"decision-tables": (".dmn",)}
 
 
+def _refused(args) -> str | None:
+    """Why the check cannot run on what it was given, before it reads anything (task-0267); None when it can."""
+    if not args.instance.is_dir():
+        return f"{args.instance} is not a directory"
+    named = unrunnable()
+    if named:
+        return f"{', '.join(named)}: the linter named there is not an executable file; unset it to use PATH's"
+    if not (args.instance / "subjects").is_dir():   # refused whether or not --layout is given
+        return f"{args.instance} is not an instance: it holds no subjects/ (instance/README.md)"
+    outside = _outside(args.instance, args.changed or [])
+    if outside:   # an absolute path and one escaping by .. are the same refusal, each named
+        return f"--changed {', '.join(outside)}: outside the instance {args.instance.resolve()}"
+    return None
+
+
+def _outside(instance: Path, changed: list[str]) -> list[str]:
+    """The --changed paths that name nothing inside the instance, absolute or relative alike: each joined to the
+    instance (an absolute one stays itself), its .. and symlinks resolved, then held to the instance's own root."""
+    inst = instance.resolve()
+    return [c for c in changed if not (inst / c).resolve().is_relative_to(inst)]
+
+
 def _since(instance: Path, ref: str) -> list[str]:
-    p = subprocess.run(["git", "-C", str(instance), "diff", "--name-only", "-z", "--diff-filter=d", f"{ref}...HEAD", "--", "artefacts/"],
+    if ref.startswith("-"):   # task-0267 (N2): a ref, never an option git would act on
+        raise ValueError(f"--since {ref}: not a git ref: it starts with '-'")
+    p = subprocess.run(["git", "-C", str(instance), "-c", "core.quotepath=off", "diff", "--name-only", "-z", "--diff-filter=d",
+                        "--end-of-options", f"{ref}...HEAD", "--", "artefacts/"],
                        capture_output=True, text=True)
     if p.returncode != 0:
         raise ValueError(f"--since {ref}: git diff failed: {p.stderr.strip()}")
@@ -612,8 +651,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--layout", action="store_true", help="also carry tools/check_instance.py's layout problems in the report "
                                                            "(its layout block, for annotation; task-0115); the exit code stays the lint's")
     args = ap.parse_args(argv)
-    if not args.instance.is_dir():
-        print(f"cannot run: {args.instance} is not a directory", file=sys.stderr)
+    refused = _refused(args)
+    if refused:
+        print(f"cannot run: {refused}", file=sys.stderr)
         return 2
     try:
         table = check_instance.kinds()
