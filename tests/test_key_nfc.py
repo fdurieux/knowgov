@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "harness"), str(ROOT / "tools")]
 import key_rule  # noqa: E402
 import mcp_server  # noqa: E402
-from tests._skip import need_rdflib  # noqa: E402
+from tests._skip import need_rdflib, skip  # noqa: E402
 
 NFC = "soci\u00e9t\u00e9|adresse"
 NFD = unicodedata.normalize("NFD", NFC)
@@ -45,14 +45,8 @@ def test_each_entry_point_normalises():
     keys, the verification map, code-header citations, trace's --keys, the MCP reader's key arguments and the
     upward key join."""
     import citation
-    import extract
     import task_policy
     import trace
-    bag = extract.Bag("doc")
-    bag.ent(nfd(SOCIETE), "container")
-    a = bag.assertion(nfd(SOCIETE), nfd(f"uses:{ADRESSE}"), "v", "t", [])
-    assert (a["entity"], a["predicate"]) == (SOCIETE, f"uses:{ADRESSE}") and set(bag.entities) == {SOCIETE}
-    assert extract.mapped_text(nfd(f"Rel({SOCIETE}, {ADRESSE}, \"x\")")) == f"Rel({SOCIETE}, {ADRESSE}, \"x\")"
     assert task_policy.build("codegen", {"keys": [NFD], "block_levels": ["absent"], "max_unverified_share": 0.25})["keys"] == [NFC]
     assert citation.parse(f"# knowgov-keys: {nfd(NFC)}, P2|surcharge\n", "#") == [NFC, "P2|surcharge"]
     assert trace._nfc(NFD) == NFC
@@ -64,6 +58,25 @@ def test_each_entry_point_normalises():
         s = subject_mod.Subject(root)
         assert s.register_map()["row"][0]["key"] == KEYS[0] and s.three_valued == [KEYS[1]]
         assert s.verification_map()["review"]["keys"] == [KEYS[0]]
+
+
+def need_yaml():
+    import importlib.util
+    if importlib.util.find_spec("yaml") is None:
+        skip("yaml", "harness/extract.py's mappers need PyYAML; the stdlib job has none")
+
+
+def test_the_mappers_yield_a_decomposed_document_composed():
+    """The mappers' Bag composes the entity and predicate it is given, and a document is composed before it is
+    mapped (a mapper's \\w stops at a combining mark)."""
+    need_yaml()
+    import extract
+    bag = extract.Bag("doc")
+    bag.ent(nfd(SOCIETE), "container")
+    a = bag.assertion(nfd(SOCIETE), nfd(f"uses:{ADRESSE}"), "v", "t", [])
+    assert (a["entity"], a["predicate"]) == (SOCIETE, f"uses:{ADRESSE}") and set(bag.entities) == {SOCIETE}
+    text = nfd(f"Rel({SOCIETE}, {ADRESSE}, \"x\")")
+    assert extract.mapped_text(text) == f"Rel({SOCIETE}, {ADRESSE}, \"x\")"
 
 
 def _subject(root: Path, *, document_nfd: bool, keys_nfd: bool) -> Path:
@@ -139,6 +152,7 @@ def _env(**kw) -> dict:
 def test_check_subject_reads_a_decomposed_document_against_composed_keys_and_back():
     """check_subject's yield: the keys a decomposed document yields are the manifest's composed keys, and a
     manifest spelled decomposed matches a composed document; no key reads unyielded either way."""
+    need_yaml()
     for document_nfd, keys_nfd in ((True, False), (False, True), (True, True)):
         with tempfile.TemporaryDirectory() as d:
             root = _subject(Path(d), document_nfd=document_nfd, keys_nfd=keys_nfd)
