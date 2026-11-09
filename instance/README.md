@@ -102,8 +102,11 @@ show you later, or not at all:
   real name;
 - a task's missing or malformed settings: its `keys`, its `block_levels` and its
   `max_unverified_share`. A key is written `<entity>|<predicate>`, for example `REQ-01|text`.
-  `block_levels` is a list, such as `["absent"]`, never a bare `"absent"`. A subject with a malformed
-  task class does not load: every gate call exits 2 naming the field;
+  `block_levels` is a list, such as `["absent"]`, never a bare `"absent"`. A task class's name is
+  lower case, such as `codegen` or `design`: a letter first, then letters, digits, `_` or `-`, at
+  most 32 characters. It is never `keys`, which is the name a report gives a set of keys an
+  assistant chose. A subject with a malformed task class, or a class name outside that rule, does not
+  load: every gate call exits 2 naming the class or the field;
 - a subject with a task and no scenario. The gate runs on a scenario, so it cannot run on such a
   subject. Copy the pristine scenario `S0` from `subjects/minimal/scenarios.toml` and rename it
   `<id>-S0`;
@@ -143,6 +146,15 @@ python tools/check_subject.py /path/to/your/instance/subjects/<id> --register /p
 
 It prints the same findings, each with its fix, and exits 0, 1 or 2 like the layout check. Add
 `--json` for the report as data, pinned by `harness/schemas/subject-check.schema.json`.
+
+The register map's rows are checked against the register you name, with `--register` or with
+`KG_REGISTER`. If the register you name cannot be read (a typo in the path, or a folder that is not
+a register), the check stops with exit 2 and names the path; it never skips the register check
+without saying so. Only when you name no register, and the public register this copy of knowgov
+carries cannot be read either, are the rows reported as unchecked. The other commands that read a
+register (`harness/register_nodes.py`, `harness/upward.py`, `harness/proposal_impact.py`,
+`harness/gate_cli.py` with `--register-previous`) and the MCP reader follow the same rule: a register
+named and not readable exits 2, naming it.
 
 ### Format versions
 

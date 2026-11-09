@@ -7,29 +7,58 @@ contract's exit 2. Nothing is coerced into another type: ``block_levels = "absen
 set of its letters, ``7`` is not a level, ``"0.25"`` is not a share and ``"yes"`` is not ``true``. A field
 left out takes the documented default (the checker requires the three the gate needs).
 
+A class's name is checked too (task-0278, decision-0033 choice 4): ``[a-z][a-z0-9_-]{0,31}``, and never
+``keys``, the task a report on an agent-chosen key set names (doc-0014 C4: the MCP reader's ``keys``,
+``KG_TASK=keys`` refused by the CI route, a ``keys`` report refused by the hook). ``name_problem``
+says why a name is refused; ``build`` raises on it, so every runtime reader refuses the manifest with exit 2
+naming the class, and the checker reports it.
+
 Standard library only; no store, no subject.
 """
 from __future__ import annotations
+
+import re
 
 # harness/gate.py ORDER, worse to better; tests/test_task_policy.py holds the two equal
 LEVELS = ("absent", "declared_gap", "disputed", "invalidated", "proposed", "validated", "verified", "approved")
 DEFAULT_BLOCK_LEVELS = ("absent", "declared_gap", "disputed", "invalidated")
 DEFAULT_SHARE = 0.25
 FIELDS = ("keys", "block_levels", "max_unverified_share", "require_approved", "rationale")
+NAME = re.compile(r"[a-z][a-z0-9_-]{0,31}")   # task-0278: ASCII lower case, a letter first, at most 32 characters
+RESERVED = ("keys",)                          # an agent-chosen key set's report names task "keys" (doc-0014 C4)
+
+
+def table(name) -> str:
+    """``[tasks.<name>]`` as the manifest writes it: the name TOML-quoted when it is not a bare key."""
+    bare = isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9_-]+", name)
+    return f"[tasks.{name}]" if bare else '[tasks."' + str(name).replace("\\", "\\\\").replace('"', '\\"') + '"]'
 
 
 class TaskPolicyError(ValueError):
     """A task policy the gate cannot apply as written: the class, the field and why."""
 
     def __init__(self, task: str, field: str, why: str):
-        super().__init__(f"[tasks.{task}] {field}: {why}")
+        super().__init__(f"{table(task)} {field}: {why}")
         self.task, self.field, self.why = task, field, why
+
+
+def name_problem(name) -> dict | None:
+    """Why ``name`` cannot name a task class, as a problem (code ``task-class``), or None when it can."""
+    hint = "name the class in lower case, a letter first, then letters, digits, '_' or '-', at most 32 characters (codegen, design)"
+    if not isinstance(name, str) or not NAME.fullmatch(name):
+        return {"code": "task-class", "field": "name", "value": name,
+                "message": f"class name {name!r} is not [a-z][a-z0-9_-]{{0,31}}", "hint": hint}
+    if name in RESERVED:
+        return {"code": "task-class", "field": "name", "value": name,
+                "message": f"class name {name!r} is reserved: a report on an agent-chosen key set names its task {name!r} (doc-0014 C4)",
+                "hint": "rename the class, such as codegen or design"}
+    return None
 
 
 def problems(spec) -> list[dict]:
     """Every problem of one ``[tasks.<class>]`` table, as {code, field, value, message, hint}; empty when the
     gate can apply it as written. ``code`` is the checker's: required, block-level, share, require-approved,
-    rationale."""
+    rationale; ``name_problem``'s is task-class."""
     if not isinstance(spec, dict):
         return [{"code": "required", "field": "", "value": spec, "message": "not a table",
                  "hint": "write the class as a table with keys, block_levels and max_unverified_share"}]
@@ -72,6 +101,9 @@ def problems(spec) -> list[dict]:
 
 def build(task: str, spec) -> dict:
     """The policy the gate applies, from a table with no problem; ``TaskPolicyError`` on the first one."""
+    named = name_problem(task)   # task-0278: a name the gate cannot be asked for is refused before its table is read
+    if named:
+        raise TaskPolicyError(task, "name", named["message"])
     found = problems(spec)
     if found:
         p = found[0]

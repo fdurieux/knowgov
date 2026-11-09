@@ -59,8 +59,8 @@ def emitted() -> dict[str, set[str]]:
             out[method].add(arg.value)
         else:
             dynamic.append((method, ast.unparse(arg)))
-    # the one code not written as a literal is task_policy's, passed through as rep.error(p["code"], ...)
-    assert dynamic == [("error", "p['code']")], f"a rule code check_subject.py computes: add its source here {dynamic}"
+    # the codes not written as literals are task_policy's (problems, name_problem), passed through as rep.error(p["code"], ...)
+    assert dynamic and set(dynamic) == {("error", "p['code']")}, f"a rule code check_subject.py computes: add its source here {dynamic}"
     out["error"] |= _policy_codes()
     return out
 
@@ -74,6 +74,7 @@ def _report(findings: list[dict], notes: list[dict]) -> dict:
 def test_every_rule_code_the_checker_can_emit_is_in_the_schema():
     codes = emitted()
     assert {"require-approved", "rationale", "attestation"} <= codes["error"], codes   # task-0257's three
+    assert "task-class" in codes["error"], codes                                         # task-0278's
     assert {"required", "block-level", "share"} <= codes["error"] and "zero-yield" in codes["warning"], codes
     findings = [{"level": LEVEL[m], "rule": c, "where": "w", "message": "m", "fix": "f"}
                 for m in ("error", "warning") for c in sorted(codes[m])]

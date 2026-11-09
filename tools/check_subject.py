@@ -16,7 +16,9 @@ documents say. It reads and never writes; it opens no store.
 - **A scenario** (F3). A subject that declares a task declares at least one scenario: the gate
   runs on one and exits 2 on a subject that has none. `subjects/minimal/` declares the pristine `S0`.
 - **The register map** (F4). Every node a row of `register_map.toml` names is in the register, and
-  a row's `owner` is one of the owners of its nodes. Without a readable register, unchecked.
+  a row's `owner` is one of the owners of its nodes. A register named by `--register` or `KG_REGISTER`
+  that cannot be read is exit 2, naming it (task-0279, decision-0033 choice 5); with neither named,
+  the default `demo/register`, and the rows unchecked only when it cannot be read.
 - **The documents' yield** (F2). Each artefact's mapper is run on the subject's own documents, in
   a child process (the harness binds its subject at import), and every task's required key is
   looked up in what they yield. A key no document yields, with a near match the documents do
@@ -140,6 +142,14 @@ class Report:
         self.notes.append({"rule": rule, "where": where, "message": message})
 
 
+def _class_name(rep: Report, name, where: str) -> None:
+    """task-0278 (decision-0033 choice 4): a class named ``keys``, or outside ``[a-z][a-z0-9_-]{0,31}``; the runtime
+    refuses the manifest on it (``task_policy.build``)."""
+    p = task_policy.name_problem(name)
+    if p:
+        rep.error(p["code"], where, p["message"], p["hint"])
+
+
 def _fields(rep: Report, where: str, table: dict, known: set[str]) -> None:
     for f in table:
         if f not in known:
@@ -210,7 +220,8 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
 
     tasks = m.get("tasks", {})
     for name, t in (tasks.items() if isinstance(tasks, dict) else []):
-        where = f"[tasks.{name}]"
+        where = task_policy.table(name)
+        _class_name(rep, name, where)
         if not isinstance(t, dict):
             rep.error("required", where, "not a table", f"write [tasks.{name}] with keys, block_levels and max_unverified_share")
             continue
@@ -543,7 +554,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Check a subject root before it is loaded.")
     ap.add_argument("root", type=Path)
     ap.add_argument("--register", type=Path, default=None,
-                    help="the register the map rows are checked against (default: KG_REGISTER, else demo/register)")
+                    help="the register the map rows are checked against (default: KG_REGISTER, else demo/register); "
+                         "a named register that cannot be read exits 2")
     ap.add_argument("--json", action="store_true", help="print the report as JSON")
     ap.add_argument("--yield-only", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
@@ -554,6 +566,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"cannot run: {args.root} holds no subject.toml", file=sys.stderr)
         return 2
     register = args.register or Path(os.environ.get("KG_REGISTER") or DEFAULT_REGISTER)
+    by = "--register" if args.register else "KG_REGISTER" if os.environ.get("KG_REGISTER") else None
+    if by:   # task-0279 (decision-0033 choice 5): a register named and not readable exits 2; unchecked is for none named
+        import register_impact
+        why = register_impact.unreadable(register, tools=False)
+        if why:
+            print(f"cannot run: {by} {register.as_posix()} is not a readable register: {why}", file=sys.stderr)
+            return 2
     try:
         rep = check(args.root, register)
     except formats.FormatError as e:   # task-0174: written for a newer knowgov, or no version: cannot run

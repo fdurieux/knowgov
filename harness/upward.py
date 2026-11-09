@@ -261,6 +261,11 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("document")
     a = ap.parse_args(argv)
     try:
+        ri.require()   # task-0279: a register that cannot be read is a cannot-run, named, never a traceback
+    except ri.RegisterUnreadable as e:
+        print(f"upward: cannot run: {e}", file=sys.stderr)
+        return 2
+    try:
         rep = (key_nodes(a.key) if a.cmd == "key" else document_links(a.document) if a.cmd == "doc"
                else code_path(a.path, config(a.instance, a.ledger)))
     except UpwardError as e:

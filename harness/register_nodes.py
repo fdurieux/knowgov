@@ -160,7 +160,11 @@ def main(argv: list[str] | None = None) -> int:
     if a.roots:
         args["parent"] = None
     try:
+        ri.require()   # task-0279: a register that cannot be read is a cannot-run, named, never a traceback
         print(json.dumps(report(args), indent=1, ensure_ascii=False))
+    except ri.RegisterUnreadable as e:
+        print(f"register_nodes: cannot run: {e}", file=sys.stderr)
+        return 2
     except NodesError as e:
         print(f"register_nodes: {e}", file=sys.stderr)
         return 2
