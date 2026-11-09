@@ -12,6 +12,16 @@ names that section with the version.
 
 ### Contract changes
 
+- **A slice reads its task class's keys, and the class's keys on no slice are named** (task-0252, doc-0034 D1).
+  `proposal_impact` (CLI `--task`, MCP `task`, `codegen` by default) now keeps each slice's keys to the
+  `[tasks.<class>]` keys among the register-map rows on its thread. Before, every mapped key was read under
+  the class's rule, so a `design` slice could block on a key `design` does not require. The slice's `keys`
+  gains `task`, and `of` is the class's key count. The new `slices.task_keys` lists the class's keys on no
+  slice, each with `mapped`, and with a scenario held its levels and gate; `in_slices + on_no_slice` is the
+  denominator. On CargoQuote S2 under `design`, the slices block on `QuoteAPI|on_screening_outage` and
+  `REQ-06|text` (absent, unmapped) sits in `task_keys`; under `codegen` the slices, verdicts and counts are
+  unchanged. `register_impact` keeps its reach: every mapped key a change reaches. Schema additive.
+
 - **`proposal_impact` and the register view read every coverage rule the register's checker defines** (task-0241;
   the maintainer, 2026-11-09). At ieam-register v0.2.13 these are C1 to C4, where C4 is the register's decision 0020:
   an approved process that realises an approved capability is supported by an approved application or module.
@@ -26,6 +36,7 @@ names that section with the version.
   - `tools/fixtures/proposal_c4_gap.json` is the worked case, held by the tests and by
     `tools/check_proposal_branch.py` in branch mode. The vendored register is C4-clean, so nothing in the
     record moves.
+
 - **The gate report names what it decided on: schema version 3** (task-0237, decision-0029; task-0103 AC #3,
   doc-0014 C9). `gate_cli.py -f json` and the MCP reader's `gate_verdict` now carry three required fields.
   - `task_profile`: the sha256 of the canonical JSON (sorted keys, no whitespace) of the subject's
