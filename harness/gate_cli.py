@@ -239,6 +239,22 @@ def lint_finding(g: dict) -> dict:
     return f
 
 
+def suspect_finding(d: dict, scope: dict | None) -> dict:
+    """One suspect derived output as a finding: a blocker, or ``info`` when ``scope`` says its invalidated or changed
+    statements sit on none of this task's keys (task-0282, decision-0033 choice 8): listed, naming the keys it rests
+    on, and the class whose keys it rests on blocks on it. ``scope`` None (not read) blocks, as before."""
+    used, changed = sorted(d.get("used_invalidated") or []), sorted(d.get("used_changed") or [])
+    why = f"used {len(used)} statement(s) now invalidated ({', '.join(used)})" if used else ""
+    if changed:   # task-0199: a statement changed under its id since trace registered the output
+        why += ("; and " if why else "used ") + f"{len(changed)} statement(s) whose value or digest changed since it was built ({', '.join(changed)})"
+    what = f"{d['id']} ({d.get('kind') or 'derived output'}) {why}"
+    if scope is not None and not scope["on_task"]:
+        return _finding("info", "suspect_derived", f"{what}; they sit on {', '.join(scope['keys']) or 'no key held'}, none of this "
+                        "task's keys: listed, not blocking this task", ref=d["id"], related=used + changed)
+    return _finding("blocker", "suspect_derived", f"{what}: it may not be reused as it is: regenerate it from the current statements",
+                    ref=d["id"], related=used + changed)
+
+
 def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None = None,
              route=None, closers: dict[str, dict] | None = None, suspect_scope: dict[str, dict] | None = None) -> list[dict]:
     """The gate's result as findings on the severity ladder, worst first, then by kind, key and ref.
@@ -276,21 +292,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
         else:
             out.append(_finding("major", "stale", f"{x['id']} on {x['key']} was invalidated by {x['invalidated_by']} (verifications ended: {ended}); "
                                 "no verified or approved successor replaces it", key=x["key"], level="invalidated", ref=x["id"]))
-    for d in res.get("suspect_derived") or []:
-        used, changed = sorted(d.get("used_invalidated") or []), sorted(d.get("used_changed") or [])
-        why = f"used {len(used)} statement(s) now invalidated ({', '.join(used)})" if used else ""
-        if changed:   # task-0199: a statement changed under its id since trace registered the output
-            why += ("; and " if why else "used ") + f"{len(changed)} statement(s) whose value or digest changed since it was built ({', '.join(changed)})"
-        scope = (suspect_scope or {}).get(d["id"])
-        if scope is not None and not scope["on_task"]:
-            # task-0282 (decision-0033 choice 8): its invalidated or changed statements sit on none of this task's
-            # keys, so it is listed and does not block this class; the class whose keys it rests on blocks on it
-            out.append(_finding("info", "suspect_derived", f"{d['id']} ({d.get('kind') or 'derived output'}) {why}; they sit on "
-                                f"{', '.join(scope['keys']) or 'no key held'}, none of this task's keys: listed, not blocking this task",
-                                ref=d["id"], related=used + changed))
-            continue
-        out.append(_finding("blocker", "suspect_derived", f"{d['id']} ({d.get('kind') or 'derived output'}) {why}"
-                            ": it may not be reused as it is: regenerate it from the current statements", ref=d["id"], related=used + changed))
+    out += [suspect_finding(d, (suspect_scope or {}).get(d["id"])) for d in res.get("suspect_derived") or []]
     for x in res.get("lapsed") or []:
         out.append(_finding("major", "lapsed", f"{x['id']} on {x['key']} {cadence.describe(x, res.get('as_of'))}",
                             key=x["key"], level=x.get("to", "validated"), ref=x["id"], related=x["verifications"]))
