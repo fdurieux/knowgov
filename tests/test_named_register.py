@@ -118,6 +118,7 @@ def test_the_readers_through_register_root_refuse_it_too():
                      [ROOT / "harness" / "capture.py", "questionnaire", "S1", "--out", Path(td) / "q"],
                      [ROOT / "harness" / "capture.py", "review", Path(td) / "review.toml"],
                      [ROOT / "harness" / "trace.py", "check", "--instance", td, "--ledger", led],
+                     [ROOT / "harness" / "trace.py", "register", "--instance", td, "--ledger", led, "--keys", "K|v"],
                      [ROOT / "harness" / "transcript.py", Path(td) / "t.jsonl"],
                      [ROOT / "harness" / "step_grid.py"],
                      [ROOT / "demo" / "app" / "server.py"]):
