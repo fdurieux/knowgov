@@ -98,9 +98,18 @@ def test_the_check_off_a_limit_that_fits_and_a_store_with_no_limit_never_refuse(
     lm.note(_Writer(limit=None), 10**7)   # rdflib, and the port's default: nothing bounds the unit
     import store
     assert store.Store().transaction_memory() is None
-    for v in ("off", "0", "no", "false", "OFF"):
+    for v in ("off", "OFF", " Off "):   # task-0276: the documented word, in any case
         with _Env(KG_LOAD_MEMORY_CHECK=v):
             assert not lm.enabled()
+    import switches
+    for v in ("0", "no", "false"):   # never documented: refused, naming the setting, no longer silently off
+        with _Env(KG_LOAD_MEMORY_CHECK=v):
+            try:
+                lm.enabled()
+            except switches.BadSwitch as e:
+                assert "KG_LOAD_MEMORY_CHECK" in str(e)
+            else:
+                raise AssertionError(v)
     with _Env(KG_LOAD_MEMORY_CHECK=None):
         assert lm.enabled()
 
