@@ -18,7 +18,46 @@ names that section with the version.
   beside the current one. A malformed baseline names the file and its first error, never "the store did not
   answer". `--baseline record` and a deterministic.json read as before, and the MCP reader still serves no report
   baseline. The record does not move.
+- **`held_keys`' `gate` is the task class's own verdict** (task-0283, decision-0033 choice 9). It gated every held
+  key under the class's bar as if each were required. On CargoQuote S1 it read "codegen BLOCKED: 34 of 93
+  required keys (37%) are below verified" where `gate_verdict` codegen gives PROCEED. It now gives
+  `gate_verdict`'s verdict and why for the same store, class and `as_of`, on the class's own required keys. The
+  keys' levels are still the held key set's. The tool's description and the held-keys schema say what the
+  field is. The record does not move.
 
+- **The GitLab include and the pre-load workflow template run their own release by default** (task-0259, G9-17,
+  decision-0032 C5). `instance/ci/gitlab/knowgov.gitlab-ci.yml`'s `KNOWGOV_REF` and `instance/ci/preload-check.yml`'s
+  default to `v<VERSION>`, the tag they come from, instead of `main`, so an include taken from a tag no longer clones
+  `main`'s harness at run time. To move to a later release, take that tag's include or template; the default
+  follows. Against Neo4j, add the driver at `demo/Dockerfile`'s pin to the include's `KNOWGOV_PIP`. The GitHub
+  action is unchanged: it already runs the knowgov tag named in `uses:`.
+- **Every date is YYYY-MM-DD, and nothing looser** (task-0262, decision-0032, G9-17). One parse,
+  `harness/dates.py`, now reads every date knowgov takes:
+  - `--as-of` on `gate_cli`, `run`, `trace` and `proposal_impact`;
+  - `KG_AS_OF` and the MCP readers' `as_of`;
+  - `KG_TODAY`;
+  - `capture due --on` and `connector --exported-on`;
+  - the page's `POST /api/run` `as_of` and `GET /api/register?today=`.
+
+  Before, Python's `date.fromisoformat` also read the ISO week form and the basic form, so `2026-W45-1` was
+  read as 2026-11-02 and `20261105xx` as 2026-11-05, and the MCP runs reader's `\d` let fullwidth digits
+  through. Such a value is now refused, naming it: exit 2 on a command, a tool error on MCP, 400 on the page.
+  A stored date, such as a verification's `at` or `valid_until`, is read the same way, alone or followed by
+  an ISO time. `record`, `today` and valid dates read as before, and the record does not move.
+
+- **The subject-check report's `finding.rule` names three more rules** (task-0257, decision-0032, G9-17).
+  `require-approved` and `rationale` (a malformed `[tasks.<class>]` field, task-0242) and `attestation` (an
+  attestation with no day or no attester, task-0199) were emitted by `tools/check_subject.py` but missing from
+  `harness/schemas/subject-check.schema.json`. A report carrying one failed its own schema, from the CLI's
+  `--json` and from the MCP `subject_check`. Schema version 1, additive.
+
+- **A suspect derived output blocks only the task classes whose keys it rests on** (task-0282, decision-0033
+  choice 8). Before, any suspect output was a blocker in every class's gate: a register change that invalidated
+  15 codegen statements made the `design` gate exit 1 on `derived:S1:G:run1`, though none of them sits on a design
+  key. A suspect output now blocks a class's gate only when one of its invalidated or changed statements sits on
+  that class's keys. Otherwise its `suspect_derived` finding is `info`, naming the output and the keys it rests on,
+  and a `--baseline` does not count it as a regression. A statement whose key cannot be read counts as on the task.
+  The codegen gate in that example still exits 1, and the scored record's gates are unchanged.
 - **One reading of every on/off setting** (task-0276, decision-0033 choice 2, G9-17). `harness/switches.py` lists
   them and reads each one: a flag (`KG_NO_LOAD`, `KG_PUBLISH`, `KG_ALLOW_UNCONTAINED_EXECUTION`, `KG_TRACEBACK`,
   `KG_THINKING_UNCOUNTED`) is on with `1` and off with `0`, empty or unset; `KG_LOAD_MEMORY_CHECK` and `KG_KEY_CHECK`
@@ -32,6 +71,24 @@ names that section with the version.
   `:latest` for the last build of `main`. `:<short-sha>`, which `demo.yml` also publishes, is a build of `main`,
   not a contract. The README, `instance/README.md`'s contracts table and the demo's guide say so, and
   `tests/test_image_tags.py` holds them to both workflows.
+- **The trace ledger and the proposal overlay carry a format version** (task-0280, decision-0033 choice 6), by
+  decision-0023's rule in `harness/formats.py`. The ledger's `schema_version` is its format: missing reads as 1, and a
+  newer one is refused by `trace check` and `trace register` (exit 2) and by `code_path` (exit 2 on `upward.py`, an
+  error answer from the MCP server); until now a ledger at 99 was read. A proposal takes an optional top-level
+  `format`, until now refused as an unknown field: missing reads as 1, a newer one is refused, exit 2 on the CLI and an
+  error answer from the MCP `proposal_impact`. `instance/templates/proposal.toml` writes `format = 1`.
+- **`register_impact` reports a key's findings as `gate_verdict` does, `intended` and `act` included** (task-0260,
+  doc-0032 group 3 CB1). `register_impact` now takes the owned finding kinds from `gate_cli.OWNED`, one
+  definition: key, intended, stale, lapsed and act. Before, a key whose review ruling no longer bound showed the
+  act finding on `gate_verdict` and none on `register_impact`; the same gap reached `proposal_impact`'s keys and
+  slices. `register-impact` schema, additive: a finding's `kind` admits `intended` and `act`, and it carries the
+  gate report's `act` object. `tools/check_owned_findings.py` reproduces group 3's case and holds S1, S4 and S6
+  equal key for key, on rdflib and Neo4j.
+- **The `proposal-impact` schema names no coverage rule** (task-0261, doc-0032 group 3 CB2). `coverage.before`
+  and `after` are keyed by the register's rule ids, each a coverage cell, and a new gap's `rule` is a rule id
+  (`^C[0-9]+$`). So a register whose checker defines C5 yields a valid report, and every earlier report still
+  validates. The schema validator gains `pattern` and `propertyNames`. The register view's output has no schema;
+  its coverage reader already follows the checker's rules (task-0241).
 - **A slice reads its task class's keys, and the class's keys on no slice are named** (task-0252, doc-0034 D1).
   `proposal_impact` (CLI `--task`, MCP `task`, `codegen` by default) now keeps each slice's keys to the
   `[tasks.<class>]` keys among the register-map rows on its thread. Before, every mapped key was read under
@@ -443,6 +500,20 @@ names that section with the version.
   - **Content edges.** The page's startup line names the store in use (rdflib and its file under `KG_STORE=rdflib`).
     `add_artefact`'s `file` refuses control characters, a backslash, `~`, absolute paths and `..`, as `subject_check`
     confines a manifest's paths.
+- **The two Claude Code hooks fail closed on every form they cannot read** (task-0268, decision-0032 F11, F12).
+  `knowgov_hook.py` reads a push in backticks, through an alias (inline `-c alias.X=push` or configured) and behind a
+  variable (`git${IFS}push`, `x=git; $x push`, failing closed); refuses a non-string `tool_name` or command, a
+  repeated `--task-for` stage and a `--timeout` that is not a finite number above 0; resolves `--knowgov` and
+  `KG_HOME` to absolute paths. `attestation_paths.py` reads NotebookEdit like every other write tool and compares
+  names case-folded, so `Register/`, `Captures/` and `Preload-Baseline.json` are guarded on macOS. Settings unchanged.
+- **A Neo4j read never answers a generation before its data has arrived** (SNAP-11, task-0274; decision-0014, amendment
+  A1, accepted 2026-11-09). Under racing writers, a reader could pin a newly published generation while Neo4j was still
+  applying the writer's commit, and read it with records missing: CI's SNAP-04 saw S2's counts with no
+  extraction activity. Neo4j had shown the publication's `end`, written in the same transaction, before the
+  transaction's last records. `end` is now set in a transaction of its own once the unit's commit has returned,
+  so readers wait until the data is all there. Every open gap is closed forward (`end = begin`): a writer killed
+  between its commit and that step is refused while its lease is live, then recovered and read whole. No shape
+  changes; the guarantee decision-0014 documents now holds.
 - **Prioritisation inputs and refinement planning, and a proposal template** (task-0253, task-0255, doc-0034). `instance/README.md`
   gains "Feeding your prioritisation, and planning refinement": the facts knowgov gives a team's own method (WSJF, cost
   of delay, RICE), with the command that yields each, what it does not supply, and how to turn each slice's keys below

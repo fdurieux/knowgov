@@ -23,6 +23,10 @@
 #   (CAP-0042, say) is kept as it is if the register does not hold it yet. One that the register
 #   already holds is refused: list that node under [[reused]] instead.
 
+# Optional: the format this file is written in. Leave it at 1; a knowgov that reads an older format refuses
+# a newer one rather than misread it (instance/README.md, "Format versions"). Missing reads as 1.
+format = 1
+
 # Required: a one-line name for the proposal, as the report heads it.
 title = "Contract freight quote"
 

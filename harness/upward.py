@@ -229,10 +229,13 @@ def _ledger(ledger: str | None, rel: str, file: Path | None, no_root: str | None
     import trace
     if ledger is None:
         return _unchecked("no ledger configured (KG_LEDGER or --ledger)", entry=None)
+    import formats
     try:
         led = trace.read_ledger(Path(ledger), missing_ok=False)
     except trace.CannotRun as e:
         return _unchecked(str(e), entry=None)
+    except formats.FormatError as e:   # task-0280: a ledger for a newer knowgov is refused, never read as unchecked
+        raise UpwardError(str(e)) from None
     hit = [e for e in led["entries"] if e.get("path") == rel]
     if not hit:
         return {"status": "read", "entries": len(led["entries"]), "entry": None}

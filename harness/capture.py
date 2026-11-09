@@ -53,6 +53,7 @@ import sys
 import tomllib
 from pathlib import Path
 
+import dates     # task-0262: one strict YYYY-MM-DD parse
 import formats   # task-0174, decision-0023
 
 HERE = Path(__file__).resolve().parent
@@ -249,12 +250,7 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
 def _date(v) -> dt.date | None:
     if isinstance(v, dt.date) and not isinstance(v, dt.datetime):
         return v
-    if isinstance(v, str):
-        try:
-            return dt.date.fromisoformat(v)
-        except ValueError:
-            return None
-    return None
+    return dates.parse(v) if dates.is_date(v) else None   # task-0262
 
 
 def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
@@ -510,9 +506,9 @@ def _due(args) -> int:
     import review
     from subject import SUBJECT
     try:
-        on = dt.date.fromisoformat(args.on) if args.on else review.today()
+        on = dates.parse(args.on) if args.on else review.today()   # task-0262: YYYY-MM-DD only
     except ValueError as e:
-        raise CannotRun(f"--on {args.on!r} is not a date (YYYY-MM-DD)") from e
+        raise CannotRun(f"--on {args.on!r} is not a date (YYYY-MM-DD)" if args.on else str(e)) from e
     reg = register_root()
     items = [x for x in due_captures(SUBJECT.capture_dir, on) if x["subject"] == SUBJECT.id]
     links = due_links(reg, on)

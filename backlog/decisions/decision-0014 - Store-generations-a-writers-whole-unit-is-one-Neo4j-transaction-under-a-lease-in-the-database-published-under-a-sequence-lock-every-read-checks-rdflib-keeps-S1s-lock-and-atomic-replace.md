@@ -127,3 +127,90 @@ Option 2 on Neo4j; S1's design, plus a lock-file fence, on rdflib.
   - `KG_NEO4J_LOCK_TIMEOUT`: 0 to 86400 (default 60);
   - `KG_NEO4J_READ_WAIT`: 0 to 600 (default 10).
 - **The server-side fence.** `TERMINATE TRANSACTIONS` ran on Community 5.26: right after a takeover, the former owner's unit transaction reads `Terminated` in `SHOW TRANSACTIONS`, and its commit raises `StoreFenced`. SNAP-05 checks both.
+
+## Amendment A1 (2026-11-09; accepted 2026-11-09): Neo4j sets `end` after the unit's commit, and every gap closes forward
+
+### Context
+
+On fdurieux/knowgov#401's `stack` run, SNAP-04 read one state that is no committed generation: S2's counts, with
+`held`, `register` and `verdict` null. It reproduces on a local Neo4j 5.26 community server with the pinned driver
+6.4.1. A loop of SNAP-04's race (one writer publishing S1 and S2 in turn, four to eight readers) reads partials in
+every 24-publication batch on main's code: 3 to 21 partial reads in ~180 to ~400.
+
+A timestamped trace shows the mechanism:
+
+| Time | Who | Event |
+|---|---|---|
+| 4.346 s | Writer | Raises `begin` and starts committing its S1 unit |
+| 4.374 s | Reader | Pins the new pair `(281, 281)`; `held()` finds no extraction activity |
+| 4.385 s | Writer | `commit()` returns |
+| 4.388 s | Reader | Same handle; the census finds S1 whole (597 nodes) |
+
+Neo4j applies a committing transaction's changes to lock-free, read-committed readers one record at a time. The
+publication node's new `end`, written in the unit's own transaction (step 3 of the commit order), could be visible
+before the unit's last records. A reader that pinned in that window read a half-applied unit, and every later
+check passed because the pair never moved again. This breaks the whole-generation guarantee this decision states.
+
+### What changes
+
+The commit order becomes:
+1. Lock the node and check the epoch.
+2. Raise `begin` in its own transaction.
+3. In the unit's transaction, lock the node and check the epoch (the fence, held to the commit).
+4. Commit.
+5. Set `end = begin` in its own transaction.
+
+Readers keep waiting while `begin` is above `end`, so they wait out the commit's application. Every gap is closed
+forward, `end = begin`, never back:
+- the writer's own failure path;
+- a reader's recovery of an abandoned publication (task-0175);
+- a takeover, as before.
+
+The unit may have committed even when what follows its commit failed. A backward close would then reuse a
+generation number an earlier reader pinned before the data changed: the ABA this guarantee forbids.
+
+A writer killed between steps 4 and 5 leaves its data committed and its gap open. Readers refuse while its lease is
+live. Once the lease runs out, a reader closes the gap forward and reads the committed data whole.
+
+### Opportunity canvas
+
+| Element | Content |
+|---|---|
+| Problem | A Neo4j reader can answer a generation whose data is still arriving (SNAP-04 on #401, reproduced) |
+| Users | Every reader of a shared Neo4j store: the page, the MCP reader, `gate_cli --no-load`, the lighthouse's agents |
+| Proposal | `end` after the unit's commit, in its own transaction; every gap closed forward |
+| Unique value | The guarantee this decision already documents actually holds on Neo4j |
+| Cost | About 30 lines in `harness/store_neo4j.py` `_Unit.publish` and `recover`; SNAP-08's expected numbers; SNAP-11 (about 80 s of the stack job) |
+| Risk | A writer killed between its commit and step 5 leaves readers waiting one lease (bounded, as for a death between steps 2 and 4 today) |
+
+### Fit/gap
+
+| Must satisfy | Fit or gap |
+|---|---|
+| decision-0014: a read answers one generation or raises `StoreChanged` | Fit. Restored: 0 partial in 216 publications under racing readers on the fix; every batch partial on main |
+| The fence: a writer that lost its lease publishes nothing | Fit. The epoch check stays inside the unit's transaction under the node's lock, held to the commit |
+| Abandoned publications (SNAP-03, SNAP-08, task-0175) | Fit. Refused while the lease is live, recovered after; SNAP-08's end state is the last committed data under the raised number |
+| decision-0032 (0.9.0 freeze): no shape changes | Fit. No report, schema, port or setting changes: fix-only |
+| The record (comparator, round trip) | Fit. The deterministic run publishes once per scenario; the data is unchanged |
+
+### SWOT
+
+| | Helpful | Harmful |
+|---|---|---|
+| **Internal** | **S:** small, local to the adapter; deterministic proof (a writer held between commit and `end`) plus a race that fails on the old code every time | **W:** one more meta transaction per publication (milliseconds); generation numbers can advance without new data (a forward close) |
+| **External** | **O:** the same ordering suits any store whose commit is not atomic to lock-free readers | **T:** a Neo4j version whose commit application order changes could reopen it; SNAP-11's race stays in the stack job to catch it |
+
+### Advice
+
+Accept A1. It restores what decision-0014 promised, changes no shape (fix-only under decision-0032), and its proof
+both fails on main's code and passes on the fix. The alternative of keeping `end` in the unit and making readers lock
+is not available: Neo4j read-committed readers take no locks. Retrying reads more often would only make the window
+rarer, not close it.
+
+### Acceptance of A1 (2026-11-09)
+
+The maintainer, 2026-11-09: "accept A1". **A1 is accepted:** the commit order is the five steps above, with `end`
+set in its own transaction after the unit's commit, and every gap closes forward (`end = begin`). It replaces
+step 3 of the Decision's commit order ("in the unit's transaction, lock the node, check the epoch, set `end =
+begin`") and the backward close of a failed publication and of task-0175's recovery. fdurieux/knowgov#415 builds
+it, proven by `tools/check_snapshots.py` SNAP-11.

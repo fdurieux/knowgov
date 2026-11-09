@@ -14,6 +14,7 @@ import tomllib
 
 from kitio import FAMILY, sha256, pristine
 from store import stem
+import dates     # task-0262: one strict YYYY-MM-DD parse
 import formats   # task-0174, decision-0023: a capture or review file names the format it was written in
 import load_memory
 from subject import SUBJECT
@@ -37,7 +38,7 @@ def now() -> str:
     of a pinned run reads."""
     v = os.environ.get("KG_TODAY")
     if v:
-        return dt.datetime.combine(dt.date.fromisoformat(v), dt.time(), dt.timezone.utc).isoformat(timespec="seconds")
+        return dt.datetime.combine(dates.parse(v, "KG_TODAY"), dt.time(), dt.timezone.utc).isoformat(timespec="seconds")
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
 
@@ -300,11 +301,7 @@ def _day(v) -> str | None:
     """``v`` as the ISO date (or instant) it names, or None when it names none."""
     if isinstance(v, (dt.date, dt.datetime)):
         return v.isoformat()
-    try:
-        dt.date.fromisoformat(str(v)[:10])
-        return str(v)
-    except ValueError:
-        return None
+    return str(v) if dates.day(v) else None   # task-0262: YYYY-MM-DD, alone or with an ISO time
 
 
 def attested_artefacts(kit: dict[str, str], decl: dict, name: str) -> tuple[list[str] | None, dict]:
