@@ -11,6 +11,15 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+
+- **One rule for a knowledge key, `entity|attribute`** (task-0296, decision-0034 choice 3(a)). `harness/key_rule.py`
+  holds it: each side of the `|` is non-empty, with no `|`, no whitespace and no format character (U+200B to U+200D,
+  U+2060, U+FEFF). It is `tools/check_subject.py`'s `KEY_RE`, and the `pattern` of the `keys` items of `gate_verdict`
+  and `evidence_bundle`. So `keys: ["nonsense"]` now answers -32602 on both transports and in both eras, where it
+  used to read BLOCKED with the key absent. A key holding a zero-width space, which passed `check_subject` and read
+  absent at the gate, is now a `key-syntax` error there and -32602 on the wire. Every key in the public subjects and
+  the record already matches it.
+
 - **`KG_CLOCK` takes only `pinned`** (task-0287, decision-0033 choice 2, G9-17). It is read through
   `harness/switches.py`: `pinned`, exactly, refuses the wall clock; empty or unset reads it; any other value exits 2,
   naming the setting. Before, `Pinned`, `pinned ` or `1` silently read the wall clock. No on/off setting is trimmed of
