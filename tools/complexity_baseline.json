@@ -1,0 +1,749 @@
+{
+ "threshold": 15,
+ "functions": {
+  "demo/app/cascade.py::render": {
+   "value": 52,
+   "floor": 52
+  },
+  "demo/app/models.py::load_table": {
+   "value": 21,
+   "floor": 21
+  },
+  "demo/app/models.py::rows": {
+   "value": 25,
+   "floor": 25
+  },
+  "demo/app/register_project.py::rows": {
+   "value": 34,
+   "floor": 34
+  },
+  "demo/app/register_view.py::build": {
+   "value": 27,
+   "floor": 27
+  },
+  "demo/app/register_view.py::footprint": {
+   "value": 58,
+   "floor": 58
+  },
+  "demo/app/register_view.py::impact": {
+   "value": 33,
+   "floor": 33
+  },
+  "demo/app/server.py::Handler._get": {
+   "value": 50,
+   "floor": 50
+  },
+  "demo/app/server.py::Handler._post": {
+   "value": 20,
+   "floor": 20
+  },
+  "demo/app/server.py::Runner.start": {
+   "value": 33,
+   "floor": 33
+  },
+  "demo/app/views.py::_arm_colour": {
+   "value": 18,
+   "floor": 18
+  },
+  "demo/app/views.py::_arm_summary": {
+   "value": 25,
+   "floor": 25
+  },
+  "demo/app/views.py::_role_sentences": {
+   "value": 17,
+   "floor": 17
+  },
+  "demo/app/views.py::build": {
+   "value": 37,
+   "floor": 37
+  },
+  "demo/app/views.py::gaps_view": {
+   "value": 18,
+   "floor": 18
+  },
+  "demo/app/views.py::narrative": {
+   "value": 59,
+   "floor": 59
+  },
+  "demo/app/views.py::stage_details": {
+   "value": 134,
+   "floor": 134
+  },
+  "demo/app/views.py::systemic_details": {
+   "value": 139,
+   "floor": 139
+  },
+  "harness/agent.py::bounded": {
+   "value": 19,
+   "floor": 19
+  },
+  "harness/agent.py::openai_responder": {
+   "value": 68,
+   "floor": 68
+  },
+  "harness/agent.py::run": {
+   "value": 96,
+   "floor": 96
+  },
+  "harness/annotate.py::findings": {
+   "value": 47,
+   "floor": 47
+  },
+  "harness/arms.py::call": {
+   "value": 28,
+   "floor": 28
+  },
+  "harness/build_identity.py::from_git_files": {
+   "value": 18,
+   "floor": 18
+  },
+  "harness/cadence.py::lapse": {
+   "value": 29,
+   "floor": 29
+  },
+  "harness/capture.py::check_answers": {
+   "value": 31,
+   "floor": 31
+  },
+  "harness/capture.py::gap_closers": {
+   "value": 18,
+   "floor": 18
+  },
+  "harness/capture.py::questionnaires": {
+   "value": 20,
+   "floor": 20
+  },
+  "harness/code_map.py::code_map": {
+   "value": 27,
+   "floor": 27
+  },
+  "harness/execution.py::check_result": {
+   "value": 44,
+   "floor": 44
+  },
+  "harness/execution.py::collect": {
+   "value": 16,
+   "floor": 16
+  },
+  "harness/extract.py::extract_bpmn": {
+   "value": 54,
+   "floor": 54
+  },
+  "harness/extract.py::extract_decision_table": {
+   "value": 91,
+   "floor": 91
+  },
+  "harness/extract.py::extract_dmn_decisions": {
+   "value": 25,
+   "floor": 25
+  },
+  "harness/extract.py::extract_gherkin_tagged": {
+   "value": 29,
+   "floor": 29
+  },
+  "harness/extract.py::extract_plantuml_realises": {
+   "value": 26,
+   "floor": 26
+  },
+  "harness/extract.py::extract_sequence": {
+   "value": 67,
+   "floor": 67
+  },
+  "harness/extract.py::extract_spec": {
+   "value": 17,
+   "floor": 17
+  },
+  "harness/gate.py::preload_behind": {
+   "value": 20,
+   "floor": 20
+  },
+  "harness/gate.py::render_bundle": {
+   "value": 25,
+   "floor": 25
+  },
+  "harness/gate.py::render_key": {
+   "value": 29,
+   "floor": 29
+  },
+  "harness/gate.py::resolve_spec": {
+   "value": 42,
+   "floor": 42
+  },
+  "harness/gate_cli.py::act_finding": {
+   "value": 18,
+   "floor": 18
+  },
+  "harness/gate_cli.py::attestation_findings": {
+   "value": 25,
+   "floor": 25
+  },
+  "harness/gate_cli.py::evaluate": {
+   "value": 19,
+   "floor": 19
+  },
+  "harness/gate_cli.py::findings": {
+   "value": 88,
+   "floor": 88
+  },
+  "harness/gate_cli.py::render": {
+   "value": 34,
+   "floor": 34
+  },
+  "harness/gate_cli.py::run": {
+   "value": 46,
+   "floor": 46
+  },
+  "harness/http_boundary.py::check": {
+   "value": 18,
+   "floor": 18
+  },
+  "harness/http_boundary.py::parse_authority": {
+   "value": 19,
+   "floor": 19
+  },
+  "harness/key_check.py::Checker.verdict": {
+   "value": 19,
+   "floor": 19
+  },
+  "harness/load.py::load_reviews": {
+   "value": 47,
+   "floor": 47
+  },
+  "harness/load.py::load_scenario": {
+   "value": 62,
+   "floor": 62
+  },
+  "harness/mcp_runs.py::RunTools.run_status": {
+   "value": 17,
+   "floor": 17
+  },
+  "harness/mcp_runs.py::RunTools.start_run": {
+   "value": 19,
+   "floor": 19
+  },
+  "harness/mcp_server.py::Server._handle": {
+   "value": 17,
+   "floor": 17
+  },
+  "harness/mcp_server.py::Server._tools": {
+   "value": 23,
+   "floor": 23
+  },
+  "harness/mcp_server.py::Tools.gate_verdict": {
+   "value": 16,
+   "floor": 16
+  },
+  "harness/mcp_server.py::Tools.proposal_impact": {
+   "value": 21,
+   "floor": 21
+  },
+  "harness/mcp_server.py::Tools.register_impact": {
+   "value": 19,
+   "floor": 19
+  },
+  "harness/mcp_server.py::make_handler": {
+   "value": 37,
+   "floor": 37
+  },
+  "harness/mcp_server.py::route_to_child": {
+   "value": 17,
+   "floor": 17
+  },
+  "harness/measures.py::adopted": {
+   "value": 25,
+   "floor": 25
+  },
+  "harness/measures.py::resolvable_refs": {
+   "value": 16,
+   "floor": 16
+  },
+  "harness/preload.py::verdicts": {
+   "value": 22,
+   "floor": 22
+  },
+  "harness/proposal_impact.py::Overlay.__init__": {
+   "value": 80,
+   "floor": 80
+  },
+  "harness/proposal_impact.py::approvals": {
+   "value": 22,
+   "floor": 22
+  },
+  "harness/proposal_impact.py::branch_overlay": {
+   "value": 35,
+   "floor": 35
+  },
+  "harness/proposal_impact.py::candidates": {
+   "value": 97,
+   "floor": 97
+  },
+  "harness/proposal_impact.py::main": {
+   "value": 24,
+   "floor": 24
+  },
+  "harness/proposal_impact.py::render_text": {
+   "value": 57,
+   "floor": 57
+  },
+  "harness/proposal_impact.py::slices": {
+   "value": 129,
+   "floor": 129
+  },
+  "harness/register_change.py::diff": {
+   "value": 30,
+   "floor": 30
+  },
+  "harness/register_change.py::resting": {
+   "value": 28,
+   "floor": 28
+  },
+  "harness/register_impact.py::walk": {
+   "value": 18,
+   "floor": 18
+  },
+  "harness/register_nodes.py::_check": {
+   "value": 22,
+   "floor": 22
+  },
+  "harness/register_nodes.py::report": {
+   "value": 26,
+   "floor": 26
+  },
+  "harness/report.py::main": {
+   "value": 34,
+   "floor": 34
+  },
+  "harness/review.py::check": {
+   "value": 148,
+   "floor": 148
+  },
+  "harness/rules.py::compatible": {
+   "value": 17,
+   "floor": 17
+  },
+  "harness/run.py::_run_all": {
+   "value": 17,
+   "floor": 17
+  },
+  "harness/run.py::arm_runs": {
+   "value": 73,
+   "floor": 73
+  },
+  "harness/runs_index.py::result": {
+   "value": 16,
+   "floor": 16
+  },
+  "harness/runs_index.py::scenario_runs": {
+   "value": 19,
+   "floor": 19
+  },
+  "harness/schema_check.py::_check": {
+   "value": 34,
+   "floor": 34
+  },
+  "harness/schema_check.py::_supported": {
+   "value": 16,
+   "floor": 16
+  },
+  "harness/step_grid.py::columns": {
+   "value": 22,
+   "floor": 22
+  },
+  "harness/store_neo4j.py::Neo4jStore.import_turtle": {
+   "value": 17,
+   "floor": 17
+  },
+  "harness/store_neo4j.py::_Unit.pin": {
+   "value": 17,
+   "floor": 17
+  },
+  "harness/store_neo4j.py::_Unit.publish": {
+   "value": 16,
+   "floor": 16
+  },
+  "harness/store_rdflib.py::RdflibStore._stale_candidates": {
+   "value": 35,
+   "floor": 35
+  },
+  "harness/store_rdflib.py::RdflibStore.candidate_pairs": {
+   "value": 31,
+   "floor": 31
+  },
+  "harness/store_rdflib.py::RdflibStore.invalidate_keys": {
+   "value": 20,
+   "floor": 20
+  },
+  "harness/store_rdflib.py::RdflibStore.invalidate_stale": {
+   "value": 34,
+   "floor": 34
+  },
+  "harness/store_rdflib.py::RdflibStore.project_register": {
+   "value": 39,
+   "floor": 39
+  },
+  "harness/store_rdflib.py::RdflibStore.register_node_statements": {
+   "value": 78,
+   "floor": 78
+  },
+  "harness/store_rdflib.py::RdflibStore.structural_violations": {
+   "value": 17,
+   "floor": 17
+  },
+  "harness/store_rdflib.py::RdflibStore.vague_fragments": {
+   "value": 16,
+   "floor": 16
+  },
+  "harness/store_rdflib.py::RdflibStore.withdraw_construction": {
+   "value": 18,
+   "floor": 18
+  },
+  "harness/subject_check.py::_manifest_paths": {
+   "value": 18,
+   "floor": 18
+  },
+  "harness/subject_check.py::plan": {
+   "value": 23,
+   "floor": 23
+  },
+  "harness/trace.py::_citation_findings": {
+   "value": 30,
+   "floor": 30
+  },
+  "harness/trace.py::check": {
+   "value": 93,
+   "floor": 93
+  },
+  "harness/trace.py::main": {
+   "value": 18,
+   "floor": 18
+  },
+  "harness/trace.py::register": {
+   "value": 42,
+   "floor": 42
+  },
+  "harness/trace.py::render": {
+   "value": 16,
+   "floor": 16
+  },
+  "harness/upward.py::code_path": {
+   "value": 35,
+   "floor": 35
+  },
+  "harness/upward.py::document_links": {
+   "value": 27,
+   "floor": 27
+  },
+  "harness/wizard.py::get": {
+   "value": 16,
+   "floor": 16
+  },
+  "harness/worker.py::_group_settled": {
+   "value": 17,
+   "floor": 17
+  },
+  "harness/worker.py::_reap_orphans": {
+   "value": 36,
+   "floor": 36
+  },
+  "harness/worker.py::network": {
+   "value": 26,
+   "floor": 26
+  },
+  "harness/worker.py::run_job": {
+   "value": 23,
+   "floor": 23
+  },
+  "harness/worker.py::serve": {
+   "value": 31,
+   "floor": 31
+  },
+  "instance/ci/claude/attestation_paths.py::after_text": {
+   "value": 19,
+   "floor": 19
+  },
+  "instance/ci/claude/attestation_paths.py::check": {
+   "value": 22,
+   "floor": 22
+  },
+  "instance/ci/claude/knowgov_hook.py::_stages_spec": {
+   "value": 33,
+   "floor": 33
+  },
+  "instance/ci/claude/knowgov_hook.py::git_calls": {
+   "value": 29,
+   "floor": 29
+  },
+  "instance/ci/claude/knowgov_hook.py::main": {
+   "value": 19,
+   "floor": 19
+  },
+  "instance/ci/claude/knowgov_hook.py::run_gate": {
+   "value": 16,
+   "floor": 16
+  },
+  "instance/ci/claude/knowgov_hook.py::transition": {
+   "value": 19,
+   "floor": 19
+  },
+  "tools/_outcomes.py::run": {
+   "value": 16,
+   "floor": 16
+  },
+  "tools/aris_export.py::build_epc": {
+   "value": 49,
+   "floor": 49
+  },
+  "tools/aris_export.py::render_aml": {
+   "value": 23,
+   "floor": 23
+  },
+  "tools/aris_export.py::render_bpmn": {
+   "value": 51,
+   "floor": 51
+  },
+  "tools/check_act_binding.py::main": {
+   "value": 40,
+   "floor": 40
+  },
+  "tools/check_attestation_binding.py::main": {
+   "value": 25,
+   "floor": 25
+  },
+  "tools/check_capture_pairing.py::main": {
+   "value": 17,
+   "floor": 17
+  },
+  "tools/check_ci_wrappers.py::main": {
+   "value": 28,
+   "floor": 28
+  },
+  "tools/check_held_subject.py::main": {
+   "value": 22,
+   "floor": 22
+  },
+  "tools/check_instance.py::check": {
+   "value": 119,
+   "floor": 119
+  },
+  "tools/check_instance.py::render": {
+   "value": 42,
+   "floor": 42
+  },
+  "tools/check_ledger_binding.py::main": {
+   "value": 30,
+   "floor": 30
+  },
+  "tools/check_lint_gaps.py::main": {
+   "value": 35,
+   "floor": 35
+  },
+  "tools/check_mcp_server.py::check_impact": {
+   "value": 29,
+   "floor": 29
+  },
+  "tools/check_mcp_server.py::check_proposal": {
+   "value": 21,
+   "floor": 21
+  },
+  "tools/check_mcp_server.py::check_store_reads": {
+   "value": 37,
+   "floor": 37
+  },
+  "tools/check_mcp_server.py::check_subject_tool": {
+   "value": 18,
+   "floor": 18
+  },
+  "tools/check_mcp_server.py::check_subjects": {
+   "value": 19,
+   "floor": 19
+  },
+  "tools/check_mcp_server.py::check_task_classes": {
+   "value": 16,
+   "floor": 16
+  },
+  "tools/check_mcp_server.py::check_upward": {
+   "value": 18,
+   "floor": 18
+  },
+  "tools/check_mcp_server.py::main": {
+   "value": 42,
+   "floor": 42
+  },
+  "tools/check_node_statements.py::main": {
+   "value": 19,
+   "floor": 19
+  },
+  "tools/check_one_clock.py::main": {
+   "value": 23,
+   "floor": 23
+  },
+  "tools/check_one_definition.py::main": {
+   "value": 23,
+   "floor": 23
+  },
+  "tools/check_preload_linters.py::main": {
+   "value": 16,
+   "floor": 16
+  },
+  "tools/check_register_change.py::main": {
+   "value": 73,
+   "floor": 73
+  },
+  "tools/check_round_trip.py::check": {
+   "value": 18,
+   "floor": 18
+  },
+  "tools/check_round_trip.py::differences": {
+   "value": 34,
+   "floor": 34
+  },
+  "tools/check_snapshots.py::snap_04": {
+   "value": 18,
+   "floor": 18
+  },
+  "tools/check_stage2_reload.py::reviews_case": {
+   "value": 37,
+   "floor": 37
+  },
+  "tools/check_subject.py::check_manifest": {
+   "value": 85,
+   "floor": 85
+  },
+  "tools/check_subject.py::check_map": {
+   "value": 35,
+   "floor": 35
+  },
+  "tools/check_subject.py::check_yield": {
+   "value": 37,
+   "floor": 37
+  },
+  "tools/check_subject.py::subject_versions": {
+   "value": 40,
+   "floor": 40
+  },
+  "tools/check_subject.py::yield_only": {
+   "value": 19,
+   "floor": 19
+  },
+  "tools/check_trace_walkthrough.py::main": {
+   "value": 28,
+   "floor": 28
+  },
+  "tools/check_transcript_route.py::main": {
+   "value": 19,
+   "floor": 19
+  },
+  "tools/check_worker.py::main": {
+   "value": 44,
+   "floor": 44
+  },
+  "tools/claim_values.py::Code.__init__": {
+   "value": 30,
+   "floor": 30
+  },
+  "tools/complexity.py::main": {
+   "value": 22,
+   "floor": 22
+  },
+  "tools/complexity.py::updated": {
+   "value": 22,
+   "floor": 22
+  },
+  "tools/connector.py::_files": {
+   "value": 16,
+   "floor": 16
+  },
+  "tools/connector.py::read_aml": {
+   "value": 23,
+   "floor": 23
+  },
+  "tools/connector.py::read_bpmn": {
+   "value": 20,
+   "floor": 20
+  },
+  "tools/connector.py::read_export": {
+   "value": 27,
+   "floor": 27
+  },
+  "tools/coverage_stdlib.py::main": {
+   "value": 17,
+   "floor": 17
+  },
+  "tools/lighthouse_evidence.py::child": {
+   "value": 43,
+   "floor": 43
+  },
+  "tools/lighthouse_evidence.py::collect_export": {
+   "value": 31,
+   "floor": 31
+  },
+  "tools/lighthouse_evidence.py::main": {
+   "value": 20,
+   "floor": 20
+  },
+  "tools/lighthouse_evidence.py::summary": {
+   "value": 35,
+   "floor": 35
+  },
+  "tools/outcomes_summary.py::summary": {
+   "value": 33,
+   "floor": 33
+  },
+  "tools/plants_from_patch.py::parse_patch": {
+   "value": 37,
+   "floor": 37
+  },
+  "tools/plants_from_patch.py::plants_for": {
+   "value": 20,
+   "floor": 20
+  },
+  "tools/preload_check.py::_run_bpmn_io": {
+   "value": 23,
+   "floor": 23
+  },
+  "tools/preload_check.py::check": {
+   "value": 111,
+   "floor": 111
+  },
+  "tools/preload_check.py::layout": {
+   "value": 30,
+   "floor": 30
+  },
+  "tools/preload_check.py::main": {
+   "value": 26,
+   "floor": 26
+  },
+  "tools/preload_check.py::render": {
+   "value": 19,
+   "floor": 19
+  },
+  "tools/route_c_documents.py::run": {
+   "value": 67,
+   "floor": 67
+  },
+  "tools/step4_checks.py::check_table": {
+   "value": 80,
+   "floor": 80
+  },
+  "tools/step4_checks.py::glossary_terms": {
+   "value": 16,
+   "floor": 16
+  },
+  "tools/step4_checks.py::run_glossary": {
+   "value": 25,
+   "floor": 25
+  },
+  "tools/step4_checks.py::run_trace": {
+   "value": 42,
+   "floor": 42
+  },
+  "tools/vendor_register.py::vendor": {
+   "value": 25,
+   "floor": 25
+  },
+  "tools/vendor_subject.py::vendor": {
+   "value": 25,
+   "floor": 25
+  }
+ }
+}
