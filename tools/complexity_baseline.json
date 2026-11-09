@@ -674,8 +674,8 @@
    "floor": 27
   },
   "tools/coverage_stdlib.py::main": {
-   "value": 17,
-   "floor": 17
+   "value": 20,
+   "floor": 20
   },
   "tools/lighthouse_evidence.py::child": {
    "value": 43,
