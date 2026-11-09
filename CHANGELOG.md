@@ -16,7 +16,8 @@ names that section with the version.
   them and reads each one: a flag (`KG_NO_LOAD`, `KG_PUBLISH`, `KG_ALLOW_UNCONTAINED_EXECUTION`, `KG_TRACEBACK`,
   `KG_THINKING_UNCOUNTED`) is on with `1` and off with `0`, empty or unset; `KG_LOAD_MEMORY_CHECK` and `KG_KEY_CHECK`
   keep their word, `off` in any case. Any other value now exits 2, naming the setting and what it accepts; before,
-  `KG_NO_LOAD=true` silently meant off, and the two checks also took `0`, `no` and `false`. `instance/ci/knowgov-gate.sh`
+  `KG_NO_LOAD=true` silently meant off. A behaviour change: `KG_LOAD_MEMORY_CHECK` or `KG_KEY_CHECK` set to `0`,
+  `no` or `false`, spellings no document named, turned the check off before and now exit 2; set `off`. `instance/ci/knowgov-gate.sh`
   reads its flags under the same rule. The GitHub action's `publish`, `annotate` and `sarif` take `true` or `false`
   in any case, and any other value fails the step, naming the input. Every documented spelling keeps its meaning.
 - **The image's tags, stated once** (task-0277, decision-0033 choice 3, G9-17). The contract is
