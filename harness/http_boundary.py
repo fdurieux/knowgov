@@ -220,17 +220,14 @@ class Limits:
     @classmethod
     def from_env(cls, prefix: str, *, max_body: int, read_timeout: float = 10.0, idle_timeout: float = 5.0,
                  max_connections: int = 32, max_response: int = 16 << 20) -> "Limits":
-        def num(name, default, kind):
-            raw = os.environ.get(f"{prefix}_{name}")
-            if raw is None or raw == "":
-                return default
-            try:
-                v = kind(raw)
-            except ValueError:
-                raise ValueError(f"{prefix}_{name} must be a {kind.__name__}, not {raw!r}") from None
-            if v <= 0:
-                raise ValueError(f"{prefix}_{name} must be positive, not {raw!r}")
-            return v
+        import settings
+
+        def num(name, default, kind):   # task-0264: finite, within its bounds, or refused naming it
+            var = f"{prefix}_{name}"
+            if var in settings.NUMBERS:
+                return settings.parse(var, os.environ.get(var), default)
+            return settings.parse(var, os.environ.get(var), default, kind=kind, low=0, high=float("inf") if kind is float
+                                  else 1 << 62, inclusive=False)
         return cls(num("MAX_BODY", max_body, int), num("READ_TIMEOUT", read_timeout, float),
                    num("IDLE_TIMEOUT", idle_timeout, float), num("MAX_CONNECTIONS", max_connections, int),
                    response_cap(f"{prefix}_MAX_RESPONSE", max_response))

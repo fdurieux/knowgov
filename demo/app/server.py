@@ -54,6 +54,7 @@ HARNESS = ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
 import build_identity  # noqa: E402  (task-0227: which knowgov this is, read once at start)
 import dates  # noqa: E402  (task-0262: one strict YYYY-MM-DD parse)
+import settings  # noqa: E402  (task-0264: the numeric settings and tokens, one parser)
 import execution  # noqa: E402  (task-0141.05: model output runs in the contained worker, or nowhere)
 import page_subject  # noqa: E402  (the subject as a value: task-0032.01)
 import http_boundary  # noqa: E402  (the HTTP trust boundary and limits, task-0141.03, task-0141.04)
@@ -204,7 +205,10 @@ def bolt_port(env=None) -> int:
 
 
 BOLT_PORT = bolt_port()   # read once at start
-PORT = int(os.environ.get("KG_DEMO_PORT", "8080"))
+try:
+    PORT = settings.number("KG_DEMO_PORT")   # 1 to 65535 (task-0264)
+except settings.BadSetting:
+    PORT = 8080   # main refuses it at start, named, exit 2; an import never fails on it
 
 
 def _key_verdict(row: dict) -> dict:
@@ -750,7 +754,7 @@ def exposure() -> str:
 
 
 def page_token() -> str | None:
-    return os.environ.get("KG_PAGE_TOKEN") or None
+    return settings.token("KG_PAGE_TOKEN")   # blank once stripped is no token: writes refuse (task-0264)
 
 
 def writes_view() -> dict:
@@ -1077,6 +1081,10 @@ class Handler(http_boundary.BoundedMixin, BaseHTTPRequestHandler):
         return self._json({"error": "not found"}, 404)
 
 
+PAGE_SETTINGS = ("KG_DEMO_PORT", "KG_PAGE_MAX_BODY", "KG_PAGE_READ_TIMEOUT", "KG_PAGE_IDLE_TIMEOUT",
+                 "KG_PAGE_MAX_CONNECTIONS")   # the numeric settings the page reads (task-0264)
+
+
 def main() -> None:
     import switches
     try:
@@ -1084,11 +1092,22 @@ def main() -> None:
     except switches.BadSwitch as e:
         print(f"kg demo: cannot start: {e}", file=sys.stderr, flush=True)
         sys.exit(2)
+    try:   # task-0264: every numeric setting the page reads, its limits and its store's port, refused at start, named
+        settings.check(names=PAGE_SETTINGS)
+        page_limits()
+        settings.neo4j_uri()
+    except ValueError as e:
+        print(f"kg demo: cannot start: {e}", file=sys.stderr, flush=True)
+        sys.exit(2)
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     for rid in close_stale_runs():
         print(f"closed {rid}: its run.json read running with a stale heartbeat ({runs_index.RESTARTED})", flush=True)
     host = listen_host()
-    httpd = http_boundary.BoundedServer((host, PORT), Handler, page_limits())   # task-0141.04
+    try:
+        httpd = http_boundary.BoundedServer((host, PORT), Handler, page_limits())   # task-0141.04
+    except OSError as e:   # the port taken, the address not this machine's: cannot run (task-0264)
+        print(f"kg demo: cannot bind {host}:{PORT}: {e}", file=sys.stderr, flush=True)
+        sys.exit(2)
     writes = "token required" if page_token() else (write_refusal() or "open on this machine")
     # task-0171: the model rows' keys checked once each now, in the background, so the first page load
     # finds them done; only the verdict and the HTTP status are ever kept or shown, never a key
