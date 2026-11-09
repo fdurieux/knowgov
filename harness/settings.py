@@ -9,7 +9,7 @@ default and ``KG_MCP_PORT=abc`` ended the server with a traceback.
 ``NUMBERS`` is the list: every numeric ``KG_*`` setting these readers take, with its kind, bounds and default.
 ``check`` reads them all at start, as ``switches.check`` reads the on/off ones. ``token`` reads a bearer token: a
 value blank once stripped is no token, so a wide bind still needs a real one and a blank bearer never passes.
-``port`` reads a TCP port, 1 to 65535. Standard library only.
+``port`` reads a port to listen on, 0 (the system's choice) to 65535. Standard library only.
 """
 from __future__ import annotations
 
@@ -18,7 +18,8 @@ import os
 from urllib.parse import urlsplit
 
 DAY = 86400.0   # the longest any wait or timeout here may be set to, in seconds
-PORT_MIN, PORT_MAX = 1, 65535
+PORT_MIN, PORT_MAX = 1, 65535   # a port connected to
+LISTEN_MIN = 0                   # a port listened on: 0 asks the system for a free one, as the tests and tools do
 
 
 class BadSetting(ValueError):
@@ -34,8 +35,8 @@ NUMBERS = {
     "KG_WORKER_MEMORY": (int, 1, 1 << 40, 4 << 30, True),           # worker: RLIMIT_AS, bytes
     "KG_WORKER_PROCESSES": (int, 1, 1 << 20, 128, True),            # worker: RLIMIT_NPROC
     "KG_WORKER_FILE_BYTES": (int, 1, 1 << 40, 64 << 20, True),      # worker: RLIMIT_FSIZE, bytes
-    "KG_MCP_PORT": (int, PORT_MIN, PORT_MAX, 8765, True),          # mcp_server --http
-    "KG_DEMO_PORT": (int, PORT_MIN, PORT_MAX, 8080, True),         # the page
+    "KG_MCP_PORT": (int, LISTEN_MIN, PORT_MAX, 8765, True),        # mcp_server --http
+    "KG_DEMO_PORT": (int, LISTEN_MIN, PORT_MAX, 8080, True),       # the page
 }
 for _p in ("KG_MCP", "KG_PAGE"):   # http_boundary.Limits.from_env: each transport's bounds
     NUMBERS.update({
@@ -95,8 +96,8 @@ def check(env=None, names=None) -> None:
 
 
 def port(name: str, raw, default: int) -> int:
-    """A TCP port, 1 to 65535: ``raw`` (a flag's value) as ``name`` reads it."""
-    return parse(name, raw, default, kind=int, low=PORT_MIN, high=PORT_MAX, inclusive=True)
+    """A port to listen on, 0 (the system's choice) to 65535: ``raw`` (a flag's value) as ``name`` reads it."""
+    return parse(name, raw, default, kind=int, low=LISTEN_MIN, high=PORT_MAX, inclusive=True)
 
 
 def token(name: str, env=None) -> str | None:

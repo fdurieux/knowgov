@@ -1516,7 +1516,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="mcp_server.py", description="The gate and the three-valued answer as a read-only MCP server.")
     ap.add_argument("--http", action="store_true", help="serve Streamable HTTP at /mcp instead of stdio")
     ap.add_argument("--host", default=os.environ.get("KG_MCP_HOST", DEFAULT_HOST), help=f"HTTP bind address (default: KG_MCP_HOST, else {DEFAULT_HOST})")
-    ap.add_argument("--port", type=_port_flag, default=None, help=f"HTTP port, 1 to 65535 (default: KG_MCP_PORT, else {DEFAULT_PORT})")
+    ap.add_argument("--port", type=_port_flag, default=None, help=f"HTTP port, 0 (any free one) to 65535 (default: KG_MCP_PORT, else {DEFAULT_PORT})")
     ap.add_argument("--as-of", default=None, help="the date every call that names none reads on: YYYY-MM-DD, record or today "
                                                   "(default: KG_AS_OF, else today), read once at start (task-0100)")
     ap.add_argument("--instance", default=None, help="the instance code_path reads code_map.toml and the code from "

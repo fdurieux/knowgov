@@ -58,7 +58,8 @@ def test_a_value_not_finite_not_its_kind_or_out_of_bounds_is_refused_naming_the_
             continue
         raise AssertionError(f"KG_RDFLIB_LOCK_TIMEOUT={raw!r} accepted")
     assert settings.parse("KG_RDFLIB_LOCK_TIMEOUT", "0") == 0.0   # 0: wait for no other writer, as before
-    for raw in ("abc", "99999", "-1", "0", "18766.0"):
+    assert settings.parse("KG_MCP_PORT", "0") == 0   # 0: the system picks a free port, as the tests and tools ask
+    for raw in ("abc", "99999", "-1", "65536", "18766.0"):
         try:
             settings.parse("KG_MCP_PORT", raw)
         except settings.BadSetting:
