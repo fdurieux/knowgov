@@ -398,7 +398,8 @@ TOOLS.append(
                     "count by status, its level as the gate reads it under the task class named (codegen by default) on "
                     "the server's date, the task classes whose required keys include it (required_by; empty for a key no "
                     "class asks for, which store_status never shows) and whether the subject's register map places it; "
-                    "and the required keys the store holds no statement on. The levels are gate_verdict's for that key set.",
+                    "and the required keys the store holds no statement on. The levels are gate_verdict's for that key set; "
+                    "gate is gate_verdict's verdict and why for the task class itself, on its own required keys.",
      "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
          "task": {"type": "string", "description": "the task class whose block levels and bar the levels are read under (default: codegen)"},
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another"},

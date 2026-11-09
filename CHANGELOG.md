@@ -11,6 +11,12 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **`held_keys`' `gate` is the task class's own verdict** (task-0283, decision-0033 choice 9). It gated every held
+  key under the class's bar as if each were required. On CargoQuote S1 it read "codegen BLOCKED: 34 of 93
+  required keys (37%) are below verified" where `gate_verdict` codegen gives PROCEED. It now gives
+  `gate_verdict`'s verdict and why for the same store, class and `as_of`, on the class's own required keys. The
+  keys' levels are still the held key set's. The tool's description and the held-keys schema say what the
+  field is. The record does not move.
 
 - **A slice reads its task class's keys, and the class's keys on no slice are named** (task-0252, doc-0034 D1).
   `proposal_impact` (CLI `--task`, MCP `task`, `codegen` by default) now keeps each slice's keys to the
