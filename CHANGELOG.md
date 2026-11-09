@@ -12,6 +12,12 @@ names that section with the version.
 
 ### Contract changes
 
+- **The GitLab include and the pre-load workflow template run their own release by default** (task-0259, G9-17,
+  decision-0032 C5). `instance/ci/gitlab/knowgov.gitlab-ci.yml`'s `KNOWGOV_REF` and `instance/ci/preload-check.yml`'s
+  default to `v<VERSION>`, the tag they come from, instead of `main`, so an include taken from a tag no longer clones
+  `main`'s harness at run time. To move to a later release, take that tag's include or template; the default
+  follows. Against Neo4j, add the driver at `demo/Dockerfile`'s pin to the include's `KNOWGOV_PIP`. The GitHub
+  action is unchanged: it already runs the knowgov tag named in `uses:`.
 - **A slice reads its task class's keys, and the class's keys on no slice are named** (task-0252, doc-0034 D1).
   `proposal_impact` (CLI `--task`, MCP `task`, `codegen` by default) now keeps each slice's keys to the
   `[tasks.<class>]` keys among the register-map rows on its thread. Before, every mapped key was read under

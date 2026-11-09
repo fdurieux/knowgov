@@ -8,16 +8,21 @@
 #     extends: .knowgov-gate
 #     variables: { KNOWGOV_REF: "<tag>", KG_GATE: trace-check, KG_INSTANCE: instance }
 #
-# The job clones knowgov at KNOWGOV_REF; the instance checkout at KG_INSTANCE is the caller's
-# (a submodule or a before_script clone). The store's variables (KG_STORE and its own) come from the
+# The job clones knowgov at KNOWGOV_REF, which defaults to this include's own release tag (v<VERSION>,
+# moved with VERSION by each release; task-0259), so the include and the harness it runs come from one
+# tag. To take a later knowgov, change <tag> in the include's URL to that tag: the default follows it.
+# Setting KNOWGOV_REF alone runs another tag's harness under this tag's job definition, so move both
+# together. The instance checkout at KG_INSTANCE is the caller's (a submodule or a before_script clone).
+# KNOWGOV_PIP installs what an rdflib store needs. Against Neo4j (KG_STORE=neo4j, and with KG_PUBLISH=1
+# for a later trace job), add the driver at demo/Dockerfile's pin, "neo4j==6.4.1", to it. The store's variables (KG_STORE and its own) come from the
 # project's CI/CD variables. Every gate's findings reach the merge request's code-quality
 # widget through gl-code-quality-report.json (KG_ANNOTATE; harness/annotate.py; task-0083). Exit: the core command's, 0 pass, 1 a finding at or above KG_FAIL_ON,
 # 2 cannot run; make the job required through the merge request's approval rules.
 .knowgov-gate:
   image: python:3.12@sha256:17b9724493d916f56565c131f389faff2597f46dec6ce09516f95125bc9f519f   # tag and index digest (task-0092)
   variables:
-    KNOWGOV_REF: main          # pin a tag
-    KNOWGOV_PIP: "pumllint==0.35.0 rdflib==7.6.0 pyshacl==0.40.2 pyyaml==6.0.3"   # the tag's harness.yml pins your store needs
+    KNOWGOV_REF: v0.8.0        # this include's release, held equal to VERSION (tests/test_ci_wrappers.py)
+    KNOWGOV_PIP: "pumllint==0.35.0 rdflib==7.6.0 pyshacl==0.40.2 pyyaml==6.0.3"   # the tag's harness.yml pins; for Neo4j add "neo4j==6.4.1"
     KG_GATE: gate              # preload, gate, trace-check or trace-register
     KG_INSTANCE: instance
     KG_AS_OF: ""               # gate, trace-*: the date review currency is read on (YYYY-MM-DD, record); empty: today

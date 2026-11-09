@@ -402,6 +402,12 @@ GitLab include as the variable `KG_PUBLISH`. A pipeline that runs only the gate 
 
 - **GitLab CI**: an include, `instance/ci/gitlab/knowgov.gitlab-ci.yml`, with a hidden job
   `.knowgov-gate` your jobs extend. It maps `CI_COMMIT_SHA` and `CI_MERGE_REQUEST_DIFF_BASE_SHA`.
+  Its job clones knowgov at `KNOWGOV_REF`, which defaults to the include's own release tag, so the
+  include you take from a tag runs that tag's harness. To move to a later release, change the tag in
+  the include's URL; the default follows it. Setting `KNOWGOV_REF` on its own would run another
+  release's harness under this release's job, so move the two together. `KNOWGOV_PIP` installs what an
+  rdflib store needs. Against Neo4j, add the driver at `demo/Dockerfile`'s pin, `neo4j==6.4.1`: the gate
+  with `KG_PUBLISH=1` and the trace jobs after it connect to that store.
 - **Anything else** (Jenkins, Azure DevOps, Bitbucket): set the `KG_*` variables from your platform's
   own and call the script.
 
@@ -683,7 +689,7 @@ so a value such as 41.5 matches no rule. These are real findings about the docum
 of the check: adopt over them with a baseline (below), or fix the documents.
 
 To run it on every pull request, copy `instance/ci/preload-check.yml` into your instance's
-`.github/workflows/`, pin `KNOWGOV_REF` to a knowgov tag, and make the job a required check with
+`.github/workflows/` from the knowgov tag you run (its `KNOWGOV_REF` defaults to that tag), and make the job a required check with
 a reviewer who is not the author. It lints the documents the pull request changes, then runs
 `tools/check_instance.py`; the script it calls, `instance/ci/preload-check.sh`, is the one this
 repository's CI runs on the example instance (`tools/check_preload_linters.py` for the Node
