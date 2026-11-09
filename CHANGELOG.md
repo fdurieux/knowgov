@@ -821,6 +821,13 @@ the image's interpreter, and the rdflib CI job runs as two parallel jobs.
 
 ### Changes
 
+- **The vendored register moves to ieam-register v0.2.13** (`7980708`, from v0.2.11). It adds the register's
+  decision 0019, four eyes: a session that drafted a change is its author and may not approve it. It also adds
+  decision 0020, coverage rule C4: an approved process that realises an approved capability is supported by an
+  approved application or module. The vendored register is C4-clean (5 of 5 covered). knowgov's register view
+  and `proposal_impact` still read coverage C1 to C3 by name, so C4 has no coverage line and no new-gap entry. A
+  C4 error in an instance's register still shows in the register view's findings list and its error count,
+  which list every checker finding. Nothing in the record moves.
 - **The CI gate script refuses an instance it cannot name a subject for** (security; 0.7.0 and
   earlier affected). With `KG_SUBJECT` unset, `instance/ci/knowgov-gate.sh` is meant to exit 2 for
   `gate` and `trace-*` unless the instance holds exactly one subject. Its refusal ran inside
