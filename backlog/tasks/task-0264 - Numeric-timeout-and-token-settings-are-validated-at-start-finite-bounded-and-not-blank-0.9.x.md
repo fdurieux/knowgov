@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-09T09:32:00Z'
+updated_date: '2026-11-09T15:38:00Z'
 labels:
   - validation
   - correctness
@@ -43,3 +44,9 @@ Source: group 1 F13, and group 2 F7, F8 and F9, decision-0032 (task-0256), probe
 - [ ] #3 A token that is blank once stripped reads as unset, so a wide bind refuses and writes refuse.
 - [ ] #4 The defaults and the record are unchanged.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Re-probe and spot check at main 9861953 (decision-0032 points 4 and 5, task-0256): group 1 re-confirmed N3 (KG_MCP_PORT abc, 99999, -1, 18766.0: traceback, exit 1), N4 (KG_MCP_HOST=0.0.0.0 with KG_MCP_TOKEN=' ' starts, the wide-bind check passed) and N5 (KG_SUBJECT_CALL_TIMEOUT nan, inf, 0, abc start the server). Pulled forward before the 0.9.0 cut by the coordinator: AC #3 breaks the documented promise that a wider bind needs a token.
+<!-- SECTION:NOTES:END -->

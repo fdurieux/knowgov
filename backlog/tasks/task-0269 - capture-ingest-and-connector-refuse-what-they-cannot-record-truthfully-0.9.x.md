@@ -4,6 +4,7 @@ title: capture ingest and connector refuse what they cannot record truthfully (0
 status: To Do
 assignee: []
 created_date: '2026-11-09T09:33:00Z'
+updated_date: '2026-11-09T15:38:00Z'
 labels:
   - validation
   - correctness
@@ -51,3 +52,9 @@ Source: group 1 F19 and F20, and group 3 F7, F8 and F13, decision-0032 (task-025
 - [ ] #3 `connector` refuses a future `--exported-on` and keeps the date as typed. It uses `check_instance`'s validator for `id_attribute`. A malformed system table exits 2.
 - [ ] #4 `check_attestation_binding`, `check_act_binding` and `check_capture_pairing` pass.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Re-probe and spot check at main 9861953 (decision-0032 points 4 and 5, task-0256): group 1 re-confirmed F20. `connector --exported-on 2099-01-01` is accepted; `2099-01-01T00:00:00+14:00` lands as 2098-12-31; `2026-11-04T23:30:00-05:00` becomes 2026-11-05; after a future landing every real export is refused as 'before the newest'. Group 3 notes that dates.day uses the instant's own offset, not UTC; say which one is meant.
+<!-- SECTION:NOTES:END -->

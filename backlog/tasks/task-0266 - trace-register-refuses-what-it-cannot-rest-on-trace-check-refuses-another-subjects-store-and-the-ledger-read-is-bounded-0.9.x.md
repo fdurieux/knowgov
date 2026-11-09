@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-09T09:33:00Z'
+updated_date: '2026-11-09T15:38:00Z'
 labels:
   - validation
   - correctness
@@ -42,3 +43,11 @@ Source: group 1 F7 and F8, and group 3 CB5's duplicates, decision-0032 (task-025
 - [ ] #3 The ledger read is size-capped, and duplicate entries are refused or reported.
 - [ ] #4 `check_trace_walkthrough` and the record are unchanged.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Re-probe and spot check at main 9861953 (decision-0032 points 4 and 5, task-0256):
+- Group 1: `upward code` exits 2 on a ledger version error, but a ledger whose `tool` is wrong or whose `entries` is not a list returns the leg 'unchecked' with exit 0.
+- Group 3: a JSON `null` format reads as missing, and the writer keeps the null. The same holds for the proposal overlay's optional `format` (task-0280).
+<!-- SECTION:NOTES:END -->
