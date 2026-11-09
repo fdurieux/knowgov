@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-09T06:59:00Z'
-updated_date: '2026-11-09T07:58:00Z'
+updated_date: '2026-11-09T08:15:00Z'
 labels:
   - security
   - demo
@@ -45,6 +45,8 @@ demo/Dockerfile.dockerignore: .env, .env.*, **/.env, **/.env.* out; !.env.exampl
 tests/test_demo.py::test_no_env_file_reaches_the_image applies the ignore file's rules with a small matcher: last match wins, ! re-includes, **/ matches at any depth including the root, by fnmatch. It holds .env, .env.local, demo/.env, subjects/x/.env and instance/ci/.env.prod excluded, and .env.example, demo/.env.example and README.md kept. It also holds the compose comment and the security.md row to their texts. Without the new rules it fails.
 demo/docker-compose.yml:11: compose reads the .env only to fill in the variables below, and it never reaches the image. docs/security.md has a new data-flow row after the key row, naming the shell as the key's owner, the two files, and the test.
 Checks: run_tests 903/904 (1 skipped) on the pins, the same with KG_PAGE_LISTEN=0.0.0.0, and 848/904 (56 skipped) bare. Both deterministic comparators: 0 differing leaves (CargoQuote 7 scenarios, J-F 6). check_round_trip --chain rdflib,rdflib on CargoQuote: every answer survives.
+
+Rerun on the merged tree at c267461, which brings in #398 and #399's two new tests: run_tests 905/906 (1 skipped) on the pins, both unset and with KG_PAGE_LISTEN=0.0.0.0, and 850/906 (56 skipped) bare. Deterministic comparators: CargoQuote 0 differing leaves over 7 scenarios, J-F 0 over 6. check_round_trip --chain rdflib,rdflib on CargoQuote: every answer survives.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

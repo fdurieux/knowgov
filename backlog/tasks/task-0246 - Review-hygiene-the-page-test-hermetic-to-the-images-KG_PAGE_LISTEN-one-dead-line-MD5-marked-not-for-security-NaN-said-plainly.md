@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-09T06:59:00Z'
-updated_date: '2026-11-09T07:58:00Z'
+updated_date: '2026-11-09T08:15:00Z'
 labels:
   - hygiene
   - tests
@@ -47,6 +47,8 @@ From the third-party code review at 4c7fcb0, re-verified at main 6d27961 (doc-00
 (3) _fingerprint's two hashlib.md5 calls pass usedforsecurity=False. tests/test_annotate.py::test_the_fingerprint_is_the_md5_of_its_base_as_before_usedforsecurity holds both values equal to the plain md5 of their base strings, so no annotation fingerprint moves.
 (4) store.py imports math, and the float-setting check reads if math.isnan(v) or not (lo <= v <= hi). tests/test_store_generations.py::test_a_nan_setting_is_refused_by_isnan refuses nan, NaN, -nan and +nan for every float setting.
 Checks: run_tests 903/904 (1 skipped) on the pins, unset and with KG_PAGE_LISTEN=0.0.0.0, and 848/904 (56 skipped) bare. Deterministic comparator: CargoQuote 0 differing leaves over 7 scenarios, J-F 0 over 6. check_round_trip --chain rdflib,rdflib on CargoQuote: equal.
+
+Rerun on the merged tree at c267461, which brings in #398 and #399's two new tests: run_tests 905/906 (1 skipped) on the pins, both unset and with KG_PAGE_LISTEN=0.0.0.0, and 850/906 (56 skipped) bare. Deterministic comparators: CargoQuote 0 differing leaves over 7 scenarios, J-F 0 over 6. check_round_trip --chain rdflib,rdflib on CargoQuote: every answer survives.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
