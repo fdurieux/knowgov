@@ -636,6 +636,8 @@ class Neo4jStore(Store):
 
         if access not in ("read", "write"):
             raise ValueError(f"access is read or write, not {access!r}")
+        import settings
+        settings.neo4j_uri({"KG_NEO4J_URI": uri})   # task-0264: a port 1 to 65535, else refused naming KG_NEO4J_URI
         self.uri, self.auth, self.instance, self.access = uri, auth, instance, access
         kw = {"notifications_min_severity": NotificationMinimumSeverity.OFF, "max_transaction_retry_time": RETRY_S}
         if connection_timeout:
