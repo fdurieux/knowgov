@@ -389,6 +389,14 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **A task policy the gate cannot apply is refused, never read loosely** (task-0242, doc-0033 R1).
+  `block_levels = "absent"` became the set of its letters, so nothing blocked and the gate read QUALIFIED,
+  exit 0. `block_levels = 7` passed `tools/check_subject.py` and failed only at run time. One validator,
+  `harness/task_policy.py`, now serves the checker and every runtime reader of `[tasks.<class>]` (the gate,
+  `gate_cli.py`, the MCP reader, `run.py`, the agent-key path), and coerces nothing. `block_levels` is a list
+  of gate levels, `keys` a non-empty list of keys, `max_unverified_share` a number from 0 to 1,
+  `require_approved` true or false, `rationale` text. A malformed field is a checker error and, unchecked,
+  the gate's exit 2 (an error result from the MCP reader), naming the class and the field.
 - **The vendored register moves to ieam-register v0.2.13** (`7980708`, from v0.2.11). It adds the register's
   decision 0019, four eyes: a session that drafted a change is its author and may not approve it. It also adds
   decision 0020, coverage rule C4: an approved process that realises an approved capability is supported by an
