@@ -11,6 +11,20 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **`code_path`'s ledger entry names its statement ids and keys, sorted, its state, and whether it is suspect**
+  (task-0303, decision-0035 B1). The entry's `assertions` come back sorted; `keys` is always there, the keys it was
+  registered on together with those of the statements it used, so `key_nodes` reaches the register's nodes from them;
+  `state` is `current`, `drift` or `missing`, as `trace.py check` reads it; `suspect` is read from the store by the
+  rule `trace.py check` applies when the MCP reader's store holds the subject's scenario, else `unchecked` with why
+  (always from `python harness/upward.py code`, which opens no store). `harness/schemas/code-path.schema.json`
+  requires the three. `drift` and `file_present` stay. The record does not move.
+- **A trace finding names its keys' owner and route, and the trace's gate what it decided on** (task-0304,
+  decision-0035 B2). A suspect, missing, drift or unbound finding, and a gate finding the gate gives one, carries
+  `owner` and `route` as the gate's key findings do (task-0102): the unit that answers for every key it rests on,
+  null when several do, with each one's route; a finding on no key names neither. The report's `gate` block carries
+  `task_profile`, `register` and `knowgov`, read as gate report version 3 reads them. Additive to
+  `trace-report.schema.json`, still version 1. `harness/annotate.py` ends a finding's message with its owner and
+  route, the gate's key findings' too. The record does not move.
 - **The key rule refuses every control and format character** (task-0297, decision-0034 Amendment A1). A key's
   sides now hold only Basic Multilingual Plane characters outside Unicode categories Cc, Cf, Zs, Zl, Zp and Cs, and
   no `|`. `harness/key_rule.py` writes this as explicit `\uXXXX` ranges, with no `\s`, so ECMA-262 and Python read

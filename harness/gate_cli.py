@@ -312,18 +312,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
     if owners is not None:
         for f in out:
             if f["kind"] == "lint":   # the document's owning unit: the one unit capture.routing gives every key behind it
-                by_unit: dict = {}
-                for k in f["related"]:
-                    by_unit.setdefault((owners.get(k) or {}).get("unit"), k)
-                f["owner"] = next(iter(by_unit)) if len(by_unit) == 1 else None
-                if not route or not f["related"]:
-                    f["route"] = None
-                elif len(by_unit) == 1:
-                    f["route"] = route(f["owner"], f["related"][0])
-                else:   # several units own the document's keys: each one's route, any of them resolves it
-                    named = sorted(u for u in by_unit if u)
-                    f["route"] = (f"the keys behind it are owned by {', '.join(named) or 'no unit in the register map'}"
-                                  + "".join(f"; {u}: " + (route(u, by_unit[u]) or "") for u in named))
+                f["owner"], f["route"] = owner_route(f["related"], owners, route)
                 continue
             if f["kind"] in OWNED and (f["kind"] != "act" or f["key"]):
                 unit = (owners.get(f["key"]) or {}).get("unit")
@@ -337,6 +326,23 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                         f["route"] += closing_route(c["gap"], c["unit"])
     kinds = ["task", "key", "intended", "suspect_derived", "stale", "lapsed", "act", "attestation", "lint", "preload"]
     return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), kinds.index(f["kind"]), f["key"] or "", f["ref"] or ""))
+
+
+def owner_route(keys: list[str], owners: dict[str, dict], route) -> tuple[str | None, str | None]:
+    """The owner and the route of a finding that rests on ``keys`` (task-0102): the one unit that answers for every key,
+    else None; its questionnaire's route, or, when several units own them, each one's route, any of them resolving it.
+    The gate's lint findings and the trace's (task-0304) read it."""
+    by_unit: dict = {}
+    for k in keys:
+        by_unit.setdefault((owners.get(k) or {}).get("unit"), k)
+    owner = next(iter(by_unit)) if len(by_unit) == 1 else None
+    if not route or not keys:
+        return owner, None
+    if len(by_unit) == 1:
+        return owner, route(owner, keys[0])
+    named = sorted(u for u in by_unit if u)
+    return owner, (f"the keys behind it are owned by {', '.join(named) or 'no unit in the register map'}"
+                   + "".join(f"; {u}: " + (route(u, by_unit[u]) or "") for u in named))
 
 
 def counts(fs: list[dict]) -> dict[str, int]:

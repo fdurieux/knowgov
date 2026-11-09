@@ -370,6 +370,15 @@ instance's last load left it, and against your files:
 - the task's gate on the store as it is: its blockers and other findings, as `harness/gate_cli.py`
   reports them.
 
+A finding that rests on knowledge keys (suspect, missing, drift, and the gate's own key findings) says
+who answers for them and how, as the gate's findings do. `owner` is the organisation unit your
+`register_map.toml` names for every one of those keys. It is empty when several units own them. `route`
+is that owner's questionnaire for the scenario the store holds, or each owning unit's when there are
+several. A finding that rests on no key, such as *unmapped*, names neither. The report's gate block
+also names what the gate decided on, as the gate's own report does: `task_profile`, the digest of the
+task's table in `subject.toml`; `register`, your register's tag and commit; and `knowgov`, the build
+that judged.
+
 With `--changed`, it looks only at the registered files that changed and the applications a
 changed file belongs to. Without it, it looks at every registered file. It exits 0, 1 or 2 like the
 gate: 1 on a finding at or above `--fail-on` (default `blocker`), 2 when it cannot run (no
@@ -448,7 +457,8 @@ and the pull request, and the job summary carries a table of them. On GitLab the
 platform names the formats it reads, for example `KG_ANNOTATE=sarif:knowgov.sarif`. A finding at or
 above the threshold is an error. A finding on code points at the file, and a pre-load finding at its
 document's line. A finding on a key or a statement points at the subject's `subject.toml`, since the
-report names statements, not lines in a document. A pre-load finding your baseline holds is at most a
+report names statements, not lines in a document. A finding that names its keys' owner and route ends
+its message with them (`Owner: ORG-0001. Route: ...`), so the annotation says who answers. A pre-load finding your baseline holds is at most a
 warning, since it did not fail the check. The layout check's problems are annotated too, since the
 pre-load gate's report carries them (its `layout` block). A layout error is an error, at the file it
 names, or at a subject's `subject.toml`. A document no subject names, or one that no mapper reads, is a
@@ -1104,7 +1114,7 @@ seventeen tools, and all of them only read:
 | `proposal_impact` | What would this proposed product, capability or journey touch, and what does it lack, before anyone approves it? | the proposal (new nodes with provisional ids, links, the register nodes it reuses as they are or changed, proposed exceptions) read by your register's own checker and walks as if approved, every proposed element marked `hypothetical` and nothing stored: placement findings (a forbidden synonym; a node in no tool yet), link candidates D1 to D4 each `authored` or `inferred` and never more than `proposed`, coverage by every rule the register's checker defines (C1 to C4 at v0.2.13) before and after with the new gaps, what each reused node reaches before and after, what each new node rests on, each reused node's keys as `register_impact` reads them, the new nodes left unmapped, and which unit must approve what; while a run loads the store, refused where it would read the reused nodes' levels. Its walkthrough is in `demo/README.md` |
 | `register_nodes` | Which register nodes are there, and what does this one sit under? | your register listed from its files, with no store: every node with its kind, name, state, owner and parent, filtered by taxonomy, kind, state, owning unit or parent (`null` for the top-level nodes), with the total and a limit; "what does ORG-x own" is this listing, since ownership is shown and never walked. With `node`, that node's lineage: every ancestor up to the root and its children with their states, named and never walked; for what rests on or implements a node, `register_impact` |
 | `key_nodes` | Which register nodes does this knowledge key concern? | the rows of your subject's `register_map.toml` on the key, each with the register nodes it names (kind, name, state, owner), the row's owner, anchor and note; a key your subject knows with no row reads `mapped: false`, one it does not know is refused. Read from files, no store |
-| `code_path` | Which application is this code file, which keys does it cite, and what was it built from? | for a path under your `code_map.toml` root: the application or module the map assigns, the keys the file's `knowgov-keys:` header cites (an unknown one flagged), and the trace ledger's entry for it (derived id, keys, statements, commit, digest, and whether the file has drifted since). Each part says `read` or `unchecked` with why: unchecked means not read, never empty. Read from files, no store |
+| `code_path` | Which application is this code file, which keys does it cite, and what was it built from? | for a path under your `code_map.toml` root: the application or module the map assigns, the keys the file's `knowgov-keys:` header cites (an unknown one flagged), and the trace ledger's entry for it (derived id, commit, digest, its statement ids and keys, sorted, and its `state`: `current`, `drift` when the file changed since it was registered, or `missing`, as `trace.py check` reads it), and whether it is `suspect`, read from the store while the store holds your subject's scenario, else `unchecked`. Each part says `read` or `unchecked` with why: unchecked means not read, never empty. Read from files, and from the store for the ledger entry's `suspect` when it holds your subject |
 | `document_links` | Which register links cite this document? | the links of your register whose evidence cites the document (a path of your export manifest), each with the evidence anchor, the link's type, state and owner, and the nodes at both ends with their owning units: what the Browser's `register-cites` query shows, read from the register's files, no store |
 | `held_keys` | Which keys does the loaded scenario hold, and how sure is each? | every key a statement of the loaded scenario names, with how many statements it has in each status, its level as `gate_verdict` reads it under the task class the assistant names (`codegen` by default), the task classes that require it (none, for a key no class asks for: `store_status` lists declared keys only, so these were invisible before), whether your register map places it, and the required keys the store holds nothing on; refused while a run loads the store |
 | `derived_outputs` | What was built on this key, or what is this output built on? | with `key`, every derived output (code registered by `trace.py register`, a governed run's output) that used a statement on the key, in any state; with `derived`, that one output; each with the statements it used, each read `live`, `stale` (invalidated and nothing settled replaces it), `superseded` (with the verified or approved statements that replace it) or `rejected`; refused while a run loads the store |
@@ -1135,6 +1145,11 @@ Every tool is offered over stdio and HTTP alike, and the managed allowlist under
 `--instance` or `KG_INSTANCE` (its `code_map.toml` and the code under its root), and the trace ledger
 `trace.py register` writes, with `--ledger` or `KG_LEDGER`, the same variables the CI wrappers take.
 Without one, that part of the answer reads `unchecked`. A path outside the code map's root is refused.
+The ledger entry's keys are the ones `key_nodes` takes, so a code file climbs to the register's nodes
+in two calls: `code_path`, then `key_nodes` on each key. Whether the entry is suspect is the one part
+read from the store, by the rule `trace.py check` applies; `python harness/upward.py code` opens no
+store, so there it reads `unchecked`, and so it does from the server when the store holds another
+subject's scenario or none.
 
 The tools compose into the whole chain, one named step at a time and never one walk both ways. Down,
 from a capability to what it rests on: `register_impact` with `walk: realisers`, then `evidence_bundle`

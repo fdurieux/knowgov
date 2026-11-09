@@ -23,7 +23,9 @@ finding's file and line (relative to ``--instance``), and with its ``layout`` bl
 file (task-0115; only a layout error is an error, the rest warnings and notices); anything else (a key, a statement, the
 task, a derived output) at the subject's ``subject.toml`` (``--subject``), since the report names
 statements, not their place in a document. Paths are written relative to ``--root`` (default the
-working directory, the repository's root in a CI job). Exit 0, or 2 when the report cannot be read.
+working directory, the repository's root in a CI job). A finding that names its keys' owner and route (the
+gate's key findings, task-0102; the trace's, task-0304) carries them at the end of its message, so the
+annotation says who answers and how. Exit 0, or 2 when the report cannot be read.
 """
 from __future__ import annotations
 
@@ -89,8 +91,17 @@ def findings(rep: dict, instance: Path | None = None, subject: Path | None = Non
         held = bool(f.get("held"))   # task-0207, R8: under --baseline, a finding the baseline held did not fail the gate
         title = f"knowgov {tool} {f['kind']}" + (f" {subject_of}" if subject_of else "") + (" (held by the baseline)" if held else "")
         out.append({"severity": f["severity"], "kind": f["kind"], "id": ident, "path": path or fallback,
-                    "line": 1, "title": title, "message": f["message"], "held": held})
+                    "line": 1, "title": title, "message": f["message"] + _answers(f), "held": held})
     return out
+
+
+def _answers(f: dict) -> str:
+    """Who answers for the keys a finding rests on, and how (task-0304): its owner and route, as the gate and the
+    trace name them; nothing for a finding that names none."""
+    if "owner" not in f and "route" not in f:
+        return ""
+    owner = f.get("owner") or "no single unit (several, or none in the register map)"
+    return f" Owner: {owner}." + (f" Route: {f['route']}" if f.get("route") else "")
 
 
 def level(severity: str, threshold: str | None, held: bool = False) -> str:

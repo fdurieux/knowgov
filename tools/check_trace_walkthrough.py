@@ -73,6 +73,34 @@ def trace(env: dict, out: Path, name: str, *args: str, ledger: str = "ledger.jso
     return code, rep
 
 
+def check_answers(rep: dict) -> None:
+    """task-0304 (decision-0035 B2): a finding that rests on keys names their owner and route, as the gate's do, and
+    the gate block names what the gate decided on (task_profile, register, knowgov), as gate-report v3 does."""
+    gate = rep.get("gate") or {}
+    if not (isinstance(gate.get("task_profile"), str) and len(gate["task_profile"]) == 64
+            and {"tag", "commit", "why"} <= set(gate.get("register") or {}) and {"version", "commit", "describe"} <= set(gate.get("knowgov") or {})):
+        sys.exit(f"FAIL: the trace's gate block names no task_profile, register or knowgov:\n{json.dumps(gate, indent=1)}")
+    keyed = [f for f in rep["findings"] if f["kind"] in ("suspect", "drift", "missing") or f["kind"] == "gate:key"]
+    if not keyed or any("owner" not in f or "route" not in f or not f["owner"] or not f["route"] for f in keyed):
+        sys.exit(f"FAIL: a finding that rests on keys names no owner or route:\n{json.dumps(keyed, indent=1)}")
+    print(f"    every finding on keys names its owner ({', '.join(sorted({f['owner'] for f in keyed}))}) and route; "
+          f"the gate block names task_profile {gate['task_profile'][:12]}, register {gate['register'].get('tag')} and knowgov")
+
+
+def check_code_path(env: dict, out: Path) -> None:
+    """task-0303 (decision-0035 B1): code_path's ledger leg on this ledger names the entry's statement ids and keys,
+    sorted, and its state, so file -> keys -> key_nodes holds; whether it is suspect is the store's, unchecked here."""
+    p = subprocess.run([sys.executable, "upward.py", "code", "--instance", str(out / "inst"), "--ledger", str(out / "ledger.json"), CODE],
+                       cwd=HARNESS, env=env, capture_output=True, text=True)
+    led = next(e for e in json.loads((out / "ledger.json").read_text(encoding="utf-8"))["entries"] if e["path"] == CODE)
+    entry = json.loads(p.stdout)["ledger"]["entry"] if p.returncode == 0 else None
+    want_keys = sorted({u["key"] for u in led.get("used") or [] if u.get("key")} | set(led.get("keys") or []))
+    if (entry is None or entry["assertions"] != sorted(led["assertions"]) or entry["keys"] != want_keys or not want_keys
+            or entry["state"] not in ("current", "drift") or entry["suspect"]["status"] != "unchecked"):
+        sys.exit(f"FAIL: code_path {CODE}'s ledger leg is not the ledger's ids and keys, sorted (exit {p.returncode}):\n{p.stdout[-2000:]}{p.stderr}")
+    print(f"    code_path {CODE}: {len(entry['assertions'])} statement id(s) and {len(entry['keys'])} key(s), sorted; state {entry['state']}")
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -147,6 +175,8 @@ def main() -> None:
     if CHANGED_KEY not in sus[HAND]["message"] or rows[HAND_JAVA]["used_invalidated"]:
         sys.exit(f"FAIL: check after the change: want {HAND} suspect on {CHANGED_KEY}, {HAND_JAVA} clean:\n{json.dumps(rep, indent=1)}")
     print(f"    {HAND} (--keys {CHANGED_KEY}) suspect on {', '.join(sus[HAND]['related'])}; {HAND_JAVA} (--cited {KEPT_KEY}) not")
+    check_answers(rep)
+    check_code_path(env, out)
 
     root = inst / rep["code_root"]
     (root / CODE).write_text((root / CODE).read_text(encoding="utf-8") + "\n# an edit after the registration\n", encoding="utf-8")
