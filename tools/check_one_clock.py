@@ -29,6 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "harness"), str(ROOT / "tools")]
 import check_review_walkthrough as w  # noqa: E402  (its instance, answers and reviews: one fixture, two checks)
+import dates  # noqa: E402  (task-0262: one strict YYYY-MM-DD parse)
 import review  # noqa: E402
 
 ON, LAPSED = w.ON, w.LAPSED
@@ -98,7 +99,7 @@ def main(out: Path) -> int:
     os.environ.update(KG_SUBJECT=env["KG_SUBJECT"], KG_REGISTER=env["KG_REGISTER"])
     import cadence
     months = cadence.months_for("response|statuses")
-    due = review.add_months(dt.date.fromisoformat(ON), months)
+    due = review.add_months(dates.parse(ON), months)
     level = lambda r: r["levels"].get("response|statuses")   # noqa: E731
     on_due = same_under_both_days(env, due.isoformat(), errs)
     after = same_under_both_days(env, (due + dt.timedelta(days=1)).isoformat(), errs)
@@ -107,7 +108,7 @@ def main(out: Path) -> int:
     g4 = [f for f in after["findings"] if f["kind"] == "lapsed" and f["ref"] == target]
     if not g4 or g4[0]["level"] != "validated":
         errs.append(f"G4: {target}, approved on {ON} with no verification, does not lapse the day after {due}: {g4}")
-    before = same_under_both_days(env, (dt.date.fromisoformat(ON) - dt.timedelta(days=1)).isoformat(), errs)
+    before = same_under_both_days(env, (dates.parse(ON) - dt.timedelta(days=1)).isoformat(), errs)
     g10 = [f for f in before["findings"] if f["kind"] == "lapsed" and f["ref"] == target]
     if not g10 or g10[0]["level"] != "validated" or "after the as-of date" not in g10[0]["message"]:
         errs.append(f"G10: as of the day before {ON} the approval dated {ON} is counted: {g10}")

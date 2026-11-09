@@ -805,7 +805,9 @@ reads it against the register *as if approved*, without approving it
 (task-0130, task-0131, doc-0017). The proposal is a small JSON (or TOML)
 file: the new nodes, with provisional ids, their kind, name, parent and
 owner; the links that join them to what exists; the register nodes it
-reuses, each `as_is` or `changed`; and any exception it asks for.
+reuses, each `as_is` or `changed`; and any exception it asks for. An
+optional top-level `format = 1` names the overlay's format: missing reads
+as 1, and a newer one is refused with exit 2 rather than misread.
 `tools/fixtures/proposal_contract_quote.json` is doc-0017's worked
 example, synthetic: a *Contract freight quote* product that requires
 three existing capabilities and a new one, *Check a shipper's credit*,

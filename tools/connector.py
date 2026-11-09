@@ -48,11 +48,12 @@ import shutil
 import sys
 import tomllib
 import xml.etree.ElementTree as ET
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
+import dates  # noqa: E402  (task-0262: one strict YYYY-MM-DD parse)
 import formats  # noqa: E402  (task-0174: connectors.toml's format = N)
 
 DEFAULT_ID_ATTRIBUTE = "AT_ID"
@@ -249,9 +250,16 @@ def _exported_on(given: str | None, read: str | None) -> str:
     s = given or read
     if not s:
         raise Refused("no export time: the export carries none (no AML header); pass --exported-on")
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+    what = "--exported-on" if given else "the AML header's CreateDate and CreateTime"
+    bad = dates.NotADate(f"{what} {s!r} is not a date (YYYY-MM-DD) or an ISO time (YYYY-MM-DDThh:mm:ss)")
+    if dates.is_date(s):   # task-0262: YYYY-MM-DD in ASCII digits, never a week or basic form
         s += "T00:00:00Z"
-    t = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    elif not (dates.is_date(s[:10]) and s[10:11] == "T"):
+        raise bad
+    try:
+        t = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        raise bad from None
     if t.tzinfo is None:
         t = t.replace(tzinfo=timezone.utc)
     return t.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -316,12 +324,12 @@ def land(instance: Path, system: str, export: list[Path], exported_on: str | Non
     got = read_export([Path(e) for e in export], cfg["id_attribute"])
     stamp = _exported_on(exported_on, got["exported"])
     day = stamp[:10]
-    date.fromisoformat(day)
+    dates.parse(day)
     base = reg_root / "exports" / system
     dest = base / day
     if dest.exists():
         raise Refused(f"{dest.relative_to(instance)} exists: an export is never landed over another")
-    older = sorted(p.name for p in base.glob("*") if p.is_dir() and re.fullmatch(r"\d{4}-\d{2}-\d{2}", p.name)) if base.is_dir() else []
+    older = sorted(p.name for p in base.glob("*") if p.is_dir() and dates.is_date(p.name)) if base.is_dir() else []
     if older and older[-1] > day:
         raise Refused(f"{day} is before the newest export, {older[-1]}: exports land in date order")
     folder = f"exports/{system}/{day}"
