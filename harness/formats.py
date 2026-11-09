@@ -7,7 +7,10 @@ Three kinds of input carry a version:
 - **an instance file**: ``code_map.toml`` and ``connectors.toml`` each carry a top-level ``format = N``;
 - **a record**: each capture and each review file carries a top-level ``format = N``, stamped by
   ``harness/capture.py`` ``capture_toml`` and ``harness/review.py`` ``review_toml``, since a record outlives the
-  version that wrote it.
+  version that wrote it; the trace ledger (``KG_LEDGER``) carries its ``schema_version``, stamped by ``trace
+  register`` (task-0280);
+- **a proposal overlay** (``harness/proposal_impact.py``, the MCP ``proposal_impact``): an optional top-level
+  ``format = N`` (task-0280, decision-0033 choice 6).
 
 The rule, the same for every reader:
 
@@ -24,8 +27,12 @@ Standard library only; nothing here reads a file.
 from __future__ import annotations
 
 # what this knowgov writes and reads, per kind of input; a kind moves its own number
-CURRENT = {"subject": 1, "code_map": 1, "connectors": 1, "capture": 1, "review": 1}
+CURRENT = {"subject": 1, "code_map": 1, "connectors": 1, "capture": 1, "review": 1, "ledger": 1, "proposal": 1}
 SUBJECT, CODE_MAP, CONNECTORS, CAPTURE, REVIEW = "subject", "code_map", "connectors", "capture", "review"
+# task-0280 (decision-0033 choice 6): the trace ledger, a JSON record whose version is its schema_version, and a
+# proposal overlay, an optional top-level format
+LEDGER, PROPOSAL = "ledger", "proposal"
+KEY = {LEDGER: "schema_version"}   # the field a kind's version is written in; "format" for the rest, [format] version for a subject
 # decision-0023 Amendment A1: a file that names no version reads as version 1, for every kind and in every
 # release; held apart from CURRENT, which moves when a format does
 MISSING = 1
@@ -49,7 +56,7 @@ def declared(doc: dict, kind: str):
         if not isinstance(t, dict):
             raise FormatError("[format] must be a table, [format] version = N")
         return t.get("version")
-    return doc.get("format")
+    return doc.get(KEY.get(kind, "format"))
 
 
 def version(doc: dict, where: str, kind: str) -> int:
@@ -62,7 +69,7 @@ def version(doc: dict, where: str, kind: str) -> int:
         raise FormatError(f"{where}: {e}") from None
     if v is None:
         return MISSING
-    key = "[format] version" if kind == SUBJECT else "format"
+    key = "[format] version" if kind == SUBJECT else KEY.get(kind, "format")
     if isinstance(v, bool) or not isinstance(v, int) or v < 1:
         raise FormatError(f"{where}: {key} = {v!r} is not a format version (a whole number, 1 or more)")
     if v > cur:

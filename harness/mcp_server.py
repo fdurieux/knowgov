@@ -263,7 +263,7 @@ TOOLS.append(
      "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
          "proposal": {"type": "object", "description": "the overlay: nodes [{id, kind, name, parent, owner, source}], links "
                       "[{type, source, target, rationale, owner}], reused [{id, mode: as_is|changed}], exceptions "
-                      "[{rule, scope, expires, rationale}], title; ids are provisional, a link end is a register id or a proposed "
+                      "[{rule, scope, expires, rationale}], title, an optional format (1; a newer one is refused); ids are provisional, a link end is a register id or a proposed "
                       "node's (required unless scope is given)"},
          "scope": {"type": "string", "description": "an approved journey, step, touchpoint or product id: its slices only, each "
                    "with its keys; with no proposal, the approved register read alone (task-0191)"},
