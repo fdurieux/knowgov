@@ -125,6 +125,9 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   (`.claude/hooks/protected_paths.py`, task-0105): `vendored` blocks a hand edit to a file or `SOURCE.md`
   under a vendor tool's destination, `backlog` blocks a `backlog/**/*.md` written other than by the CLI;
   both map through task-0099's `decide` and call nothing else, and the knowledge gate is not wired here.
+  `.claude/skills/` holds two third-party skills, `grill-me` (user-invoked) and the `grilling` it calls,
+  copied unmodified from `mattpocock/skills` (MIT); `.claude/skills/SOURCE.md` names the commit, the
+  digests and the licence. Refresh both together, never one.
 
 ## Pull requests
 
