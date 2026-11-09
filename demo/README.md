@@ -871,9 +871,14 @@ docker compose exec -T app python harness/proposal_impact.py --scope JRN-0001
 In plain English: you get one slice per step of *Get a freight quote*.
 Each slice is the register's own thread walk from the step: the process
 behind it, the capability, the application and the data. Each slice also
-lists its knowledge keys: the subject's register-map rows on those
-nodes, with the total as the denominator. Here *Submit a quote request*
-lands 22 of CargoQuote's 36.
+lists its knowledge keys: the keys the task class requires (`--task`,
+`codegen` by default) among the subject's register-map rows on those
+nodes, with the class's key count as the denominator. Here *Submit a
+quote request* lands 22 of the 36 `codegen` keys; under `--task design`
+it lands 8 of `design`'s 36. The class's keys that land on no slice are
+listed together after the slices (`task_keys`), so each key is in a
+slice or there: under `design`, CargoQuote's `REQ-06|text` is one, with
+no register-map row (task-0252).
 
 With a scenario loaded, each key has its level under the task class and
 date you name. The slice then says:

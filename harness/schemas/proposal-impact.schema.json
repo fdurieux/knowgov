@@ -167,6 +167,75 @@
      }
     }
    }
+  },
+  "unsliced_key": {
+   "type": "object",
+   "required": [
+    "key",
+    "owner",
+    "anchor",
+    "via",
+    "mapped",
+    "nodes"
+   ],
+   "additionalProperties": true,
+   "description": "A task-class key on no slice (task-0252): key, owner and anchor from its register-map rows (null when none), via empty, mapped false when no row names it, the nodes its rows name; with a scenario held also level, stale, suspect and findings, as a slice's rows",
+   "properties": {
+    "key": {
+     "type": "string"
+    },
+    "owner": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "anchor": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "via": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "withdrawn": {
+     "type": "boolean"
+    },
+    "level": {
+     "type": "string"
+    },
+    "stale": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "suspect": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "findings": {
+     "type": "array",
+     "items": {
+      "type": "object"
+     }
+    },
+    "mapped": {
+     "type": "boolean"
+    },
+    "nodes": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
   }
  },
  "properties": {
@@ -989,7 +1058,8 @@
     "products",
     "map",
     "remainder",
-    "elements"
+    "elements",
+    "task_keys"
    ],
    "properties": {
     "walk": {
@@ -1261,8 +1331,9 @@
          "null"
         ],
         "additionalProperties": false,
-        "description": "the slice's keys (task-0191, doc-0024 J1): the register-map rows register_impact's landed_rows gives for the slice's start, walked descendants and reached nodes, with the subject's key count as denominator; with a scenario held each row's level, stale, suspect and findings as register_impact's with_levels reads them, and the gate over the slice's keys; null when no register map was read",
+        "description": "the slice's keys (task-0191, doc-0024 J1): the register-map rows register_impact's landed_rows gives for the slice's start, walked descendants and reached nodes, kept to the task class's keys when one is named (task-0252: the class's keys among the rows landing on the thread, never every key a change reaches, which is register_impact's), with the class's key count as denominator (the subject's register-map key count when none is named); with a scenario held each row's level, stale, suspect and findings as register_impact's with_levels reads them, and the gate over the slice's keys; null when no register map was read",
         "required": [
+         "task",
          "of",
          "landed",
          "rows",
@@ -1271,6 +1342,13 @@
          "cells"
         ],
         "properties": {
+         "task": {
+          "type": [
+           "string",
+           "null"
+          ],
+          "description": "the task class whose keys the slice reads (task-0252); null when none is named and every register-map key is read"
+         },
          "of": {
           "type": "integer",
           "minimum": 0
@@ -1539,6 +1617,147 @@
       },
       "name": {
        "type": "string"
+      }
+     }
+    },
+    "task_keys": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "additionalProperties": false,
+     "description": "The key remainder (task-0252, additive): the task class's keys (every register-map key when no class is named) that land on no slice's thread, each with its rows' owner, anchor and nodes, mapped false when no register-map row names it; denominator the class's key count, so every one of the class's keys is in a slice or here (in_slices + on_no_slice = denominator); with a scenario held each key's level as the slices' and the gate over these keys under the class; null when no register map was read",
+     "required": [
+      "task",
+      "group",
+      "why",
+      "denominator",
+      "in_slices",
+      "on_no_slice",
+      "keys",
+      "gate",
+      "cells"
+     ],
+     "properties": {
+      "task": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "group": {
+       "const": "on_no_slice"
+      },
+      "why": {
+       "type": "string"
+      },
+      "denominator": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "in_slices": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "on_no_slice": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "keys": {
+       "type": "array",
+       "items": {
+        "$ref": "#/$defs/unsliced_key"
+       }
+      },
+      "gate": {
+       "type": [
+        "object",
+        "null"
+       ],
+       "additionalProperties": false,
+       "required": [
+        "task",
+        "verdict",
+        "why",
+        "exit_code"
+       ],
+       "properties": {
+        "task": {
+         "type": "string"
+        },
+        "verdict": {
+         "type": "string"
+        },
+        "why": {
+         "type": "string"
+        },
+        "exit_code": {
+         "type": "integer"
+        }
+       }
+      },
+      "cells": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "read",
+        "levels",
+        "unread",
+        "worst",
+        "unknown",
+        "gaps",
+        "lapsed",
+        "why"
+       ],
+       "description": "facts the slice's rows give, never a score: counts per level read, the keys unread, the lowest level by the gate's order, the keys at absent (unknown) and declared_gap, the lapsed ones",
+       "properties": {
+        "read": {
+         "type": "boolean"
+        },
+        "levels": {
+         "type": "object",
+         "additionalProperties": {
+          "type": "integer",
+          "minimum": 0
+         }
+        },
+        "unread": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        },
+        "worst": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "unknown": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        },
+        "gaps": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        },
+        "lapsed": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        },
+        "why": {
+         "type": "object",
+         "additionalProperties": {
+          "type": "string"
+         }
+        }
+       }
       }
      }
     }

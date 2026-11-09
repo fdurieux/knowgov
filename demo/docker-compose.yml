@@ -8,7 +8,8 @@
 #   docker compose -f docker-compose.yml pull && \
 #   docker compose -f docker-compose.yml up -d          # the registry image, no build
 #
-# Variables, read from the shell or a .env file beside this compose file:
+# Variables, read from the shell or a .env file beside this compose file. Compose reads that file only to fill in
+# the variables below; it never reaches the image (demo/Dockerfile.dockerignore keeps every .env out, task-0245):
 #   KG_BIND            the host address the three ports are published on (default 127.0.0.1, this machine
 #                      only; 0.0.0.0 for every interface, or one of the host's addresses; [::] for IPv6).
 #                      A wider bind refuses to start while KG_NEO4J_PASSWORD is the default (task-0090,

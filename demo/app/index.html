@@ -544,7 +544,6 @@ function renderGaps(v, store, filter) {
     : `<div class="gsrc">Source: <b>${esc(g.source)}</b>. The store holds <b>${esc(store.loaded || 'nothing')}</b>, not ${esc(v.scenario)}${store.error ? ` (${esc(store.error)})` : ''}, so the gaps' own text and the full set of what they concern are not shown; run Deterministic for ${esc(v.scenario)} and open this panel again, or paste the saved query <em>The gaps, with what they concern</em> into Neo4j Browser after loading it.</div>`;
   const counts = GAP_ORDER.map(k => `<button class="${filter === k ? 'on' : ''}" data-k="${k}">${k} · ${g.counts[k]}</button>`).join('');
   const assertionCell = (a, sid) => {
-    const st = sid && byId[sid] ? null : null;
     return a ? `${esc(a.key || '')}${a.value !== null && a.value !== undefined ? ` = <code>${esc(a.value)}</code>` : ''}${a.basis ? ` · ${esc(a.basis)}` : ''}${a.status ? ` · ${esc(a.status)}` : ''}` : '—';
   };
   const enrich = row => {
