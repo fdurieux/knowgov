@@ -400,6 +400,14 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **A Neo4j read never answers a generation before its data has arrived** (SNAP-11; decision-0014, amendment
+  proposed). Under racing writers, a reader could pin a newly published generation while Neo4j was still
+  applying the writer's commit, and read it with records missing: CI's SNAP-04 saw S2's counts with no
+  extraction activity. Neo4j had shown the publication's `end`, written in the same transaction, before the
+  transaction's last records. `end` is now set in a transaction of its own once the unit's commit has returned,
+  so readers wait until the data is all there. Every open gap is closed forward (`end = begin`): a writer killed
+  between its commit and that step is refused while its lease is live, then recovered and read whole. No shape
+  changes; the guarantee decision-0014 documents now holds.
 - **A task policy the gate cannot apply is refused, never read loosely** (task-0242, doc-0033 R1).
   `block_levels = "absent"` became the set of its letters, so nothing blocked and the gate read QUALIFIED,
   exit 0. `block_levels = 7` passed `tools/check_subject.py` and failed only at run time. One validator,
