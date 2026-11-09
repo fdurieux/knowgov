@@ -148,7 +148,7 @@ DEFAULT_HOST, DEFAULT_PORT = "127.0.0.1", 8765
 READS = frozenset({"key_evidence", "declared_gaps_for_key", "conflict_gaps", "stale_on_keys", "suspect_derived",
                    "extraction_activities", "extraction_times", "assertions_on_key", "census", "preload_verdicts",
                    "held_keys", "derived_outputs", "artefact_assertions", "held", "act_findings",
-                   "lint_gaps", "attestations"})   # task-0144; held, task-0195; acts, task-0199; lint gaps, task-0216; attestations, task-0221
+                   "lint_gaps", "attestations", "version_digests"})   # task-0144; held, task-0195; acts, task-0199; lint gaps, task-0216; attestations, task-0221; corpus, task-0307
 
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
 

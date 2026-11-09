@@ -11,6 +11,15 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **The gate report names the corpus it decided on, and `--baseline` names what differs** (task-0307, decision-0037).
+  The report gains `corpus`, the sha256 over the loaded document Versions' digests (one `<artefact>\t<version>\t<sha256>`
+  line each, sorted by artefact then version), equal on both stores and through export and import; it is additive,
+  schema version 3 unchanged. Before, an in-place edit of a document left `task_profile`, `register` and `knowgov` as
+  they were, so a retained report could not show that its corpus had changed. With `--baseline FILE` or `--baseline
+  record`, each of `task_profile`, `register`, `knowgov`, `corpus` and `as_of` that differs from the baseline's is now
+  named on stderr, one line each; the exit is unchanged. A field the baseline lacks or holds as null reads as unknown,
+  never as different, and the record holds only its `as_of`. The record does not move.
+
 - **The key rule refuses every control and format character** (task-0297, decision-0034 Amendment A1). A key's
   sides now hold only Basic Multilingual Plane characters outside Unicode categories Cc, Cf, Zs, Zl, Zp and Cs, and
   no `|`. `harness/key_rule.py` writes this as explicit `\uXXXX` ranges, with no `\s`, so ECMA-262 and Python read
