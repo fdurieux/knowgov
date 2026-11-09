@@ -22,7 +22,7 @@
  ],
  "properties": {
   "schema_version": {
-   "const": 1
+   "const": 2
   },
   "tool": {
    "const": "knowgov step_grid"
@@ -77,7 +77,7 @@
      "products",
      "of",
      "keys",
-     "behind_withdrawn"
+     "behind_not_followed"
     ],
     "properties": {
      "id": {
@@ -120,7 +120,7 @@
        "type": "string"
       }
      },
-     "behind_withdrawn": {
+     "behind_not_followed": {
       "type": "array",
       "items": {
        "type": "string"

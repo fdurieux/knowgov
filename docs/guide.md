@@ -486,7 +486,8 @@ processes. From a capability it goes back along `requires` to the products that 
 information node it goes back along `crud` and `manages` to the processes and applications that use
 it. From a product it goes back along `concerns` and `delivers` to its journeys and processes. It
 follows **approved** links only. A link that is not approved, or whose far node is deprecated or
-retired, is listed as *withdrawn* and not followed. An edge back to the start is listed and not
+retired, is listed as *not followed*, with its state, and not walked. (*Withdrawn* means deprecated or
+retired alone.) An edge back to the start is listed and not
 counted. The walk does not climb to a node's parent; tick **children** to also walk from every
 approved descendant. The **realisers** walk instead finds what implements a capability.
 
@@ -505,7 +506,7 @@ Example: the QuoteAPI module, `APP-0002`.
 | PRD-0002 | delivers (inverse) | PROC-0001 | Quote process | yes |
 | JRN-0001 | concerns | PRD-0002 | CargoQuote instant quote | yes |
 
-Ten links, none withdrawn: retiring QuoteAPI touches two processes, one capability, the journey
+Ten links, every one followed: retiring QuoteAPI touches two processes, one capability, the journey
 and one of its steps, and the product. The same walk runs from the command line, with no store:
 
 ```bash
@@ -514,14 +515,15 @@ python demo/register/tools/impact.py --from APP-0002
 
 In plain English: this reads the register's files and prints one line per link with its state,
 owner and evidence, then a summary: "10 edges walked, 0 withdrawn; products reached ['PRD-0002'];
-journey elements reached ['JRN-0001', 'JRN-0002']".
+journey elements reached ['JRN-0001', 'JRN-0002']". That line is the register's own tool, whose
+"withdrawn" counts the edges not followed; knowgov's answers and page say *not followed*.
 
-From a process, `PROC-0004` Price the quote walks nine links, one of them withdrawn, and reaches
+From a process, `PROC-0004` Price the quote walks nine links, one of them not followed, and reaches
 the capability CAP-0002, the product PRD-0002, the process PROC-0001 that delivers it, the journey
 JRN-0001 and its step JRN-0003. From a
 journey, `JRN-0001` Get a freight quote walks four links and reaches the product PRD-0002 and the
-process PROC-0001. From a process with withdrawn links, J-F's `PROC-0006` Daily chain walks ten
-links, two of them withdrawn, and reaches the product PRD-0005 and three journey steps.
+process PROC-0001. From a process with links not followed, J-F's `PROC-0006` Daily chain walks ten
+links, two of them not followed, and reaches the product PRD-0005 and three journey steps.
 
 ### Seeing the walk as a graph
 
@@ -565,7 +567,7 @@ it and the QuoteAPI module APP-0002 manages it. From PROC-0002 the query reaches
 (it supports the process), the capability CAP-0004 and the journey step JRN-0002. Copy the query
 and change the id to ask about another node. For ENT-0003 Quote it reaches PROC-0004 and APP-0002,
 then APP-0003 TariffEngine, CAP-0002 and JRN-0003. For J-F's ENT-0010 Seam frame, the link from
-the Daily chain is deprecated and shows as withdrawn; the approved one from PROC-0010 Seam frame
+the Daily chain is deprecated, so it is withdrawn and shows as not followed (deprecated); the approved one from PROC-0010 Seam frame
 export leads on to the product PRD-0004. For ENT-0005 Screening result the only link is a draft,
 so nothing is followed: a draft link is not yet knowledge you can act on.
 

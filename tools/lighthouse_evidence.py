@@ -104,7 +104,7 @@ def collect_walk(subject, register: Path, failures: list[str]) -> dict:
             failures.append(f"walk: {nid}, named by the register map, is not in the register")
             continue
         edges = mods["impact"].walk(reg, nid)
-        walks[nid] = {"edges": len(edges), "withdrawn": sum(1 for e in edges if not e["live"]),
+        walks[nid] = {"edges": len(edges), "not_followed": sum(1 for e in edges if not e["live"]),
                       "reached": sorted(mods["impact"].reached(edges))}
     if not walks:
         failures.append("walk: the register map names no node of the register")

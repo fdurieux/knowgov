@@ -57,7 +57,7 @@ CONSTRAINTS = [
 # has its steps, every step pointing from the thing changed to what rests on it (IMPACT_STEPS: the
 # taxonomy, the relationship types, and whether the node is the link's source or, "(inverse)", its
 # target). An edge is live when its link is approved and its far node is neither deprecated nor
-# retired; every edge met from an expanded node is reported, a withdrawn edge is reported and not
+# retired; every edge met from an expanded node is reported, an edge not followed is reported, with why, and not
 # followed, so only live edges lead on and only their far ends count as reached. A deprecated or
 # retired start expands nothing. No parent climb; owns and maps_to are never walked. The kinds now
 # form cycles (a process delivers a product, the product's delivers inverse leads back), so the walk
@@ -116,7 +116,7 @@ def _impact_walk(steps: list = IMPACT_STEPS, children: bool = False) -> str:
             f"  MATCH SHORTEST 1 (a) ((x:RegNode)-[s]-(y:RegNode) WHERE {_step('x', 's', steps)}\n"
             f"      AND {_OK.format('s')} AND {_LIVE.format('y')})* (n:RegNode)\n"
             f"  WHERE {_LIVE.format('a')}\n"
-            "  // every edge the walk meets from each: one row, live or withdrawn\n"
+            "  // every edge the walk meets from each: one row, followed or not\n"
             f"  MATCH p = (n)-[r]-(t:RegNode) WHERE {_step('n', 'r', steps)}\n"
             "  RETURN p\n"
             "}\n")
@@ -131,7 +131,8 @@ _ROWS_TAIL = (
     "       t.reg_id AS `to`, t.name AS name, t.owner AS unit, u.name AS `unit name`,\n"
     "       [(o:RegNode)-[w:REG_OWNS]->(t) WHERE w.state = 'approved' | o.reg_id] AS `owns links`,\n"
     "       t.state AS `node state`, r.state AS `link state`,\n"
-    "       CASE WHEN NOT (r.state = 'approved' AND NOT t.state IN ['deprecated','retired']) THEN 'no, withdrawn'\n"
+    "       CASE WHEN r.state <> 'approved' THEN 'no, not followed (link ' + coalesce(r.state, 'without a state') + ')'   // task-0305: not followed, never withdrawn\n"
+    "            WHEN t.state IN ['deprecated','retired'] THEN 'no, not followed (far node ' + t.state + ')'\n"
     "            WHEN t = a THEN 'yes, back to the start, not counted'   // decision 0016: the start is never reached\n"
     "            ELSE 'yes' END AS followed,\n"
     "       r.owner AS owner, l.evidence AS evidence, r.reg_id AS link\n"
@@ -146,7 +147,7 @@ def impact_texts(walk: str = "dependants", children: bool = False) -> dict:
     """Both forms of one walk from the adapter's literal start: the rows form, one row per edge as the
     panel lists them, and the paths form for the Browser's graph view."""
     w = _impact_walk(WALK_STEPS[walk], children)
-    return {"rows": f"// {_WHAT[(walk, children)]}, one row per edge, as the impact panel lists them, a withdrawn edge listed and not followed\n" + w + _ROWS_TAIL,
+    return {"rows": f"// {_WHAT[(walk, children)]}, one row per edge, as the impact panel lists them, an edge not followed listed with why\n" + w + _ROWS_TAIL,
             "paths": ("// the same walk as paths, for the Browser's graph view: a start with no edge still draws itself\n"
                       + w.replace("CALL (a) {\n", "OPTIONAL CALL (a) {\n") + "RETURN a, p")}
 
@@ -160,7 +161,7 @@ IMPACT_VARIANTS = {f"{w}{'-children' if c else ''}": (w, c) for w in WALK_STEPS 
 # Two fixed questions beside the walk, older than its per-kind steps (doc-0008 §4): from a capability,
 # what realises or requires it (the walk follows requires only: realising is "what implements this",
 # decision 0010's second walk); from an information node, what creates, reads, updates, deletes or
-# manages it. Each then goes one step on from each process among them over an approved link. The same rule as the walk: every edge met is a row, a withdrawn one (link not
+# manages it. Each then goes one step on from each process among them over an approved link. The same rule as the walk: every edge met is a row, one not followed (link not
 # approved, or far node deprecated or retired) is marked and not stepped from. One literal start each,
 # which the page replaces with the register's own default for the taxonomy (demo/app/server.py).
 CAPABILITY_START = "CAP-0002"
@@ -168,7 +169,8 @@ INFORMATION_START = "ENT-0002"
 _DEP_RETURN = (
     "RETURN x.reg_id AS node, x.name AS name, toLower(replace(type(r), 'REG_', '')) AS relationship, via,\n"
     "       x.state AS `node state`, r.state AS `link state`,\n"
-    "       CASE WHEN r.state = 'approved' AND NOT x.state IN ['deprecated','retired'] THEN 'yes' ELSE 'no, withdrawn' END AS followed,\n"
+    "       CASE WHEN r.state <> 'approved' THEN 'no, not followed (link ' + coalesce(r.state, 'without a state') + ')'\n"
+    "            WHEN x.state IN ['deprecated','retired'] THEN 'no, not followed (far node ' + x.state + ')' ELSE 'yes' END AS followed,\n"
     "       r.owner AS owner, r.reg_id AS link\n"
     "ORDER BY via, node, link")
 DEPENDANTS_CAPABILITY = (

@@ -47,7 +47,7 @@ def test_the_script_names_every_evidence_item_the_task_asks_for():
 
 def test_the_summary_reads_a_collection_and_names_its_failures():
     import lighthouse_evidence as lh
-    sub = {"subject": "demo", "walk": {"register_nodes": 3, "starts": {"APP-1": {"edges": 2, "withdrawn": 0, "reached": ["PROC-1"]}},
+    sub = {"subject": "demo", "walk": {"register_nodes": 3, "starts": {"APP-1": {"edges": 2, "not_followed": 0, "reached": ["PROC-1"]}},
                                        "statements_at_anchor": {"APP-1": {"statements": 4}}, "statements_scenario": "S1"},
            "gate": {"S1": {"verdict": "PROCEED", "exit_code": 0, "record_verdict": "PROCEED",
                            "classes": {"codegen": {"verdict": "PROCEED", "exit_code": 0}, "design": {"verdict": "QUALIFIED", "exit_code": 0}}}},

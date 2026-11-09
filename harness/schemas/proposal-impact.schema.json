@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/proposal-impact.schema.json",
  "title": "knowgov proposal impact report",
- "description": "What `python harness/proposal_impact.py PROPOSAL -f json` prints and the MCP tool proposal_impact returns (task-0130, task-0131): a proposed addition read against the register as if approved, without approving it. Every overlay node, link and exception is hypothetical (const true) and read_as approved; nothing is stored (stored const false). Candidates carry their rule (D1-D4), their basis (authored or inferred) and the status proposed, never more; D5 is a placement finding. branch is null for a proposal held in the call and, in branch mode (task-0132, additive), names the checkout, the base, the merge base and head commits and what the diff holds that is not an addition. slices (task-0152, additive) is the slice map, one vertical slice per journey step by the register's thread walk. coverage reads every rule the register's checker defines (task-0241), and the schema names none (task-0261, a widening): before and after are keyed by the register's rule ids, each a coverage cell, and a new gap's rule is a rule id, so a register defining C5 needs no schema change and every earlier report still validates. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "description": "What `python harness/proposal_impact.py PROPOSAL -f json` prints and the MCP tool proposal_impact returns (task-0130, task-0131): a proposed addition read against the register as if approved, without approving it. Every overlay node, link and exception is hypothetical (const true) and read_as approved; nothing is stored (stored const false). Candidates carry their rule (D1-D4), their basis (authored or inferred) and the status proposed, never more; D5 is a placement finding. branch is null for a proposal held in the call and, in branch mode (task-0132, additive), names the checkout, the base, the merge base and head commits and what the diff holds that is not an addition. slices (task-0152, additive) is the slice map, one vertical slice per journey step by the register's thread walk. coverage reads every rule the register's checker defines (task-0241), and the schema names none (task-0261, a widening): before and after are keyed by the register's rule ids, each a coverage cell, and a new gap's rule is a rule id, so a register defining C5 needs no schema change and every earlier report still validates. Version 2 since task-0305 (not_followed and behind_not_followed, renamed from withdrawn: not additive); a change is additive or a new version. Exit 2 prints no report.",
  "type": "object",
  "additionalProperties": false,
  "required": [
@@ -54,7 +54,7 @@
     "via"
    ],
    "additionalProperties": true,
-   "description": "A landed register-map row as register_impact reports it: key, owner, anchor, via, withdrawn when it rests only on a withdrawn descendant; with a scenario held also level, stale, suspect and findings, the gate report's",
+   "description": "A landed register-map row as register_impact reports it: key, owner, anchor, via, not_followed when it rests only on a descendant not followed (task-0305; withdrawn means deprecated or retired alone); with a scenario held also level, stale, suspect and findings, the gate report's",
    "properties": {
     "key": {
      "type": "string"
@@ -77,7 +77,7 @@
       "type": "string"
      }
     },
-    "withdrawn": {
+    "not_followed": {
      "type": "boolean"
     },
     "level": {
@@ -202,7 +202,7 @@
       "type": "string"
      }
     },
-    "withdrawn": {
+    "not_followed": {
      "type": "boolean"
     },
     "level": {
@@ -276,7 +276,7 @@
  },
  "properties": {
   "schema_version": {
-   "const": 1
+   "const": 2
   },
   "tool": {
    "const": "knowgov proposal_impact"
@@ -966,7 +966,7 @@
        "descendants",
        "thread",
        "empty",
-       "withdrawn",
+       "not_followed",
        "owners",
        "elements",
        "handoffs",
@@ -1041,7 +1041,7 @@
          ]
         }
        },
-       "withdrawn": {
+       "not_followed": {
         "type": "array",
         "items": {
          "type": "object",
@@ -1126,7 +1126,7 @@
          "of",
          "landed",
          "rows",
-         "behind_withdrawn",
+         "behind_not_followed",
          "gate",
          "cells"
         ],
@@ -1152,7 +1152,7 @@
            "$ref": "#/$defs/key"
           }
          },
-         "behind_withdrawn": {
+         "behind_not_followed": {
           "type": "array",
           "items": {
            "type": "object",
