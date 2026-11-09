@@ -1,0 +1,173 @@
+name: quality
+
+# The advisory SonarQube scan (task-0250, doc-0033): at every minor release's tag, on demand for any ref (a
+# past tag such as v0.9.0), and on a pull request that changes this workflow or its tools, so that change
+# proves one complete run. Advice, never a gate: no ruleset requires it, and it fails only when the scan
+# cannot run (the server, the scanner, the analysis). SonarQube Community Build runs as a service container
+# on loopback and the scanner from its release archive, both pinned; the token is minted on the server for
+# this run, so no repository secret is needed. The profile, the analysis settings, the coverage converter
+# and the debt delta live in tools/quality/ (docs/quality-scan.md).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "the tag, branch or commit to scan (a past release, e.g. v0.9.0)"
+        required: true
+        default: main
+  pull_request:
+    paths:
+      - ".github/workflows/quality.yml"
+      - "tools/quality/**"
+      - "tools/coverage_stdlib.py"
+
+permissions:
+  contents: read
+  actions: read   # the previous release's scan, an artefact of this workflow
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: quality-${{ github.ref }}-${{ inputs.ref || '' }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      sonarqube:
+        image: sonarqube:26.11.0.134175-community@sha256:1ce197471f5f2bac347694a336862fd2c23e9f57c6edb46acebbfbe70f2c7d9c
+        env:
+          SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"   # the runner's vm.max_map_count; one node, no cluster
+        ports:
+          - "127.0.0.1:9000:9000"
+    env:
+      SONAR_HOST_URL: http://127.0.0.1:9000
+      SONAR_PROJECT: knowgov
+      SONAR_PROFILE: knowgov
+      SONAR_SERVER_VERSION: 26.11.0.134175
+      SONAR_SCANNER_VERSION: 8.3.1.16491
+      # binaries.sonarsource.com's published SHA-256 of sonar-scanner-cli-8.3.1.16491-linux-x64.zip
+      SONAR_SCANNER_SHA256: 0f304e4c5982f0cfbd06762306d6e60e6ed9c8e3853629ae3b8ec2f4dc9bdc04
+      TOOLS: .quality-tools   # this workflow's own commit: the scanned ref may predate tools/quality/
+    steps:
+      - name: The ref to scan, and the name its results go by
+        id: ref
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = workflow_dispatch ]; then ref="${INPUT_REF}"
+          elif [ "${GITHUB_EVENT_NAME}" = pull_request ]; then ref="${GITHUB_SHA}"
+          else ref="${GITHUB_REF_NAME}"; fi
+          name="${ref}"
+          [ "${GITHUB_EVENT_NAME}" = pull_request ] && name="pr-${{ github.event.pull_request.number }}"
+          name="$(printf '%s' "${name}" | tr -c 'A-Za-z0-9._-' '-')"
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "scanning ${ref} as quality-${name}"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          fetch-depth: 0   # blame for the analysis, and the tags that name the previous release
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: .quality-tools
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"   # as tests.yml's coverage step
+      - name: Coverage of the scanned ref's suite, in-process, per line (task-0159's measurer; advisory, a red suite does not stop the scan)
+        run: |
+          # the measurer from this workflow's commit, placed so that its root is the scanned checkout
+          mkdir -p .quality-cov && cp "${TOOLS}/tools/coverage_stdlib.py" .quality-cov/coverage_stdlib.py
+          python .quality-cov/coverage_stdlib.py --lines --out outcomes/coverage.json \
+            || echo "::warning::the suite did not pass under the measurer; its coverage is still imported"
+          python "${TOOLS}/tools/quality/coverage_xml.py" outcomes/coverage.json outcomes/sonar-coverage.xml \
+            || echo "::warning::no coverage to import"
+      - name: The server is up (its status API)
+        run: |
+          for _ in $(seq 1 90); do
+            curl -fs "${SONAR_HOST_URL}/api/system/status" | grep -q '"status":"UP"' && exit 0
+            sleep 4
+          done
+          echo "::error::SonarQube did not come up"; curl -s "${SONAR_HOST_URL}/api/system/status"; exit 1
+      - name: An ephemeral admin password and token, minted on the server for this run
+        run: |
+          pw="$(python -c 'import secrets; print("Kg-" + secrets.token_urlsafe(24))')"
+          echo "::add-mask::${pw}"
+          curl -fsS -u admin:admin -X POST "${SONAR_HOST_URL}/api/users/change_password" \
+            --data-urlencode login=admin --data-urlencode previousPassword=admin --data-urlencode "password=${pw}"
+          token="$(curl -fsS -u "admin:${pw}" -X POST "${SONAR_HOST_URL}/api/user_tokens/generate" \
+            --data-urlencode name=quality --data-urlencode type=USER_TOKEN | python -c 'import json, sys; print(json.load(sys.stdin)["token"])')"
+          echo "::add-mask::${token}"
+          echo "SONAR_TOKEN=${token}" >> "$GITHUB_ENV"
+      - name: The pinned profile (tools/quality/knowgov-python.xml), restored and the Python default
+        run: |
+          curl -fsS -u "${SONAR_TOKEN}:" -X POST "${SONAR_HOST_URL}/api/qualityprofiles/restore" \
+            -F "backup=@${TOOLS}/tools/quality/knowgov-python.xml" | python -c 'import json, sys; d = json.load(sys.stdin); print(d); sys.exit(d["ruleFailures"] != 0)'
+          curl -fsS -u "${SONAR_TOKEN}:" -X POST "${SONAR_HOST_URL}/api/qualityprofiles/set_default" \
+            --data-urlencode language=py --data-urlencode "qualityProfile=${SONAR_PROFILE}"
+      - name: The scanner, pinned by version and checksum
+        run: |
+          zip="sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-x64.zip"
+          curl -fsSLo "${RUNNER_TEMP}/${zip}" "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/${zip}"
+          echo "${SONAR_SCANNER_SHA256}  ${RUNNER_TEMP}/${zip}" | sha256sum -c -
+          unzip -q "${RUNNER_TEMP}/${zip}" -d "${RUNNER_TEMP}"
+          echo "${RUNNER_TEMP}/sonar-scanner-${SONAR_SCANNER_VERSION}-linux-x64/bin" >> "$GITHUB_PATH"
+      - name: The analysis, and the server's processing of it
+        env:
+          REF: ${{ steps.ref.outputs.ref }}
+        run: |
+          cov=()
+          [ -s outcomes/sonar-coverage.xml ] || cov=(-Dsonar.coverageReportPaths=)
+          sonar-scanner -Dproject.settings="${TOOLS}/tools/quality/sonar-project.properties" \
+            -Dsonar.projectBaseDir="${GITHUB_WORKSPACE}" -Dsonar.projectVersion="${REF}" \
+            -Dsonar.host.url="${SONAR_HOST_URL}" -Dsonar.token="${SONAR_TOKEN}" "${cov[@]}"
+          task="$(sed -n 's/^ceTaskId=//p' .scannerwork/report-task.txt)"
+          for _ in $(seq 1 120); do
+            status="$(curl -fsS -u "${SONAR_TOKEN}:" "${SONAR_HOST_URL}/api/ce/task?id=${task}" | python -c 'import json, sys; print(json.load(sys.stdin)["task"]["status"])')"
+            case "${status}" in SUCCESS) exit 0 ;; FAILED|CANCELED) echo "::error::the server's processing ${status}"; exit 1 ;; esac
+            sleep 3
+          done
+          echo "::error::the server did not finish processing the analysis"; exit 1
+      - name: The issues, hotspots and measures, exported
+        env:
+          KG_QUALITY_REF: ${{ steps.ref.outputs.ref }}
+        run: |
+          python "${TOOLS}/tools/quality/report.py" export outcomes/quality
+          [ -s outcomes/coverage.json ] && cp outcomes/coverage.json outcomes/quality/coverage.json || true
+      - name: The previous release's scan, when its artefact is still kept (advisory)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ steps.ref.outputs.ref }}
+        run: |
+          # the release before the scanned tag, or the latest release for any other ref
+          tags="$(git tag --list 'v*' --sort=-v:refname)"
+          if printf '%s\n' "${tags}" | grep -qx "${REF}"; then prev="$(printf '%s\n' "${tags}" | sed -n "/^${REF}\$/{n;p;q}")"
+          else prev="$(printf '%s\n' "${tags}" | head -n1)"; fi
+          [ -n "${prev}" ] || { echo "no previous release"; exit 0; }
+          id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=quality-${prev}&per_page=1" --jq '.artifacts[0].id // empty')"
+          [ -n "${id}" ] || { echo "no kept scan of ${prev}: dispatch this workflow with ref ${prev} to make one"; exit 0; }
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}/zip" > "${RUNNER_TEMP}/previous.zip"
+          mkdir -p outcomes/previous && unzip -q "${RUNNER_TEMP}/previous.zip" -d outcomes/previous
+          echo "previous: ${prev} (artefact ${id})"
+      - name: The debt delta, in the job's summary (advisory)
+        continue-on-error: true
+        run: |
+          prev=()
+          [ -s outcomes/previous/issues.json ] && prev=(--previous outcomes/previous)
+          python "${TOOLS}/tools/quality/report.py" delta outcomes/quality "${prev[@]}" \
+            --baseline "${TOOLS}/tools/quality/baseline.json" | tee outcomes/quality/delta.md >> "$GITHUB_STEP_SUMMARY"
+      - name: The scan kept as an artefact, 90 days (the next release's delta reads it)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: quality-${{ steps.ref.outputs.name }}
+          path: outcomes/quality/
+          if-no-files-found: warn
+          retention-days: 90

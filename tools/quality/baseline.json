@@ -1,0 +1,29 @@
+{
+ "about": "The advisory SonarQube scan's triage baseline (task-0250, doc-0033). Each entry accepts up to `count` issues of `rule` in `path`, with its reason; tools/quality/report.py lists them apart from the open issues, and a further issue of the same rule in the same file is open again. A finding a task will fix is not accepted here: it stays open until the fix lands (task-0246, task-0248, task-0249, task-0251). For one line, `# NOSONAR(<rule>) <why>` in the code does the same.",
+ "accepted": [
+  {"rule": "python:S5332", "path": "tools/aris_export.py", "count": 6,
+   "reason": "XML namespace identifiers of BPMN and ARIS's dialect, compared as strings and never fetched (doc-0033: false positive)"},
+  {"rule": "python:S5332", "path": "tools/connector.py", "count": 3,
+   "reason": "BPMN and ARIS namespace identifiers, compared as strings and never fetched (doc-0033: false positive)"},
+  {"rule": "python:S5332", "path": "harness/extract.py", "count": 1,
+   "reason": "the BPMN model namespace, an identifier and never fetched (doc-0033: false positive)"},
+  {"rule": "python:S5332", "path": "demo/app/server.py", "count": 2,
+   "reason": "the page's own URL on its bind, loopback by default; a wider bind goes behind the TLS proxy demo/README.md names (doc-0033: documented design)"},
+  {"rule": "python:S2612", "path": "harness/execution.py", "count": 1,
+   "reason": "the job folder the worker (uid 65534) writes its result into, the shared volume of decision-0012 (docs/security.md; doc-0033: documented design)"},
+  {"rule": "python:S2612", "path": "harness/worker.py", "count": 1,
+   "reason": "0o644 on the worker's result file, so the app (another uid) can read it; nothing secret in it (decision-0012)"},
+  {"rule": "python:S2612", "path": "tools/check_snapshots.py", "count": 1,
+   "reason": "SNAP-09 restores a disposable test store's mode after proving a publication keeps an operator's chmod 600"},
+  {"rule": "python:S4790", "path": "harness/annotate.py", "count": 2,
+   "reason": "a fingerprint GitLab's code-quality report compares, not a secret (noqa S324); its FIPS-mode portability is task-0246 (doc-0033)"},
+  {"rule": "python:S2068", "path": "demo/app/server.py", "count": 1,
+   "reason": "the demo's documented default store password, which the stack refuses on any bind wider than loopback (docs/security.md)"},
+  {"rule": "python:S5443", "path": "tools/check_ci_wrappers.py", "count": 1,
+   "reason": "the path the GitLab template's before_script clones into, mirrored by the check that runs those lines in a disposable shell"},
+  {"rule": "python:S5443", "path": "tools/check_worker.py", "count": 1,
+   "reason": "a probe path the check asserts the contained worker cannot write"},
+  {"rule": "docker:S6470", "path": "demo/Dockerfile", "count": 1,
+   "reason": "the build context is the repository root, filtered by demo/Dockerfile.dockerignore, which keeps out .git objects, the backlog, tests and runs"}
+ ]
+}
