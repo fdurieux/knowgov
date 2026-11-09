@@ -11,6 +11,11 @@ names that section with the version.
 ## Unreleased
 
 ### Contract changes
+- **`KG_CLOCK` takes only `pinned`** (task-0287, decision-0033 choice 2, G9-17). It is read through
+  `harness/switches.py`: `pinned`, exactly, refuses the wall clock; empty or unset reads it; any other value exits 2,
+  naming the setting. Before, `Pinned`, `pinned ` or `1` silently read the wall clock. No on/off setting is trimmed of
+  spaces any more, in Python as in `knowgov-gate.sh`, so `KG_NO_LOAD=' 1'` is refused in both. A misspelt
+  `KG_LOAD_MEMORY_CHECK` now exits 2 naming the setting, not as "the store did not answer".
 - **`held_keys`' `gate` is the task class's own verdict whatever the store holds** (task-0292, completing task-0283).
   On a store holding no key, minimal S0's, it was null where `gate_verdict` gives BLOCKED; it is now
   `gate_verdict`'s verdict and why there too. The held-keys schema's description no longer promises null; the type

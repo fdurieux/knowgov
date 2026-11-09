@@ -731,6 +731,7 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
     """The gate on one store handle: read as it is (``--no-load``), loaded into the scratch store, or
     loaded into the configured store and published (``--publish``)."""
     import load_memory
+    import switches
     from kitio import DocumentUnreadable
     from store import StoreChanged
     from tasks import TASKS
@@ -760,7 +761,7 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
         if not args.no_load:
             st.commit()   # the load and its change, published once the report is made (a scratch store publishes nowhere)
         return report
-    except (CannotRun, StoreChanged):
+    except (CannotRun, StoreChanged, switches.BadSwitch):   # task-0287 N9: a misspelt switch is named as itself
         raise
     except load_memory.LoadTooLarge as e:   # task-0176: refused before the unit's first write; nothing published
         raise CannotRun(str(e)) from e
