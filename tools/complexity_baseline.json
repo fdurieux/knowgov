@@ -238,8 +238,8 @@
    "floor": 36
   },
   "harness/mcp_server.py::route_to_child": {
-   "value": 17,
-   "floor": 17
+   "value": 16,
+   "floor": 16
   },
   "harness/measures.py::adopted": {
    "value": 25,

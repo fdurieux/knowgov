@@ -225,7 +225,8 @@ def submit(jobs: Path, kind: str, payload: dict, files: dict[str, bytes], *, sec
     attested(jobs)
     if kind not in KINDS:
         raise ValueError(kind)
-    seconds = float(seconds or os.environ.get("KG_WORKER_JOB_SECONDS") or JOB_SECONDS)
+    import settings   # task-0264: finite, above 0 up to a day, or refused naming it
+    seconds = float(seconds or settings.number("KG_WORKER_JOB_SECONDS", JOB_SECONDS))
     jid = uuid.uuid4().hex
     tmp, ready = jobs / f".new-{jid}", jobs / f"job-{jid}"
     tmp.mkdir(mode=0o777)
@@ -299,7 +300,8 @@ def run(kind: str, payload: dict, files: dict[str, bytes], deadline: float | Non
             seconds = deadline - time.monotonic()
             if seconds <= 1:
                 raise TimeoutError("the run's deadline passed before the suite could run")
-            seconds = min(seconds, float(os.environ.get("KG_WORKER_JOB_SECONDS") or JOB_SECONDS))
+            import settings
+            seconds = min(seconds, settings.number("KG_WORKER_JOB_SECONDS", JOB_SECONDS))
         r = submit(Path(os.environ[JOBS_VAR]), kind, payload, files, seconds=seconds)
         if "error" in r:
             if r.get("stage") in MODEL_STAGES:   # task-0203, R2: what the model's code did, a failed cell as on the host

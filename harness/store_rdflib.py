@@ -143,7 +143,8 @@ class RdflibStore(Store):
             return
         if access == "write":
             if lock_timeout is None:
-                lock_timeout = float(os.environ.get("KG_RDFLIB_LOCK_TIMEOUT") or connection_timeout or LOCK_TIMEOUT)
+                import settings   # task-0264: finite, 0 to a day, or refused naming it
+                lock_timeout = settings.number("KG_RDFLIB_LOCK_TIMEOUT", connection_timeout or LOCK_TIMEOUT)
             self._acquire(lock_timeout)
             try:
                 self._sweep()

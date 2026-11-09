@@ -104,10 +104,13 @@ def landlock_writes_only(paths: list[str]) -> None:
 
 
 def _num(name: str, default: float) -> float:
-    try:
-        return float(os.environ.get(name) or default)
-    except ValueError:
-        return default
+    """A worker setting through the one parser (task-0264): garbage, a non-finite value or one out of its bounds
+    is refused naming it, never read as the default; ``main`` checks them all at start."""
+    import settings
+    return settings.number(name, default)
+
+
+WORKER_SETTINGS = ("KG_WORKER_MAX_JOB_SECONDS", "KG_WORKER_MEMORY", "KG_WORKER_PROCESSES", "KG_WORKER_FILE_BYTES")
 
 
 IFF_UP = 0x1
@@ -535,6 +538,12 @@ def main(argv=None) -> int:
     ap.add_argument("--work", default=os.environ.get("KG_WORKER_WORK", "/work"))
     ap.add_argument("--attest-only", action="store_true", help="print the attestation and exit 0 when confined, else 3")
     args = ap.parse_args(argv)
+    import settings
+    try:
+        settings.check(names=WORKER_SETTINGS)   # task-0264: refused at start, named, exit 2
+    except settings.BadSetting as e:
+        print(f"worker: cannot start: {e}", file=sys.stderr)
+        return 2
     if args.attest_only:
         a = attest()
         print(json.dumps(a, indent=1))

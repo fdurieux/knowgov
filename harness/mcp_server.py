@@ -1342,7 +1342,8 @@ def route_to_child(tools, entry: dict, name: str, args: dict) -> dict:
         else:
             env.pop(var, None)
     try:
-        timeout = float(os.environ.get("KG_SUBJECT_CALL_TIMEOUT") or CHILD_TIMEOUT)
+        import settings
+        timeout = settings.number("KG_SUBJECT_CALL_TIMEOUT", CHILD_TIMEOUT)   # finite and bounded (task-0264)
         p = subprocess.run([sys.executable, str(Path(__file__).resolve().parent / "mcp_child.py")],
                            input=json.dumps({"name": name, "arguments": args}), capture_output=True, text=True,
                            env=env, timeout=timeout)
@@ -1498,21 +1499,40 @@ def serve_http(server: Server, host: str, port: int, token: str | None) -> Threa
     return httpd
 
 
+MCP_SETTINGS = ("KG_SUBJECT_CALL_TIMEOUT", "KG_MCP_PORT", "KG_MCP_MAX_BODY", "KG_MCP_READ_TIMEOUT", "KG_MCP_IDLE_TIMEOUT",
+                "KG_MCP_MAX_CONNECTIONS")   # the numeric settings mcp_server reads (task-0264)
+
+
+def _port_flag(raw: str) -> int:
+    """--port: 1 to 65535, or argparse's own refusal, exit 2 (task-0264)."""
+    import settings
+    try:
+        return settings.port("--port", raw, DEFAULT_PORT)
+    except settings.BadSetting as e:
+        raise argparse.ArgumentTypeError(str(e)) from None
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="mcp_server.py", description="The gate and the three-valued answer as a read-only MCP server.")
     ap.add_argument("--http", action="store_true", help="serve Streamable HTTP at /mcp instead of stdio")
     ap.add_argument("--host", default=os.environ.get("KG_MCP_HOST", DEFAULT_HOST), help=f"HTTP bind address (default: KG_MCP_HOST, else {DEFAULT_HOST})")
-    ap.add_argument("--port", type=int, default=int(os.environ.get("KG_MCP_PORT", DEFAULT_PORT)), help=f"HTTP port (default: KG_MCP_PORT, else {DEFAULT_PORT})")
+    ap.add_argument("--port", type=_port_flag, default=None, help=f"HTTP port, 0 (any free one) to 65535 (default: KG_MCP_PORT, else {DEFAULT_PORT})")
     ap.add_argument("--as-of", default=None, help="the date every call that names none reads on: YYYY-MM-DD, record or today "
                                                   "(default: KG_AS_OF, else today), read once at start (task-0100)")
     ap.add_argument("--instance", default=None, help="the instance code_path reads code_map.toml and the code from "
                                                       "(default: KG_INSTANCE; none: its code leg reads unchecked)")
     ap.add_argument("--ledger", default=None, help="the trace ledger code_path reads (default: KG_LEDGER; none: unchecked)")
     args = ap.parse_args(argv)
+    import settings
     try:
         server = Server(Tools(as_of=args.as_of))
-    except ValueError as e:   # a setting out of its bounds (KG_MCP_MAX_RESPONSE, task-0177): refused at start, named
-        print(f"mcp_server: {e}", file=sys.stderr)
+        settings.check(names=MCP_SETTINGS)   # task-0264: every numeric setting this server reads, refused at start, named
+        if args.http:
+            mcp_limits()
+            if args.port is None:
+                args.port = settings.number("KG_MCP_PORT", DEFAULT_PORT)
+    except ValueError as e:   # a setting out of its bounds (KG_MCP_MAX_RESPONSE, task-0177; task-0264): refused at start, named
+        print(f"mcp_server: cannot start: {e}", file=sys.stderr)
         return 2
     import register_impact
     try:   # task-0279: KG_REGISTER names a register that cannot be read: refused at start, named, not per call
@@ -1530,7 +1550,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.http:
         serve_stdio(server)
         return 0
-    token = os.environ.get("KG_MCP_TOKEN") or None
+    token = settings.token("KG_MCP_TOKEN")   # blank once stripped is no token (task-0264)
     why = bind_check(args.host, token)
     if why:
         print(f"mcp_server: refusing to bind: {why}", file=sys.stderr)
