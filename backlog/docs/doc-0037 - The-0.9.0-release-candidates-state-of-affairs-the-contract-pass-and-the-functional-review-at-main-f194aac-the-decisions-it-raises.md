@@ -5,7 +5,7 @@ title: >-
   functional review at main f194aac, the decisions it raises
 type: other
 created_date: '2026-11-09T21:24:00Z'
-updated_date: '2026-11-09T21:25:00Z'
+updated_date: '2026-11-10T00:35:00Z'
 ---
 # The 0.9.0 release candidate: the state of affairs after the contract pass and the functional review (main f194aac)
 
@@ -216,7 +216,7 @@ This is fix-only, behind an unchanged contract: confine the repair to the same c
   - tools defaulting to different registers (C1-2);
   - no check for a missing register map (C1-1).
 
-## 5. Fix-only, for 0.9.x (to be tasked)
+## 5. Fix-only, for 0.9.x (tasked 2026-11-10: task-0311 to task-0315)
 
 - **Routes and next steps:** capture routes runnable from the instance repository (C3-1); routes in annotations and the summary (C3-2); QUALIFIED reaching the assistant with a message (C3-3); the lapse route naming `capture.py review` and its role, and the bar blocker given a next step (A-F4); the reviewer's assertion id in the finding (C2-3); questions saying which task and finding asked them (C2-4).
 - **Onboarding:** a missing `register_map.toml` reported (C1-1); one register default across tools, or a warning when a subject outside the checkout reads the demo register (C1-2).
