@@ -32,3 +32,14 @@ def test_under_that_shell_a_failing_command_before_a_pipe_fails_the_step():
 def test_the_saved_queries_steps_pipe_through_tee_and_so_rest_on_pipefail():
     text = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert len(re.findall(r"check_saved_queries\.py[^\n]*\| *tee", text)) >= 1
+
+
+def test_the_held_store_check_reads_the_generation_where_it_is_defined_and_fails_without_one():
+    """Task-0317: ``generation()`` lives on the store's publication (``_pub``), not on ``Neo4jStore``; the check once called
+    ``_inner.generation()``, raised under ``set +e`` and compared two empty strings."""
+    text = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
+    assert "_inner.generation(" not in text
+    assert "_inner._pub.generation()" in text
+    store = (ROOT / "harness" / "store_neo4j.py").read_text(encoding="utf-8")
+    assert re.search(r"(?m)^class _Unit\b", store) and "    def generation(self)" in store.split("class _Unit", 1)[1].split("\nclass ", 1)[0]
+    assert re.search(r"before=\$\(gen\) \|\| ", text) and re.search(r"after=\$\(gen\) \|\| ", text)
