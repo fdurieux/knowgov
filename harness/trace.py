@@ -132,7 +132,25 @@ def read_ledger(path: Path, *, missing_ok: bool) -> dict:
         and isinstance(e.get("keys", []), list) for e in led["entries"])
     if not ok:
         raise CannotRun(f"the ledger {path} is not a {LEDGER_TOOL}")
+    _ledger_nfc(led)
     return led
+
+
+def _ledger_nfc(led: dict) -> None:
+    """task-0316 N9: each entry's ``keys``, ``assertions`` and ``used[].id``/``key`` in NFC as read, so a ledger written
+    before the rule (statement ids embed the key) matches the store's NFC statements and reports NFC."""
+    import key_rule
+    n = key_rule.normalise
+    for e in led["entries"]:
+        if isinstance(e.get("keys"), list):
+            e["keys"] = [n(k) for k in e["keys"]]
+        e["assertions"] = [n(a) for a in e["assertions"]]
+        for u in e.get("used") if isinstance(e.get("used"), list) else []:
+            if isinstance(u, dict):
+                for f in ("id", "key"):
+                    u[f] = n(u[f]) if f in u else None
+                    if u[f] is None:
+                        del u[f]
 
 
 def _gate_ids(st, task: str, resolve=None, as_of: str | None = None) -> list[str]:

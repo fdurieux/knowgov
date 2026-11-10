@@ -10,6 +10,8 @@ names that section with the version.
 
 ## Unreleased
 
+- **The key rule holds at every entry** (task-0316, decision-0034): a task class's keys that break it (as written or in NFC) are refused by the gate, exit 2, naming the class and the value as written, where they read `absent`; `check_subject` reports `key-syntax` on the value as written and warns on `[three_valued]` keys equal after NFC; a trace ledger is read in NFC.
+
 ### Contract changes
 - **The gate report names the corpus it decided on, and `--baseline` names what differs** (task-0307, decision-0037).
   The report gains `corpus`, the sha256 over the loaded document Versions' digests (one `<artefact>\t<version>\t<sha256>`

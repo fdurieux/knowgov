@@ -169,9 +169,10 @@ def _fields(rep: Report, where: str, table: dict, known: set[str]) -> None:
 
 
 def _key(rep: Report, where: str, key) -> bool:
-    if isinstance(key, str) and KEY_RE.fullmatch(key_rule.normalise(key)):   # task-0301: read in NFC
+    why = key_rule.refusal(key)   # task-0316: as written and in NFC, the value named as written
+    if why is None:
         return True
-    rep.error("key-syntax", where, f"{key!r} is not a key: a key is <entity>|<predicate>, one '|', no space and no control or format character (key_rule)",
+    rep.error("key-syntax", where, why,
               "write it as entity|predicate, as the mappers name it (REQ-01|text, QuoteAPI|notified)")
     return False
 
@@ -258,8 +259,13 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
         keys = t.get("keys")
         _task_keys(rep, f"{where} keys", keys)
     tv = m.get("three_valued", {})
+    seen: set[str] = set()
     for k in tv.get("keys", []) if isinstance(tv, dict) else []:
         _key(rep, "[three_valued] keys", k)
+        if isinstance(k, str):
+            if key_rule.normalise(k) in seen:
+                rep.warning("duplicate", "[three_valued] keys", f"key {k!r} is listed twice (equal after NFC)", "list each key once")
+            seen.add(key_rule.normalise(k))
 
     check_attestations(rep, m, root)
     check_bindings(rep, m, root)
