@@ -73,6 +73,14 @@ def statuses(env: dict, artefact: str) -> dict:
                       "print(json.dumps(out))")
 
 
+def names_every_declaration(named: list) -> list[str]:
+    """task-0318: the finding names execution and review beside authored and approval (decision-0036); the store's read
+    of them is what is measured, Neo4j's in the stack job."""
+    if named and not all(w in named[0]["message"] for w in ("execution", "review", "decision-0036")):
+        return [f"edited: want the finding to name execution and review beside authored and approval (decision-0036); got {named[0]['message'][:160]}"]
+    return []
+
+
 def main(out: Path) -> int:
     errs: list[str] = []
     if out.exists() and any(out.iterdir()):
@@ -126,6 +134,7 @@ def main(out: Path) -> int:
                           f"    print(json.dumps(sorted(r['id'] for r in st.artefact_assertions({TABLE!r}) if r['basis'] == 'authored' and r['status'] != 'proposed')))")
     if not named or named[0]["severity"] != "major" or not named[0]["related"] or "decision-0019" not in (named[0].get("route") or ""):
         errs.append(f"edited: want a major attestation finding naming {TABLE} behind its keys with the attester's route; got {named}")
+    errs += names_every_declaration(named)
     if authored or any(appr for _s, appr in st.values()) or st.get(STATEMENT, [None])[0] == "approved":
         errs.append(f"edited: {TABLE}'s statements are still attested: authored not proposed {authored[:4]}, "
                     f"approved by construction {[k for k, v in st.items() if v[1]][:4]}")
