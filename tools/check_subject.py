@@ -169,18 +169,19 @@ def _fields(rep: Report, where: str, table: dict, known: set[str]) -> None:
 
 
 def _key(rep: Report, where: str, key) -> bool:
-    if isinstance(key, str) and KEY_RE.fullmatch(key_rule.normalise(key)):   # task-0301: read in NFC
+    why = key_rule.refusal(key)   # task-0316: as written and in NFC, the value named as written
+    if why is None:
         return True
-    rep.error("key-syntax", where, f"{key!r} is not a key: a key is <entity>|<predicate>, one '|', no space and no control or format character (key_rule)",
+    rep.error("key-syntax", where, why,
               "write it as entity|predicate, as the mappers name it (REQ-01|text, QuoteAPI|notified)")
     return False
 
 
-def _task_keys(rep: Report, where: str, keys) -> None:
+def _task_keys(rep: Report, where: str, keys, empty: bool = False) -> None:
     """Each key of a task class by the one rule; a key listed twice, equal after NFC, warned (task-0309 B4)."""
     once: set[str] = set()
     for k in keys if isinstance(keys, list) else []:
-        if isinstance(k, str) and k:
+        if isinstance(k, str) and (k or empty):   # a task class's empty key is the policy's 'required'
             _key(rep, where, k)
             if key_rule.normalise(k) in once:
                 rep.warning("duplicate", where, f"key {k!r} is listed twice (equal after NFC); the gate merges them", "list each key once")
@@ -258,8 +259,7 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
         keys = t.get("keys")
         _task_keys(rep, f"{where} keys", keys)
     tv = m.get("three_valued", {})
-    for k in tv.get("keys", []) if isinstance(tv, dict) else []:
-        _key(rep, "[three_valued] keys", k)
+    _task_keys(rep, "[three_valued] keys", tv.get("keys") if isinstance(tv, dict) else None, empty=True)
 
     check_attestations(rep, m, root)
     check_bindings(rep, m, root)
