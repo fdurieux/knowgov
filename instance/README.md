@@ -826,10 +826,25 @@ approval = { at = "2026-11-04", record = "...", versions = ["3f2a...", "9c41..."
 
 In plain English: once a document changes, its new version is no longer listed. Its statements load
 as *proposed* again, and nothing in it is approved by the declaration. The gate names the document
-and the keys resting on it, and the route back: the person reads it and adds its new digest. A test
-that verifies one of its statements still counts. The layout check refuses a digest that matches none
-of your documents. A declaration without `versions` keeps the old meaning, covering whatever the
-documents hold at each load; the gate lists it at info and the layout check notes it.
+and the keys resting on it, and the route back: the person reads it and adds its new digest. The layout
+check refuses a digest that matches none of your documents. A declaration without `versions` keeps the
+old meaning, covering whatever the documents hold at each load; the gate lists it at info and the
+layout check notes it.
+
+A test's result and a review are bound the same way, with no old meaning to fall back on (decision-0036,
+0.9.0). No suite runs when the documents load. A verification by execution is the result your subject
+attests, and it holds only for the document versions listed under `execution`. A review holds only for
+those listed under `review`:
+
+```toml
+execution = { versions = ["3f2a...", "9c41..."] }   # the versions the suite's result was attested on
+review = { at = "2026-11-04", scope = "...", versions = ["3f2a...", "9c41..."] }
+```
+
+In plain English: edit a document and its statements fall below *verified*, and out of approval, until
+you run the suite or the review again on the new version and add its digest. An `execution` or a
+`review` that lists nothing verifies nothing, and the layout check notes it, as it notes a subject
+whose verification map names suite scenarios but declares no `execution`.
 
 Each declaration needs its own `at`, and `[provenance] human` needs an `id`. A stage-2
 re-verification in `scenarios.toml` needs its `at` too. The layout check refuses a declaration

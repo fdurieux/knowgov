@@ -381,10 +381,6 @@
    "value": 16,
    "floor": 16
   },
-  "harness/store_rdflib.py::RdflibStore.withdraw_construction": {
-   "value": 18,
-   "floor": 18
-  },
   "harness/subject_check.py::_manifest_paths": {
    "value": 18,
    "floor": 18

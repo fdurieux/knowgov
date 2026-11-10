@@ -896,9 +896,10 @@ class Neo4jStore(Store):
                  key=props["key"], vtag=props.get("version", "v1"), gid=candidate_for).consume()
 
     # ---- verifications and approvals
-    def verify_by_execution(self, key, values, suite_scenario, scope, ts, digest) -> int:
+    def verify_by_execution(self, key, values, suite_scenario, scope, ts, digest, artefacts=None) -> int:   # artefacts: decision-0036
         return self.run("""
             MATCH (x:Assertion {key:$key}) WHERE x.value IN $vals AND x.basis IN ['extracted','authored'] AND NOT x.status IN ['invalidated','rejected','deprecated']
+              AND ($arts IS NULL OR x.artefact IN $arts)
             MATCH (h:Agent {id:'agent:harness'})
             MERGE (v:Verification {id:'ver:exec:' + $sc + ':' + x.id})
               SET v.method='execution', v.outcome='pass', v.scope=$scope, v.at=$ts,
@@ -906,18 +907,19 @@ class Neo4jStore(Store):
             MERGE (v)-[:VERIFIES]->(x)
             MERGE (v)-[:PERFORMED_BY]->(h)
             SET x.status = CASE WHEN x.status IN ['proposed','validated'] THEN 'verified' ELSE x.status END
-            RETURN count(x) AS n""", key=key, vals=values, sc=suite_scenario, scope=scope, ts=ts, dig=digest).single()["n"]
+            RETURN count(x) AS n""", key=key, vals=values, sc=suite_scenario, scope=scope, ts=ts, dig=digest, arts=artefacts).single()["n"]
 
-    def verify_by_review(self, key, values, at, scope, agent_id) -> int:
+    def verify_by_review(self, key, values, at, scope, agent_id, artefacts=None) -> int:   # artefacts: decision-0036
         return self.run("""
             MATCH (x:Assertion {key:$key}) WHERE x.value IN $vals AND x.basis IN ['extracted','authored'] AND NOT x.status IN ['invalidated','rejected','deprecated']
+              AND ($arts IS NULL OR x.artefact IN $arts)
             MATCH (h:Agent {id:$hid})
             MERGE (v:Verification {id:'ver:review:' + x.id})
               SET v.method='review', v.outcome='pass', v.at=$at, v.valid_until=null, v.scope=$scope
             MERGE (v)-[:VERIFIES]->(x)
             MERGE (v)-[:PERFORMED_BY]->(h)
             SET x.status = CASE WHEN x.status IN ['proposed','validated'] THEN 'verified' ELSE x.status END
-            RETURN count(x) AS n""", key=key, vals=values, at=at, scope=scope, hid=agent_id).single()["n"]
+            RETURN count(x) AS n""", key=key, vals=values, at=at, scope=scope, hid=agent_id, arts=artefacts).single()["n"]
 
     def verify_authored(self, at, scope, agent_id, artefacts=None) -> int:   # artefacts: decision-0019's attested Versions
         return self.run("""
@@ -1245,6 +1247,9 @@ class Neo4jStore(Store):
         self.run("""
             MATCH (x:Assertion) WHERE x.artefact IN $arts
             OPTIONAL MATCH (v:Verification {id:'ver:review:' + x.id}) DETACH DELETE v""", arts=list(artefacts)).consume()
+        self.run("""
+            MATCH (v:Verification)-[:VERIFIES]->(x:Assertion) WHERE x.artefact IN $arts AND v.id STARTS WITH 'ver:exec:'
+            DETACH DELETE v""", arts=list(artefacts)).consume()
         self.run("""
             MATCH (x:Assertion) WHERE x.artefact IN $arts
             OPTIONAL MATCH (ap:Approval {id:'appr:' + x.id}) DETACH DELETE ap""", arts=list(artefacts)).consume()

@@ -337,30 +337,44 @@ def subject_versions(m: dict, root: Path) -> set[str]:
     return out
 
 
+BOUND = ("execution", "review")   # decision-0036 (task-0306): verifications bound to the Versions listed, no read rule
+
+
 def check_bindings(rep: Report, m: dict, root: Path) -> None:
     """decision-0019 (task-0221): ``[verification] authored`` and ``approval`` list in ``versions`` the digest of each
-    artefact Version they attest. A listed digest that is no Version of the subject is an error; a declaration with
-    no list is the read rule's, attesting per load, and noted."""
+    artefact Version they attest; one with no list is the read rule's, attesting per load, and noted. decision-0036
+    (task-0306): ``execution`` and ``review`` are bound the same way with no read rule, so one that lists nothing, or a
+    subject whose map has suite scenarios and no ``execution`` declaration, verifies nothing, and that is noted. A
+    listed digest that is no Version of the subject is an error."""
     ver = m.get("verification") if isinstance(m.get("verification"), dict) else {}
-    known = None
-    for name in ("authored", "approval"):
+    known: list = [None]
+    if ver and (ver.get("map") or ver.get("derive_execution")) and not isinstance(ver.get("execution"), dict):
+        rep.note("attestation", "[verification] execution", "is not declared: nothing is verified by execution, since no suite "
+                 "runs at load; list the Versions the suite's result was attested on in execution = { versions = [...] } (decision-0036)")
+    for name in ("authored", "approval", *BOUND):
         a = ver.get(name)
-        if not isinstance(a, dict):
-            continue
-        where = f"[verification] {name}"
-        listed = a.get("versions")
-        if listed is None:
+        if isinstance(a, dict):
+            _check_versions(rep, m, root, name, a.get("versions"), known)
+
+
+def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: list) -> None:
+    where = f"[verification] {name}"
+    if listed is None:
+        if name in BOUND:
+            rep.note("attestation", where, "lists no Version: it verifies nothing, since an execution or a review "
+                     "verification holds only for the Versions it lists (decision-0036); list the digest of each")
+        else:
             rep.note("attestation", where, "lists no Version: it attests what the documents hold at each load, so an edit made "
                      "after it inherits it (decision-0009 (a), the read rule); list the digest of each Version it attests (decision-0019)")
-            continue
-        if not isinstance(listed, list) or not all(isinstance(d, str) and re.fullmatch(r"[0-9a-f]{64}", d) for d in listed):
-            rep.error("attestation", where, "versions is not a list of SHA-256 digests (64 lower-case hex characters)",
-                      "list each attested Version's digest, as the load records it (decision-0019)")
-            continue
-        known = subject_versions(m, root) if known is None else known
-        for d in sorted(set(listed) - known):
-            rep.error("attestation", where, f"versions lists {d}, which is no Version of the subject's artefacts: it attests "
-                      "nothing the load reads", "list a digest of a document as it is, or as a scenario plants it (decision-0019)")
+        return
+    if not isinstance(listed, list) or not all(isinstance(d, str) and re.fullmatch(r"[0-9a-f]{64}", d) for d in listed):
+        rep.error("attestation", where, "versions is not a list of SHA-256 digests (64 lower-case hex characters)",
+                  "list each attested Version's digest, as the load records it (decision-0019)")
+        return
+    known[0] = subject_versions(m, root) if known[0] is None else known[0]
+    for d in sorted(set(listed) - known[0]):
+        rep.error("attestation", where, f"versions lists {d}, which is no Version of the subject's artefacts: it attests "
+                  "nothing the load reads", "list a digest of a document as it is, or as a scenario plants it (decision-0019)")
 
 
 def check_map(rep: Report, m: dict, root: Path, register: Path | None) -> None:

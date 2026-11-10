@@ -564,9 +564,9 @@ class RdflibStore(Store):
         if self.prop(x, "status") in ("proposed", "validated"):
             self.set_props(x, {"status": "verified"})
 
-    def verify_by_execution(self, key, values, suite_scenario, scope, ts, digest) -> int:
+    def verify_by_execution(self, key, values, suite_scenario, scope, ts, digest, artefacts=None) -> int:
         h = self.node("agent:harness", "Agent")
-        xs = self._live_on_key(key, values)
+        xs = [x for x in self._live_on_key(key, values) if artefacts is None or self.prop(x, "artefact") in artefacts]   # decision-0036
         if h is None:
             return 0
         for x in xs:
@@ -574,9 +574,9 @@ class RdflibStore(Store):
                          {"method": "execution", "outcome": "pass", "scope": scope, "at": ts, "evidence_sha256": digest, "valid_until": None})
         return len(xs)
 
-    def verify_by_review(self, key, values, at, scope, agent_id) -> int:
+    def verify_by_review(self, key, values, at, scope, agent_id, artefacts=None) -> int:
         h = self.node(agent_id, "Agent")
-        xs = self._live_on_key(key, values)
+        xs = [x for x in self._live_on_key(key, values) if artefacts is None or self.prop(x, "artefact") in artefacts]   # decision-0036
         if h is None:
             return 0
         for x in xs:
@@ -1041,23 +1041,30 @@ class RdflibStore(Store):
     def withdraw_construction(self, artefacts) -> int:
         n = 0
         for x in list(self.nodes("Assertion")):
-            if self.prop(x, "artefact") not in artefacts:
+            if self.prop(x, "artefact") not in artefacts or not self._take_back(x):
                 continue
-            xid, hit = self.nid(x), False
-            for nid in (f"ver:review:{xid}", f"appr:{xid}"):
-                node = self._nodes.get(nid)
-                if node is not None:
-                    self.delete_node(node)
-                    hit = True
-            if not hit or self.prop(x, "status") not in ("approved", "verified"):
-                continue
-            aps = [a for a in self.inn(x, "APPROVES") if self.has_label(a, "Approval")]
-            vs = [v for v in self.inn(x, "VERIFIES") if self.has_label(v, "Verification")]
-            status = "approved" if aps else "verified" if vs else "proposed"
-            if status != self.prop(x, "status"):
-                self.set_props(x, {"status": status})
-                n += 1
+            if self.prop(x, "status") in ("approved", "verified"):
+                n += self._restatus(x)
         return n
+
+    def _take_back(self, x) -> bool:
+        """Delete the review and the approval by construction (``ver:review:``, ``appr:``) and the execution
+        verifications (``ver:exec:``) on ``x``; True when one was there."""
+        xid = self.nid(x)
+        gone = [self._nodes[nid] for nid in (f"ver:review:{xid}", f"appr:{xid}") if nid in self._nodes]
+        gone += [v for v in self.inn(x, "VERIFIES") if self.nid(v).startswith("ver:exec:")]
+        for node in gone:
+            self.delete_node(node)
+        return bool(gone)
+
+    def _restatus(self, x) -> int:
+        aps = [a for a in self.inn(x, "APPROVES") if self.has_label(a, "Approval")]
+        vs = [v for v in self.inn(x, "VERIFIES") if self.has_label(v, "Verification")]
+        status = "approved" if aps else "verified" if vs else "proposed"
+        if status == self.prop(x, "status"):
+            return 0
+        self.set_props(x, {"status": status})
+        return 1
 
     def record_attestation(self, row) -> None:
         a = self.node(row["attester"], "Agent")

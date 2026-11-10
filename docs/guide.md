@@ -84,7 +84,7 @@ whether it is contested, or why a key is empty.
 | basis `hypothesised` | a conjecture offered for a gap | no counterpart | abductive |
 | status `proposed` | loaded, not yet corroborated, verified or approved | no counterpart: PROV-O records how a thing came to be, not whether it holds | proposed |
 | status `validated` | corroborated: another assertion of the same key agrees | no counterpart | unverified (closest) |
-| status `verified` | a verification passed: execution by the oracle, or a review | the verification is a `prov:Activity` that `prov:used` the assertion; the status has no counterpart | verified |
+| status `verified` | a verification passed: execution (the subject's attested suite result, on the Versions it lists), or a review | the verification is a `prov:Activity` that `prov:used` the assertion; the status has no counterpart | verified |
 | status `approved` | a person approved a verified assertion, with who, when and which record | the approval is a `prov:Activity` `prov:wasAssociatedWith` the approver; the status has no counterpart | verified, with the approver |
 | status `disputed` | two assertions of one key conflict and nobody has ruled | no counterpart | no counterpart |
 | status `invalidated` | a source change ended it and its verifications | `prov:wasInvalidatedBy` the re-ingestion `prov:Activity`, at `prov:invalidatedAtTime` | superseded, once a verified or approved successor exists (`prov:wasRevisionOf` from the successor); else no counterpart |
@@ -684,8 +684,12 @@ else `[review] default_months`. A key
 whose row in `register_map.toml` names nodes of several kinds takes the shortest; a key with no row takes
 the default. The load writes the due date as the verification's `valid_until`. On the day after it, the
 statement reads *validated*, its approval falls with it, and the gate lists a *lapsed* finding (major)
-naming the statement, its date and the review. A verification by execution never lapses by date: the
-oracle runs again on every load.
+naming the statement, its date and the review. A verification by execution never lapses by date, but it
+is no fresh run either: no oracle runs at load. It is the subject's attested result, `[verification]
+execution`'s `versions`, and it holds only for the document Versions that list names (decision-0036). A
+review verification is bound the same way, by `review`'s `versions`. Edit a document and its statements fall
+below verified, and so out of approval, until the attestation lists the new Version's digest. A declaration
+that lists none verifies nothing.
 
 ```bash
 python harness/gate_cli.py --scenario S1 --as-of 2027-08-07 --baseline record

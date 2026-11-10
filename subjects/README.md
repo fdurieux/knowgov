@@ -87,6 +87,9 @@ derive_execution = { from_predicate = "verified_by", key_predicate = "statement"
                               # suite scenarios that verify <req>|statement, read from the scenario's own kit, so a
                               # scenario the plant removed verifies nothing
 execution_scope = "suite scenario {scenario} on reference_impl.py (smoke 2026-10-30)"
+execution = { versions = ["<sha256>"] }        # the Versions the suite's result was attested on (decision-0036): an
+                              # execution verification holds for those only, since no suite runs at load; none listed,
+                              # none verified. review takes versions the same way, with no read rule either
 review = { at = "2026-08-06", scope = "..." }       # the dated human review; it lapses after its keys' review months (decision-0005)
 authored = { at = "2026-10-30", scope = "..." }     # authored statements: reviewed by construction, only when declared
 approval = { at = "2026-08-06", record = "..." }    # the owner's approval of every verified assertion, only when declared

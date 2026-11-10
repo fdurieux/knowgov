@@ -26,10 +26,13 @@ J-F (``KG_SUBJECT=subjects/jef_data_load``): I6, one ``@JDL-001`` tag removed fr
 
 A report is compared on its verdict, every key's level and its findings by severity, kind, key and level
 (statement ids carry their version, which differs by construction); the stale and suspect findings are
-the change's own. Exit 0 when every check holds, 1 naming each that does not.
+the change's own. A synthetic plant's text is listed, for its case, in every bound declaration's ``versions``
+(``listed``): the check measures the reload, not the attestation (decision-0019, decision-0036, task-0306). Exit 0
+when every check holds, 1 naming each that does not.
 """
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 from collections import Counter
@@ -93,6 +96,24 @@ def compare(stage2: dict, fresh: dict, label: str, keys: set[str] | None = None)
             out.append(f"{label} [{t}]: stage 2 {a[0]} {[(k, a[1].get(k)) for k in lv]} != fresh {b[0]} {[(k, b[1].get(k)) for k in lv]}; "
                        f"findings only in stage 2 {sorted(set(a[2]) - set(b[2]))[:4]}, only fresh {sorted(set(b[2]) - set(a[2]))[:4]}")
     return out
+
+
+@contextlib.contextmanager
+def listed(path: str, text: str):
+    """``text`` of ``path`` listed, for the call, in ``versions`` of every bound declaration of ``[verification]``
+    (decision-0019, decision-0036): a synthetic plant measures the reload, not the attestation, so stage 2 and the
+    fresh load both read it attested, as the planted texts the subjects ship are listed (task-0306)."""
+    from subject import SUBJECT
+    digests = sorted(SUBJECT.part_digests(path, text).values()) if path.endswith("/") else [SUBJECT.version_digest(path, text)[0]]
+    lists = [d["versions"] for d in SUBJECT.verification.values() if isinstance(d, dict) and isinstance(d.get("versions"), list)]
+    for v in lists:
+        v.extend(digests)
+    try:
+        yield
+    finally:
+        for v in lists:
+            for d in digests:
+                v.remove(d)
 
 
 def stage2(st, sc: str, cfg2: dict, kit1: dict, kit2: dict, reverify: bool, derived: bool = False, before=None) -> dict:
@@ -159,21 +180,23 @@ def cargo_quote(st) -> list[str]:
     cfg = {"artefact": table, "version": "v2"}
     k2 = {**k1, table: k1[table].replace("`risk_index <= 41`", "`risk_index <= 45`", 1)}
     assert k2[table] != k1[table]
-    stage2(st, "S1", cfg, k1, k2, reverify=True)
-    got = reports(st, "S1")
-    if got["codegen"]["levels"].get("S-accept|max") != "disputed":
-        errs.append(f"H4: S-accept|max reads {got['codegen']['levels'].get('S-accept|max')} after the table's accept row went to 45, not disputed")
-    errs += compare(got, fresh_like(st, "S1", cfg, k2, reverify=True), "H4 (accept row 45 against 41)")
+    with listed(table, k2[table]):
+        stage2(st, "S1", cfg, k1, k2, reverify=True)
+        got = reports(st, "S1")
+        if got["codegen"]["levels"].get("S-accept|max") != "disputed":
+            errs.append(f"H4: S-accept|max reads {got['codegen']['levels'].get('S-accept|max')} after the table's accept row went to 45, not disputed")
+        errs += compare(got, fresh_like(st, "S1", cfg, k2, reverify=True), "H4 (accept row 45 against 41)")
     print(f"H4: the accept row at 45 against 41 elsewhere reads {got['codegen']['levels'].get('S-accept|max')}, as a fresh load")
 
     # I5 (b): only the symbol's definition changes; the sequence diagram's statement resolved through it is replaced
     k2 = {**k1, table: k1[table].replace("`ACCEPT_MAX = 41`", "`ACCEPT_MAX = 45`", 1)}
     assert k2[table] != k1[table]
-    ch = stage2(st, "S1", cfg, k1, k2, reverify=True)
-    via = [x for x in ch["D3_stale"]["invalidated"] if x["id"].startswith("A:seq:")]
-    if not via:
-        errs.append(f"I5: changing ACCEPT_MAX invalidated nothing resolved through it: {ch['D3_stale']['invalidated']}")
-    errs += compare(reports(st, "S1"), fresh_like(st, "S1", cfg, k2, reverify=True), "I5 (ACCEPT_MAX 45)")
+    with listed(table, k2[table]):
+        ch = stage2(st, "S1", cfg, k1, k2, reverify=True)
+        via = [x for x in ch["D3_stale"]["invalidated"] if x["id"].startswith("A:seq:")]
+        if not via:
+            errs.append(f"I5: changing ACCEPT_MAX invalidated nothing resolved through it: {ch['D3_stale']['invalidated']}")
+        errs += compare(reports(st, "S1"), fresh_like(st, "S1", cfg, k2, reverify=True), "I5 (ACCEPT_MAX 45)")
     print(f"I5: ACCEPT_MAX = 45 invalidates {sorted(x['id'] for x in via)}")
 
     # I5 (a): re-ingesting the sequence diagram alone resolves its symbols from the whole kit
@@ -181,15 +204,16 @@ def cargo_quote(st) -> list[str]:
     # the fragment reading the symbol (alt/37-52) reworded where its value is not read: its note
     k2 = {**k1, seq: k1[seq].replace("Notification is fire-and-forget", "Notification is sent fire-and-forget", 1)}
     assert k2[seq] != k1[seq]
-    stage2(st, "S1", cfg_seq, k1, k2, reverify=True)
-    undefined = [g for k in ("S-accept|max", "S-review|max", "S-refuse|min") for x in st.key_evidence(k, ["proposed", "validated", "verified", "approved", "disputed"])
-                 for g in x["gaps"] if "has no definition" in (g["text"] or "")]
-    if undefined:
-        errs.append(f"I5: re-ingesting the sequence diagram flags a symbol undefined: {undefined[:2]}")
-    back = [x for x in st.key_evidence("S-accept|max", ["proposed", "validated", "verified", "approved", "disputed"]) if x["id"].startswith("A:seq:")]
-    if [x["value"] for x in back] != ["41"]:
-        errs.append(f"I5: the reworded sequence-diagram statement on S-accept|max is not back, resolved: {[(x['id'], x['value']) for x in back]}")
-    errs += compare(reports(st, "S1"), fresh_like(st, "S1", cfg_seq, k2, reverify=True), "I5 (the sequence diagram re-ingested)")
+    with listed(seq, k2[seq]):
+        stage2(st, "S1", cfg_seq, k1, k2, reverify=True)
+        undefined = [g for k in ("S-accept|max", "S-review|max", "S-refuse|min") for x in st.key_evidence(k, ["proposed", "validated", "verified", "approved", "disputed"])
+                     for g in x["gaps"] if "has no definition" in (g["text"] or "")]
+        if undefined:
+            errs.append(f"I5: re-ingesting the sequence diagram flags a symbol undefined: {undefined[:2]}")
+        back = [x for x in st.key_evidence("S-accept|max", ["proposed", "validated", "verified", "approved", "disputed"]) if x["id"].startswith("A:seq:")]
+        if [x["value"] for x in back] != ["41"]:
+            errs.append(f"I5: the reworded sequence-diagram statement on S-accept|max is not back, resolved: {[(x['id'], x['value']) for x in back]}")
+        errs += compare(reports(st, "S1"), fresh_like(st, "S1", cfg_seq, k2, reverify=True), "I5 (the sequence diagram re-ingested)")
     print("I5: the sequence diagram re-ingested alone flags no symbol undefined")
 
     # G5: a requirements v2 that specifies REQ-06 withdraws OD-1
@@ -337,11 +361,12 @@ def jef(st) -> list[str]:
     i = text.index("@JDL-001")
     k2 = {**k1, folder: text[:i] + text[i + len("@JDL-001"):].lstrip(" ")}   # one tag of several removed
     cfg = {"artefact": folder, "version": "v2"}
-    stage2(st, sc, cfg, k1, k2, reverify=True)
-    live = [x for x in st.key_evidence("JDL-001|verified_by", ["proposed", "validated", "verified", "approved", "disputed"])]
-    if not any(x["id"].endswith("@v2") for x in live):
-        errs.append(f"I6: JDL-001|verified_by has no v2 successor after one of its tags was removed: {[x['id'] for x in live]}")
-    errs += compare(reports(st, sc), fresh_like(st, sc, cfg, k2, reverify=True), "I6 (one @JDL-001 tag removed)")
+    with listed(folder, k2[folder]):
+        stage2(st, sc, cfg, k1, k2, reverify=True)
+        live = [x for x in st.key_evidence("JDL-001|verified_by", ["proposed", "validated", "verified", "approved", "disputed"])]
+        if not any(x["id"].endswith("@v2") for x in live):
+            errs.append(f"I6: JDL-001|verified_by has no v2 successor after one of its tags was removed: {[x['id'] for x in live]}")
+        errs += compare(reports(st, sc), fresh_like(st, sc, cfg, k2, reverify=True), "I6 (one @JDL-001 tag removed)")
     print(f"I6: one @JDL-001 tag removed gives {[x['id'] for x in live if x['id'].endswith('@v2')]}")
     return errs
 

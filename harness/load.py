@@ -260,35 +260,43 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
     counts = {"execution": 0, "review": 0, "approved": 0}
     smoke_digest = sha256(SUBJECT.reference_code())
     review, authored, approval = attestation("review"), attestation("authored"), attestation("approval")
+    docs = kit if kit is not None else SUBJECT.pristine()
+    # decision-0036 (task-0306): an execution or review verification is the subject's attested result, bound to the
+    # document Versions its declaration lists ([verification] execution and review, versions); no suite runs at load.
+    # An unlisted Version is not verified, and a declaration that lists none verifies nothing: there is no read rule
+    exec_arts, review_arts = bound_artefacts(docs, VER.get("execution")), bound_artefacts(docs, review)
+    marks = [attested_artefacts(docs, d, name)[1] for name, d in (("authored", authored), ("approval", approval)) if d]
+    # decision-0019, quoted: "An unlisted Version is not attested: its authored statements read proposed, and nothing in
+    # it is approved by construction." An earlier load (stage 1) may have attested or verified by execution what this
+    # Version's statements were, changed or not: take it back first, under every bound declaration (decision-0036), so
+    # what follows writes what a fresh load of these documents writes; then corroborate and mark the unverified
+    unlisted = sorted({u["artefact"] for m in marks if m["bound"] for u in json.loads(m["unattested"])}
+                      | (set(stored_artefacts(docs)) - set(exec_arts) if execution else set())
+                      | (set(stored_artefacts(docs)) - set(review_arts) if review else set()))
+    withdrawn = bool(unlisted) and st.withdraw_construction(unlisted)
     for suite_scenario, keys in execution.items():
         for key in keys:
             counts["execution"] += st.verify_by_execution(
                 key, sorted(pristine.get(key, set())), suite_scenario,
-                VER.get("execution_scope", "suite scenario {scenario}").format(scenario=suite_scenario), ts, smoke_digest)
+                VER.get("execution_scope", "suite scenario {scenario}").format(scenario=suite_scenario), ts, smoke_digest,
+                exec_arts)
     for key in vmap.get("review", {}).get("keys", []) if review else []:
-        counts["review"] += st.verify_by_review(key, sorted(pristine.get(key, set())), review["at"], review.get("scope", "review"), ATTESTER)
+        counts["review"] += st.verify_by_review(key, sorted(pristine.get(key, set())), review["at"], review.get("scope", "review"), ATTESTER,
+                                               review_arts)
     # requirements and links: reviewed by construction, only where the subject attests it (decision-0009), on the
     # day it names and by the person it names (task-0199, doc-0030 I9): never the load's day, never a default
     # decision-0019 (task-0221): a declaration that lists Versions attests those only; one that lists none attests
     # per load, as decision-0009 (a) has it (the read rule), and the store records which reading it was
-    docs = kit if kit is not None else SUBJECT.pristine()
-    marks = []
     if authored:
-        arts, mark = attested_artefacts(docs, authored, "authored")
-        marks.append(mark)
+        arts, _mark = attested_artefacts(docs, authored, "authored")
         counts["review"] += st.verify_authored(authored["at"], authored.get("scope", "authored"), ATTESTER, arts)
     if approval:
-        arts, mark = attested_artefacts(docs, approval, "approval")
-        marks.append(mark)
+        arts, _mark = attested_artefacts(docs, approval, "approval")
         counts["approved"] = st.approve_verified(approval["at"], approval.get("record", "approval"), ATTESTER, arts)
     for mark in marks:   # a bound declaration only: the read rule's is the manifest's own (gate.attestation_behind), so its store is as before
         if mark["bound"]:
             st.record_attestation(mark)
-    # decision-0019, quoted: "An unlisted Version is not attested: its authored statements read proposed, and nothing in
-    # it is approved by construction." An earlier load (stage 1) may have attested what this Version's statements were,
-    # changed or not: take it back, then corroborate and mark the unverified as a fresh load of these documents does
-    unlisted = sorted({u["artefact"] for m in marks if m["bound"] for u in json.loads(m["unattested"])})
-    if unlisted and st.withdraw_construction(unlisted):
+    if withdrawn:
         from rules import r_corroborate, r_unverified
         r_corroborate(st)
         r_unverified(st)
@@ -304,6 +312,21 @@ def _day(v) -> str | None:
     if isinstance(v, (dt.date, dt.datetime)):
         return v.isoformat()
     return str(v) if dates.day(v) else None   # task-0262: YYYY-MM-DD, alone or with an ISO time
+
+
+def stored_artefacts(kit: dict[str, str]) -> list[str]:
+    """The artefacts of ``kit`` the store holds statements of: the paths an attestation reads (``attested_artefacts``)."""
+    return [path for path in sorted(kit) if path in FAMILY and path in STORE]
+
+
+def bound_artefacts(kit: dict[str, str], decl: dict | None) -> list[str]:
+    """The stored artefacts whose Version ``decl`` lists in ``versions`` as ``kit`` holds them (decision-0036,
+    task-0306): an execution or a review attestation holds for those only; none listed, or no declaration, holds
+    for none."""
+    if not isinstance(decl, dict) or decl.get("versions") is None:
+        return []
+    arts, _mark = attested_artefacts(kit, decl, "bound")
+    return arts or []
 
 
 def attested_artefacts(kit: dict[str, str], decl: dict, name: str) -> tuple[list[str] | None, dict]:

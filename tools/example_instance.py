@@ -92,8 +92,9 @@ def build(out: Path) -> Path:
 
 def attest(inst: Path, *files: Path) -> None:
     """The attester lists the Version each of ``files`` (documents under the instance ``inst``) now holds, as the
-    maintainer's listing of an edit would (decision-0019): its raw-byte SHA-256 joins ``versions`` in the subject's
-    ``[verification] authored`` and ``approval``. A check that plants a defect to measure something other than the
+    maintainer's listing of an edit would (decision-0019): its raw-byte SHA-256 joins ``versions`` in every declaration of the
+    subject's ``[verification]`` that lists them: ``authored``, ``approval``, ``execution`` and ``review``
+    (decision-0036). A check that plants a defect to measure something other than the
     attestation lists the planted Version, so an unlisted Version's withdrawn attestation stays out of what it
     measures (task-0221)."""
     mf = Path(inst) / "subjects" / SUBJECT.name / "subject.toml"
@@ -102,7 +103,7 @@ def attest(inst: Path, *files: Path) -> None:
         digest = hashlib.sha256(Path(f).read_bytes()).hexdigest()
         if f'"{digest}"' not in text:
             text, n = re.subn(r'(versions = \[)', rf'\1"{digest}", ', text)
-            assert n == 2, f"want authored and approval to list their Versions: {n}"
+            assert n == 4, f"want authored, approval, execution and review to list their Versions: {n}"
     mf.write_text(text, encoding="utf-8")
 
 
