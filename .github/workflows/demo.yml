@@ -258,10 +258,16 @@ jobs:
           docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S2 --baseline record; s2b=$?
           docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S1 --publish -f json > gate.json; s1=$?
           # decision-0017: without --publish the gate loads S2 into a store of its own; Neo4j still holds S1, generation unchanged
-          gen() { docker compose exec -T app python -c 'import sys; sys.path.insert(0, "harness"); from store import open_store; st = open_store(access="read"); print(st.extraction_activities(), st._inner.generation()); st.close()'; }
-          before=$(gen)
+          # The port has no public generation read: the read handle wraps the store (`_inner`), whose publication
+          # (`_pub`, a `_Unit`) holds `generation()`. A failed read fails the step, and a pair is asserted below.
+          gen() {
+            local out; out=$(docker compose exec -T app python -c 'import sys; sys.path.insert(0, "harness"); from store import open_store; st = open_store(access="read"); print(st.extraction_activities(), st._inner._pub.generation()); st.close()') || return 1
+            [[ "$out" =~ ^\[.*\]\ \([0-9]+,\ [0-9]+\)$ ]] || { echo "gen: no generation pair in: $out" >&2; return 1; }
+            echo "$out"
+          }
+          before=$(gen) || { echo "cannot read the held generation (before)"; exit 1; }
           docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S2 -f json > gate-s2.json; s2p=$?
-          after=$(gen)
+          after=$(gen) || { echo "cannot read the held generation (after)"; exit 1; }
           docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S1 --no-load; s1n=$?
           docker compose exec -T app python harness/gate_cli.py --as-of record --scenario S2 --no-load; s2n=$?
           set -e
