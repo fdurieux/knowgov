@@ -229,6 +229,24 @@ def _ambiguous_giver(aid: str, handles: dict | None) -> bool:
     return bool(m and handles and g in handles and m[1] in handles)
 
 
+def _ambiguous_reason(aid: str) -> str:
+    """Why a review of an ambiguous-stem answer is refused the day it is written (task-0310)."""
+    g = _giver(aid)
+    return (f"the id's stem reads as two givers, giver {g}'s first answer or giver {re.fullmatch(r'(.+)-[0-9]+', g)[1]}'s "
+            "second that day, and no review of it can apply until the review records its giver "
+            "(decision pending, 2026-11-10); nothing is written")
+
+
+def _unbound_reason(where: str, aid: str, ru: dict, how: dict) -> str:
+    """The reason a ruling that binds nowhere is refused the day it is written."""
+    if how["why"] == "giver":   # task-0310: write time refuses what load time reports ambiguous
+        return f"{where}: {_ambiguous_reason(aid)}"
+    if how["why"] == "gone" and ru.get("value") is None:
+        return f"{where}: the store holds no assertion {aid!r}"
+    return (f"{where}: the store no longer holds what the ruling records ({ru.get('key')} = {ru.get('value')!r}); "
+            f"it holds {', '.join(repr(t['value']) for t in how['to']) or 'nothing of it'}")
+
+
 def _holding(rows: list[dict], aid: str, value, digest, handles: dict | None = None) -> list[dict]:
     """The rows holding the ruling's value and digest that may stand in for ``aid``: any such statement, but for a
     captured answer only the same giver's (``_same_giver``, task-0302)."""
@@ -279,6 +297,13 @@ def bind(st, ru: dict, handles: dict | None = None) -> tuple[dict | None, dict]:
     held = [{"id": r["id"], "value": str(r["value"]), "sha256": content_digest(r.get("fragments") or [])}
             for r in rows if _stem(r["id"]) == _stem(aid)]
     return None, {"why": "ambiguous" if same else "changed" if held else "gone", "to": held}
+
+
+def _bind_ruling(st, ru: dict, handles: dict | None, strict: bool) -> tuple[dict | None, dict]:
+    """``bind``, but the day a review is written a stem of two givers binds nowhere (task-0310)."""
+    if strict and _ambiguous_giver(str(ru.get("assertion", "")), handles):
+        return None, {"why": "giver", "to": []}
+    return bind(st, ru, handles)
 
 
 def capture_index(capture_dir: Path) -> dict[str, dict]:
@@ -344,14 +369,12 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
         where = f"ruling {i} ({aid})"
         if outcome not in OUTCOMES:
             errs.append(f"{where}: outcome {outcome!r} is not one of {', '.join(OUTCOMES)}")
-        b, how = bind(st, ru, handles)
+        b, how = _bind_ruling(st, ru, handles, strict)
         if b is not None and strict and how["why"] == "repaired":
             b, how = None, {**how, "why": "changed"}   # the day it is written, a ruling names the statement it rules on
         if b is None:
             if strict:
-                errs.append(f"{where}: the store holds no assertion {aid!r}" if how["why"] == "gone" and ru.get("value") is None else
-                            f"{where}: the store no longer holds what the ruling records ({ru.get('key')} = {ru.get('value')!r}); "
-                            f"it holds {', '.join(repr(t['value']) for t in how['to']) or 'nothing of it'}")
+                errs.append(_unbound_reason(where, aid, ru, how))
             else:
                 skipped.append({"act": "ruling", "n": i, "statement": aid, "outcome": outcome, "key": str(ru.get("key") or ""),
                                 "value": ru.get("value"), "sha256": ru.get("sha256"), **how})
