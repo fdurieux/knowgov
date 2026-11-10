@@ -87,6 +87,9 @@ class Stub:
     def census(self):
         return {"nodes": 1}
 
+    def version_digests(self):   # task-0307: the documents' Versions, none in this stand-in
+        return []
+
     def wipe(self):
         self.writes.append("wipe")
 

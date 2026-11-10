@@ -1101,6 +1101,11 @@ class RdflibStore(Store):
     def act_findings(self) -> list[dict]:
         return by_id([{"id": self.nid(a), **{k: self.prop(a, k) for k in self.ACT_FIELDS}} for a in self.nodes("ActFinding")])
 
+    def version_digests(self) -> list[dict]:
+        out = [{"artefact": self.nid(a), "version": self.prop(v, "tag"), "sha256": self.prop(v, "sha256")}
+               for a in self.nodes("Artefact") for v in self.out(a, "HAS_VERSION")]
+        return sorted(out, key=lambda r: (r["artefact"], r["version"] or ""))
+
     def preload_verdicts(self) -> list[dict]:
         out = []
         for a in self.nodes("Artefact"):

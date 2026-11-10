@@ -84,10 +84,11 @@ def test_a_worse_verdict_or_a_lower_key_level_is_a_regression():
     assert gate_cli.compare(lower, base, "f")["regressed_keys"] == [{"key": k, "level": "verified", "baseline_level": "approved"}]
     # a report of this command is a baseline too
     rep = _report(s1)
-    assert gate_cli.baseline_of(rep) == {"verdict": "PROCEED", "levels": rep["levels"], "suspect": []}
+    assert gate_cli.baseline_of(rep) == {"verdict": "PROCEED", "levels": rep["levels"], "suspect": [],
+                                         "identity": {f: rep[f] for f in gate_cli.IDENTITY_FIELDS}}   # task-0307
     # a version-1 report still reads as a baseline: it named no derived output, so none was suspect
-    v1 = {**rep, "schema_version": 1, "stale": 0, "suspect_derived": 0}
-    assert gate_cli.baseline_of(v1) == {"verdict": "PROCEED", "levels": rep["levels"], "suspect": []}
+    v1 = {**{k: v for k, v in rep.items() if k not in gate_cli.IDENTITY_FIELDS}, "schema_version": 1, "stale": 0, "suspect_derived": 0}
+    assert gate_cli.baseline_of(v1) == {"verdict": "PROCEED", "levels": rep["levels"], "suspect": [], "identity": {}}
 
 
 def test_a_task_blocked_by_its_share_of_unverified_keys_says_so_as_a_blocker():

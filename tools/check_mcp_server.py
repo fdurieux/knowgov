@@ -219,6 +219,7 @@ def check_stage2(sc: str, subject, failures: list[str]) -> None:
         if got != expected:
             diff = sorted(k for k in set(got) | set(expected) if got.get(k) != expected.get(k))
             failures.append(f"{sc} stage 2: gate_verdict differs from gate_cli --no-load on {diff}")
+        corpus_held(f"{sc} stage 2", got, expected.get("corpus"), failures)
         if got.get("version") == "v1":
             failures.append(f"{sc} stage 2: the store holds v1, not the change")
         if not want or got.get("superseded_by") != want:
@@ -869,6 +870,20 @@ def check_store_reads(client: "StdioClient", sc: str, failures: list[str], label
           f"document_statements on {len(port_docs)} document(s), each the port's read")
 
 
+def corpus_held(label: str, got: dict, want: str | None, failures: list[str]) -> None:
+    """task-0307: gate_verdict names a corpus, the one ``want`` names (gate_cli's, or the publishing load's)."""
+    if not got.get("corpus") or got.get("corpus") != want:
+        failures.append(f"{label}: gate_verdict's corpus {got.get('corpus')!r} is not gate_cli's {want!r}")
+
+
+def load_corpus(load) -> str | None:
+    """The corpus the publishing gate_cli named (task-0307): the server reads that load, so its own must equal it."""
+    try:
+        return json.loads(load.stdout).get("corpus")
+    except ValueError:
+        return None
+
+
 def census() -> dict:
     sys.path.insert(0, str(HARNESS))
     from store import open_store
@@ -912,6 +927,7 @@ def main(argv: list[str] | None = None) -> int:
             if got != expected:
                 diff = sorted(k for k in set(got) | set(expected) if got.get(k) != expected.get(k))
                 failures.append(f"{sc}: gate_verdict differs from gate_cli --no-load on {diff}")
+            corpus_held(sc, got, load_corpus(load), failures)
             disc = client.modern("server/discover", {})["result"]
             stateless = client.modern("tools/call", {"name": "gate_verdict", "arguments": {"scenario": sc, "as_of": "record"}})["result"]
             if disc.get("supportedVersions", [None])[0] != "2026-07-28" or stateless.get("structuredContent") != expected:

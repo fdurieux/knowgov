@@ -23,8 +23,8 @@ directory artefact, J-F). A subject inside an instance with a pre-load report (`
 <instance>/preload-report.json``) records them; ``--expect-preload`` fails a scenario whose first
 store recorded none, so a run meant to prove they survive cannot pass on a store that never held one.
 Each gate report must also name what it decided on (task-0237, decision-0029): ``task_profile``, the
-digest of the subject's task table, ``register`` and ``knowgov`` as this process reads them, and each
-hop must give the same.
+digest of the subject's task table, ``register`` and ``knowgov`` as this process reads them, and ``corpus``, the
+digest of the loaded document Versions (task-0307), and each hop must give the same.
 
 The chain names store kinds (``KG_STORE``'s values), first the one loaded: ``rdflib,rdflib`` needs
 no database (harness.yml); ``neo4j,rdflib,neo4j`` is Neo4j to Turtle to rdflib and back, the stack
@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -178,7 +179,7 @@ def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = 
     for t, rep in base["gate"].items():
         want = {"task_profile": gate_cli.profile_digest(SUBJECT.tasks.get(t)), "register": gate_cli.register_identity(),
                 "knowgov": gate_cli.knowgov_identity()}
-        off = sorted(f for f, w in want.items() if rep.get(f) != w or w is None)
+        off = sorted(f for f, w in want.items() if rep.get(f) != w or w is None) + unnamed_corpus(rep)
         if off:
             failures.append(f"{label} {chain[0]}: gate {t} does not name what it decided on: {off}")
     if expect_parts and not base["parts"]:
@@ -199,12 +200,17 @@ def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = 
                         f"({len(set(n0) ^ set(n1))} differ), edges {len(e0)} -> {len(e1)} ({len(set(e0) ^ set(e1))} differ)")
     v = base["gate"].get("codegen", next(iter(base["gate"].values()), {}))
     print(f"{label}: {'→'.join(chain)}: {len(base['gate'])} gate report(s) (codegen {v.get('verdict')}, "
-          f"task profile {(v.get('task_profile') or '')[:12]}, register {(v.get('register') or {}).get('tag')}), "
+          f"task profile {(v.get('task_profile') or '')[:12]}, corpus {str(v.get('corpus'))[:12]}, register {(v.get('register') or {}).get('tag')}), "
           f"{len(base['three_valued'])} three-valued answer(s), {base['census']['nodes']} nodes, "
           f"{base['census']['relationships']} relationships, "
           f"{len(base['parts'])} file digest(s) of directory artefacts, "
           f"{len(base['preload']['verdicts'])} pre-load verdict(s), {sum(map(len, base['preload']['findings'].values()))} preload finding(s): " + ("equal" if not failures else f"{len(failures)} difference(s)"))
     return failures
+
+
+def unnamed_corpus(rep: dict) -> list[str]:
+    """task-0307: ["corpus"] when the report names no corpus digest; differences() holds it equal across the hops."""
+    return [] if re.fullmatch(r"[0-9a-f]{64}", str(rep.get("corpus"))) else ["corpus"]
 
 
 def main(argv: list[str] | None = None) -> int:

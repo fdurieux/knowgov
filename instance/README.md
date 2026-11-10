@@ -647,6 +647,12 @@ with `--baseline`: the gate exits 1 only on a key that got worse, so the compari
 python harness/gate_cli.py --task codegen --as-of 2026-12-15 --baseline gate-2026-12-01.json
 ```
 
+The report names what the gate decided on: the task table (`task_profile`), the register (`register`), the
+knowgov build (`knowgov`), the documents loaded (`corpus`, a digest of every document version's bytes) and the
+date (`as_of`). Under `--baseline`, each one that differs from the baseline's is named on stderr, one line each,
+so the comparison above names its `as_of`, and an edited document names `corpus`. Naming one never changes the
+exit. A baseline kept before a field existed says nothing about that field, and none is named.
+
 To see every step against every scenario at once, run the scenarios into a folder and read it with
 `python harness/step_grid.py <folder>`: one row per step, one column per scenario, the lowest level
 and the counts in each cell (`demo/README.md`, "What exists, step by step").

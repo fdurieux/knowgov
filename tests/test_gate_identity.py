@@ -113,4 +113,5 @@ def test_every_report_names_what_it_decided_on_and_gives_the_same_bytes_twice():
 
 def test_a_version_2_report_still_reads_as_a_baseline():
     old = {"schema_version": 2, "tool": "knowgov gate", "verdict": "PROCEED", "levels": {"a|x": "verified"}, "suspect_derived": []}
-    assert gate_cli.baseline_of(old) == {"verdict": "PROCEED", "levels": {"a|x": "verified"}, "suspect": []}
+    assert gate_cli.baseline_of(old) == {"verdict": "PROCEED", "levels": {"a|x": "verified"}, "suspect": [],
+                                         "identity": {}}, "a version-2 report names no identity: every field unknown (task-0307)"
