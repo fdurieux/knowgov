@@ -32,6 +32,7 @@ Every gate runs ``--as-of`` ON with KG_TODAY ON and the clock pinned (task-0075)
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
 import os
 import re
@@ -42,6 +43,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "harness"), str(ROOT / "tools")]
+import review  # noqa: E402
 import check_review_walkthrough as w  # noqa: E402  (its instance, answers and review files: one fixture)
 import review  # noqa: E402
 
@@ -155,7 +157,16 @@ def stem_cases(out: Path) -> list[str]:
     second = next(f for f in capdir.glob("*-ops-2.toml"))
     n = 1 + [a["key"] for a in tomllib.loads(second.read_text(encoding="utf-8"))["answer"]].index(hold)
     ruled = f"A:cap:{second.stem}:{n}@capture"
-    w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
+    rdir = capdir / "reviews"
+    w.expect(env, 1, "two givers", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
+    if rdir.is_dir() and list(rdir.glob("*.toml")):   # task-0310: write time refuses what load time refuses; nothing is written
+        errs.append(f"task-0310: a review of {ruled} was written: {sorted(f.name for f in rdir.glob('*.toml'))}")
+    # the file a reviewer had saved before the refusal: it carries key, value and sha256, as the load reads it
+    rdir.mkdir(parents=True, exist_ok=True)
+    (rdir / "2026-11-05-employee-2.toml").write_text(review.review_toml(
+        {"by": "employee-2", "on": dt.date(2026, 11, 5), "record": "minutes/2026-11-03-outage-rule.md", "scenario": "S2", "closes": [],
+         "rulings": [{"assertion": ruled, "key": hold, "value": "held_unscreened only", "sha256": review.content_digest([]),
+                      "outcome": "approved"}]}), encoding="utf-8")
     for f in capdir.glob("*-ops*.toml"):
         f.unlink()
     again = w.answer(env, d, handle="ops-2", want=want)
