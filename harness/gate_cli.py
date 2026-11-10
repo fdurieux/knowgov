@@ -155,6 +155,13 @@ def _short(sha: str) -> str:
     return (sha or "")[:12] or "none"
 
 
+def _declared(ds: list[str]) -> tuple[str, str]:
+    """(the declarations named as prose, the decisions cited): task-0318, decision-0036 beside decision-0019 when a bound
+    execution or review is among them."""
+    named = ", ".join(ds[:-1]) + " and " + ds[-1] if len(ds) > 1 else ds[0]
+    return named, ("decision-0019 and decision-0036" if {"execution", "review"} & set(ds) else "decision-0019")
+
+
 def attestation_findings(rows: list[dict], owners: dict | None, route) -> list[dict]:
     """decision-0019 (task-0221): a declaration that lists no Version is the read rule's, at info; each artefact a
     bound declaration does not attest, behind the task's keys, is major (its authored statements read proposed and
@@ -172,17 +179,17 @@ def attestation_findings(rows: list[dict], owners: dict | None, route) -> list[d
             m = merged.setdefault(u["artefact"], {**u, "declarations": [], "attester": r["attester"]})
             m["declarations"].append(r["declaration"])
     for art, u in sorted(merged.items()):
-        decls = " and ".join(u["declarations"])
+        decls, cite = _declared(u["declarations"])
         digests = ", ".join(x[:12] for x in u["parts"]) if u["parts"] else u["sha256"][:12]
         f = _finding("major", "attestation", f"{art} (sha256 {digests}), behind {len(u['keys'])} required key(s), is not attested: "
                      f"[verification] {decls} list(s) no digest of this Version, so its authored statements read proposed and "
-                     "nothing in it is approved by construction (decision-0019)", ref=art, related=u["keys"])
+                     f"nothing in it is approved by construction ({cite})", ref=art, related=u["keys"])
         if owners is not None:
             units = {(owners.get(k) or {}).get("unit") for k in u["keys"]}
             unit = units.pop() if len(units) == 1 else None
             f["owner"] = unit
             how = (f"{u['attester'] or 'the attester'} reads the document and lists sha256 {u['sha256']} under [verification] "
-                   f"{decls} versions in subject.toml (decision-0019)")
+                   f"{decls} versions in subject.toml ({cite})")
             q = route(unit, u["keys"][0]) if route and unit else None
             f["route"] = how + (f"; or {q}" if q else "")
         out.append(f)
