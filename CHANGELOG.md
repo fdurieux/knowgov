@@ -14,6 +14,7 @@ names that section with the version.
 - **The key rule holds at every entry** (task-0316, decision-0034): a task class's keys that break it (as written or in NFC) are refused by the gate, exit 2, naming the class and the value as written, where they read `absent`; `check_subject` reports `key-syntax` on the value as written and warns on `[three_valued]` keys equal after NFC; a trace ledger is read in NFC.
 - The gate's "is not attested" finding names every `[verification]` declaration that omits the document's Version (`authored`, `approval`, `execution`, `review`) and cites decision-0036 beside decision-0019 when `execution` or `review` is among them; its route lists them all, so listing the digest as told brings the gate back (task-0318).
 - `check_subject`: an empty `versions` in `execution` or `review` is noted as verifying nothing, as a missing one is; an edited document is one error per artefact and declaration, naming the artefact and its new digest, not one per stale digest (task-0318).
+- `check_subject` reads a directory artefact's Versions as the load does (its `include`, per file): an edit or an added file within the include is one error naming the file, even when no listed digest is stale; an old digest kept beside the new one is told to be replaced; an empty `authored` or `approval` list is noted as attesting nothing (task-0319).
 
 ### Contract changes
 - **An execution or review verification holds only for the document versions it was attested on** (task-0306,

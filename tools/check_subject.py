@@ -302,17 +302,21 @@ def check_attestations(rep: Report, m: dict, root: Path) -> None:
                   'add [provenance] human = { id = "agent:<who>", name = "..." }, the person who attests')
 
 
-def artefact_digests(m: dict, root: Path) -> dict[str, list[str]]:
-    """Each artefact's current Version digests as on disk: a file's raw bytes, a directory's files' (task-0318)."""
+def artefact_digests(m: dict, root: Path) -> dict[str, dict[str, str]]:
+    """Each artefact's current Version files as on disk, by name then raw-byte SHA-256: a file artefact one entry
+    named '', a directory artefact the files the load bundles (``subject.bundle_files`` with the artefact's
+    ``include``, the load's own part selection, as ``Subject.raw_part_digests`` digests them; task-0319)."""
     import hashlib
-    out: dict[str, list[str]] = {}
+    from subject import bundle_files
+    out: dict[str, dict[str, str]] = {}
     for a in m.get("artefact", []) if isinstance(m.get("artefact"), list) else []:
         if not isinstance(a, dict) or not a.get("path"):
             continue
         p = root / a["path"]
-        fs = [p] if p.is_file() else sorted(f for f in p.rglob("*") if f.is_file()) if p.is_dir() else []
+        inc = a.get("include") if isinstance(a.get("include"), list) else None
+        fs = [("", p)] if p.is_file() else bundle_files(p, inc) if p.is_dir() else []
         if fs:
-            out[str(a.get("key") or a["path"])] = [hashlib.sha256(f.read_bytes()).hexdigest() for f in fs]
+            out[str(a.get("key") or a["path"])] = {rel: hashlib.sha256(f.read_bytes()).hexdigest() for rel, f in fs}
     return out
 
 
@@ -381,29 +385,38 @@ def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: 
             rep.note("attestation", where, "lists no Version: it attests what the documents hold at each load, so an edit made "
                      "after it inherits it (decision-0009 (a), the read rule); list the digest of each Version it attests (decision-0019)")
         return
+    if listed == []:   # task-0319 E2: authored or approval bound to nothing
+        rep.note("attestation", where, "lists an empty set of Versions: it attests nothing, since a bound attestation holds "
+                 "only for the Versions it lists (decision-0019); list the digest of each Version it attests")
+        return
     if not isinstance(listed, list) or not all(isinstance(d, str) and re.fullmatch(r"[0-9a-f]{64}", d) for d in listed):
         rep.error("attestation", where, "versions is not a list of SHA-256 digests (64 lower-case hex characters)",
                   "list each attested Version's digest, as the load records it (decision-0019)")
         return
     known[0] = subject_versions(m, root) if known[0] is None else known[0]
     stale = sorted(set(listed) - known[0])
-    if stale and _changed_artefacts(rep, m, root, where, listed):   # task-0318: the edit, by artefact, not each old digest
+    if _changed_artefacts(rep, m, root, where, listed, bool(stale)):   # task-0318, task-0319: the edit, by artefact and file
         return
     for d in stale:
-        rep.error("attestation", where, f"versions lists {d}, which is no Version of the subject's artefacts: it attests "
-                  "nothing the load reads", "list a digest of a document as it is, or as a scenario plants it (decision-0019)")
+        rep.error("attestation", where, f"versions lists {d}, which matches no current Version of the subject's artefacts: "
+                  "it attests nothing the load reads", "replace the old digest with the new one (decision-0019), or remove it")
 
 
-def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: list) -> bool:
-    """One error per artefact this declaration does not list, as it is now, when it lists a digest no Version has any
-    more (task-0318): the artefact changed since it was attested. True when it named at least one."""
+def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: list, stale: bool) -> bool:
+    """One error per artefact whose Version this declaration lists in part or, once it lists a digest no Version has any
+    more, does not list as it is now (task-0318, task-0319): the artefact changed since it was attested. A directory
+    artefact listed in part has a file added or changed, and the error names it; a file or directory listed not at all is
+    flagged only after a stale digest, since it may never have been attested. True when it named at least one."""
     named = False
-    for art, digests in sorted(artefact_digests(m, root).items()):
-        if not all(d in listed for d in digests):
-            new = ", ".join(d for d in digests if d not in listed)
-            rep.error("attestation", where, f"{art} changed since it was attested: its Version {new} is not listed under {where}",
-                      "re-attest it (list the new digest) or restore the document (decision-0019)")
-            named = True
+    for art, files in sorted(artefact_digests(m, root).items()):
+        miss = {rel: d for rel, d in files.items() if d not in listed}
+        if not miss or (len(miss) == len(files) and not (stale and "" in files)):
+            continue
+        what = ", ".join(f"{rel} ({d})" if rel else f"its Version {d}" for rel, d in sorted(miss.items()))
+        rep.error("attestation", where, f"{art} changed since it was attested: {what} is not listed under {where}"
+                  + ("" if "" in files else " (a file added or changed)"),
+                  "re-attest it (replace the old digest with the new one) or restore the document (decision-0019)")
+        named = True
     return named
 
 
