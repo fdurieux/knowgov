@@ -1266,8 +1266,10 @@ class Neo4jStore(Store):
 
     def attestations(self) -> list[dict]:
         rows = _rows(self.run("MATCH (a:Agent) WHERE a.attestation_approval IS NOT NULL OR a.attestation_authored IS NOT NULL "
-                              "RETURN a.attestation_approval AS approval, a.attestation_authored AS authored"))
-        return by_id([json.loads(r[d]) for r in rows for d in ("approval", "authored") if r[d]])
+                              "OR a.attestation_execution IS NOT NULL OR a.attestation_review IS NOT NULL "
+                              "RETURN a.attestation_approval AS approval, a.attestation_authored AS authored, "
+                              "a.attestation_execution AS execution, a.attestation_review AS review"))
+        return by_id([json.loads(r[d]) for r in rows for d in ("approval", "authored", "execution", "review") if r[d]])
 
     def clear_act_findings(self) -> None:
         self.run("MATCH (a:ActFinding) DETACH DELETE a").consume()

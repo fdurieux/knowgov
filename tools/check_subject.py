@@ -302,6 +302,20 @@ def check_attestations(rep: Report, m: dict, root: Path) -> None:
                   'add [provenance] human = { id = "agent:<who>", name = "..." }, the person who attests')
 
 
+def artefact_digests(m: dict, root: Path) -> dict[str, list[str]]:
+    """Each artefact's current Version digests as on disk: a file's raw bytes, a directory's files' (task-0318)."""
+    import hashlib
+    out: dict[str, list[str]] = {}
+    for a in m.get("artefact", []) if isinstance(m.get("artefact"), list) else []:
+        if not isinstance(a, dict) or not a.get("path"):
+            continue
+        p = root / a["path"]
+        fs = [p] if p.is_file() else sorted(f for f in p.rglob("*") if f.is_file()) if p.is_dir() else []
+        if fs:
+            out[str(a.get("key") or a["path"])] = [hashlib.sha256(f.read_bytes()).hexdigest() for f in fs]
+    return out
+
+
 def subject_versions(m: dict, root: Path) -> set[str]:
     """The digests an artefact Version of the subject can carry (decision-0019): each artefact file's raw bytes and,
     for a directory, each file's, as on disk, and each text a scenario's patches make of a file (plants.toml, stage 1
@@ -359,7 +373,7 @@ def check_bindings(rep: Report, m: dict, root: Path) -> None:
 
 def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: list) -> None:
     where = f"[verification] {name}"
-    if listed is None:
+    if listed is None or (name in BOUND and listed == []):   # task-0318: an empty list verifies nothing either
         if name in BOUND:
             rep.note("attestation", where, "lists no Version: it verifies nothing, since an execution or a review "
                      "verification holds only for the Versions it lists (decision-0036); list the digest of each")
@@ -372,9 +386,25 @@ def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: 
                   "list each attested Version's digest, as the load records it (decision-0019)")
         return
     known[0] = subject_versions(m, root) if known[0] is None else known[0]
-    for d in sorted(set(listed) - known[0]):
+    stale = sorted(set(listed) - known[0])
+    if stale and _changed_artefacts(rep, m, root, where, listed):   # task-0318: the edit, by artefact, not each old digest
+        return
+    for d in stale:
         rep.error("attestation", where, f"versions lists {d}, which is no Version of the subject's artefacts: it attests "
                   "nothing the load reads", "list a digest of a document as it is, or as a scenario plants it (decision-0019)")
+
+
+def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: list) -> bool:
+    """One error per artefact this declaration does not list, as it is now, when it lists a digest no Version has any
+    more (task-0318): the artefact changed since it was attested. True when it named at least one."""
+    named = False
+    for art, digests in sorted(artefact_digests(m, root).items()):
+        if not all(d in listed for d in digests):
+            new = ", ".join(d for d in digests if d not in listed)
+            rep.error("attestation", where, f"{art} changed since it was attested: its Version {new} is not listed under {where}",
+                      "re-attest it (list the new digest) or restore the document (decision-0019)")
+            named = True
+    return named
 
 
 def check_map(rep: Report, m: dict, root: Path, register: Path | None) -> None:

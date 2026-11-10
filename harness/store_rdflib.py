@@ -1072,7 +1072,7 @@ class RdflibStore(Store):
             self.set_props(a, {f"attestation_{row['declaration']}": json.dumps({k: row[k] for k in ("id", *self.ATTESTATION_FIELDS)}, sort_keys=True)})
 
     def attestations(self) -> list[dict]:
-        return by_id([json.loads(self.prop(a, f"attestation_{d}")) for a in self.nodes("Agent") for d in ("approval", "authored")
+        return by_id([json.loads(self.prop(a, f"attestation_{d}")) for a in self.nodes("Agent") for d in ("approval", "authored", "execution", "review")
                       if self.prop(a, f"attestation_{d}")])
 
     def clear_act_findings(self) -> None:
