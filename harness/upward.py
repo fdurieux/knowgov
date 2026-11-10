@@ -5,7 +5,8 @@ concerns, and a code path to its application, the keys its header cites and its 
     python harness/upward.py code PATH [--instance DIR] [--ledger FILE]
     python harness/upward.py doc DOCUMENT
 
-Two single hops, each read from files, never a walk and never the store:
+Two single hops, each read from files, never a walk and never the store (the one store read, code_path's ledger
+leg's suspect, is the MCP reader's, passed in as ``suspect``; task-0303):
 
 ``key_nodes``  the rows of the subject's ``register_map.toml`` whose key is KEY, each with the register
                nodes it names (taxonomy, kind, name, state, owner, from the register ``KG_REGISTER``
@@ -14,8 +15,10 @@ Two single hops, each read from files, never a walk and never the store:
 ``code_path``  for PATH, relative to the root of the instance's ``code_map.toml``: the application or
                module the map assigns (``code_map.app_of``) and that node in the register, the keys
                the file's header cites (``citation.read``), each flagged when the subject does not know
-               it, and the trace ledger's entry for the path (``trace.read_ledger``: derived id, keys
-               used, statements, commit, digest, and the file's digest now). Each of the three legs
+               it, and the trace ledger's entry for the path (``trace.read_ledger``: derived id, the keys
+               and the statement ids it used, sorted, commit, digest, the file's digest now and its
+               ``state``, current, drift or missing, and ``suspect``, read from the store by the MCP reader
+               while it holds this subject's scenario, else unchecked; task-0303). Each of the three legs
                says ``read`` or ``unchecked`` with the reason: no instance configured, no code map or
                one that does not hold, no ledger configured, missing or malformed; the ledger leg also
                when it holds an entry but there is no code root to read the file's digest from, never
@@ -171,8 +174,9 @@ def _unchecked(reason: str, **extra) -> dict:
     return {"status": "unchecked", "reason": reason, **extra}
 
 
-def code_path(path, cfg: dict | None = None) -> dict:
-    """The three legs for ``path``: the code map's application, the header's keys, the ledger's entry."""
+def code_path(path, cfg: dict | None = None, suspect=None) -> dict:
+    """The three legs for ``path``: the code map's application, the header's keys, the ledger's entry. ``suspect``,
+    given a ledger entry, reads whether it is suspect from a store (the MCP reader's); without it, unchecked."""
     rel = _rel(path)
     cfg = cfg if cfg is not None else config()
     out = {"schema_version": SCHEMA_VERSION, "tool": "code_path", "path": rel,
@@ -220,11 +224,30 @@ def code_path(path, cfg: dict | None = None) -> dict:
                 else:
                     known = _known()
                     out["citation"] = {"status": "read", "keys": keys, "unknown": [k for k in keys if k not in known]}
-    out["ledger"] = _ledger(cfg["ledger"], rel, file, no_root)
+    out["ledger"] = _ledger(cfg["ledger"], rel, file, no_root, suspect)
     return out
 
 
-def _ledger(ledger: str | None, rel: str, file: Path | None, no_root: str | None = None) -> dict:
+SUSPECT_UNREAD = ("whether it is suspect is read from the store, which this command does not open: trace check reads it, "
+                  "and so does the MCP reader's code_path while the store holds this subject's scenario")
+
+
+def _entry(raw: dict, file: Path | None, suspect=None) -> dict:
+    """task-0303 (decision-0035 B1): the entry with its statement ids and its keys, sorted, the keys being the
+    registration's and those of the statements it recorded using, so file -> keys -> key_nodes holds; its state
+    by the file's digest (current, drift, missing), as trace check reads it; and whether it is suspect, read from
+    a store by ``suspect`` (trace check's rule, ``store.suspicion``), else unchecked."""
+    import trace
+    e = {k: raw[k] for k in LEDGER_FIELDS if k in raw}
+    e["assertions"] = sorted(raw.get("assertions") or [])
+    e["keys"] = trace.entry_keys(raw)
+    cur = hashlib.sha256(file.read_bytes()).hexdigest() if file is not None else None
+    state = "missing" if cur is None else "drift" if cur != e["sha256"] else "current"
+    return {**e, "current_sha256": cur, "drift": state == "drift", "file_present": file is not None, "state": state,
+            "suspect": suspect(raw) if suspect is not None else _unchecked(SUSPECT_UNREAD, suspect=None)}
+
+
+def _ledger(ledger: str | None, rel: str, file: Path | None, no_root: str | None = None, suspect=None) -> dict:
     """The ledger's entry for ``rel`` with the file's digest now. With no code root (``no_root``, the reason)
     the file was never looked at, so an entry the ledger holds cannot say whether it drifted: the leg reads
     unchecked rather than ``drift: false`` (doc-0030 M7, task-0208)."""
@@ -244,10 +267,7 @@ def _ledger(ledger: str | None, rel: str, file: Path | None, no_root: str | None
     if no_root is not None:
         return _unchecked(f"{no_root}, so no code root to read the file from: the ledger holds an entry for {rel}, "
                           "but its drift cannot be read", entries=len(led["entries"]), entry=None)
-    e = {k: hit[-1][k] for k in LEDGER_FIELDS if k in hit[-1]}
-    cur = hashlib.sha256(file.read_bytes()).hexdigest() if file is not None else None
-    return {"status": "read", "entries": len(led["entries"]),
-            "entry": {**e, "current_sha256": cur, "drift": cur is not None and cur != e["sha256"], "file_present": file is not None}}
+    return {"status": "read", "entries": len(led["entries"]), "entry": _entry(hit[-1], file, suspect)}
 
 
 def main(argv: list[str] | None = None) -> int:

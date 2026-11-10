@@ -22,6 +22,8 @@ Every gate runs ``--as-of`` ON with KG_TODAY ON and the clock pinned (task-0075)
   is deleted and employee-3 gives the identical answer: a captured answer's digest is the empty text's, yet the
   approval does not move to another person's answer (not approved, a major ``gone`` act naming the vanished id);
   employee-1 giving it again on another day carries it (the same giver repairs).
+- task-0308: ``ops`` ingests twice the same day, so its second file has ``ops-2``'s first stem; the approval of that id,
+  its files deleted and ``ops-2`` giving the value, is not carried (not approved, a major ``ambiguous`` act).
 - Item 7 at stage 2 (S6): employee-3 approves P2's surcharge (316.00); ``--stage 2`` re-extracts the tariff
   change: the ruling is not moved onto the successor (341.00) and is an ``act`` finding naming both.
 - I4: employee-3 approving the model's statement on S5 is refused (rejecting it is not).
@@ -134,6 +136,38 @@ def giver_cases(out: Path) -> list[str]:
     return errs
 
 
+def stem_cases(out: Path) -> list[str]:
+    """task-0308 (the re-check of task-0302): ``ops`` ingests twice the same day, so its second file shares a stem with
+    ``ops-2``'s first. employee-2 approves ``…-ops-2:n``; both files are deleted and ``ops-2`` gives the value again:
+    the stem names two givers, so the approval does not pass to ``ops-2`` (not approved, a major ``ambiguous`` act)."""
+    errs: list[str] = []
+    print("== task-0308: a capture stem that reads as two givers (ops, second file / ops-2, first file)")
+    hold = "response|hold_presence"
+    env = fresh(out, "giver-stem", decided=True)
+    d = out / "giver-stem"
+    hp = d / "register" / "people" / "handles.toml"
+    hp.write_text(hp.read_text(encoding="utf-8") + "".join(
+        f'\n[[handle]]\nhandle = "{h}"\nunit = "ORG-0002"\nroles = ["gives"]\nissued = 2026-11-02\n' for h in ("ops", "ops-2")), encoding="utf-8")
+    want = {hold: "held_unscreened only"}
+    first = w.answer(env, d, handle="ops", want=want)
+    w.answer(env, d, handle="ops", want=want)
+    capdir = d / "subjects" / "cargo_quote" / "captures"
+    second = next(f for f in capdir.glob("*-ops-2.toml"))
+    n = 1 + [a["key"] for a in tomllib.loads(second.read_text(encoding="utf-8"))["answer"]].index(hold)
+    ruled = f"A:cap:{second.stem}:{n}@capture"
+    w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
+    for f in capdir.glob("*-ops*.toml"):
+        f.unlink()
+    again = w.answer(env, d, handle="ops-2", want=want)
+    got = {k: v for k, v in approvals(env, "S2", hold).items() if v}
+    found = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
+    if got or len(found) != 1 or found[0]["severity"] != "major":
+        errs.append(f"task-0308: ops-2's answer inherited the approval of {ruled}: approved {got}, ambiguous acts {found}")
+    print(f"    {first} twice, then {again}: approved on {sorted(got) or 'nothing'}; "
+          f"{found[0]['severity'] + ' act' if found else 'no ambiguous act'}")
+    return errs
+
+
 def main(out: Path) -> int:
     errs: list[str] = []
     out.mkdir(parents=True, exist_ok=True)
@@ -224,6 +258,7 @@ def main(out: Path) -> int:
     print(f"    {before['verdict']} -> {after['verdict']}; {w.OUT} approved on {sorted(moved)}")
 
     errs += giver_cases(out)
+    errs += stem_cases(out)
 
     print("== item 7 at stage 2 (S6): a ruling on P2's surcharge, then the tariff change")
     env = fresh(out, "s6", decided=False)
@@ -271,6 +306,7 @@ def main(out: Path) -> int:
 
 if __name__ == "__main__":
     import _outcomes   # task-0159: the outcome recorded when KG_OUTCOMES names a file
-    if len(sys.argv) != 2:
-        sys.exit(__doc__)
+    if len(sys.argv) != 2 or sys.argv[1].startswith("-"):   # task-0308 R3: --help is not an output folder
+        print(__doc__)
+        sys.exit(0 if sys.argv[1:] in (["-h"], ["--help"]) else 2)
     sys.exit(_outcomes.run(lambda: main(Path(sys.argv[1]).resolve())))

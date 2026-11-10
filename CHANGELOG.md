@@ -20,6 +20,20 @@ names that section with the version.
   named on stderr, one line each; the exit is unchanged. A field the baseline lacks or holds as null reads as unknown,
   never as different, and the record holds only its `as_of`. The record does not move.
 
+- **`code_path`'s ledger entry names its statement ids and keys, sorted, its state, and whether it is suspect**
+  (task-0303, decision-0035 B1). The entry's `assertions` come back sorted; `keys` is always there, the keys it was
+  registered on together with those of the statements it used, so `key_nodes` reaches the register's nodes from them;
+  `state` is `current`, `drift` or `missing`, as `trace.py check` reads it; `suspect` is read from the store by the
+  rule `trace.py check` applies when the MCP reader's store holds the subject's scenario, else `unchecked` with why
+  (always from `python harness/upward.py code`, which opens no store). `harness/schemas/code-path.schema.json`
+  requires the three. `drift` and `file_present` stay. The record does not move.
+- **A trace finding names its keys' owner and route, and the trace's gate what it decided on** (task-0304,
+  decision-0035 B2). A suspect, missing, drift or unbound finding, and a gate finding the gate gives one, carries
+  `owner` and `route` as the gate's key findings do (task-0102): the unit that answers for every key it rests on,
+  null when several do, with each one's route; a finding on no key names neither. The report's `gate` block carries
+  `task_profile`, `register` and `knowgov`, read as gate report version 3 reads them. Additive to
+  `trace-report.schema.json`, still version 1. `harness/annotate.py` ends a finding's message with its owner and
+  route, the gate's key findings' too. The record does not move.
 - **Two keys that are canonically equivalent are one key** (task-0301, decision-0034 Amendment A2). knowgov
   stores and reports a key in Unicode NFC (not NFKC), whichever form enters: `société|adresse` composed and decomposed
   read alike in the MCP tools' `key` and `keys`, the task classes, the register map, the verification map, captures,
@@ -610,6 +624,15 @@ names that section with the version.
   - **Onboarding.** The skill and `instance/README.md` no longer relaunch the servers per subject.
 
 ### Changes
+- **NFC at the remaining entry points** (task-0309, the re-check of task-0301). A `--baseline` file written with
+  decomposed level keys no longer reads every current key as new (it failed open); a ruling's assertion id is read
+  in NFC; the MCP tools refuse a key when the value as sent, or its NFC, breaks the published pattern, naming the
+  value as sent; `check_subject` warns when a task class lists two keys equal after NFC. No contract moves.
+- **A capture stem that reads as two givers names none** (task-0308, the re-check of task-0302). `ops`'s second file
+  the same day and `ops-2`'s first share a stem, so a deleted capture's approval could pass to `ops-2`'s later
+  identical answer. When the whole tail and the tail without its trailing `-<n>` are both issued handles, nothing
+  stands in and the gate reads an `ambiguous` act at major. The `gone` message no longer claims no answer is
+  extracted, and `tools/check_act_binding.py` refuses an option as its output folder. No format or schema moves.
 - **An approval of a captured answer no longer passes to another person's identical answer** (task-0302, decision-0032
   C2-1). A captured answer has no fragments, so its digest is the empty text's: when the approved answer's capture was
   deleted, another person's answer with the same key and value bound the ruling as "repaired" and the gate read the key
