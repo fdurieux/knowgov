@@ -26,6 +26,11 @@ names that section with the version.
     version.
   - The port's `verify_by_execution` and `verify_by_review` take the attested artefacts, on both adapters.
   - The public subjects list their versions, so the record does not move.
+  - **What an adopter does:** an instance whose subject has a verification map but lists no Versions in
+    `[verification] execution` loses its execution verifications, and with them the approvals resting on
+    them, until it lists them: add `execution = { versions = [...] }` with the digest of each document Version
+    the suite's result was attested on (and `versions` on `review` likewise). `tools/check_subject.py` says so
+    in a note naming decision-0036.
 
 - **The gate report names the corpus it decided on, and `--baseline` names what differs** (task-0307, decision-0037).
   The report gains `corpus`, the sha256 over the loaded document Versions' digests (one `<artefact>\t<version>\t<sha256>`
