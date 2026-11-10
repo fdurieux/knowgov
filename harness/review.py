@@ -344,6 +344,12 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
         where = f"ruling {i} ({aid})"
         if outcome not in OUTCOMES:
             errs.append(f"{where}: outcome {outcome!r} is not one of {', '.join(OUTCOMES)}")
+        if strict and _ambiguous_giver(aid, handles):   # task-0310: write time refuses what load time refuses
+            g = _giver(aid)
+            errs.append(f"{where}: the id's stem reads as two givers, giver {g}'s first answer or giver "
+                        f"{re.fullmatch(r'(.+)-[0-9]+', g)[1]}'s second that day, and no review of it can apply until the "
+                        "review records its giver (decision pending, 2026-11-10); nothing is written")
+            continue
         b, how = bind(st, ru, handles)
         if b is not None and strict and how["why"] == "repaired":
             b, how = None, {**how, "why": "changed"}   # the day it is written, a ruling names the statement it rules on

@@ -242,3 +242,28 @@ def test_the_check_tool_prints_usage_on_help_and_refuses_a_stray_option_task_030
     assert p.returncode == 0 and "check_act_binding.py OUT_DIR" in p.stdout and left == [], (p.returncode, p.stderr, left)
     p, left = _run_check("-x")
     assert p.returncode == 2 and left == [], (p.returncode, p.stderr, left)
+
+
+def _ops_check(aid, rows, ruling=None):
+    doc = {"review": {"by": "employee-2", "on": "2026-11-05", "record": "m.md"}, "ruling": [ruling or _answer_ruling(aid)]}
+    return review.check(doc, Store(rows), handles=HANDLES, owners={"response|hold_presence": ["ORG-0002"]},
+                        units={}, captures={}, now=dt.date(2026, 11, 5),
+                        compatible=lambda a, b, _p="": "equal" if a == b else "conflict", strict=True)
+
+
+def test_a_review_of_an_ambiguous_stem_is_refused_at_write_time_task_0310():
+    """Write time refuses what load time reports ambiguous: nothing binds, so nothing is saved (key-less input too)."""
+    aid = "A:cap:2026-11-05-ORG-0002-ops-2:1@capture"
+    rows = [_answer("2026-11-05-ORG-0002-ops-2", 1, "ops-2")]
+    errs, rv = _ops_check(aid, rows)
+    msg = " ".join(errs)
+    assert "ops-2" in msg and "ops's second" in msg and "decision pending, 2026-11-10" in msg, errs
+    assert rv["rulings"] == [], rv
+    errs, rv = _ops_check(aid, rows, {"assertion": aid, "outcome": "approved"})   # the reviewer's input: no key, value, sha256
+    assert any("two givers" in e for e in errs) and rv["rulings"] == [], (errs, rv)
+
+
+def test_a_single_reading_stem_is_still_accepted_at_write_time_task_0310():
+    aid = "A:cap:2026-11-05-ORG-0002-employee-1:1@capture"
+    errs, rv = _ops_check(aid, [_answer("2026-11-05-ORG-0002-employee-1", 1, "employee-1")])
+    assert not any("two givers" in e for e in errs) and [r["statement"] for r in rv["rulings"]] == [aid], (errs, rv)

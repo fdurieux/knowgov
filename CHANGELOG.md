@@ -10,6 +10,8 @@ names that section with the version.
 
 ## Unreleased
 
+- `capture.py review` refuses a ruling whose captured-answer id reads as two issued givers (`…-ops-2`: `ops-2`'s first answer or `ops`'s second that day), as a load already sets it aside as `ambiguous`; nothing is written (task-0310).
+
 ### Contract changes
 - **The gate report names the corpus it decided on, and `--baseline` names what differs** (task-0307, decision-0037).
   The report gains `corpus`, the sha256 over the loaded document Versions' digests (one `<artefact>\t<version>\t<sha256>`
