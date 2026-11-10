@@ -12,6 +12,7 @@ names that section with the version.
 
 - `capture.py review` refuses a ruling whose captured-answer id reads as two issued givers (`…-ops-2`: `ops-2`'s first answer or `ops`'s second that day), as a load already sets it aside as `ambiguous`; nothing is written (task-0310).
 - The gate's "is not attested" finding names every `[verification]` declaration that omits the document's Version (`authored`, `approval`, `execution`, `review`) and cites decision-0036 beside decision-0019 when `execution` or `review` is among them; its route lists them all, so listing the digest as told brings the gate back (task-0318).
+- `check_subject`: an empty `versions` in `execution` or `review` is noted as verifying nothing, as a missing one is; an edited document is one error per artefact and declaration, naming the artefact and its new digest, not one per stale digest (task-0318).
 
 ### Contract changes
 - **An execution or review verification holds only for the document versions it was attested on** (task-0306,

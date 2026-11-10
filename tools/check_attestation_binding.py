@@ -117,7 +117,8 @@ def main(out: Path) -> int:
 
     print(f"== 3. {TABLE} edited after the attestation: its Version is unlisted")
     tf = inst / TABLE_FILE
-    tf.write_text(tf.read_text(encoding="utf-8") + "\nA note added after the attestation.\n", encoding="utf-8")
+    pristine_table = tf.read_text(encoding="utf-8")
+    tf.write_text(pristine_table + "\nA note added after the attestation.\n", encoding="utf-8")
     edited = gate(env)
     named = [f for f in edited["findings"] if f["kind"] == "attestation" and f["ref"] == TABLE]
     st = statuses(env, TABLE)
@@ -133,6 +134,7 @@ def main(out: Path) -> int:
     print(f"    {edited['verdict']}; {STATEMENT} {st.get(STATEMENT)}; finding: {named[0]['message'][:110] if named else None}")
 
     print("== 4. check_subject refuses a digest that is no Version of the subject")
+    tf.write_text(pristine_table, encoding="utf-8")   # task-0318: an edited document is named as changed; this measures a digest of nothing
     mf.write_text(bound.replace(f"versions = [{listed}]", f"versions = [{listed}, \"{'0' * 64}\"]", 1), encoding="utf-8")
     code, so, se = run(env, str(ROOT / "tools" / "check_subject.py"), str(subject), "--register", env["KG_REGISTER"], "--json")
     bad = [f for f in (json.loads(so).get("findings", []) if so.strip().startswith("{") else []) if f.get("rule") == "attestation"]

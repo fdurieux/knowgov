@@ -175,3 +175,41 @@ def test_a_comment_only_edit_to_a_review_verified_document_names_review():
         f.write_text(f.read_text(encoding="utf-8") + "\n# a comment\n", encoding="utf-8")
         found = [x for x in _attestation(_gate(inst)) if "openapi.yaml" in x["message"]]
     assert found and "review" in found[0]["message"] and "decision-0036" in found[0]["message"], found
+
+
+def _check(inst: Path) -> dict:
+    sys.path.insert(0, str(ROOT / "tools"))
+    import check_subject
+    root = inst / "subjects" / "cargo_quote"
+    return check_subject.check(root, run_yield=False)
+
+
+def _att(rep: dict) -> list[dict]:
+    return [f for f in rep["findings"] if f["rule"] == "attestation"]
+
+
+def test_an_empty_versions_list_in_execution_or_review_is_noted_as_verifying_nothing():
+    """task-0318 N-a: `versions = []` is noted as a missing list is (decision-0036), for execution and for review."""
+    with tempfile.TemporaryDirectory() as t:
+        inst = example_instance.build(Path(t) / "inst")
+        mf = inst / "subjects" / "cargo_quote" / "subject.toml"
+        text = mf.read_text(encoding="utf-8")
+        for name in ("execution", "review"):
+            text = re.sub(rf"({name}\s*=\s*\{{[^}}]*?)versions = \[[^\]]*\]", r"\1versions = []", text)
+        mf.write_text(text, encoding="utf-8")
+        rep = _check(inst)
+    notes = [f for f in rep["notes"] if f["rule"] == "attestation" and "decision-0036" in f["message"]]
+    assert {f["where"] for f in notes} >= {"[verification] execution", "[verification] review"}, notes
+
+
+def test_an_edited_document_is_one_error_per_artefact_and_declaration_naming_it_and_the_new_digest():
+    """task-0318 N-c: one error per artefact and declaration, not one per stale digest."""
+    import hashlib
+    with tempfile.TemporaryDirectory() as t:
+        inst = example_instance.build(Path(t) / "inst")
+        _edit(inst)
+        new = hashlib.sha256((inst / TABLE).read_bytes()).hexdigest()
+        errs = [f for f in _att(_check(inst)) if f["level"] == "error"]
+    assert len(errs) == 4 and len({f["where"] for f in errs}) == 4, [f["where"] for f in errs]
+    assert all("decision_table" in f["message"] and "changed since it was attested" in f["message"] and new in f["message"]
+               for f in errs), errs
