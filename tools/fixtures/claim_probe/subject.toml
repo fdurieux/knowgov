@@ -74,6 +74,18 @@ human = { id = "agent:maintainer", name = "maintainer (the probe's attester)" }
 [verification]
 derive_execution = { from_predicate = "verified_by", key_predicate = "statement", separator = "; " }
 execution_scope = "probe scenario {scenario}"
+# decision-0036 (task-0306): the probe kit's Versions its suite result was attested on; an execution verification holds for those only
+execution = { versions = [
+    "2139028f65d9eb0a1ae4bc4585d37604d0b399da3a8e8f767f245283f72834d4",
+    "b30f13e4e1a498f8576bfcd8f3c573c92cbdbb3848fad22bca782943e8644e10",
+    "b7c40938897fe9b2200416adff77e3a52df63f531ae8a35d165f7de71a9dea7e",
+    "c2df20cfe1db3e818f9b7df28edb2611b06252d13c14f6b65a4c8e7fa391c919",
+    "1ada5c5f5d1edf0dd58752a15235ab89b1958399c8a6323b4c5c99d12752e8f0",
+    "22ce301f3377012ae3a978cb34204c3b722453dd6b9a10dba8711fe779afd576",
+    "d4b7e2f1bc802a71525ba2dd13e66f0513f781910c989a4f68f599fa99df6dbd",
+    "40d711b7f69a34bf27e3b812e809a29eb85356707a1b46a0eef94cf6b7f62b11",
+    "ec3b55c5cc57d56c700e9381c1bc365bf6bae3d45726f8b89a35889789627474",
+] }
 authored = { at = "2026-11-08", scope = "the probe's intended statements, attested" }
 approval = { at = "2026-11-08", record = "tools/fixtures/claim_probe/subject.toml" }
 
