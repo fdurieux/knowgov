@@ -642,6 +642,21 @@ def trace_register(ex: dict, failures: list[str], label: str) -> None:
     ex["registered"] = r.returncode == 0
 
 
+def check_ledger_leg(entry: dict | None, want: dict | None, failures: list[str], label: str) -> None:
+    """task-0303: code_path's ledger leg carries the entry's statement ids and keys, sorted, its state as trace check
+    reads it, and on a reader holding the subject's scenario its suspect leg read from the store."""
+    if want is None or entry is None:
+        return
+    import trace
+    if (entry["assertions"] != sorted(want["assertions"]) or entry["keys"] != trace.entry_keys(want) or not entry["keys"]
+            or entry["state"] != "current" or entry["suspect"]["status"] != "read" or not isinstance(entry["suspect"]["suspect"], bool)):
+        failures.append(f"{label}: code_path's ledger leg is not the ledger's ids and keys, sorted, current and read for suspect "
+                        f"(task-0303): {json.dumps({k: entry.get(k) for k in ('keys', 'state', 'suspect')})[:600]}")
+        return
+    print(f"{label}: code_path's ledger leg: {len(entry['assertions'])} statement id(s), {len(entry['keys'])} key(s), "
+          f"{entry['state']}, suspect {entry['suspect']['suspect']} (task-0303)")
+
+
 def check_upward(client: "StdioClient", ex: dict | None, failures: list[str], label: str) -> None:
     """key_nodes and code_path (task-0143): every map key's rows as register_map.toml holds them; the example's
     code file to its application, its header and the ledger's entry trace.py register wrote; and the climb
@@ -665,6 +680,7 @@ def check_upward(client: "StdioClient", ex: dict | None, failures: list[str], la
         failures.append(f"{label}: code_path names {got['code_map']}, citation {got['citation']}")
     if want is None or entry is None or entry["id"] != want["id"] or entry["sha256"] != want["sha256"] or entry["drift"]:
         failures.append(f"{label}: code_path's ledger entry {entry} is not trace.py register's {want}")
+    check_ledger_leg(entry, want, failures, label)
     up = client.call("register_impact", {"node": ex["app"], "walk": "dependants", "children": True})
     caps = [x["id"] for x in up["reached"].get("CAP", [])]
     lineage = client.call("register_nodes", {"node": caps[0]})["lineage"] if caps else None
@@ -687,7 +703,9 @@ def check_upward(client: "StdioClient", ex: dict | None, failures: list[str], la
           f"-> {caps} -> {caps[0]} under {[a['id'] for a in lineage['ancestors']]}, in 3 calls")
 
 
-FILE_TOOLS = ("register_nodes", "key_nodes", "code_path", "document_links")   # doc-0020's hops: files only, no store
+# doc-0020's hops: files only, no store; code_path files, and the store for the ledger leg's suspect when it holds the
+# subject (task-0303, decision-0035 B1)
+FILE_TOOLS = ("register_nodes", "key_nodes", "code_path", "document_links")
 STORE_TOOLS = ("held_keys", "derived_outputs", "document_statements")   # doc-0020 C3: the store's reads (task-0144)
 ALLOWLIST = ROOT / "instance" / "ci" / "claude" / "managed-mcp-allowlist.json"
 

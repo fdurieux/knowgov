@@ -47,7 +47,8 @@ The question an agent asks is "may I build on this?". Sixteen tools answer it, a
     key_nodes             the register nodes a knowledge key concerns: its register_map.toml rows with their
                           nodes, owner, anchor and note; files only (task-0143)
     code_path             a code path's application from the instance's code_map.toml, the keys its header
-                          cites and its trace ledger entry, each leg read or unchecked; files only (task-0143)
+                          cites and its trace ledger entry, each leg read or unchecked; files, and the store
+                          for the ledger leg's suspect when it holds the subject (task-0143, task-0303)
     document_links        the register links whose evidence cites a document, with the nodes at both ends and
                           their owners, as the Browser's register-cites joins them; files only (task-0143)
     held_keys             every key the held scenario holds, with its count by status, its gate level and the
@@ -148,7 +149,9 @@ DEFAULT_HOST, DEFAULT_PORT = "127.0.0.1", 8765
 READS = frozenset({"key_evidence", "declared_gaps_for_key", "conflict_gaps", "stale_on_keys", "suspect_derived",
                    "extraction_activities", "extraction_times", "assertions_on_key", "census", "preload_verdicts",
                    "held_keys", "derived_outputs", "artefact_assertions", "held", "act_findings",
-                   "lint_gaps", "attestations", "version_digests"})   # task-0144; held, task-0195; acts, task-0199; lint gaps, task-0216; attestations, task-0221; corpus, task-0307
+                   "lint_gaps", "attestations", "version_digests", "assertion_brief"})
+# task-0144; held, task-0195; acts, task-0199; lint gaps, task-0216; attestations, task-0221; corpus, task-0307;
+# assertion_brief, task-0303 (code_path's ledger entry read as suspect by store.suspicion, trace check's rule)
 
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
 
@@ -160,7 +163,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
-                "(task, as gate_verdict's; codegen by default), those resting only on a descendant not followed flagged not_followed. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The prompts new_subject and add_artefact walk an assistant through scaffolding a subject on a branch; nothing is written through this server. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on, then derived_outputs key=... for what was built on a key. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. In the store: held_keys lists every key the held scenario holds with its level, including those no task class requires; document_statements names the statements a document yields and the outputs built on them; derived_outputs derived=... the statements behind one output. Intake, from a proposed initiative to the board a tracker holds: proposal_impact proposal=... on the overlay; its slices, one per journey step (per delivering process for a product no journey concerns), each overlay element in one slice or a named remainder, are the story map's backbone; each slice's keys are the task class's keys on its thread, and with a scenario held its keys.gate is gate_verdict keys=... on them; slices.task_keys names the class's keys on no slice (task-0252); all under one task class and one as_of. knowgov writes no work item and ranks nothing: no label, score or estimate; the tracker writes the items, each citing register ids. A check that a backlog covers the slices (K3) is parked to the pilot, not offered. code_path, key_nodes and document_links read files only; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it.  Every tool but list_subjects takes subject, the id of a subject under KG_SUBJECTS (list_subjects names them, never a path); none named is this server's own. A store-backed tool (its _meta io.knowgov/storeBacked true) answers only for the subject and scenario the store holds and otherwise names the start_run that would load it; a files-only tool answers for any subject. This server only reads.")
+                "(task, as gate_verdict's; codegen by default), those resting only on a descendant not followed flagged not_followed. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The prompts new_subject and add_artefact walk an assistant through scaffolding a subject on a branch; nothing is written through this server. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on, then derived_outputs key=... for what was built on a key. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. In the store: held_keys lists every key the held scenario holds with its level, including those no task class requires; document_statements names the statements a document yields and the outputs built on them; derived_outputs derived=... the statements behind one output. Intake, from a proposed initiative to the board a tracker holds: proposal_impact proposal=... on the overlay; its slices, one per journey step (per delivering process for a product no journey concerns), each overlay element in one slice or a named remainder, are the story map's backbone; each slice's keys are the task class's keys on its thread, and with a scenario held its keys.gate is gate_verdict keys=... on them; slices.task_keys names the class's keys on no slice (task-0252); all under one task class and one as_of. knowgov writes no work item and ranks nothing: no label, score or estimate; the tracker writes the items, each citing register ids. A check that a backlog covers the slices (K3) is parked to the pilot, not offered. key_nodes and document_links read files only, and code_path files, and the store for the ledger leg's suspect when it holds the subject; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it.  Every tool but list_subjects takes subject, the id of a subject under KG_SUBJECTS (list_subjects names them, never a path); none named is this server's own. A store-backed tool (its _meta io.knowgov/storeBacked true) answers only for the subject and scenario the store holds and otherwise names the start_run that would load it; a files-only tool answers for any subject. This server only reads.")
 
 import key_rule  # noqa: E402  (task-0296: the one entity|attribute rule)
 KEY_ITEM = {"type": "string", "pattern": key_rule.PATTERN, "description": key_rule.DESCRIPTION}   # gate_verdict, evidence_bundle
@@ -343,10 +346,13 @@ TOOLS.append(
 TOOLS.append(
     {"name": "code_path", "title": "Which application is this code file, which keys does it cite, and what built it?",
      "description": "For a code path relative to the root of the instance's code_map.toml (the server's KG_INSTANCE or "
-                    "--instance), read from files and never from the store: the application or module the map assigns "
+                    "--instance), read from files, and from the store for the ledger leg's suspect when it holds the "
+                    "subject: the application or module the map assigns "
                     "and that register node; the keys the file's header cites (knowgov-keys:), each flagged unknown when "
                     "the subject does not know it; and the trace ledger's entry for the path (the server's KG_LEDGER or "
-                    "--ledger: derived id, keys used, statements, commit, digest, and the file's digest now, with drift). "
+                    "--ledger: derived id, commit, digest, its statement ids and keys, sorted, the file's digest now, its "
+                    "state, current, drift or missing, as trace check reads it, and suspect, read by trace check's rule "
+                    "while the store holds this subject's scenario, else unchecked). The keys are key_nodes' input. "
                     "Each leg is read or unchecked with its reason (no instance or ledger configured, no code map, one "
                     "that does not hold, a missing or malformed ledger, a language the citation does not cover); "
                     "unchecked is never empty. A path outside the code map's root is refused. From the application, "
@@ -866,15 +872,27 @@ class Tools:
             raise ToolError(str(e)) from e
 
     def code_path(self, args: dict) -> dict:
-        """A code path's application, cited keys and ledger entry (``upward.code_path``, task-0143); files only."""
+        """A code path's application, cited keys and ledger entry (``upward.code_path``, task-0143); files, and the store
+        for the ledger leg's suspect when it holds the subject (task-0303)."""
         import upward
         with self._lock:
             if self.trace_cfg is None:
                 self.trace_cfg = upward.config()
         try:
-            return upward.code_path(args.get("path"), self.trace_cfg)
+            return upward.code_path(args.get("path"), self.trace_cfg, suspect=self._ledger_suspect)
         except upward.UpwardError as e:
             raise ToolError(str(e)) from e
+
+    def _ledger_suspect(self, entry: dict) -> dict:
+        """task-0303: code_path's ledger entry read as suspect or not on the held store, by trace check's rule, through
+        one read handle; when this server cannot read it (no store, another subject's scenario, a run loading), the leg
+        is unchecked with the reason and the call still answers from the files."""
+        import trace
+        import upward
+        try:   # _with_store turns a store it cannot open or read into a ToolError, as it does for every store-backed tool
+            return self._store_read({}, lambda st, sc: trace.ledger_suspicion(st, entry))
+        except ToolError as e:
+            return upward._unchecked(f"whether it is suspect is not read: {e}", suspect=None)
 
     def proposal_impact(self, args: dict) -> dict:
         """A proposal read as if approved (``proposal_impact.evaluate``, task-0130), and with a scenario
@@ -1075,6 +1093,28 @@ def nfc_keys(args):
     return out
 
 
+def sent_refusal(name: str, sent, schema: dict) -> str | None:
+    """Why a call's arguments are refused, the keys read as sent and in NFC (task-0301, task-0309 B3): the published
+    pattern holds of the value sent, so a key that fails the rule raw is refused even when its NFC would pass, and
+    one whose NFC fails it is refused too; the message names the value as sent."""
+    refused = argument_refusal(name, sent, schema)
+    if refused:
+        return refused
+    nfc = nfc_keys(sent)
+    return _renamed(argument_refusal(name, nfc, schema), nfc, sent)
+
+
+def _renamed(message: str | None, nfc, sent) -> str | None:
+    """``message``, which echoes the NFC keys, with each put back as sent."""
+    if message is None or not isinstance(nfc, dict):
+        return message
+    pairs = [(nfc.get("key"), sent.get("key"))] + list(zip(nfc.get("keys") or [], sent.get("keys") or []))
+    for new, old in pairs:
+        if isinstance(new, str) and isinstance(old, str) and new != old:
+            message = message.replace(repr(new), repr(old)).replace(new, old)
+    return message
+
+
 def argument_refusal(name: str, args, schema: dict) -> str | None:
     """Why a call's ``args`` are refused before dispatch (-32602), else None: not an object; an argument the
     tool does not list, its schema's ``additionalProperties: false`` (M5); or any other way they break the
@@ -1260,8 +1300,8 @@ class Server:
         tool = next((t for t in self.table if t["name"] == name), None)
         if tool is None:
             return _error(id_, -32602, f"unknown tool {name!r}")
-        args = nfc_keys(args)   # task-0301: a key in NFC before it is checked or read, whichever form the client sent
-        refused = argument_refusal(name, args, tool.get("inputSchema") or {})
+        refused = sent_refusal(name, args, tool.get("inputSchema") or {})
+        args = nfc_keys(args)   # task-0301: a key in NFC before it is read, whichever form the client sent
         if refused:
             return _error(id_, -32602, refused)
         if self.route is not None and "subject" in args:

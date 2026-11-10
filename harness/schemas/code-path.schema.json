@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/code-path.schema.json",
  "title": "knowgov code path report",
- "description": "What `python harness/upward.py code PATH` prints and the MCP tool code_path returns (task-0143, doc-0020 C2): for a path relative to the root of the instance's code_map.toml, three legs, each read or unchecked with its reason: code_map (the application or module the map assigns and that register node), citation (the keys the file's header cites, those the subject does not know under unknown) and ledger (the trace ledger's entry for the path, with the file's digest now). Unchecked is never empty: app, keys and entry are null then; under read, an empty keys list cites nothing and a null entry is a path the ledger does not hold. Read from files; no store. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "description": "What `python harness/upward.py code PATH` prints and the MCP tool code_path returns (task-0143, doc-0020 C2): for a path relative to the root of the instance's code_map.toml, three legs, each read or unchecked with its reason: code_map (the application or module the map assigns and that register node), citation (the keys the file's header cites, those the subject does not know under unknown) and ledger (the trace ledger's entry for the path: its statement ids and keys, sorted, the file's digest now, its state, current, drift or missing, and whether it is suspect; task-0303). Unchecked is never empty: app, keys and entry are null then; under read, an empty keys list cites nothing and a null entry is a path the ledger does not hold. Read from files; only the entry's suspect is read from a store, by the MCP reader while the store holds this subject's scenario, and is unchecked otherwise, with its reason. Version 1; a change is additive or a new version. Exit 2 prints no report.",
  "type": "object",
  "additionalProperties": false,
  "required": [
@@ -228,7 +228,10 @@
       "assertions",
       "current_sha256",
       "drift",
-      "file_present"
+      "file_present",
+      "keys",
+      "state",
+      "suspect"
      ],
      "properties": {
       "id": {
@@ -281,6 +284,50 @@
       },
       "file_present": {
        "type": "boolean"
+      },
+      "state": {
+       "enum": [
+        "current",
+        "drift",
+        "missing"
+       ]
+      },
+      "suspect": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "status",
+        "suspect"
+       ],
+       "properties": {
+        "status": {
+         "enum": [
+          "read",
+          "unchecked"
+         ]
+        },
+        "reason": {
+         "type": "string"
+        },
+        "suspect": {
+         "type": [
+          "boolean",
+          "null"
+         ]
+        },
+        "used_invalidated": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        },
+        "used_changed": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        }
+       }
       }
      }
     }

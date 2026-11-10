@@ -220,18 +220,35 @@ def _giver(aid: str) -> str | None:
     return m["giver"] if m else None
 
 
-def _holding(rows: list[dict], aid: str, value, digest) -> list[dict]:
+def _ambiguous_giver(aid: str, handles: dict | None) -> bool:
+    """Whether the id's stem reads as two givers (task-0308): the whole tail is a handle, and the tail without a
+    trailing ``-<n>`` (capture.py's second-file-the-day suffix) is an issued handle too, so ``…-ops-2`` is ``ops-2``'s
+    first file or ``ops``'s second. With no issued list the second reading cannot be told and is not assumed."""
+    g = _giver(aid)
+    m = re.fullmatch(r"(.+)-[0-9]+", g) if g else None
+    return bool(m and handles and g in handles and m[1] in handles)
+
+
+def _holding(rows: list[dict], aid: str, value, digest, handles: dict | None = None) -> list[dict]:
     """The rows holding the ruling's value and digest that may stand in for ``aid``: any such statement, but for a
     captured answer only the same giver's (``_same_giver``, task-0302)."""
     return [r for r in rows if str(r["value"]) == str(value) and content_digest(r.get("fragments") or []) == str(digest)
-            and (r["id"] == aid or _same_giver(aid, r))]
+            and not _ambiguous_giver(aid, handles) and (r["id"] == aid or _same_giver(aid, r))]
+
+
+def _stem_holders(rows: list[dict], aid: str, value, digest, handles: dict | None) -> bool:
+    """Whether the id's stem reads as two givers and some statement holds the ruling's content (task-0308)."""
+    return _ambiguous_giver(aid, handles) and any(
+        str(r["value"]) == str(value) and content_digest(r.get("fragments") or []) == str(digest) for r in rows)
 
 
 def _same_giver(aid: str, row: dict) -> bool:
     """Whether ``row`` may stand in for the ruled statement ``aid`` (task-0302, decision-0032 C2-1). A captured answer
     has no fragments, so its digest is the empty text's and any person's identical answer would carry it: a captured
     answer is repaired only by an answer the same person gave (its id's giver, read whole, the candidate's agent).
-    A file that a second capture the same day renamed (``-2``) names no giver whole, so nothing stands in for it.
+    A stem that reads as two givers (``…-ops-2``: ``ops-2``'s first file or ``ops``'s second, both issued) names no
+    giver (``_ambiguous_giver``, task-0308): not even the same id binds, since either person's file may carry it, and
+    ``bind`` reports it ``ambiguous`` when a statement holds the content.
     Every other statement repairs by its content, as before."""
     if aid.startswith("A:cap:") or str(row["id"]).startswith("A:cap:"):
         giver = _giver(aid)
@@ -239,21 +256,23 @@ def _same_giver(aid: str, row: dict) -> bool:
     return True
 
 
-def bind(st, ru: dict) -> tuple[dict | None, dict]:
+def bind(st, ru: dict, handles: dict | None = None) -> tuple[dict | None, dict]:
     """(the statement a ruling lands on, or None; how it bound). ``how["why"]``: ``content`` (the statement it
     names, holding its value and digest), ``repaired`` (another statement holding them: a reordered table, a
     renumbered answer), ``unbound`` (a file from before 0.9.0, bound by id), else it lands nowhere: ``changed``
     (the statement it names, or its successor, holds another value or digest), ``gone`` (nothing of its key and
     stem is extracted), ``ambiguous`` (several statements hold its content, none the one it names). ``how["to"]``
     names what the store holds instead: its key's statements of the same stem, each with value and digest."""
-    aid = str(ru.get("assertion", ""))
     import key_rule   # task-0301: a ruling's key in NFC, as the store holds it
+    aid = key_rule.normalise(str(ru.get("assertion", "")))   # its ids embed the key, in NFC too (task-0309 B2)
     key, value, digest = key_rule.normalise(ru.get("key")), ru.get("value"), ru.get("sha256")
     if key is None or value is None or digest is None:   # the read rule: a review file written before 0.9.0
         b = statement(st, aid)
         return b, {"why": "unbound" if b else "gone", "to": []}
     rows = st.key_evidence(str(key), list(CURRENT))
-    same = _holding(rows, aid, value, digest)
+    same = _holding(rows, aid, value, digest, handles)
+    if not same and _stem_holders(rows, aid, value, digest, handles):
+        return None, {"why": "ambiguous", "to": []}   # holders exist; the stem names two givers, so none is chosen
     pick = next((r for r in same if r["id"] == aid), None) or (same[0] if len(same) == 1 else None)
     if pick is not None:
         return statement(st, pick["id"]), {"why": "content" if pick["id"] == aid else "repaired", "to": []}
@@ -325,7 +344,7 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
         where = f"ruling {i} ({aid})"
         if outcome not in OUTCOMES:
             errs.append(f"{where}: outcome {outcome!r} is not one of {', '.join(OUTCOMES)}")
-        b, how = bind(st, ru)
+        b, how = bind(st, ru, handles)
         if b is not None and strict and how["why"] == "repaired":
             b, how = None, {**how, "why": "changed"}   # the day it is written, a ruling names the statement it rules on
         if b is None:
