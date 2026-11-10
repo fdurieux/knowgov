@@ -296,6 +296,7 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
     for mark in marks:   # a bound declaration only: the read rule's is the manifest's own (gate.attestation_behind), so its store is as before
         if mark["bound"]:
             st.record_attestation(mark)
+    record_bound_attestations(st, docs, review)
     if withdrawn:
         from rules import r_corroborate, r_unverified
         r_corroborate(st)
@@ -305,6 +306,14 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
     import cadence
     cadence.date_reviews(st)
     return counts
+
+
+def record_bound_attestations(st, docs: dict[str, str], review: dict | None) -> None:
+    """task-0318: ``execution`` and ``review`` are bound as ``authored`` and ``approval`` are (decision-0036), so the gate
+    names them beside those when they omit a Version; recorded whenever bound, so stage 2 replaces what stage 1 read."""
+    for name, d in (("execution", VER.get("execution")), ("review", review)):
+        if isinstance(d, dict) and d.get("versions") is not None:
+            st.record_attestation(attested_artefacts(docs, d, name)[1])
 
 
 def _day(v) -> str | None:
