@@ -109,6 +109,10 @@ def build(task: str, spec) -> dict:
         p = found[0]
         raise TaskPolicyError(task, p["field"] or "table", p["message"] + (f" ({len(found) - 1} more)" if len(found) > 1 else ""))
     import key_rule   # task-0301: a class's keys in NFC, as the store holds them
+    for k in spec.get("keys", []):   # task-0316 N8: a malformed key reads absent at the gate, so it is refused here
+        why = key_rule.refusal(k)
+        if why:
+            raise TaskPolicyError(task, "keys", why)
     return {"keys": key_rule.normalise_all(list(spec.get("keys", []))),
             "block_levels": set(spec.get("block_levels", DEFAULT_BLOCK_LEVELS)),
             "max_unverified_share": float(spec.get("max_unverified_share", DEFAULT_SHARE)),   # an int 0 or 1 is that share

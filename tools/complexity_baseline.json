@@ -583,8 +583,8 @@
    "floor": 37
   },
   "tools/check_subject.py::check_manifest": {
-   "value": 69,
-   "floor": 69
+   "value": 68,
+   "floor": 68
   },
   "tools/check_subject.py::check_map": {
    "value": 35,

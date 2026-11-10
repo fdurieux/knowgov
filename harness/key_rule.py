@@ -59,3 +59,13 @@ def normalise_all(keys):
 def is_key(value) -> bool:
     """Whether ``value``, once normalised, is a key by the one rule."""
     return isinstance(value, str) and KEY_RE.fullmatch(normalise(value)) is not None
+
+
+def refusal(value) -> str | None:
+    """Why ``value`` is not a key, else None (task-0316, N8): the rule holds of the value as written and of its NFC,
+    so a key whose raw form fails is refused even when its NFC would pass (an astral compatibility character that
+    composes into the BMP), and one whose NFC fails is refused too. The message names the value as written."""
+    if isinstance(value, str) and KEY_RE.fullmatch(value) and KEY_RE.fullmatch(normalise(value)):
+        return None
+    return (f"{value!r} is not a key: a key is <entity>|<predicate>, one '|', no space and no control or format "
+            "character, none above U+FFFF, as written and in NFC (key_rule)")
