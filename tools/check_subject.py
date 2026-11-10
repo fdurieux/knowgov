@@ -177,11 +177,11 @@ def _key(rep: Report, where: str, key) -> bool:
     return False
 
 
-def _task_keys(rep: Report, where: str, keys) -> None:
+def _task_keys(rep: Report, where: str, keys, empty: bool = False) -> None:
     """Each key of a task class by the one rule; a key listed twice, equal after NFC, warned (task-0309 B4)."""
     once: set[str] = set()
     for k in keys if isinstance(keys, list) else []:
-        if isinstance(k, str) and k:
+        if isinstance(k, str) and (k or empty):   # a task class's empty key is the policy's 'required'
             _key(rep, where, k)
             if key_rule.normalise(k) in once:
                 rep.warning("duplicate", where, f"key {k!r} is listed twice (equal after NFC); the gate merges them", "list each key once")
@@ -259,13 +259,7 @@ def check_manifest(rep: Report, m: dict, root: Path, mappers: set[str]) -> None:
         keys = t.get("keys")
         _task_keys(rep, f"{where} keys", keys)
     tv = m.get("three_valued", {})
-    seen: set[str] = set()
-    for k in tv.get("keys", []) if isinstance(tv, dict) else []:
-        _key(rep, "[three_valued] keys", k)
-        if isinstance(k, str):
-            if key_rule.normalise(k) in seen:
-                rep.warning("duplicate", "[three_valued] keys", f"key {k!r} is listed twice (equal after NFC)", "list each key once")
-            seen.add(key_rule.normalise(k))
+    _task_keys(rep, "[three_valued] keys", tv.get("keys") if isinstance(tv, dict) else None, empty=True)
 
     check_attestations(rep, m, root)
     check_bindings(rep, m, root)
