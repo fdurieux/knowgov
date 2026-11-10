@@ -4,9 +4,10 @@ title: >-
   check_subject's attestation check reads a directory artefact's Version as the
   load does, and runs whenever a bound declaration exists (task-0318 re-check
   D1, D2, E1, E2)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-10T05:31:00Z'
+updated_date: '2026-11-10T06:27:00Z'
 labels:
   - integrity
   - attestation
@@ -31,9 +32,27 @@ Fix: compute a directory artefact's Version with the load's own part selection (
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 D1: one edit in contracts/ names contracts/ alone, with the changed file; contracts/dmn/ and features/ are not named; removing a file names it; a test on the J-F kit or a fixture
-- [ ] #2 D2: a file added within the include is an error naming the artefact and the added file, as the load unbinds it; a file outside the include changes nothing; a test
-- [ ] #3 E1: the fix text says replace the old digest; a stale digest names the artefact it belonged to; a test
-- [ ] #4 E2: authored or approval with versions = [] gets a note naming decision-0019; a test
-- [ ] #5 Both public subjects and the claim probe pass check_subject as before; the record holds
+- [x] #1 D1: one edit in contracts/ names contracts/ alone, with the changed file; contracts/dmn/ and features/ are not named; removing a file names it; a test on the J-F kit or a fixture
+- [x] #2 D2: a file added within the include is an error naming the artefact and the added file, as the load unbinds it; a file outside the include changes nothing; a test
+- [x] #3 E1: the fix text says replace the old digest; a stale digest names the artefact it belonged to; a test
+- [x] #4 E2: authored or approval with versions = [] gets a note naming decision-0019; a test
+- [x] #5 Both public subjects and the claim probe pass check_subject as before; the record holds
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Take a directory artefact's Version files with the load's own selection (include, as bundle_files does), run the per-artefact comparison whenever a bound declaration exists, name the changed or added file, reword the re-attest fix text, note an empty authored or approval list.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Built by session_01HTAA1TUZJJurEvXx8fT7n5 (#466, merged as 0781e81 on a whole green matrix with stack); recorded by the coordinator, the builder having no backlog CLI. Limits stated by the builder: a removed file cannot be named (a directory Version keeps digests only), so it reads 'matches no current Version'; a stale digest's error cannot name its artefact; nested artefacts are separated by include only, as the load's bundle_files does (J-F's includes keep dmn/ out of contracts/). Re-check sent to reviewer A.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+check_subject and the load now agree on a directory artefact's Version: its files are those the load selects (include applied), the per-artefact comparison runs whenever a bound declaration exists, and an edit or an added file is one error naming the artefact and the file. A re-attestation that keeps the old digest is told to replace it; an empty authored or approval list is noted under decision-0019. Tests in tests/test_directory_versions.py (D1, D2, E1, E2 failing on 67c3d8c; the pristine and public-subject guards passing on both). The contract does not move; the record holds.
+<!-- SECTION:FINAL_SUMMARY:END -->
