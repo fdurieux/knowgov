@@ -441,10 +441,6 @@
    "value": 31,
    "floor": 31
   },
-  "instance/ci/claude/attestation_paths.py::check": {
-   "value": 22,
-   "floor": 22
-  },
   "instance/ci/claude/knowgov_hook.py::_stages_spec": {
    "value": 33,
    "floor": 33

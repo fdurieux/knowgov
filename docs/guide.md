@@ -693,6 +693,8 @@ that listing means something only if the reference implementation and the suite 
 Version where its values differ, and the suite run on it: if they differ and are unchanged, listing the digest only asserts the old result for the new values (no
 oracle runs at load; `check_subject` notes it when it sees the edit as a listed digest matching no current Version,
 and a digest replaced outright leaves no trace, so that case gets no note). A declaration that lists none verifies nothing.
+The suite's digests are its script's and, when the subject names them in `[oracle] suite`, those of the files the script
+reads its expectations from (decision-0039). Without that field, a change to the expectations alone moves no digest.
 
 ```bash
 python harness/gate_cli.py --scenario S1 --as-of 2027-08-07 --baseline record

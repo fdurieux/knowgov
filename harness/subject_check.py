@@ -14,7 +14,7 @@ runs in a child process, as ``check_subject`` runs it (the harness binds its sub
 server's own subject is never touched. Nothing is written to the store, the register or the instance.
 
 Every path the proposed manifest names is confined too (task-0146 H7, doc-0030): an ``[[artefact]]
-path`` or ``include``, ``[reference] code``, ``[oracle] script``, ``[verification] map``, ``[register]
+path`` or ``include``, ``[reference] code``, ``[oracle] script`` and ``suite``, ``[verification] map``, ``[register]
 map``, ``[record] dir``, ``[capture] dir`` and any other path field (``PATH_KEYS``), at any depth, is
 refused when it is absolute or resolves outside ``<tmp>/instance``, before anything is written and
 before the yield child runs, so the report never says whether a server file exists nor quotes it. Paths
@@ -107,14 +107,21 @@ def _norm(rel: PurePosixPath, name: str) -> tuple[str, ...]:
     return tuple(parts)
 
 
+def _path_field(k, at: str) -> bool:
+    """A path field: one of ``PATH_KEYS``, or ``[oracle] suite`` (task-0338), whose list is files where
+    ``[verification] execution``'s ``suite`` holds digests."""
+    return k in PATH_KEYS or at == "oracle.suite"
+
+
 def _manifest_paths(m, where: str = ""):
     """(where, value) for every path field of a parsed manifest, at any depth."""
     if isinstance(m, dict):
         for k, v in m.items():
             at = f"{where}.{k}" if where else str(k)
-            if k in PATH_KEYS and isinstance(v, str):
+            path_key = _path_field(k, at)
+            if path_key and isinstance(v, str):
                 yield at, v
-            elif k in PATH_KEYS and isinstance(v, list) and all(isinstance(x, str) for x in v):
+            elif path_key and isinstance(v, list) and all(isinstance(x, str) for x in v):
                 yield from ((f"{at}[{i}]", x) for i, x in enumerate(v))
             else:
                 yield from _manifest_paths(v, at)

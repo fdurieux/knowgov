@@ -170,7 +170,7 @@ STEP = {"authored": "the author reads the document and lists sha256 {sha} under 
                   "review versions (for a single document's re-review, `capture.py review` gives it its own date: one `at` re-dates every listed Version)",
         "execution": "the reference implementation and the suite are brought in line with this Version where its values differ, the "
                      "suite is run on it, then sha256 {sha} is listed under [verification] execution versions with the implementation "
-                     "and suite digests (where the values differ and they are unchanged, listing only asserts the old result for the "
+                     "and suite digests ([oracle] script's and each file [oracle] suite lists) (where the values differ and they are unchanged, listing only asserts the old result for the "
                      "new values: no oracle runs at load, decision-0038)"}
 
 
@@ -245,13 +245,25 @@ def attestation_findings(rows: list[dict], owners: dict | None, route, below: se
     return out
 
 
+def _code_listed(u: dict, files: list[dict]) -> str:
+    """What ``[verification] execution`` lists of a code row (task-0320): none, or the digests it does not list, each
+    ``[oracle] suite`` file by its path and digest (task-0338)."""
+    if u.get("missing"):
+        return f"lists no {u['code']} digests" + (f", none for {', '.join(x['path'] for x in files)}" if files else "")
+    by_path = {x["sha256"] for x in files}
+    unlisted = [d[:12] for d in u["parts"] if d not in by_path] + [
+        f"{x['path']} ({x['sha256'][:12]})" if x["sha256"] else f"{x['path']} (no file there)" for x in files]
+    return f"does not list {', '.join(unlisted)}" if unlisted else "lists it, and it holds no file"
+
+
 def code_finding(u: dict, r: dict, owners: dict | None, route) -> dict:
     """task-0320 (decision-0038 N-b): the reference implementation or the suite an execution verification ran on is not
     the one ``[verification] execution`` lists, so the load verified nothing by execution. Major when it is behind the
     task's keys, info when none of them rests on it; the route is the attester's listing."""
-    what = {"implementation": "the reference implementation ([reference] code)", "suite": "the suite that judged it ([oracle] script)"}[u["code"]]
-    listed = (f"lists no {u['code']} digests" if u.get("missing") else
-              f"does not list {', '.join(d[:12] for d in u['parts'])}" if u["parts"] else "lists it, and it holds no file")
+    files = u.get("files") or []   # task-0338 (decision-0039 §3.5): the [oracle] suite files it misses, by path
+    what = {"implementation": "the reference implementation ([reference] code)",
+            "suite": "the suite that judged it ([oracle] script" + (" and suite" if files else "") + ")"}[u["code"]]
+    listed = _code_listed(u, files)
     f = _finding("major" if u["keys"] else "info", "attestation",
                  f"{u['artefact']}, {what}, is not the one the execution verification attests: [verification] execution {listed}, "
                  f"so nothing is verified by execution, behind {len(u['keys'])} required key(s) (decision-0038)",
@@ -260,7 +272,8 @@ def code_finding(u: dict, r: dict, owners: dict | None, route) -> dict:
         units = {(owners.get(k) or {}).get("unit") for k in u["keys"]}
         unit = units.pop() if len(units) == 1 else None
         f["owner"] = unit
-        f["route"] = (f"{r['attester'] or 'the attester'} runs the suite on it and lists each file's sha256 under [verification] "
+        each = "each file's sha256" + (" ([oracle] script and each file [oracle] suite lists)" if u["code"] == "suite" else "")
+        f["route"] = (f"{r['attester'] or 'the attester'} runs the suite on it and lists {each} under [verification] "
                       f"execution {u['code']} in subject.toml (decision-0038), or restores it")
     return f
 

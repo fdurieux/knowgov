@@ -857,8 +857,22 @@ files for a folder) under `implementation`, and of the suite (`[oracle] script`)
 execution = { versions = ["3f2a...", "9c41..."], implementation = ["5b0e..."], suite = ["77d1..."] }
 ```
 
-Change a helper or weaken a test, and nothing is verified by execution until the suite has run again
-and the new digest is listed. The gate names the changed file at `major`, and the layout check names
+If your suite's script reads its expectations from other files, name them in `[oracle] suite`
+(decision-0039). Each file's digest then belongs in `suite` beside the script's. A folder counts
+as all of its files. Without the field, `suite` binds the script alone, and a change to the
+expectations moves no digest:
+
+```toml
+[oracle]
+script = "tests/run_suite.py"
+suite = ["tests/expectations.py"]
+
+[verification]
+execution = { versions = ["3f2a..."], implementation = ["5b0e..."], suite = ["77d1...", "a4c8..."] }
+```
+
+Change a helper, weaken a test or edit an expectation `[oracle] suite` lists, and nothing is verified
+by execution until the suite has run again and the new digest is listed. The gate names the changed file at `major`, and the layout check names
 it as an error. A subject that declares the code but lists no digests verifies nothing by execution;
 the layout check warns and prints the list to add.
 
@@ -1740,6 +1754,8 @@ Write, MultiEdit or NotebookEdit on any of these. In plain English: the assistan
 or a task class to `subject.toml`, and may remove the attestation tables outright (that attests
 nothing), but the moment a write would add or change `[verification]`, `[provenance]` or `[capture]`, or touch one
 of the files above, Claude Code stops it and tells the assistant to leave it to the person of record.
+The same holds for `[oracle] suite` while `[verification]` stays: removing it would unbind the suite's
+expectations from the digests `execution` lists.
 It compares the two tables as parsed TOML before and after the write, so moving a comment or adding
 an artefact is not mistaken for an attestation.
 
