@@ -174,6 +174,27 @@ def checked_as_itself(env: dict, out: Path, wrapper: str, name: str) -> None:
     print(f"    {wrapper}: trace-check reads the changed path {name!r} as itself (exit {code})")
 
 
+def execution_named_then_reverted(inst: Path, root: Path, base: str) -> None:
+    """task-0320 (decision-0038 N-b): the merge request's edit to the reference implementation leaves the execution
+    verification unattested, and the layout check through the instance names it, an error citing decision-0038. The
+    edit is then reverted in a commit of its own, so the pre-load steps after it test the layout they were written for."""
+    rel = (root / "reference_impl.py").relative_to(inst).as_posix()
+    p = subprocess.run([sys.executable, str(ROOT / "tools" / "check_instance.py"), str(inst)], capture_output=True, text=True,
+                       env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
+    named = [ln for ln in (p.stdout + p.stderr).splitlines() if "[verification] execution" in ln and "reference_impl.py" in ln]
+    if p.returncode != 1 or len(named) != 1 or "decision-0038" not in named[0]:
+        sys.exit(f"FAIL: the edited reference implementation should be one layout error under [verification] execution "
+                 f"citing decision-0038: exit {p.returncode}\n{(p.stdout + p.stderr)[-1500:]}")
+    print(f"    layout: {named[0].strip()[:160]}")
+    (inst / rel).write_bytes(subprocess.run(["git", "-C", str(inst), "show", f"{base}:{rel}"], capture_output=True, check=True).stdout)
+    git(inst, "-c", "user.name=ci", "-c", "user.email=ci@example.invalid", "commit", "-qam", "revert the edit")
+    p = subprocess.run([sys.executable, str(ROOT / "tools" / "check_instance.py"), str(inst)], capture_output=True, text=True,
+                       env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
+    if "[verification] execution" in p.stdout + p.stderr:
+        sys.exit(f"FAIL: reverted, the execution should be attested again: {(p.stdout + p.stderr)[-800:]}")
+    print("    layout: reverted, the execution attested again")
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -248,6 +269,7 @@ def main() -> None:
     if e.get("as_of") != LAPSE_DAY:
         sys.exit(f"FAIL: trace-register with KG_AS_OF={LAPSE_DAY}: the ledger entry records {e.get('as_of')}")
     print(f"    trace-register KG_AS_OF={LAPSE_DAY}: the ledger entry as of {e['as_of']}")
+    execution_named_then_reverted(inst, root, base)   # task-0320, decision-0038 N-b
 
     # task-0106: the pre-load gate writes its report too, so a broken document reaches the code-quality widget
     # task-0115: a document no subject names, committed before the diff base, is a layout problem the report carries
