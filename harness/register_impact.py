@@ -23,6 +23,10 @@ report ``gate_verdict --task`` makes for that key set, so a key reads here as ``
 The keys are the reach: every mapped key a change to the node touches, whatever a class requires; the
 class sets how they are read, not which are listed, so this is not a class's readiness. That is
 ``proposal_impact``'s slices, which keep to the class's ``[tasks.<class>]`` keys (task-0252).
+The walk is one of the register's named three (``impact.WALKS``): ``dependants``, what rests on the node (its decision
+0010, the default); ``realisers``, what implements a capability (0012); ``thread``, what a journey step uses, down to
+the data (0018; task-0336, decision-0039 §3.3): the step to its process, the process to the capability it realises,
+the applications that support it and the information it reads or writes, an application to what it manages.
 Only the store port's reads are used; nothing is written. Standard library only.
 """
 from __future__ import annotations
@@ -39,7 +43,7 @@ import tomllib
 from pathlib import Path
 
 NODE_ID = re.compile(r"^[A-Z]+-\d{4,}$")
-WALKS = ("dependants", "realisers")
+WALKS = ("dependants", "realisers", "thread")   # the register's named walks: its decisions 0010, 0012 and 0018 (task-0336)
 from gate_cli import OWNED  # noqa: E402  the finding kinds that concern one key: gate_cli's own, one definition (task-0260)
 
 _tools: dict[str, dict] = {}
