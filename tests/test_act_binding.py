@@ -454,8 +454,13 @@ def test_a_settled_opposed_act_no_longer_carries_the_owners_rule_again_route_tas
     settled = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": [*a["reasons"], "settled by c.toml"]}}
     assert "rule again in one review" in gate_cli._act_route(opened, "questionnaire route")
     assert gate_cli._act_route(settled, "questionnaire route") == "nothing to do: settled by c.toml"
-    legacy = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": ["settled by c.toml"]}}
-    assert gate_cli._act_route(legacy, "questionnaire route") == "questionnaire route"   # task-0322's legacy act is not an opposed one
+    for r in ("settled by c.toml", "superseded for the key by c.toml; the answer it named stays unruled"):   # task-0322's acts
+        legacy = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": [r]}}
+        assert gate_cli._act_route(legacy, "questionnaire route") == f"nothing to do: {r}", r
+    unsettled = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": []}}
+    ruled = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": ["the key was ruled by c.toml (rejected); the answer it named stays unruled"]}}
+    for f in (unsettled, ruled, {"kind": "act", "act": {"why": "changed", "act": "ruling", "reasons": ["settled by c.toml"]}}):
+        assert gate_cli._act_route(f, "questionnaire route") == "questionnaire route", f   # still open, or not an ambiguous act
 
 
 def test_capture_review_warns_before_it_writes_a_ruling_that_opposes_the_days_task_0331():

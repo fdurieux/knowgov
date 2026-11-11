@@ -272,14 +272,22 @@ def _opposed_act(a: dict) -> bool:
 
 
 def _act_route(f: dict, route):
-    """An opposed act's route (task-0331, task-0333 R6): open, a new review on a later day, not the questionnaire; settled
-    (a second reason), ``nothing to do: <the settling reason>``. Any other act keeps ``route``."""
-    if f["kind"] != "act" or not _opposed_act(f["act"]):
+    """The route of an act whose ruling was set aside as ambiguous or opposed (task-0331, task-0333 R6): settled at info
+    (an opposed act's second reason, a task-0322 act's ``settled by`` / ``superseded for the key by``) it is
+    ``nothing to do: <the settling reason>``; an open opposed act, a new review on a later day, not the questionnaire.
+    Any other act keeps ``route``."""
+    if f["kind"] != "act":
         return route
-    reasons = f["act"]["reasons"]
-    if len(reasons) > 1:
-        return f"nothing to do: {reasons[-1]}"
-    return "the owners rule again in one review, on a later day (python harness/capture.py review <file>)"
+    a = f["act"]
+    reasons = a["reasons"]
+    if a["why"] == "ambiguous" and a["act"] == "ruling" and reasons:
+        import review
+        if review.is_opposed(reasons):
+            return (f"nothing to do: {reasons[-1]}" if len(reasons) > 1 else
+                    "the owners rule again in one review, on a later day (python harness/capture.py review <file>)")
+        if reasons[0].startswith(review.INFO_REASONS):
+            return f"nothing to do: {reasons[0]}"
+    return route
 
 
 def _opposed_severity(a: dict, msg: str) -> tuple[str, str]:

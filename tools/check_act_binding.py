@@ -206,6 +206,10 @@ def same_day_cases(out: Path) -> list[str]:
     second_review = sorted((capdir / "reviews").glob("*-employee-2-2.toml"))
     after = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
     held = {k: v for k, v in approvals(env, "S2", hold).items() if v}
+    if after and not after[0].get("route", "").startswith("nothing to do: settled by "):   # task-0333: a settled act has nothing to do
+        errs.append(f"task-0333: a settled legacy act should route to nothing to do: {after[0].get('route')!r}")
+    if before and "nothing to do" in before[0].get("route", ""):
+        errs.append(f"task-0333: an unsettled legacy act routed to nothing to do: {before[0].get('route')!r}")
     if not second_review or len(before) != 1 or before[0]["severity"] != "major" or len(after) != 1 or after[0]["severity"] != "info" or not held:
         errs.append(f"task-0322: a same-day re-ruling should settle the legacy act at info: before {before}, after {after}, approved {held}")
     print(f"    approved on {sorted(held) or 'nothing'}; {after[0]['severity'] + ': ' + after[0]['message'][-90:] if after else 'no act'}")
@@ -286,7 +290,8 @@ def stem_cases(out: Path) -> list[str]:
                       "outcome": "approved", "giver": "ops-2"}]}), encoding="utf-8")
     settled = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
     held = {k: v for k, v in approvals(env, "S2", hold).items() if v}
-    if len(settled) != 1 or settled[0]["severity"] != "info" or "2026-11-06-employee-3" not in settled[0]["message"] or not held:
+    if len(settled) != 1 or settled[0]["severity"] != "info" or "2026-11-06-employee-3" not in settled[0]["message"] or not held \
+            or not settled[0].get("route", "").startswith("nothing to do: settled by "):
         errs.append(f"task-0321: the ambiguous act should read info naming the review that settled it, the key approved: {settled}, approved {held}")
     print(f"    settled by a later review: approved on {sorted(held) or 'nothing'}; "
           f"{settled[0]['severity'] + ': ' + settled[0]['message'][-80:] if settled else 'no ambiguous act'}")
