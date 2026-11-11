@@ -233,7 +233,8 @@ def test_n2_the_inputs_survive_export_and_import_and_are_a_read_of_the_port():
     assert "inputs" in store.READS and "inputs" in mcp_server.READS
     a = rdf.RdflibStore(path="")
     a.ensure_agents("harness", "v1", {"id": "agent:m", "name": "m"}, {"id": "agent:l", "name": "l"})
-    assert a.inputs() == {"attestations": None, "captures": None}, "a store loaded before task-0320: unknown"
+    assert a.inputs() == {"attestations": None, "captures": None, "configuration": None}, \
+        "a store loaded before task-0320: unknown (configuration: task-0335)"
     a.record_inputs({"attestations": "1" * 64, "captures": "2" * 64})
     a.record_inputs({"reviews": "3" * 64})
     got = a.inputs()
