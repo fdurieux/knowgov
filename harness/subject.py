@@ -70,6 +70,9 @@ def bundle_files(root: Path, include: list[str] | None = None) -> list[tuple[str
     return out
 
 
+REFERENCE_INCLUDE = ["*.py", "**/*.py"]   # the files of a reference implementation directory the load bundles and digests
+
+
 def bundle(root: Path, include: list[str] | None = None) -> str:
     """Every file ``bundle_files`` names, in path order, each prefixed by its marker line and ended
     by a newline (added when the file lacks one, so a part's text is not always its file's bytes)."""
@@ -233,7 +236,19 @@ class Subject:
         if not rel:
             return ""
         p = self.path(rel)
-        return bundle(p, ["*.py", "**/*.py"]) if p.is_dir() else p.read_text(encoding="utf-8")
+        return bundle(p, REFERENCE_INCLUDE) if p.is_dir() else p.read_text(encoding="utf-8")
+
+    def code_parts(self, which: str) -> tuple[str | None, dict[str, str]]:
+        """(the path, each file's raw-byte SHA-256 by relative path) of what an execution verification ran (task-0320,
+        decision-0038 N-b): ``implementation``, ``[reference] code``, the files ``reference_code`` bundles; ``suite``,
+        ``[oracle] script``, the suite that judged it. Each digested as a directory artefact is (``bundle_files``, the
+        load's own part selection; a file one entry named ''). (None, {}) when the subject declares none."""
+        rel = (self.reference if which == "implementation" else self.oracle).get("code" if which == "implementation" else "script")
+        if not rel:
+            return None, {}
+        p = self.path(rel)
+        fs = [("", p)] if p.is_file() else bundle_files(p, REFERENCE_INCLUDE if which == "implementation" else None) if p.is_dir() else []
+        return str(rel), {r: hashlib.sha256(f.read_bytes()).hexdigest() for r, f in fs}
 
     def oracle_script(self) -> Path | None:
         rel = self.oracle.get("script")

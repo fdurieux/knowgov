@@ -78,7 +78,9 @@ ADDED = ["Two subjects sharing a scenario id never answer each other's gates (ta
          "Pre-load findings as routed gaps (task-0216), on rdflib, the example instance's planted SEQ002 a lint gap with its owner and "
          "route and no level moved, held by the baseline, resolved by its owner, a slip in the re-lint delta, kept by the round trip",
          "The kit's claim (task-0214), on rdflib, the probe kit's five mappers read observed, inferred and intended into the basis, an inferred statement stays proposed and a ruling approving it is refused, an unknown claim is refused by the subject check",
-         "register_impact reads each key as gate_verdict reports it (task-0260), on rdflib, an unbound review's act finding on the key both ways, S1, S4 and S6 equal key for key, every answer valid under its schema"]
+         "register_impact reads each key as gate_verdict reports it (task-0260), on rdflib, an unbound review's act finding on the key both ways, S1, S4 and S6 equal key for key, every answer valid under its schema",
+         "The edit leaves the execution unattested (task-0320, decision-0038 N-b): the layout check names reference_impl.py under "
+         "[verification] execution; then the edit is reverted, so the pre-load steps below test their own layout"]
 SHARED = OLD_STEPS[:3] + ["The outcomes, machine-readable, in the job's summary (task-0159)",
                           "The outcome files kept as an artifact, 14 days, outcomes JSON only (task-0159)"]
 

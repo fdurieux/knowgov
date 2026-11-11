@@ -657,11 +657,18 @@ with `--baseline`: the gate exits 1 only on a key that got worse, so the compari
 python harness/gate_cli.py --task codegen --as-of 2026-12-15 --baseline gate-2026-12-01.json
 ```
 
-The report names what the gate decided on: the task table (`task_profile`), the register (`register`), the
-knowgov build (`knowgov`), the documents loaded (`corpus`, a digest of every document version's bytes) and the
-date (`as_of`). Under `--baseline`, each one that differs from the baseline's is named on stderr, one line each,
-so the comparison above names its `as_of`, and an edited document names `corpus`. Naming one never changes the
-exit. A baseline kept before a field existed says nothing about that field, and none is named.
+The report names what the gate decided on: the task table (`task_profile`), the register (`register`:
+its tag, its commit and `files`, a digest of the register files a load reads: those its own loader opens
+and the issued-handles list, never a README or a stray file), the knowgov build (`knowgov`), the
+documents loaded (`corpus`, a digest of every document version's bytes), the subject's `[verification]`,
+`[provenance]` and `[capture]` as the load read them (`attestations`), the answers and reviews the load
+applied (`captures`) and the date (`as_of`). The load records `attestations` and `captures` in the store,
+so a read of the store, the MCP reader's included, names the load's own. Under `--baseline`, each one
+that differs from the baseline's is listed in the report's `baseline.differs` and named on stderr, one
+line each, so the comparison above names its `as_of`, and an edited document names `corpus`. The MCP
+reader's `gate_verdict` carries the same `baseline.differs`. Naming one never changes the exit. A
+baseline kept before a field existed says nothing about that field, and none is named; a part of the
+register or build that either side does not know is never named either.
 
 To see every step against every scenario at once, run the scenarios into a folder and read it with
 `python harness/step_grid.py <folder>`: one row per step, one column per scenario, the lowest level
@@ -841,6 +848,20 @@ execution = { versions = ["3f2a...", "9c41..."] }   # the versions the suite's r
 review = { at = "2026-11-04", scope = "...", versions = ["3f2a...", "9c41..."] }
 ```
 
+A test's result also depends on the code it ran and on the tests that judged it. `execution` lists
+the raw-byte digest of each file of the reference implementation (`[reference] code`, its `*.py`
+files for a folder) under `implementation`, and of the suite (`[oracle] script`) under `suite`
+(decision-0038):
+
+```toml
+execution = { versions = ["3f2a...", "9c41..."], implementation = ["5b0e..."], suite = ["77d1..."] }
+```
+
+Change a helper or weaken a test, and nothing is verified by execution until the suite has run again
+and the new digest is listed. The gate names the changed file at `major`, and the layout check names
+it as an error. A subject that declares the code but lists no digests verifies nothing by execution;
+the layout check warns and prints the list to add.
+
 In plain English: edit a document and its statements fall below *verified*, and out of approval, until
 you run the suite or the review again on the new version and add its digest. An `execution` or a
 `review` that lists nothing verifies nothing, and the layout check notes it, as it notes a subject
@@ -932,7 +953,13 @@ statement that still holds that content, whatever its id is now. If a table's ro
 or answers were renumbered, the ruling follows its content. If the statement was edited, or is no
 longer in the documents, the ruling is not applied. The rest of the review still is. The gate then
 lists an `act` finding, `major`: it names the review, the person who ruled, the value they ruled
-on, what the documents say now, the key's owner and the route to a new ruling. A review saved
+on, what the documents say now, the key's owner and the route to a new ruling. For a ruling on a
+captured answer the file also records `giver`, the handle that gave the answer, read from the capture
+file's own content (its `from`), never from its file name. The ruling binds only to that person's
+answer. So two issued handles such as `ops` and `ops-2` never stand in for each other, even when
+`ops`'s second capture of a day and `ops-2`'s first have the same file name. A review saved without
+`giver` binds as before, and a ruling whose answer's file name could be either person's is set aside
+(decision-0038). A review saved
 before 0.9.0 has no `key`, `value` or `sha256`. It still binds by id, as it did, and the gate lists
 it at `info` as bound by id only. A new review binds it to content.
 

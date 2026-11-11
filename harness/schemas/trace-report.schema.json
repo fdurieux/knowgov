@@ -130,6 +130,14 @@
         "null"
        ],
        "description": "why the commit is unknown; null when it is known"
+      },
+      "files": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "pattern": "^[0-9a-f]{64}$",
+       "description": "task-0320 (decision-0038 N2), optional and additive: as the gate report's register.files, the digest of the register's files a load reads (harness/register_impact.py loaded_files, files_digest)"
       }
      }
     },

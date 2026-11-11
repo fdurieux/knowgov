@@ -149,8 +149,8 @@ DEFAULT_HOST, DEFAULT_PORT = "127.0.0.1", 8765
 READS = frozenset({"key_evidence", "declared_gaps_for_key", "conflict_gaps", "stale_on_keys", "suspect_derived",
                    "extraction_activities", "extraction_times", "assertions_on_key", "census", "preload_verdicts",
                    "held_keys", "derived_outputs", "artefact_assertions", "held", "act_findings",
-                   "lint_gaps", "attestations", "version_digests", "assertion_brief"})
-# task-0144; held, task-0195; acts, task-0199; lint gaps, task-0216; attestations, task-0221; corpus, task-0307;
+                   "lint_gaps", "attestations", "version_digests", "assertion_brief", "inputs"})
+# task-0144; held, task-0195; acts, task-0199; lint gaps, task-0216; attestations, task-0221; corpus, task-0307; inputs, task-0320;
 # assertion_brief, task-0303 (code_path's ledger entry read as suspect by store.suspicion, trace check's rule)
 
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
@@ -166,7 +166,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "(task, as gate_verdict's; codegen by default), those resting only on a descendant not followed flagged not_followed. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The prompts new_subject and add_artefact walk an assistant through scaffolding a subject on a branch; nothing is written through this server. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on, then derived_outputs key=... for what was built on a key. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. In the store: held_keys lists every key the held scenario holds with its level, including those no task class requires; document_statements names the statements a document yields and the outputs built on them; derived_outputs derived=... the statements behind one output. Intake, from a proposed initiative to the board a tracker holds: proposal_impact proposal=... on the overlay; its slices, one per journey step (per delivering process for a product no journey concerns), each overlay element in one slice or a named remainder, are the story map's backbone; each slice's keys are the task class's keys on its thread, and with a scenario held its keys.gate is gate_verdict keys=... on them; slices.task_keys names the class's keys on no slice (task-0252); all under one task class and one as_of. knowgov writes no work item and ranks nothing: no label, score or estimate; the tracker writes the items, each citing register ids. A check that a backlog covers the slices (K3) is parked to the pilot, not offered. key_nodes and document_links read files only, and code_path files, and the store for the ledger leg's suspect when it holds the subject; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it.  Every tool but list_subjects takes subject, the id of a subject under KG_SUBJECTS (list_subjects names them, never a path); none named is this server's own. A store-backed tool (its _meta io.knowgov/storeBacked true) answers only for the subject and scenario the store holds and otherwise names the start_run that would load it; a files-only tool answers for any subject. This server only reads.")
 
 import key_rule  # noqa: E402  (task-0296: the one entity|attribute rule)
-KEY_ITEM = {"type": "string", "pattern": key_rule.PATTERN, "description": key_rule.DESCRIPTION}   # gate_verdict, evidence_bundle
+KEY_ITEM = {"type": "string", "pattern": key_rule.PATTERN, "description": key_rule.DESCRIPTION}   # every key and keys argument (task-0320, N7)
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -195,7 +195,7 @@ TOOLS = [
                     "'invalidated' lists the key's statements a source change ended, each with superseded_by: the "
                     "verified or approved statements that replace it, or none, when the old value no longer holds and nothing does.",
      "inputSchema": {"type": "object", "additionalProperties": False, "required": ["key"], "properties": {
-         "key": {"type": "string", "description": "an entity|attribute key, as store_status lists them"},
+         "key": {**KEY_ITEM, "description": "an entity|attribute key, as store_status lists them; "+key_rule.DESCRIPTION},
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold (default: whatever it holds)"}}},
      "annotations": READ_ONLY},
 ]
@@ -339,7 +339,7 @@ TOOLS.append(
                     "it does not know is refused. One hop, node to key read backwards: from the nodes, register_impact "
                     "walk=dependants climbs to what rests on them.",
      "inputSchema": {"type": "object", "additionalProperties": False, "required": ["key"], "properties": {
-         "key": {"type": "string", "description": "an entity|attribute key, as store_status, register_impact and code_path name them"}}},
+         "key": {**KEY_ITEM, "description": "an entity|attribute key, as store_status, register_impact and code_path name them; "+key_rule.DESCRIPTION}}},
      "annotations": READ_ONLY})
 
 
@@ -423,7 +423,7 @@ TOOLS.append(
                     "superseded (with the verified or approved successors superseded_by names) or rejected. Name "
                     "exactly one of key and derived.",
      "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
-         "key": {"type": "string", "description": "an entity|attribute key: the outputs built on it"},
+         "key": {**KEY_ITEM, "description": "an entity|attribute key: the outputs built on it; "+key_rule.DESCRIPTION},
          "derived": {"type": "string", "description": "a derived output id, as the gate's suspect findings and code_path's ledger entry name it"},
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another"}}},
      "annotations": READ_ONLY})

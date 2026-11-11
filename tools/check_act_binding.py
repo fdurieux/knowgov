@@ -23,7 +23,11 @@ Every gate runs ``--as-of`` ON with KG_TODAY ON and the clock pinned (task-0075)
   approval does not move to another person's answer (not approved, a major ``gone`` act naming the vanished id);
   employee-1 giving it again on another day carries it (the same giver repairs).
 - task-0308: ``ops`` ingests twice the same day, so its second file has ``ops-2``'s first stem; the approval of that id,
-  its files deleted and ``ops-2`` giving the value, is not carried (not approved, a major ``ambiguous`` act).
+  its files deleted and ``ops-2`` giving the value, is not carried (not approved: a review recording ``ops`` as its
+  giver a ``gone`` act, one written before without a giver a major ``ambiguous`` act).
+- task-0320 (decision-0038 G1, G2): with ``ops`` and ``ops-2`` issued, ``ops-2``'s answers are ruled on as employee-1's
+  are in the review walkthrough, the review recording ``ops-2`` from the capture's content: the dispute is settled and
+  the gate PROCEEDs.
 - Item 7 at stage 2 (S6): employee-3 approves P2's surcharge (316.00); ``--stage 2`` re-extracts the tariff
   change: the ruling is not moved onto the successor (341.00) and is an ``act`` finding naming both.
 - I4: employee-3 approving the model's statement on S5 is refused (rejecting it is not).
@@ -138,18 +142,52 @@ def giver_cases(out: Path) -> list[str]:
     return errs
 
 
+def _ops(d: Path) -> None:
+    """Issue ``ops`` and ``ops-2`` (gives) in the instance's register: a handle and its ``-<n>`` neighbour."""
+    hp = d / "register" / "people" / "handles.toml"
+    hp.write_text(hp.read_text(encoding="utf-8") + "".join(
+        f'\n[[handle]]\nhandle = "{h}"\nunit = "ORG-0002"\nroles = ["gives"]\nissued = 2026-11-02\n' for h in ("ops", "ops-2")), encoding="utf-8")
+
+
+def x_n_cases(out: Path) -> list[str]:
+    """task-0320 (decision-0038 G1, G2): with ``ops`` and ``ops-2`` both issued, ``ops-2``'s answers have the stem
+    ``ops``'s second file of the day would have. The review records the giver from the capture's own content, so
+    ``ops-2``'s answers are approved and the dispute its statuses answer raises is settled, as employee-1's are in the
+    review walkthrough: PROCEED."""
+    errs: list[str] = []
+    print("== task-0320: X and X-n issued; X-n's answer approved and its dispute settled (S2')")
+    env = fresh(out, "giver-x-n", decided=True)
+    d = out / "giver-x-n"
+    _ops(d)
+    cap = w.answer(env, d, handle="ops-2")
+    docs = [("A:oas:response|statuses@v1", "rejected"), ("A:spec:response|statuses@v1", "rejected")]
+    got = w.expect(env, 0, "3 ruling(s)", "capture.py", "review",
+                   str(w.write_review(d / "r-3.toml", "employee-3", "S2", [*docs, (f"{cap}:2@capture", "approved")])))
+    givers = [r.get("giver") for r in written(got)["ruling"] if r["assertion"].startswith("A:cap:")]
+    if givers != ["ops-2"]:
+        errs.append(f"task-0320: the review should record ops-2, read from the capture's content, as the giver: {givers}")
+    w.expect(env, 0, "2 ruling(s)", "capture.py", "review",
+             str(w.write_review(d / "r-2.toml", "employee-2", "S2", [(f"{cap}:{i}@capture", "approved") for i in (1, 3)])))
+    rep = gate(env, "S2", "--fail-on", "major")
+    held = {k: v for k, v in approvals(env, "S2", "response|statuses").items() if v}
+    if rep["verdict"] != "PROCEED" or acts(rep) or f"{cap}:2@capture" not in held:
+        errs.append(f"task-0320: ops-2's answers ruled on should PROCEED with no act: {rep['verdict']}, acts {acts(rep)}, approved {held}")
+    print(f"    {cap}: {rep['verdict']}, statuses approved on {sorted(held)}, {len(acts(rep))} act(s)")
+    return errs
+
+
 def stem_cases(out: Path) -> list[str]:
     """task-0308 (the re-check of task-0302): ``ops`` ingests twice the same day, so its second file shares a stem with
-    ``ops-2``'s first. employee-2 approves ``…-ops-2:n``; both files are deleted and ``ops-2`` gives the value again:
-    the stem names two givers, so the approval does not pass to ``ops-2`` (not approved, a major ``ambiguous`` act)."""
+    ``ops-2``'s first. employee-2 approves ``…-ops-2:n``; since task-0320 the command records ``ops``, read from that
+    file's content, as its giver. A file without the giver, saved before, keeps the stem's rule. Both files are deleted
+    and ``ops-2`` gives the value again: neither approval passes to ``ops-2`` (not approved; the recorded giver's ruling
+    a ``gone`` act, the file without one a major ``ambiguous`` act)."""
     errs: list[str] = []
     print("== task-0308: a capture stem that reads as two givers (ops, second file / ops-2, first file)")
     hold = "response|hold_presence"
     env = fresh(out, "giver-stem", decided=True)
     d = out / "giver-stem"
-    hp = d / "register" / "people" / "handles.toml"
-    hp.write_text(hp.read_text(encoding="utf-8") + "".join(
-        f'\n[[handle]]\nhandle = "{h}"\nunit = "ORG-0002"\nroles = ["gives"]\nissued = 2026-11-02\n' for h in ("ops", "ops-2")), encoding="utf-8")
+    _ops(d)
     want = {hold: "held_unscreened only"}
     first = w.answer(env, d, handle="ops", want=want)
     w.answer(env, d, handle="ops", want=want)
@@ -158,10 +196,10 @@ def stem_cases(out: Path) -> list[str]:
     n = 1 + [a["key"] for a in tomllib.loads(second.read_text(encoding="utf-8"))["answer"]].index(hold)
     ruled = f"A:cap:{second.stem}:{n}@capture"
     rdir = capdir / "reviews"
-    w.expect(env, 1, "two givers", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
-    if rdir.is_dir() and list(rdir.glob("*.toml")):   # task-0310: write time refuses what load time refuses; nothing is written
-        errs.append(f"task-0310: a review of {ruled} was written: {sorted(f.name for f in rdir.glob('*.toml'))}")
-    # the file a reviewer had saved before the refusal: it carries key, value and sha256, as the load reads it
+    got = w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
+    if [r.get("giver") for r in written(got)["ruling"]] != ["ops"]:   # task-0320: the content's giver, never the stem's
+        errs.append(f"task-0320: the review of {ruled} should record ops, its file's own from: {written(got)['ruling']}")
+    # the file a reviewer had saved before task-0320: it carries key, value and sha256 and no giver, as the load reads it
     rdir.mkdir(parents=True, exist_ok=True)
     (rdir / "2026-11-05-employee-2.toml").write_text(review.review_toml(
         {"by": "employee-2", "on": dt.date(2026, 11, 5), "record": "minutes/2026-11-03-outage-rule.md", "scenario": "S2", "closes": [],
@@ -171,11 +209,13 @@ def stem_cases(out: Path) -> list[str]:
         f.unlink()
     again = w.answer(env, d, handle="ops-2", want=want)
     got = {k: v for k, v in approvals(env, "S2", hold).items() if v}
-    found = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
-    if got or len(found) != 1 or found[0]["severity"] != "major":
-        errs.append(f"task-0308: ops-2's answer inherited the approval of {ruled}: approved {got}, ambiguous acts {found}")
+    mine = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled]
+    found = [f for f in mine if f["act"]["why"] == "ambiguous"]
+    gone = [f for f in mine if f["act"]["why"] in ("gone", "changed")]
+    if got or len(found) != 1 or found[0]["severity"] != "major" or len(gone) != 1:
+        errs.append(f"task-0308: ops-2's answer inherited the approval of {ruled}: approved {got}, ambiguous acts {found}, gone acts {gone}")
     print(f"    {first} twice, then {again}: approved on {sorted(got) or 'nothing'}; "
-          f"{found[0]['severity'] + ' act' if found else 'no ambiguous act'}")
+          f"{found[0]['severity'] + ' ambiguous act' if found else 'no ambiguous act'}, {len(gone)} gone act(s) for the giver's ruling")
     return errs
 
 
@@ -270,6 +310,7 @@ def main(out: Path) -> int:
 
     errs += giver_cases(out)
     errs += stem_cases(out)
+    errs += x_n_cases(out)
 
     print("== item 7 at stage 2 (S6): a ruling on P2's surcharge, then the tariff change")
     env = fresh(out, "s6", decided=False)

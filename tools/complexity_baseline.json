@@ -559,8 +559,8 @@
    "floor": 16
   },
   "tools/check_register_change.py::main": {
-   "value": 73,
-   "floor": 73
+   "value": 72,
+   "floor": 72
   },
   "tools/check_round_trip.py::check": {
    "value": 18,

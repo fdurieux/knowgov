@@ -142,7 +142,11 @@ def attestation_behind(s, keys: dict) -> list[dict]:
                 behind.setdefault(r["artefact"], set()).add(key)
     out = []
     for r in sorted(rows, key=lambda r: r["declaration"]):
-        un = [{**u, "keys": sorted(behind[u["artefact"]])} for u in json.loads(r.get("unattested") or "[]") if u["artefact"] in behind]
+        rows_un = json.loads(r.get("unattested") or "[]")
+        un = [{**u, "keys": sorted(behind[u["artefact"]])} for u in rows_un if not u.get("code") and u["artefact"] in behind]
+        # task-0320 (decision-0038 N-b): the implementation or suite an execution ran on, unlisted, voids it whole; named
+        # with the task's keys it would have verified (none: still named, at info)
+        un += [{**u, "keys": sorted(set(u.get("keys") or []) & set(keys))} for u in rows_un if u.get("code")]
         out.append({"declaration": r["declaration"], "bound": bool(r["bound"]), "attester": r.get("attester") or "", "unattested": un})
     return out
 
