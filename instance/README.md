@@ -840,7 +840,7 @@ layout check notes it.
 
 A test's result and a review are bound the same way, with no old meaning to fall back on (decision-0036,
 0.9.0). No suite runs when the documents load. A verification by execution is the result your subject
-attests, and it holds only for the document versions listed under `execution`. A review holds only for
+attests, and it holds only for the document versions listed under `execution`. The verification's `at` is when the load recorded the attestation, not when a run happened; the run is identified by its digests (the document Versions, the implementation and the suite). A review holds only for
 those listed under `review`:
 
 ```toml
