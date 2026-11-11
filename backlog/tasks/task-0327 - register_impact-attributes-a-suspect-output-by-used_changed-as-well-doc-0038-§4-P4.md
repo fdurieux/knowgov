@@ -3,9 +3,10 @@ id: TASK-0327
 title: >-
   register_impact attributes a suspect output by used_changed as well (doc-0038
   §4 P4)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-11T13:34:00Z'
+updated_date: '2026-11-11T15:47:00Z'
 labels:
   - impact
   - 0.9.0
@@ -22,6 +23,18 @@ Fix-only, pulled before the 0.9.0 cut under decision-0032 (fails open). Redo gro
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 After an in-place edit on the example instance, register_impact on the key's node lists the suspect output, as derived_outputs and gate_verdict do; a test
-- [ ] #2 S6 stage 2's answers are unchanged; the record holds
+- [x] #1 After an in-place edit on the example instance, register_impact on the key's node lists the suspect output, as derived_outputs and gate_verdict do; a test
+- [x] #2 S6 stage 2's answers are unchanged; the record holds
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Built in #481 (session_01HTAA1UjvoTDDjusu1chtAs), merged in train #484 as a214137; recorded by the coordinator, the builder having no backlog CLI. register_impact.statement_keys and with_levels(keys, report, key_of), passed by mcp_server and the three proposal_impact sites; check_mcp_server holds the server to the same rule. Live repro on the example instance (gate --publish, trace register, edit, gate --publish, trace check): register_impact CAP-0002 lists the output suspect on P2|surcharge and P2|threshold, as derived_outputs and gate_verdict do; main's harness/ gives suspect []. Re-check sent to group B.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+register_impact, and the keys and step-grid cells proposal_impact reads, attribute a suspect derived output to a key by used_changed as well as by stale statements, so they answer as derived_outputs and gate_verdict do after an in-place edit. Test: test_p4_an_output_suspect_by_used_changed_is_attributed_to_its_key (fails on main), plus the live repro (AC1); S6 stage 2 unchanged, the record holds (AC2).
+<!-- SECTION:FINAL_SUMMARY:END -->

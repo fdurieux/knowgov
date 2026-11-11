@@ -1,9 +1,10 @@
 ---
 id: TASK-0326
 title: Branch mode reads a node retired in place as not an addition (doc-0038 §4 P3)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-11T13:34:00Z'
+updated_date: '2026-11-11T15:47:00Z'
 labels:
   - register
   - 0.9.0
@@ -20,6 +21,18 @@ Fix-only, pulled before the 0.9.0 cut under decision-0032 (fails open in the adv
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A branch moving CAP-0003 to retired lists CAP-0003 under not_read with a pointer to register_impact and --register-previous; no reuse entry and no self-candidate; a test (tools/check_proposal_branch.py case)
-- [ ] #2 Additions keep their outcome; the worked example tools/fixtures/proposal_contract_quote.json is unchanged
+- [x] #1 A branch moving CAP-0003 to retired lists CAP-0003 under not_read with a pointer to register_impact and --register-previous; no reuse entry and no self-candidate; a test (tools/check_proposal_branch.py case)
+- [x] #2 Additions keep their outcome; the worked example tools/fixtures/proposal_contract_quote.json is unchanged
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Built by session_01HTAA1UjvoTDDjusu1chtAs (#481), merged in train #484 as a214137 on a whole green matrix with stack; recorded by the coordinator, the builder having no backlog CLI. proposal_impact.branch_overlay through _node_file and _left_in_place. retired_in_place() fails on main's harness/ (not_read [], 2 failures) and passes on the fix. Re-check sent to group B.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Branch mode lists a node whose state moves to retired or deprecated in place under branch.not_read, pointing to register_impact and gate_cli --register-previous, with no reuse entry, reach or self-candidate. Tests: test_p3_a_node_retired_in_place_is_not_read_as_a_reuse_and_has_no_self_candidate and tools/check_proposal_branch.py retired_in_place (AC1); the worked example is unchanged (AC2).
+<!-- SECTION:FINAL_SUMMARY:END -->
