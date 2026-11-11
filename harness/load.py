@@ -626,27 +626,12 @@ def _record_skipped(st, skipped: list, rid: str, head: dict, rel: str, pending: 
     return len(skipped)
 
 
-def _settling(fa: dict, at: tuple, bound: list, handles: dict) -> str | None:
-    """The reason an ambiguous ruling's act is settled or superseded by a later applied ruling (task-0322), else None.
-    Settled: a later ruling of the same statement (its id, or the same key, value and digest by a giver the stem
-    reads as). Superseded: a later ruling of the same content on another statement, the answer it named unruled."""
-    import review
-    mine = review._readings(fa["statement"], handles)
-    for b in bound:
-        if b["at"] <= at or (b["key"], b["value"], b["sha256"]) != (fa["key"], fa["from_value"], fa["from_sha256"]):
-            continue
-        if b["id"] == fa["statement"] or b["giver"] in mine:
-            return f"{review.SETTLED}{b['rel']}"
-        return (f"{review.SUPERSEDED}{b['rel']}; the answer it named stays unruled" if b["outcome"] == "approved"
-                else f"{review.RULED}{b['rel']} ({b['outcome']}); the answer it named stays unruled")
-    return None
-
-
 def _record_pending(st, pending: list, bound: list, handles: dict) -> None:
     """task-0321 H2, task-0322: an ambiguous ruling a later applied review settled or superseded is recorded with the
     reason (the gate reads it at info when it is settled or the key reads approved); the rest as they were."""
+    import review
     for fa, at in pending:
-        why = _settling(fa, at, bound, handles)
+        why = review.settling(fa, at, bound, handles)
         st.record_act_finding({**fa, "reasons": json.dumps([why], ensure_ascii=False)} if why else fa)
 
 

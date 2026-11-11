@@ -338,16 +338,15 @@ def _bound(rel, id_, giver, outcome="approved", at=("2026-11-06", "employee-3", 
 
 def test_only_a_ruling_of_the_same_statement_settles_an_ambiguous_act_task_0322():
     """J2: another person's identical answer, approved later, supersedes the act for the key; it does not settle it."""
-    import load
     at = ("2026-11-05", "employee-2", 0, "a")
     same = _bound("r-same.toml", "A:cap:2026-11-05-ORG-0002-ops-2:1@capture", "ops-2")
-    assert load._settling(_pending(), at, [same], HANDLES) == "settled by r-same.toml"
+    assert review.settling(_pending(), at, [same], HANDLES) == "settled by r-same.toml"
     other = _bound("r-other.toml", "A:cap:2026-11-07-ORG-0002-employee-1:1@capture", "employee-1")
-    why = load._settling(_pending(), at, [other], HANDLES)
+    why = review.settling(_pending(), at, [other], HANDLES)
     assert why == "superseded for the key by r-other.toml; the answer it named stays unruled", why
     rejected = _bound("r-rej.toml", other["id"], "employee-1", "rejected")
-    assert "stays unruled" in load._settling(_pending(), at, [rejected], HANDLES) and "superseded" not in load._settling(_pending(), at, [rejected], HANDLES)
-    assert load._settling(_pending(), at, [_bound("r-early.toml", same["id"], "ops-2", at=("2026-11-04", "x", 0, "x"))], HANDLES) is None
+    assert "stays unruled" in review.settling(_pending(), at, [rejected], HANDLES) and "superseded" not in review.settling(_pending(), at, [rejected], HANDLES)
+    assert review.settling(_pending(), at, [_bound("r-early.toml", same["id"], "ops-2", at=("2026-11-04", "x", 0, "x"))], HANDLES) is None
 
 
 def test_the_gate_reads_a_superseded_act_at_info_only_while_the_key_is_approved_task_0322():
@@ -362,14 +361,13 @@ def test_every_reason_load_writes_is_one_the_gate_recognises_task_0322():
     """The prefixes are one set (review.REASON_PREFIXES): each reason ``_settling`` writes starts with one, and the gate
     reads the info ones at info and the rest at major."""
     import gate_cli
-    import load
     at = ("2026-11-05", "employee-2", 0, "a")
     other = "A:cap:2026-11-07-ORG-0002-employee-1:1@capture"
     cases = [_bound("r.toml", "A:cap:2026-11-05-ORG-0002-ops-2:1@capture", "ops-2"), _bound("r.toml", other, "employee-1"),
              _bound("r.toml", other, "employee-1", "rejected"), _bound("r.toml", other, "employee-1", "referred")]
     seen = set()
     for b in cases:
-        why = load._settling(_pending(), at, [b], HANDLES)
+        why = review.settling(_pending(), at, [b], HANDLES)
         pre = next((p for p in review.REASON_PREFIXES if why.startswith(p)), None)
         assert pre is not None, why
         seen.add(pre)

@@ -271,6 +271,21 @@ def order_key(path: Path, doc: dict) -> tuple:
     return (on, by, int(m[1]) if m and m[1] else 0, path.name) if m else (on, stem, 0, path.name)
 
 
+def settling(fa: dict, at: tuple, bound: list, handles: dict) -> str | None:
+    """The reason an ambiguous ruling's act is settled or superseded by a later applied ruling (task-0322), else None.
+    Settled: a later ruling of the same statement (its id, or the same key, value and digest by a giver the stem
+    reads as). Superseded: a later ruling of the same content on another statement, the answer it named unruled."""
+    mine = _readings(fa["statement"], handles)
+    for b in bound:
+        if b["at"] <= at or (b["key"], b["value"], b["sha256"]) != (fa["key"], fa["from_value"], fa["from_sha256"]):
+            continue
+        if b["id"] == fa["statement"] or b["giver"] in mine:
+            return f"{SETTLED}{b['rel']}"
+        return (f"{SUPERSEDED}{b['rel']}; the answer it named stays unruled" if b["outcome"] == "approved"
+                else f"{RULED}{b['rel']} ({b['outcome']}); the answer it named stays unruled")
+    return None
+
+
 def _as_reported(how: dict) -> dict:
     """task-0321: the act schema's reasons are closed, so a giver the load cannot confirm is reported as ``changed``,
     the reason naming both givers."""
