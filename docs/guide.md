@@ -685,7 +685,7 @@ whose row in `register_map.toml` names nodes of several kinds takes the shortest
 the default. The load writes the due date as the verification's `valid_until`. On the day after it, the
 statement reads *validated*, its approval falls with it, and the gate lists a *lapsed* finding (major)
 naming the statement, its date and the review. A verification by execution never lapses by date, but it
-is no fresh run either: no oracle runs at load. It is the subject's attested result, `[verification]
+is no fresh run either: no oracle runs at load, so the verification's `at` is when the load recorded the attestation, never when a run happened. The run is identified by its digests (the document Versions, the implementation and the suite), not by a date. It is the subject's attested result, `[verification]
 execution`'s `versions`, and it holds only for the document Versions that list names (decision-0036). A
 review verification is bound the same way, by `review`'s `versions`. Edit a document and its statements fall
 below verified, and so out of approval, until the attestation lists the new Version's digest. For execution
