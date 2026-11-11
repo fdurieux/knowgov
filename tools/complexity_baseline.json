@@ -262,8 +262,8 @@
    "floor": 22
   },
   "harness/proposal_impact.py::branch_overlay": {
-   "value": 35,
-   "floor": 35
+   "value": 30,
+   "floor": 30
   },
   "harness/proposal_impact.py::candidates": {
    "value": 97,
