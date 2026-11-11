@@ -3,10 +3,10 @@ id: TASK-0330
 title: >-
   The re-attest route names what makes a run mean something, and the limit when
   it cannot (task-0324 re-check)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-11T14:48:00Z'
-updated_date: '2026-11-11T16:52:00Z'
+updated_date: '2026-11-11T18:02:00Z'
 labels:
   - integrity
   - 0.9.0
@@ -34,13 +34,13 @@ R-a (one 'at' per [verification] declaration cannot date one document's re-revie
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The execution step says change the implementation and suite to the new values, run them, then list the three digests, and names the limit when they are unchanged; a test on the route and on check_subject's fix
-- [ ] #2 check_subject notes a newly listed document digest whose implementation and suite digests are unchanged, naming that knowgov cannot know whether the suite covers the change; a test
-- [ ] #3 guide §9 and the CHANGELOG name the limit; tests/test_docs_* hold
-- [ ] #4 The consequence clause names only the bound declarations; the review step's wording agrees between gate and check_subject; approver and reviewer steps name decision-0002; tests
-- [ ] #5 The record holds
-- [ ] #6 H1: the hook's message carries the attestation finding and its route when the bar rests on it; a test on knowgov_hook.py
-- [ ] #7 H2, H3: the 'lists no Version' finding names each document and digest, is major, names what is lost and the key count; check_subject's note is complete; tests
+- [x] #1 The execution step says change the implementation and suite to the new values, run them, then list the three digests, and names the limit when they are unchanged; a test on the route and on check_subject's fix
+- [x] #2 check_subject notes a newly listed document digest whose implementation and suite digests are unchanged, naming that knowgov cannot know whether the suite covers the change; a test
+- [x] #3 guide §9 and the CHANGELOG name the limit; tests/test_docs_* hold
+- [x] #4 The consequence clause names only the bound declarations; the review step's wording agrees between gate and check_subject; approver and reviewer steps name decision-0002; tests
+- [x] #5 The record holds
+- [x] #6 H1: the hook's message carries the attestation finding and its route when the bar rests on it; a test on knowgov_hook.py
+- [x] #7 H2, H3: the 'lists no Version' finding names each document and digest, is major, names what is lost and the key count; check_subject's note is complete; tests
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -54,4 +54,12 @@ Group C's re-check of task-0325/task-0324 at 5555343 (session_01HTAA1R97DK5D3Q1B
 Re-checked by group A at e8ac07c: N1 FIXED (the honest path gives a genuine verification; the shortcut is named), R-a and R-b FIXED; residues N-1, N-3..N-5 to task-0329; N-2 to doc-0038 §3.5.
 
 Re-checked by group C at e8ac07c: H2, H3 FIXED; H1 PARTLY FIXED (the cause and route reach the assistant; the closing route stays the questionnaire because ATTESTATION_ROUTE cannot fire on a real report): task-0332, with H4-H6.
+
+Built by session_01HTAA1UxBF2zxSbQtTZDKCD (#485, merged as e8ac07c on a whole green matrix with stack), with group C's H1-H3; recorded by the coordinator, the builder having no backlog CLI. Each new test fails on main (failure lines in the builder's report). Re-checked: group A N1 FIXED (honest path genuine: impl 341 alone fails the suite 9/11, suite expectations updated pass 11/11, then PROCEED; the shortcut named), R-a, R-b FIXED; N-2 to doc-0038 §3.5; N-1, N-3..N-5 to task-0329. Group C: H2, H3 FIXED, H1 PARTLY (closing route) -> task-0332.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+The re-attest route and check_subject's fix say what makes an execution listing mean something (bring the implementation and suite in line with the Version, run, list the three digests) and name the limit; check_subject notes an edited document listed with unchanged code (a digest replaced outright is not seen, guide §9 says so); the consequence clause names only bound declarations; review wording agrees; approver and reviewer steps name decision-0002; the review step points to capture.py review for one document; 'lists no Version' is major, naming documents, digests and the key count; the hook shows attestation findings. Tests in tests/test_attestation_route.py and tests/test_claude_hook.py; the record holds.
+<!-- SECTION:FINAL_SUMMARY:END -->
