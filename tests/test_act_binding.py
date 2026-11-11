@@ -373,4 +373,43 @@ def test_every_reason_load_writes_is_one_the_gate_recognises_task_0322():
         seen.add(pre)
         want = "info" if pre in review.INFO_REASONS else "major"
         assert gate_cli.act_finding(_ambiguous_act([why]))["severity"] == want, (why, want)
-    assert seen == set(review.REASON_PREFIXES), seen
+    assert seen == set(review.REASON_PREFIXES) - {review.OPPOSED}, seen   # OPPOSED is written by the load itself (task-0328)
+
+
+def _rows(a, b, d="2026-11-06", st="A:cap:x:1@capture"):
+    return [(st, d, a[0], a[1], f"{a[0]}.toml"), (st, d, b[0], b[1], f"{b[0]}.toml")]
+
+
+def test_opposing_rulings_the_same_day_by_two_reviewers_cancel_whichever_is_first_task_0328():
+    """K1: approved against rejected or referred, one statement, one day, two reviewers: both set aside, and the result
+    is the same when the handles are swapped (the alphabetical order decided it before)."""
+    for oc in ("rejected", "referred"):
+        for pair in ((("boss", oc), ("employee-2", "approved")), (("boss", "approved"), ("employee-2", oc)),
+                     (("zed", oc), ("employee-2", "approved")), (("employee-2", "approved"), ("zed", oc))):
+            got = review.opposed_rulings(_rows(*pair))
+            assert len(got) == 2 and all(len(v) == 1 for v in got.values()), (pair, got)
+            own = {f"{r[4]}": r[3] for r in _rows(*pair)}
+            reasons = {review.opposed_reason(rel, own[rel], v) for (_s, _d, rel), v in got.items()}
+            assert len(reasons) == 1, reasons   # the same act from either file
+
+
+def test_agreeing_rulings_another_day_another_statement_or_the_same_reviewer_are_not_opposed_task_0328():
+    d = "2026-11-06"
+    assert review.opposed_rulings(_rows(("boss", "approved"), ("employee-2", "approved"))) == {}
+    assert review.opposed_rulings(_rows(("boss", "rejected"), ("employee-2", "referred"))) == {}   # neither approves
+    one = [("S", d, "boss", "rejected", "a.toml"), ("S", "2026-11-07", "employee-2", "approved", "b.toml")]
+    assert review.opposed_rulings(one) == {}   # a later day rules
+    two = [("S", d, "boss", "rejected", "a.toml"), ("T", d, "employee-2", "approved", "b.toml")]
+    assert review.opposed_rulings(two) == {}
+    same = [("S", d, "boss", "rejected", "a.toml"), ("S", d, "boss", "approved", "a-2.toml")]
+    assert review.opposed_rulings(same) == {}   # the same reviewer's -2 (task-0322)
+
+
+def test_the_gate_reads_an_opposed_act_at_major_naming_both_files_task_0328():
+    import gate_cli
+    why = review.opposed_reason("captures/reviews/2026-11-06-employee-2.toml", "approved",
+                                [("captures/reviews/2026-11-06-boss.toml", "rejected")])
+    assert why.startswith(review.OPPOSED) and review.OPPOSED in review.MAJOR_REASONS and review.OPPOSED in review.REASON_PREFIXES
+    f = gate_cli.act_finding(_ambiguous_act([why]))
+    assert f["severity"] == "major" and "2026-11-06-boss" in f["message"] and "2026-11-06-employee-2" in f["message"], f
+    assert f["act"]["why"] == "ambiguous"

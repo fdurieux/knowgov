@@ -435,6 +435,11 @@ def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: s
     held = json.loads(json.dumps(mine["slices"], default=str))
     if got.get("slices") != held:
         failures.append(f"{label}: proposal_impact's slice map differs from the command's")
+    st = mcp_server.open_read_only()   # task-0327: the same statement-to-key map the server reads suspect outputs by
+    try:
+        key_of = ri.statement_keys(st)
+    finally:
+        st.release()
     scoped = 0   # task-0191: a named journey on the approved register, each slice's rows register_impact's with_levels
     for scope in ("JRN-0001", "JRN-0005"):
         rep = client.call("proposal_impact", {"scope": scope, "scenario": sc, "as_of": "record"})
@@ -447,7 +452,7 @@ def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: s
             keys = list(dict.fromkeys(r["key"] for r in k["rows"]))
             gate = client.call("gate_verdict", {"keys": keys, "scenario": sc, "as_of": "record"})
             bare = [{x: v for x, v in r.items() if x not in ("level", "stale", "suspect", "findings")} for r in k["rows"]]
-            if k["rows"] != ri.with_levels(bare, gate) or sum(k["cells"]["levels"].values()) != k["landed"]:
+            if k["rows"] != ri.with_levels(bare, gate, key_of) or sum(k["cells"]["levels"].values()) != k["landed"]:
                 failures.append(f"{label}: proposal_impact scope {scope}: slice {sl['start']['id']}'s keys differ from the gate's levels")
             scoped += 1
     classes = check_slice_classes(client, sc, failures, label)

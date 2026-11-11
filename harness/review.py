@@ -256,8 +256,9 @@ def giver_of(ru: dict) -> str | None:
 SETTLED = "settled by "
 SUPERSEDED = "superseded for the key by "
 RULED = "the key was ruled by "
+OPPOSED = "opposed the same day: "      # task-0328: two reviewers' opposing rulings of one statement on one day
 INFO_REASONS = (SETTLED, SUPERSEDED)       # the key reads from a later ruling: info
-MAJOR_REASONS = (RULED,)                   # a later ruling of the content that did not approve: still major
+MAJOR_REASONS = (RULED, OPPOSED)           # a later ruling that did not approve, or a same-day opposing one: still major
 REASON_PREFIXES = INFO_REASONS + MAJOR_REASONS
 
 
@@ -269,6 +270,29 @@ def order_key(path: Path, doc: dict) -> tuple:
     on, by, stem = str(r.get("on", "")), str(r.get("by", "")), path.stem
     m = re.fullmatch(re.escape(f"{on}-{by}") + r"(?:-([0-9]+))?", stem)
     return (on, by, int(m[1]) if m and m[1] else 0, path.name) if m else (on, stem, 0, path.name)
+
+
+def opposed_rulings(rows: list) -> dict:
+    """The rulings that cancel each other (task-0328): ``rows`` are (statement, on, by, outcome, review file) of every ruling
+    the load would apply. Within a day the order across reviewers is only alphabetical, so a ruling approving a statement
+    and another reviewer's, the same day, not approving it (rejected or referred) are neither "later": none of them is
+    applied, whichever file comes first. Maps (statement, on, file) to the (file, outcome) of the opposing rulings, sorted.
+    The same reviewer's ``-n`` re-ruling opposes nothing of their own (task-0322); rulings that agree are not opposed."""
+    out: dict = {}
+    for st, on, by, oc, rel in rows:
+        against = sorted({(r2, o2) for st2, on2, by2, o2, r2 in rows
+                          if (st2, on2) == (st, on) and by2 != by and (o2 == "approved") != (oc == "approved")
+                          and "approved" in (o2, oc)})
+        if against:
+            out[(st, on, rel)] = against
+    return out
+
+
+def opposed_reason(rel: str, outcome: str, against: list) -> str:
+    """The reason of the act finding of one opposed ruling, the same from either file of the pair (the two sorted)."""
+    a, b = sorted([(rel, outcome), against[0]])
+    return (f"{OPPOSED}{a[0]} ({a[1]}) against {b[0]} ({b[1]}); two reviewers on one day, so neither applies and the "
+            "statement keeps the status it had; the owners rule again in one review")
 
 
 def settling(fa: dict, at: tuple, bound: list, handles: dict) -> str | None:

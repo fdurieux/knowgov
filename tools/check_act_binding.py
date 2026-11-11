@@ -293,6 +293,46 @@ def stem_cases(out: Path) -> list[str]:
     return errs
 
 
+def _opposed_case(out: Path, hold: str, name: str, a: str, oa: str, b: str, ob: str, clash: bool) -> list[str]:
+    """One pair of same-day rulings (reviewer ``a`` then ``b``), written, loaded and read by the gate."""
+    env = fresh(out, f"opposed-{name}", decided=True)
+    d = out / f"opposed-{name}"
+    hp = d / "register" / "people" / "handles.toml"
+    hp.write_text(hp.read_text(encoding="utf-8") + '\n[[handle]]\nhandle = "boss"\nunit = "ORG-0002"\nroles = ["gives", "approves"]\nissued = 2026-11-02\n',
+                  encoding="utf-8")
+    cap = w.answer(env, d)
+    capfile = next((d / "subjects" / "cargo_quote" / "captures").glob("*.toml"))
+    ruled = f"{cap}:{1 + [x['key'] for x in tomllib.loads(capfile.read_text(encoding='utf-8'))['answer']].index(hold)}@capture"
+    for who, outcome in ((a, oa), (b, ob)):
+        w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / f"r-{who}.toml", who, "S2", [(ruled, outcome)])))
+    live = approvals(env, "S2", hold)   # every live statement of the key: a rejected one is absent, a proposed one is here
+    got = {k: v for k, v in live.items() if v}
+    mine = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
+    both = len(mine) == 2 and all(f["severity"] == "major" and all(x in f["message"] for x in (f"{ON}-{a}", f"{ON}-{b}")) for f in mine)
+    ok = (both and not got and ruled in live and {f["act"]["by"] for f in mine} == {a, b}) if clash else (not mine and ruled in got)
+    print(f"    {name} ({a} {oa}, {b} {ob}): approved on {sorted(got) or 'nothing'}; "
+          f"{mine[0]['severity'] + ': ' + mine[0]['message'][-110:] if mine else 'no act'}")
+    return [] if ok else [f"task-0328 {name}: want {'a major act per file, each naming both, and no approval' if clash else 'the approval and no act'}; "
+                          f"got acts {mine}, approved {got}"]
+
+
+def opposed_cases(out: Path) -> list[str]:
+    """task-0328: employee-2 and ``boss`` rule on employee-1's answer the same day, one approving and one not. Within a
+    day the order across reviewers was only alphabetical, so the key read approved or rejected by file name and no finding
+    said so. Now an opposing pair is a major act finding per file naming both, and neither ruling applies, in either order and
+    against a referral; two rulings that agree keep their approval."""
+    errs: list[str] = []
+    print("== task-0328: opposing rulings of one answer on one day by two reviewers (S2')")
+    hold = "response|hold_presence"
+    cases = (("approve-last", "boss", "rejected", "employee-2", "approved", True),
+             ("approve-first", "boss", "approved", "employee-2", "rejected", True),
+             ("referred", "boss", "referred", "employee-2", "approved", True),
+             ("agree", "boss", "approved", "employee-2", "approved", False))
+    for case in cases:
+        errs += _opposed_case(out, hold, *case)
+    return errs
+
+
 def main(out: Path) -> int:
     errs: list[str] = []
     out.mkdir(parents=True, exist_ok=True)
@@ -387,6 +427,7 @@ def main(out: Path) -> int:
     errs += stem_cases(out)
     errs += same_day_cases(out)
     errs += x_n_cases(out)
+    errs += opposed_cases(out)
 
     print("== item 7 at stage 2 (S6): a ruling on P2's surcharge, then the tariff change")
     env = fresh(out, "s6", decided=False)

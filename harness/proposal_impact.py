@@ -53,7 +53,7 @@ provisional one throughout. knowgov never mints an id: a register pull request d
 Branch mode (task-0132, doc-0017 candidate 2): with ``--register-branch DIR --base REF`` the overlay is
 the register checkout's own diff: every node file added under a taxonomy, every link whose id is new
 in a relationship file, every exception file added, between the merge base of REF and HEAD and HEAD;
-ids are the branch's own. A node file changed on the branch is a reused node ``changed``; any other
+ids are the branch's own. A node file changed on the branch is a reused node ``changed`` (one whose state moves to retired or deprecated in place is listed under ``branch.not_read`` instead, task-0326); any other
 change (a deleted or renamed file, a link changed in place) is listed under ``branch.not_read``. The
 register read is the merge base's, taken with ``git archive`` into a temporary directory; the
 checkout is read and never written, and the report names the base and head commits. A register pull
@@ -1017,13 +1017,14 @@ def with_levels(report: dict, st, *, task: str, as_of: str, scenario: str | None
         raise ProposalError(f"the slices were read under the task {sl_task!r}, not {task!r}")
     report["keys"].update(task=task, scenario=held)
     verdicts = []
+    key_of = ri.statement_keys(st)
     for entry in report["keys"]["by_node"]:
         if not entry["keys"]:
             continue
         spec = dict(TASKS[task], keys=[k["key"] for k in entry["keys"]])
         rep = gate_cli.evaluate(st, subject=SUBJECT.id, scenario=held, task="keys", spec=spec, threshold="blocker",
                                 baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=as_of, route_task=task)
-        entry["keys"] = ri.with_levels(entry["keys"], rep)
+        entry["keys"] = ri.with_levels(entry["keys"], rep, key_of)
         entry["gate"] = {"task": task, "verdict": rep["verdict"], "why": rep["why"], "exit_code": rep["exit_code"]}
         verdicts.append(rep["verdict"])
     for sl in (report.get("slices") or {}).get("map", []):   # task-0191: each slice's keys, as register_impact reads them
@@ -1033,7 +1034,7 @@ def with_levels(report: dict, st, *, task: str, as_of: str, scenario: str | None
         spec = dict(TASKS[task], keys=list(dict.fromkeys(r["key"] for r in k["rows"])))
         rep = gate_cli.evaluate(st, subject=SUBJECT.id, scenario=held, task="keys", spec=spec, threshold="blocker",
                                 baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=as_of, route_task=task)
-        k["rows"] = ri.with_levels(k["rows"], rep)
+        k["rows"] = ri.with_levels(k["rows"], rep, key_of)
         k["gate"] = {"task": task, "verdict": rep["verdict"], "why": rep["why"], "exit_code": rep["exit_code"]}
         k["cells"] = cells(k["rows"], read=True)
         verdicts.append(rep["verdict"])
@@ -1042,7 +1043,7 @@ def with_levels(report: dict, st, *, task: str, as_of: str, scenario: str | None
         spec = dict(TASKS[task], keys=[r["key"] for r in rest["keys"]])
         rep = gate_cli.evaluate(st, subject=SUBJECT.id, scenario=held, task="keys", spec=spec, threshold="blocker",
                                 baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=as_of, route_task=task)
-        rest["keys"] = ri.with_levels(rest["keys"], rep)
+        rest["keys"] = ri.with_levels(rest["keys"], rep, key_of)
         rest["gate"] = {"task": task, "verdict": rep["verdict"], "why": rep["why"], "exit_code": rep["exit_code"]}
         rest["cells"] = cells(rest["keys"], read=True)
     report["keys"]["gate"] = {"task": task, "verdicts": sorted(set(verdicts))}
@@ -1075,6 +1076,30 @@ def _merge_base(checkout: Path, base: str) -> str:
     return _git(checkout, "merge-base", "--end-of-options", base, "HEAD")
 
 
+def _left_in_place(checkout: Path, mb: str, path: str, new: dict) -> str | None:
+    """Why a node file changed on the branch is not a reused node: its state moved to retired or deprecated."""
+    if new.get("state") in ("retired", "deprecated") and _toml_at(checkout, mb, path).get("state") != new["state"]:
+        return (f"a node moved to {new['state']} in place is not an addition: register_impact and "
+                "gate_cli --register-previous read it")
+    return None
+
+
+def _node_file(checkout: Path, mb: str, head: str, st: str, path: str, nodes: list, reused: list, not_read: list) -> None:
+    """One node file of the diff: an addition, a reused node changed, or (not_read) one deleted or moved out in place."""
+    if st == "A":
+        n = _toml_at(checkout, head, path)
+        nodes.append({k: n[k] for k in ("id", "kind", "name", "parent", "owner", "source") if k in n})
+    elif st == "M":
+        n = _toml_at(checkout, head, path)
+        gone = _left_in_place(checkout, mb, path, n)
+        if gone:   # task-0326: moved out of the approved register in place: not an addition, not a reuse
+            not_read.append({"path": path, "status": st, "why": gone})
+        else:
+            reused.append({"id": n.get("id", Path(path).stem), "mode": "changed"})
+    else:
+        not_read.append({"path": path, "status": st, "why": "a node file deleted: retiring is register_impact's question"})
+
+
 def branch_overlay(checkout: Path, base: str, taxonomies: tuple[str, ...]) -> tuple[dict, dict]:
     """The proposal a register branch makes against ``base``, and what the report says of the branch.
     Reads git only: the diff between the merge base and HEAD (committed work, never the working tree)."""
@@ -1091,14 +1116,7 @@ def branch_overlay(checkout: Path, base: str, taxonomies: tuple[str, ...]) -> tu
         if not path.endswith(".toml") or "/" not in path:
             continue
         if top in taxonomies and path.count("/") == 1:
-            if st == "A":
-                n = _toml_at(checkout, head, path)
-                nodes.append({k: n[k] for k in ("id", "kind", "name", "parent", "owner", "source") if k in n})
-            elif st == "M":
-                n = _toml_at(checkout, head, path)
-                reused.append({"id": n.get("id", Path(path).stem), "mode": "changed"})
-            else:
-                not_read.append({"path": path, "status": st, "why": "a node file deleted: retiring is register_impact's question"})
+            _node_file(checkout, mb, head, st, path, nodes, reused, not_read)
         elif top == "relationships" and path.count("/") == 1:
             old = {} if st == "A" else _toml_at(checkout, mb, path)
             new = {} if st == "D" else _toml_at(checkout, head, path)
