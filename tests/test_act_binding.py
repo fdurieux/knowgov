@@ -356,3 +356,23 @@ def test_the_gate_reads_a_superseded_act_at_info_only_while_the_key_is_approved_
     assert f["severity"] == "info" and "stays unruled" in f["message"], f
     f = gate_cli.act_finding(_ambiguous_act(["the key was ruled by r.toml (rejected); the answer it named stays unruled"]))
     assert f["severity"] == "major" and "stays unruled" in f["message"], f
+
+
+def test_every_reason_load_writes_is_one_the_gate_recognises_task_0322():
+    """The prefixes are one set (review.REASON_PREFIXES): each reason ``_settling`` writes starts with one, and the gate
+    reads the info ones at info and the rest at major."""
+    import gate_cli
+    import load
+    at = ("2026-11-05", "employee-2", 0, "a")
+    other = "A:cap:2026-11-07-ORG-0002-employee-1:1@capture"
+    cases = [_bound("r.toml", "A:cap:2026-11-05-ORG-0002-ops-2:1@capture", "ops-2"), _bound("r.toml", other, "employee-1"),
+             _bound("r.toml", other, "employee-1", "rejected"), _bound("r.toml", other, "employee-1", "referred")]
+    seen = set()
+    for b in cases:
+        why = load._settling(_pending(), at, [b], HANDLES)
+        pre = next((p for p in review.REASON_PREFIXES if why.startswith(p)), None)
+        assert pre is not None, why
+        seen.add(pre)
+        want = "info" if pre in review.INFO_REASONS else "major"
+        assert gate_cli.act_finding(_ambiguous_act([why]))["severity"] == want, (why, want)
+    assert seen == set(review.REASON_PREFIXES), seen

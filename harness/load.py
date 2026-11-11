@@ -636,9 +636,9 @@ def _settling(fa: dict, at: tuple, bound: list, handles: dict) -> str | None:
         if b["at"] <= at or (b["key"], b["value"], b["sha256"]) != (fa["key"], fa["from_value"], fa["from_sha256"]):
             continue
         if b["id"] == fa["statement"] or b["giver"] in mine:
-            return f"settled by {b['rel']}"
-        return (f"superseded for the key by {b['rel']}; the answer it named stays unruled" if b["outcome"] == "approved"
-                else f"the key was ruled by {b['rel']} ({b['outcome']}); the answer it named stays unruled")
+            return f"{review.SETTLED}{b['rel']}"
+        return (f"{review.SUPERSEDED}{b['rel']}; the answer it named stays unruled" if b["outcome"] == "approved"
+                else f"{review.RULED}{b['rel']} ({b['outcome']}); the answer it named stays unruled")
     return None
 
 

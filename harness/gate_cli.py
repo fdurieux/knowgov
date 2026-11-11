@@ -225,9 +225,10 @@ def _act_severity(a: dict, msg: str) -> tuple[str, str]:
     if a["act"] == "resolve" and a["why"] == "gone":
         return "info", msg
     if a["why"] == "ambiguous" and a["act"] == "ruling" and a["reasons"]:
+        import review
         r = a["reasons"][0]
-        tail = f"; {r}" + (", so the key reads from that ruling" if r.startswith("settled by") else "")
-        return ("info" if r.startswith(("settled by", "superseded")) else "major"), msg.replace("; its owner rules again", tail)
+        tail = f"; {r}" + (", so the key reads from that ruling" if r.startswith(review.SETTLED) else "")
+        return ("info" if r.startswith(review.INFO_REASONS) else "major"), msg.replace("; its owner rules again", tail)
     return ACT_SEVERITY[a["why"]], msg
 
 

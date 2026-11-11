@@ -251,6 +251,16 @@ def giver_of(ru: dict) -> str | None:
     return g if isinstance(g, str) and g else None
 
 
+# the reasons an ambiguous ruling's act carries once a later review bears on it (task-0322): load writes them, the gate
+# reads them, both from here so a rewording cannot change a severity silently
+SETTLED = "settled by "
+SUPERSEDED = "superseded for the key by "
+RULED = "the key was ruled by "
+INFO_REASONS = (SETTLED, SUPERSEDED)       # the key reads from a later ruling: info
+MAJOR_REASONS = (RULED,)                   # a later ruling of the content that did not approve: still major
+REASON_PREFIXES = INFO_REASONS + MAJOR_REASONS
+
+
 def order_key(path: Path, doc: dict) -> tuple:
     """Where a review file sits in the order rulings are applied and "later" is read (task-0322): its date, then who
     ruled, then its number, the base file ``<on>-<by>`` as 0 and ``<on>-<by>-<n>`` (``capture.py review``'s second
