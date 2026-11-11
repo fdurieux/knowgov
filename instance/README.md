@@ -963,6 +963,14 @@ answer. So two issued handles such as `ops` and `ops-2` never stand in for each 
 before 0.9.0 has no `key`, `value` or `sha256`. It still binds by id, as it did, and the gate lists
 it at `info` as bound by id only. A new review binds it to content.
 
+Two reviewers who rule on one statement the same day, one approving it and the other rejecting or
+referring it, cancel each other: within a day there is no "later", so neither ruling is applied and
+the statement keeps the status it had. The gate lists an `act` finding, `major`, on each of those
+rulings; every one names every file of the set. `capture.py review` says so on stderr before it
+writes such a ruling (it still writes it). To clear it, the owners rule again in one review, on a
+later day. When that ruling approves, the findings read `info`, "settled by" that file; a rejection
+leaves them `major`.
+
 Before ruling, read what you rule on:
 
 ```bash
