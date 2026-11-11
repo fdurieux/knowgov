@@ -5,9 +5,11 @@ title: >-
   identity; differs on both readers; canonical corpus lines; the review records
   its giver; one key rule on single-key tools; execution bound to the
   implementation and suite
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-11T08:27:00Z'
+updated_date: '2026-11-11T08:57:00Z'
 labels:
   - contracts
   - 0.9.0
@@ -41,3 +43,21 @@ Also: reviewer A's N1 from the task-0307 re-check (a partly unknown identity obj
 - [ ] #7 A-N1: a sub-field unknown on either side is never named as differing; a test
 - [ ] #8 The record holds (both comparators 0 differing leaves); schemas validate earlier v3 reports; CHANGELOG lines under Contract changes
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. N4: store.corpus_digest over canonical JSON lines [artefact, version, sha256], sorted.
+2. N3 + A-N1: gate_cli.differs(identity, report) the one function; identity_drift compares an object's sub-fields known on both sides; evaluate() puts baseline.differs on the CLI's and MCP gate_verdict's report; stderr lines kept.
+3. N2: load records on agent:harness the digests of what it used: [verification]/[provenance]/[capture] as read (load_scenario), captures applied (load_captures), reviews applied (load_reviews); port write record_inputs, read inputs, both adapters; report attestations and captures; register.files beside tag and commit.
+4. G1+G2: review.check reads a captured answer's giver from the capture's content and capture.py review records it; bind binds by it; a ruling without it keeps the fail-closed rule; the message names decision-0038.
+5. N7: KEY_ITEM on the single-key tools' key.
+6. N-b: [verification] execution lists implementation and suite digests (the load's part selection); the load compares them with the code it records as evidence; a mismatch or a missing list voids execution, named by the gate's attestation finding and by check_subject; public subjects and the claim probe list theirs.
+7. Schemas, instance/README, CLAUDE.md, CHANGELOG; tests per AC; checks.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Built all seven parts. N2: load records attestations/captures/reviews digests on agent:harness (record_inputs/inputs, both adapters, READS); report attestations, captures, register.files. N3/A-N1: gate_cli.differs one function, baseline.differs on CLI and MCP gate_verdict; _moved compares object sub-fields known on both sides. N4: canonical JSON corpus lines. G1/G2: review.check reads giver from the capture index (the capture's [capture] from) at write time, review_toml writes it, bind binds by it; without it the stem rule stands, message names decision-0038. N7: KEY_ITEM on three_valued_answer, derived_outputs, key_nodes. N-b: Subject.code_parts, load.execution_code voids execution on an unlisted implementation/suite file, gate code_finding, check_subject check_execution_code; cargo_quote, jef_data_load and claim_probe list theirs. Record: 0 differing leaves on both subjects (rdflib) and CargoQuote on Neo4j 5.26; round trips rdflib,rdflib and neo4j,rdflib,neo4j equal.
+<!-- SECTION:NOTES:END -->

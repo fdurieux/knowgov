@@ -373,6 +373,60 @@ def check_bindings(rep: Report, m: dict, root: Path) -> None:
         a = ver.get(name)
         if isinstance(a, dict):
             _check_versions(rep, m, root, name, a.get("versions"), known)
+    check_execution_code(rep, m, root, ver.get("execution"))
+
+
+EXECUTED = (("implementation", "reference", "code"), ("suite", "oracle", "script"))   # task-0320, decision-0038 N-b
+
+
+def code_digests(m: dict, root: Path, which: str) -> tuple[str | None, dict[str, str]]:
+    """(the path, its files' raw-byte SHA-256 by relative path) of what an execution ran, as the load digests it
+    (``Subject.code_parts``: ``[reference] code`` with the files ``reference_code`` bundles, ``[oracle] script`` whole;
+    a file one entry named ''). (None, {}) when the manifest names none."""
+    import hashlib
+    from subject import REFERENCE_INCLUDE, bundle_files
+    table, field = next((t, f) for w, t, f in EXECUTED if w == which)
+    rel = (m.get(table) or {}).get(field) if isinstance(m.get(table), dict) else None
+    if not isinstance(rel, str) or not rel:
+        return None, {}
+    p = root / rel
+    fs = [("", p)] if p.is_file() else bundle_files(p, REFERENCE_INCLUDE if which == "implementation" else None) if p.is_dir() else []
+    return rel, {r: hashlib.sha256(f.read_bytes()).hexdigest() for r, f in fs}
+
+
+def check_execution_code(rep: Report, m: dict, root: Path, ex) -> None:
+    """decision-0038 N-b (task-0320): an execution verification binds to the reference implementation and the suite that
+    judged it as well as to the documents, so ``[verification] execution`` lists in ``implementation`` and ``suite`` the
+    raw-byte digest of each file of ``[reference] code`` and ``[oracle] script`` the subject declares. A list left out
+    is a warning (the load then verifies nothing by execution); a file it does not list as it is now is an error."""
+    if not isinstance(ex, dict) or ex.get("versions") is None:
+        return
+    for which, table, field in EXECUTED:
+        _execution_listing(rep, m, root, ex, which, table, field)
+
+
+def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, table: str, field: str) -> None:
+    where = "[verification] execution"
+    rel, files = code_digests(m, root, which)
+    if rel is None:
+        return
+    listed = ex.get(which)
+    now = sorted(set(files.values()))
+    if listed is None:
+        rep.warning("attestation", where, f"lists no {which} digests: the load verifies nothing by execution, since an "
+                    f"execution binds to the [{table}] {field} it ran on ({rel}) as well as to the documents (decision-0038)",
+                    f"after the suite has run on it, add {which} = {json.dumps(now)}")
+        return
+    if not isinstance(listed, list) or not all(isinstance(d, str) and re.fullmatch(r"[0-9a-f]{64}", d) for d in listed):
+        rep.error("attestation", where, f"{which} is not a list of SHA-256 digests (64 lower-case hex characters)",
+                  f"list each file's raw-byte digest: {which} = {json.dumps(now)}")
+        return
+    miss = {r: d for r, d in sorted(files.items()) if d not in listed}
+    if miss or not files:
+        what = ", ".join(f"{r} ({d})" if r else f"its file {d}" for r, d in miss.items()) or "no file is there"
+        rep.error("attestation", where, f"[{table}] {field} {rel} changed since the execution was attested: {what} "
+                  f"is not listed under {which}, so the load verifies nothing by execution (decision-0038)",
+                  "run the suite on it again and list the new digest, or restore it")
 
 
 def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: list) -> None:

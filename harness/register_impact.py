@@ -199,6 +199,23 @@ def identity(root: Path) -> dict:
     return {"tag": git("describe", "--tags", "--exact-match", "HEAD") or None, "commit": commit, "why": None}
 
 
+def files_digest(root: Path) -> str | None:
+    """The register's files as this process reads them (task-0320, decision-0038 N2): the sha256, hex, of one canonical
+    JSON line ``[path, sha256]`` per file under ``root`` (its POSIX path relative to the root, its raw bytes' digest),
+    sorted; ``.git`` and ``__pycache__`` left out. A file edited under the same tag and commit moves it. None when the
+    root holds no file."""
+    import hashlib
+    import json
+    root = Path(root)
+    lines = []
+    for p in sorted(root.rglob("*")) if root.is_dir() else []:
+        rel = p.relative_to(root)
+        if not p.is_file() or {".git", "__pycache__"} & set(rel.parts):
+            continue
+        lines.append(json.dumps([rel.as_posix(), hashlib.sha256(p.read_bytes()).hexdigest()], ensure_ascii=False, separators=(",", ":")) + "\n")
+    return hashlib.sha256("".join(sorted(lines)).encode("utf-8")).hexdigest() if lines else None
+
+
 def owning_unit(reg: dict, nid: str) -> dict:
     """The unit its owner field names, that unit's name, and the sources of the approved owns links
     to the node, sorted: the impact panel's three (``register_view.owning_unit``)."""

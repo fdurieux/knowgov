@@ -219,7 +219,7 @@ def check_stage2(sc: str, subject, failures: list[str]) -> None:
         if got != expected:
             diff = sorted(k for k in set(got) | set(expected) if got.get(k) != expected.get(k))
             failures.append(f"{sc} stage 2: gate_verdict differs from gate_cli --no-load on {diff}")
-        corpus_held(f"{sc} stage 2", got, expected.get("corpus"), failures)
+        corpus_held(f"{sc} stage 2", got, expected, failures)
         if got.get("version") == "v1":
             failures.append(f"{sc} stage 2: the store holds v1, not the change")
         if not want or got.get("superseded_by") != want:
@@ -888,18 +888,48 @@ def check_store_reads(client: "StdioClient", sc: str, failures: list[str], label
           f"document_statements on {len(port_docs)} document(s), each the port's read")
 
 
-def corpus_held(label: str, got: dict, want: str | None, failures: list[str]) -> None:
-    """task-0307: gate_verdict names a corpus, the one ``want`` names (gate_cli's, or the publishing load's)."""
-    if not got.get("corpus") or got.get("corpus") != want:
-        failures.append(f"{label}: gate_verdict's corpus {got.get('corpus')!r} is not gate_cli's {want!r}")
+IDENTITY_HELD = ("corpus", "attestations", "captures")   # task-0307; task-0320 (decision-0038 N2)
 
 
-def load_corpus(load) -> str | None:
-    """The corpus the publishing gate_cli named (task-0307): the server reads that load, so its own must equal it."""
+def corpus_held(label: str, got: dict, want: dict | None, failures: list[str]) -> None:
+    """task-0307: gate_verdict names a corpus, the one ``want``, a report, names (gate_cli's, or the publishing load's);
+    task-0320: and the same ``attestations``, ``captures`` and register ``files``, what the load used, as recorded."""
+    want = want or {}
+    for f in IDENTITY_HELD:
+        if not got.get(f) or got.get(f) != want.get(f):
+            failures.append(f"{label}: gate_verdict's {f} {got.get(f)!r} is not gate_cli's {want.get(f)!r}")
+    if not (got.get("register") or {}).get("files") or (got.get("register") or {}).get("files") != (want.get("register") or {}).get("files"):
+        failures.append(f"{label}: gate_verdict's register files digest is not gate_cli's")
+
+
+def load_corpus(load) -> dict | None:
+    """The report the publishing gate_cli printed (task-0307): the server reads that load, so its identity must equal it."""
     try:
-        return json.loads(load.stdout).get("corpus")
+        return json.loads(load.stdout)
     except ValueError:
         return None
+
+
+def rec_path_of(sc: str) -> Path:
+    from subject import SUBJECT
+    return SUBJECT.record_dir / (SUBJECT.scenario(sc).get("deterministic_record") or sc) / "deterministic.json"
+
+
+def differs_held(client, sc: str, rec: Path, failures: list[str]) -> None:
+    """task-0320 (decision-0038 N3): against the record as of another date, gate_verdict's ``baseline.differs`` and the
+    command's are one list, ``["as_of"]``; as of the record's own date, none."""
+    if not rec.exists():
+        return
+    for on, want in (("record", []), ("2026-12-31", ["as_of"])):
+        cli = gate_cli("--scenario", sc, "--no-load", "--as-of", on, "--baseline", "record", "-f", "json")
+        try:
+            mine = json.loads(cli.stdout)["baseline"].get("differs")
+        except (ValueError, KeyError, TypeError):
+            failures.append(f"{sc}: gate_cli --baseline record could not run: {cli.stderr.strip()[-300:]}")
+            continue
+        got = client.call("gate_verdict", {"scenario": sc, "as_of": on, "baseline": "record"})["baseline"].get("differs")
+        if not (got == mine == want):
+            failures.append(f"{sc}: as of {on}, gate_verdict's baseline.differs {got} and gate_cli's {mine} are not {want}")
 
 
 def census() -> dict:
@@ -946,6 +976,7 @@ def main(argv: list[str] | None = None) -> int:
                 diff = sorted(k for k in set(got) | set(expected) if got.get(k) != expected.get(k))
                 failures.append(f"{sc}: gate_verdict differs from gate_cli --no-load on {diff}")
             corpus_held(sc, got, load_corpus(load), failures)
+            differs_held(client, sc, rec_path_of(sc), failures)
             disc = client.modern("server/discover", {})["result"]
             stateless = client.modern("tools/call", {"name": "gate_verdict", "arguments": {"scenario": sc, "as_of": "record"}})["result"]
             if disc.get("supportedVersions", [None])[0] != "2026-07-28" or stateless.get("structuredContent") != expected:

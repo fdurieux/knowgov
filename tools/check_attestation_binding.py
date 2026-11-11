@@ -93,7 +93,9 @@ def main(out: Path) -> int:
 
     print("== 1. the read rule: no versions listed")
     mf = subject / "subject.toml"   # the read rule, whatever the subject as committed lists
-    mf.write_text(re.sub(r"versions = \[[^\]]*\], ", "", mf.read_text(encoding="utf-8")), encoding="utf-8")
+    # authored and approval only: execution's versions, followed by its implementation and suite (task-0320), stay
+    mf.write_text(re.sub(r"^((?:authored|approval) = \{[^\n]*?)versions = \[[^\]]*\], ", r"\1", mf.read_text(encoding="utf-8"), flags=re.M),
+                  encoding="utf-8")
     rule = gate(env)
     info = [f for f in rule["findings"] if f["kind"] == "attestation"]
     if rule["verdict"] != "PROCEED" or sorted(f["ref"] for f in info) != ["attest:approval", "attest:authored"] \

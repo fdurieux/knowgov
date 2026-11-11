@@ -24,7 +24,8 @@ directory artefact, J-F). A subject inside an instance with a pre-load report (`
 store recorded none, so a run meant to prove they survive cannot pass on a store that never held one.
 Each gate report must also name what it decided on (task-0237, decision-0029): ``task_profile``, the
 digest of the subject's task table, ``register`` and ``knowgov`` as this process reads them, and ``corpus``, the
-digest of the loaded document Versions (task-0307), and each hop must give the same.
+digest of the loaded document Versions (task-0307), ``attestations`` and ``captures``, what the load used beyond the
+documents as the store recorded it, and the register's ``files`` (task-0320), and each hop must give the same.
 
 The chain names store kinds (``KG_STORE``'s values), first the one loaded: ``rdflib,rdflib`` needs
 no database (harness.yml); ``neo4j,rdflib,neo4j`` is Neo4j to Turtle to rdflib and back, the stack
@@ -209,8 +210,12 @@ def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = 
 
 
 def unnamed_corpus(rep: dict) -> list[str]:
-    """task-0307: ["corpus"] when the report names no corpus digest; differences() holds it equal across the hops."""
-    return [] if re.fullmatch(r"[0-9a-f]{64}", str(rep.get("corpus"))) else ["corpus"]
+    """task-0307: ["corpus"] when the report names no corpus digest; task-0320 (decision-0038 N2): likewise
+    ``attestations`` and ``captures``, what the load used beyond the documents, as the store recorded it, and the
+    register's ``files``. differences() holds each equal across the hops."""
+    named = {"corpus": rep.get("corpus"), "attestations": rep.get("attestations"), "captures": rep.get("captures"),
+             "register.files": (rep.get("register") or {}).get("files")}
+    return [f for f, v in named.items() if not re.fullmatch(r"[0-9a-f]{64}", str(v))]
 
 
 def main(argv: list[str] | None = None) -> int:

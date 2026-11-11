@@ -14,6 +14,7 @@ it is written (``python harness/capture.py review FILE`` checks and writes it):
     [[ruling]]
     assertion = "A:cap:2026-11-02-ORG-0002-employee-1:1@capture"
     key = "QuoteAPI|on_screening_outage"   # what the ruling ruled on (task-0199, doc-0030 H5): written by the command
+    giver = "employee-1"         # a captured answer's giver, from the capture's own content (decision-0038 G1): written by the command
     value = "priced=yes;status=held_unscreened;notified=no;hold=true"
     sha256 = "e3b0c442..."       # ``content_digest`` of its supporting fragments
     outcome = "approved"         # approved | rejected | referred
@@ -37,7 +38,11 @@ text the same way. A captured answer has no fragments, so its ``sha256`` is the 
 (``e3b0c442...``) and two people's identical answers hold the same content: a ruling on one binds by giver, key and
 value, so only the same person's answer stands in for it when its id has vanished (a re-ingested capture), never
 another person's (task-0302, decision-0032 C2-1); that ruling reads ``gone``, an act finding naming the vanished
-id. Read rule for a file written before 0.9.0, with no ``key``, ``value`` or ``sha256``:
+id. The giver is the one the ruling records (``giver``), which ``capture.py review`` reads from the capture's own content
+(``[capture] from``, the signed ``[answered]`` handle), never from its file name (task-0320, decision-0038 G1), so a
+handle ``X`` and a handle ``X-n`` never share a reading; a ruling without it (a file written before) keeps the stem's
+rule, so a stem that reads as two givers binds nowhere (task-0308) and is refused the day a review is written when no
+capture file holds the answer (task-0310). Read rule for a file written before 0.9.0, with no ``key``, ``value`` or ``sha256``:
 it binds by id as it did, and the gate lists it at info as bound by id only; a new review binds it.
 
 ``capture.py review`` refuses a file whole, each reason naming the rule it breaks (decision-0002 point 5);
@@ -230,28 +235,43 @@ def _ambiguous_giver(aid: str, handles: dict | None) -> bool:
 
 
 def _ambiguous_reason(aid: str) -> str:
-    """Why a review of an ambiguous-stem answer is refused the day it is written (task-0310)."""
+    """Why a review of an ambiguous-stem answer is refused the day it is written (task-0310): no capture file holds
+    the answer, so its giver cannot be read from content and recorded (decision-0038 G1)."""
     g = _giver(aid)
     return (f"the id's stem reads as two givers, giver {g}'s first answer or giver {re.fullmatch(r'(.+)-[0-9]+', g)[1]}'s "
-            "second that day, and no review of it can apply until the review records its giver "
-            "(decision pending, 2026-11-10); nothing is written")
+            "second that day, and no capture file holds the answer to read its giver from; a review records the giver "
+            "the capture's own content names (decision-0038), so nothing is written")
+
+
+def giver_of(ru: dict) -> str | None:
+    """The giver a ruling records (task-0320, decision-0038 G1): the handle that gave the captured answer it rules on, as
+    the capture's own content names it (``[capture] from``, the signed ``[answered]`` handle), never its file name. None
+    for a ruling without it: a file written before, which keeps the stem's fail-closed rule (task-0308)."""
+    g = ru.get("giver")
+    return g if isinstance(g, str) and g else None
 
 
 def _unbound_reason(where: str, aid: str, ru: dict, how: dict) -> str:
     """The reason a ruling that binds nowhere is refused the day it is written."""
     if how["why"] == "giver":   # task-0310: write time refuses what load time reports ambiguous
         return f"{where}: {_ambiguous_reason(aid)}"
+    if how["why"] == "giver_wrong":   # task-0320: a giver the capture's content contradicts
+        return f"{where}: {how['message']}"
     if how["why"] == "gone" and ru.get("value") is None:
         return f"{where}: the store holds no assertion {aid!r}"
     return (f"{where}: the store no longer holds what the ruling records ({ru.get('key')} = {ru.get('value')!r}); "
             f"it holds {', '.join(repr(t['value']) for t in how['to']) or 'nothing of it'}")
 
 
-def _holding(rows: list[dict], aid: str, value, digest, handles: dict | None = None) -> list[dict]:
+def _holding(rows: list[dict], aid: str, value, digest, handles: dict | None = None, giver: str | None = None) -> list[dict]:
     """The rows holding the ruling's value and digest that may stand in for ``aid``: any such statement, but for a
-    captured answer only the same giver's (``_same_giver``, task-0302)."""
-    return [r for r in rows if str(r["value"]) == str(value) and content_digest(r.get("fragments") or []) == str(digest)
-            and not _ambiguous_giver(aid, handles) and (r["id"] == aid or _same_giver(aid, r))]
+    captured answer only the same giver's (``_same_giver``, task-0302): the giver the ruling records when it records
+    one (decision-0038 G1), the same id included, else the giver its id's stem names, never an ambiguous stem's."""
+    def may(r):
+        if giver is not None and aid.startswith("A:cap:"):
+            return str(r["id"]).startswith("A:cap:") and r.get("agent") == giver
+        return not _ambiguous_giver(aid, handles) and (r["id"] == aid or _same_giver(aid, r))
+    return [r for r in rows if str(r["value"]) == str(value) and content_digest(r.get("fragments") or []) == str(digest) and may(r)]
 
 
 def _stem_holders(rows: list[dict], aid: str, value, digest, handles: dict | None) -> bool:
@@ -288,8 +308,9 @@ def bind(st, ru: dict, handles: dict | None = None) -> tuple[dict | None, dict]:
         b = statement(st, aid)
         return b, {"why": "unbound" if b else "gone", "to": []}
     rows = st.key_evidence(str(key), list(CURRENT))
-    same = _holding(rows, aid, value, digest, handles)
-    if not same and _stem_holders(rows, aid, value, digest, handles):
+    giver = giver_of(ru)   # decision-0038 G1: recorded from the capture's content, so no stem is read
+    same = _holding(rows, aid, value, digest, handles, giver)
+    if not same and giver is None and _stem_holders(rows, aid, value, digest, handles):
         return None, {"why": "ambiguous", "to": []}   # holders exist; the stem names two givers, so none is chosen
     pick = next((r for r in same if r["id"] == aid), None) or (same[0] if len(same) == 1 else None)
     if pick is not None:
@@ -300,8 +321,11 @@ def bind(st, ru: dict, handles: dict | None = None) -> tuple[dict | None, dict]:
 
 
 def _bind_ruling(st, ru: dict, handles: dict | None, strict: bool) -> tuple[dict | None, dict]:
-    """``bind``, but the day a review is written a stem of two givers binds nowhere (task-0310)."""
-    if strict and _ambiguous_giver(str(ru.get("assertion", "")), handles):
+    """``bind``, but the day a review is written a stem of two givers binds nowhere (task-0310) unless the giver was
+    read from the capture's content (decision-0038 G1)."""
+    if ru.get("_giver_wrong"):
+        return None, {"why": "giver_wrong", "to": [], "message": ru["_giver_wrong"]}
+    if strict and giver_of(ru) is None and _ambiguous_giver(str(ru.get("assertion", "")), handles):
         return None, {"why": "giver", "to": []}
     return bind(st, ru, handles)
 
@@ -369,6 +393,7 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
         where = f"ruling {i} ({aid})"
         if outcome not in OUTCOMES:
             errs.append(f"{where}: outcome {outcome!r} is not one of {', '.join(OUTCOMES)}")
+        ru = _read_giver(ru, aid, captures, strict)   # decision-0038 G1: the capture's content's, never the file name's
         b, how = _bind_ruling(st, ru, handles, strict)
         if b is not None and strict and how["why"] == "repaired":
             b, how = None, {**how, "why": "changed"}   # the day it is written, a ruling names the statement it rules on
@@ -384,7 +409,7 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
         briefs[b["id"]] = {**b, "outcome": outcome}
         rulings.append({"assertion": b["id"], "outcome": outcome, "note": str(ru.get("note", "")), "key": b["key"],
                         "value": str(b["value"]), "sha256": b["sha256"], "statement": b["id"], "n": i,
-                        "unbound": how["why"] == "unbound" and not strict})
+                        "unbound": how["why"] == "unbound" and not strict, **_giver_field(ru, b)})
         if b["basis"] in NEVER_PROMOTED and outcome not in ("rejected", "referred"):
             errs.append(f"{where}: {b['key']} is a statement of basis {b['basis']}; a ruling may reject or refer it, "
                         "never approve it (a model's statement is never promoted; doc-0030 I4)")
@@ -487,6 +512,23 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
     return errs, norm
 
 
+def _read_giver(ru: dict, aid: str, captures: dict[str, dict], strict: bool) -> dict:
+    """The day a review is written (``strict``), the ruling with ``giver`` read from the capture holding ``aid``: a
+    captured answer's giver is the ``[capture] from`` its file's content names (decision-0038 G1). A giver the reviewer
+    wrote that is not it is marked, so the ruling binds nowhere and is refused. A ruling on another statement, on an
+    answer no capture file holds, or read at a load, is left as it is."""
+    held = (captures.get(aid) or {}).get("from") if strict and aid.startswith("A:cap:") else None
+    given = giver_of(ru)
+    if held and given and given != held:
+        return {**ru, "_giver_wrong": f"the ruling names giver {given}, and the capture holding {aid} was given by {held} (its own content)"}
+    return {**ru, "giver": str(held)} if held else ru
+
+
+def _giver_field(ru: dict, b: dict) -> dict:
+    """``{giver}`` for a ruling on a captured answer that records one, else nothing: what the review file writes."""
+    return {"giver": giver_of(ru)} if giver_of(ru) and b["id"].startswith("A:cap:") else {}
+
+
 def until_for(brief: dict, captures: dict[str, dict]) -> dt.date | None:
     """When an approval of the statement lapses: six months after a capture's on; never otherwise."""
     if brief["basis"] != PERSON:
@@ -506,6 +548,7 @@ def review_toml(norm: dict) -> str:
     for ru in norm["rulings"]:   # bound to content (task-0199): what was ruled on, as the store held it
         lines += ["", "[[ruling]]", f"assertion = {q(str(ru.get('assertion', '')))}", f"key = {q(str(ru['key']))}",
                   f"value = {q(str(ru['value']))}", f"sha256 = {q(str(ru['sha256']))}",
+                  *([f"giver = {q(str(ru['giver']))}"] if ru.get("giver") else []),   # decision-0038 G1: a captured answer's
                   f"outcome = {q(str(ru.get('outcome', '')))}", f"note = {q(str(ru.get('note', '')))}"]
     for c in norm["closes"]:
         lines += ["", "[[closes]]", f"gap = {q(str(c.get('gap', '')))}", f"sha256 = {q(str(c['sha256']))}",

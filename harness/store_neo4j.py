@@ -15,7 +15,7 @@ import threading
 import time
 import uuid
 
-from store import (DEAD, DOCUMENT_BASES, DUPLICATE, NEO4J_GUARDED, Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, held_from, part_list, part_rows,
+from store import (DEAD, DOCUMENT_BASES, DUPLICATE, NEO4J_GUARDED, Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, held_from, inputs_digest, part_list, part_rows,
                    changed_of, setting, stem, suspect_rows, suspicion)
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
@@ -1270,6 +1270,14 @@ class Neo4jStore(Store):
                               "RETURN a.attestation_approval AS approval, a.attestation_authored AS authored, "
                               "a.attestation_execution AS execution, a.attestation_review AS review"))
         return by_id([json.loads(r[d]) for r in rows for d in ("approval", "authored", "execution", "review") if r[d]])
+
+    def record_inputs(self, row) -> None:   # on the tool's Agent node, never a node of its own (store.py)
+        self.run("MATCH (a:Agent {id:'agent:harness'}) SET a += $props",
+                 props={f"input_{k}": row[k] for k in self.INPUTS if k in row}).consume()
+
+    def inputs(self) -> dict:
+        rows = _rows(self.run("MATCH (a:Agent {id:'agent:harness'}) RETURN " + ", ".join(f"a.input_{k} AS input_{k}" for k in self.INPUTS)))
+        return inputs_digest(rows[0] if rows else {})
 
     def clear_act_findings(self) -> None:
         self.run("MATCH (a:ActFinding) DETACH DELETE a").consume()

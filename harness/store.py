@@ -40,6 +40,7 @@ is an adapter, not a rewrite.
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import os
 from typing import Any
@@ -97,18 +98,39 @@ READS = frozenset({
     "gaps_with_concerns", "assertions_on_key", "assertion_rows", "supported_by", "candidate_for",
     "fragments_with_version", "requirements_verified_by", "register_census", "register_node_statements",
     "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions", "held",
-    "act_findings", "derived_rows", "gap_brief", "lint_gaps", "attestations", "version_digests"})
+    "act_findings", "derived_rows", "gap_brief", "lint_gaps", "attestations", "version_digests", "inputs"})
 
 
 def corpus_digest(rows: list[dict]) -> str | None:
-    """The corpus a gate decided on (task-0307, decision-0037): the sha256, hex, of one UTF-8 line per loaded
-    document Version, ``<artefact>\t<version>\t<sha256>\n``, sorted by artefact then version (``version_digests``'
-    order, re-sorted here so neither adapter's order counts). Every Version the store holds counts, a stage-2
-    change's earlier one included. None when no Version is loaded."""
+    """The corpus a gate decided on (task-0307, decision-0037; canonical lines, task-0320, decision-0038 N4): the
+    sha256, hex, of one line per loaded document Version, the canonical JSON array ``[artefact, version, sha256]``
+    (no whitespace, UTF-8, a null kept null) followed by a newline, the lines sorted. JSON escapes a tab and a
+    newline inside a value, and null is not "", so two corpora that differ never share their lines. Every Version
+    the store holds counts, a stage-2 change's earlier one included; neither adapter's order counts. None when no
+    Version is loaded."""
     if not rows:
         return None
-    lines = sorted((r["artefact"], r["version"] or "", r["sha256"] or "") for r in rows)
-    return hashlib.sha256("".join(f"{a}\t{v}\t{d}\n" for a, v, d in lines).encode("utf-8")).hexdigest()
+    lines = sorted(json.dumps([r["artefact"], r["version"], r["sha256"]], ensure_ascii=False, separators=(",", ":")) + "\n"
+                   for r in rows)
+    return hashlib.sha256("".join(lines).encode("utf-8")).hexdigest()
+
+
+def inputs_digest(props: dict) -> dict:
+    """``Store.inputs`` from the ``input_<name>`` properties an adapter holds (task-0320): ``captures`` the sha256 of
+    the canonical JSON ``{"captures": .., "reviews": ..}``, None when neither is held."""
+    caps = {k: props.get(f"input_{k}") for k in ("captures", "reviews")}
+    both = None if all(v is None for v in caps.values()) else hashlib.sha256(
+        json.dumps(caps, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return {"attestations": props.get("input_attestations"), "captures": both}
+
+
+def canonical_digest(value) -> str:
+    """The sha256, hex, of ``value``'s canonical JSON (sorted keys, no whitespace, UTF-8; a TOML date as its ISO text)."""
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=_iso).encode("utf-8")).hexdigest()
+
+
+def _iso(v):
+    return v.isoformat() if hasattr(v, "isoformat") else str(v)
 
 
 def held_from(acts: list[dict], current: list[dict]) -> dict | None:
@@ -571,6 +593,23 @@ class Store:
 
     def attestations(self) -> list[dict]:
         """Every ``Attestation``: id and ``ATTESTATION_FIELDS``, by id. Empty when the subject declares none."""
+        raise NotImplementedError
+
+    INPUTS = ("attestations", "captures", "reviews")   # task-0320: what a load used beyond the documents, by name
+
+    def record_inputs(self, row: dict) -> None:
+        """Keep the digest of what a load used beyond the documents (task-0320, decision-0038 N2), ``row`` a map of some
+        of ``INPUTS`` to a sha256 (hex): ``attestations`` the manifest's ``[verification]``, ``[provenance]`` and
+        ``[capture]`` as read (``load_scenario``), ``captures`` the capture files applied (``load_captures``), ``reviews``
+        the review files applied (``load_reviews``). Kept on the tool's Agent node (``agent:harness``) as the property
+        ``input_<name>``, never a node of its own, so the record's census is as before; writing one again replaces it,
+        so stage 2 records what it read."""
+        raise NotImplementedError
+
+    def inputs(self) -> dict:
+        """``{attestations, captures}`` for the gate report (task-0320): ``attestations`` as recorded, ``captures``
+        ``inputs_digest`` of the captures and reviews recorded; each None when the store holds none (a load before
+        task-0320)."""
         raise NotImplementedError
 
     def clear_act_findings(self) -> None:

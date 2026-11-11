@@ -257,7 +257,7 @@ def test_a_review_of_an_ambiguous_stem_is_refused_at_write_time_task_0310():
     rows = [_answer("2026-11-05-ORG-0002-ops-2", 1, "ops-2")]
     errs, rv = _ops_check(aid, rows)
     msg = " ".join(errs)
-    assert "ops-2" in msg and "ops's second" in msg and "decision pending, 2026-11-10" in msg, errs
+    assert "ops-2" in msg and "ops's second" in msg and "decision-0038" in msg and "no capture file holds" in msg, errs
     assert rv["rulings"] == [], rv
     errs, rv = _ops_check(aid, rows, {"assertion": aid, "outcome": "approved"})   # the reviewer's input: no key, value, sha256
     assert any("two givers" in e for e in errs) and rv["rulings"] == [], (errs, rv)

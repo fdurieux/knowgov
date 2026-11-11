@@ -10,13 +10,49 @@ names that section with the version.
 
 ## Unreleased
 
-- `capture.py review` refuses a ruling whose captured-answer id reads as two issued givers (`…-ops-2`: `ops-2`'s first answer or `ops`'s second that day), as a load already sets it aside as `ambiguous`; nothing is written (task-0310).
+- `capture.py review` refuses a ruling whose captured-answer id reads as two issued givers (`…-ops-2`: `ops-2`'s first answer or `ops`'s second that day), as a load already sets it aside as `ambiguous`; nothing is written (task-0310). Since task-0320 the giver is read from the capture's content, so this refusal remains only where no capture file holds the answer.
 - **The key rule holds at every entry** (task-0316, decision-0034): a task class's keys that break it (as written or in NFC) are refused by the gate, exit 2, naming the class and the value as written, where they read `absent`; `check_subject` reports `key-syntax` on the value as written and warns on `[three_valued]` keys equal after NFC; a trace ledger is read in NFC.
 - The gate's "is not attested" finding names every `[verification]` declaration that omits the document's Version (`authored`, `approval`, `execution`, `review`) and cites decision-0036 beside decision-0019 when `execution` or `review` is among them; its route lists them all, so listing the digest as told brings the gate back (task-0318).
 - `check_subject`: an empty `versions` in `execution` or `review` is noted as verifying nothing, as a missing one is; an edited document is one error per artefact and declaration, naming the artefact and its new digest, not one per stale digest (task-0318).
 - `check_subject` reads a directory artefact's Versions as the load does (its `include`, per file): an edit or an added file within the include is one error naming the file, even when no listed digest is stale; an old digest kept beside the new one is told to be replaced; an empty `authored` or `approval` list is noted as attesting nothing (task-0319).
 
 ### Contract changes
+- **An execution verification also binds to the code it ran and the suite that judged it** (task-0320,
+  decision-0038 N-b). Before, `evidence_sha256` recorded the reference code, but nothing compared it: editing
+  `reference_impl.py` kept every execution verification and PROCEED.
+  - `[verification] execution` gains `implementation` and `suite`: the raw-byte digest of each file of
+    `[reference] code` (a folder's `*.py` files, as the load bundles them) and of `[oracle] script`.
+  - A file not listed as it is now voids every execution verification. The gate names it in an `attestation`
+    finding (major when the task's keys rest on it), and `tools/check_subject.py` names it as an error.
+  - **What an adopter does:** an instance must list its implementation and suite digests, or its execution
+    verifications lapse, and with them the approvals resting on them. `tools/check_subject.py` warns on a
+    missing list and prints the one to add. The public subjects and the claim probe list theirs, so the record
+    does not move.
+- **A review records whose answer it ruled on** (task-0320, decision-0038 G1, G2). `capture.py review` writes
+  `giver` on a ruling on a captured answer, read from the capture file's own content (its `from`), never from
+  its file name, and every load binds the ruling by it. With handles `X` and `X-n` both issued, `X-n`'s answers
+  can now be approved and a dispute they raise settled; before, the file names read as either person's, and every
+  such review was refused. A review without `giver` keeps the earlier rule: set aside as `ambiguous` when the file
+  name reads as two givers, and refused when written if no capture file holds the answer (the message names
+  decision-0038).
+- **The gate report names every input that decided it, and both readers name what differs** (task-0320,
+  decision-0038 N2, N3, A-N1). Optional and additive, schema version 3 unchanged, so earlier reports still validate:
+  - `attestations`: a digest of the subject's `[verification]`, `[provenance]` and `[capture]` as the load read them.
+  - `captures`: a digest of the answers and reviews the load applied; a file it skipped (another scenario's review,
+    a refused one, a file that is no capture) moves nothing.
+  - `register.files`: a digest of the register's files as read, beside its tag and commit.
+
+  Both inputs are recorded in the store at the load and read back, equal on both stores and through export and
+  import. Before, editing `[verification]`, a capture or review file, or a register file under the same tag could
+  move S1 from PROCEED to BLOCKED with every identity field unchanged. With a baseline, the CLI report and MCP
+  `gate_verdict` both carry `baseline.differs`, the identity fields that differ; the CLI's stderr lines stay. A
+  register or build sub-field unknown on either side is never named.
+- **The corpus digest's lines are canonical JSON** (task-0320, decision-0038 N4): one `[artefact, version, sha256]`
+  array per loaded Version, sorted. A tab or newline in an id, or null against "", can no longer collide. `corpus`
+  is unreleased, so its values change once; the record does not hold it.
+- **`three_valued_answer`, `derived_outputs` and `key_nodes` take `key` under the key rule** (task-0320,
+  decision-0038 N7). A key the rule refuses is now -32602 with the value as sent, on both transports, as `keys`
+  already was. Before, it came back as a silent `unknown` or an empty answer.
 - **An execution or review verification holds only for the document versions it was attested on** (task-0306,
   decision-0036). No suite runs when the documents load. Before, the load wrote a passing execution verification
   for every statement whose value the documents on disk state, so an edited value on an instance read *verified
