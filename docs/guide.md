@@ -691,7 +691,8 @@ review verification is bound the same way, by `review`'s `versions`. Edit a docu
 below verified, and so out of approval, until the attestation lists the new Version's digest. For execution
 that listing means something only if the reference implementation and the suite were changed to the new
 values and run: if they are unchanged, listing the digest only asserts the old result for the new values (no
-oracle runs at load; `check_subject` notes it). A declaration that lists none verifies nothing.
+oracle runs at load; `check_subject` notes it when it sees the edit as a listed digest matching no current Version,
+and a digest replaced outright leaves no trace, so that case gets no note). A declaration that lists none verifies nothing.
 
 ```bash
 python harness/gate_cli.py --scenario S1 --as-of 2027-08-07 --baseline record
