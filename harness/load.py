@@ -525,7 +525,7 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
     import review
     from rules import compatible
     rdir = SUBJECT.capture_dir / "reviews"
-    files = sorted(rdir.glob("*.toml")) if rdir.is_dir() else []
+    files = _ordered_reviews(rdir)
     counts = {"files": [], "refused": [], "approved": 0, "rejected": 0, "referred": 0, "closed": 0, "settled": 0, "skipped": 0}
     if again:
         st.clear_act_findings()
@@ -539,9 +539,7 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
     handles, units = review.issued_handles(reg), review.organisation_units(reg)
     owners = capture.owners_of(SUBJECT, capture.register_nodes(reg))
     caps = review.capture_index(SUBJECT.capture_dir)
-    for p in files:
-        doc = tomllib.loads(p.read_text(encoding="utf-8"))
-        formats.version(doc, p.as_posix(), formats.REVIEW)   # before the scenario filter: a newer file refused, exit 2
+    for p, doc in files:
         content = canonical_digest(doc)
         sc = str(doc.get("review", {}).get("scenario", ""))
         if sc and sc != scenario:
@@ -557,7 +555,7 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
             counts["refused"].append(rel)
             st.record_act_finding(_act(f"actf:{rid}", head, "review", 0, "", "", "", "refused", reasons=errs))
             continue
-        counts["skipped"] += _record_skipped(st, rv["skipped"], rid, head, rel, pending)
+        counts["skipped"] += _record_skipped(st, rv["skipped"], rid, head, rel, pending, review.order_key(p, doc))
         person, on = f"person:{rv['by']}", rv["on"].isoformat()
         st.ensure_person(person, rv["by"])
         try:
@@ -575,7 +573,8 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
             # task-0198 (H3): applied whatever the day; the approval keeps its until, six months after the answer,
             # and the gate reads it lapsed as of its date (cadence.lapse), never the load's day
             st.apply_ruling(b["id"], outcome, rid, person, on, rv["record"], until.isoformat() if until else "")
-            bound.append(((head["on"], rel), b["key"], str(ru["value"]), ru["sha256"]))
+            bound.append({"at": review.order_key(p, doc), "rel": rel, "id": b["id"], "key": b["key"], "value": str(ru["value"]),
+                          "sha256": ru["sha256"], "giver": ru.get("giver"), "outcome": outcome})
             counts[outcome] += 1
             if ru["unbound"]:   # the read rule: a file from before 0.9.0 binds by id, and the gate says so
                 st.record_act_finding(_act(f"actf:{rid}:ruling:{ru['n']}", head, "ruling", ru["n"], b["id"], outcome, b["key"],
@@ -595,12 +594,24 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
                                            (c["keys"] or [""])[0], "unbound"))
         counts["files"].append(rel)
         applied.append([p.name, content])
-    _record_pending(st, pending, bound)
+    _record_pending(st, pending, bound, handles)
     st.record_inputs({"reviews": applied_digest(applied)})
     return counts
 
 
-def _record_skipped(st, skipped: list, rid: str, head: dict, rel: str, pending: list) -> int:
+def _ordered_reviews(rdir: Path) -> list:
+    """(path, document) of every review file in the order they are applied (``review.order_key``, task-0322); a newer
+    file than this release reads is refused here, before the scenario filter (exit 2)."""
+    import review
+    out = []
+    for p in sorted(rdir.glob("*.toml")) if rdir.is_dir() else []:
+        doc = tomllib.loads(p.read_text(encoding="utf-8"))
+        formats.version(doc, p.as_posix(), formats.REVIEW)
+        out.append((p, doc))
+    return sorted(out, key=lambda x: review.order_key(*x))
+
+
+def _record_skipped(st, skipped: list, rid: str, head: dict, rel: str, pending: list, at: tuple) -> int:
     """Record the acts a review's load set aside (doc-0032 §6 item 7), an ambiguous ruling held back for
     ``_record_pending``; returns how many."""
     import sys
@@ -609,20 +620,19 @@ def _record_skipped(st, skipped: list, rid: str, head: dict, rel: str, pending: 
         fa = _act(f"actf:{rid}:{x['act']}:{x['n']}", head, x["act"], x["n"], x["statement"], x["outcome"],
                   x["key"], x["why"], value=x["value"], sha=x["sha256"], to=x["to"], reasons=x.get("reasons", ()))
         if x["why"] == "ambiguous" and x["act"] == "ruling":
-            pending.append((fa, (head["on"], rel)))   # task-0321 H2: recorded once a later ruling is known to settle it, or not
+            pending.append((fa, at))   # task-0321 H2: recorded once a later ruling is known to settle it, or not
         else:
             st.record_act_finding(fa)
     return len(skipped)
 
 
-def _record_pending(st, pending: list, bound: list) -> None:
-    """task-0321 H2: an ambiguous ruling a later applied review's ruling on the same content settled is recorded with
-    that review named (the gate reads it at info); the rest as they were."""
+def _record_pending(st, pending: list, bound: list, handles: dict) -> None:
+    """task-0321 H2, task-0322: an ambiguous ruling a later applied review settled or superseded is recorded with the
+    reason (the gate reads it at info when it is settled or the key reads approved); the rest as they were."""
+    import review
     for fa, at in pending:
-        later = next((b for b in bound if b[0] > at and b[1] == fa["key"] and b[2] == fa["from_value"] and b[3] == fa["from_sha256"]), None)
-        if later:
-            fa = {**fa, "reasons": json.dumps([f"settled by {later[0][1]}"], ensure_ascii=False)}
-        st.record_act_finding(fa)
+        why = review.settling(fa, at, bound, handles)
+        st.record_act_finding({**fa, "reasons": json.dumps([why], ensure_ascii=False)} if why else fa)
 
 
 def _act(fid: str, head: dict, act: str, n: int, statement: str, outcome: str, key: str, why: str, *,

@@ -251,6 +251,41 @@ def giver_of(ru: dict) -> str | None:
     return g if isinstance(g, str) and g else None
 
 
+# the reasons an ambiguous ruling's act carries once a later review bears on it (task-0322): load writes them, the gate
+# reads them, both from here so a rewording cannot change a severity silently
+SETTLED = "settled by "
+SUPERSEDED = "superseded for the key by "
+RULED = "the key was ruled by "
+INFO_REASONS = (SETTLED, SUPERSEDED)       # the key reads from a later ruling: info
+MAJOR_REASONS = (RULED,)                   # a later ruling of the content that did not approve: still major
+REASON_PREFIXES = INFO_REASONS + MAJOR_REASONS
+
+
+def order_key(path: Path, doc: dict) -> tuple:
+    """Where a review file sits in the order rulings are applied and "later" is read (task-0322): its date, then who
+    ruled, then its number, the base file ``<on>-<by>`` as 0 and ``<on>-<by>-<n>`` (``capture.py review``'s second
+    file the same day) as ``n``. A file name alone sorts ``-`` before ``.``, so the second file would come first."""
+    r = doc.get("review", {}) if isinstance(doc, dict) else {}
+    on, by, stem = str(r.get("on", "")), str(r.get("by", "")), path.stem
+    m = re.fullmatch(re.escape(f"{on}-{by}") + r"(?:-([0-9]+))?", stem)
+    return (on, by, int(m[1]) if m and m[1] else 0, path.name) if m else (on, stem, 0, path.name)
+
+
+def settling(fa: dict, at: tuple, bound: list, handles: dict) -> str | None:
+    """The reason an ambiguous ruling's act is settled or superseded by a later applied ruling (task-0322), else None.
+    Settled: a later ruling of the same statement (its id, or the same key, value and digest by a giver the stem
+    reads as). Superseded: a later ruling of the same content on another statement, the answer it named unruled."""
+    mine = _readings(fa["statement"], handles)
+    for b in bound:
+        if b["at"] <= at or (b["key"], b["value"], b["sha256"]) != (fa["key"], fa["from_value"], fa["from_sha256"]):
+            continue
+        if b["id"] == fa["statement"] or b["giver"] in mine:
+            return f"{SETTLED}{b['rel']}"
+        return (f"{SUPERSEDED}{b['rel']}; the answer it named stays unruled" if b["outcome"] == "approved"
+                else f"{RULED}{b['rel']} ({b['outcome']}); the answer it named stays unruled")
+    return None
+
+
 def _as_reported(how: dict) -> dict:
     """task-0321: the act schema's reasons are closed, so a giver the load cannot confirm is reported as ``changed``,
     the reason naming both givers."""

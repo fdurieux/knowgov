@@ -178,6 +178,40 @@ def _ops(d: Path) -> None:
         f'\n[[handle]]\nhandle = "{h}"\nunit = "ORG-0002"\nroles = ["gives"]\nissued = 2026-11-02\n' for h in ("ops", "ops-2")), encoding="utf-8")
 
 
+def same_day_cases(out: Path) -> list[str]:
+    """task-0322 J1: the legacy review (no giver) and employee-2's re-ruling the same day, which ``capture.py review``
+    saves as ``<on>-<by>-2.toml``, a name that sorts before ``<on>-<by>.toml``: the re-ruling is still the later, so the
+    ambiguous act is settled at info and the key reads approved."""
+    errs: list[str] = []
+    print("== task-0322: a same-day re-ruling settles the legacy ambiguous act (ops, ops-2)")
+    hold = "response|hold_presence"
+    env = fresh(out, "giver-same-day", decided=True)
+    d = out / "giver-same-day"
+    _ops(d)
+    want = {hold: "held_unscreened only"}
+    w.answer(env, d, handle="ops", want=want)
+    w.answer(env, d, handle="ops", want=want)
+    capdir = d / "subjects" / "cargo_quote" / "captures"
+    second = next(capdir.glob("*-ops-2.toml"))
+    n = 1 + [a["key"] for a in tomllib.loads(second.read_text(encoding="utf-8"))["answer"]].index(hold)
+    ruled = f"A:cap:{second.stem}:{n}@capture"
+    got = w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
+    saved = Path(re.search(r"into (\S+\.toml)", got).group(1))
+    saved.write_text(re.sub(r'(?m)^giver = .*\n', "", saved.read_text(encoding="utf-8")), encoding="utf-8")   # a review from before the giver
+    for f in capdir.glob("*-ops*.toml"):
+        f.unlink()
+    w.answer(env, d, handle="ops-2", want=want)
+    before = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
+    w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r2.toml", "employee-2", "S2", [(ruled, "approved")])))
+    second_review = sorted((capdir / "reviews").glob("*-employee-2-2.toml"))
+    after = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
+    held = {k: v for k, v in approvals(env, "S2", hold).items() if v}
+    if not second_review or len(before) != 1 or before[0]["severity"] != "major" or len(after) != 1 or after[0]["severity"] != "info" or not held:
+        errs.append(f"task-0322: a same-day re-ruling should settle the legacy act at info: before {before}, after {after}, approved {held}")
+    print(f"    approved on {sorted(held) or 'nothing'}; {after[0]['severity'] + ': ' + after[0]['message'][-90:] if after else 'no act'}")
+    return errs
+
+
 def x_n_cases(out: Path) -> list[str]:
     """task-0320 (decision-0038 G1, G2): with ``ops`` and ``ops-2`` both issued, ``ops-2``'s answers have the stem
     ``ops``'s second file of the day would have. The review records the giver from the capture's own content, so
@@ -351,6 +385,7 @@ def main(out: Path) -> int:
     errs += giver_cases(out)
     errs += forged_cases(out)
     errs += stem_cases(out)
+    errs += same_day_cases(out)
     errs += x_n_cases(out)
 
     print("== item 7 at stage 2 (S6): a ruling on P2's surcharge, then the tariff change")
