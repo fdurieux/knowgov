@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-11T14:48:00Z'
+updated_date: '2026-11-11T15:05:00Z'
 labels:
   - integrity
   - 0.9.0
@@ -38,4 +39,15 @@ R-a (one 'at' per [verification] declaration cannot date one document's re-revie
 - [ ] #3 guide §9 and the CHANGELOG name the limit; tests/test_docs_* hold
 - [ ] #4 The consequence clause names only the bound declarations; the review step's wording agrees between gate and check_subject; approver and reviewer steps name decision-0002; tests
 - [ ] #5 The record holds
+- [ ] #6 H1: the hook's message carries the attestation finding and its route when the bar rests on it; a test on knowgov_hook.py
+- [ ] #7 H2, H3: the 'lists no Version' finding names each document and digest, is major, names what is lost and the key count; check_subject's note is complete; tests
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Group C's re-check of task-0325/task-0324 at 5555343 (session_01HTAA1R97DK5D3Q1B1z6cKo): N3 FIXED; N2 FIXED in the gate CLI, MCP gate_verdict and the annotations; NOT FIXED in the hook. Added to this task, as they complete the same pulled fix:
+- H1: instance/ci/claude/knowgov_hook.py (about :428) passes only blocker and critical findings to the assistant, so the attestation finding (the cause and its route) never reaches it at plan, spec or push, and the closing 'Route to approval' names the questionnaire whatever the cause. Fix: include the findings the bar rests on (attestation, lapsed), or every finding kind other than key, below the blockers; the closing route follows the cause.
+- H2: the 'lists no Version' route uses a '<digest>' placeholder and names no document; name each document and its digest as the edited-document finding does. check_subject's note for a declaration listing nothing ends mid-sentence ('…list the digest of each', tools/check_subject.py about :449).
+- H3: a declaration that verifies nothing is info, while an unlisted edited Version is major. Raise it to major, as the cause of the BLOCKED. Its consequence clause names what is lost (approvals resting on execution read proposed too) and gives the count of keys behind it, as 'behind 31 required key(s)' does.
+<!-- SECTION:NOTES:END -->
