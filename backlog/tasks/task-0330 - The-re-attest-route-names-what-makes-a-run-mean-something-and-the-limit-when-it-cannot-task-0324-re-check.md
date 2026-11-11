@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-11T14:48:00Z'
-updated_date: '2026-11-11T15:05:00Z'
+updated_date: '2026-11-11T16:52:00Z'
 labels:
   - integrity
   - 0.9.0
@@ -50,4 +50,8 @@ Group C's re-check of task-0325/task-0324 at 5555343 (session_01HTAA1R97DK5D3Q1B
 - H1: instance/ci/claude/knowgov_hook.py (about :428) passes only blocker and critical findings to the assistant, so the attestation finding (the cause and its route) never reaches it at plan, spec or push, and the closing 'Route to approval' names the questionnaire whatever the cause. Fix: include the findings the bar rests on (attestation, lapsed), or every finding kind other than key, below the blockers; the closing route follows the cause.
 - H2: the 'lists no Version' route uses a '<digest>' placeholder and names no document; name each document and its digest as the edited-document finding does. check_subject's note for a declaration listing nothing ends mid-sentence ('…list the digest of each', tools/check_subject.py about :449).
 - H3: a declaration that verifies nothing is info, while an unlisted edited Version is major. Raise it to major, as the cause of the BLOCKED. Its consequence clause names what is lost (approvals resting on execution read proposed too) and gives the count of keys behind it, as 'behind 31 required key(s)' does.
+
+Re-checked by group A at e8ac07c: N1 FIXED (the honest path gives a genuine verification; the shortcut is named), R-a and R-b FIXED; residues N-1, N-3..N-5 to task-0329; N-2 to doc-0038 §3.5.
+
+Re-checked by group C at e8ac07c: H2, H3 FIXED; H1 PARTLY FIXED (the cause and route reach the assistant; the closing route stays the questionnaire because ATTESTATION_ROUTE cannot fire on a real report): task-0332, with H4-H6.
 <!-- SECTION:NOTES:END -->

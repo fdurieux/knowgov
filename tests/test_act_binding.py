@@ -376,8 +376,8 @@ def test_every_reason_load_writes_is_one_the_gate_recognises_task_0322():
     assert seen == set(review.REASON_PREFIXES) - {review.OPPOSED}, seen   # OPPOSED is written by the load itself (task-0328)
 
 
-def _rows(a, b, d="2026-11-06", st="A:cap:x:1@capture"):
-    return [(st, d, a[0], a[1], f"{a[0]}.toml"), (st, d, b[0], b[1], f"{b[0]}.toml")]
+def _rows(*rs, d="2026-11-06", st="A:cap:x:1@capture"):
+    return [(st, d, by, oc, f"{by}.toml") for by, oc in rs]
 
 
 def test_opposing_rulings_the_same_day_by_two_reviewers_cancel_whichever_is_first_task_0328():
@@ -387,10 +387,16 @@ def test_opposing_rulings_the_same_day_by_two_reviewers_cancel_whichever_is_firs
         for pair in ((("boss", oc), ("employee-2", "approved")), (("boss", "approved"), ("employee-2", oc)),
                      (("zed", oc), ("employee-2", "approved")), (("employee-2", "approved"), ("zed", oc))):
             got = review.opposed_rulings(_rows(*pair))
-            assert len(got) == 2 and all(len(v) == 1 for v in got.values()), (pair, got)
-            own = {f"{r[4]}": r[3] for r in _rows(*pair)}
-            reasons = {review.opposed_reason(rel, own[rel], v) for (_s, _d, rel), v in got.items()}
-            assert len(reasons) == 1, reasons   # the same act from either file
+            assert len(got) == 2, (pair, got)
+            assert len({review.opposed_reason(g) for g in got.values()}) == 1   # the same act from either file
+
+
+def test_every_act_of_a_cancelled_set_names_every_file_of_it_task_0331():
+    """R3: employee-2 approved, boss rejected, carol approved: one set of three, one reason naming all three."""
+    got = review.opposed_rulings(_rows(("employee-2", "approved"), ("boss", "rejected"), ("carol", "approved")))
+    reasons = {review.opposed_reason(g) for g in got.values()}
+    assert len(got) == 3 and len(reasons) == 1, got
+    assert all(f"{n}.toml" in next(iter(reasons)) for n in ("employee-2", "boss", "carol"))
 
 
 def test_agreeing_rulings_another_day_another_statement_or_the_same_reviewer_are_not_opposed_task_0328():
@@ -405,11 +411,57 @@ def test_agreeing_rulings_another_day_another_statement_or_the_same_reviewer_are
     assert review.opposed_rulings(same) == {}   # the same reviewer's -2 (task-0322)
 
 
-def test_the_gate_reads_an_opposed_act_at_major_naming_both_files_task_0328():
+def _opposed_act(reasons=None):
+    group = [("captures/reviews/2026-11-06-boss.toml", "rejected"), ("captures/reviews/2026-11-06-employee-2.toml", "approved")]
+    return {**_gone_act(), "why": "ambiguous", "reasons": reasons or [review.opposed_reason(group)]}
+
+
+def test_the_gate_reads_an_opposed_act_at_major_naming_both_files_without_the_generic_clause_task_0331():
+    """R2: the message is the opposed reason alone."""
     import gate_cli
-    why = review.opposed_reason("captures/reviews/2026-11-06-employee-2.toml", "approved",
-                                [("captures/reviews/2026-11-06-boss.toml", "rejected")])
-    assert why.startswith(review.OPPOSED) and review.OPPOSED in review.MAJOR_REASONS and review.OPPOSED in review.REASON_PREFIXES
-    f = gate_cli.act_finding(_ambiguous_act([why]))
+    f = gate_cli.act_finding(_opposed_act())
     assert f["severity"] == "major" and "2026-11-06-boss" in f["message"] and "2026-11-06-employee-2" in f["message"], f
-    assert f["act"]["why"] == "ambiguous"
+    assert "several statements hold" not in f["message"] and "two givers" not in f["message"], f["message"]
+    assert f["act"]["why"] == "ambiguous" and review.OPPOSED in review.MAJOR_REASONS
+
+
+def test_a_later_decided_ruling_settles_an_opposed_act_and_a_rejection_leaves_it_major_task_0331():
+    """R1."""
+    import gate_cli
+    at = ("2026-11-06", "boss", 0, "x")
+    fa = {"statement": "S", "key": "k"}
+    app = {"id": "S", "at": ("2026-11-08", "carol", 0, "c"), "rel": "carol.toml", "outcome": "approved"}
+    rej = {"id": "S", "at": ("2026-11-09", "dave", 0, "d"), "rel": "dave.toml", "outcome": "rejected"}
+    ref = {"id": "S", "at": ("2026-11-09", "dave", 0, "d"), "rel": "dave.toml", "outcome": "referred"}
+    same_day = {"id": "S", "at": ("2026-11-06", "zed", 0, "z"), "rel": "zed.toml", "outcome": "approved"}
+    assert review.opposed_settling(fa, at, []) is None and review.opposed_settling(fa, at, [same_day]) is None
+    assert review.opposed_settling(fa, at, [app, ref]) == "settled by carol.toml"   # a referral decides nothing
+    why = review.opposed_settling(fa, at, [app, rej])
+    assert why == "the key was ruled by dave.toml (rejected)", why
+    sett = gate_cli.act_finding(_opposed_act([*_opposed_act()["reasons"], "settled by carol.toml"]))
+    assert sett["severity"] == "info" and "settled by carol.toml" in sett["message"] and "reads from that ruling" in sett["message"], sett
+    ruled = gate_cli.act_finding(_opposed_act([*_opposed_act()["reasons"], why]))
+    assert ruled["severity"] == "major" and "dave.toml" in ruled["message"], ruled
+
+
+def test_capture_review_warns_before_it_writes_a_ruling_that_opposes_the_days_task_0331():
+    """R4: ``capture._opposes`` over the review files already saved."""
+    import datetime as dt
+    import tempfile
+    import capture
+    with tempfile.TemporaryDirectory() as td:
+        into = Path(td)
+        (into / "2026-11-06-boss.toml").write_text('[review]\nby = "boss"\non = 2026-11-06\n\n[[ruling]]\nassertion = "S"\noutcome = "rejected"\n', encoding="utf-8")
+        rv = {"on": dt.date(2026, 11, 6), "by": "employee-2", "rulings": [{"statement": "S", "outcome": "approved"}]}
+        got = capture._opposes(review, into, into / "2026-11-06-employee-2.toml", rv)
+        assert len(got) == 1 and "2026-11-06-boss.toml" in got[0] and "written all the same" in got[0], got
+        rv["rulings"][0]["outcome"] = "rejected"
+        assert capture._opposes(review, into, into / "2026-11-06-employee-2.toml", rv) == []
+        rv["on"] = dt.date(2026, 11, 7)
+        rv["rulings"][0]["outcome"] = "approved"
+        assert capture._opposes(review, into, into / "2026-11-07-employee-2.toml", rv) == []
+
+
+def test_the_readme_states_the_opposed_rule_and_the_remedy_task_0331():
+    t = " ".join((ROOT / "instance" / "README.md").read_text(encoding="utf-8").split())
+    assert "cancel each other" in t and "rule again in one review, on a later day" in t and "settled by" in t

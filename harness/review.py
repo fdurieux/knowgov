@@ -273,26 +273,38 @@ def order_key(path: Path, doc: dict) -> tuple:
 
 
 def opposed_rulings(rows: list) -> dict:
-    """The rulings that cancel each other (task-0328): ``rows`` are (statement, on, by, outcome, review file) of every ruling
-    the load would apply. Within a day the order across reviewers is only alphabetical, so a ruling approving a statement
-    and another reviewer's, the same day, not approving it (rejected or referred) are neither "later": none of them is
-    applied, whichever file comes first. Maps (statement, on, file) to the (file, outcome) of the opposing rulings, sorted.
+    """The rulings that cancel each other (task-0328, task-0331): ``rows`` are (statement, on, by, outcome, review file) of
+    every ruling the load would apply. Within a day the order across reviewers is only alphabetical, so a ruling approving
+    a statement and another reviewer's, the same day, not approving it (rejected or referred) are neither "later": none of
+    them is applied, whichever file comes first. Maps (statement, on, file) of each cancelled ruling to the whole cancelled
+    set of that statement and day, the (file, outcome) of every ruling in it sorted, the same list for each (R3).
     The same reviewer's ``-n`` re-ruling opposes nothing of their own (task-0322); rulings that agree are not opposed."""
-    out: dict = {}
-    for st, on, by, oc, rel in rows:
-        against = sorted({(r2, o2) for st2, on2, by2, o2, r2 in rows
-                          if (st2, on2) == (st, on) and by2 != by and (o2 == "approved") != (oc == "approved")
-                          and "approved" in (o2, oc)})
-        if against:
-            out[(st, on, rel)] = against
-    return out
+    hit = {(st, on, rel) for st, on, by, oc, rel in rows
+           if any((st2, on2) == (st, on) and by2 != by and (o2 == "approved") != (oc == "approved") and "approved" in (o2, oc)
+                  for st2, on2, by2, o2, r2 in rows)}
+    return {k: sorted({(rel, oc) for st, on, _by, oc, rel in rows if (st, on, rel) in hit and (st, on) == k[:2]}) for k in hit}
 
 
-def opposed_reason(rel: str, outcome: str, against: list) -> str:
-    """The reason of the act finding of one opposed ruling, the same from either file of the pair (the two sorted)."""
-    a, b = sorted([(rel, outcome), against[0]])
-    return (f"{OPPOSED}{a[0]} ({a[1]}) against {b[0]} ({b[1]}); two reviewers on one day, so neither applies and the "
-            "statement keeps the status it had; the owners rule again in one review")
+def opposed_reason(group: list) -> str:
+    """The reason of the act finding of an opposed ruling: every file of the cancelled set, the same from each of them."""
+    files = ", ".join(f"{rel} ({oc})" for rel, oc in sorted(group))
+    return (f"{OPPOSED}{files}; two reviewers ruled on one statement on one day, so none applies and the statement keeps "
+            "the status it had; the owners rule again in one review on a later day")
+
+
+def is_opposed(reasons) -> bool:
+    return bool(reasons) and str(reasons[0]).startswith(OPPOSED)
+
+
+def opposed_settling(fa: dict, at: tuple, bound: list) -> str | None:
+    """task-0331 R1: the second reason of an opposed act once a later day's applied ruling of the same statement decided it,
+    the latest one: approved reads ``settled by <file>`` (info), rejected ``the key was ruled by <file> (rejected)``
+    (major). A referral decides nothing. None while no later ruling decided it."""
+    later = [b for b in bound if b["id"] == fa["statement"] and b["at"][0] > at[0] and b["outcome"] in ("approved", "rejected")]
+    if not later:
+        return None
+    b = later[-1]
+    return f"{SETTLED}{b['rel']}" if b["outcome"] == "approved" else f"{RULED}{b['rel']} (rejected)"
 
 
 def settling(fa: dict, at: tuple, bound: list, handles: dict) -> str | None:

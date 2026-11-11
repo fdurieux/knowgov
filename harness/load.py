@@ -565,7 +565,7 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
         except ValueError:
             if not again:   # store.UNIQUE_IDS: only stage 2 meets a review stage 1 recorded, and keeps that record
                 raise
-        settled = _apply_rulings(st, rv, (p, doc, rid, head, rel, person, on), caps, opposed, bound, counts)
+        settled = _apply_rulings(st, rv, (p, doc, rid, head, rel, person, on), caps, opposed, bound, counts, pending)
         for key in sorted(settled):
             counts["settled"] += st.settle_conflicts(key, rid)
         for c in rv.get("resolves", []):   # task-0216: a lint gap's resolution, by its document's owner
@@ -586,7 +586,7 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
     return counts
 
 
-def _apply_rulings(st, rv: dict, ctx: tuple, caps, opposed: dict, bound: list, counts: dict) -> set:
+def _apply_rulings(st, rv: dict, ctx: tuple, caps, opposed: dict, bound: list, counts: dict, pending: list) -> set:
     """Apply one review's rulings (an opposed one is set aside, task-0328); the keys whose dispute it settled."""
     import review
     p, doc, rid, head, rel, person, on = ctx
@@ -599,7 +599,7 @@ def _apply_rulings(st, rv: dict, ctx: tuple, caps, opposed: dict, bound: list, c
         # and the gate reads it lapsed as of its date (cadence.lapse), never the load's day
         against = opposed.get((ru["statement"], on, rel))
         if against:   # task-0328: neither ruling of an opposed pair applies
-            _set_aside(st, rid, head, rel, ru, b, against)
+            _set_aside(st, rid, head, rel, ru, b, against, pending, review.order_key(p, doc))
             continue
         if b["status"] == "disputed":
             settled.add(b["key"])   # the review settled the dispute whole (review.check), lapse or not
@@ -628,14 +628,14 @@ def _opposed(files: list, scenario: str, st, **kw) -> dict:
     return review.opposed_rulings(rows)
 
 
-def _set_aside(st, rid: str, head: dict, rel: str, ru: dict, b: dict, against: list) -> None:
-    """An opposed ruling is not applied: an ``ambiguous`` act finding names both files (task-0328)."""
+def _set_aside(st, rid: str, head: dict, rel: str, ru: dict, b: dict, group: list, pending: list, at: tuple) -> None:
+    """An opposed ruling is not applied: an ``ambiguous`` act finding names every file of its cancelled set (task-0328,
+    task-0331). It is held in ``pending``, to be settled by a later day's ruling (``review.opposed_settling``)."""
     import sys
     import review
-    st.record_act_finding(_act(f"actf:{rid}:ruling:{ru['n']}:opposed", head, "ruling", ru["n"], b["id"], ru["outcome"],
-                               b["key"], "ambiguous", value=ru["value"], sha=ru["sha256"],
-                               reasons=[review.opposed_reason(rel, ru["outcome"], against)]))
-    print(f"review ruling not applied: {rel} opposes {against[0][0]} on {b['id']}", file=sys.stderr)
+    pending.append((_act(f"actf:{rid}:ruling:{ru['n']}:opposed", head, "ruling", ru["n"], b["id"], ru["outcome"], b["key"],
+                         "ambiguous", value=ru["value"], sha=ru["sha256"], reasons=[review.opposed_reason(group)]), at))
+    print(f"review ruling not applied: {rel} is opposed by {', '.join(f for f, _o in group if f != rel)} on {b['id']}", file=sys.stderr)
 
 
 def _ordered_reviews(rdir: Path) -> list:
@@ -670,6 +670,11 @@ def _record_pending(st, pending: list, bound: list, handles: dict) -> None:
     reason (the gate reads it at info when it is settled or the key reads approved); the rest as they were."""
     import review
     for fa, at in pending:
+        reasons = json.loads(fa["reasons"])
+        if review.is_opposed(reasons):   # task-0331: its own reason stays first, the settling one follows
+            why = review.opposed_settling(fa, at, bound)
+            st.record_act_finding({**fa, "reasons": json.dumps([*reasons, why], ensure_ascii=False)} if why else fa)
+            continue
         why = review.settling(fa, at, bound, handles)
         st.record_act_finding({**fa, "reasons": json.dumps([why], ensure_ascii=False)} if why else fa)
 

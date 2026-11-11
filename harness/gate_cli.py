@@ -265,6 +265,29 @@ def code_finding(u: dict, r: dict, owners: dict | None, route) -> dict:
     return f
 
 
+def _opposed_act(a: dict) -> bool:
+    """Whether an act (as ``act_finding`` reports it) is a ruling cancelled by an opposing one the same day (task-0331)."""
+    import review
+    return a["why"] == "ambiguous" and a["act"] == "ruling" and review.is_opposed(a["reasons"])
+
+
+def _act_route(f: dict, route):
+    """An opposed act's route is a new review on a later day, not the questionnaire (task-0331); any other keeps ``route``."""
+    if f["kind"] == "act" and _opposed_act(f["act"]):
+        return "the owners rule again in one review, on a later day (python harness/capture.py review <file>)"
+    return route
+
+
+def _opposed_severity(a: dict, msg: str) -> tuple[str, str]:
+    """task-0331: an opposed act's message is its own reason alone (no generic clause), then the settling reason if a later
+    day decided it; info when that approved, major when it rejected or nothing decided it."""
+    import review
+    last = a["reasons"][-1]
+    tail = "; ".join(a["reasons"]) + (", so the key reads from that ruling" if last.startswith(review.SETTLED) else "")
+    head = msg[:msg.index("was not applied:") + len("was not applied:")]
+    return ("info" if len(a["reasons"]) > 1 and last.startswith(review.INFO_REASONS) else "major"), f"{head} {tail}"
+
+
 def _act_severity(a: dict, msg: str) -> tuple[str, str]:
     """The act's severity and message: info when a resolution is gone, and (task-0321) when a later review settled an
     ambiguous ruling, naming it."""
@@ -272,6 +295,8 @@ def _act_severity(a: dict, msg: str) -> tuple[str, str]:
         return "info", msg
     if a["why"] == "ambiguous" and a["act"] == "ruling" and a["reasons"]:
         import review
+        if review.is_opposed(a["reasons"]):
+            return _opposed_severity(a, msg)
         r = a["reasons"][0]
         tail = f"; {r}" + (", so the key reads from that ruling" if r.startswith(review.SETTLED) else "")
         return ("info" if r.startswith(review.INFO_REASONS) else "major"), msg.replace("; its owner rules again", tail)
@@ -412,7 +437,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
             if f["kind"] in OWNED and (f["kind"] != "act" or f["key"]):
                 unit = (owners.get(f["key"]) or {}).get("unit")
                 f["owner"] = unit
-                f["route"] = route(unit, f["key"]) if route else None
+                f["route"] = _act_route(f, route(unit, f["key"]) if route else None)
                 c = (closers or {}).get(f["key"])
                 if f["kind"] == "key" and f["level"] == "declared_gap" and c is not None:
                     from capture import closing_route
