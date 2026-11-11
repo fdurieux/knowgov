@@ -453,7 +453,9 @@ def test_a_settled_opposed_act_no_longer_carries_the_owners_rule_again_route_tas
     opened = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": a["reasons"]}}
     settled = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": [*a["reasons"], "settled by c.toml"]}}
     assert "rule again in one review" in gate_cli._act_route(opened, "questionnaire route")
-    assert gate_cli._act_route(settled, "questionnaire route") == "questionnaire route"
+    assert gate_cli._act_route(settled, "questionnaire route") == "nothing to do: settled by c.toml"
+    legacy = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": ["settled by c.toml"]}}
+    assert gate_cli._act_route(legacy, "questionnaire route") == "questionnaire route"   # task-0322's legacy act is not an opposed one
 
 
 def test_capture_review_warns_before_it_writes_a_ruling_that_opposes_the_days_task_0331():

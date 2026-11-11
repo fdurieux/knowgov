@@ -299,7 +299,7 @@ def _opposed_ok(mine: list, live: dict, got: dict, ruled: str, pair: tuple, clas
     a, b = pair
     settled = later in ("approved", "rejected")
     named = len(mine) == 2 and all(all(x in f["message"] for x in (f"{ON}-{a}", f"{ON}-{b}")) and "several statements" not in f["message"]
-                                   and (("rule again in one review" not in f.get("route", "")) if settled
+                                   and (f.get("route", "").startswith("nothing to do: settled by ") if settled
                                         else "capture.py review" in f.get("route", "")) for f in mine)
     if not clash:
         return not mine and ruled in got

@@ -263,11 +263,14 @@ def _opposed_act(a: dict) -> bool:
 
 
 def _act_route(f: dict, route):
-    """An open opposed act's route is a new review on a later day, not the questionnaire (task-0331); a settled one
-    (a second reason, task-0333 R6) and any other act keep ``route``."""
-    if f["kind"] == "act" and _opposed_act(f["act"]) and len(f["act"]["reasons"]) == 1:
-        return "the owners rule again in one review, on a later day (python harness/capture.py review <file>)"
-    return route
+    """An opposed act's route (task-0331, task-0333 R6): open, a new review on a later day, not the questionnaire; settled
+    (a second reason), ``nothing to do: <the settling reason>``. Any other act keeps ``route``."""
+    if f["kind"] != "act" or not _opposed_act(f["act"]):
+        return route
+    reasons = f["act"]["reasons"]
+    if len(reasons) > 1:
+        return f"nothing to do: {reasons[-1]}"
+    return "the owners rule again in one review, on a later day (python harness/capture.py review <file>)"
 
 
 def _opposed_severity(a: dict, msg: str) -> tuple[str, str]:
