@@ -3,8 +3,9 @@
 A verification of method ``review`` is current until its ``at`` plus the review months of the key it
 concerns: the shortest ``[review.kinds]`` months of the register's ``metamodel/lifecycle.toml`` among
 the kinds of the nodes the key's row in the subject's ``register_map.toml`` names, else the
-register's ``default_months``. The register is read, never copied (``KG_REGISTER``, the vendored one
-by default): when it changes its cadence, the store follows on the next load.
+register's ``default_months``. The register is read, never copied (``KG_REGISTER``; the vendored one
+by default for a subject inside this checkout, a refusal for one outside it, ``register_root``, task-0334):
+when it changes its cadence, the store follows on the next load.
 
 The load writes that date as the verification's ``valid_until`` (``date_reviews``, both adapters
 through the store port). The gate reads currency as of a date (``as_of``): a statement whose every
@@ -23,6 +24,7 @@ import tomllib
 from pathlib import Path
 
 import dates   # task-0262: one strict YYYY-MM-DD parse
+import instance_register   # task-0334: an instance's subject reads its own register or refuses
 from review import LAPSE_MONTHS, add_months, pinned, today
 from subject import ROOT, SUBJECT
 
@@ -32,7 +34,14 @@ RULING = "appr:review:"   # the id of an approval a person's review file made (h
 
 
 def register_root() -> Path:
-    return Path(os.environ.get("KG_REGISTER") or (ROOT / "demo" / "register")).resolve()
+    """The register this process reads: ``KG_REGISTER``; else, for a subject that ships in this checkout, the
+    public register vendored under ``demo/register``; else ``instance_register.RegisterUnnamed``. The one
+    resolution every register-reading tool goes through (``capture``, ``register_impact`` and their callers)."""
+    v = os.environ.get("KG_REGISTER")
+    if v:
+        return Path(v).resolve()
+    instance_register.check()
+    return (ROOT / "demo" / "register").resolve()
 
 
 def _toml(p: Path) -> dict:

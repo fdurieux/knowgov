@@ -62,7 +62,7 @@ def _subject(td: Path, levels: str) -> Path:
 
 def _env(root: Path, **kw) -> dict:
     return {**os.environ, "KG_SUBJECT": str(root), "KG_SUBJECTS": str(root.parent), "KG_STORE": "rdflib", "KG_CLOCK": "pinned",
-            "PYTHONDONTWRITEBYTECODE": "1", **kw}
+            "PYTHONDONTWRITEBYTECODE": "1", "KG_REGISTER": os.environ.get("KG_REGISTER") or str(ROOT / "demo" / "register"), **kw}
 
 
 def _gate_verdict(root: Path, **env) -> dict:

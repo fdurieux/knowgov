@@ -42,7 +42,8 @@ knowgov's own protected paths reuse it; nothing is copied).
 Standard library only. The knowgov checkout is ``--knowgov``, else ``KG_HOME``, else the checkout
 this file sits in; the instance is ``--instance``, else ``CLAUDE_PROJECT_DIR``, else the event's
 ``cwd``. The store, the subject, the scenario and the date are the gate's ``KG_*`` variables, as
-knowgov-gate.sh reads them; one store per worktree (instance/README.md).
+knowgov-gate.sh reads them; one store per worktree (instance/README.md). The register is ``KG_REGISTER``,
+else ``<instance>/register``, the instance's own, passed to the gate (task-0334, decision-0039 §3.1).
 """
 from __future__ import annotations
 
@@ -465,6 +466,12 @@ def _summary(rep: dict) -> str:
     return "\n".join([head, *lines] + ([f"  ... and {more} more"] if more > 0 else []))
 
 
+def instance_register(env: dict, inst: Path) -> str:
+    """The register the gate reads: ``KG_REGISTER`` when it names one, else ``<instance>/register``, the instance's
+    own, never the public one knowgov carries (task-0334, decision-0039 §3.1)."""
+    return env.get("KG_REGISTER") or str(Path(inst).resolve() / "register")
+
+
 def run_gate(stage: str, task: str, kg: Path, inst: Path, *, advisory: bool, timeout: float) -> Decision:
     check = f"knowgov gate at {stage}"
     keep = os.environ.get("KG_REPORT")
@@ -480,6 +487,7 @@ def run_gate(stage: str, task: str, kg: Path, inst: Path, *, advisory: bool, tim
         env = {**os.environ, "KG_TASK": task, "KG_REPORT": str(report)}
         env.pop("KG_ANNOTATE", None)
         env.setdefault("PYTHON", sys.executable)   # the gate runs the hook's interpreter unless PYTHON names one (task-0141.01)
+        env["KG_REGISTER"] = instance_register(env, inst)
         cmd = ["sh", str(kg / "instance" / "ci" / "knowgov-gate.sh"), str(kg), str(inst), "gate"]
         try:
             p = subprocess.run(cmd, cwd=str(inst), env=env, capture_output=True, text=True, timeout=timeout)
