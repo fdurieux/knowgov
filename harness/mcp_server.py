@@ -192,6 +192,9 @@ TOOLS = [
      "description": "For one key: 'asserted' with its values, 'documented_absent' when the documents say there is none, "
                     "or 'unknown' when no statement exists (not the same as absent). Each statement comes with its "
                     "provenance: status, basis, source document, fragments, author, verifications, approvals and gaps. "
+                    "A verification's 'at' is when the load recorded the attestation, not when a run happened; an "
+                    "execution verification's run is identified by its digests (the document Versions, the implementation "
+                    "and the suite), never by a date. "
                     "'invalidated' lists the key's statements a source change ended, each with superseded_by: the "
                     "verified or approved statements that replace it, or none, when the old value no longer holds and nothing does.",
      "inputSchema": {"type": "object", "additionalProperties": False, "required": ["key"], "properties": {
