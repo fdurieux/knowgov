@@ -454,9 +454,10 @@ def test_a_settled_opposed_act_no_longer_carries_the_owners_rule_again_route_tas
     settled = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": [*a["reasons"], "settled by c.toml"]}}
     assert "rule again in one review" in gate_cli._act_route(opened, "questionnaire route")
     assert gate_cli._act_route(settled, "questionnaire route") == "nothing to do: settled by c.toml"
-    for r in ("settled by c.toml", "superseded for the key by c.toml; the answer it named stays unruled"):   # task-0322's acts
-        legacy = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": [r]}}
-        assert gate_cli._act_route(legacy, "questionnaire route") == f"nothing to do: {r}", r
+    legacy = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": ["settled by c.toml"]}}   # task-0322's act
+    assert gate_cli._act_route(legacy, "questionnaire route") == "nothing to do: settled by c.toml"
+    sup = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": ["superseded for the key by c.toml; the answer it named stays unruled"]}}
+    assert gate_cli._act_route(sup, "questionnaire route") == "questionnaire route"   # info, but it keeps its own route
     unsettled = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": []}}
     ruled = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": ["the key was ruled by c.toml (rejected); the answer it named stays unruled"]}}
     for f in (unsettled, ruled, {"kind": "act", "act": {"why": "changed", "act": "ruling", "reasons": ["settled by c.toml"]}}):
