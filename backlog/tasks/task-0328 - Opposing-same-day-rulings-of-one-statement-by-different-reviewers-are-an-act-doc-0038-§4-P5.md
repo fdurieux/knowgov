@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-11-11T13:34:00Z'
-updated_date: '2026-11-11T15:47:00Z'
+updated_date: '2026-11-11T16:01:00Z'
 labels:
   - integrity
   - captures
@@ -33,6 +33,8 @@ Fix-only, pulled before the 0.9.0 cut under decision-0032 (fails open on a revie
 
 <!-- SECTION:NOTES:BEGIN -->
 Built by session_01HTAA1ScrqyiziKsTCYLfmT (#482), merged in train #484 as a214137 on a whole green matrix with stack (check_act_binding on Neo4j); recorded by the coordinator, the builder having no backlog CLI. First head e731c23 resolved by file order (approve-first demoted to rejected; rejected-first skipped the approval); reworked at 67cf54e: load checks every file first (review.opposed_rulings), applies neither ruling of an opposed pair, the statement keeps its prior status. Re-check sent to group C.
+
+Re-checked by group C at a214137 on both stores: repro B and approve-against-referred FIXED, no regression; an opposed act is never settled by the owners' later ruling (R1), with R2-R5: task-0331, pulled before the cut.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
