@@ -530,6 +530,8 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
     if again:
         st.clear_act_findings()
     applied: list = []   # task-0320: the review files this load applied, as read
+    pending: list = []   # (act finding, review file): ambiguous rulings, settled or not by a later one
+    bound: list = []     # (review file, key, value, sha256) of every ruling applied
     if not files:
         st.record_inputs({"reviews": applied_digest(applied)})
         return counts
@@ -555,11 +557,7 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
             counts["refused"].append(rel)
             st.record_act_finding(_act(f"actf:{rid}", head, "review", 0, "", "", "", "refused", reasons=errs))
             continue
-        for x in rv["skipped"]:   # an act whose statement changed or vanished: not applied, and said so (doc-0032 §6 item 7)
-            print(f"review act not applied: {rel}: {x['act']} {x['n']} ({x['statement']}): {x['why']}", file=sys.stderr)
-            counts["skipped"] += 1
-            st.record_act_finding(_act(f"actf:{rid}:{x['act']}:{x['n']}", head, x["act"], x["n"], x["statement"], x["outcome"],
-                                       x["key"], x["why"], value=x["value"], sha=x["sha256"], to=x["to"]))
+        counts["skipped"] += _record_skipped(st, rv["skipped"], rid, head, rel, pending)
         person, on = f"person:{rv['by']}", rv["on"].isoformat()
         st.ensure_person(person, rv["by"])
         try:
@@ -577,6 +575,7 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
             # task-0198 (H3): applied whatever the day; the approval keeps its until, six months after the answer,
             # and the gate reads it lapsed as of its date (cadence.lapse), never the load's day
             st.apply_ruling(b["id"], outcome, rid, person, on, rv["record"], until.isoformat() if until else "")
+            bound.append(((head["on"], rel), b["key"], str(ru["value"]), ru["sha256"]))
             counts[outcome] += 1
             if ru["unbound"]:   # the read rule: a file from before 0.9.0 binds by id, and the gate says so
                 st.record_act_finding(_act(f"actf:{rid}:ruling:{ru['n']}", head, "ruling", ru["n"], b["id"], outcome, b["key"],
@@ -596,8 +595,34 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
                                            (c["keys"] or [""])[0], "unbound"))
         counts["files"].append(rel)
         applied.append([p.name, content])
+    _record_pending(st, pending, bound)
     st.record_inputs({"reviews": applied_digest(applied)})
     return counts
+
+
+def _record_skipped(st, skipped: list, rid: str, head: dict, rel: str, pending: list) -> int:
+    """Record the acts a review's load set aside (doc-0032 §6 item 7), an ambiguous ruling held back for
+    ``_record_pending``; returns how many."""
+    import sys
+    for x in skipped:   # an act whose statement changed or vanished: not applied, and said so
+        print(f"review act not applied: {rel}: {x['act']} {x['n']} ({x['statement']}): {x['why']}", file=sys.stderr)
+        fa = _act(f"actf:{rid}:{x['act']}:{x['n']}", head, x["act"], x["n"], x["statement"], x["outcome"],
+                  x["key"], x["why"], value=x["value"], sha=x["sha256"], to=x["to"], reasons=x.get("reasons", ()))
+        if x["why"] == "ambiguous" and x["act"] == "ruling":
+            pending.append((fa, (head["on"], rel)))   # task-0321 H2: recorded once a later ruling is known to settle it, or not
+        else:
+            st.record_act_finding(fa)
+    return len(skipped)
+
+
+def _record_pending(st, pending: list, bound: list) -> None:
+    """task-0321 H2: an ambiguous ruling a later applied review's ruling on the same content settled is recorded with
+    that review named (the gate reads it at info); the rest as they were."""
+    for fa, at in pending:
+        later = next((b for b in bound if b[0] > at and b[1] == fa["key"] and b[2] == fa["from_value"] and b[3] == fa["from_sha256"]), None)
+        if later:
+            fa = {**fa, "reasons": json.dumps([f"settled by {later[0][1]}"], ensure_ascii=False)}
+        st.record_act_finding(fa)
 
 
 def _act(fid: str, head: dict, act: str, n: int, statement: str, outcome: str, key: str, why: str, *,

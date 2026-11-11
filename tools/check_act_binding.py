@@ -142,6 +142,35 @@ def giver_cases(out: Path) -> list[str]:
     return errs
 
 
+def forged_cases(out: Path) -> list[str]:
+    """task-0321 H1: the recorded giver is checked at the load. employee-2's approval of employee-1's answer records
+    ``employee-1``; the capture deleted and employee-3 giving the same value, the file edited to name employee-3 as
+    giver is an act finding (the key not approved), where the honest file is the ``gone`` act."""
+    errs: list[str] = []
+    print("== task-0321: a review's recorded giver edited to the person whose identical answer remains (S2')")
+    hold = "response|hold_presence"
+    env = fresh(out, "giver-forged", decided=True)
+    d = out / "giver-forged"
+    cap = w.answer(env, d)
+    capdir = d / "subjects" / "cargo_quote" / "captures"
+    capfile = next(capdir.glob("*.toml"))
+    n = 1 + [a["key"] for a in tomllib.loads(capfile.read_text(encoding="utf-8"))["answer"]].index(hold)
+    ruled = f"{cap}:{n}@capture"
+    got = w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
+    saved = Path(re.search(r"into (\S+\.toml)", got).group(1))
+    capfile.unlink()
+    w.answer(env, d, handle="employee-3", want={hold: "held_unscreened only"})
+    honest = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled]
+    saved.write_text(saved.read_text(encoding="utf-8").replace('giver = "employee-1"', 'giver = "employee-3"'), encoding="utf-8")
+    held = {k: v for k, v in approvals(env, "S2", hold).items() if v}
+    forged = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled]
+    if held or len(honest) != 1 or len(forged) != 1 or forged[0]["severity"] != "major" or not all(
+            g in forged[0]["message"] for g in ("employee-3", "employee-1")):
+        errs.append(f"task-0321: a forged giver should be a major act naming both givers and approve nothing: approved {held}, honest {honest}, forged {forged}")
+    print(f"    approved on {sorted(held) or 'nothing'}; {forged[0]['severity'] + ' act: ' + forged[0]['message'] if forged else 'no act'}")
+    return errs
+
+
 def _ops(d: Path) -> None:
     """Issue ``ops`` and ``ops-2`` (gives) in the instance's register: a handle and its ``-<n>`` neighbour."""
     hp = d / "register" / "people" / "handles.toml"
@@ -216,6 +245,17 @@ def stem_cases(out: Path) -> list[str]:
         errs.append(f"task-0308: ops-2's answer inherited the approval of {ruled}: approved {got}, ambiguous acts {found}, gone acts {gone}")
     print(f"    {first} twice, then {again}: approved on {sorted(got) or 'nothing'}; "
           f"{found[0]['severity'] + ' ambiguous act' if found else 'no ambiguous act'}, {len(gone)} gone act(s) for the giver's ruling")
+    # task-0321 H2: a later review (6 November) rules on ops-2's answer, the same id and content, binding by the giver it records
+    (rdir / "2026-11-06-employee-3.toml").write_text(review.review_toml(
+        {"by": "employee-3", "on": dt.date(2026, 11, 6), "record": "minutes/2026-11-03-outage-rule.md", "scenario": "S2", "closes": [],
+         "rulings": [{"assertion": ruled, "key": hold, "value": "held_unscreened only", "sha256": review.content_digest([]),
+                      "outcome": "approved", "giver": "ops-2"}]}), encoding="utf-8")
+    settled = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
+    held = {k: v for k, v in approvals(env, "S2", hold).items() if v}
+    if len(settled) != 1 or settled[0]["severity"] != "info" or "2026-11-06-employee-3" not in settled[0]["message"] or not held:
+        errs.append(f"task-0321: the ambiguous act should read info naming the review that settled it, the key approved: {settled}, approved {held}")
+    print(f"    settled by a later review: approved on {sorted(held) or 'nothing'}; "
+          f"{settled[0]['severity'] + ': ' + settled[0]['message'][-80:] if settled else 'no ambiguous act'}")
     return errs
 
 
@@ -309,6 +349,7 @@ def main(out: Path) -> int:
     print(f"    {before['verdict']} -> {after['verdict']}; {w.OUT} approved on {sorted(moved)}")
 
     errs += giver_cases(out)
+    errs += forged_cases(out)
     errs += stem_cases(out)
     errs += x_n_cases(out)
 

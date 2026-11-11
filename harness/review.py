@@ -251,6 +251,12 @@ def giver_of(ru: dict) -> str | None:
     return g if isinstance(g, str) and g else None
 
 
+def _as_reported(how: dict) -> dict:
+    """task-0321: the act schema's reasons are closed, so a giver the load cannot confirm is reported as ``changed``,
+    the reason naming both givers."""
+    return {"why": "changed", "to": [], "reasons": [how["message"]]} if how["why"] == "giver_wrong" else how
+
+
 def _unbound_reason(where: str, aid: str, ru: dict, how: dict) -> str:
     """The reason a ruling that binds nowhere is refused the day it is written."""
     if how["why"] == "giver":   # task-0310: write time refuses what load time reports ambiguous
@@ -393,7 +399,7 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
         where = f"ruling {i} ({aid})"
         if outcome not in OUTCOMES:
             errs.append(f"{where}: outcome {outcome!r} is not one of {', '.join(OUTCOMES)}")
-        ru = _read_giver(ru, aid, captures, strict)   # decision-0038 G1: the capture's content's, never the file name's
+        ru = _read_giver(ru, aid, captures, strict, handles)   # decision-0038 G1: the capture's content's, never the file name's
         b, how = _bind_ruling(st, ru, handles, strict)
         if b is not None and strict and how["why"] == "repaired":
             b, how = None, {**how, "why": "changed"}   # the day it is written, a ruling names the statement it rules on
@@ -401,6 +407,7 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
             if strict:
                 errs.append(_unbound_reason(where, aid, ru, how))
             else:
+                how = _as_reported(how)
                 skipped.append({"act": "ruling", "n": i, "statement": aid, "outcome": outcome, "key": str(ru.get("key") or ""),
                                 "value": ru.get("value"), "sha256": ru.get("sha256"), **how})
             continue
@@ -512,13 +519,46 @@ def check(doc: dict, st, *, handles: dict | None, owners: dict[str, list[str]], 
     return errs, norm
 
 
-def _read_giver(ru: dict, aid: str, captures: dict[str, dict], strict: bool) -> dict:
-    """The day a review is written (``strict``), the ruling with ``giver`` read from the capture holding ``aid``: a
-    captured answer's giver is the ``[capture] from`` its file's content names (decision-0038 G1). A giver the reviewer
-    wrote that is not it is marked, so the ruling binds nowhere and is refused. A ruling on another statement, on an
-    answer no capture file holds, or read at a load, is left as it is."""
-    held = (captures.get(aid) or {}).get("from") if strict and aid.startswith("A:cap:") else None
+def _readings(aid: str, handles: dict | None) -> list[str]:
+    """The givers an id's stem may name once its capture file has vanished (task-0321): its tail whole, and for an
+    ambiguous stem (``_ambiguous_giver``) the tail without its ``-<n>`` too. Only issued handles, when a list is known."""
+    g = _giver(aid)
+    if not g:
+        return []
+    m = re.fullmatch(r"(.+)-[0-9]+", g)
+    out = [g] + ([m[1]] if m and handles and m[1] in handles else [])
+    return [x for x in out if handles is None or x in handles]
+
+
+def _loaded_giver_wrong(ru: dict, aid: str, captures: dict[str, dict], handles: dict | None) -> str | None:
+    """Why a recorded giver cannot stand at a load (task-0321), else None: it must equal the present capture's, or, the
+    capture gone, be one of the id's stem readings."""
     given = giver_of(ru)
+    if given is None:
+        return None
+    cap = captures.get(aid)
+    if cap is not None:
+        held = cap.get("from")
+        return f"the recorded giver {given} is not {held}, who gave {aid} (the capture's own content)" if held and given != held else None
+    want = _readings(aid, handles)
+    if given in want:
+        return None
+    return (f"the recorded giver {given} is not {' or '.join(want) or 'a handle its stem reads as'}, "
+            f"which the stem of {aid} names (its capture is gone)")
+
+
+def _read_giver(ru: dict, aid: str, captures: dict[str, dict], strict: bool, handles: dict | None = None) -> dict:
+    """The ruling with ``giver`` checked against the capture holding ``aid`` (decision-0038 G1). The day a review is
+    written (``strict``) the giver is read from the capture's content (``[capture] from``) and recorded; one the
+    reviewer wrote that is not it is marked, so the ruling binds nowhere and is refused. At a load (task-0321) a
+    recorded giver is never trusted (``_loaded_giver_wrong``): a wrong one is marked and the act reported. A ruling
+    on another statement, or without a giver, is left as it is."""
+    if not aid.startswith("A:cap:"):
+        return ru
+    if not strict:
+        why = _loaded_giver_wrong(ru, aid, captures, handles)
+        return {**ru, "_giver_wrong": why} if why else ru
+    held, given = (captures.get(aid) or {}).get("from"), giver_of(ru)
     if held and given and given != held:
         return {**ru, "_giver_wrong": f"the ruling names giver {given}, and the capture holding {aid} was given by {held} (its own content)"}
     return {**ru, "giver": str(held)} if held else ru
