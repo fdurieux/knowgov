@@ -3,9 +3,10 @@ id: TASK-0332
 title: >-
   The hook closes with the attestation route when the bar rests on one, and the
   execution step fits an unchanged Version (task-0330 re-check)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-11T16:52:00Z'
+updated_date: '2026-11-11T19:49:00Z'
 labels:
   - integrity
   - 0.9.0
@@ -26,8 +27,20 @@ Completes task-0330's H1 (doc-0038 §4 P2), pulled before the cut under decision
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 H1': on the example instance with execution's versions stripped, and with decision_table.md edited, the hook at plan, spec and push closes with the attestation route; with a key blocker present it closes with the questionnaire route; tests on real gate reports
-- [ ] #2 H4: the execution step and ATTESTATION_ROUTE read correctly for an unchanged Version; a test
-- [ ] #3 H5, H6: the count names the keys now below verified; the spare slot is used; tests
-- [ ] #4 The record holds; pristine S1..S7 unchanged
+- [x] #1 H1': on the example instance with execution's versions stripped, and with decision_table.md edited, the hook at plan, spec and push closes with the attestation route; with a key blocker present it closes with the questionnaire route; tests on real gate reports
+- [x] #2 H4: the execution step and ATTESTATION_ROUTE read correctly for an unchanged Version; a test
+- [x] #3 H5, H6: the count names the keys now below verified; the spare slot is used; tests
+- [x] #4 The record holds; pristine S1..S7 unchanged
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Built by session_01HTAA1UxBF2zxSbQtTZDKCD (#489, merged as 06fa20c on a whole green matrix with stack; main merged in by the coordinator after #488); recorded by the coordinator, the builder having no backlog CLI. The hook tests run on real gate reports of the example instance; each fails on main except the S2 guard. Re-checked by group C at 06fa20c: H1', H4, H5, H6 FIXED, no regression; H7-H9 to task-0329.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+The hook closes with ATTESTATION_ROUTE when the only blockers are the bar and an attestation finding is shown, and with the questionnaire route when a key blocks; the execution step reads 'brought in line with this Version where its values differ, the suite run on it, then listed', in the gate route, the hook, check_subject and guide §9; 'lists no Version' adds 'of which M now read below verified'; the hook's summary holds a bar slot only per bar finding present. Tests: tests/test_hook_route.py on real gate reports (execution stripped, decision table edited, S2, review stripped, slot logic) and tests/test_attestation_route.py's wording assertions; the record holds.
+<!-- SECTION:FINAL_SUMMARY:END -->
