@@ -430,23 +430,62 @@ def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, t
 
 
 def _relist_fix(name: str, restore: bool = False) -> str:
-    """task-0324: the fix per declaration. Execution is re-listed only after the suite has run on the new Version, with
-    the implementation and suite digests (decision-0038); approval, review and authored are each their own reader's act."""
+    """task-0324, task-0330: the fix per declaration. Execution means something only if the implementation and the suite
+    were changed to the new Version's values and run; approval and review are the approver's and the reviewer's own acts
+    (decision-0002: not the author's); authored is the author's."""
     if name == "execution":
-        step = ("run the suite on the new Version, then replace the old digest with the new one under execution versions, "
-                "with the implementation and suite digests (decision-0038)")
+        step = ("change the reference implementation and the suite to the new Version's values, run them, then list all three "
+                "digests (replace the old digest with the new one under versions, then the implementation, the suite); if the implementation and suite "
+                "are unchanged, re-listing only asserts the old result for the new values (no oracle runs at load; decision-0038)")
+    elif name == "review":
+        step = ("the reviewer (not the author, decision-0002) reads the new Version and replaces the old digest with the new "
+                "one (decision-0019); for a single document's re-review, the capture tool's `review` command gives it its own date, since one "
+                "`at` re-dates every listed Version")
+    elif name == "approval":
+        step = "the approver (not the author, decision-0002) reads the new Version; to re-attest, replace the old digest with the new one (decision-0019)"
     else:
-        who = {"approval": "the approver", "review": "the reviewer"}.get(name, "the author")
-        step = f"{who} reads the new Version and replaces the old digest with the new one (decision-0019)"
+        step = "the author reads the new Version; to re-attest, replace the old digest with the new one (decision-0019)"
     return step + (", or restore the document" if restore else ", or remove it")
+
+
+def _unchanged_code_note(rep: Report, m: dict, root: Path) -> None:
+    """task-0330: a document edit seen under ``[verification] execution`` (a listed digest that matches no current Version,
+    or an artefact that changed since it was attested) while the implementation and suite digests listed equal the files on
+    disk: knowgov cannot know whether the suite covers the change. A note, never an error."""
+    ex = (m.get("verification") or {}).get("execution") if isinstance(m.get("verification"), dict) else None
+    if not isinstance(ex, dict):
+        return
+    for which, _t, _f in EXECUTED:
+        rel, files = code_digests(m, root, which)
+        listed = ex.get(which)
+        if rel is None or not files or not isinstance(listed, list) or any(d not in listed for d in files.values()):
+            return
+    rep.note("attestation", "[verification] execution", "lists a document digest for an edited document while its implementation "
+             "and suite digests are the files as they are: knowgov cannot know whether the suite covers the change, so "
+             "re-listing asserts the old result for the new values unless the implementation and suite were changed and run "
+             "(decision-0038)")
+
+
+def _edited(rep: Report, m: dict, root: Path, name: str, listed: list, stale: list) -> bool:
+    """True when an artefact changed since it was attested (``_changed_artefacts``); under execution an edit seen, as a stale
+    listed digest or a changed artefact, adds task-0330's note on unchanged code."""
+    named = _changed_artefacts(rep, m, root, f"[verification] {name}", listed, bool(stale))
+    if name == "execution" and (stale or named):
+        _unchanged_code_note(rep, m, root)
+    return named
+
+
+def _no_version_note(rep: Report, where: str, name: str) -> None:
+    rep.note("attestation", where, "lists no Version: it verifies nothing, since an execution or a review "
+             "verification holds only for the Versions it lists (decision-0036); list the digest of each Version it verifies, "
+             "each document's under versions" + (", with the implementation and suite digests" if name == "execution" else "") + ".")
 
 
 def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: list) -> None:
     where = f"[verification] {name}"
     if listed is None or (name in BOUND and listed == []):   # task-0318: an empty list verifies nothing either
         if name in BOUND:
-            rep.note("attestation", where, "lists no Version: it verifies nothing, since an execution or a review "
-                     "verification holds only for the Versions it lists (decision-0036); list the digest of each")
+            _no_version_note(rep, where, name)
         else:
             rep.note("attestation", where, "lists no Version: it attests what the documents hold at each load, so an edit made "
                      "after it inherits it (decision-0009 (a), the read rule); list the digest of each Version it attests (decision-0019)")
@@ -461,7 +500,7 @@ def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: 
         return
     known[0] = subject_versions(m, root) if known[0] is None else known[0]
     stale = sorted(set(listed) - known[0])
-    if _changed_artefacts(rep, m, root, where, listed, bool(stale)):   # task-0318, task-0319: the edit, by artefact and file
+    if _edited(rep, m, root, name, listed, stale):   # task-0318, task-0319: the edit, by artefact and file
         return
     for d in stale:
         rep.error("attestation", where, f"versions lists {d}, which matches no current Version of the subject's artefacts: "

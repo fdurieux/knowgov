@@ -407,3 +407,17 @@ def test_a_staged_or_changed_path_with_a_space_or_a_non_ascii_character_is_read_
         g("mv", "docs/my spec.md", "docs/mi especificación.md")   # a rename: the new name, its source skipped
         (repo / "notas nuevas.txt").write_text("x\n", encoding="utf-8")
         assert sorted(hook._status(str(repo))) == ["docs/mi especificación.md", "notas nuevas.txt"]
+
+
+def test_the_summary_carries_the_attestation_finding_and_the_route_follows_the_cause():
+    """task-0330 H1: an attestation finding below the blockers reaches the assistant; the closing route names the attestation
+    route when the blockers are attestations, the questionnaire's otherwise."""
+    att = {"severity": "major", "kind": "attestation", "key": None, "message": "[verification] execution lists no Version",
+           "route": "a.md: the reference implementation and the suite are changed"}
+    rep = {"verdict": "BLOCKED", "subject": "s", "scenario": "S1", "task": "codegen", "as_of": "2026-10-30", "threshold": "blocker",
+           "findings": [{"severity": "blocker", "kind": "key", "key": "k|p", "message": "k|p is absent", "owner": "O", "route": "r"}, att]}
+    text = hook._summary(rep)
+    assert "attestation: [verification] execution lists no Version" in text and "route: a.md:" in text, text
+    assert hook._route_for(rep) == hook.ROUTE
+    rep["findings"][0] = {"severity": "blocker", "kind": "attestation", "key": None, "message": "x is not attested"}
+    assert hook._route_for(rep) == hook.ATTESTATION_ROUTE and "questionnaire" not in hook.ATTESTATION_ROUTE

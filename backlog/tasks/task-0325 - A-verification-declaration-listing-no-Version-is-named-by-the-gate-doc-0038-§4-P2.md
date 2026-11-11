@@ -3,9 +3,10 @@ id: TASK-0325
 title: >-
   A [verification] declaration listing no Version is named by the gate (doc-0038
   §4 P2)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-11T13:34:00Z'
+updated_date: '2026-11-11T15:47:00Z'
 labels:
   - integrity
   - 0.9.0
@@ -22,7 +23,19 @@ Fix-only, pulled before the 0.9.0 cut under decision-0032 (completes decision-00
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 With execution's versions removed, the gate reports an attestation finding naming [verification] execution and that it lists no Version; the same for review; a test each
-- [ ] #2 The finding appears in the CLI report, MCP gate_verdict and the annotations alike
-- [ ] #3 The record holds
+- [x] #1 With execution's versions removed, the gate reports an attestation finding naming [verification] execution and that it lists no Version; the same for review; a test each
+- [x] #2 The finding appears in the CLI report, MCP gate_verdict and the annotations alike
+- [x] #3 The record holds
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Built in #480 (5555343) by session_01HTAA1UxBF2zxSbQtTZDKCD; recorded by the coordinator, the builder having no backlog CLI. gate.attestation_behind covers execution and review listing no versions; gate_cli.unlisted_finding. Re-checked by group C: FIXED in the CLI, MCP gate_verdict and the annotations; NOT in knowgov_hook.py, which drops non-blocker findings (H1), plus a placeholder digest (H2) and info severity (H3): all task-0330.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+A [verification] execution or review declaration listing no Version is an attestation finding naming it, in the CLI report, MCP gate_verdict and the annotations alike. Test: test_declaration_listing_no_version_is_an_attestation_finding; the record holds. The hook, the digest it names and its severity are task-0330.
+<!-- SECTION:FINAL_SUMMARY:END -->
