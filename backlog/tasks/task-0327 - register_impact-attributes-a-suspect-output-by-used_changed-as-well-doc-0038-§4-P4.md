@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-11-11T13:34:00Z'
-updated_date: '2026-11-11T15:47:00Z'
+updated_date: '2026-11-11T15:52:00Z'
 labels:
   - impact
   - 0.9.0
@@ -31,6 +31,8 @@ Fix-only, pulled before the 0.9.0 cut under decision-0032 (fails open). Redo gro
 
 <!-- SECTION:NOTES:BEGIN -->
 Built in #481 (session_01HTAA1UjvoTDDjusu1chtAs), merged in train #484 as a214137; recorded by the coordinator, the builder having no backlog CLI. register_impact.statement_keys and with_levels(keys, report, key_of), passed by mcp_server and the three proposal_impact sites; check_mcp_server holds the server to the same rule. Live repro on the example instance (gate --publish, trace register, edit, gate --publish, trace check): register_impact CAP-0002 lists the output suspect on P2|surcharge and P2|threshold, as derived_outputs and gate_verdict do; main's harness/ gives suspect []. Re-check sent to group B.
+
+Re-checked by group B at a214137: FIXED (register_impact CAP-0002 suspect on both P2 keys, agreeing with derived_outputs and gate_verdict; via children=true too; no over-attribution); S6 stage 2 unchanged.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

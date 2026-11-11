@@ -4,7 +4,7 @@ title: Branch mode reads a node retired in place as not an addition (doc-0038 §
 status: Done
 assignee: []
 created_date: '2026-11-11T13:34:00Z'
-updated_date: '2026-11-11T15:47:00Z'
+updated_date: '2026-11-11T15:52:00Z'
 labels:
   - register
   - 0.9.0
@@ -29,6 +29,8 @@ Fix-only, pulled before the 0.9.0 cut under decision-0032 (fails open in the adv
 
 <!-- SECTION:NOTES:BEGIN -->
 Built by session_01HTAA1UjvoTDDjusu1chtAs (#481), merged in train #484 as a214137 on a whole green matrix with stack; recorded by the coordinator, the builder having no backlog CLI. proposal_impact.branch_overlay through _node_file and _left_in_place. retired_in_place() fails on main's harness/ (not_read [], 2 failures) and passes on the fix. Re-check sent to group B.
+
+Re-checked by group B at a214137: FIXED (CAP-0003 retired in place under not_read; a deprecated parent with re-parented children likewise). Residual R1-R3 to task-0329.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
