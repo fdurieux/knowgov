@@ -68,7 +68,7 @@ ROUTE = ("Route to approval: the owner of each blocking key answers it (harness/
          "granted by whoever owns the managed settings, never by this session; do not retry around the gate.")
 ATTESTATION_ROUTE = ("Route to approval: an attestation is a person's act, not this session's (decision-0002, decision-0009). The "
                      "route on each attestation finding above names who lists which Version; an execution is listed only "
-                     "after the implementation and suite were changed to the new values and run. An exception is granted by "
+                     "after the implementation and suite are brought in line with the Version where its values differ, and the suite run on it. An exception is granted by "
                      "whoever owns the managed settings, never by this session; do not retry around the gate.")
 UNAVAILABLE_ROUTE = ("Route: make the gate runnable (the store reachable, the subject and scenario set, the "
                      "knowgov checkout present), then repeat the step; an exception is granted by whoever owns "
@@ -430,21 +430,23 @@ BAR_KINDS = ("attestation", "lapsed")   # task-0330 H1: the findings the bar res
 
 
 def _shown(rep: dict) -> list[dict]:
-    """The findings the assistant reads: the blockers and criticals (every finding when there are none), then the
-    attestation and lapsed findings the verdict rests on, two slots kept for them among the six."""
+    """The findings the assistant reads, six at most: the blockers and criticals (every finding when there are none), then the
+    attestation and lapsed findings the verdict rests on below them, a slot each (two at most) held for those that exist."""
     fs = rep.get("findings") or []
     worst = [f for f in fs if f.get("severity") in ("blocker", "critical")]
-    bar = [f for f in fs if f.get("kind") in BAR_KINDS and f not in worst]
     if not worst:
-        return fs
-    return worst[:4] + bar[:2] if bar and len(worst) > 4 else worst[:6 - min(len(bar), 2)] + bar[:2] if bar else worst
+        return fs[:6]
+    bar = [f for f in fs if f.get("kind") in BAR_KINDS and f not in worst][:2]
+    return worst[:6 - len(bar)] + bar
 
 
 def _route_for(rep: dict) -> str:
-    """The closing route follows the cause: the attestation route when the findings shown are attestations, else the
-    questionnaire's."""
-    kinds = {f.get("kind") for f in _shown(rep) if f.get("severity") in ("blocker", "critical")}
-    return ATTESTATION_ROUTE if kinds and kinds <= {"attestation"} else ROUTE
+    """The closing route follows the cause (task-0332): a key blocker (or any blocker but the bar itself) keeps the
+    questionnaire's; when the only blocker is the bar (kind ``task``, the gate never raises an attestation above major) and an
+    attestation finding is shown, it is the attestation route."""
+    shown = _shown(rep)
+    blockers = {f.get("kind") for f in shown if f.get("severity") in ("blocker", "critical")} - {"task"}
+    return ATTESTATION_ROUTE if not blockers - {"attestation"} and any(f.get("kind") == "attestation" for f in shown) else ROUTE
 
 
 def _summary(rep: dict) -> str:

@@ -689,8 +689,8 @@ is no fresh run either: no oracle runs at load. It is the subject's attested res
 execution`'s `versions`, and it holds only for the document Versions that list names (decision-0036). A
 review verification is bound the same way, by `review`'s `versions`. Edit a document and its statements fall
 below verified, and so out of approval, until the attestation lists the new Version's digest. For execution
-that listing means something only if the reference implementation and the suite were changed to the new
-values and run: if they are unchanged, listing the digest only asserts the old result for the new values (no
+that listing means something only if the reference implementation and the suite were brought in line with the new
+Version where its values differ, and the suite run on it: if they differ and are unchanged, listing the digest only asserts the old result for the new values (no
 oracle runs at load; `check_subject` notes it when it sees the edit as a listed digest matching no current Version,
 and a digest replaced outright leaves no trace, so that case gets no note). A declaration that lists none verifies nothing.
 
