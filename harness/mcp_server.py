@@ -833,7 +833,7 @@ class Tools:
             spec = dict(TASKS[task], keys=[k["key"] for k in keys])
             rep = gate_cli.evaluate(st, subject=SUBJECT.id, scenario=scenario, task="keys", spec=spec, threshold="blocker",
                                     baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=on, route_task=task)
-            return {**head, **out, "keys": ri.with_levels(keys, rep),
+            return {**head, **out, "keys": ri.with_levels(keys, rep, ri.statement_keys(st)),
                     "gate": {"task": task, "verdict": rep["verdict"], "why": rep["why"], "exit_code": rep["exit_code"]}}
         if args.get("scenario") is None:
             try:   # the register answers without a store; only a named scenario needs one

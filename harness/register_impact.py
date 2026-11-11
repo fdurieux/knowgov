@@ -323,18 +323,30 @@ def landed_rows(register_map: dict, node: str, reached: list[str], walked: list[
     return out + flagged
 
 
-def with_levels(keys: list[dict], report: dict) -> list[dict]:
+def statement_keys(st) -> dict[str, str]:
+    """Statement id -> the key it carries, as the derived outputs' ``used`` lists record them (task-0327): how
+    ``with_levels`` attributes an output suspect through ``used_changed``, where no statement is stale."""
+    return {u["id"]: u["key"] for d in st.derived_outputs() for u in d.get("used") or [] if u.get("id") and u.get("key")}
+
+
+def with_levels(keys: list[dict], report: dict, key_of: dict[str, str] | None = None) -> list[dict]:
     """Each landed key with its level, its findings of the owned kinds (key, intended, stale, lapsed and act, as
     gate_cli.OWNED names them, task-0260), the ids of its stale
-    statements and the suspect derived outputs that used one of them, all read off ``report``: the
+    statements and the suspect derived outputs that used one of them, or (``key_of``, ``statement_keys``) one of
+    its statements that changed under its id (task-0327), all read off ``report``: the
     gate's report over the landed keys (``gate_cli.evaluate``, as ``gate_verdict`` makes it for a
     key set), so a key reads here exactly as ``gate_verdict`` reports it on the same as_of."""
     fs = report["findings"]
     suspect = [f for f in fs if f["kind"] == "suspect_derived"]
+    key_of = key_of or {}
+
+    def mine_ids(m, key):   # task-0327: the statements of this key, stale or changed in place under their id
+        return {i for i, k in m.items() if k == key}
     out = []
     for k in keys:
         mine = [f for f in fs if f["kind"] in OWNED and f["key"] == k["key"]]
         stale = sorted(f["ref"] for f in mine if f["kind"] == "stale")
         out.append({**k, "level": report["levels"][k["key"]], "stale": stale,
-                    "suspect": sorted(f["ref"] for f in suspect if set(f["related"]) & set(stale)), "findings": mine})
+                    "suspect": sorted(f["ref"] for f in suspect if set(f["related"]) & (set(stale) | mine_ids(key_of, k["key"]))),
+                    "findings": mine})
     return out

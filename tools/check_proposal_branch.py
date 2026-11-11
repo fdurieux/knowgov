@@ -117,10 +117,40 @@ def main(argv: list[str] | None = None) -> int:
     failures = []
     for fixture, want in CASES:
         failures += [f"{fixture.name}: {f}" for f in one(fixture, want)]
+    failures += retired_in_place()
     for f in failures:
         print("FAIL " + f, file=sys.stderr)
     print("proposal branch mode: " + ("every check holds" if not failures else f"{len(failures)} failure(s)"))
     return 1 if failures else 0
+
+
+def retired_in_place() -> list[str]:
+    """task-0326: a node whose state moves to retired in place on the branch is listed under ``not_read``, pointing
+    to register_impact and the gate's --register-previous; no reuse entry, no reach, no self-candidate."""
+    import re
+    import proposal_impact as pi
+    top = Path(tempfile.mkdtemp(prefix="kg-proposal-retire-"))
+    try:
+        reg = top / "register"
+        shutil.copytree(ROOT / "demo" / "register", reg, ignore=shutil.ignore_patterns("__pycache__"))
+        git(reg, "init", "-q", "-b", "main")
+        git(reg, "add", "-A")
+        git(reg, "commit", "-qm", "the register as vendored")
+        git(reg, "checkout", "-q", "-b", "retire")
+        p = reg / "capabilities" / "CAP-0003.toml"
+        p.write_text(re.sub(r'(?m)^state = "approved"', 'state = "retired"', p.read_text(encoding="utf-8"), count=1), encoding="utf-8")
+        git(reg, "commit", "-qam", "retire CAP-0003 in place")
+        r = pi.evaluate_branch(reg, "main", today=pi._date(DAY, "day"))
+        nr = [x for x in r["branch"]["not_read"] if x["path"] == "capabilities/CAP-0003.toml"]
+        bad = []
+        if not nr or "register_impact" not in nr[0]["why"] or "register-previous" not in nr[0]["why"]:
+            bad.append(f"CAP-0003 retired in place is not listed under not_read pointing to the readers: {r['branch']['not_read']}")
+        if r["reach"] or r["candidates"] or "same as CAP-0003" in json.dumps(r, default=str):
+            bad.append("CAP-0003 retired in place was read as a reuse or a self-candidate")
+        print(f"branch mode (retired in place): not_read {[x['path'] for x in r['branch']['not_read']]}")
+        return ["retired in place: " + b for b in bad]
+    finally:
+        shutil.rmtree(top, ignore_errors=True)
 
 
 def one(fixture: Path, want: list[tuple[str, str]]) -> list[str]:
