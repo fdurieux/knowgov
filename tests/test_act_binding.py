@@ -267,3 +267,51 @@ def test_a_single_reading_stem_is_still_accepted_at_write_time_task_0310():
     aid = "A:cap:2026-11-05-ORG-0002-employee-1:1@capture"
     errs, rv = _ops_check(aid, [_answer("2026-11-05-ORG-0002-employee-1", 1, "employee-1")])
     assert not any("two givers" in e for e in errs) and [r["statement"] for r in rv["rulings"]] == [aid], (errs, rv)
+
+
+def _load_check(aid, giver, captures, rows=None):
+    """A load (not strict) of one ruling that records ``giver``."""
+    ru = {**_answer_ruling(aid), "giver": giver}
+    doc = {"review": {"by": "employee-2", "on": "2026-11-05", "record": "m.md"}, "ruling": [ru]}
+    return review.check(doc, Store(rows if rows is not None else []), handles=HANDLES, owners={"response|hold_presence": ["ORG-0002"]},
+                        units={}, captures=captures, now=dt.date(2026, 11, 5),
+                        compatible=lambda a, b, _p="": "equal" if a == b else "conflict", strict=False)[1]
+
+
+def test_a_recorded_giver_the_load_cannot_confirm_is_an_act_task_0321():
+    """H1: the capture gone, the identical answer of employee-3 remains; a file edited to name employee-3 binds nothing
+    and reads as a changed act naming both givers. Check on both the present and the vanished capture."""
+    aid = "A:cap:2026-11-05-ORG-0002-employee-1:1@capture"
+    rows = [_answer("2026-11-06-ORG-0002-employee-3", 1, "employee-3")]
+    rv = _load_check(aid, "employee-3", {}, rows)
+    assert rv["rulings"] == [] and [x["why"] for x in rv["skipped"]] == ["changed"], rv
+    msg = rv["skipped"][0]["reasons"][0]
+    assert "employee-3" in msg and "employee-1" in msg, msg
+    rv = _load_check(aid, "employee-3", {aid: {"from": "employee-1"}}, [_answer("2026-11-05-ORG-0002-employee-1", 1, "employee-1")])
+    assert rv["rulings"] == [] and "employee-1" in rv["skipped"][0]["reasons"][0], rv
+
+
+def test_honest_givers_bind_as_before_task_0321():
+    one = "A:cap:2026-11-05-ORG-0002-employee-1:1@capture"
+    held = [_answer("2026-11-05-ORG-0002-employee-1", 1, "employee-1")]
+    assert _load_check(one, "employee-1", {one: {"from": "employee-1"}}, held)["skipped"] == []   # capture present
+    again = [_answer("2026-11-06-ORG-0002-employee-1", 1, "employee-1")]
+    rv = _load_check(one, "employee-1", {}, again)   # vanished, single reading, the same giver again
+    assert rv["skipped"] == [] and len(rv["rulings"]) == 1, rv
+    amb = "A:cap:2026-11-05-ORG-0002-ops-2:1@capture"
+    for giver in ("ops", "ops-2"):   # an ambiguous stem: either reading is honest
+        rv = _load_check(amb, giver, {}, [_answer("2026-11-05-ORG-0002-ops-2", 1, giver)])
+        assert rv["skipped"] == [] and len(rv["rulings"]) == 1, (giver, rv)
+    assert _load_check(amb, "employee-1", {}, [])["skipped"][0]["why"] == "changed"
+
+
+def _ambiguous_act(reasons):
+    return {**_gone_act(), "why": "ambiguous", "reasons": reasons}
+
+
+def test_an_ambiguous_act_settled_by_a_later_review_reads_info_task_0321():
+    """H2: settled, info and naming the review; unsettled, major as before."""
+    import gate_cli
+    f = gate_cli.act_finding(_ambiguous_act(["settled by captures/reviews/2026-11-06-employee-3.toml"]))
+    assert f["severity"] == "info" and "2026-11-06-employee-3" in f["message"], f
+    assert gate_cli.act_finding(_ambiguous_act([]))["severity"] == "major"

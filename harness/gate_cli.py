@@ -219,6 +219,16 @@ def code_finding(u: dict, r: dict, owners: dict | None, route) -> dict:
     return f
 
 
+def _act_severity(a: dict, msg: str) -> tuple[str, str]:
+    """The act's severity and message: info when a resolution is gone, and (task-0321) when a later review settled an
+    ambiguous ruling, naming it."""
+    if a["act"] == "resolve" and a["why"] == "gone":
+        return "info", msg
+    if a["why"] == "ambiguous" and a["act"] == "ruling" and a["reasons"]:
+        return "info", msg.replace("; its owner rules again", f"; {a['reasons'][0]}, so the key reads from that ruling")
+    return ACT_SEVERITY[a["why"]], msg
+
+
 def act_finding(a: dict) -> dict:
     """One act the load did not apply as written (``gate.acts_not_applied``) as a finding of kind ``act``."""
     who = f"{a['review']}: {a['act']} {a['n']} by {a['by']} on {a['on']}" if a["act"] != "review" else f"{a['review']} by {a['by']} on {a['on']}"
@@ -240,10 +250,10 @@ def act_finding(a: dict) -> dict:
                else "the declaration's text changed since the close") + "; its owner closes it again or the gap stands")
     else:
         msg = (f"{who} ({a['outcome']} {a['statement']} on {a['key']}) was not applied: it ruled on {was}, and "
-               + {"changed": f"the statement now reads {now}", "gone": "no statement of it is extracted any more (if only another person's identical answer remains, this ruling does not cover it)",
+               + {"changed": (a["reasons"][0] if a["reasons"] else f"the statement now reads {now}"), "gone": "no statement of it is extracted any more (if only another person's identical answer remains, this ruling does not cover it)",
                   "ambiguous": "several statements hold that content and none is the one it names, or its id reads as two givers' and names neither"}[why]
                + "; its owner rules again")
-    sev = "info" if a["act"] == "resolve" and why == "gone" else ACT_SEVERITY[why]
+    sev, msg = _act_severity(a, msg)
     f = _finding(sev, "act", msg, key=a["key"] or None, ref=a["statement"] or a["review"],
                  related=[t["id"] for t in a["to"]])
     f["act"] = {"review": a["review"], "act": a["act"], "n": a["n"], "outcome": a["outcome"], "by": a["by"], "on": a["on"],
