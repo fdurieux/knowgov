@@ -297,14 +297,14 @@ def is_opposed(reasons) -> bool:
 
 
 def opposed_settling(fa: dict, at: tuple, bound: list) -> str | None:
-    """task-0331 R1: the second reason of an opposed act once a later day's applied ruling of the same statement decided it,
-    the latest one: approved reads ``settled by <file>`` (info), rejected ``the key was ruled by <file> (rejected)``
-    (major). A referral decides nothing. None while no later ruling decided it."""
+    """task-0331 R1, task-0333 R1': the second reason of an opposed act once a later day's applied ruling of the same
+    statement decided it, the latest one, approved or rejected: ``settled by <file>`` (info). The owners did what the route
+    asked; the key reads from that ruling (absent after a rejection). A referral decides nothing: the act stays major.
+    None while no later ruling decided it."""
     later = [b for b in bound if b["id"] == fa["statement"] and b["at"][0] > at[0] and b["outcome"] in ("approved", "rejected")]
     if not later:
         return None
-    b = later[-1]
-    return f"{SETTLED}{b['rel']}" if b["outcome"] == "approved" else f"{RULED}{b['rel']} (rejected)"
+    return f"{SETTLED}{later[-1]['rel']}"
 
 
 def settling(fa: dict, at: tuple, bound: list, handles: dict) -> str | None:

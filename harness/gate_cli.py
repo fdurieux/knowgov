@@ -272,15 +272,27 @@ def _opposed_act(a: dict) -> bool:
 
 
 def _act_route(f: dict, route):
-    """An opposed act's route is a new review on a later day, not the questionnaire (task-0331); any other keeps ``route``."""
-    if f["kind"] == "act" and _opposed_act(f["act"]):
-        return "the owners rule again in one review, on a later day (python harness/capture.py review <file>)"
+    """The route of an act whose ruling was set aside as ambiguous or opposed (task-0331, task-0333 R6): settled at info
+    (an opposed act's second reason, a task-0322 act's ``settled by``) it is ``nothing to do: <the settling reason>``;
+    a ``superseded for the key by`` act, info too, keeps its own route; an open opposed act, a new review on a later day, not the questionnaire.
+    Any other act keeps ``route``."""
+    if f["kind"] != "act":
+        return route
+    a = f["act"]
+    reasons = a["reasons"]
+    if a["why"] == "ambiguous" and a["act"] == "ruling" and reasons:
+        import review
+        if review.is_opposed(reasons):
+            return (f"nothing to do: {reasons[-1]}" if len(reasons) > 1 else
+                    "the owners rule again in one review, on a later day (python harness/capture.py review <file>)")
+        if reasons[0].startswith(review.SETTLED):
+            return f"nothing to do: {reasons[0]}"
     return route
 
 
 def _opposed_severity(a: dict, msg: str) -> tuple[str, str]:
     """task-0331: an opposed act's message is its own reason alone (no generic clause), then the settling reason if a later
-    day decided it; info when that approved, major when it rejected or nothing decided it."""
+    day decided it; info once a later day's approval or rejection settled it (task-0333), major while nothing did or a referral only."""
     import review
     last = a["reasons"][-1]
     tail = "; ".join(a["reasons"]) + (", so the key reads from that ruling" if last.startswith(review.SETTLED) else "")

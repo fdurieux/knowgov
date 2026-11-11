@@ -206,6 +206,10 @@ def same_day_cases(out: Path) -> list[str]:
     second_review = sorted((capdir / "reviews").glob("*-employee-2-2.toml"))
     after = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
     held = {k: v for k, v in approvals(env, "S2", hold).items() if v}
+    if after and not after[0].get("route", "").startswith("nothing to do: settled by "):   # task-0333: a settled act has nothing to do
+        errs.append(f"task-0333: a settled legacy act should route to nothing to do: {after[0].get('route')!r}")
+    if before and "nothing to do" in before[0].get("route", ""):
+        errs.append(f"task-0333: an unsettled legacy act routed to nothing to do: {before[0].get('route')!r}")
     if not second_review or len(before) != 1 or before[0]["severity"] != "major" or len(after) != 1 or after[0]["severity"] != "info" or not held:
         errs.append(f"task-0322: a same-day re-ruling should settle the legacy act at info: before {before}, after {after}, approved {held}")
     print(f"    approved on {sorted(held) or 'nothing'}; {after[0]['severity'] + ': ' + after[0]['message'][-90:] if after else 'no act'}")
@@ -286,7 +290,8 @@ def stem_cases(out: Path) -> list[str]:
                       "outcome": "approved", "giver": "ops-2"}]}), encoding="utf-8")
     settled = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
     held = {k: v for k, v in approvals(env, "S2", hold).items() if v}
-    if len(settled) != 1 or settled[0]["severity"] != "info" or "2026-11-06-employee-3" not in settled[0]["message"] or not held:
+    if len(settled) != 1 or settled[0]["severity"] != "info" or "2026-11-06-employee-3" not in settled[0]["message"] or not held \
+            or not settled[0].get("route", "").startswith("nothing to do: settled by "):
         errs.append(f"task-0321: the ambiguous act should read info naming the review that settled it, the key approved: {settled}, approved {held}")
     print(f"    settled by a later review: approved on {sorted(held) or 'nothing'}; "
           f"{settled[0]['severity'] + ': ' + settled[0]['message'][-80:] if settled else 'no ambiguous act'}")
@@ -294,17 +299,19 @@ def stem_cases(out: Path) -> list[str]:
 
 
 def _opposed_ok(mine: list, live: dict, got: dict, ruled: str, pair: tuple, clash: bool, later: str | None) -> bool:
-    """What the gate must show for one case of ``_opposed_case``."""
+    """What the gate must show for one case of ``_opposed_case``: a later approval or rejection (task-0333) settles both acts
+    at info, with no "owners rule again" route; a later referral, or none, leaves them major and routed to a new review."""
     a, b = pair
+    settled = later in ("approved", "rejected")
     named = len(mine) == 2 and all(all(x in f["message"] for x in (f"{ON}-{a}", f"{ON}-{b}")) and "several statements" not in f["message"]
-                                   and "capture.py review" in f.get("route", "") for f in mine)
+                                   and (f.get("route", "").startswith("nothing to do: settled by ") if settled
+                                        else "capture.py review" in f.get("route", "")) for f in mine)
     if not clash:
         return not mine and ruled in got
     sev = {f["severity"] for f in mine}
-    if later == "approved":
-        return named and sev == {"info"} and all("settled by" in f["message"] for f in mine) and ruled in got
-    if later == "rejected":
-        return named and sev == {"major"} and not got and ruled not in live and all("ruled by" in f["message"] for f in mine)
+    if settled:
+        return (named and sev == {"info"} and all("settled by" in f["message"] for f in mine)
+                and (ruled in got if later == "approved" else not got and ruled not in live))
     return named and sev == {"major"} and not got and ruled in live and {f["act"]["by"] for f in mine} == {a, b}
 
 
@@ -339,14 +346,15 @@ def opposed_cases(out: Path) -> list[str]:
     """task-0328, task-0331: employee-2 and ``boss`` rule on employee-1's answer the same day, one approving and one not.
     Neither ruling applies, whichever file comes first: a major act per file, each naming both files and routed to
     ``capture.py review``, the statement unapproved and still live; two rulings that agree keep their approval. A later
-    day's approval settles both acts at info (the key approved by it), a later rejection leaves them major."""
+    day's approval or rejection settles both acts at info (the key read from it); a later referral leaves them major."""
     errs: list[str] = []
     print("== task-0328, task-0331: opposing rulings of one answer on one day by two reviewers (S2')")
     hold = "response|hold_presence"
     cases = (("approve-last", "boss", "rejected", "employee-2", "approved", True), ("approve-first", "boss", "approved", "employee-2", "rejected", True),
              ("referred", "boss", "referred", "employee-2", "approved", True), ("agree", "boss", "approved", "employee-2", "approved", False),
              ("settled", "boss", "rejected", "employee-2", "approved", True, "approved"),
-             ("ruled-again", "boss", "rejected", "employee-2", "approved", True, "rejected"))
+             ("rejected-after", "boss", "rejected", "employee-2", "approved", True, "rejected"),
+             ("referred-after", "boss", "rejected", "employee-2", "approved", True, "referred"))
     for case in cases:
         errs += _opposed_case(out, hold, *case)
     return errs

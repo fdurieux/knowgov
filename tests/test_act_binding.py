@@ -425,8 +425,8 @@ def test_the_gate_reads_an_opposed_act_at_major_naming_both_files_without_the_ge
     assert f["act"]["why"] == "ambiguous" and review.OPPOSED in review.MAJOR_REASONS
 
 
-def test_a_later_decided_ruling_settles_an_opposed_act_and_a_rejection_leaves_it_major_task_0331():
-    """R1."""
+def test_a_later_decided_ruling_settles_an_opposed_act_approved_or_rejected_task_0333():
+    """R1': the owners rule again, approving or rejecting: info; a referral decides nothing. R6: no route once settled."""
     import gate_cli
     at = ("2026-11-06", "boss", 0, "x")
     fa = {"statement": "S", "key": "k"}
@@ -437,11 +437,31 @@ def test_a_later_decided_ruling_settles_an_opposed_act_and_a_rejection_leaves_it
     assert review.opposed_settling(fa, at, []) is None and review.opposed_settling(fa, at, [same_day]) is None
     assert review.opposed_settling(fa, at, [app, ref]) == "settled by carol.toml"   # a referral decides nothing
     why = review.opposed_settling(fa, at, [app, rej])
-    assert why == "the key was ruled by dave.toml (rejected)", why
-    sett = gate_cli.act_finding(_opposed_act([*_opposed_act()["reasons"], "settled by carol.toml"]))
-    assert sett["severity"] == "info" and "settled by carol.toml" in sett["message"] and "reads from that ruling" in sett["message"], sett
-    ruled = gate_cli.act_finding(_opposed_act([*_opposed_act()["reasons"], why]))
-    assert ruled["severity"] == "major" and "dave.toml" in ruled["message"], ruled
+    assert why == "settled by dave.toml", why   # the latest decided ruling, a rejection too
+    assert review.opposed_settling(fa, at, [rej]) == "settled by dave.toml"
+    for by in ("carol", "dave"):
+        sett = gate_cli.act_finding(_opposed_act([*_opposed_act()["reasons"], f"settled by {by}.toml"]))
+        assert sett["severity"] == "info" and f"settled by {by}.toml" in sett["message"] and "reads from that ruling" in sett["message"], sett
+    open_ = gate_cli.act_finding(_opposed_act())
+    assert open_["severity"] == "major"
+
+
+def test_a_settled_opposed_act_no_longer_carries_the_owners_rule_again_route_task_0333():
+    """R6."""
+    import gate_cli
+    a = {**_opposed_act(), "act": "ruling"}
+    opened = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": a["reasons"]}}
+    settled = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": [*a["reasons"], "settled by c.toml"]}}
+    assert "rule again in one review" in gate_cli._act_route(opened, "questionnaire route")
+    assert gate_cli._act_route(settled, "questionnaire route") == "nothing to do: settled by c.toml"
+    legacy = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": ["settled by c.toml"]}}   # task-0322's act
+    assert gate_cli._act_route(legacy, "questionnaire route") == "nothing to do: settled by c.toml"
+    sup = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": ["superseded for the key by c.toml; the answer it named stays unruled"]}}
+    assert gate_cli._act_route(sup, "questionnaire route") == "questionnaire route"   # info, but it keeps its own route
+    unsettled = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": []}}
+    ruled = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": ["the key was ruled by c.toml (rejected); the answer it named stays unruled"]}}
+    for f in (unsettled, ruled, {"kind": "act", "act": {"why": "changed", "act": "ruling", "reasons": ["settled by c.toml"]}}):
+        assert gate_cli._act_route(f, "questionnaire route") == "questionnaire route", f   # still open, or not an ambiguous act
 
 
 def test_capture_review_warns_before_it_writes_a_ruling_that_opposes_the_days_task_0331():
@@ -455,6 +475,7 @@ def test_capture_review_warns_before_it_writes_a_ruling_that_opposes_the_days_ta
         rv = {"on": dt.date(2026, 11, 6), "by": "employee-2", "rulings": [{"statement": "S", "outcome": "approved"}]}
         got = capture._opposes(review, into, into / "2026-11-06-employee-2.toml", rv)
         assert len(got) == 1 and "2026-11-06-boss.toml" in got[0] and "written all the same" in got[0], got
+        assert "is cancelled with 2026-11-06-boss.toml (rejected)" in got[0] and "none applies" in got[0], got   # R7: the act's wording
         rv["rulings"][0]["outcome"] = "rejected"
         assert capture._opposes(review, into, into / "2026-11-06-employee-2.toml", rv) == []
         rv["on"] = dt.date(2026, 11, 7)
