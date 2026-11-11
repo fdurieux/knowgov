@@ -475,12 +475,17 @@ def _edited(rep: Report, m: dict, root: Path, name: str, listed: list, stale: li
     return named
 
 
+def _no_version_note(rep: Report, where: str, name: str) -> None:
+    rep.note("attestation", where, "lists no Version: it verifies nothing, since an execution or a review "
+             "verification holds only for the Versions it lists (decision-0036); list the digest of each Version it verifies, "
+             "each document's under versions" + (", with the implementation and suite digests" if name == "execution" else "") + ".")
+
+
 def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: list) -> None:
     where = f"[verification] {name}"
     if listed is None or (name in BOUND and listed == []):   # task-0318: an empty list verifies nothing either
         if name in BOUND:
-            rep.note("attestation", where, "lists no Version: it verifies nothing, since an execution or a review "
-                     "verification holds only for the Versions it lists (decision-0036); list the digest of each")
+            _no_version_note(rep, where, name)
         else:
             rep.note("attestation", where, "lists no Version: it attests what the documents hold at each load, so an edit made "
                      "after it inherits it (decision-0009 (a), the read rule); list the digest of each Version it attests (decision-0019)")

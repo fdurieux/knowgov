@@ -181,13 +181,20 @@ def attestation_route(decls: list[str], sha: str, attester: str = "") -> str:
 
 
 def unlisted_finding(r: dict) -> dict:
-    """A declaration that lists no Version (task-0325 for execution and review, which verify nothing without one)."""
+    """A declaration that lists no Version. Execution and review (task-0325) are major (task-0330 H3): nothing is verified by
+    them without one, so it is the cause of a BLOCKED; it names each document behind the task's keys with its digest and the
+    count of keys. authored and approval are the read rule's, at info."""
     n = r["declaration"]
     if n in ("execution", "review"):
-        f = _finding("info", "attestation", f"[verification] {n} lists no Version: it verifies nothing, since an execution or a review "
-                     "verification holds only for the Versions it lists (decision-0036), so the keys resting on it read validated, "
-                     "below verified", ref=f"attest:{n}")
-        f["route"] = attestation_route([n], "<digest>", r["attester"])
+        un = r["unattested"]
+        keys = sorted({k for u in un for k in u.get("keys") or []})
+        lost = ("what it verified by review is lost" if n == "review" else
+                "what it verified by execution is lost, and the approvals resting on it read proposed too")
+        f = _finding("major", "attestation", f"[verification] {n} lists no Version: it verifies nothing, since an execution or a review "
+                     f"verification holds only for the Versions it lists (decision-0036), so {lost} and the keys behind it fall "
+                     f"below verified, behind {len(keys)} required key(s)", ref=f"attest:{n}", related=keys)
+        f["route"] = "; ".join(f"{u['artefact']}: " + attestation_route([n], u["sha256"], r["attester"])
+                               for u in un if u.get("keys")) or attestation_route([n], "<digest of each document>", r["attester"])
         return f
     return _finding("info", "attestation", f"[verification] {n} lists no Version: it attests what the documents hold at each load "
                     "(decision-0009 (a), the read rule); list the digest of each Version it attests (decision-0019) to bind it",

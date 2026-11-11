@@ -11,6 +11,7 @@ names that section with the version.
 ## Unreleased
 
 - The re-attest route says what makes an execution mean something (change the reference implementation and the suite to the new Version's values, run them, list all three digests; unchanged, listing only asserts the old result: the known limit, no oracle at load), `check_subject` notes it when an edited document is re-listed with the implementation and suite digests unchanged, the not-attested finding's consequence names only the declarations bound, approver and reviewer steps say not the author (decision-0002), and the review step points to `capture.py review` for one document's own date (task-0330).
+- The Claude Code hook now shows the attestation and lapsed findings below the blockers and closes with the attestation route when they are the cause; an `execution` or `review` declaration listing no Version is a major `attestation` finding (it was info; `--fail-on major` now exits 1 for it) that names each document with its digest and the count of keys behind it (task-0330).
 
 - The attestation route is one step per declaration (execution only after the suite has run on the Version, with the implementation and suite digests; approval, review and authored each their own reader's act), and `check_subject`'s fix says the same; an `execution` or `review` declaration listing no Version is now named by an `attestation` finding at info (task-0324, task-0325).
 

@@ -66,6 +66,10 @@ ROUTE = ("Route to approval: the owner of each blocking key answers it (harness/
          "then ingest), and a reviewer who is not the author settles it in a review file (harness/capture.py "
          "review; decision-0002: a session may propose, never approve, its own knowledge). An exception is "
          "granted by whoever owns the managed settings, never by this session; do not retry around the gate.")
+ATTESTATION_ROUTE = ("Route to approval: an attestation is a person's act, not this session's (decision-0002, decision-0009). The "
+                     "route on each attestation finding above names who lists which Version; an execution is listed only "
+                     "after the implementation and suite were changed to the new values and run. An exception is granted by "
+                     "whoever owns the managed settings, never by this session; do not retry around the gate.")
 UNAVAILABLE_ROUTE = ("Route: make the gate runnable (the store reachable, the subject and scenario set, the "
                      "knowgov checkout present), then repeat the step; an exception is granted by whoever owns "
                      "the managed settings, never by this session.")
@@ -422,18 +426,40 @@ def _knowgov(arg: str | None) -> Path | None:
     return c if (c / "instance" / "ci" / "knowgov-gate.sh").is_file() else None   # absolute, since the gate runs from the instance
 
 
+BAR_KINDS = ("attestation", "lapsed")   # task-0330 H1: the findings the bar rests on, shown below the blockers
+
+
+def _shown(rep: dict) -> list[dict]:
+    """The findings the assistant reads: the blockers and criticals (every finding when there are none), then the
+    attestation and lapsed findings the verdict rests on, two slots kept for them among the six."""
+    fs = rep.get("findings") or []
+    worst = [f for f in fs if f.get("severity") in ("blocker", "critical")]
+    bar = [f for f in fs if f.get("kind") in BAR_KINDS and f not in worst]
+    if not worst:
+        return fs
+    return worst[:4] + bar[:2] if bar and len(worst) > 4 else worst[:6 - min(len(bar), 2)] + bar[:2] if bar else worst
+
+
+def _route_for(rep: dict) -> str:
+    """The closing route follows the cause: the attestation route when the findings shown are attestations, else the
+    questionnaire's."""
+    kinds = {f.get("kind") for f in _shown(rep) if f.get("severity") in ("blocker", "critical")}
+    return ATTESTATION_ROUTE if kinds and kinds <= {"attestation"} else ROUTE
+
+
 def _summary(rep: dict) -> str:
     head = (f"{rep.get('verdict')} on {rep.get('subject')} {rep.get('scenario')}, task {rep.get('task')}, "
             f"as of {rep.get('as_of')}, threshold {rep.get('threshold')}")
-    worst = [f for f in rep.get("findings") or [] if f.get("severity") in ("blocker", "critical")] or (rep.get("findings") or [])
+    worst = _shown(rep)
     lines = [f"  {f.get('severity')} {f.get('kind')}" + (f" {f['key']}" if f.get("key") else "") + f": {f.get('message')}"
              + (f" (owner {f.get('owner') or 'none in the register map'}"
                 + (f"; closed by {f.get('closer') or 'no unit of the register'}" if "closer" in f else "") + ")"
                 if "owner" in f else "")
-             for f in worst[:6]]
-    routes = sorted({f["route"] for f in worst[:6] if f.get("route")})   # task-0102: each owner's questionnaire
+             for f in worst]
+    routes = sorted({f["route"] for f in worst if f.get("route")})   # task-0102: each owner's questionnaire
     lines += [f"  route: {r}" for r in routes]
-    more = len(worst) - len(lines)
+    pool = [f for f in rep.get("findings") or [] if f.get("severity") in ("blocker", "critical")] or (rep.get("findings") or [])
+    more = len(pool) - len([f for f in worst if f in pool])
     return "\n".join([head, *lines] + ([f"  ... and {more} more"] if more > 0 else []))
 
 
@@ -474,7 +500,7 @@ def run_gate(stage: str, task: str, kg: Path, inst: Path, *, advisory: bool, tim
             return refuse(check, f"the report is for task {rep.get('task')!r}, the hook requires {task!r}")
         if rep.get("exit_code") != p.returncode or (p.returncode == PASS and rep.get("verdict") == "BLOCKED"):
             return refuse(check, f"the report ({rep.get('verdict')}, exit_code {rep.get('exit_code')}) disagrees with exit {p.returncode}")
-        return decide(p.returncode, check=check, finding=_summary(rep), advisory=advisory)
+        return decide(p.returncode, check=check, finding=_summary(rep), route=_route_for(rep), advisory=advisory)
     finally:
         if tmp:
             Path(tmp).unlink(missing_ok=True)

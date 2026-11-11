@@ -39,13 +39,34 @@ def test_check_subject_fix_for_execution_says_run_the_suite():
     assert "approver" in check_subject._relist_fix("approval", restore=True)
 
 
-def test_declaration_listing_no_version_is_an_attestation_finding():
-    rows = [{"declaration": n, "bound": False, "attester": "agent:m", "unattested": []} for n in ("execution", "review")]
+def test_declaration_listing_no_version_is_a_major_attestation_finding_naming_documents_and_keys():
+    """task-0325, task-0330 H2, H3: major for execution and review, each document and its digest in the route, the count of keys."""
+    un = [{"artefact": "a.md", "sha256": SHA, "parts": [], "keys": ["k1", "k2"]}]
+    rows = [{"declaration": n, "bound": False, "attester": "agent:m", "unattested": un} for n in ("execution", "review")]
     fs = gate_cli.attestation_findings(rows, None, None)
     assert [f["kind"] for f in fs] == ["attestation", "attestation"], fs
     for f, n in zip(fs, ("execution", "review")):
-        assert n in f["message"] and "lists no Version" in f["message"] and f["severity"] == "info", f
-        assert f["route"], f
+        assert n in f["message"] and "lists no Version" in f["message"] and f["severity"] == "major", f
+        assert "behind 2 required key(s)" in f["message"] and "a.md" in f["route"] and SHA in f["route"], f
+        assert "<digest>" not in f["route"]
+    assert "approvals resting on it read proposed too" in fs[0]["message"]
+    ro = gate_cli.attestation_findings([{"declaration": "approval", "bound": False, "attester": "", "unattested": []}], None, None)
+    assert ro[0]["severity"] == "info", ro
+
+
+def test_check_subject_note_for_a_declaration_listing_nothing_is_complete():
+    import tempfile
+    import example_instance
+    from _skip import need_rdflib
+    need_rdflib()
+    with tempfile.TemporaryDirectory() as t:
+        inst = example_instance.build(Path(t) / "inst")
+        mf = inst / "subjects" / "cargo_quote" / "subject.toml"
+        import re
+        mf.write_text(re.sub(r"(?m)^(execution = \{ )versions = \[[^\]]*\], ", r"\1", mf.read_text(encoding="utf-8")), encoding="utf-8")
+        rep = check_subject.check(inst / "subjects" / "cargo_quote", run_yield=False)
+    msgs = [n["message"] for n in rep["notes"] if n["where"] == "[verification] execution" and "lists no Version" in n["message"]]
+    assert msgs and msgs[0].endswith("implementation and suite digests."), msgs
 
 
 def test_consequence_names_only_the_bound_declarations():
