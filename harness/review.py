@@ -251,6 +251,16 @@ def giver_of(ru: dict) -> str | None:
     return g if isinstance(g, str) and g else None
 
 
+def order_key(path: Path, doc: dict) -> tuple:
+    """Where a review file sits in the order rulings are applied and "later" is read (task-0322): its date, then who
+    ruled, then its number, the base file ``<on>-<by>`` as 0 and ``<on>-<by>-<n>`` (``capture.py review``'s second
+    file the same day) as ``n``. A file name alone sorts ``-`` before ``.``, so the second file would come first."""
+    r = doc.get("review", {}) if isinstance(doc, dict) else {}
+    on, by, stem = str(r.get("on", "")), str(r.get("by", "")), path.stem
+    m = re.fullmatch(re.escape(f"{on}-{by}") + r"(?:-([0-9]+))?", stem)
+    return (on, by, int(m[1]) if m and m[1] else 0, path.name) if m else (on, stem, 0, path.name)
+
+
 def _as_reported(how: dict) -> dict:
     """task-0321: the act schema's reasons are closed, so a giver the load cannot confirm is reported as ``changed``,
     the reason naming both givers."""

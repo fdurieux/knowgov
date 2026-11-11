@@ -315,3 +315,44 @@ def test_an_ambiguous_act_settled_by_a_later_review_reads_info_task_0321():
     f = gate_cli.act_finding(_ambiguous_act(["settled by captures/reviews/2026-11-06-employee-3.toml"]))
     assert f["severity"] == "info" and "2026-11-06-employee-3" in f["message"], f
     assert gate_cli.act_finding(_ambiguous_act([]))["severity"] == "major"
+
+
+def test_a_second_review_the_same_day_orders_after_the_first_task_0322():
+    """J1: ``-`` sorts before ``.``, so ``<on>-<by>-2.toml`` sorted before ``<on>-<by>.toml`` by name."""
+    docs = {n: {"review": {"by": "employee-2", "on": "2026-11-06"}} for n in ("2026-11-06-employee-2", "2026-11-06-employee-2-2", "2026-11-06-employee-2-10")}
+    assert sorted(docs)[0] != "2026-11-06-employee-2" or sorted(docs)[1] != "2026-11-06-employee-2-2"   # by name it is not this order
+    by_key = sorted(docs, key=lambda n: review.order_key(Path(n + ".toml"), docs[n]))
+    assert by_key == ["2026-11-06-employee-2", "2026-11-06-employee-2-2", "2026-11-06-employee-2-10"], by_key
+    other_day = {"review": {"by": "employee-2", "on": "2026-11-07"}}
+    assert review.order_key(Path("2026-11-06-employee-2-2.toml"), docs["2026-11-06-employee-2"]) < review.order_key(Path("x.toml"), other_day)
+
+
+def _pending(statement="A:cap:2026-11-05-ORG-0002-ops-2:1@capture"):
+    return {"statement": statement, "key": "response|hold_presence", "from_value": "held_unscreened only", "from_sha256": review.content_digest([])}
+
+
+def _bound(rel, id_, giver, outcome="approved", at=("2026-11-06", "employee-3", 0, "x")):
+    return {"at": at, "rel": rel, "id": id_, "key": "response|hold_presence", "value": "held_unscreened only",
+            "sha256": review.content_digest([]), "giver": giver, "outcome": outcome}
+
+
+def test_only_a_ruling_of_the_same_statement_settles_an_ambiguous_act_task_0322():
+    """J2: another person's identical answer, approved later, supersedes the act for the key; it does not settle it."""
+    import load
+    at = ("2026-11-05", "employee-2", 0, "a")
+    same = _bound("r-same.toml", "A:cap:2026-11-05-ORG-0002-ops-2:1@capture", "ops-2")
+    assert load._settling(_pending(), at, [same], HANDLES) == "settled by r-same.toml"
+    other = _bound("r-other.toml", "A:cap:2026-11-07-ORG-0002-employee-1:1@capture", "employee-1")
+    why = load._settling(_pending(), at, [other], HANDLES)
+    assert why == "superseded for the key by r-other.toml; the answer it named stays unruled", why
+    rejected = _bound("r-rej.toml", other["id"], "employee-1", "rejected")
+    assert "stays unruled" in load._settling(_pending(), at, [rejected], HANDLES) and "superseded" not in load._settling(_pending(), at, [rejected], HANDLES)
+    assert load._settling(_pending(), at, [_bound("r-early.toml", same["id"], "ops-2", at=("2026-11-04", "x", 0, "x"))], HANDLES) is None
+
+
+def test_the_gate_reads_a_superseded_act_at_info_only_while_the_key_is_approved_task_0322():
+    import gate_cli
+    f = gate_cli.act_finding(_ambiguous_act(["superseded for the key by r.toml; the answer it named stays unruled"]))
+    assert f["severity"] == "info" and "stays unruled" in f["message"], f
+    f = gate_cli.act_finding(_ambiguous_act(["the key was ruled by r.toml (rejected); the answer it named stays unruled"]))
+    assert f["severity"] == "major" and "stays unruled" in f["message"], f
