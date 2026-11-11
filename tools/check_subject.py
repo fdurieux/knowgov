@@ -429,6 +429,18 @@ def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, t
                   "run the suite on it again and list the new digest, or restore it")
 
 
+def _relist_fix(name: str, restore: bool = False) -> str:
+    """task-0324: the fix per declaration. Execution is re-listed only after the suite has run on the new Version, with
+    the implementation and suite digests (decision-0038); approval, review and authored are each their own reader's act."""
+    if name == "execution":
+        step = ("run the suite on the new Version, then replace the old digest with the new one under execution versions, "
+                "with the implementation and suite digests (decision-0038)")
+    else:
+        who = {"approval": "the approver", "review": "the reviewer"}.get(name, "the author")
+        step = f"{who} reads the new Version and replaces the old digest with the new one (decision-0019)"
+    return step + (", or restore the document" if restore else ", or remove it")
+
+
 def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: list) -> None:
     where = f"[verification] {name}"
     if listed is None or (name in BOUND and listed == []):   # task-0318: an empty list verifies nothing either
@@ -453,7 +465,7 @@ def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: 
         return
     for d in stale:
         rep.error("attestation", where, f"versions lists {d}, which matches no current Version of the subject's artefacts: "
-                  "it attests nothing the load reads", "replace the old digest with the new one (decision-0019), or remove it")
+                  "it attests nothing the load reads", _relist_fix(name))
 
 
 def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: list, stale: bool) -> bool:
@@ -469,7 +481,7 @@ def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: lis
         what = ", ".join(f"{rel} ({d})" if rel else f"its Version {d}" for rel, d in sorted(miss.items()))
         rep.error("attestation", where, f"{art} changed since it was attested: {what} is not listed under {where}"
                   + ("" if "" in files else " (a file added or changed)"),
-                  "re-attest it (replace the old digest with the new one) or restore the document (decision-0019)")
+                  _relist_fix(where.rsplit(" ", 1)[-1], restore=True))
         named = True
     return named
 

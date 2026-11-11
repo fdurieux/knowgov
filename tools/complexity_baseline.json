@@ -174,8 +174,8 @@
    "floor": 18
   },
   "harness/gate_cli.py::attestation_findings": {
-   "value": 25,
-   "floor": 25
+   "value": 21,
+   "floor": 21
   },
   "harness/gate_cli.py::evaluate": {
    "value": 19,

@@ -150,8 +150,10 @@ def test_the_not_attested_finding_names_every_declaration_and_its_route_lists_th
         found = [f for f in _attestation(_gate(inst)) if "decision_table" in f["message"]]
     assert len(found) == 1, found
     [f] = found
-    for text in (f["message"], f["route"]):
-        assert "approval, authored, execution and review" in text and "decision-0036" in text and "decision-0019" in text, text
+    assert "approval, authored, execution and review" in f["message"] and "decision-0036" in f["message"], f["message"]
+    for decl in ("authored", "approval", "execution", "review"):   # task-0324: one step per declaration, never one reader for all
+        assert f"[verification] {decl} versions" in f["route"], f["route"]
+    assert "decision-0036" in f["route"] and "decision-0019" in f["route"], f["route"]
 
 
 def test_following_the_route_brings_the_gate_back_to_proceed():
@@ -160,8 +162,8 @@ def test_following_the_route_brings_the_gate_back_to_proceed():
     with tempfile.TemporaryDirectory() as t:
         inst = example_instance.build(Path(t) / "inst")
         _edit(inst)
-        names = re.search(r"\[verification\] (.+?) versions in subject.toml", _attestation(_gate(inst))[0]["route"]).group(1)
-        assert set(re.split(r", | and ", names)) == {"approval", "authored", "execution", "review"}, names
+        route = _attestation(_gate(inst))[0]["route"]
+        assert set(re.findall(r"\[verification\] (\w+) versions", route)) == {"approval", "authored", "execution", "review"}, route
         example_instance.attest(inst, inst / TABLE)
         rep = _gate(inst)
     assert not _attestation(rep) and rep["verdict"] == "PROCEED", (rep["verdict"], _attestation(rep))

@@ -164,17 +164,40 @@ def _declared(ds: list[str]) -> tuple[str, str]:
     return named, ("decision-0019 and decision-0036" if {"execution", "review"} & set(ds) else "decision-0019")
 
 
+STEP = {"authored": "the author reads the document and lists sha256 {sha} under [verification] authored versions",
+        "approval": "the approver reads the document and lists sha256 {sha} under [verification] approval versions",
+        "review": "the reviewer reviews the document and lists sha256 {sha} under [verification] review versions",
+        "execution": "the suite is run on this Version, and only then is sha256 {sha} listed under [verification] execution "
+                     "versions, with the implementation and suite digests under implementation and suite (decision-0038)"}
+
+
+def attestation_route(decls: list[str], sha: str, attester: str = "") -> str:
+    """task-0324: one step per declaration, each its own reader's act (execution only after the suite has run on the
+    Version); never one reader listing all of them."""
+    who = f" ({attester})" if attester else ""
+    return "; ".join(STEP[d].format(sha=sha) + who for d in ("authored", "approval", "review", "execution") if d in decls)
+
+
+def unlisted_finding(r: dict) -> dict:
+    """A declaration that lists no Version (task-0325 for execution and review, which verify nothing without one)."""
+    n = r["declaration"]
+    if n in ("execution", "review"):
+        f = _finding("info", "attestation", f"[verification] {n} lists no Version: it verifies nothing, since an execution or a review "
+                     "verification holds only for the Versions it lists (decision-0036), so the keys resting on it read validated, "
+                     "below verified", ref=f"attest:{n}")
+        f["route"] = attestation_route([n], "<digest>", r["attester"])
+        return f
+    return _finding("info", "attestation", f"[verification] {n} lists no Version: it attests what the documents hold at each load "
+                    "(decision-0009 (a), the read rule); list the digest of each Version it attests (decision-0019) to bind it",
+                    ref=f"attest:{n}")
+
+
 def attestation_findings(rows: list[dict], owners: dict | None, route) -> list[dict]:
     """decision-0019 (task-0221): a declaration that lists no Version is the read rule's, at info; each artefact a
     bound declaration does not attest, behind the task's keys, is major (its authored statements read proposed and
     nothing in it is approved by construction, so the keys behind it fall below verified, and the attester or the
     keys' owner has to act). It names the keys' owner and route (``capture.routing``) when they share one."""
-    out = []
-    for r in rows:
-        if not r["bound"]:
-            out.append(_finding("info", "attestation", f"[verification] {r['declaration']} lists no Version: it attests what the documents "
-                                "hold at each load (decision-0009 (a), the read rule); list the digest of each Version it attests "
-                                "(decision-0019) to bind it", ref=f"attest:{r['declaration']}"))
+    out = [unlisted_finding(r) for r in rows if not r["bound"]]
     out += [code_finding(u, r, owners, route) for r in rows if r["bound"] for u in r["unattested"] if u.get("code")]
     merged: dict[str, dict] = {}
     for r in rows:
@@ -191,8 +214,7 @@ def attestation_findings(rows: list[dict], owners: dict | None, route) -> list[d
             units = {(owners.get(k) or {}).get("unit") for k in u["keys"]}
             unit = units.pop() if len(units) == 1 else None
             f["owner"] = unit
-            how = (f"{u['attester'] or 'the attester'} reads the document and lists sha256 {u['sha256']} under [verification] "
-                   f"{decls} versions in subject.toml ({cite})")
+            how = attestation_route(u["declarations"], u["sha256"], u["attester"]) + f" in subject.toml ({cite})"
             q = route(unit, u["keys"][0]) if route and unit else None
             f["route"] = how + (f"; or {q}" if q else "")
         out.append(f)
