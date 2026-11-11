@@ -434,9 +434,10 @@ def _relist_fix(name: str, restore: bool = False) -> str:
     were changed to the new Version's values and run; approval and review are the approver's and the reviewer's own acts
     (decision-0002: not the author's); authored is the author's."""
     if name == "execution":
-        step = ("change the reference implementation and the suite to the new Version's values, run them, then list all three "
-                "digests (replace the old digest with the new one under versions, then the implementation, the suite); if the implementation and suite "
-                "are unchanged, re-listing only asserts the old result for the new values (no oracle runs at load; decision-0038)")
+        step = ("bring the reference implementation and the suite in line with the new Version where its values differ, run the "
+                "suite on it, then list all three digests (replace the old digest with the new one under versions, then the "
+                "implementation, the suite); where the values differ and they are unchanged, re-listing only asserts the old "
+                "result for the new values (no oracle runs at load; decision-0038)")
     elif name == "review":
         step = ("the reviewer (not the author, decision-0002) reads the new Version and replaces the old digest with the new "
                 "one (decision-0019); for a single document's re-review, the capture tool's `review` command gives it its own date, since one "

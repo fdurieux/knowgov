@@ -168,9 +168,10 @@ STEP = {"authored": "the author reads the document and lists sha256 {sha} under 
         "approval": "the approver (not the author, decision-0002) reads the document and lists sha256 {sha} under [verification] approval versions",
         "review": "the reviewer (not the author, decision-0002) reads the document and lists sha256 {sha} under [verification] "
                   "review versions (for a single document's re-review, `capture.py review` gives it its own date: one `at` re-dates every listed Version)",
-        "execution": "the reference implementation and the suite are changed to this Version's values and run, then sha256 {sha} is "
-                     "listed under [verification] execution versions with the implementation and suite digests (if they are "
-                     "unchanged, listing only asserts the old result for the new values: no oracle runs at load, decision-0038)"}
+        "execution": "the reference implementation and the suite are brought in line with this Version where its values differ, the "
+                     "suite is run on it, then sha256 {sha} is listed under [verification] execution versions with the implementation "
+                     "and suite digests (where the values differ and they are unchanged, listing only asserts the old result for the "
+                     "new values: no oracle runs at load, decision-0038)"}
 
 
 def attestation_route(decls: list[str], sha: str, attester: str = "") -> str:
@@ -180,7 +181,13 @@ def attestation_route(decls: list[str], sha: str, attester: str = "") -> str:
     return "; ".join(STEP[d].format(sha=sha) + who for d in ("authored", "approval", "review", "execution") if d in decls)
 
 
-def unlisted_finding(r: dict) -> dict:
+def _below_verified(res: dict) -> set:
+    """The keys that read below verified (task-0332 H5), for the count an unlisted declaration's finding gives."""
+    from gate import ORDER
+    return {k for k, v in (res.get("keys") or {}).items() if ORDER.index(v["level"]) < ORDER.index("verified")}
+
+
+def unlisted_finding(r: dict, below: set | None = None) -> dict:
     """A declaration that lists no Version. Execution and review (task-0325) are major (task-0330 H3): nothing is verified by
     them without one, so it is the cause of a BLOCKED; it names each document behind the task's keys with its digest and the
     count of keys. authored and approval are the read rule's, at info."""
@@ -192,7 +199,9 @@ def unlisted_finding(r: dict) -> dict:
                 "what it verified by execution is lost, and the approvals resting on it read proposed too")
         f = _finding("major", "attestation", f"[verification] {n} lists no Version: it verifies nothing, since an execution or a review "
                      f"verification holds only for the Versions it lists (decision-0036), so {lost} and the keys behind it fall "
-                     f"below verified, behind {len(keys)} required key(s)", ref=f"attest:{n}", related=keys)
+                     f"below verified, behind {len(keys)} required key(s)"
+                     + (f", of which {len(set(keys) & below)} now read below verified" if below is not None else ""),
+                     ref=f"attest:{n}", related=keys)
         f["route"] = "; ".join(f"{u['artefact']}: " + attestation_route([n], u["sha256"], r["attester"])
                                for u in un if u.get("keys")) or attestation_route([n], "<digest of each document>", r["attester"])
         return f
@@ -208,12 +217,12 @@ def _consequence(ds: list[str]) -> str:
     return f"what it verified by {' and '.join(ds)} is lost and the keys behind it fall below verified"
 
 
-def attestation_findings(rows: list[dict], owners: dict | None, route) -> list[dict]:
+def attestation_findings(rows: list[dict], owners: dict | None, route, below: set | None = None) -> list[dict]:
     """decision-0019 (task-0221): a declaration that lists no Version is the read rule's, at info; each artefact a
     bound declaration does not attest, behind the task's keys, is major (its authored statements read proposed and
     nothing in it is approved by construction, so the keys behind it fall below verified, and the attester or the
     keys' owner has to act). It names the keys' owner and route (``capture.routing``) when they share one."""
-    out = [unlisted_finding(r) for r in rows if not r["bound"]]
+    out = [unlisted_finding(r, below) for r in rows if not r["bound"]]
     out += [code_finding(u, r, owners, route) for r in rows if r["bound"] for u in r["unattested"] if u.get("code")]
     merged: dict[str, dict] = {}
     for r in rows:
@@ -422,7 +431,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                             + (f" ({d['tool']})" if d.get("tool") else "") + (f"; {d['why']}" if d.get("why") else ""),
                             ref=f"{d['artefact']}@{d['version']}", related=d["keys"]))
     out += [act_finding(a) for a in res.get("acts") or []]
-    out += attestation_findings(res.get("attestation") or [], owners, route)
+    out += attestation_findings(res.get("attestation") or [], owners, route, _below_verified(res))
     out += [lint_finding(g) for g in res.get("lint") or []]   # task-0216
     if owners is not None:
         for f in out:
