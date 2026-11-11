@@ -19,7 +19,7 @@ def test_route_names_one_step_per_declaration_and_never_one_reader_for_all_four(
     steps = route.split("; ")
     assert len(steps) == 4, steps
     ex = [s for s in steps if "execution versions" in s][0]
-    assert "changed to this Version's values and run" in ex and "implementation and suite" in ex and "asserts the old result" in ex, ex
+    assert "brought in line with this Version where its values differ" in ex and "implementation and suite" in ex and "asserts the old result" in ex, ex
     assert "the approver" in route and "the reviewer" in route and "the author" in route
     assert "reads the document and lists sha256" not in ex
     assert "under [verification] approval, authored, execution and review versions" not in route
@@ -29,12 +29,12 @@ def test_unattested_artefact_finding_route_is_per_declaration():
     rows = [{"declaration": n, "bound": True, "attester": "agent:m",
              "unattested": [{"artefact": "a.md", "sha256": SHA, "parts": [], "keys": ["k"]}]} for n in ("execution", "approval")]
     f = gate_cli.attestation_findings(rows, {"k": {"unit": "u"}}, None)[0]
-    assert f["route"].count("; ") == 1 and "the approver" in f["route"] and "values and run" in f["route"], f["route"]
+    assert f["route"].count("; ") == 1 and "the approver" in f["route"] and "brought in line" in f["route"], f["route"]
 
 
 def test_check_subject_fix_for_execution_says_run_the_suite():
     fx = check_subject._relist_fix("execution")
-    assert "to the new Version's values, run them" in fx and "all three digests" in fx and "asserts the old result" in fx, fx
+    assert "in line with the new Version where its values differ" in fx and "all three digests" in fx and "asserts the old result" in fx, fx
     assert "old result" not in check_subject._relist_fix("approval")
     assert "approver" in check_subject._relist_fix("approval", restore=True)
 

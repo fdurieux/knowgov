@@ -10,6 +10,8 @@ names that section with the version.
 
 ## Unreleased
 
+- The hook closes with the attestation route when the only blocker is the bar and an attestation finding is shown (a key blocker keeps the questionnaire's), no longer fills a spare slot with nothing, and the execution step reads "bring the implementation and suite in line with this Version where its values differ, run the suite on it, then list" rather than presuming a change; the "lists no Version" finding adds "of which M now read below verified" (task-0332).
+
 - The re-attest route says what makes an execution mean something (change the reference implementation and the suite to the new Version's values, run them, list all three digests; unchanged, listing only asserts the old result: the known limit, no oracle at load), `check_subject` notes it when an edited document is re-listed with the implementation and suite digests unchanged, the not-attested finding's consequence names only the declarations bound, approver and reviewer steps say not the author (decision-0002), and the review step points to `capture.py review` for one document's own date (task-0330).
 - The Claude Code hook now shows the attestation and lapsed findings below the blockers and closes with the attestation route when they are the cause; an `execution` or `review` declaration listing no Version is a major `attestation` finding (it was info; `--fail-on major` now exits 1 for it) that names each document with its digest and the count of keys behind it (task-0330).
 
