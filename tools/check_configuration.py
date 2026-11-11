@@ -69,6 +69,7 @@ def env_for(store: str, root: Path) -> dict:
     env = cadence.pin_record({**os.environ}, None)   # the record's day, the wall clock refused (task-0075)
     env.update(KG_STORE=store, KG_SUBJECT=str(root), KG_SUBJECTS=str(root.parent), PYTHONDONTWRITEBYTECODE="1")
     env.pop("KG_RDFLIB_FILE", None)
+    env.setdefault("KG_REGISTER", str(ROOT / "demo" / "register"))   # the copy lies outside the checkout (task-0334)
     return env
 
 
