@@ -293,6 +293,21 @@ def stem_cases(out: Path) -> list[str]:
     return errs
 
 
+def _opposed_ok(mine: list, live: dict, got: dict, ruled: str, pair: tuple, clash: bool, later: str | None) -> bool:
+    """What the gate must show for one case of ``_opposed_case``."""
+    a, b = pair
+    named = len(mine) == 2 and all(all(x in f["message"] for x in (f"{ON}-{a}", f"{ON}-{b}")) and "several statements" not in f["message"]
+                                   and "capture.py review" in f.get("route", "") for f in mine)
+    if not clash:
+        return not mine and ruled in got
+    sev = {f["severity"] for f in mine}
+    if later == "approved":
+        return named and sev == {"info"} and all("settled by" in f["message"] for f in mine) and ruled in got
+    if later == "rejected":
+        return named and sev == {"major"} and not got and ruled not in live and all("ruled by" in f["message"] for f in mine)
+    return named and sev == {"major"} and not got and ruled in live and {f["act"]["by"] for f in mine} == {a, b}
+
+
 def _opposed_case(out: Path, hold: str, name: str, a: str, oa: str, b: str, ob: str, clash: bool, later: str | None = None) -> list[str]:
     """One pair of same-day rulings (reviewer ``a`` then ``b``), written, loaded and read by the gate; with ``later``, a
     ruling of that outcome by employee-3 on 8 November (task-0331: the remedy, or a rejection, after the pair)."""
@@ -314,17 +329,7 @@ def _opposed_case(out: Path, hold: str, name: str, a: str, oa: str, b: str, ob: 
     live = approvals(env, "S2", hold)   # every live statement of the key: a rejected one is absent, a proposed one is here
     got = {k: v for k, v in live.items() if v}
     mine = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
-    named = len(mine) == 2 and all(all(x in f["message"] for x in (f"{ON}-{a}", f"{ON}-{b}")) and "several statements" not in f["message"]
-                                   and "capture.py review" in f.get("route", "") for f in mine)
-    sev = {"approved": "info", "rejected": "major", None: "major"}[later]
-    if not clash:
-        ok = not mine and ruled in got
-    elif later == "approved":
-        ok = named and {f["severity"] for f in mine} == {"info"} and all("settled by" in f["message"] for f in mine) and ruled in got
-    else:
-        ok = (named and {f["severity"] for f in mine} == {sev} and not got and (later is None or ruled not in live)
-              and (later is None or all("ruled by" in f["message"] for f in mine)) and (later is not None or ruled in live)
-              and {f["act"]["by"] for f in mine} == {a, b})
+    ok = _opposed_ok(mine, live, got, ruled, (a, b), clash, later)
     print(f"    {name} ({a} {oa}, {b} {ob}{', then ' + later if later else ''}): approved on {sorted(got) or 'nothing'}; "
           f"{mine[0]['severity'] + ': ' + mine[0]['message'][-110:] if mine else 'no act'}")
     return [] if ok else [f"task-0328/0331 {name}: acts {mine}, approved {got}, live {sorted(live)}"]
