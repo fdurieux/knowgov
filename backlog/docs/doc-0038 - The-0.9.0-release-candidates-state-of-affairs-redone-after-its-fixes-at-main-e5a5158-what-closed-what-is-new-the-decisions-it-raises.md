@@ -5,7 +5,7 @@ title: >-
   e5a5158: what closed, what is new, the decisions it raises
 type: other
 created_date: '2026-11-11T13:33:00Z'
-updated_date: '2026-11-11T13:34:00Z'
+updated_date: '2026-11-11T16:44:00Z'
 ---
 # The 0.9.0 release candidate: the state of affairs redone after its fixes (main e5a5158)
 
@@ -42,7 +42,7 @@ Audit identity:
 - every walk equals the register's own;
 - all seven CargoQuote scenarios give the record's verdict on the example instance.
 
-**Four new findings bear on contracts that freeze at 0.9.0 (§3), and one of them is high:**
+**Four new findings bear on contracts that freeze at 0.9.0 (§3), and a fifth (§3.5) came from a re-check, and one of them is high:**
 - **§3.1, high:** on an organisation's instance, the gate, the CI template, the hook and capture read knowgov's public register unless `KG_REGISTER` is set. The instance's own register is never read, and nothing says so. The verdict, the review cadence and the handle check then follow the public register, whose example handles would be accepted as givers and reviewers.
 - **§3.2:** the identity still misses the subject-side inputs that decide a verdict: `register_map.toml`, `scenarios.toml` and `[rules]`. The trace report's gate block lacks the corpus, attestations and captures the gate report gained.
 - **§3.3:** `register_impact` has no `thread` walk, though FR-06 names one.
@@ -224,6 +224,35 @@ Under decision-0036 no suite runs at load, so an auditor reading `at` infers a r
 - Threats: an auditor who skips the docs. Mitigated by naming it in the field's description.
 
 **Advice: (b).** A self-written date adds no assurance that the digests do not already give.
+
+### 3.5 What the `suite` digest binds (group A's re-check of task-0330, N-2; FR-01, U5)
+
+decision-0038 N-b binds an execution verification to the code and suite it ran. `Subject.code_parts` takes the suite as `[oracle] script`'s own bytes. CargoQuote's script is `stack_experiment/smoke_test.py`, but the suite's expectations live in `vendor/tools/acceptance/cargo_quote_suite.py`, which the script imports and no digest covers.
+
+Group A's re-check at `e8ac07c` followed the route honestly: the implementation changed to 341.0, the suite's expectations changed (3186 → 3211), and the suite passed 11/11. The `suite` digest stayed `23f3c9cc…` before and after. So the route's "with the implementation and suite digests" asks the adopter to list an unchanged suite digest, and its caveat "if they are unchanged, listing only asserts the old result" reads as applying when it does not. The converse is unseen: editing the expectations to match a wrong implementation moves no digest.
+
+**Options:**
+- **(a) An optional `[oracle] suite` list of files, each digested into `suite`, before 0.9.0.** It is additive in the subject format. If it is missing, `suite` is the script alone, as now. CargoQuote's manifest lists its acceptance module; the record's digests move only in the subject's own `[verification] execution` lists, which the vendored record re-pins.
+- **(b) Name the limit.** `suite` is the oracle script's own bytes, and files it reads are not bound. Say so in the route, guide §9 and Known limits, and bind more in 0.10.0.
+- **(c) Follow the script's local imports automatically.** This is fragile across languages and refused here.
+
+**Canvas.**
+- Problem: an attestation's suite binding can miss the very file that holds the expectations.
+- Users: U5 auditors, and every instance whose oracle splits runner and expectations.
+- Cost: (a) is one format field, `code_parts` reading it, a digest move in CargoQuote's manifest, and its re-check. (b) is three sentences.
+- Value: "the suite it ran" means the suite.
+
+**Fit/gap.**
+- (a) makes decision-0038 N-b true as written, and freezing without it fixes the gap for a minor version.
+- (b) is honest, but it leaves the route's caveat misleading on the honest path.
+
+**SWOT, (a).**
+- Strengths: small, additive, explicit (no import guessing).
+- Weaknesses: one more field to learn; CargoQuote's execution lists move.
+- Opportunities: J-F's oracle can declare its own.
+- Threats: the record moves if a vendored file's digest is involved. Fall back to (b) for the record and (a) for instances.
+
+**Advice: (a).**
 
 ## 4. Pulled before the cut (decision-0032: fix-only, but failing open or completing a decided fix)
 
