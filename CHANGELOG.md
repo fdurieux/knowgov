@@ -10,6 +10,7 @@ names that section with the version.
 
 ## Unreleased
 
+- Opposing rulings of one statement on one day by different reviewers (approved against rejected or referred) are a major act finding (`ambiguous`) naming both review files, and the key reads approved from neither, where the alphabetical order of the handles decided it silently; agreeing rulings and the same reviewer's `-n` re-ruling are unchanged (task-0328).
 - Reviews are applied and read as "later" by date, ruler and number, so a same-day re-ruling (`<on>-<by>-2.toml`, which sorts before the first by name) settles a legacy ambiguous act (task-0322); only a later ruling of the same statement settles it, another person's identical answer being reported as superseded for the key, at info only while the key reads approved.
 - A load no longer trusts a review's recorded `giver` (task-0321): it must equal the present capture's own signed handle or, the capture gone, a reading of the id's stem, else the ruling binds nothing and is a major act finding (`changed`, naming both givers); an ambiguous act a later applied review settled reads at info, naming that review.
 - `capture.py review` refuses a ruling whose captured-answer id reads as two issued givers (`…-ops-2`: `ops-2`'s first answer or `ops`'s second that day), as a load already sets it aside as `ambiguous`; nothing is written (task-0310). Since task-0320 the giver is read from the capture's content, so this refusal remains only where no capture file holds the answer.

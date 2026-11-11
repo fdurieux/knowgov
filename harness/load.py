@@ -572,7 +572,7 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
                 settled.add(b["key"])   # the review settled the dispute whole (review.check), lapse or not
             # task-0198 (H3): applied whatever the day; the approval keeps its until, six months after the answer,
             # and the gate reads it lapsed as of its date (cadence.lapse), never the load's day
-            st.apply_ruling(b["id"], outcome, rid, person, on, rv["record"], until.isoformat() if until else "")
+            _apply(st, bound, p, doc, (rid, head, rel, person, on, rv["record"]), ru, b, outcome, until)
             bound.append({"at": review.order_key(p, doc), "rel": rel, "id": b["id"], "key": b["key"], "value": str(ru["value"]),
                           "sha256": ru["sha256"], "giver": ru.get("giver"), "outcome": outcome})
             counts[outcome] += 1
@@ -597,6 +597,24 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
     _record_pending(st, pending, bound, handles)
     st.record_inputs({"reviews": applied_digest(applied)})
     return counts
+
+
+def _apply(st, bound: list, p, doc, who: tuple, ru: dict, b: dict, outcome: str, until) -> None:
+    """Apply one ruling, unless another reviewer ruled the opposite on the same statement the same day (task-0328): then
+    it is an act finding naming both files (``ambiguous``), and the statement is left not approved, an earlier approval
+    taken back by a rejection (``review.opposing``)."""
+    import sys
+    import review
+    rid, head, rel, person, on, record = who
+    clash = review.opposing(b["id"], outcome, review.order_key(p, doc), bound)
+    if not clash:
+        st.apply_ruling(b["id"], outcome, rid, person, on, record, until.isoformat() if until else "")
+        return
+    st.record_act_finding(_act(f"actf:{rid}:ruling:{ru['n']}:opposed", head, "ruling", ru["n"], b["id"], outcome, b["key"],
+                               "ambiguous", value=ru["value"], sha=ru["sha256"], reasons=[review.opposed_reason(clash, rel, outcome)]))
+    print(f"review rulings opposed: {rel} against {clash['rel']} on {b['id']}", file=sys.stderr)
+    if outcome != "approved":
+        st.apply_ruling(b["id"], "rejected", rid, person, on, record, "")
 
 
 def _ordered_reviews(rdir: Path) -> list:

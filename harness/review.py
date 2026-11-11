@@ -256,8 +256,9 @@ def giver_of(ru: dict) -> str | None:
 SETTLED = "settled by "
 SUPERSEDED = "superseded for the key by "
 RULED = "the key was ruled by "
+OPPOSED = "opposed the same day by "      # task-0328: two reviewers' opposing rulings of one statement on one day
 INFO_REASONS = (SETTLED, SUPERSEDED)       # the key reads from a later ruling: info
-MAJOR_REASONS = (RULED,)                   # a later ruling of the content that did not approve: still major
+MAJOR_REASONS = (RULED, OPPOSED)           # a later ruling that did not approve, or a same-day opposing one: still major
 REASON_PREFIXES = INFO_REASONS + MAJOR_REASONS
 
 
@@ -269,6 +270,24 @@ def order_key(path: Path, doc: dict) -> tuple:
     on, by, stem = str(r.get("on", "")), str(r.get("by", "")), path.stem
     m = re.fullmatch(re.escape(f"{on}-{by}") + r"(?:-([0-9]+))?", stem)
     return (on, by, int(m[1]) if m and m[1] else 0, path.name) if m else (on, stem, 0, path.name)
+
+
+def opposing(statement: str, outcome: str, at: tuple, bound: list) -> dict | None:
+    """The applied ruling of ``statement`` that ``outcome`` opposes (task-0328): the same day, by another reviewer, one of
+    them approved and the other rejected or referred. Within a day the order across reviewers is only alphabetical, so
+    neither is "later"; the load applies neither as approval. The same reviewer's ``-n`` re-ruling is not one (task-0322)."""
+    for b in bound:
+        if b["id"] != statement or b["at"][0] != at[0] or b["at"][1] == at[1]:
+            continue
+        if (b["outcome"] == "approved") != (outcome == "approved") and "approved" in (b["outcome"], outcome):
+            return b
+    return None
+
+
+def opposed_reason(earlier: dict, rel: str, outcome: str) -> str:
+    """The reason of the act finding for ``opposing``'s result, naming both review files."""
+    return (f"{OPPOSED}{rel} ({outcome}) against {earlier['rel']} ({earlier['outcome']}), two reviewers on one day, so the key "
+            "reads approved from neither; the owners rule again in one review")
 
 
 def settling(fa: dict, at: tuple, bound: list, handles: dict) -> str | None:

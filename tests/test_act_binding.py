@@ -373,4 +373,42 @@ def test_every_reason_load_writes_is_one_the_gate_recognises_task_0322():
         seen.add(pre)
         want = "info" if pre in review.INFO_REASONS else "major"
         assert gate_cli.act_finding(_ambiguous_act([why]))["severity"] == want, (why, want)
-    assert seen == set(review.REASON_PREFIXES), seen
+    assert seen == set(review.REASON_PREFIXES) - {review.OPPOSED}, seen   # OPPOSED is written by the load itself (task-0328)
+
+
+def _ruled(rel, outcome, on, by, id_="A:cap:2026-11-02-ORG-0002-employee-1:1@capture"):
+    return _bound(rel, id_, "employee-1", outcome, at=(on, by, 0, rel))
+
+
+def test_opposing_rulings_the_same_day_by_two_reviewers_are_found_task_0328():
+    """K1: approved against rejected or referred, one statement, one day, two reviewers, either order."""
+    d = "2026-11-06"
+    rej = _ruled("boss.toml", "rejected", d, "boss")
+    assert review.opposing(rej["id"], "approved", (d, "employee-2", 0, "e"), [rej]) is rej
+    ref = _ruled("boss.toml", "referred", d, "boss")
+    assert review.opposing(ref["id"], "approved", (d, "employee-2", 0, "e"), [ref]) is ref
+    app = _ruled("boss.toml", "approved", d, "boss")
+    assert review.opposing(app["id"], "rejected", (d, "employee-2", 0, "e"), [app]) is app
+    assert review.opposing(app["id"], "referred", (d, "employee-2", 0, "e"), [app]) is app
+
+
+def test_agreeing_rulings_another_day_another_statement_or_the_same_reviewer_are_not_opposed_task_0328():
+    d = "2026-11-06"
+    app = _ruled("boss.toml", "approved", d, "boss")
+    assert review.opposing(app["id"], "approved", (d, "employee-2", 0, "e"), [app]) is None   # agree
+    rej = _ruled("boss.toml", "rejected", d, "boss")
+    assert review.opposing(rej["id"], "approved", ("2026-11-07", "employee-2", 0, "e"), [rej]) is None   # a later day rules
+    assert review.opposing(rej["id"], "approved", (d, "boss", 2, "b2"), [rej]) is None   # the same reviewer's -2 (task-0322)
+    assert review.opposing("A:other", "approved", (d, "employee-2", 0, "e"), [rej]) is None
+    rj2 = _ruled("boss.toml", "rejected", d, "boss")
+    assert review.opposing(rj2["id"], "referred", (d, "employee-2", 0, "e"), [rj2]) is None   # neither approves
+
+
+def test_the_gate_reads_an_opposed_act_at_major_naming_both_files_task_0328():
+    import gate_cli
+    earlier = _ruled("captures/reviews/2026-11-06-boss.toml", "rejected", "2026-11-06", "boss")
+    why = review.opposed_reason(earlier, "captures/reviews/2026-11-06-employee-2.toml", "approved")
+    assert why.startswith(review.OPPOSED) and why.startswith(review.REASON_PREFIXES) and review.OPPOSED in review.MAJOR_REASONS
+    f = gate_cli.act_finding(_ambiguous_act([why]))
+    assert f["severity"] == "major" and "2026-11-06-boss" in f["message"] and "2026-11-06-employee-2" in f["message"], f
+    assert f["act"]["why"] == "ambiguous"
