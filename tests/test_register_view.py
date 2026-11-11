@@ -797,7 +797,7 @@ def test_statements_view_has_a_browser_link_to_a_served_guide_of_register_node_s
     src = (ROOT / "demo" / "tools" / "check_impact_cypher.py").read_text(encoding="utf-8")
     assert 'sv["browser"]' in src and "statement_keys(st_rows) != statement_keys(shown)" in src
     demo = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
-    assert "every node agrees: 57 nodes, 4 walks in both forms and the statements view \\(17 nodes reach statements\\)" in demo
+    assert "every node agrees: 57 nodes, 6 walks in both forms and the statements view \\(17 nodes reach statements\\)" in demo
 # ---- task-0088: register-cites joins a citation to the store as register_node_statements does
 def test_register_cites_joins_directory_artefacts_by_path_and_checks_a_jef_directory_citation():
     import store_neo4j as sn
