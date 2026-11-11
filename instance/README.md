@@ -968,8 +968,8 @@ referring it, cancel each other: within a day there is no "later", so neither ru
 the statement keeps the status it had. The gate lists an `act` finding, `major`, on each of those
 rulings; every one names every file of the set. `capture.py review` says so on stderr before it
 writes such a ruling (it still writes it). To clear it, the owners rule again in one review, on a
-later day. When that ruling approves, the findings read `info`, "settled by" that file; a rejection
-leaves them `major`.
+later day. When that ruling approves or rejects, the findings read `info`, "settled by" that file, and
+the key reads from it; a referral decides nothing and leaves them `major`.
 
 Before ruling, read what you rule on:
 

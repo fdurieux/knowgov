@@ -263,8 +263,9 @@ def _opposed_act(a: dict) -> bool:
 
 
 def _act_route(f: dict, route):
-    """An opposed act's route is a new review on a later day, not the questionnaire (task-0331); any other keeps ``route``."""
-    if f["kind"] == "act" and _opposed_act(f["act"]):
+    """An open opposed act's route is a new review on a later day, not the questionnaire (task-0331); a settled one
+    (a second reason, task-0333 R6) and any other act keep ``route``."""
+    if f["kind"] == "act" and _opposed_act(f["act"]) and len(f["act"]["reasons"]) == 1:
         return "the owners rule again in one review, on a later day (python harness/capture.py review <file>)"
     return route
 
