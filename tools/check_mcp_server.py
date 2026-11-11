@@ -783,6 +783,7 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
                 err = client.request("tools/call", params).get("error") or {}
                 if err.get("code") != -32602:
                     failures.append(f"{name}: tools/call {params} answered {err or 'a result'}, not -32602 (M5, M6, task-0296)")
+            single_key_refused(client, name, failures)
         finally:
             client.close()
     if answers.get("stdio") != answers.get("http"):
@@ -794,6 +795,24 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
         failures.append(f"{ALLOWLIST.name} admits {sorted(allowed)}, not the server {mcp_server.SERVER['name']}")
     print(f"transports: {', '.join((*FILE_TOOLS, *STORE_TOOLS))} listed over stdio and HTTP, {len(calls)} call(s) equal on both; "
           f"{ALLOWLIST.name} admits {mcp_server.SERVER['name']}")
+
+
+SINGLE_KEY_TOOLS = ("three_valued_answer", "derived_outputs", "key_nodes")   # task-0320 (decision-0038 N7)
+BAD_KEY = "\U0002F800|x"   # astral: refused as sent although its NFC (U+4E3D) is in the BMP
+
+
+def single_key_refused(client, name: str, failures: list[str]) -> None:
+    """task-0320 (decision-0038 N7): each single-key tool refuses a key ``keys`` refuses, -32602, naming the value as
+    sent: over stdio in both eras, over HTTP in the handshake era (the stateless era over HTTP needs its headers, which
+    check_subject_tool's own requests carry)."""
+    eras = [("handshake", client.request)] + ([] if isinstance(client, HttpClient) else [("stateless", client.modern)])
+    for tool in SINGLE_KEY_TOOLS:
+        for era, send in eras:
+            err = send("tools/call", {"name": tool, "arguments": {"key": BAD_KEY}}).get("error") or {}
+            msg = str(err.get("message", ""))
+            if err.get("code") != -32602 or (BAD_KEY not in msg and repr(BAD_KEY)[1:-1] not in msg and ascii(BAD_KEY)[1:-1] not in msg):
+                failures.append(f"{name} {era}: {tool} with key {ascii(BAD_KEY)} answered {err or 'a result'}, not -32602 naming "
+                                "the value as sent (N7)")
 
 
 def held_gate_only(scenarios: list[str]) -> int:

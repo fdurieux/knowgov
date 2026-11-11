@@ -658,7 +658,8 @@ python harness/gate_cli.py --task codegen --as-of 2026-12-15 --baseline gate-202
 ```
 
 The report names what the gate decided on: the task table (`task_profile`), the register (`register`:
-its tag, its commit and `files`, a digest of its files as read), the knowgov build (`knowgov`), the
+its tag, its commit and `files`, a digest of the register files a load reads: those its own loader opens
+and the issued-handles list, never a README or a stray file), the knowgov build (`knowgov`), the
 documents loaded (`corpus`, a digest of every document version's bytes), the subject's `[verification]`,
 `[provenance]` and `[capture]` as the load read them (`attestations`), the answers and reviews the load
 applied (`captures`) and the date (`as_of`). The load records `attestations` and `captures` in the store,

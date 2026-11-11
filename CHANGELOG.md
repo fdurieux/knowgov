@@ -40,7 +40,8 @@ names that section with the version.
   - `attestations`: a digest of the subject's `[verification]`, `[provenance]` and `[capture]` as the load read them.
   - `captures`: a digest of the answers and reviews the load applied; a file it skipped (another scenario's review,
     a refused one, a file that is no capture) moves nothing.
-  - `register.files`: a digest of the register's files as read, beside its tag and commit.
+  - `register.files`: a digest of the register files a load reads, beside its tag and commit: every file the
+    register's own loader opens, and the issued-handles list. A README or stray file moves nothing.
 
   Both inputs are recorded in the store at the load and read back, equal on both stores and through export and
   import. Before, editing `[verification]`, a capture or review file, or a register file under the same tag could

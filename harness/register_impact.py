@@ -199,21 +199,51 @@ def identity(root: Path) -> dict:
     return {"tag": git("describe", "--tags", "--exact-match", "HEAD") or None, "commit": commit, "why": None}
 
 
+def loaded_files(root: Path) -> list[Path] | None:
+    """The files a load reads from the register at ``root`` (task-0320, decision-0038 N2): every file its own loader
+    opens (``tools/register.py`` ``load_register``: the metamodel, the glossary, the nodes, the relationship files, the
+    exceptions), recorded as it opens them, never a list kept here; and the issued-handles list its
+    ``metamodel/types.toml`` names (``[elicited] issued``), which the review rules read (``review.issued_handles``).
+    None when the register has no loader of its own or it fails."""
+    root = Path(root).resolve()
+    try:
+        mod = load_tools(root)["register"]
+    except Exception:  # noqa: BLE001 — no loader to ask: unknown, never a guess
+        return None
+    opened: list[Path] = []
+    with _lock:
+        plain = mod.load_toml
+
+        def recording(path):
+            opened.append(Path(path).resolve())
+            return plain(path)
+        mod.load_toml = recording
+        try:
+            reg = mod.load_register(root)
+        except Exception:  # noqa: BLE001
+            return None
+        finally:
+            mod.load_toml = plain
+    issued = (reg.get("types") or {}).get("elicited", {}).get("issued")
+    if isinstance(issued, str) and (root / issued).is_file():
+        opened.append((root / issued).resolve())
+    return sorted(set(opened))
+
+
 def files_digest(root: Path) -> str | None:
-    """The register's files as this process reads them (task-0320, decision-0038 N2): the sha256, hex, of one canonical
-    JSON line ``[path, sha256]`` per file under ``root`` (its POSIX path relative to the root, its raw bytes' digest),
-    sorted; ``.git`` and ``__pycache__`` left out. A file edited under the same tag and commit moves it. None when the
-    root holds no file."""
+    """The register's files as a load reads them (task-0320, decision-0038 N2): the sha256, hex, of one canonical JSON
+    line ``[path, sha256]`` per file ``loaded_files`` names (its POSIX path relative to the root, its raw bytes'
+    digest), sorted. A loaded file edited under the same tag and commit moves it; a file no load reads (a README, a
+    stray file) does not. None when the files cannot be known."""
     import hashlib
     import json
-    root = Path(root)
-    lines = []
-    for p in sorted(root.rglob("*")) if root.is_dir() else []:
-        rel = p.relative_to(root)
-        if not p.is_file() or {".git", "__pycache__"} & set(rel.parts):
-            continue
-        lines.append(json.dumps([rel.as_posix(), hashlib.sha256(p.read_bytes()).hexdigest()], ensure_ascii=False, separators=(",", ":")) + "\n")
-    return hashlib.sha256("".join(sorted(lines)).encode("utf-8")).hexdigest() if lines else None
+    files = loaded_files(root)
+    if not files:
+        return None
+    root = Path(root).resolve()
+    lines = [json.dumps([p.relative_to(root).as_posix(), hashlib.sha256(p.read_bytes()).hexdigest()], ensure_ascii=False,
+                        separators=(",", ":")) + "\n" for p in files]
+    return hashlib.sha256("".join(sorted(lines)).encode("utf-8")).hexdigest()
 
 
 def owning_unit(reg: dict, nid: str) -> dict:

@@ -200,6 +200,32 @@ def test_n2_each_input_moves_its_own_field_and_a_skipped_file_moves_none():
         assert " register differs: " in p.stderr
 
 
+def test_n2_register_files_cover_what_the_load_reads_and_nothing_else():
+    """The register's ``files`` digest is over the files a load reads (its own loader's, recorded as it opens them,
+    and the issued-handles list): a README, a stray file or SOURCE.md edited moves nothing; a node file, a metamodel
+    file or the handles list edited moves it."""
+    import register_impact
+    with tempfile.TemporaryDirectory() as td:
+        reg = Path(td) / "register"
+        shutil.copytree(ROOT / "demo" / "register", reg, ignore=shutil.ignore_patterns("__pycache__"))
+        base = register_impact.files_digest(reg)
+        assert base and len(base) == 64
+        read = {p.relative_to(reg.resolve()).as_posix() for p in register_impact.loaded_files(reg)}
+        assert {"metamodel/types.toml", "glossary/glossary.toml", "capabilities/CAP-0001.toml", "people/handles.toml"} <= read, read
+        assert not any(r.startswith(("tools/", "decisions/", "exports/")) or r == "SOURCE.md" for r in read), read
+        (reg / "README.md").write_text("# notes\n", encoding="utf-8")
+        (reg / "capabilities" / "notes.txt").write_text("a stray file\n", encoding="utf-8")
+        (reg / "SOURCE.md").write_text((reg / "SOURCE.md").read_text(encoding="utf-8") + "\n<!-- edited -->\n", encoding="utf-8")
+        assert register_impact.files_digest(reg) == base, "a file no load reads moves nothing"
+        for rel in ("capabilities/CAP-0001.toml", "metamodel/lifecycle.toml", "people/handles.toml"):
+            p = reg / rel
+            keep = p.read_bytes()
+            p.write_bytes(keep + b"\n# edited under the same tag\n")
+            assert register_impact.files_digest(reg) != base, rel
+            p.write_bytes(keep)
+        assert register_impact.files_digest(reg) == base
+
+
 def test_n2_the_inputs_survive_export_and_import_and_are_a_read_of_the_port():
     rdf = need_rdflib()
     import mcp_server

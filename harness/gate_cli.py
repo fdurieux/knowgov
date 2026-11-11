@@ -110,7 +110,7 @@ the sha256 of the task table read; ``register``, its tag and commit; ``knowgov``
 version change (task-0307, decision-0037): ``corpus``, the sha256 over the loaded document Versions' digests
 (``store.corpus_digest``: one canonical JSON line ``[artefact, version, sha256]`` each, sorted; task-0320). And
 (task-0320, decision-0038 N2): ``attestations`` and ``captures``, what the load used beyond the documents as the
-store recorded it (``Store.inputs``), and ``register.files``, the register's files as read. With ``--baseline``,
+store recorded it (``Store.inputs``), and ``register.files``, the register's files a load reads (its own loader's and the issued handles). With ``--baseline``,
 each identity field (``IDENTITY_FIELDS``) that differs from the baseline's is listed in ``baseline.differs``
 (``differs``, the MCP reader's too) and named on stderr, one line each; the exit is the ratchet's, unchanged. A
 field the baseline lacks, or holds as unknown (null), and an object's sub-field unknown on either side, is never
@@ -534,7 +534,7 @@ _IDENTITY: dict = {}
 
 def register_identity() -> dict:
     """The register this process reads (``KG_REGISTER``), its tag and commit (``register_impact.identity``) and, beside
-    them, ``files``, the digest of its files as read (``register_impact.files_digest``, task-0320, decision-0038 N2),
+    them, ``files``, the digest of the files a load reads (``register_impact.files_digest``, task-0320, decision-0038 N2),
     read once per register root: the files and git only, no network, no clock (task-0237)."""
     import cadence
     import register_impact

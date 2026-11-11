@@ -81,8 +81,8 @@ def page(register: Path, previous: Path) -> dict:
 
 
 def _names_registers(same: dict | None, plain: dict | None, want_same: dict, want_plain: dict) -> bool:
-    """Whether the two reports name the registers they read: tag, commit and why as wanted, and (task-0320) each its
-    own files digest, the fixture's copy's apart from the vendored register's."""
+    """Whether the two reports name the registers they read: tag, commit and why as wanted, and (task-0320) the digest
+    of the files a load reads, apart: the fixture's copy adds a comment to CAP-0001.toml, a node file the load reads."""
     same, plain = same or {}, plain or {}
     named = lambda r: {k: v for k, v in r.items() if k != "files"}  # noqa: E731
     return named(same) == want_same and named(plain) == want_plain and bool(same.get("files")) and same.get("files") != plain.get("files")
@@ -136,7 +136,7 @@ def main(argv: list[str] | None = None) -> int:
             failures.append(f"{store} same: a register update with no state change invalidated something: {src}")
         # task-0237: each report names the register it read, the fixture's copy for "same" (its SOURCE.md retagged
         # TAG, the vendored commit) and the vendored register for "plain"; everything else must be equal
-        # (task-0320: beside them, each register's files digest, the fixture's SOURCE.md retagged, so the two differ)
+        # (task-0320: beside them, the digest of the files a load reads, apart: the copy edits a node file)
         want_same = {"tag": register_fixture.TAG, "commit": register_impact.identity(VENDORED)["commit"], "why": None}
         if not _names_registers(sm.get("register"), plain.get("register"), want_same, register_impact.identity(VENDORED)):
             failures.append(f"{store} same: the reports do not name the registers they read: {sm.get('register')} and {plain.get('register')}")
