@@ -662,10 +662,15 @@ its tag, its commit and `files`, a digest of the register files a load reads: th
 and the issued-handles list, never a README or a stray file), the knowgov build (`knowgov`), the
 documents loaded (`corpus`, a digest of every document version's bytes), the subject's `[verification]`,
 `[provenance]` and `[capture]` as the load read them (`attestations`), the answers and reviews the load
-applied (`captures`) and the date (`as_of`). The load records `attestations` and `captures` in the store,
-so a read of the store, the MCP reader's included, names the load's own. Under `--baseline`, each one
+applied (`captures`), the subject's own configuration files as the load read them (`configuration`: a
+digest per file, `subject.toml` whole, `scenarios.toml`, the register map, and `plants.toml`, `queries.toml`
+and the verification map where there is one) and the date (`as_of`). The load records `attestations`,
+`captures` and `configuration` in the store, so a read of the store, the MCP reader's included, names the
+load's own. The trace report's gate block names the same `corpus`, `attestations`, `captures` and
+`configuration`. Under `--baseline`, each one
 that differs from the baseline's is listed in the report's `baseline.differs` and named on stderr, one
-line each, so the comparison above names its `as_of`, and an edited document names `corpus`. The MCP
+line each, so the comparison above names its `as_of`, an edited document names `corpus`, and an edited
+`register_map.toml` or `scenarios.toml` names `configuration`. The MCP
 reader's `gate_verdict` carries the same `baseline.differs`. Naming one never changes the exit. A
 baseline kept before a field existed says nothing about that field, and none is named; a part of the
 register or build that either side does not know is never named either.

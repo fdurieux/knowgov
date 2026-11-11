@@ -13,7 +13,7 @@ import re
 import tomllib
 
 from kitio import FAMILY, sha256, pristine
-from store import canonical_digest, stem
+from store import canonical_digest, configuration_text, stem
 import dates     # task-0262: one strict YYYY-MM-DD parse
 import formats   # task-0174, decision-0023: a capture or review file names the format it was written in
 import load_memory
@@ -123,7 +123,8 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
     ts = now()
     aid = f"act:extract:{scenario}:{version_tag}"
     st.ensure_agents(TOOL, version_tag, HUMAN, LLM)
-    st.record_inputs({"attestations": attestations_digest()})   # task-0320 (decision-0038 N2): the tables as this load reads them
+    st.record_inputs({"attestations": attestations_digest(),   # task-0320 (decision-0038 N2): the tables as this load reads them
+                      "configuration": configuration_text(SUBJECT.configuration())})   # task-0335 (decision-0039 §3.2): its files as read
     st.create_activity(aid, "extraction", ts, TOOL, activity_note, "agent:harness", subject=SUBJECT.id, scenario=scenario)   # task-0195
     n_frag = n_ass = n_reused = 0
     for path, text in kit.items():

@@ -183,7 +183,8 @@ def test_n2_each_input_moves_its_own_field_and_a_skipped_file_moves_none():
         assert text.count(old) == 1
         m.write_text(text.replace(old, old.replace("smoke 2026-10-30", "smoke 2026-10-31")), encoding="utf-8")
         scoped = _gate(root)
-        assert scoped["attestations"] != edited["attestations"] and same(scoped, edited, ("attestations",))
+        assert scoped["attestations"] != edited["attestations"] and same(scoped, edited, ("attestations", "configuration")), \
+            "subject.toml is read whole into configuration too (task-0335)"
         # a register file edited under the same tag and commit
         reg = Path(td) / "register"
         shutil.copytree(ROOT / "demo" / "register", reg)

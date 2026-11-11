@@ -912,12 +912,13 @@ def check_store_reads(client: "StdioClient", sc: str, failures: list[str], label
           f"document_statements on {len(port_docs)} document(s), each the port's read")
 
 
-IDENTITY_HELD = ("corpus", "attestations", "captures")   # task-0307; task-0320 (decision-0038 N2)
+IDENTITY_HELD = ("corpus", "attestations", "captures", "configuration")   # task-0307; task-0320 (decision-0038 N2); task-0335
 
 
 def corpus_held(label: str, got: dict, want: dict | None, failures: list[str]) -> None:
     """task-0307: gate_verdict names a corpus, the one ``want``, a report, names (gate_cli's, or the publishing load's);
-    task-0320: and the same ``attestations``, ``captures`` and register ``files``, what the load used, as recorded."""
+    task-0320: and the same ``attestations``, ``captures`` and register ``files``, what the load used, as recorded;
+    task-0335 (decision-0039 §3.2): and the same ``configuration``, the subject's files the load read."""
     want = want or {}
     for f in IDENTITY_HELD:
         if not got.get(f) or got.get(f) != want.get(f):
