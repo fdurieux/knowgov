@@ -539,6 +539,8 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
     handles, units = review.issued_handles(reg), review.organisation_units(reg)
     owners = capture.owners_of(SUBJECT, capture.register_nodes(reg))
     caps = review.capture_index(SUBJECT.capture_dir)
+    opposed = _opposed(files, scenario, st, handles=handles, owners=owners, units=units, captures=caps, now=now,
+                       compatible=compatible, strict=False)
     for p, doc in files:
         content = canonical_digest(doc)
         sc = str(doc.get("review", {}).get("scenario", ""))
@@ -563,22 +565,7 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
         except ValueError:
             if not again:   # store.UNIQUE_IDS: only stage 2 meets a review stage 1 recorded, and keeps that record
                 raise
-        settled = set()
-        for ru in rv["rulings"]:
-            b = st.assertion_brief(ru["statement"])
-            outcome = ru["outcome"]
-            until = review.until_for(b, caps)
-            if b["status"] == "disputed":
-                settled.add(b["key"])   # the review settled the dispute whole (review.check), lapse or not
-            # task-0198 (H3): applied whatever the day; the approval keeps its until, six months after the answer,
-            # and the gate reads it lapsed as of its date (cadence.lapse), never the load's day
-            _apply(st, bound, p, doc, (rid, head, rel, person, on, rv["record"]), ru, b, outcome, until)
-            bound.append({"at": review.order_key(p, doc), "rel": rel, "id": b["id"], "key": b["key"], "value": str(ru["value"]),
-                          "sha256": ru["sha256"], "giver": ru.get("giver"), "outcome": outcome})
-            counts[outcome] += 1
-            if ru["unbound"]:   # the read rule: a file from before 0.9.0 binds by id, and the gate says so
-                st.record_act_finding(_act(f"actf:{rid}:ruling:{ru['n']}", head, "ruling", ru["n"], b["id"], outcome, b["key"],
-                                           "unbound", to=[{"id": b["id"], "value": ru["value"], "sha256": ru["sha256"]}]))
+        settled = _apply_rulings(st, rv, (p, doc, rid, head, rel, person, on), caps, opposed, bound, counts)
         for key in sorted(settled):
             counts["settled"] += st.settle_conflicts(key, rid)
         for c in rv.get("resolves", []):   # task-0216: a lint gap's resolution, by its document's owner
@@ -599,22 +586,56 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
     return counts
 
 
-def _apply(st, bound: list, p, doc, who: tuple, ru: dict, b: dict, outcome: str, until) -> None:
-    """Apply one ruling, unless another reviewer ruled the opposite on the same statement the same day (task-0328): then
-    it is an act finding naming both files (``ambiguous``), and the statement is left not approved, an earlier approval
-    taken back by a rejection (``review.opposing``)."""
+def _apply_rulings(st, rv: dict, ctx: tuple, caps, opposed: dict, bound: list, counts: dict) -> set:
+    """Apply one review's rulings (an opposed one is set aside, task-0328); the keys whose dispute it settled."""
+    import review
+    p, doc, rid, head, rel, person, on = ctx
+    settled = set()
+    for ru in rv["rulings"]:
+        b = st.assertion_brief(ru["statement"])
+        outcome = ru["outcome"]
+        until = review.until_for(b, caps)
+        # task-0198 (H3): applied whatever the day; the approval keeps its until, six months after the answer,
+        # and the gate reads it lapsed as of its date (cadence.lapse), never the load's day
+        against = opposed.get((ru["statement"], on, rel))
+        if against:   # task-0328: neither ruling of an opposed pair applies
+            _set_aside(st, rid, head, rel, ru, b, against)
+            continue
+        if b["status"] == "disputed":
+            settled.add(b["key"])   # the review settled the dispute whole (review.check), lapse or not
+        st.apply_ruling(b["id"], outcome, rid, person, on, rv["record"], until.isoformat() if until else "")
+        bound.append({"at": review.order_key(p, doc), "rel": rel, "id": b["id"], "key": b["key"], "value": str(ru["value"]),
+                      "sha256": ru["sha256"], "giver": ru.get("giver"), "outcome": outcome})
+        counts[outcome] += 1
+        if ru["unbound"]:   # the read rule: a file from before 0.9.0 binds by id, and the gate says so
+            st.record_act_finding(_act(f"actf:{rid}:ruling:{ru['n']}", head, "ruling", ru["n"], b["id"], outcome, b["key"],
+                                       "unbound", to=[{"id": b["id"], "value": ru["value"], "sha256": ru["sha256"]}]))
+    return settled
+
+
+def _opposed(files: list, scenario: str, st, **kw) -> dict:
+    """task-0328: the rulings that oppose another reviewer's the same day (``review.opposed_rulings``), read from every
+    file's check before any is applied, so the outcome does not depend on which file is read first."""
+    import review
+    rows = []
+    for p, doc in files:
+        sc = str(doc.get("review", {}).get("scenario", ""))
+        if sc and sc != scenario:
+            continue
+        errs, rv = review.check(doc, st, where=p.as_posix(), **kw)
+        rel = str(p.relative_to(SUBJECT.root)) if p.is_relative_to(SUBJECT.root) else str(p)
+        rows += [] if errs else [(ru["statement"], rv["on"].isoformat(), rv["by"], ru["outcome"], rel) for ru in rv["rulings"]]
+    return review.opposed_rulings(rows)
+
+
+def _set_aside(st, rid: str, head: dict, rel: str, ru: dict, b: dict, against: list) -> None:
+    """An opposed ruling is not applied: an ``ambiguous`` act finding names both files (task-0328)."""
     import sys
     import review
-    rid, head, rel, person, on, record = who
-    clash = review.opposing(b["id"], outcome, review.order_key(p, doc), bound)
-    if not clash:
-        st.apply_ruling(b["id"], outcome, rid, person, on, record, until.isoformat() if until else "")
-        return
-    st.record_act_finding(_act(f"actf:{rid}:ruling:{ru['n']}:opposed", head, "ruling", ru["n"], b["id"], outcome, b["key"],
-                               "ambiguous", value=ru["value"], sha=ru["sha256"], reasons=[review.opposed_reason(clash, rel, outcome)]))
-    print(f"review rulings opposed: {rel} against {clash['rel']} on {b['id']}", file=sys.stderr)
-    if outcome != "approved":
-        st.apply_ruling(b["id"], "rejected", rid, person, on, record, "")
+    st.record_act_finding(_act(f"actf:{rid}:ruling:{ru['n']}:opposed", head, "ruling", ru["n"], b["id"], ru["outcome"],
+                               b["key"], "ambiguous", value=ru["value"], sha=ru["sha256"],
+                               reasons=[review.opposed_reason(rel, ru["outcome"], against)]))
+    print(f"review ruling not applied: {rel} opposes {against[0][0]} on {b['id']}", file=sys.stderr)
 
 
 def _ordered_reviews(rdir: Path) -> list:
