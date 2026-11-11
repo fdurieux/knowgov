@@ -10,6 +10,8 @@ names that section with the version.
 
 ## Unreleased
 
+- The re-attest route says what makes an execution mean something (change the reference implementation and the suite to the new Version's values, run them, list all three digests; unchanged, listing only asserts the old result: the known limit, no oracle at load), `check_subject` notes it when an edited document is re-listed with the implementation and suite digests unchanged, the not-attested finding's consequence names only the declarations bound, approver and reviewer steps say not the author (decision-0002), and the review step points to `capture.py review` for one document's own date (task-0330).
+
 - The attestation route is one step per declaration (execution only after the suite has run on the Version, with the implementation and suite digests; approval, review and authored each their own reader's act), and `check_subject`'s fix says the same; an `execution` or `review` declaration listing no Version is now named by an `attestation` finding at info (task-0324, task-0325).
 
 - Reviews are applied and read as "later" by date, ruler and number, so a same-day re-ruling (`<on>-<by>-2.toml`, which sorts before the first by name) settles a legacy ambiguous act (task-0322); only a later ruling of the same statement settles it, another person's identical answer being reported as superseded for the key, at info only while the key reads approved.

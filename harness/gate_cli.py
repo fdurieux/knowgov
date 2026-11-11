@@ -165,10 +165,12 @@ def _declared(ds: list[str]) -> tuple[str, str]:
 
 
 STEP = {"authored": "the author reads the document and lists sha256 {sha} under [verification] authored versions",
-        "approval": "the approver reads the document and lists sha256 {sha} under [verification] approval versions",
-        "review": "the reviewer reviews the document and lists sha256 {sha} under [verification] review versions",
-        "execution": "the suite is run on this Version, and only then is sha256 {sha} listed under [verification] execution "
-                     "versions, with the implementation and suite digests under implementation and suite (decision-0038)"}
+        "approval": "the approver (not the author, decision-0002) reads the document and lists sha256 {sha} under [verification] approval versions",
+        "review": "the reviewer (not the author, decision-0002) reads the document and lists sha256 {sha} under [verification] "
+                  "review versions (for a single document's re-review, `capture.py review` gives it its own date: one `at` re-dates every listed Version)",
+        "execution": "the reference implementation and the suite are changed to this Version's values and run, then sha256 {sha} is "
+                     "listed under [verification] execution versions with the implementation and suite digests (if they are "
+                     "unchanged, listing only asserts the old result for the new values: no oracle runs at load, decision-0038)"}
 
 
 def attestation_route(decls: list[str], sha: str, attester: str = "") -> str:
@@ -192,6 +194,13 @@ def unlisted_finding(r: dict) -> dict:
                     ref=f"attest:{n}")
 
 
+def _consequence(ds: list[str]) -> str:
+    """task-0330: what an unlisted Version costs, for the declarations actually bound."""
+    if {"authored", "approval"} & set(ds):
+        return "its authored statements read proposed and nothing in it is approved by construction"
+    return f"what it verified by {' and '.join(ds)} is lost and the keys behind it fall below verified"
+
+
 def attestation_findings(rows: list[dict], owners: dict | None, route) -> list[dict]:
     """decision-0019 (task-0221): a declaration that lists no Version is the read rule's, at info; each artefact a
     bound declaration does not attest, behind the task's keys, is major (its authored statements read proposed and
@@ -208,8 +217,7 @@ def attestation_findings(rows: list[dict], owners: dict | None, route) -> list[d
         decls, cite = _declared(u["declarations"])
         digests = ", ".join(x[:12] for x in u["parts"]) if u["parts"] else u["sha256"][:12]
         f = _finding("major", "attestation", f"{art} (sha256 {digests}), behind {len(u['keys'])} required key(s), is not attested: "
-                     f"[verification] {decls} list(s) no digest of this Version, so its authored statements read proposed and "
-                     f"nothing in it is approved by construction ({cite})", ref=art, related=u["keys"])
+                     f"[verification] {decls} list(s) no digest of this Version, so " + _consequence(u["declarations"]) + f" ({cite})", ref=art, related=u["keys"])
         if owners is not None:
             units = {(owners.get(k) or {}).get("unit") for k in u["keys"]}
             unit = units.pop() if len(units) == 1 else None
