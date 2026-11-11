@@ -206,8 +206,8 @@
    "floor": 19
   },
   "harness/load.py::load_reviews": {
-   "value": 44,
-   "floor": 44
+   "value": 33,
+   "floor": 33
   },
   "harness/load.py::load_scenario": {
    "value": 62,
