@@ -484,19 +484,14 @@ def record_check(scenario: str, d: Path, source: str = "") -> dict | None:
     (deterministic mode), against its scored record otherwise."""
     if not source.startswith("demo-runs/"):
         return None
-    cfg = _ps().subject.scenarios.get(scenario, {})
-    det = _read_json(d / "deterministic.json")
-    det_rec = cfg.get("deterministic_record")
-    scored = bool(det.get("stage2", {}).get("suspect_derived")) or not det_rec
-    rec = _ps().record_dir / (scenario if scored else det_rec)
+    rec, aside = compare_deterministic.record_for_run(d.parent, scenario, _ps().record_dir, _ps().subject.scenarios.get(scenario, {}))   # the comparator's own rule (task-0313)
     # Against the scored record only, the leaves the subject's manifest sets aside
     # (``scored_record_volatile``), as the comparator sets the timestamps aside: a leaf that
     # record wrote with a harness defect fixed afterwards, and that its deterministic-mode
     # re-establishment corrected without the Derived node a derived-registering run must be
     # read against, cannot be equal in either direction. The why for each leaf is written
-    # beside the key in the manifest. The comparator's command line passes none, so the
-    # record stays comparable with itself on every leaf; the view names what was set aside.
-    aside = [str(k) for k in cfg.get("scored_record_volatile", [])] if scored else []
+    # beside the key in the manifest. The comparator's command line applies the same rule
+    # (record_for_run); the view names what was set aside.
     n, lines = compare_deterministic.compare(d.parent, _ps().record_dir, [scenario], record_for={scenario: rec}, ignore_keys=aside)
     compared = next((ln for ln in lines if "leaves compared" in ln), "")
     m = re.search(r"(\d+) leaves compared", compared)

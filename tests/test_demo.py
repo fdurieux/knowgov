@@ -771,3 +771,21 @@ def test_no_env_file_reaches_the_image():
     assert "a .env file beside this compose file" in compose and "it never reaches the image" in compose
     security = (ROOT / "docs" / "security.md").read_text(encoding="utf-8")
     assert "never reaches the image" in security and "`tests/test_demo.py::test_no_env_file_reaches_the_image`" in security
+
+
+@on_cargo_quote
+def test_comparator_and_page_pick_the_same_record_for_a_derived_registering_run():
+    """task-0313, C-C6-2: the command line with no --record-for reads a page-started S6 run (which registered
+    the Derived output) against the scored record with valid_until aside, as the page's record check does."""
+    import contextlib, io, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        d = _derived_registering_s6(Path(td), "2026-11-01-1500")
+        argv, out = sys.argv, io.StringIO()
+        try:
+            sys.argv = ["compare_deterministic.py", str(d.parent), "--scenarios", "S6"]
+            with contextlib.redirect_stdout(out):
+                code = compare_deterministic.main()
+        finally:
+            sys.argv = argv
+        rc = views.record_check("S6", d, "demo-runs/2026-11-01-1500")
+        assert code == 0 and rc["differ"] == 0, (out.getvalue(), rc)
