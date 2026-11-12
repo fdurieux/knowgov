@@ -22,7 +22,8 @@ one line and the process exits 2.
 ``KG_REGISTER`` that it cannot read (``register_impact.require_named``; task-0288, decision-0033 choice 5): exit 2,
 naming the setting, the path and what is missing, before ``main`` reads anything. ``-h`` or ``--help`` among the
 arguments passes, so a person with a bad ``KG_REGISTER`` can still read the command's usage. An unnamed register is
-the command's own business, as before.
+refused the same way when the subject (``KG_SUBJECT``) lies outside this checkout (task-0334, decision-0039 §3.1:
+an instance reads its own register); for a subject that ships here it is the command's own business, as before.
 
 ``KG_TRACEBACK=1`` prints the traceback after the line, for a person debugging; nothing reads it. It is read
 through ``switches`` (task-0276): ``run`` refuses any other value but ``0`` or empty with exit 2 before ``main``.
@@ -37,7 +38,7 @@ import traceback
 CANNOT_RUN = 2
 # raised to say "cannot run" in the command's own words: the message is the cause, no type name added
 OWN = {"CannotRun", "WallClock", "LoadTooLarge", "ScratchUnavailable", "FormatError", "FormatTooNew", "BadSwitch",
-       "RegisterUnreadable", "ScenarioIdError"}
+       "RegisterUnreadable", "RegisterUnnamed", "ScenarioIdError", "CodePathOutside"}
 
 
 def cause(e: BaseException) -> str:

@@ -33,7 +33,9 @@ def test_the_corpus_is_one_line_per_version_sorted_whatever_the_adapters_order()
     rows = [{"artefact": "b.md", "version": "v1", "sha256": "2" * 64},
             {"artefact": "a.md", "version": "v2", "sha256": "3" * 64},
             {"artefact": "a.md", "version": "v1", "sha256": "1" * 64}]
-    text = f"a.md\tv1\t{'1' * 64}\na.md\tv2\t{'3' * 64}\nb.md\tv1\t{'2' * 64}\n"
+    # task-0320 (decision-0038 N4): one canonical JSON array per Version and a newline, the lines sorted
+    text = "".join(json.dumps(x, separators=(",", ":")) + "\n" for x in sorted((
+        ["a.md", "v1", "1" * 64], ["a.md", "v2", "3" * 64], ["b.md", "v1", "2" * 64]), key=lambda x: json.dumps(x, separators=(",", ":"))))
     want = hashlib.sha256(text.encode("utf-8")).hexdigest()
     assert store.corpus_digest(rows) == want == store.corpus_digest(list(reversed(rows)))
     assert store.corpus_digest(rows[:2]) != want, "every Version counts, a stage-2 change's earlier one included"
@@ -65,6 +67,7 @@ def _env(root: Path | None = None) -> dict:
     env.pop("KG_RDFLIB_FILE", None)
     if root is not None:
         env.update(KG_SUBJECT=str(root), KG_SUBJECTS=str(root.parent))
+        env.setdefault("KG_REGISTER", str(HARNESS.parent / "demo" / "register"))   # a copy outside the checkout names its register (task-0334)
     return env
 
 

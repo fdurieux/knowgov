@@ -146,7 +146,8 @@ extraction = "pristine"
 
 def _env(**kw) -> dict:
     env = {k: v for k, v in os.environ.items() if not k.startswith("KG_")}
-    return {**env, "KG_CLOCK": "pinned", "KG_TODAY": "2026-11-04", **kw}
+    # a copy outside the checkout names the register it joins (task-0334)
+    return {**env, "KG_CLOCK": "pinned", "KG_TODAY": "2026-11-04", "KG_REGISTER": str(ROOT / "demo" / "register"), **kw}
 
 
 def test_check_subject_reads_a_decomposed_document_against_composed_keys_and_back():

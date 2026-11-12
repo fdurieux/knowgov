@@ -30,12 +30,16 @@ On the store KG_STORE names, persisted under OUT_DIR for rdflib:
 6. ``KG_ANNOTATE=,,`` and ``nope:x.json`` exit 2 before the core command, naming KG_ANNOTATE and its four formats; an
    annotation file it cannot write is a warning beside the command's exit, no traceback; a base of
    ``--output=FILE`` exits 2 naming KG_BASE and git writes nothing (task-0267), each through both wrappers.
+7. ``gate`` on S1 with KG_REGISTER unset reads the instance's own register, ``<instance>/register``: its review months
+   set to 1, BLOCKED with lapses where the public register reads PROCEED; KG_REGISTER naming the public one is kept,
+   PROCEED; the instance's register missing, exit 2 naming KG_REGISTER (task-0334), each through both wrappers.
 Needs pyyaml (harness.yml installs it) to read the template.
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -145,6 +149,48 @@ def base_refused(env: dict, out: Path) -> None:
         print(f"    {wrapper}: a base of --output=... refused, exit 2, nothing written")
 
 
+def own_register(env: dict, inst: Path, out: Path) -> None:
+    """task-0334 (decision-0039 §3.1): with KG_REGISTER unset, both wrappers read the instance's own register,
+    <instance>/register. Its review months set to 1, S1 as of the record's day is BLOCKED with lapses (the public
+    register's 6 and 12 read PROCEED); KG_REGISTER naming the public one is kept, PROCEED; the instance's register
+    missing, exit 2 naming KG_REGISTER. The register is restored after."""
+    env = {k: v for k, v in env.items() if k != "KG_REGISTER"}
+    life = inst / "register" / "metamodel" / "lifecycle.toml"
+    before = life.read_text(encoding="utf-8")
+    life.write_text(re.sub(r"months = \d+", "months = 1", before), encoding="utf-8")
+    try:
+        for wrapper in ("GitLab", "GitHub"):
+            _reads(env, out, wrapper, None, 1, "BLOCKED")
+            _reads({**env, "KG_REGISTER": str(ROOT / "demo" / "register")}, out, wrapper, "public", 0, "PROCEED")
+        _missing(env, inst, out)
+    finally:
+        life.write_text(before, encoding="utf-8")
+
+
+def _reads(env: dict, out: Path, wrapper: str, named: str | None, want: int, verdict: str) -> None:
+    report = out / f"gate-own-register-{wrapper}-{want}.json"
+    code, text = run_wrapper(env, out, wrapper, "gate", KG_SCENARIO="S1", KG_ANNOTATE="", KG_REPORT=report.relative_to(out).as_posix())
+    rep = json.loads(report.read_text(encoding="utf-8")) if report.exists() else {}
+    lapses = len(rep.get("lapsed") or [])
+    if code != want or rep.get("verdict") != verdict or (lapses > 0) != (want == 1):
+        sys.exit(f"FAIL: {wrapper}: gate on S1, KG_REGISTER {named or 'unset'}: want exit {want}, {verdict}, on the "
+                 f"{named or 'instance'} register's months; exit {code} {rep.get('verdict')}: {text[-400:]}")
+    print(f"    {wrapper}: KG_REGISTER {named or 'unset, the instance'} register: S1 {verdict}, {lapses} lapse(s)")
+
+
+def _missing(env: dict, inst: Path, out: Path) -> None:
+    reg = inst / "register"
+    reg.rename(inst / "register-away")
+    try:
+        for wrapper in ("GitLab", "GitHub"):
+            code, text = run_wrapper(env, out, wrapper, "gate", KG_SCENARIO="S1", KG_ANNOTATE="")
+            if code != 2 or f"KG_REGISTER {reg.as_posix()} is not a readable register" not in text:
+                sys.exit(f"FAIL: {wrapper}: no <instance>/register: want exit 2 naming KG_REGISTER and the path; exit {code}: {text[-400:]}")
+            print(f"    {wrapper}: no <instance>/register, exit 2 naming KG_REGISTER")
+    finally:
+        (inst / "register-away").rename(reg)
+
+
 def run_wrapper(env: dict, out: Path, wrapper: str, gate: str, **kg: str) -> tuple[int, str]:
     """One gate through the GitLab template's script or the GitHub action's step, with its output."""
     if wrapper == "GitHub":
@@ -172,6 +218,27 @@ def checked_as_itself(env: dict, out: Path, wrapper: str, name: str) -> None:
     if got != [name]:
         sys.exit(f"FAIL: {wrapper}: trace-check checked {got} for a merge request adding {name!r}")
     print(f"    {wrapper}: trace-check reads the changed path {name!r} as itself (exit {code})")
+
+
+def execution_named_then_reverted(inst: Path, root: Path, base: str) -> None:
+    """task-0320 (decision-0038 N-b): the merge request's edit to the reference implementation leaves the execution
+    verification unattested, and the layout check through the instance names it, an error citing decision-0038. The
+    edit is then reverted in a commit of its own, so the pre-load steps after it test the layout they were written for."""
+    rel = (root / "reference_impl.py").relative_to(inst).as_posix()
+    p = subprocess.run([sys.executable, str(ROOT / "tools" / "check_instance.py"), str(inst)], capture_output=True, text=True,
+                       env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
+    named = [ln for ln in (p.stdout + p.stderr).splitlines() if "[verification] execution" in ln and "reference_impl.py" in ln]
+    if p.returncode != 1 or len(named) != 1 or "decision-0038" not in named[0]:
+        sys.exit(f"FAIL: the edited reference implementation should be one layout error under [verification] execution "
+                 f"citing decision-0038: exit {p.returncode}\n{(p.stdout + p.stderr)[-1500:]}")
+    print(f"    layout: {named[0].strip()[:160]}")
+    (inst / rel).write_bytes(subprocess.run(["git", "-C", str(inst), "show", f"{base}:{rel}"], capture_output=True, check=True).stdout)
+    git(inst, "-c", "user.name=ci", "-c", "user.email=ci@example.invalid", "commit", "-qam", "revert the edit")
+    p = subprocess.run([sys.executable, str(ROOT / "tools" / "check_instance.py"), str(inst)], capture_output=True, text=True,
+                       env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
+    if "[verification] execution" in p.stdout + p.stderr:
+        sys.exit(f"FAIL: reverted, the execution should be attested again: {(p.stdout + p.stderr)[-800:]}")
+    print("    layout: reverted, the execution attested again")
 
 
 def main() -> None:
@@ -248,6 +315,7 @@ def main() -> None:
     if e.get("as_of") != LAPSE_DAY:
         sys.exit(f"FAIL: trace-register with KG_AS_OF={LAPSE_DAY}: the ledger entry records {e.get('as_of')}")
     print(f"    trace-register KG_AS_OF={LAPSE_DAY}: the ledger entry as of {e['as_of']}")
+    execution_named_then_reverted(inst, root, base)   # task-0320, decision-0038 N-b
 
     # task-0106: the pre-load gate writes its report too, so a broken document reaches the code-quality widget
     # task-0115: a document no subject names, committed before the diff base, is a layout problem the report carries
@@ -281,6 +349,7 @@ def main() -> None:
     print(f"    preload: the layout's problems on {at} as code quality, {sorted(mine)}; the exit still the lint's ({rep['exit_code']})")
     changed_paths(env, inst, root, out)   # task-0267
     refusals(env, out)   # task-0267
+    own_register(env, inst, out)   # task-0334
 
     print("GitLab include: the same command line as the action and the shell snippet; S6's change fails the merge request naming APP-0001; "
           f"KG_AS_OF reads both gates and the registration as of {LAPSE_DAY}")

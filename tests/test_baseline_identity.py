@@ -37,7 +37,8 @@ def _report(subject="cargo_quote", scenario="S2", task="codegen", change=None, v
 
 
 def _v2(r: dict) -> dict:
-    out = {k: v for k, v in r.items() if k not in ("task_profile", "register", "knowgov", "corpus")}
+    out = {k: v for k, v in r.items() if k not in ("task_profile", "register", "knowgov", "corpus", "attestations", "captures",
+                                                  "configuration", "code", "preload")}
     return {**out, "schema_version": 2}
 
 

@@ -23,6 +23,10 @@ report ``gate_verdict --task`` makes for that key set, so a key reads here as ``
 The keys are the reach: every mapped key a change to the node touches, whatever a class requires; the
 class sets how they are read, not which are listed, so this is not a class's readiness. That is
 ``proposal_impact``'s slices, which keep to the class's ``[tasks.<class>]`` keys (task-0252).
+The walk is one of the register's named three (``impact.WALKS``): ``dependants``, what rests on the node (its decision
+0010, the default); ``realisers``, what implements a capability (0012); ``thread``, what a journey step uses, down to
+the data (0018; task-0336, decision-0039 §3.3): the step to its process, the process to the capability it realises,
+the applications that support it and the information it reads or writes, an application to what it manages.
 Only the store port's reads are used; nothing is written. Standard library only.
 """
 from __future__ import annotations
@@ -39,7 +43,7 @@ import tomllib
 from pathlib import Path
 
 NODE_ID = re.compile(r"^[A-Z]+-\d{4,}$")
-WALKS = ("dependants", "realisers")
+WALKS = ("dependants", "realisers", "thread")   # the register's named walks: its decisions 0010, 0012 and 0018 (task-0336)
 from gate_cli import OWNED  # noqa: E402  the finding kinds that concern one key: gate_cli's own, one definition (task-0260)
 
 _tools: dict[str, dict] = {}
@@ -51,8 +55,14 @@ class ImpactError(ValueError):
 
 
 def register_root() -> Path:
+    """``cadence.register_root``; an instance's subject with no ``KG_REGISTER`` is ``RegisterUnreadable`` here,
+    so every reader that names an unreadable register names this too (task-0334, decision-0039 §3.1)."""
     import cadence
-    return cadence.register_root()
+    import instance_register
+    try:
+        return cadence.register_root()
+    except instance_register.RegisterUnnamed as e:
+        raise RegisterUnreadable(str(e)) from None
 
 
 class RegisterUnreadable(ImpactError):
@@ -98,10 +108,16 @@ def require(root: Path | None = None, by: str | None = None, tools: bool = True)
 
 
 def require_named(tools: bool = True) -> None:
-    """``RegisterUnreadable`` when ``KG_REGISTER`` names a register that cannot be read; nothing when it is unset."""
+    """``RegisterUnreadable`` when ``KG_REGISTER`` names a register that cannot be read, or is unset while the
+    subject lies outside this checkout (task-0334, decision-0039 §3.1: an instance reads its own register or
+    refuses); nothing when it is unset for a subject that ships here, whose default register is the command's own
+    business, as before."""
+    import instance_register
     n = named()
     if n:
         require(n[0], n[1], tools)
+    elif why := instance_register.unnamed():
+        raise RegisterUnreadable(why)
 
 
 @contextlib.contextmanager
@@ -199,6 +215,53 @@ def identity(root: Path) -> dict:
     return {"tag": git("describe", "--tags", "--exact-match", "HEAD") or None, "commit": commit, "why": None}
 
 
+def loaded_files(root: Path) -> list[Path] | None:
+    """The files a load reads from the register at ``root`` (task-0320, decision-0038 N2): every file its own loader
+    opens (``tools/register.py`` ``load_register``: the metamodel, the glossary, the nodes, the relationship files, the
+    exceptions), recorded as it opens them, never a list kept here; and the issued-handles list its
+    ``metamodel/types.toml`` names (``[elicited] issued``), which the review rules read (``review.issued_handles``).
+    None when the register has no loader of its own or it fails."""
+    root = Path(root).resolve()
+    try:
+        mod = load_tools(root)["register"]
+    except Exception:  # noqa: BLE001 — no loader to ask: unknown, never a guess
+        return None
+    opened: list[Path] = []
+    with _lock:
+        plain = mod.load_toml
+
+        def recording(path):
+            opened.append(Path(path).resolve())
+            return plain(path)
+        mod.load_toml = recording
+        try:
+            reg = mod.load_register(root)
+        except Exception:  # noqa: BLE001
+            return None
+        finally:
+            mod.load_toml = plain
+    issued = (reg.get("types") or {}).get("elicited", {}).get("issued")
+    if isinstance(issued, str) and (root / issued).is_file():
+        opened.append((root / issued).resolve())
+    return sorted(set(opened))
+
+
+def files_digest(root: Path) -> str | None:
+    """The register's files as a load reads them (task-0320, decision-0038 N2): the sha256, hex, of one canonical JSON
+    line ``[path, sha256]`` per file ``loaded_files`` names (its POSIX path relative to the root, its raw bytes'
+    digest), sorted. A loaded file edited under the same tag and commit moves it; a file no load reads (a README, a
+    stray file) does not. None when the files cannot be known."""
+    import hashlib
+    import json
+    files = loaded_files(root)
+    if not files:
+        return None
+    root = Path(root).resolve()
+    lines = [json.dumps([p.relative_to(root).as_posix(), hashlib.sha256(p.read_bytes()).hexdigest()], ensure_ascii=False,
+                        separators=(",", ":")) + "\n" for p in files]
+    return hashlib.sha256("".join(sorted(lines)).encode("utf-8")).hexdigest()
+
+
 def owning_unit(reg: dict, nid: str) -> dict:
     """The unit its owner field names, that unit's name, and the sources of the approved owns links
     to the node, sorted: the impact panel's three (``register_view.owning_unit``)."""
@@ -276,18 +339,30 @@ def landed_rows(register_map: dict, node: str, reached: list[str], walked: list[
     return out + flagged
 
 
-def with_levels(keys: list[dict], report: dict) -> list[dict]:
+def statement_keys(st) -> dict[str, str]:
+    """Statement id -> the key it carries, as the derived outputs' ``used`` lists record them (task-0327): how
+    ``with_levels`` attributes an output suspect through ``used_changed``, where no statement is stale."""
+    return {u["id"]: u["key"] for d in st.derived_outputs() for u in d.get("used") or [] if u.get("id") and u.get("key")}
+
+
+def with_levels(keys: list[dict], report: dict, key_of: dict[str, str] | None = None) -> list[dict]:
     """Each landed key with its level, its findings of the owned kinds (key, intended, stale, lapsed and act, as
     gate_cli.OWNED names them, task-0260), the ids of its stale
-    statements and the suspect derived outputs that used one of them, all read off ``report``: the
+    statements and the suspect derived outputs that used one of them, or (``key_of``, ``statement_keys``) one of
+    its statements that changed under its id (task-0327), all read off ``report``: the
     gate's report over the landed keys (``gate_cli.evaluate``, as ``gate_verdict`` makes it for a
     key set), so a key reads here exactly as ``gate_verdict`` reports it on the same as_of."""
     fs = report["findings"]
     suspect = [f for f in fs if f["kind"] == "suspect_derived"]
+    key_of = key_of or {}
+
+    def mine_ids(m, key):   # task-0327: the statements of this key, stale or changed in place under their id
+        return {i for i, k in m.items() if k == key}
     out = []
     for k in keys:
         mine = [f for f in fs if f["kind"] in OWNED and f["key"] == k["key"]]
         stale = sorted(f["ref"] for f in mine if f["kind"] == "stale")
         out.append({**k, "level": report["levels"][k["key"]], "stale": stale,
-                    "suspect": sorted(f["ref"] for f in suspect if set(f["related"]) & set(stale)), "findings": mine})
+                    "suspect": sorted(f["ref"] for f in suspect if set(f["related"]) & (set(stale) | mine_ids(key_of, k["key"]))),
+                    "findings": mine})
     return out

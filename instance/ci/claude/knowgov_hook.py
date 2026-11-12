@@ -42,7 +42,8 @@ knowgov's own protected paths reuse it; nothing is copied).
 Standard library only. The knowgov checkout is ``--knowgov``, else ``KG_HOME``, else the checkout
 this file sits in; the instance is ``--instance``, else ``CLAUDE_PROJECT_DIR``, else the event's
 ``cwd``. The store, the subject, the scenario and the date are the gate's ``KG_*`` variables, as
-knowgov-gate.sh reads them; one store per worktree (instance/README.md).
+knowgov-gate.sh reads them; one store per worktree (instance/README.md). The register is ``KG_REGISTER``,
+else ``<instance>/register``, the instance's own, passed to the gate (task-0334, decision-0039 §3.1).
 """
 from __future__ import annotations
 
@@ -66,6 +67,10 @@ ROUTE = ("Route to approval: the owner of each blocking key answers it (harness/
          "then ingest), and a reviewer who is not the author settles it in a review file (harness/capture.py "
          "review; decision-0002: a session may propose, never approve, its own knowledge). An exception is "
          "granted by whoever owns the managed settings, never by this session; do not retry around the gate.")
+ATTESTATION_ROUTE = ("Route to approval: an attestation is a person's act, not this session's (decision-0002, decision-0009). The "
+                     "route on each attestation finding above names who lists which Version; an execution is listed only "
+                     "after the implementation and suite are brought in line with the Version where its values differ, and the suite run on it. An exception is granted by "
+                     "whoever owns the managed settings, never by this session; do not retry around the gate.")
 UNAVAILABLE_ROUTE = ("Route: make the gate runnable (the store reachable, the subject and scenario set, the "
                      "knowgov checkout present), then repeat the step; an exception is granted by whoever owns "
                      "the managed settings, never by this session.")
@@ -422,19 +427,49 @@ def _knowgov(arg: str | None) -> Path | None:
     return c if (c / "instance" / "ci" / "knowgov-gate.sh").is_file() else None   # absolute, since the gate runs from the instance
 
 
+BAR_KINDS = ("attestation", "lapsed")   # task-0330 H1: the findings the bar rests on, shown below the blockers
+
+
+def _shown(rep: dict) -> list[dict]:
+    """The findings the assistant reads, six at most: the blockers and criticals (every finding when there are none), then the
+    attestation and lapsed findings the verdict rests on below them, a slot each (two at most) held for those that exist."""
+    fs = rep.get("findings") or []
+    worst = [f for f in fs if f.get("severity") in ("blocker", "critical")]
+    if not worst:
+        return fs[:6]
+    bar = [f for f in fs if f.get("kind") in BAR_KINDS and f not in worst][:2]
+    return worst[:6 - len(bar)] + bar
+
+
+def _route_for(rep: dict) -> str:
+    """The closing route follows the cause (task-0332): a key blocker (or any blocker but the bar itself) keeps the
+    questionnaire's; when the only blocker is the bar (kind ``task``, the gate never raises an attestation above major) and an
+    attestation finding is shown, it is the attestation route."""
+    shown = _shown(rep)
+    blockers = {f.get("kind") for f in shown if f.get("severity") in ("blocker", "critical")} - {"task"}
+    return ATTESTATION_ROUTE if not blockers - {"attestation"} and any(f.get("kind") == "attestation" for f in shown) else ROUTE
+
+
 def _summary(rep: dict) -> str:
     head = (f"{rep.get('verdict')} on {rep.get('subject')} {rep.get('scenario')}, task {rep.get('task')}, "
             f"as of {rep.get('as_of')}, threshold {rep.get('threshold')}")
-    worst = [f for f in rep.get("findings") or [] if f.get("severity") in ("blocker", "critical")] or (rep.get("findings") or [])
+    worst = _shown(rep)
     lines = [f"  {f.get('severity')} {f.get('kind')}" + (f" {f['key']}" if f.get("key") else "") + f": {f.get('message')}"
              + (f" (owner {f.get('owner') or 'none in the register map'}"
                 + (f"; closed by {f.get('closer') or 'no unit of the register'}" if "closer" in f else "") + ")"
                 if "owner" in f else "")
-             for f in worst[:6]]
-    routes = sorted({f["route"] for f in worst[:6] if f.get("route")})   # task-0102: each owner's questionnaire
+             for f in worst]
+    routes = sorted({f["route"] for f in worst if f.get("route")})   # task-0102: each owner's questionnaire
     lines += [f"  route: {r}" for r in routes]
-    more = len(worst) - len(lines)
+    pool = [f for f in rep.get("findings") or [] if f.get("severity") in ("blocker", "critical")] or (rep.get("findings") or [])
+    more = len(pool) - len([f for f in worst if f in pool])
     return "\n".join([head, *lines] + ([f"  ... and {more} more"] if more > 0 else []))
+
+
+def instance_register(env: dict, inst: Path) -> str:
+    """The register the gate reads: ``KG_REGISTER`` when it names one, else ``<instance>/register``, the instance's
+    own, never the public one knowgov carries (task-0334, decision-0039 §3.1)."""
+    return env.get("KG_REGISTER") or str(Path(inst).resolve() / "register")
 
 
 def run_gate(stage: str, task: str, kg: Path, inst: Path, *, advisory: bool, timeout: float) -> Decision:
@@ -452,6 +487,7 @@ def run_gate(stage: str, task: str, kg: Path, inst: Path, *, advisory: bool, tim
         env = {**os.environ, "KG_TASK": task, "KG_REPORT": str(report)}
         env.pop("KG_ANNOTATE", None)
         env.setdefault("PYTHON", sys.executable)   # the gate runs the hook's interpreter unless PYTHON names one (task-0141.01)
+        env["KG_REGISTER"] = instance_register(env, inst)
         cmd = ["sh", str(kg / "instance" / "ci" / "knowgov-gate.sh"), str(kg), str(inst), "gate"]
         try:
             p = subprocess.run(cmd, cwd=str(inst), env=env, capture_output=True, text=True, timeout=timeout)
@@ -474,7 +510,7 @@ def run_gate(stage: str, task: str, kg: Path, inst: Path, *, advisory: bool, tim
             return refuse(check, f"the report is for task {rep.get('task')!r}, the hook requires {task!r}")
         if rep.get("exit_code") != p.returncode or (p.returncode == PASS and rep.get("verdict") == "BLOCKED"):
             return refuse(check, f"the report ({rep.get('verdict')}, exit_code {rep.get('exit_code')}) disagrees with exit {p.returncode}")
-        return decide(p.returncode, check=check, finding=_summary(rep), advisory=advisory)
+        return decide(p.returncode, check=check, finding=_summary(rep), route=_route_for(rep), advisory=advisory)
     finally:
         if tmp:
             Path(tmp).unlink(missing_ok=True)

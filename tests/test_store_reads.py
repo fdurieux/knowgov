@@ -103,7 +103,7 @@ def test_derived_outputs_from_a_key_or_an_id_reads_each_used_statement_live_stal
     assert one["outputs"] == by_key["outputs"] and one["outputs"][0]["keys"] == sorted(k[1:5])
     assert _ok(s, "derived_outputs", {"key": EXTRA}, "derived-outputs")["outputs"] == []
     for bad in ({}, {"key": k[1], "derived": "derived:S1:G:run1"}, {"derived": "derived:nope"}, {"key": "no-bar"}):
-        assert tm._call(s, "derived_outputs", bad)["result"]["isError"] is True, bad
+        assert tm._refused(s, "derived_outputs", bad), bad   # a key off the rule: -32602 since task-0320 (N7)
 
 
 def test_document_statements_names_what_a_document_yields_by_version_and_what_was_built_on_it():

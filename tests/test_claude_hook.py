@@ -173,8 +173,13 @@ def test_an_unreadable_event_or_a_missing_checkout_blocks():
         assert p.returncode == 2 and "no instance" in p.stderr, p.stderr
 
 
+# the checkout as its own instance has no register/ beside its subjects: it names the public one, as an instance
+# names its own; the hook passes <instance>/register only when none is named (task-0334)
+REGISTER = str(ROOT / "demo" / "register")
+
+
 def _real(event, **kw):
-    env = _env(KG_AS_OF="record", KG_SCENARIO="S1", **kw)
+    env = _env(KG_AS_OF="record", KG_SCENARIO="S1", KG_REGISTER=REGISTER, **kw)
     return _hook(event, "gate", "--task", "codegen", "--instance", str(ROOT), env=env)
 
 
@@ -189,7 +194,7 @@ def test_the_real_gate_with_an_unreachable_store_blocks_and_the_advisory_profile
     kw = dict(KG_SUBJECT=str(ROOT / "subjects" / "cargo_quote"), KG_STORE="neo4j", KG_NEO4J_URI="bolt://127.0.0.1:9", KG_PUBLISH="1")
     p = _real(PUSH, **kw)
     assert p.returncode == 2 and "the gate is unavailable (exit 2)" in p.stderr, p.stderr
-    p = _hook(PUSH, "gate", "--task", "codegen", "--advisory", "--instance", str(ROOT), env=_env(KG_AS_OF="record", **kw))
+    p = _hook(PUSH, "gate", "--task", "codegen", "--advisory", "--instance", str(ROOT), env=_env(KG_AS_OF="record", KG_REGISTER=REGISTER, **kw))
     assert p.returncode == 0 and "FAIL-OPEN" in json.loads(p.stdout)["systemMessage"], (p.returncode, p.stdout)
 
 
@@ -199,7 +204,7 @@ def test_live_proceed_and_blocked_on_an_rdflib_store():
     kw = dict(KG_SUBJECT=str(ROOT / "subjects" / "cargo_quote"), KG_STORE="rdflib")
     p = _real(PLAN, **kw)
     assert p.returncode == 0 and not p.stderr, (p.returncode, p.stderr)
-    p = _hook(PUSH, "gate", "--task", "codegen", "--instance", str(ROOT), env=_env(KG_AS_OF="record", KG_SCENARIO="S2", **kw))
+    p = _hook(PUSH, "gate", "--task", "codegen", "--instance", str(ROOT), env=_env(KG_AS_OF="record", KG_SCENARIO="S2", KG_REGISTER=REGISTER, **kw))
     assert p.returncode == 2 and "BLOCKED by a finding" in p.stderr and "BLOCKED on cargo_quote S2" in p.stderr, p.stderr
 
 
@@ -407,3 +412,17 @@ def test_a_staged_or_changed_path_with_a_space_or_a_non_ascii_character_is_read_
         g("mv", "docs/my spec.md", "docs/mi especificación.md")   # a rename: the new name, its source skipped
         (repo / "notas nuevas.txt").write_text("x\n", encoding="utf-8")
         assert sorted(hook._status(str(repo))) == ["docs/mi especificación.md", "notas nuevas.txt"]
+
+
+def test_the_summary_carries_the_attestation_finding_and_the_route_follows_the_cause():
+    """task-0330 H1: an attestation finding below the blockers reaches the assistant; the closing route names the attestation
+    route when the blockers are attestations, the questionnaire's otherwise."""
+    att = {"severity": "major", "kind": "attestation", "key": None, "message": "[verification] execution lists no Version",
+           "route": "a.md: the reference implementation and the suite are changed"}
+    rep = {"verdict": "BLOCKED", "subject": "s", "scenario": "S1", "task": "codegen", "as_of": "2026-10-30", "threshold": "blocker",
+           "findings": [{"severity": "blocker", "kind": "key", "key": "k|p", "message": "k|p is absent", "owner": "O", "route": "r"}, att]}
+    text = hook._summary(rep)
+    assert "attestation: [verification] execution lists no Version" in text and "route: a.md:" in text, text
+    assert hook._route_for(rep) == hook.ROUTE
+    rep["findings"][0] = {"severity": "blocker", "kind": "attestation", "key": None, "message": "x is not attested"}
+    assert hook._route_for(rep) == hook.ATTESTATION_ROUTE and "questionnaire" not in hook.ATTESTATION_ROUTE

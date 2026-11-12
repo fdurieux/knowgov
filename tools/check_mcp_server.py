@@ -30,7 +30,8 @@ Then ask ``key_nodes`` for every key of the subject's register map, and, on the 
 ``KG_LEDGER`` set before the server starts, the reference code registered by ``trace.py register``), ``code_path``
 for the reference code and the climb to a capability's ancestors, and ``document_links`` for the first row's
 anchored document (task-0143). Once, store-free: the file-only tools listed and answering alike over stdio and
-HTTP, and the shipped managed allowlist admitting the server by name (task-0142, task-0143).
+HTTP, ``register_impact walk=thread`` from a capability and a process equal on both and to the register's THREAD
+walk (task-0336), and the shipped managed allowlist admitting the server by name (task-0142, task-0143).
 Then ask ``held_keys``, ``derived_outputs`` and ``document_statements`` and require each equal to the port's
 read in-process through a read handle, the levels gate_verdict's for the held key set, and each used statement
 stale or superseded as the gate's stale statements read; at stage 2 too (task-0144).
@@ -219,7 +220,7 @@ def check_stage2(sc: str, subject, failures: list[str]) -> None:
         if got != expected:
             diff = sorted(k for k in set(got) | set(expected) if got.get(k) != expected.get(k))
             failures.append(f"{sc} stage 2: gate_verdict differs from gate_cli --no-load on {diff}")
-        corpus_held(f"{sc} stage 2", got, expected.get("corpus"), failures)
+        corpus_held(f"{sc} stage 2", got, expected, failures)
         if got.get("version") == "v1":
             failures.append(f"{sc} stage 2: the store holds v1, not the change")
         if not want or got.get("superseded_by") != want:
@@ -435,6 +436,11 @@ def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: s
     held = json.loads(json.dumps(mine["slices"], default=str))
     if got.get("slices") != held:
         failures.append(f"{label}: proposal_impact's slice map differs from the command's")
+    st = mcp_server.open_read_only()   # task-0327: the same statement-to-key map the server reads suspect outputs by
+    try:
+        key_of = ri.statement_keys(st)
+    finally:
+        st.release()
     scoped = 0   # task-0191: a named journey on the approved register, each slice's rows register_impact's with_levels
     for scope in ("JRN-0001", "JRN-0005"):
         rep = client.call("proposal_impact", {"scope": scope, "scenario": sc, "as_of": "record"})
@@ -447,7 +453,7 @@ def check_proposal(client: "StdioClient", sc: str, failures: list[str], label: s
             keys = list(dict.fromkeys(r["key"] for r in k["rows"]))
             gate = client.call("gate_verdict", {"keys": keys, "scenario": sc, "as_of": "record"})
             bare = [{x: v for x, v in r.items() if x not in ("level", "stale", "suspect", "findings")} for r in k["rows"]]
-            if k["rows"] != ri.with_levels(bare, gate) or sum(k["cells"]["levels"].values()) != k["landed"]:
+            if k["rows"] != ri.with_levels(bare, gate, key_of) or sum(k["cells"]["levels"].values()) != k["landed"]:
                 failures.append(f"{label}: proposal_impact scope {scope}: slice {sl['start']['id']}'s keys differ from the gate's levels")
             scoped += 1
     classes = check_slice_classes(client, sc, failures, label)
@@ -765,6 +771,8 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
     calls = [("register_nodes", {"taxonomy": "capabilities"}), ("register_nodes", {"node": "CAP-0002"})]
     calls += [("key_nodes", {"key": key})] if key else []
     calls += [("code_path", {"path": ex["file"] if ex else "reference_impl.py"})]
+    thread = thread_starts()   # task-0336 (decision-0039 §3.3): the thread walk from a capability and from a process
+    calls += [("register_impact", {"node": n, "walk": "thread"}) for n in thread]
     answers = {}
     for name, cls in (("stdio", StdioClient), ("http", HttpClient)):
         client = cls()
@@ -783,10 +791,12 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
                 err = client.request("tools/call", params).get("error") or {}
                 if err.get("code") != -32602:
                     failures.append(f"{name}: tools/call {params} answered {err or 'a result'}, not -32602 (M5, M6, task-0296)")
+            single_key_refused(client, name, failures)
         finally:
             client.close()
     if answers.get("stdio") != answers.get("http"):
         failures.append("the file-only tools answer differently over stdio and HTTP")
+    check_thread(answers.get("stdio", [])[-len(thread):] if thread else [], thread, failures)
     allowed = {x.get("serverName") for x in json.loads(ALLOWLIST.read_text(encoding="utf-8")).get("allowedMcpServers", [])}
     sys.path.insert(0, str(HARNESS))
     import mcp_server
@@ -794,6 +804,58 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
         failures.append(f"{ALLOWLIST.name} admits {sorted(allowed)}, not the server {mcp_server.SERVER['name']}")
     print(f"transports: {', '.join((*FILE_TOOLS, *STORE_TOOLS))} listed over stdio and HTTP, {len(calls)} call(s) equal on both; "
           f"{ALLOWLIST.name} admits {mcp_server.SERVER['name']}")
+
+
+def thread_starts() -> list[str]:
+    """task-0336: a capability and a process to walk the thread from, the register's first of each whose ids sort first,
+    the process the first whose thread reaches a node (a capability's reaches none: the THREAD walk has no capability row)."""
+    sys.path.insert(0, str(HARNESS))
+    import register_impact as ri
+    root = ri.register_root()
+    T = ri.load_tools(root)
+    reg = T["register"].load_register(root)
+    caps = sorted(n for n, x in reg["nodes"].items() if x.get("_taxonomy") == "capabilities")
+    procs = [n for n in sorted(n for n, x in reg["nodes"].items() if x.get("_taxonomy") == "processes")
+             if T["impact"].reached(T["impact"].walk(reg, n, T["impact"].WALKS["thread"]))]
+    return caps[:1] + procs[:1]
+
+
+def check_thread(got: list[dict], starts: list[str], failures: list[str]) -> None:
+    """task-0336 (decision-0039 §3.3): register_impact walk=thread gives the edges and the reach the register's own
+    THREAD walk gives (``tools/impact.py``), and lands the map rows naming the start or a reached node."""
+    sys.path.insert(0, str(HARNESS))
+    import register_impact as ri
+    from subject import SUBJECT
+    root = ri.register_root()
+    T = ri.load_tools(root)
+    reg = T["register"].load_register(root)
+    for node, ans in zip(starts, got):
+        edges = T["impact"].walk(reg, node, T["impact"].WALKS["thread"])
+        reached = sorted(T["impact"].reached(edges))
+        ids = sorted(x["id"] for xs in ans["reached"].values() for x in xs)
+        keys = [k["key"] for k in ri.landed_rows(SUBJECT.register_map(), node, reached)]
+        if ans["walk"] != "thread" or ans["edges"] != edges or ids != reached or [k["key"] for k in ans["keys"]] != keys:
+            failures.append(f"register_impact walk=thread from {node} is not the register's THREAD walk or its keys")
+        print(f"thread: register_impact walk=thread from {node} reaches {len(ids)} node(s) and lands {len(keys)} key(s), "
+              "as tools/impact.py --walk thread, equal over stdio and HTTP")
+
+
+SINGLE_KEY_TOOLS = ("three_valued_answer", "derived_outputs", "key_nodes")   # task-0320 (decision-0038 N7)
+BAD_KEY = "\U0002F800|x"   # astral: refused as sent although its NFC (U+4E3D) is in the BMP
+
+
+def single_key_refused(client, name: str, failures: list[str]) -> None:
+    """task-0320 (decision-0038 N7): each single-key tool refuses a key ``keys`` refuses, -32602, naming the value as
+    sent: over stdio in both eras, over HTTP in the handshake era (the stateless era over HTTP needs its headers, which
+    check_subject_tool's own requests carry)."""
+    eras = [("handshake", client.request)] + ([] if isinstance(client, HttpClient) else [("stateless", client.modern)])
+    for tool in SINGLE_KEY_TOOLS:
+        for era, send in eras:
+            err = send("tools/call", {"name": tool, "arguments": {"key": BAD_KEY}}).get("error") or {}
+            msg = str(err.get("message", ""))
+            if err.get("code") != -32602 or (BAD_KEY not in msg and repr(BAD_KEY)[1:-1] not in msg and ascii(BAD_KEY)[1:-1] not in msg):
+                failures.append(f"{name} {era}: {tool} with key {ascii(BAD_KEY)} answered {err or 'a result'}, not -32602 naming "
+                                "the value as sent (N7)")
 
 
 def held_gate_only(scenarios: list[str]) -> int:
@@ -888,18 +950,50 @@ def check_store_reads(client: "StdioClient", sc: str, failures: list[str], label
           f"document_statements on {len(port_docs)} document(s), each the port's read")
 
 
-def corpus_held(label: str, got: dict, want: str | None, failures: list[str]) -> None:
-    """task-0307: gate_verdict names a corpus, the one ``want`` names (gate_cli's, or the publishing load's)."""
-    if not got.get("corpus") or got.get("corpus") != want:
-        failures.append(f"{label}: gate_verdict's corpus {got.get('corpus')!r} is not gate_cli's {want!r}")
+IDENTITY_HELD = ("corpus", "attestations", "captures", "configuration", "code", "preload")   # task-0307; task-0320 (decision-0038 N2); task-0335; task-0341
 
 
-def load_corpus(load) -> str | None:
-    """The corpus the publishing gate_cli named (task-0307): the server reads that load, so its own must equal it."""
+def corpus_held(label: str, got: dict, want: dict | None, failures: list[str]) -> None:
+    """task-0307: gate_verdict names a corpus, the one ``want``, a report, names (gate_cli's, or the publishing load's);
+    task-0320: and the same ``attestations``, ``captures`` and register ``files``, what the load used, as recorded;
+    task-0335 (decision-0039 §3.2): and the same ``configuration``, the subject's files the load read; task-0341
+    (decision-0040 (a)): and the same ``code`` and ``preload``, the code compared and the pre-load report applied."""
+    want = want or {}
+    for f in IDENTITY_HELD:
+        if got.get(f) in (None, "") or got.get(f) != want.get(f):   # task-0341: code {} (a subject declaring none) is named
+            failures.append(f"{label}: gate_verdict's {f} {got.get(f)!r} is not gate_cli's {want.get(f)!r}")
+    if not (got.get("register") or {}).get("files") or (got.get("register") or {}).get("files") != (want.get("register") or {}).get("files"):
+        failures.append(f"{label}: gate_verdict's register files digest is not gate_cli's")
+
+
+def load_corpus(load) -> dict | None:
+    """The report the publishing gate_cli printed (task-0307): the server reads that load, so its identity must equal it."""
     try:
-        return json.loads(load.stdout).get("corpus")
+        return json.loads(load.stdout)
     except ValueError:
         return None
+
+
+def rec_path_of(sc: str) -> Path:
+    from subject import SUBJECT
+    return SUBJECT.record_dir / (SUBJECT.scenario(sc).get("deterministic_record") or sc) / "deterministic.json"
+
+
+def differs_held(client, sc: str, rec: Path, failures: list[str]) -> None:
+    """task-0320 (decision-0038 N3): against the record as of another date, gate_verdict's ``baseline.differs`` and the
+    command's are one list, ``["as_of"]``; as of the record's own date, none."""
+    if not rec.exists():
+        return
+    for on, want in (("record", []), ("2026-12-31", ["as_of"])):
+        cli = gate_cli("--scenario", sc, "--no-load", "--as-of", on, "--baseline", "record", "-f", "json")
+        try:
+            mine = json.loads(cli.stdout)["baseline"].get("differs")
+        except (ValueError, KeyError, TypeError):
+            failures.append(f"{sc}: gate_cli --baseline record could not run: {cli.stderr.strip()[-300:]}")
+            continue
+        got = client.call("gate_verdict", {"scenario": sc, "as_of": on, "baseline": "record"})["baseline"].get("differs")
+        if not (got == mine == want):
+            failures.append(f"{sc}: as of {on}, gate_verdict's baseline.differs {got} and gate_cli's {mine} are not {want}")
 
 
 def census() -> dict:
@@ -946,6 +1040,7 @@ def main(argv: list[str] | None = None) -> int:
                 diff = sorted(k for k in set(got) | set(expected) if got.get(k) != expected.get(k))
                 failures.append(f"{sc}: gate_verdict differs from gate_cli --no-load on {diff}")
             corpus_held(sc, got, load_corpus(load), failures)
+            differs_held(client, sc, rec_path_of(sc), failures)
             disc = client.modern("server/discover", {})["result"]
             stateless = client.modern("tools/call", {"name": "gate_verdict", "arguments": {"scenario": sc, "as_of": "record"}})["result"]
             if disc.get("supportedVersions", [None])[0] != "2026-07-28" or stateless.get("structuredContent") != expected:

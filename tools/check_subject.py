@@ -373,14 +373,158 @@ def check_bindings(rep: Report, m: dict, root: Path) -> None:
         a = ver.get(name)
         if isinstance(a, dict):
             _check_versions(rep, m, root, name, a.get("versions"), known)
+    check_oracle_suite(rep, m, root)
+    check_execution_code(rep, m, root, ver.get("execution"))
+
+
+EXECUTED = (("implementation", "reference", "code"), ("suite", "oracle", "script"))   # task-0320, decision-0038 N-b
+
+
+def code_digests(m: dict, root: Path, which: str) -> tuple[str | None, dict[str, str]]:
+    """(the path, its files' raw-byte SHA-256 by relative path) of what an execution ran, as the load digests it
+    (``subject.code_files``, ``Subject.code_parts``'s own reading: ``[reference] code`` with the files ``reference_code``
+    bundles, ``[oracle] script`` whole with each file ``[oracle] suite`` lists, task-0338; a file one entry named '',
+    a listed suite file holding none the digest ''). (None, {}) when the manifest names none."""
+    from subject import code_files
+    rel, files, _declared = code_files(root, m.get("reference"), m.get("oracle"), which)
+    return rel, files
+
+
+def _script_in_suite(rep: Report, o: dict, v: list) -> None:
+    """task-0340 R4: the script is also a path ``[oracle] suite`` lists, which binds it twice and says nothing more."""
+    s = o.get("script")
+    if isinstance(s, str) and s in v:
+        rep.note("attestation", "[oracle] suite", f"also lists the script {s}, which the suite digest binds already; list the files the script reads beside it")
+
+
+def check_oracle_suite(rep: Report, m: dict, root: Path) -> None:
+    """task-0338 (decision-0039 §3.5): ``[oracle] suite``, optional, lists the files the suite reads beside its script
+    (its expectations), each digested into ``[verification] execution``'s ``suite``; each a relative path inside the
+    subject's instance (at most ../../ up, as a document's) that holds a file or a directory."""
+    o = m.get("oracle") if isinstance(m.get("oracle"), dict) else {}
+    if "suite" not in o:
+        return
+    v, where = o["suite"], "[oracle] suite"
+    if not isinstance(v, list) or not all(isinstance(x, str) and x for x in v):
+        rep.error("path", where, "is not a list of paths (strings, relative to the subject root)",
+                  'list the files the suite reads beside its script, e.g. suite = ["tests/expectations.py"]')
+        return
+    _script_in_suite(rep, o, v)
+    for x in sorted(set(v)):
+        p = Path(x)
+        inside = not p.is_absolute() and "\\" not in x and (root / p).resolve().is_relative_to(root.resolve().parent.parent)
+        if not inside:
+            rep.error("path", where, f"{x} is not a relative path inside the subject's instance",
+                      "name it relative to the subject root, at most ../../ up")
+        elif not (root / p).exists():
+            rep.error("path", where, f"{x} does not exist", "fix the path; it is relative to the subject root")
+
+
+def check_execution_code(rep: Report, m: dict, root: Path, ex) -> None:
+    """decision-0038 N-b (task-0320): an execution verification binds to the reference implementation and the suite that
+    judged it as well as to the documents, so ``[verification] execution`` lists in ``implementation`` and ``suite`` the
+    raw-byte digest of each file of ``[reference] code`` and ``[oracle] script`` the subject declares. A list left out
+    is a warning (the load then verifies nothing by execution); a file it does not list as it is now is an error."""
+    if not isinstance(ex, dict) or ex.get("versions") is None:
+        return
+    for which, table, field in EXECUTED:
+        _execution_listing(rep, m, root, ex, which, table, field)
+
+
+def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, table: str, field: str) -> None:
+    where = "[verification] execution"
+    rel, files = code_digests(m, root, which)
+    if rel is None:
+        return
+    listed = ex.get(which)
+    now = sorted(set(files.values()) - {""})
+    if listed is None:
+        rep.warning("attestation", where, f"lists no {which} digests: the load verifies nothing by execution, since an "
+                    f"execution binds to the [{table}] {field} it ran on ({rel}) as well as to the documents (decision-0038)",
+                    f"after the suite has run on it, add {which} = {json.dumps(now)}")
+        return
+    if not isinstance(listed, list) or not all(isinstance(d, str) and re.fullmatch(r"[0-9a-f]{64}", d) for d in listed):
+        rep.error("attestation", where, f"{which} is not a list of SHA-256 digests (64 lower-case hex characters)",
+                  f"list each file's raw-byte digest: {which} = {json.dumps(now)}")
+        return
+    miss = {r: d for r, d in sorted(files.items()) if not d or d not in listed}
+    stale = sorted(d for d in listed if d not in set(files.values()))   # task-0340 R1, as a document's "matches no current Version"
+    if len(stale) > len(miss):   # more listed digests gone than files changed: a deletion
+        rep.error("attestation", where, f"{which} lists {', '.join(stale)}, which matches no current file of [{table}] {field} "
+                  f"{rel}: a file was deleted or changed, so the load verifies nothing by execution (decision-0038)",
+                  "run the suite again and list the digests of the files as they are, or restore the file")
+    if miss or (not files and not stale):
+        from subject import suite_files
+        also = " or a file [oracle] suite lists" if which == "suite" and suite_files(m.get("oracle")) else ""   # task-0338
+        rep.error("attestation", where, f"[{table}] {field} {rel}{also} changed since the execution was attested: "
+                  f"{_unlisted(miss)} is not listed under {which}, so the load verifies nothing by execution (decision-0038)",
+                  "run the suite on it again and list the new digest, or restore it")
+
+
+def _unlisted(miss: dict[str, str]) -> str:
+    """The files an execution listing misses: a directory's part or an ``[oracle] suite`` file by its path and digest
+    (one holding no file said so), the script or a one-file implementation as its file."""
+    return ", ".join((f"{r} ({d})" if d else f"{r} (no file there)") if r else f"its file {d}" for r, d in miss.items()) or "no file is there"
+
+
+def _relist_fix(name: str, restore: bool = False) -> str:
+    """task-0324, task-0330: the fix per declaration. Execution means something only if the implementation and the suite
+    were changed to the new Version's values and run; approval and review are the approver's and the reviewer's own acts
+    (decision-0002: not the author's); authored is the author's."""
+    if name == "execution":
+        step = ("bring the reference implementation and the suite in line with the new Version where its values differ, run the "
+                "suite on it, then list all three digests (replace the old digest with the new one under versions, then the "
+                "implementation, the suite); where the values differ and they are unchanged, re-listing only asserts the old "
+                "result for the new values (no oracle runs at load; decision-0038)")
+    elif name == "review":
+        step = ("the reviewer (not the author, decision-0002) reads the new Version and replaces the old digest with the new "
+                "one (decision-0019); for a single document's re-review, the capture tool's `review` command gives it its own date, since one "
+                "`at` re-dates every listed Version")
+    elif name == "approval":
+        step = "the approver (not the author, decision-0002) reads the new Version; to re-attest, replace the old digest with the new one (decision-0019)"
+    else:
+        step = "the author reads the new Version; to re-attest, replace the old digest with the new one (decision-0019)"
+    return step + (", or restore the document" if restore else ", or remove it")
+
+
+def _unchanged_code_note(rep: Report, m: dict, root: Path) -> None:
+    """task-0330: a document edit seen under ``[verification] execution`` (a listed digest that matches no current Version,
+    or an artefact that changed since it was attested) while the implementation and suite digests listed equal the files on
+    disk: knowgov cannot know whether the suite covers the change. A note, never an error."""
+    ex = (m.get("verification") or {}).get("execution") if isinstance(m.get("verification"), dict) else None
+    if not isinstance(ex, dict):
+        return
+    for which, _t, _f in EXECUTED:
+        rel, files = code_digests(m, root, which)
+        listed = ex.get(which)
+        if rel is None or not files or not isinstance(listed, list) or any(d not in listed for d in files.values()):
+            return
+    rep.note("attestation", "[verification] execution", "lists a document digest for an edited document while its implementation "
+             "and suite digests are the files as they are: knowgov cannot know whether the suite covers the change, so "
+             "re-listing asserts the old result for the new values unless the implementation and suite were changed and run "
+             "(decision-0038)")
+
+
+def _edited(rep: Report, m: dict, root: Path, name: str, listed: list, stale: list) -> bool:
+    """True when an artefact changed since it was attested (``_changed_artefacts``); under execution an edit seen, as a stale
+    listed digest or a changed artefact, adds task-0330's note on unchanged code."""
+    named = _changed_artefacts(rep, m, root, f"[verification] {name}", listed, bool(stale))
+    if name == "execution" and (stale or named):
+        _unchanged_code_note(rep, m, root)
+    return named
+
+
+def _no_version_note(rep: Report, where: str, name: str) -> None:
+    rep.note("attestation", where, "lists no Version: it verifies nothing, since an execution or a review "
+             "verification holds only for the Versions it lists (decision-0036); list the digest of each Version it verifies, "
+             "each document's under versions" + (", with the implementation and suite digests" if name == "execution" else "") + ".")
 
 
 def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: list) -> None:
     where = f"[verification] {name}"
     if listed is None or (name in BOUND and listed == []):   # task-0318: an empty list verifies nothing either
         if name in BOUND:
-            rep.note("attestation", where, "lists no Version: it verifies nothing, since an execution or a review "
-                     "verification holds only for the Versions it lists (decision-0036); list the digest of each")
+            _no_version_note(rep, where, name)
         else:
             rep.note("attestation", where, "lists no Version: it attests what the documents hold at each load, so an edit made "
                      "after it inherits it (decision-0009 (a), the read rule); list the digest of each Version it attests (decision-0019)")
@@ -395,11 +539,11 @@ def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: 
         return
     known[0] = subject_versions(m, root) if known[0] is None else known[0]
     stale = sorted(set(listed) - known[0])
-    if _changed_artefacts(rep, m, root, where, listed, bool(stale)):   # task-0318, task-0319: the edit, by artefact and file
+    if _edited(rep, m, root, name, listed, stale):   # task-0318, task-0319: the edit, by artefact and file
         return
     for d in stale:
         rep.error("attestation", where, f"versions lists {d}, which matches no current Version of the subject's artefacts: "
-                  "it attests nothing the load reads", "replace the old digest with the new one (decision-0019), or remove it")
+                  "it attests nothing the load reads", _relist_fix(name))
 
 
 def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: list, stale: bool) -> bool:
@@ -415,7 +559,7 @@ def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: lis
         what = ", ".join(f"{rel} ({d})" if rel else f"its Version {d}" for rel, d in sorted(miss.items()))
         rep.error("attestation", where, f"{art} changed since it was attested: {what} is not listed under {where}"
                   + ("" if "" in files else " (a file added or changed)"),
-                  "re-attest it (replace the old digest with the new one) or restore the document (decision-0019)")
+                  _relist_fix(where.rsplit(" ", 1)[-1], restore=True))
         named = True
     return named
 
@@ -644,6 +788,9 @@ def main(argv: list[str] | None = None) -> int:
     if not (args.root / "subject.toml").is_file():
         print(f"cannot run: {args.root} holds no subject.toml", file=sys.stderr)
         return 2
+    if not args.register and (why := _unnamed(args.root)):   # task-0339 R2: an instance's subject never reads the public register
+        print(f"cannot run: {why}", file=sys.stderr)
+        return 2
     register = args.register or Path(os.environ.get("KG_REGISTER") or DEFAULT_REGISTER)
     by = "--register" if args.register else "KG_REGISTER" if os.environ.get("KG_REGISTER") else None
     if by:   # task-0279 (decision-0033 choice 5): a register named and not readable exits 2; unchecked is for none named
@@ -659,6 +806,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print(json.dumps(rep, indent=1) if args.json else render(rep))
     return rep["exit_code"]
+
+
+def _unnamed(root: Path) -> str | None:
+    """Why the default register may not be read for ``root`` (``instance_register.unnamed`` with the root as the subject)."""
+    import instance_register
+    return instance_register.unnamed({**os.environ, "KG_SUBJECT": str(root)})
 
 
 if __name__ == "__main__":

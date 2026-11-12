@@ -15,7 +15,7 @@ import threading
 import time
 import uuid
 
-from store import (DEAD, DOCUMENT_BASES, DUPLICATE, NEO4J_GUARDED, Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, held_from, part_list, part_rows,
+from store import (DEAD, DOCUMENT_BASES, DUPLICATE, NEO4J_GUARDED, Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, held_from, inputs_digest, part_list, part_rows,
                    changed_of, setting, stem, suspect_rows, suspicion)
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
@@ -88,7 +88,16 @@ REALISER_STEPS = [
     ("capabilities", ("REG_REALIZES",), False),
     ("processes", ("REG_SUPPORTS",), False),
 ]
-WALK_STEPS = {"dependants": IMPACT_STEPS, "realisers": REALISER_STEPS}
+# The register's third walk (its decision 0018; task-0336): what a journey step uses, down to the data. The step to
+# the process that supports it, the process to the capability it realises, the applications that support it and the
+# information it reads or writes, an application to the information it manages; every step points away from the journey.
+THREAD_STEPS = [
+    ("journeys", ("REG_IS_SUPPORTED_BY",), True),
+    ("processes", ("REG_REALIZES", "REG_CRUD"), True),
+    ("processes", ("REG_SUPPORTS",), False),
+    ("applications", ("REG_MANAGES",), True),
+]
+WALK_STEPS = {"dependants": IMPACT_STEPS, "realisers": REALISER_STEPS, "thread": THREAD_STEPS}
 
 def _step(n: str, r: str, steps: list = IMPACT_STEPS) -> str:
     """The predicate: ``r`` is a step the walk takes from ``n``, by ``n``'s taxonomy."""
@@ -140,7 +149,9 @@ _ROWS_TAIL = (
 _WHAT = {("dependants", False): "the walk tools/impact.py makes",
          ("dependants", True): "the walk tools/impact.py --children makes, from the node and each approved descendant",
          ("realisers", False): "the walk tools/impact.py --walk realisers makes, toward what implements the node",
-         ("realisers", True): "the walk tools/impact.py --walk realisers --children makes, from the node and each approved descendant"}
+         ("realisers", True): "the walk tools/impact.py --walk realisers --children makes, from the node and each approved descendant",
+         ("thread", False): "the walk tools/impact.py --walk thread makes, from a journey step down to the data",
+         ("thread", True): "the walk tools/impact.py --walk thread --children makes, from the node and each approved descendant"}
 
 
 def impact_texts(walk: str = "dependants", children: bool = False) -> dict:
@@ -1270,6 +1281,14 @@ class Neo4jStore(Store):
                               "RETURN a.attestation_approval AS approval, a.attestation_authored AS authored, "
                               "a.attestation_execution AS execution, a.attestation_review AS review"))
         return by_id([json.loads(r[d]) for r in rows for d in ("approval", "authored", "execution", "review") if r[d]])
+
+    def record_inputs(self, row) -> None:   # on the tool's Agent node, never a node of its own (store.py)
+        self.run("MATCH (a:Agent {id:'agent:harness'}) SET a += $props",
+                 props={f"input_{k}": row[k] for k in self.INPUTS if k in row}).consume()
+
+    def inputs(self) -> dict:
+        rows = _rows(self.run("MATCH (a:Agent {id:'agent:harness'}) RETURN " + ", ".join(f"a.input_{k} AS input_{k}" for k in self.INPUTS)))
+        return inputs_digest(rows[0] if rows else {})
 
     def clear_act_findings(self) -> None:
         self.run("MATCH (a:ActFinding) DETACH DELETE a").consume()

@@ -105,7 +105,9 @@ def test_every_report_names_what_it_decided_on_and_gives_the_same_bytes_twice():
         schema_check.validate(rep, schema_check.load("gate-report"))[:3]
     assert rep["task_profile"] == gate_cli.profile_digest(SUBJECT.tasks[task])
     assert keyset["task_profile"] == gate_cli.profile_digest({**SUBJECT.tasks[task], "keys": spec["keys"][:1]}) != rep["task_profile"]
-    assert rep["register"] == register_impact.identity(Path(os.environ.get("KG_REGISTER") or ROOT / "demo" / "register").resolve())
+    reg = Path(os.environ.get("KG_REGISTER") or ROOT / "demo" / "register").resolve()
+    # task-0320 (decision-0038 N2): beside the tag and commit, the digest of the register's files as read
+    assert rep["register"] == {**register_impact.identity(reg), "files": register_impact.files_digest(reg)}
     import build_identity
     assert rep["knowgov"] == build_identity.identity() and rep["knowgov"]["version"] == (ROOT / "VERSION").read_text().strip()
     assert json.dumps(rep, sort_keys=True) == json.dumps(again, sort_keys=True), "deterministic: one store, one report"

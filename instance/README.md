@@ -169,6 +169,10 @@ anything. That covers `harness/gate_cli.py` (and its `--register-previous`), `ha
 `harness/upward.py`, `harness/proposal_impact.py` and `harness/step_grid.py`. The MCP reader and the
 page refuse to start.
 
+The same commands also stop with exit 2, naming `KG_REGISTER`, when no register is named and the subject lies
+outside the knowgov checkout: an instance reads its own register, never the public one (see "Running the
+gates in your pipeline").
+
 ### Format versions
 
 Each file you keep in your instance says which version of its format it is written in, so a
@@ -420,6 +424,16 @@ than Python 3.12 cannot run: exit 2 with the reason, and no report is written or
 for `preload-check.sh` and `proposal-impact.sh`; the Claude Code hook passes its own interpreter unless
 `PYTHON` is set (task-0141.01).
 
+Every step reads your instance's own register. The script sets `KG_REGISTER` to `<instance>/register`, the
+`register/` folder of the instance checkout you pass it, unless you set `KG_REGISTER` yourself; the Claude Code
+hook passes the same. The register decides the gate: its lifecycle months decide when a review lapses, its owners
+whom a finding names, its issued handles whose answers count. Without it, a client's verdicts would follow the
+public register this copy of knowgov carries. If that folder is missing or is not a register, the step stops
+with exit 2 and names `KG_REGISTER` and the path. Run a command by hand on a subject outside the knowgov
+checkout with `KG_REGISTER` unset, and it stops the same way, with exit 2 naming `KG_REGISTER`: set it to
+`<instance>/register`. Only the public subjects that ship inside the knowgov checkout read the public register
+by default (task-0334, decision-0039).
+
 `KG_AS_OF` is the date the gate, `trace-check` and `trace-register` read review currency on (`--as-of`, decision-0005):
 a `YYYY-MM-DD` date, `record` (the subject's pinned record date) or `today`, the default. Set it to
 check a release as of its cut date, or to rehearse a lapse before it falls due: S1 as of 2027-08-08
@@ -657,11 +671,26 @@ with `--baseline`: the gate exits 1 only on a key that got worse, so the compari
 python harness/gate_cli.py --task codegen --as-of 2026-12-15 --baseline gate-2026-12-01.json
 ```
 
-The report names what the gate decided on: the task table (`task_profile`), the register (`register`), the
-knowgov build (`knowgov`), the documents loaded (`corpus`, a digest of every document version's bytes) and the
-date (`as_of`). Under `--baseline`, each one that differs from the baseline's is named on stderr, one line each,
-so the comparison above names its `as_of`, and an edited document names `corpus`. Naming one never changes the
-exit. A baseline kept before a field existed says nothing about that field, and none is named.
+The report names what the gate decided on: the task table (`task_profile`), the register (`register`:
+its tag, its commit and `files`, a digest of the register files a load reads: those its own loader opens
+and the issued-handles list, never a README or a stray file), the knowgov build (`knowgov`), the
+documents loaded (`corpus`, a digest of every document version's bytes), the subject's `[verification]`,
+`[provenance]` and `[capture]` as the load read them (`attestations`), the answers and reviews the load
+applied (`captures`), the subject's own configuration files as the load read them (`configuration`: a
+digest per file, `subject.toml` whole, `scenarios.toml`, the register map, and `plants.toml`, `queries.toml`
+and the verification map where there is one), the code and suite an execution verification is compared
+against (`code`: a digest per `[reference] code`, `[oracle] script` and `[oracle] suite` file), the pre-load
+report the load applied (`preload`: its path and digest, or none and why) and the date (`as_of`). The load
+records `attestations`, `captures`, `configuration`, `code` and `preload` in the store, so a read of the store,
+the MCP reader's included, names the load's own. The trace report's gate block names the same `corpus`,
+`attestations`, `captures`, `configuration`, `code` and `preload`. Under `--baseline`, each one
+that differs from the baseline's is listed in the report's `baseline.differs` and named on stderr, one
+line each, so the comparison above names its `as_of`, an edited document names `corpus`, an edited
+`register_map.toml` or `scenarios.toml` names `configuration`, an edited suite names `code`, and a pre-load
+report applied on one side only names `preload`. The MCP
+reader's `gate_verdict` carries the same `baseline.differs`. Naming one never changes the exit. A
+baseline kept before a field existed says nothing about that field, and none is named; a part of the
+register or build that either side does not know is never named either.
 
 To see every step against every scenario at once, run the scenarios into a folder and read it with
 `python harness/step_grid.py <folder>`: one row per step, one column per scenario, the lowest level
@@ -833,13 +862,41 @@ layout check notes it.
 
 A test's result and a review are bound the same way, with no old meaning to fall back on (decision-0036,
 0.9.0). No suite runs when the documents load. A verification by execution is the result your subject
-attests, and it holds only for the document versions listed under `execution`. A review holds only for
+attests, and it holds only for the document versions listed under `execution`. The verification's `at` is when the load recorded the attestation, not when a run happened; the run is identified by its digests (the document Versions, the implementation and the suite). A review holds only for
 those listed under `review`:
 
 ```toml
 execution = { versions = ["3f2a...", "9c41..."] }   # the versions the suite's result was attested on
 review = { at = "2026-11-04", scope = "...", versions = ["3f2a...", "9c41..."] }
 ```
+
+A test's result also depends on the code it ran and on the tests that judged it. `execution` lists
+the raw-byte digest of each file of the reference implementation (`[reference] code`, its `*.py`
+files for a folder) under `implementation`, and of the suite (`[oracle] script`) under `suite`
+(decision-0038):
+
+```toml
+execution = { versions = ["3f2a...", "9c41..."], implementation = ["5b0e..."], suite = ["77d1..."] }
+```
+
+If your suite's script reads its expectations from other files, name them in `[oracle] suite`
+(decision-0039). Each file's digest then belongs in `suite` beside the script's. A folder counts
+as all of its files. Without the field, `suite` binds the script alone, and a change to the
+expectations moves no digest:
+
+```toml
+[oracle]
+script = "tests/run_suite.py"
+suite = ["tests/expectations.py"]
+
+[verification]
+execution = { versions = ["3f2a..."], implementation = ["5b0e..."], suite = ["77d1...", "a4c8..."] }
+```
+
+Change a helper, weaken a test or edit an expectation `[oracle] suite` lists, and nothing is verified
+by execution until the suite has run again and the new digest is listed. The gate names the changed file at `major`, and the layout check names
+it as an error. A subject that declares the code but lists no digests verifies nothing by execution;
+the layout check warns and prints the list to add.
 
 In plain English: edit a document and its statements fall below *verified*, and out of approval, until
 you run the suite or the review again on the new version and add its digest. An `execution` or a
@@ -875,6 +932,12 @@ keeps the scenario it holds, so an owner can run this while others are reading, 
 see changes. The copy needs the harness's Python packages (`pip install -r demo/requirements.txt`;
 inside the stack's container they are there already); without them the command says so and exits 2.
 `capture.py review` and `harness/transcript.py` load the same way.
+
+Set `KG_REGISTER` to your instance's register (`<instance>/register`) before you run `capture.py`. The owners
+the questionnaires go to, the handles `ingest` accepts and the review dates `due` reads all come from that
+register. With `KG_SUBJECT` naming your subject and `KG_REGISTER` unset, every `capture.py` command stops with
+exit 2 and names `KG_REGISTER`; it never falls back to the public register, whose handles (`employee-1` to
+`employee-4`) are not your people (task-0334, decision-0039).
 
 The owner fills it in: a value in `answer`, or `nobody_knows = true` when no one can say. They
 add their *handle* and the date under `[answered]`. A handle is a short lower-case label such
@@ -932,9 +995,23 @@ statement that still holds that content, whatever its id is now. If a table's ro
 or answers were renumbered, the ruling follows its content. If the statement was edited, or is no
 longer in the documents, the ruling is not applied. The rest of the review still is. The gate then
 lists an `act` finding, `major`: it names the review, the person who ruled, the value they ruled
-on, what the documents say now, the key's owner and the route to a new ruling. A review saved
+on, what the documents say now, the key's owner and the route to a new ruling. For a ruling on a
+captured answer the file also records `giver`, the handle that gave the answer, read from the capture
+file's own content (its `from`), never from its file name. The ruling binds only to that person's
+answer. So two issued handles such as `ops` and `ops-2` never stand in for each other, even when
+`ops`'s second capture of a day and `ops-2`'s first have the same file name. A review saved without
+`giver` binds as before, and a ruling whose answer's file name could be either person's is set aside
+(decision-0038). A review saved
 before 0.9.0 has no `key`, `value` or `sha256`. It still binds by id, as it did, and the gate lists
 it at `info` as bound by id only. A new review binds it to content.
+
+Two reviewers who rule on one statement the same day, one approving it and the other rejecting or
+referring it, cancel each other: within a day there is no "later", so neither ruling is applied and
+the statement keeps the status it had. The gate lists an `act` finding, `major`, on each of those
+rulings; every one names every file of the set. `capture.py review` says so on stderr before it
+writes such a ruling (it still writes it). To clear it, the owners rule again in one review, on a
+later day. When that ruling approves or rejects, the findings read `info`, "settled by" that file, and
+the key reads from it; a referral decides nothing and leaves them `major`.
 
 Before ruling, read what you rule on:
 
@@ -1068,7 +1145,7 @@ a load needs is about
 To get your subject's figures, run this from your knowgov checkout:
 
 ```bash
-KG_SUBJECT=/path/to/your/instance/subjects/<id> python harness/load_memory.py
+KG_SUBJECT=/path/to/your/instance/subjects/<id> KG_REGISTER=/path/to/your/instance/register python harness/load_memory.py
 ```
 
 It prints each scenario's statement count, what a gate load and a full run need, and the heap that
@@ -1203,7 +1280,9 @@ not the subject's id: `subjects/cargo_quote` from a knowgov checkout, `/repo/sub
 inside the container, never the bare `cargo_quote`. On the public stack it is already set to the
 subject the page opens on. On your instance's stack it still names the public CargoQuote subject,
 which your page does not list. Start the stack with `KG_SUBJECT=/instance/subjects/<id>` or name
-your subject's id in each call (`subject`).
+your subject's id in each call (`subject`). A server you start by hand on your instance's subject also needs
+`KG_REGISTER`, your register's path: without it, the server refuses to start and names `KG_REGISTER`.
+The instance's compose file sets it for the stack.
 
 **Which scenario it reads.** The server reads whatever scenario the store holds: the one the page
 or a run loaded last. Have the assistant pass `scenario` (for example `"S1"`) in every call to
@@ -1289,10 +1368,11 @@ Desktop on a Mac usually gives `/usr/local/bin/docker`).
 
 3. Quit Claude Desktop completely (on a Mac, Claude › Quit, not only closing the window) and reopen
    it. It reads the file only when it starts.
-4. Ask in a Chat conversation. The first time the assistant calls a knowgov tool, Claude Desktop
-   asks your permission; allow it. Chat in Claude Desktop runs on your computer and reaches the
-   stack there. A Claude Code session running in the cloud (claude.ai/code, or the Code tab when it
-   runs a cloud session) runs on a remote machine and cannot reach a stack on your computer.
+4. Ask in a Chat conversation. If Claude Desktop asks your permission the first time the assistant
+   calls a knowgov tool, allow it. It may not ask: every knowgov tool declares itself read-only, and
+   in the maintainer's test (2026-11-12) Desktop ran `subject_check` without a prompt. Chat in
+   Claude Desktop runs on your computer and reaches the stack there. A Claude Code session running
+   in the cloud (claude.ai/code, or the Code tab when it runs a cloud session) runs on a remote machine and cannot reach a stack on your computer.
 
 If the tools do not appear, the server's own messages are in
 `~/Library/Logs/Claude/mcp-server-knowgov.log` on macOS (`%APPDATA%\Claude\logs\` on Windows). A
@@ -1535,6 +1615,10 @@ about?" (`list_subjects`).
 - `permission denied while trying to connect to the Docker daemon socket`: step 3.
 - `no such service: app`, or `open …docker-compose.yml: no such file`: the stack is not running, or
   the path on the server is not where you cloned knowgov.
+- `Server transport closed unexpectedly`, and in the conversation *Failed to attach prompt* or a
+  tool call that never answers: the stack was restarted or rebuilt after Claude Desktop connected,
+  which ends the server process it was talking to. Desktop does not reconnect by itself, and still
+  shows the prompts and tools it listed before. Quit Claude Desktop completely and reopen it.
 
 ## Creating a subject with an assistant
 
@@ -1595,12 +1679,16 @@ servers answer for it by id with no relaunch (every tool takes `subject`; see "O
 every subject" below). One step is yours: load `<id>-S0` (on the page, or `start_run` on `knowgov-runs`
 with the subject's id), knowing the load replaces what everyone else viewing that store sees.
 
-**Claude Desktop's role, for now: asking the gate, not onboarding.** In Claude Desktop, use the
-server to ask `gate_verdict`, `evidence_bundle`, `three_valued_answer`, `register_impact` and
-`proposal_impact`. Creating a subject is Claude Code's job: it writes files on a branch, runs the
-checks and the dry run, and opens the pull request. Whether Desktop lists these prompts and runs
-`subject_check` has not been tried yet. Until that test shows both, treat Desktop's assistant,
-which writes no files without a file extension and has no shell, as unfit to onboard a subject.
+**Claude Desktop's role: asking the gate and checking a proposal, not onboarding.** In Claude
+Desktop, use the server to ask `gate_verdict`, `evidence_bundle`, `three_valued_answer`,
+`register_impact` and `proposal_impact`, and to check a subject before anyone writes it. Desktop has
+been tried on this (2026-11-12, a Chat conversation reaching the server over SSH). It lists both
+prompts under **+**, asks for their arguments, and attaches the prompt's text to the conversation.
+Given a proposed `subject.toml`, `register_map.toml` and the documents' text, its assistant calls
+`subject_check` and reads each finding back with its fix, drafting no content and writing no
+attestation. Creating a subject stays Claude Code's job, because Desktop cannot finish one. Chat
+writes no files on a branch and has no shell, so it can neither run the gate's dry run (the second
+of the three stop conditions) nor open the pull request.
 
 ## A fail-closed hook for Claude Code
 
@@ -1705,6 +1793,8 @@ Write, MultiEdit or NotebookEdit on any of these. In plain English: the assistan
 or a task class to `subject.toml`, and may remove the attestation tables outright (that attests
 nothing), but the moment a write would add or change `[verification]`, `[provenance]` or `[capture]`, or touch one
 of the files above, Claude Code stops it and tells the assistant to leave it to the person of record.
+The same holds for `[oracle] suite` while `[verification]` stays: removing it would unbind the suite's
+expectations from the digests `execution` lists.
 It compares the two tables as parsed TOML before and after the write, so moving a comment or adding
 an artefact is not mistaken for an attestation.
 
@@ -1774,7 +1864,7 @@ input; the GitLab include's `KG_PUBLISH` and `KG_NO_LOAD` follow the rule above.
 | `KG_DMNLINT` | Pre-load linters | the dmnlint command, when it is not on `PATH` | on `PATH` | yes |
 | `KG_SUBJECT` | Subject and register | the subject root a command reads | in the CI templates, the instance's only subject | yes |
 | `KG_SUBJECTS` | Subject and register | the folder of subjects the page and both MCP servers list | `subjects/` of the checkout | yes |
-| `KG_REGISTER` | Subject and register | the register checkout every subject joins | `demo/register`, the public register | yes |
+| `KG_REGISTER` | Subject and register | the register checkout every subject joins | in the CI templates and the hook, `<instance>/register`; for a subject outside the knowgov checkout, none: a command stops with exit 2 naming it; for the public subjects inside the checkout, `demo/register`, the public register | yes |
 | `KG_REGISTER_PREVIOUS` | Subject and register | the register checkout before an update, which the page's register view reads to show what the update withdrew; the gate's own option for it is `--register-previous` | none | yes |
 | `KG_INSTANCE` | Subject and register | your instance's checkout, for the stack's compose file and the upward joins | none | yes |
 | `KG_PRELOAD_REPORT` | Subject and register | the pre-load report the load records per document version | `preload-report.json` at your instance's root | yes |

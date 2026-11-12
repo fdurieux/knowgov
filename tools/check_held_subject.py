@@ -47,6 +47,8 @@ def check(cond, label: str) -> bool:
 def _env(subject: Path, subjects: Path) -> dict:
     env = {k: v for k, v in os.environ.items() if not k.startswith(("OPENAI", "GEMINI", "AWS", "KG_ANTHROPIC", "KG_MODEL_API"))}
     env.update(KG_SUBJECT=str(subject), KG_SUBJECTS=str(subjects), PYTHONPATH=os.pathsep.join([str(ROOT / "harness"), str(ROOT / "demo" / "app")]))
+    if not env.get("KG_REGISTER"):   # copies outside the checkout name the public register they join (task-0334)
+        env["KG_REGISTER"] = str(ROOT / "demo" / "register")
     return env
 
 

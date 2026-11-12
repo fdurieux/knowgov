@@ -108,11 +108,20 @@ schema's description says what changed from 1 and 2 and what was added since), a
 it is printed. Version 3 (task-0237, decision-0029) names what the gate decided on: ``task_profile``,
 the sha256 of the task table read; ``register``, its tag and commit; ``knowgov``, the build. Added since, without a
 version change (task-0307, decision-0037): ``corpus``, the sha256 over the loaded document Versions' digests
-(``store.corpus_digest``: one ``<artefact>\t<version>\t<sha256>`` line each, sorted by artefact then version).
-With ``--baseline``, each of ``task_profile``, ``register``, ``knowgov``, ``corpus`` and ``as_of`` that differs
-from the baseline's is named on stderr, one line each; the exit is the ratchet's, unchanged. A field the
-baseline lacks, or holds as unknown (null), reads as unknown and is never named; ``--baseline record`` holds
-only ``as_of``, the subject's ``[record] as_of``.
+(``store.corpus_digest``: one canonical JSON line ``[artefact, version, sha256]`` each, sorted; task-0320). And
+(task-0320, decision-0038 N2): ``attestations`` and ``captures``, what the load used beyond the documents as the
+store recorded it (``Store.inputs``), and ``register.files``, the register's files a load reads (its own loader's and the issued handles). And
+(task-0335, decision-0039 §3.2): ``configuration``, the sha256 of each subject configuration file the load read
+(``Subject.configuration``: ``subject.toml`` whole, ``scenarios.toml``, the register map, ``plants.toml``,
+``queries.toml`` and the verification map where read), by path, compared whole. And (task-0341, decision-0040 (a)):
+``code``, the sha256 of each ``[reference] code``, ``[oracle] script`` and ``[oracle] suite`` file an execution
+verification is compared against (``Subject.code``, the load's part selection), by path, and ``preload``, the
+pre-load report the load applied, {path, sha256, why}, both null with ``why`` when none was (``preload.identity``),
+each compared whole. With ``--baseline``,
+each identity field (``IDENTITY_FIELDS``) that differs from the baseline's is listed in ``baseline.differs``
+(``differs``, the MCP reader's too) and named on stderr, one line each; the exit is the ratchet's, unchanged. A
+field the baseline lacks, or holds as unknown (null), and an object's sub-field unknown on either side, is never
+named; ``--baseline record`` holds only ``as_of``, the subject's ``[record] as_of``.
 """
 from __future__ import annotations
 
@@ -162,38 +171,172 @@ def _declared(ds: list[str]) -> tuple[str, str]:
     return named, ("decision-0019 and decision-0036" if {"execution", "review"} & set(ds) else "decision-0019")
 
 
-def attestation_findings(rows: list[dict], owners: dict | None, route) -> list[dict]:
+STEP = {"authored": "the author reads the document and lists sha256 {sha} under [verification] authored versions",
+        "approval": "the approver (not the author, decision-0002) reads the document and lists sha256 {sha} under [verification] approval versions",
+        "review": "the reviewer (not the author, decision-0002) reads the document and lists sha256 {sha} under [verification] "
+                  "review versions (for a single document's re-review, `capture.py review` gives it its own date: one `at` re-dates every listed Version)",
+        "execution": "the reference implementation and the suite are brought in line with this Version where its values differ, the "
+                     "suite is run on it, then sha256 {sha} is listed under [verification] execution versions with the implementation "
+                     "and suite digests ([oracle] script's and each file [oracle] suite lists) (where the values differ and they are unchanged, listing only asserts the old result for the "
+                     "new values: no oracle runs at load, decision-0038)"}
+
+
+def attestation_route(decls: list[str], sha: str, attester: str = "") -> str:
+    """task-0324: one step per declaration, each its own reader's act (execution only after the suite has run on the
+    Version); never one reader listing all of them."""
+    who = f" ({attester})" if attester else ""
+    return "; ".join(STEP[d].format(sha=sha) + who for d in ("authored", "approval", "review", "execution") if d in decls)
+
+
+def _below_verified(res: dict) -> set:
+    """The keys that read below verified (task-0332 H5), for the count an unlisted declaration's finding gives."""
+    from gate import ORDER
+    return {k for k, v in (res.get("keys") or {}).items() if ORDER.index(v["level"]) < ORDER.index("verified")}
+
+
+def unlisted_finding(r: dict, below: set | None = None) -> dict:
+    """A declaration that lists no Version. Execution and review (task-0325) are major (task-0330 H3): nothing is verified by
+    them without one, so it is the cause of a BLOCKED; it names each document behind the task's keys with its digest and the
+    count of keys. authored and approval are the read rule's, at info."""
+    n = r["declaration"]
+    if n in ("execution", "review"):
+        un = r["unattested"]
+        keys = sorted({k for u in un for k in u.get("keys") or []})
+        lost = ("what it verified by review is lost" if n == "review" else
+                "what it verified by execution is lost, and the approvals resting on it read proposed too")
+        f = _finding("major", "attestation", f"[verification] {n} lists no Version: it verifies nothing, since an execution or a review "
+                     f"verification holds only for the Versions it lists (decision-0036), so {lost} and the keys behind it fall "
+                     f"below verified, behind {len(keys)} required key(s)"
+                     + (f", of which {len(set(keys) & below)} now read below verified" if below is not None else ""),
+                     ref=f"attest:{n}", related=keys)
+        f["route"] = "; ".join(f"{u['artefact']}: " + attestation_route([n], u["sha256"], r["attester"])
+                               for u in un if u.get("keys")) or attestation_route([n], "<digest of each document>", r["attester"])
+        return f
+    return _finding("info", "attestation", f"[verification] {n} lists no Version: it attests what the documents hold at each load "
+                    "(decision-0009 (a), the read rule); list the digest of each Version it attests (decision-0019) to bind it",
+                    ref=f"attest:{n}")
+
+
+def _consequence(ds: list[str]) -> str:
+    """task-0330: what an unlisted Version costs, for the declarations actually bound."""
+    if {"authored", "approval"} & set(ds):
+        return "its authored statements read proposed and nothing in it is approved by construction"
+    return f"what it verified by {' and '.join(ds)} is lost and the keys behind it fall below verified"
+
+
+def attestation_findings(rows: list[dict], owners: dict | None, route, below: set | None = None) -> list[dict]:
     """decision-0019 (task-0221): a declaration that lists no Version is the read rule's, at info; each artefact a
     bound declaration does not attest, behind the task's keys, is major (its authored statements read proposed and
     nothing in it is approved by construction, so the keys behind it fall below verified, and the attester or the
     keys' owner has to act). It names the keys' owner and route (``capture.routing``) when they share one."""
-    out = []
-    for r in rows:
-        if not r["bound"]:
-            out.append(_finding("info", "attestation", f"[verification] {r['declaration']} lists no Version: it attests what the documents "
-                                "hold at each load (decision-0009 (a), the read rule); list the digest of each Version it attests "
-                                "(decision-0019) to bind it", ref=f"attest:{r['declaration']}"))
+    out = [unlisted_finding(r, below) for r in rows if not r["bound"]]
+    out += [code_finding(u, r, owners, route) for r in rows if r["bound"] for u in r["unattested"] if u.get("code")]
     merged: dict[str, dict] = {}
     for r in rows:
-        for u in r["unattested"] if r["bound"] else []:
+        for u in [u for u in r["unattested"] if not u.get("code")] if r["bound"] else []:
             m = merged.setdefault(u["artefact"], {**u, "declarations": [], "attester": r["attester"]})
             m["declarations"].append(r["declaration"])
     for art, u in sorted(merged.items()):
         decls, cite = _declared(u["declarations"])
         digests = ", ".join(x[:12] for x in u["parts"]) if u["parts"] else u["sha256"][:12]
         f = _finding("major", "attestation", f"{art} (sha256 {digests}), behind {len(u['keys'])} required key(s), is not attested: "
-                     f"[verification] {decls} list(s) no digest of this Version, so its authored statements read proposed and "
-                     f"nothing in it is approved by construction ({cite})", ref=art, related=u["keys"])
+                     f"[verification] {decls} list(s) no digest of this Version, so " + _consequence(u["declarations"]) + f" ({cite})", ref=art, related=u["keys"])
         if owners is not None:
             units = {(owners.get(k) or {}).get("unit") for k in u["keys"]}
             unit = units.pop() if len(units) == 1 else None
             f["owner"] = unit
-            how = (f"{u['attester'] or 'the attester'} reads the document and lists sha256 {u['sha256']} under [verification] "
-                   f"{decls} versions in subject.toml ({cite})")
+            how = attestation_route(u["declarations"], u["sha256"], u["attester"]) + f" in subject.toml ({cite})"
             q = route(unit, u["keys"][0]) if route and unit else None
             f["route"] = how + (f"; or {q}" if q else "")
         out.append(f)
     return out
+
+
+def _code_listed(u: dict, files: list[dict]) -> str:
+    """What ``[verification] execution`` lists of a code row (task-0320): none, or the digests it does not list, each
+    ``[oracle] suite`` file by its path and digest (task-0338)."""
+    if u.get("missing"):
+        return f"lists no {u['code']} digests" + (f", none for {', '.join(x['path'] for x in files)}" if files else "")
+    by_path = {x["sha256"] for x in files}
+    unlisted = [d[:12] for d in u["parts"] if d not in by_path] + [
+        f"{x['path']} ({x['sha256'][:12]})" if x["sha256"] else f"{x['path']} (no file there)" for x in files]
+    stale = u.get("stale") or []   # task-0340 R1: listed digests no current file holds (a file deleted)
+    tail = f"lists {', '.join(d[:12] for d in stale)}, which no current file holds" if stale else ""
+    if unlisted:
+        return f"does not list {', '.join(unlisted)}" + (f" and {tail}" if tail else "")
+    return tail or "lists it, and it holds no file"
+
+
+def code_finding(u: dict, r: dict, owners: dict | None, route) -> dict:
+    """task-0320 (decision-0038 N-b): the reference implementation or the suite an execution verification ran on is not
+    the one ``[verification] execution`` lists, so the load verified nothing by execution. Major when it is behind the
+    task's keys, info when none of them rests on it; the route is the attester's listing."""
+    files = u.get("files") or []   # task-0338 (decision-0039 §3.5): the [oracle] suite files it misses, by path
+    what = {"implementation": "the reference implementation ([reference] code)",
+            "suite": "the suite that judged it ([oracle] script" + (" and suite" if files else "") + ")"}[u["code"]]
+    listed = _code_listed(u, files)
+    f = _finding("major" if u["keys"] else "info", "attestation",
+                 f"{u['artefact']}, {what}, is not the one the execution verification attests: [verification] execution {listed}, "
+                 f"so nothing is verified by execution, behind {len(u['keys'])} required key(s) (decision-0038)",
+                 ref=u["artefact"], related=u["keys"])
+    if owners is not None:
+        units = {(owners.get(k) or {}).get("unit") for k in u["keys"]}
+        unit = units.pop() if len(units) == 1 else None
+        f["owner"] = unit
+        each = "each file's sha256" + (" ([oracle] script and each file [oracle] suite lists)" if u["code"] == "suite" else "")
+        f["route"] = (f"{r['attester'] or 'the attester'} runs the suite on it and lists {each} under [verification] "
+                      f"execution {u['code']} in subject.toml (decision-0038), or restores it")
+    return f
+
+
+def _opposed_act(a: dict) -> bool:
+    """Whether an act (as ``act_finding`` reports it) is a ruling cancelled by an opposing one the same day (task-0331)."""
+    import review
+    return a["why"] == "ambiguous" and a["act"] == "ruling" and review.is_opposed(a["reasons"])
+
+
+def _act_route(f: dict, route):
+    """The route of an act whose ruling was set aside as ambiguous or opposed (task-0331, task-0333 R6): settled at info
+    (an opposed act's second reason, a task-0322 act's ``settled by``) it is ``nothing to do: <the settling reason>``;
+    a ``superseded for the key by`` act, info too, keeps its own route; an open opposed act, a new review on a later day, not the questionnaire.
+    Any other act keeps ``route``."""
+    if f["kind"] != "act":
+        return route
+    a = f["act"]
+    reasons = a["reasons"]
+    if a["why"] == "ambiguous" and a["act"] == "ruling" and reasons:
+        import review
+        if review.is_opposed(reasons):
+            return (f"nothing to do: {reasons[-1]}" if len(reasons) > 1 else
+                    "the owners rule again in one review, on a later day (python harness/capture.py review <file>)")
+        if reasons[0].startswith(review.SETTLED):
+            return f"nothing to do: {reasons[0]}"
+    return route
+
+
+def _opposed_severity(a: dict, msg: str) -> tuple[str, str]:
+    """task-0331: an opposed act's message is its own reason alone (no generic clause), then the settling reason if a later
+    day decided it; info once a later day's approval or rejection settled it (task-0333), major while nothing did or a referral only."""
+    import review
+    last = a["reasons"][-1]
+    tail = "; ".join(a["reasons"]) + (", so the key reads from that ruling" if last.startswith(review.SETTLED) else "")
+    head = msg[:msg.index("was not applied:") + len("was not applied:")]
+    return ("info" if len(a["reasons"]) > 1 and last.startswith(review.INFO_REASONS) else "major"), f"{head} {tail}"
+
+
+def _act_severity(a: dict, msg: str) -> tuple[str, str]:
+    """The act's severity and message: info when a resolution is gone, and (task-0321) when a later review settled an
+    ambiguous ruling, naming it."""
+    if a["act"] == "resolve" and a["why"] == "gone":
+        return "info", msg
+    if a["why"] == "ambiguous" and a["act"] == "ruling" and a["reasons"]:
+        import review
+        if review.is_opposed(a["reasons"]):
+            return _opposed_severity(a, msg)
+        r = a["reasons"][0]
+        tail = f"; {r}" + (", so the key reads from that ruling" if r.startswith(review.SETTLED) else "")
+        return ("info" if r.startswith(review.INFO_REASONS) else "major"), msg.replace("; its owner rules again", tail)
+    return ACT_SEVERITY[a["why"]], msg
 
 
 def act_finding(a: dict) -> dict:
@@ -217,10 +360,10 @@ def act_finding(a: dict) -> dict:
                else "the declaration's text changed since the close") + "; its owner closes it again or the gap stands")
     else:
         msg = (f"{who} ({a['outcome']} {a['statement']} on {a['key']}) was not applied: it ruled on {was}, and "
-               + {"changed": f"the statement now reads {now}", "gone": "no statement of it is extracted any more (if only another person's identical answer remains, this ruling does not cover it)",
+               + {"changed": (a["reasons"][0] if a["reasons"] else f"the statement now reads {now}"), "gone": "no statement of it is extracted any more (if only another person's identical answer remains, this ruling does not cover it)",
                   "ambiguous": "several statements hold that content and none is the one it names, or its id reads as two givers' and names neither"}[why]
                + "; its owner rules again")
-    sev = "info" if a["act"] == "resolve" and why == "gone" else ACT_SEVERITY[why]
+    sev, msg = _act_severity(a, msg)
     f = _finding(sev, "act", msg, key=a["key"] or None, ref=a["statement"] or a["review"],
                  related=[t["id"] for t in a["to"]])
     f["act"] = {"review": a["review"], "act": a["act"], "n": a["n"], "outcome": a["outcome"], "by": a["by"], "on": a["on"],
@@ -320,7 +463,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                             + (f" ({d['tool']})" if d.get("tool") else "") + (f"; {d['why']}" if d.get("why") else ""),
                             ref=f"{d['artefact']}@{d['version']}", related=d["keys"]))
     out += [act_finding(a) for a in res.get("acts") or []]
-    out += attestation_findings(res.get("attestation") or [], owners, route)
+    out += attestation_findings(res.get("attestation") or [], owners, route, _below_verified(res))
     out += [lint_finding(g) for g in res.get("lint") or []]   # task-0216
     if owners is not None:
         for f in out:
@@ -330,7 +473,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
             if f["kind"] in OWNED and (f["kind"] != "act" or f["key"]):
                 unit = (owners.get(f["key"]) or {}).get("unit")
                 f["owner"] = unit
-                f["route"] = route(unit, f["key"]) if route else None
+                f["route"] = _act_route(f, route(unit, f["key"]) if route else None)
                 c = (closers or {}).get(f["key"])
                 if f["kind"] == "key" and f["level"] == "declared_gap" and c is not None:
                     from capture import closing_route
@@ -366,7 +509,13 @@ def at_or_above(fs: list[dict], threshold: str) -> list[dict]:
     return [f for f in fs if SEVERITIES.index(f["severity"]) <= SEVERITIES.index(threshold)]
 
 
-IDENTITY_FIELDS = ("task_profile", "register", "knowgov", "corpus", "as_of")   # task-0307: what --baseline names when it differs
+# task-0307: what --baseline names when it differs; attestations and captures, task-0320 (decision-0038 N2);
+# configuration, task-0335 (decision-0039 §3.2); code and preload, task-0341 (decision-0040 (a))
+IDENTITY_FIELDS = ("task_profile", "register", "knowgov", "corpus", "attestations", "captures", "configuration", "code",
+                   "preload", "as_of")
+# task-0335: an object compared whole, a file read on one side only a difference; task-0341: code likewise, and preload,
+# whose null path and digest with a why are known (no report applied), not unknown
+WHOLE = frozenset({"configuration", "code", "preload"})
 
 
 def _nfc_levels(levels) -> dict:
@@ -430,12 +579,15 @@ def superseded_map(res: dict) -> dict[str, list[str]]:
     return m(res)
 
 
+NO_INPUTS = {"attestations": None, "captures": None, "configuration": None, "code": None, "preload": None}   # task-0320: a report built with no store's inputs: unknown
+
+
 def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loaded: bool,
            block_levels: set[str], threshold: str, baseline: dict | None,
            version: str | None = None, change: dict | None = None, owners: dict[str, dict] | None = None,
            route_task: str | None = None, route_keys=None, closers: dict[str, dict] | None = None,
            register_change: dict | None = None, task_profile: str | None = None,
-           suspect_scope: dict[str, dict] | None = None, corpus: str | None = None) -> dict:
+           suspect_scope: dict[str, dict] | None = None, corpus: str | None = None, inputs: dict = NO_INPUTS) -> dict:
     """``corpus`` is ``store.corpus_digest`` of the loaded Versions (task-0307; None when none is loaded).
     ``task_profile`` is the digest of the task table the gate read (``profile_digest``; None when the
     report is built without one). ``route_task`` is the task class whose questionnaire a finding's route names (``task`` by default;
@@ -466,6 +618,11 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
             # task-0237, decision-0029 (version 3): what the gate decided on, so a retained report names it
             "task_profile": task_profile, "register": register_identity(), "knowgov": knowgov_identity(),
             "corpus": corpus,   # task-0307, decision-0037: added since, without a version change
+            # task-0320, decision-0038 N2: what the load used beyond the documents, as it recorded it; additive
+            "attestations": inputs.get("attestations"), "captures": inputs.get("captures"),
+            "configuration": inputs.get("configuration"),   # task-0335, decision-0039 §3.2: the subject's files as read; additive
+            # task-0341, decision-0040 (a): the code and suite compared, the pre-load report applied; additive
+            "code": inputs.get("code"), "preload": inputs.get("preload"),
             **({"register_change": register_change} if register_change is not None else {})}   # task-0122, additive
 
 
@@ -504,14 +661,15 @@ _IDENTITY: dict = {}
 
 
 def register_identity() -> dict:
-    """The register this process reads (``KG_REGISTER``), its tag and commit (``register_impact.identity``),
+    """The register this process reads (``KG_REGISTER``), its tag and commit (``register_impact.identity``) and, beside
+    them, ``files``, the digest of the files a load reads (``register_impact.files_digest``, task-0320, decision-0038 N2),
     read once per register root: the files and git only, no network, no clock (task-0237)."""
     import cadence
     import register_impact
     root = cadence.register_root().resolve()
     key = ("register", str(root))
     if key not in _IDENTITY:
-        _IDENTITY[key] = register_impact.identity(root)
+        _IDENTITY[key] = {**register_impact.identity(root), "files": register_impact.files_digest(root)}   # files: task-0320
     return dict(_IDENTITY[key])
 
 
@@ -535,12 +693,32 @@ def _show(value) -> str:
     return value if isinstance(value, str) else json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
+def _moved(was, now, whole: bool = False) -> bool:
+    """Whether an identity field moved (task-0320, A-N1): for an object (register, knowgov), a sub-field other than
+    ``why`` that both sides know (neither null nor absent) and that differs; a sub-field unknown on either side is
+    never a difference, so a partly unknown object is named only for what both name. Else both known and unequal.
+    ``whole`` (``WHOLE``, task-0335): an object whose absent member is known, not unknown, the configuration's file
+    the load did not read, so both known and unequal, the map whole; ``code`` and ``preload`` likewise (task-0341)."""
+    if whole:
+        return was is not None and now is not None and was != now
+    if isinstance(was, dict) and isinstance(now, dict):
+        return any(was[k] != now[k] for k in sorted(set(was) & set(now)) if k != "why" and was[k] is not None and now[k] is not None)
+    return _known(was) and _known(now) and not isinstance(was, dict) and not isinstance(now, dict) and was != now
+
+
 def identity_drift(identity: dict, rep: dict) -> list[dict]:
     """Each identity field (``IDENTITY_FIELDS``) on which this report and its baseline's ``identity`` both say
     something and differ: {field, baseline, now} (task-0307, decision-0037). A field either side lacks or holds
-    as unknown is never a difference. Named on stderr, never in the exit."""
+    as unknown is never a difference, nor an object's sub-field (``_moved``, task-0320). Never in the exit."""
     return [{"field": f, "baseline": identity[f], "now": rep.get(f)} for f in IDENTITY_FIELDS
-            if f in identity and _known(identity[f]) and _known(rep.get(f)) and identity[f] != rep.get(f)]
+            if f in identity and _moved(identity[f], rep.get(f), f in WHOLE)]
+
+
+def differs(identity: dict | None, rep: dict) -> list[str]:
+    """The identity fields that differ from the baseline's, in ``IDENTITY_FIELDS`` order (task-0320, decision-0038 N3):
+    the one list the CLI's report and the MCP reader's ``gate_verdict`` carry as ``baseline.differs``, and the
+    fields the CLI's stderr lines name."""
+    return [d["field"] for d in identity_drift(identity or {}, rep)]
 
 
 def drift_lines(source: str, drift: list[dict]) -> list[str]:
@@ -875,12 +1053,32 @@ def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshol
         if closers is None:   # task-0110: the unit each declared gap's declaration names closes it
             from capture import gap_closers
             closers = gap_closers(SUBJECT, {k: v.get("declared_gaps") or [] for k, v in res["keys"].items()})
-    return report(res, subject=subject, scenario=scenario, task=task, store=st.name, loaded=loaded,
-                  block_levels=set(spec["block_levels"]), threshold=threshold,
-                  baseline=compare(res, *baseline, suspect_scope=scope) if baseline else None, version=version, change=change, owners=owners,
-                  route_task=route_task, route_keys=_route_keys(route_task) if route_task and route_task != task else None,
-                  closers=closers, register_change=register_change, task_profile=profile_digest(table), suspect_scope=scope,
-                  corpus=corpus_digest(st.version_digests()))
+    rep = report(res, subject=subject, scenario=scenario, task=task, store=st.name, loaded=loaded,
+                 block_levels=set(spec["block_levels"]), threshold=threshold,
+                 baseline=compare(res, *baseline, suspect_scope=scope) if baseline else None, version=version, change=change, owners=owners,
+                 route_task=route_task, route_keys=_route_keys(route_task) if route_task and route_task != task else None,
+                 closers=closers, register_change=register_change, task_profile=profile_digest(table), suspect_scope=scope,
+                 corpus=corpus_digest(st.version_digests()), inputs=load_inputs(st))
+    return with_differs(rep, baseline)
+
+
+def with_differs(rep: dict, baseline: tuple[dict, str] | None) -> dict:
+    """task-0320 (decision-0038 N3): what moved, on both readers, computed once (``differs``) into ``baseline.differs``."""
+    if baseline:
+        rep["baseline"]["differs"] = differs(baseline[0].get("identity"), rep)
+    return rep
+
+
+def load_inputs(st) -> dict:
+    """``{attestations, captures, configuration, code, preload}``: the digests of what the load used beyond the
+    documents, as the store recorded them at load (``Store.inputs``, task-0320, decision-0038 N2; configuration,
+    task-0335; code and preload, task-0341); each None on
+    a store loaded before it, or a view without the read, read as unknown."""
+    try:
+        got = st.inputs()
+    except (AttributeError, NotImplementedError):
+        got = {}
+    return {k: got.get(k) for k in NO_INPUTS}
 
 
 def _route_keys(task: str) -> set[str] | None:
