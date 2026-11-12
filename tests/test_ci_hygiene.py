@@ -15,7 +15,11 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 # is a push to main, which runs the full J-F set; stack's likewise.
 # task-0163 split rdflib in two: each half's worst is its steps' sum in the slowest push run before the
 # split (run 42161874258, 71.8 min in all), the shared setup counted in both.
-OBSERVED_WORST = {("tests.yml", "tests"): 2.9, ("harness.yml", "rdflib"): 23.7, ("harness.yml", "rdflib-readers"): 48.4,
+# 2026-11-12: rdflib's worst rose to 49: under the night's parallel load six of nine pushes to main were cut
+# at 45 min inside the SNAP step (runs 43120959547 to 43155521279), every step about 2x its quiet time; the
+# slowest attempt (43155521279) had spent 40.4 min before SNAP, which takes 8.2 min at that pace. The
+# completed pushes that night took 24 to 37 min.
+OBSERVED_WORST = {("tests.yml", "tests"): 2.9, ("harness.yml", "rdflib"): 49, ("harness.yml", "rdflib-readers"): 48.4,
                   ("demo.yml", "stack"): 25.4, ("demo.yml", "publish"): 0.9}
 BUDGET = 12   # task-0084: a pull request's rdflib and stack, uncontended
 
