@@ -419,6 +419,29 @@ def suspect_finding(d: dict, scope: dict | None) -> dict:
                     ref=d["id"], related=used + changed)
 
 
+def _awaiting(v: dict) -> str:
+    """C2-3 (task-0311): the assertions a reviewer rules on, named in the key's finding."""
+    pend = sorted(v.get("pending_review") or [])
+    return f" (awaiting a reviewer's ruling: {', '.join(pend)})" if pend else ""
+
+
+def _bar_finding(res: dict) -> dict:
+    """A-F4 (task-0311): the bar's blocker names a next step, the keys below the bar and their routes."""
+    f = _finding("blocker", "task", res["why"])
+    f["route"] = ("raise the keys below the bar: each key finding above names its owner and the route to approval; "
+                  "the share falls under the bar when enough of them are verified or approved")
+    return f
+
+
+def _lapse_route(f: dict, res: dict) -> str | None:
+    """A-F4 (task-0311): a review's lapse is renewed by a new review, not by a questionnaire; any other finding keeps its route."""
+    lapsed_by_id = {x["id"]: x for x in res.get("lapsed") or []}
+    if f["kind"] != "lapsed" or not f["route"] or lapsed_by_id.get(f["ref"], {}).get("kind") == "elicited":
+        return f["route"]
+    return ("a reviewer who is not the author and holds the role renews it: python harness/capture.py review FILE "
+            "(from an instance repository, python \"$KG_HOME\"/harness/capture.py), dated on or after the as-of date; or " + f["route"])
+
+
 def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None = None,
              route=None, closers: dict[str, dict] | None = None, suspect_scope: dict[str, dict] | None = None) -> list[dict]:
     """The gate's result as findings on the severity ladder, worst first, then by kind, key and ref.
@@ -435,9 +458,8 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
             out.append(_finding("blocker", "key", f"{key} is {lvl.replace('_', ' ')}: the task cannot proceed on it",
                                 key=key, level=lvl, flags=flags))
         elif LEVELS.index(lvl) < LEVELS.index("verified"):
-            pend = sorted(v.get("pending_review") or [])   # C2-3 (task-0311): the assertion a reviewer rules on
             out.append(_finding("major", "key", f"{key} is {lvl}, below verified: an assistant may use it only as a stated assumption"
-                                + (f" (awaiting a reviewer's ruling: {', '.join(pend)})" if pend else ""),
+                                + _awaiting(v),
                                 key=key, level=lvl, flags=flags))
         elif flags:
             out.append(_finding("minor", "key", f"{key} is {lvl} but flagged {', '.join(flags)}", key=key, level=lvl, flags=flags))
@@ -447,11 +469,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                             "a behaviour shown to hold is not yet one a person intends; its owner approves it or rules otherwise",
                             key=key, level=v["level"], flags=v["flags"]))
     if res["verdict"] == "BLOCKED" and not res["blocked_keys"]:
-        f = _finding("blocker", "task", res["why"])
-        # A-F4 (task-0311): the bar blocker names a next step, the keys below the bar and their routes
-        f["route"] = ("raise the keys below the bar: each key finding above names its owner and the route to approval; "
-                      "the share falls under the bar when enough of them are verified or approved")
-        out.append(f)
+        out.append(_bar_finding(res))
     for x in res.get("stale") or []:
         # sorted: the store collects these in its own order, and one store's answer must read the same in another (task-0070)
         settled = sorted(t["id"] for t in x.get("successors") or [] if t.get("id") and t.get("status") in SETTLED)
@@ -475,7 +493,6 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
     out += [act_finding(a) for a in res.get("acts") or []]
     out += attestation_findings(res.get("attestation") or [], owners, route, _below_verified(res))
     out += [lint_finding(g) for g in res.get("lint") or []]   # task-0216
-    lapsed_by_id = {x["id"]: x for x in res.get("lapsed") or []}
     if owners is not None:
         for f in out:
             if f["kind"] == "lint":   # the document's owning unit: the one unit capture.routing gives every key behind it
@@ -485,10 +502,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                 unit = (owners.get(f["key"]) or {}).get("unit")
                 f["owner"] = unit
                 f["route"] = _act_route(f, route(unit, f["key"]) if route else None)
-                if f["kind"] == "lapsed" and f["route"] and not lapsed_by_id.get(f["ref"], {}).get("kind") == "elicited":
-                    # A-F4 (task-0311): a review's lapse is renewed by a new review, not by a questionnaire
-                    f["route"] = ("a reviewer who is not the author and holds the role renews it: python harness/capture.py review FILE "
-                                  "(from an instance repository, python \"$KG_HOME\"/harness/capture.py), dated on or after the as-of date; or " + f["route"])
+                f["route"] = _lapse_route(f, res)
                 c = (closers or {}).get(f["key"])
                 if f["kind"] == "key" and f["level"] == "declared_gap" and c is not None:
                     from capture import closing_route

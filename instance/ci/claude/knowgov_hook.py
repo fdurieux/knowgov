@@ -512,16 +512,19 @@ def run_gate(stage: str, task: str, kg: Path, inst: Path, *, advisory: bool, tim
         if rep.get("exit_code") != p.returncode or (p.returncode == PASS and rep.get("verdict") == "BLOCKED"):
             return refuse(check, f"the report ({rep.get('verdict')}, exit_code {rep.get('exit_code')}) disagrees with exit {p.returncode}")
         d = decide(p.returncode, check=check, finding=_summary(rep), route=_route_for(rep), advisory=advisory)
-        if p.returncode == PASS and rep.get("verdict") == "QUALIFIED" and not d.blocks:
-            # C3-3 (task-0311): the action goes ahead, and the assistant is told what it may rest on (a stated assumption)
-            msg = (f"{check}: QUALIFIED, the action is allowed. Build only with every key below verified stated as an assumption.\n"
-                   + _summary(rep))
-            d = Decision(HOOK_ALLOW, output={"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": msg},
-                                             "systemMessage": msg.splitlines()[0]})
-        return d
+        return _qualified(d, rep, check, p.returncode)
     finally:
         if tmp:
             Path(tmp).unlink(missing_ok=True)
+
+
+def _qualified(d: Decision, rep: dict, check: str, rc: int) -> Decision:
+    """C3-3 (task-0311): a QUALIFIED gate lets the step through, and the assistant is told what it may rest on."""
+    if rc != PASS or rep.get("verdict") != "QUALIFIED" or d.blocks:
+        return d
+    msg = f"{check}: QUALIFIED, the action is allowed. Build only with every key below verified stated as an assumption.\n" + _summary(rep)
+    return Decision(HOOK_ALLOW, output={"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": msg},
+                                        "systemMessage": msg.splitlines()[0]})
 
 
 def _per_stage(task_for: list[str], advisory: bool) -> tuple[dict[str, str], Decision | None]:
