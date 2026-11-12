@@ -11,7 +11,7 @@ relationship, to, link state, owner, evidence, and the far node's owning unit:
 its owner field, that unit's name and the approved owns links to it, task-0047), the paths form the same distinct relationships
 as the rows form's links (a link the walk meets from both ends is two edges and one relationship,
 decision 0010), with the start returned. Every walk the panel offers is checked so (task-0112): the
-dependants and the realisers walk, each with and without children, whose paths form returns the node
+dependants, the realisers and the thread walk (task-0336), each with and without children, whose paths form returns the node
 and each approved descendant as its starts. The statements view's link (task-0078) is followed the
 same way: its guide's block must be the listed register-node-statements from the node, and its
 rows those the panel shows from the port's register_node_statements, when a scenario is loaded
@@ -35,7 +35,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / "harness"), str(ROOT / "demo" / "app")]
 DEMO = os.environ.get("KG_DEMO_URL", "http://localhost:8080")
-VARIANTS = [(w, c) for w in ("dependants", "realisers") for c in (False, True)]   # every walk the panel offers (task-0112)
+VARIANTS = [(w, c) for w in ("dependants", "realisers", "thread") for c in (False, True)]   # every walk the panel offers (task-0112)
 
 
 def guide_url_of(link: str) -> str:

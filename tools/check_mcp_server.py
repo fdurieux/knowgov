@@ -30,7 +30,8 @@ Then ask ``key_nodes`` for every key of the subject's register map, and, on the 
 ``KG_LEDGER`` set before the server starts, the reference code registered by ``trace.py register``), ``code_path``
 for the reference code and the climb to a capability's ancestors, and ``document_links`` for the first row's
 anchored document (task-0143). Once, store-free: the file-only tools listed and answering alike over stdio and
-HTTP, and the shipped managed allowlist admitting the server by name (task-0142, task-0143).
+HTTP, ``register_impact walk=thread`` from a capability and a process equal on both and to the register's THREAD
+walk (task-0336), and the shipped managed allowlist admitting the server by name (task-0142, task-0143).
 Then ask ``held_keys``, ``derived_outputs`` and ``document_statements`` and require each equal to the port's
 read in-process through a read handle, the levels gate_verdict's for the held key set, and each used statement
 stale or superseded as the gate's stale statements read; at stage 2 too (task-0144).
@@ -770,6 +771,8 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
     calls = [("register_nodes", {"taxonomy": "capabilities"}), ("register_nodes", {"node": "CAP-0002"})]
     calls += [("key_nodes", {"key": key})] if key else []
     calls += [("code_path", {"path": ex["file"] if ex else "reference_impl.py"})]
+    thread = thread_starts()   # task-0336 (decision-0039 §3.3): the thread walk from a capability and from a process
+    calls += [("register_impact", {"node": n, "walk": "thread"}) for n in thread]
     answers = {}
     for name, cls in (("stdio", StdioClient), ("http", HttpClient)):
         client = cls()
@@ -793,6 +796,7 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
             client.close()
     if answers.get("stdio") != answers.get("http"):
         failures.append("the file-only tools answer differently over stdio and HTTP")
+    check_thread(answers.get("stdio", [])[-len(thread):] if thread else [], thread, failures)
     allowed = {x.get("serverName") for x in json.loads(ALLOWLIST.read_text(encoding="utf-8")).get("allowedMcpServers", [])}
     sys.path.insert(0, str(HARNESS))
     import mcp_server
@@ -800,6 +804,40 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
         failures.append(f"{ALLOWLIST.name} admits {sorted(allowed)}, not the server {mcp_server.SERVER['name']}")
     print(f"transports: {', '.join((*FILE_TOOLS, *STORE_TOOLS))} listed over stdio and HTTP, {len(calls)} call(s) equal on both; "
           f"{ALLOWLIST.name} admits {mcp_server.SERVER['name']}")
+
+
+def thread_starts() -> list[str]:
+    """task-0336: a capability and a process to walk the thread from, the register's first of each whose ids sort first,
+    the process the first whose thread reaches a node (a capability's reaches none: the THREAD walk has no capability row)."""
+    sys.path.insert(0, str(HARNESS))
+    import register_impact as ri
+    root = ri.register_root()
+    T = ri.load_tools(root)
+    reg = T["register"].load_register(root)
+    caps = sorted(n for n, x in reg["nodes"].items() if x.get("_taxonomy") == "capabilities")
+    procs = [n for n in sorted(n for n, x in reg["nodes"].items() if x.get("_taxonomy") == "processes")
+             if T["impact"].reached(T["impact"].walk(reg, n, T["impact"].WALKS["thread"]))]
+    return caps[:1] + procs[:1]
+
+
+def check_thread(got: list[dict], starts: list[str], failures: list[str]) -> None:
+    """task-0336 (decision-0039 §3.3): register_impact walk=thread gives the edges and the reach the register's own
+    THREAD walk gives (``tools/impact.py``), and lands the map rows naming the start or a reached node."""
+    sys.path.insert(0, str(HARNESS))
+    import register_impact as ri
+    from subject import SUBJECT
+    root = ri.register_root()
+    T = ri.load_tools(root)
+    reg = T["register"].load_register(root)
+    for node, ans in zip(starts, got):
+        edges = T["impact"].walk(reg, node, T["impact"].WALKS["thread"])
+        reached = sorted(T["impact"].reached(edges))
+        ids = sorted(x["id"] for xs in ans["reached"].values() for x in xs)
+        keys = [k["key"] for k in ri.landed_rows(SUBJECT.register_map(), node, reached)]
+        if ans["walk"] != "thread" or ans["edges"] != edges or ids != reached or [k["key"] for k in ans["keys"]] != keys:
+            failures.append(f"register_impact walk=thread from {node} is not the register's THREAD walk or its keys")
+        print(f"thread: register_impact walk=thread from {node} reaches {len(ids)} node(s) and lands {len(keys)} key(s), "
+              "as tools/impact.py --walk thread, equal over stdio and HTTP")
 
 
 SINGLE_KEY_TOOLS = ("three_valued_answer", "derived_outputs", "key_nodes")   # task-0320 (decision-0038 N7)

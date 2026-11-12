@@ -98,13 +98,13 @@ or module to the documents its approved links cite, their assertions and the
 code derived from them; and from an information node to the statements its
 cited anchors name. Two more go where the walk does not: what rests on a
 capability, and what touches an information node (the adopter's guide,
-[`docs/guide.md`](../docs/guide.md), section 8, explains each). The impact panel offers two of the register's three walks,
-*dependants* (what rests on a node) and *realisers* (what implements a
-capability), each with or without *children*, the walk also started from
+[`docs/guide.md`](../docs/guide.md), section 8, explains each). The impact panel offers the register's three walks,
+*dependants* (what rests on a node), *realisers* (what implements a
+capability) and *thread* (what a journey step uses, down to the data),
+each with or without *children*, the walk also started from
 every approved descendant by parent (`register/tools/impact.py --walk`,
-`--children`). The third, *thread* (what a journey step uses, down to the
-data), runs from the command line only
-(`python demo/register/tools/impact.py --from JRN-0002 --walk thread`); three saved queries carry the other three: the walk with
+`--children`); `register_impact` on the MCP reader takes the same three
+(task-0336). Three saved queries carry three of the walk's variants: the walk with
 children, the realiser walk, and the realiser walk with children. Every saved query
 carries a marker, *runs now* or *needs S6 loaded deterministically*,
 *needs S4 loaded*, *needs the register projected*: the store holds one
