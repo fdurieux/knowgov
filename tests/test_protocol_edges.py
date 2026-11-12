@@ -170,5 +170,5 @@ def test_add_artefacts_file_refuses_control_characters_dot_dot_and_absolute_path
 
 
 def test_the_changelog_names_it():
-    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
-    assert log.startswith(("Unreleased", "0.9.0 ")) and "task-0272" in log   # released in 0.9.0
+    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## 0.9.0 ", 1)[1].split("\n## ", 1)[0]
+    assert "task-0272" in log   # released in 0.9.0

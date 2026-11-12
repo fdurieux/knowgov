@@ -26,7 +26,7 @@ permissions:
 env:
   KNOWGOV_REF: v0.9.0      # this template's release, held equal to VERSION (tests/test_ci_wrappers.py); a later tag: copy that tag's template
   PUMLLINT: "0.35.0"
-  SPECTRAL: "6.17.0"       # @stoplight/spectral-cli, for artefacts/api-contracts/
+  SPECTRAL: "6.17.1"       # @stoplight/spectral-cli, for artefacts/api-contracts/
   MARKDOWNLINT: "0.24.0"   # markdownlint-cli2, for artefacts/specification-prose/
   GPLINT: "2.6.1"          # for artefacts/acceptance-scenarios/
   BPMNLINT: "12.0.0"       # for artefacts/bpmn-process-models/

@@ -166,6 +166,6 @@ def test_on_cargoquote_s1_to_s7_each_cell_agrees_with_the_scenarios_gate_for_the
 
 
 def test_the_changelog_names_it_under_contract_changes():
-    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
+    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## 0.9.0 ", 1)[1].split("\n## ", 1)[0]
     contract = log.split("### Contract changes", 1)[1].split("### Changes", 1)[0]
     assert "task-0192" in contract and "step_grid" in contract
