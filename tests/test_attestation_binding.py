@@ -93,3 +93,30 @@ def test_stage_two_takes_back_the_construction_acts_of_an_unlisted_version():
         assert "ver:review:" in body and "appr:" in body, name
     import store
     assert "withdraw_construction" not in store.READS
+
+
+def test_a_directory_whose_every_file_changed_and_a_plant_of_a_re_attested_document_are_named_task_0312():
+    """Reviewer A's F1 (a directory fully changed is named once a stale digest exists, as a file is) and F2 (a plant's
+    Version of a re-attested document is named with the digest to list)."""
+    import hashlib
+    import check_subject
+    h = lambda t: hashlib.sha256(t.encode()).hexdigest()  # noqa: E731
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "uml").mkdir()
+        (root / "uml" / "a.puml").write_text("a2\n", encoding="utf-8")
+        (root / "doc.md").write_text("one\n", encoding="utf-8")
+        (root / "plants.toml").write_text('[[plant.S2]]\npath = "doc"\nop = "replace"\nold = "one"\nnew = "two"\n', encoding="utf-8")
+        m = {"artefact": [{"key": "uml", "path": "uml"}, {"key": "doc", "path": "doc.md"}]}
+        # F1: the one file of the directory changed; an old digest is listed, so the directory is named
+        rep = check_subject.Report(root)
+        assert check_subject._changed_artefacts(rep, m, root, "[verification] approval", [h("a1\n"), h("one\n")], True)
+        assert [f for f in rep.findings if f["message"].startswith("uml changed since it was attested")], rep.findings
+        # F2: doc.md is listed as it is now, its plant's Version is not
+        rep = check_subject.Report(root)
+        check_subject._unlisted_plants(rep, m, root, "[verification] approval", [h("a2\n"), h("one\n")], "approval")
+        [f] = rep.findings
+        assert "a scenario plant of doc" in f["message"] and h("two\n") in f["message"] and h("two\n") in f["fix"], f
+        rep = check_subject.Report(root)
+        check_subject._unlisted_plants(rep, m, root, "[verification] approval", [h("a2\n"), h("one\n"), h("two\n")], "approval")
+        assert rep.findings == []
