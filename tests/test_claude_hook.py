@@ -432,6 +432,7 @@ def test_routes_say_how_to_run_capture_from_an_instance_and_qualified_reaches_th
     """Task-0311 C3-1, C3-3: the routes name $KG_HOME for an instance repository; a QUALIFIED gate that lets the step
     through is stated to the assistant as additional context, not silent."""
     assert "$KG_HOME" in hook.ROUTE
+    sys.path.insert(0, str(ROOT / "harness"))
     import capture
     assert "$KG_HOME" in capture.questionnaire_route("s", "S1", "codegen", "ORG-1")
     assert "$KG_HOME" in capture.FROM_INSTANCE
