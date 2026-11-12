@@ -269,7 +269,9 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
     title = C({"dependants": f"Impact of retiring {start}", "thread": f"What {start} uses, down to the data"}.get(walk, f"What realises {start}")
               + (", with its descendants" if children else ""))
     out = {"from": start, "walk": walk, "children": children, "edges": edges, "rows": rows, "owners": owners,
-           "reached": {"products": products, "journeys": journeys, "processes": processes, "applications": applications, "all": reached},
+           "reached": {"products": products, "journeys": journeys, "processes": processes, "applications": applications, "all": reached,
+                       # task-0314 R-T2: the thread walk reaches capabilities and information entities too
+                       **({"capabilities": by_prefix("CAP"), "entities": by_prefix("ENT")} if walk == "thread" else {})},
            "panel": {"title": title, "intro": intro, "sections": sections},
            "text_registry": reg_sentences}
     if children:

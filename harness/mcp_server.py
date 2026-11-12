@@ -405,7 +405,7 @@ TOOLS.append(
 TOOLS.append(
     {"name": "held_keys", "title": "Which keys does the held scenario hold, and at what level?",
      "description": "Every key a statement of the held scenario names, read from the store: each with its statement "
-                    "count by status, its level as the gate reads it under the task class named (codegen by default) on "
+                    "count by stored status (as stored, not read as of the date), its level as the gate reads it under the task class named (codegen by default) on "
                     "the server's date, the task classes whose required keys include it (required_by; empty for a key no "
                     "class asks for, which store_status never shows) and whether the subject's register map places it; "
                     "and the required keys the store holds no statement on. The levels are gate_verdict's for that key set; "
@@ -862,9 +862,17 @@ class Tools:
         """The register-map rows on a key with their register nodes (``upward.key_nodes``, task-0143); no store."""
         import upward
         try:
-            return upward.key_nodes(args.get("key"))
+            return upward.key_nodes(args.get("key"), held=self._held_key_names())
         except upward.UpwardError as e:
             raise ToolError(str(e)) from e
+
+    def _held_key_names(self) -> set[str]:
+        """task-0314 B-X6: the keys the held store names, for key_nodes to read a held, unmapped key as ``mapped: false``;
+        empty when the store cannot be read (the call then answers from the files, as before)."""
+        try:
+            return self._store_read({}, lambda st, sc: {k["key"] for k in st.held_keys()})
+        except ToolError:
+            return set()
 
     def document_links(self, args: dict) -> dict:
         """The register links citing a document (``upward.document_links``, task-0143); the register's files only."""
@@ -893,7 +901,8 @@ class Tools:
         import trace
         import upward
         try:   # _with_store turns a store it cannot open or read into a ToolError, as it does for every store-backed tool
-            return self._store_read({}, lambda st, sc: trace.ledger_suspicion(st, entry))
+            return self._store_read({}, lambda st, sc: {**trace.ledger_suspicion(st, entry),   # task-0314 N2: the scenario it was read against
+                                                        "reason": f"read against the held scenario {sc}"})
         except ToolError as e:
             return upward._unchecked(f"whether it is suspect is not read: {e}", suspect=None)
 
@@ -1062,6 +1071,12 @@ class Tools:
                    "as_of": on, "statements": statements, "invalidated": invalidated_on_key(st, key)}
             if "why" in ans:
                 out["why"] = ans["why"]
+                if ans["answer"] == "unknown":   # task-0314 A-F10: a key no modelling names reads as one, not as an absence
+                    import key_rule
+                    import trace
+                    known = trace.known_keys()
+                    out["why"] += (f"; {key} is in no register map row or task's keys of {SUBJECT.id}" + key_rule.did_you_mean(key, known)
+                                   if key not in known else "")
             if ans.get("disputed"):   # task-0201 (doc-0030 M4): the statements the documents disagree on
                 out["disputed"] = ans["disputed"]
             return out

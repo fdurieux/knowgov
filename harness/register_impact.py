@@ -291,6 +291,10 @@ def walk(node: str, which: str = "dependants", root: Path | None = None, childre
     rows = getattr(T["impact"], "WALKS", {}).get(which)
     if rows is None and which != "dependants":
         raise ImpactError(f"the register at {source(root)['tag'] or root} offers no {which} walk")
+    if which == "realisers" and not children and rows is not None and reg["nodes"][node].get("_taxonomy") not in rows:
+        # task-0314 B-X2: a start the walk has no step from is refused, not answered with no edges as if nothing realised it
+        raise ImpactError(f"{node} is a {reg['nodes'][node].get('_taxonomy')} node: the realisers walk starts from "
+                          f"{' or '.join(sorted(rows))}, so it has none to give")
     if children:
         if not hasattr(T["impact"], "walk_children"):
             raise ImpactError(f"the register at {source(root)['tag'] or root} does not descend parent (its decision 0014, v0.2.8 on)")

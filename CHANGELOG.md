@@ -10,6 +10,7 @@ names that section with the version.
 
 ## Unreleased
 
+- 0.9.x walks and tools (task-0314): `upward`, `register_nodes` and `proposal_impact` exit 2 with one line on an unloadable subject or a refused task policy; `register_impact walk=realisers` refuses a start with no such walk; a sub-gate's `why` counts "the N keys reached"; `key_nodes` answers `mapped: false` for a held, unmapped key; a gate key finding's `related` carries its conflict ids; an unknown key gets a did-you-mean; the check tools no longer read `--help` as an output directory; the page's thread walk lists capabilities and entities reached; `code_path`'s suspect block names the scenario it was read against; `held_keys` says it counts stored statuses.
 - The pre-load check's Spectral pin moves to 6.17.1, the same in `instance/ci/package.json`, `instance/ci/preload-check.yml` and the harness workflow (Dependabot #471, which moved only the first).
 
 ## 0.9.0 — 2026-11-12
