@@ -2,7 +2,7 @@
 
 ``KG_REGISTER`` names the register a process reads. Unset (or empty), a subject that ships in this checkout
 reads the public register vendored under ``demo/register``, so the record does not move. A subject outside
-this checkout (``KG_SUBJECT``, which a command's ``--subject`` sets) is an organisation's instance: it never
+this checkout (``KG_SUBJECT``, which a command's ``--subject`` sets, or a root of ``KG_SUBJECTS``, task-0339) is an organisation's instance: it never
 falls back to the public register, whose lifecycle months, owners and handles are not the organisation's.
 Every register-reading tool refuses, exit 2, naming ``KG_REGISTER``: ``cadence.register_root`` raises
 ``RegisterUnnamed``, ``register_impact.register_root`` and ``require_named`` raise ``RegisterUnreadable`` with the
@@ -15,6 +15,7 @@ Standard library only.
 from __future__ import annotations
 
 import os
+import re
 
 import execution_guard
 
@@ -31,6 +32,9 @@ def unnamed(env=None) -> str | None:
     if env.get(SETTING):
         return None
     subj = execution_guard.outside(env.get("KG_SUBJECT"))
+    if not subj:   # R1 (task-0339): a KG_SUBJECTS root outside this checkout is an instance too
+        subj = next(filter(None, (execution_guard.outside(p) for p in
+                                  re.split(r"[,%s]" % re.escape(os.pathsep), env.get("KG_SUBJECTS") or ""))), None)
     if not subj:
         return None
     return (f"{SETTING} is unset and the subject {subj} lies outside this knowgov checkout: an instance reads its "
