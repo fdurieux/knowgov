@@ -121,7 +121,27 @@ def inputs_digest(props: dict) -> dict:
     caps = {k: props.get(f"input_{k}") for k in ("captures", "reviews")}
     both = None if all(v is None for v in caps.values()) else hashlib.sha256(
         json.dumps(caps, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
-    return {"attestations": props.get("input_attestations"), "captures": both}
+    return {"attestations": props.get("input_attestations"), "captures": both,
+            "configuration": configuration_of(props.get("input_configuration"))}
+
+
+def configuration_text(files: dict[str, str]) -> str:
+    """The subject's configuration (``Subject.configuration``, task-0335) as one property holds it: canonical JSON."""
+    return json.dumps(dict(sorted(files.items())), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def configuration_of(text) -> dict[str, str] | None:
+    """``configuration_text`` read back (task-0335): the {file: sha256} map, None when none was recorded (a load before
+    task-0335) or the property does not read as one."""
+    if not isinstance(text, str):
+        return None
+    try:
+        got = json.loads(text)
+    except ValueError:
+        return None
+    if not isinstance(got, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in got.items()):
+        return None
+    return dict(sorted(got.items()))
 
 
 def canonical_digest(value) -> str:
@@ -595,21 +615,22 @@ class Store:
         """Every ``Attestation``: id and ``ATTESTATION_FIELDS``, by id. Empty when the subject declares none."""
         raise NotImplementedError
 
-    INPUTS = ("attestations", "captures", "reviews")   # task-0320: what a load used beyond the documents, by name
+    INPUTS = ("attestations", "captures", "reviews", "configuration")   # task-0320: what a load used beyond the documents, by name; configuration, task-0335
 
     def record_inputs(self, row: dict) -> None:
         """Keep the digest of what a load used beyond the documents (task-0320, decision-0038 N2), ``row`` a map of some
         of ``INPUTS`` to a sha256 (hex): ``attestations`` the manifest's ``[verification]``, ``[provenance]`` and
         ``[capture]`` as read (``load_scenario``), ``captures`` the capture files applied (``load_captures``), ``reviews``
-        the review files applied (``load_reviews``). Kept on the tool's Agent node (``agent:harness``) as the property
+        the review files applied (``load_reviews``), ``configuration`` the subject's configuration files as read,
+        ``configuration_text`` of ``Subject.configuration`` (task-0335, decision-0039 §3.2). Kept on the tool's Agent node (``agent:harness``) as the property
         ``input_<name>``, never a node of its own, so the record's census is as before; writing one again replaces it,
         so stage 2 records what it read."""
         raise NotImplementedError
 
     def inputs(self) -> dict:
-        """``{attestations, captures}`` for the gate report (task-0320): ``attestations`` as recorded, ``captures``
-        ``inputs_digest`` of the captures and reviews recorded; each None when the store holds none (a load before
-        task-0320)."""
+        """``{attestations, captures, configuration}`` for the gate report (task-0320): ``attestations`` as recorded,
+        ``captures`` ``inputs_digest`` of the captures and reviews recorded, ``configuration`` the {file: sha256} map
+        recorded (task-0335); each None when the store holds none (a load before task-0320, or task-0335)."""
         raise NotImplementedError
 
     def clear_act_findings(self) -> None:

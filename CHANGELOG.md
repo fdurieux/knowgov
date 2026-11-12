@@ -86,6 +86,18 @@ names that section with the version.
   move S1 from PROCEED to BLOCKED with every identity field unchanged. With a baseline, the CLI report and MCP
   `gate_verdict` both carry `baseline.differs`, the identity fields that differ; the CLI's stderr lines stay. A
   register or build sub-field unknown on either side is never named.
+- **The gate report names the subject's configuration, and the trace report's gate block every input** (task-0335,
+  decision-0039 §3.2). Optional and additive, schema versions unchanged, so earlier reports still validate:
+  - `configuration`: the sha256 of each subject configuration file the load read, by its path: `subject.toml` whole,
+    `scenarios.toml`, the register map, and `plants.toml`, `queries.toml` and the verification map where read. It is
+    recorded in the store at the load and read back, equal on both stores and through export and import.
+  - `baseline.differs` and the CLI's stderr name `configuration` when it differs, the map compared whole: a file read
+    on one side only is a difference.
+  - The trace report's gate block gains `corpus`, `attestations`, `captures` and `configuration`, equal to the gate
+    report's.
+
+  Before, reducing a register map's rows (QUALIFIED to PROCEED as of 2027-02-07), setting `verifications = false`
+  for S1 (PROCEED to BLOCKED) or emptying `[rules] vague_words` left every identity field equal and `differs` empty.
 - **The corpus digest's lines are canonical JSON** (task-0320, decision-0038 N4): one `[artefact, version, sha256]`
   array per loaded Version, sorted. A tab or newline in an id, or null against "", can no longer collide. `corpus`
   is unreleased, so its values change once; the record does not hold it.
