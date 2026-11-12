@@ -66,6 +66,7 @@ def subjects() -> list[dict]:
         listed.append({"id": sid, "name": s.get("name", sid), "root": root.resolve(), "scenarios": _scenarios(root)})
     own = Path(SUBJECT.root).resolve()
     if not any(x["root"] == own for x in listed):   # the process's own subject is always answerable
+        listed = [x for x in listed if x["id"] != SUBJECT.id]   # task-0339: an id is named once, the default's
         listed.insert(0, {"id": SUBJECT.id, "name": SUBJECT.name, "root": own, "scenarios": list(SUBJECT.order)})
     first = [x for x in listed if x["root"] == own]
     return first + [x for x in listed if x not in first]

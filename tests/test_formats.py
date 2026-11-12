@@ -114,7 +114,7 @@ def test_a_subject_root_for_a_newer_knowgov_is_refused_by_every_reader_of_it():
         rep = check_subject.check(_subject(tmp / "d", None), None, set(), run_yield=False)
         assert rep["format"] == 1 and rep["exit_code"] == 0, rep
         _raises(lambda: check_subject.check(root, None, set(), run_yield=False), formats.FormatTooNew, "version = 2")
-        p = _py(ROOT / "tools" / "check_subject.py", root)
+        p = _py(ROOT / "tools" / "check_subject.py", root, "--register", ROOT / "demo" / "register")   # task-0339: an outside subject names its register
         assert p.returncode == 2 and "cannot run:" in p.stderr and "version = 2" in p.stderr and "Traceback" not in p.stderr, p.stderr
         # a [format] field the loader does not read is named, as any other
         odd = _subject(tmp / "e", 1)

@@ -179,13 +179,18 @@ def collect_mcp(sc: str, keys: list[str], expected: dict, failures: list[str], t
 def child(out: Path, cap: int | None, only: list[str] | None = None, transport: str = "stdio") -> int:
     sys.path.insert(0, str(HARNESS))
     import cadence
+    import instance_register
     from subject import SUBJECT
     from tasks import TASKS
     os.environ.update(cadence.pin_record({}))   # the record's day, the wall clock refused (task-0075)
     failures: list[str] = []
     ev: dict = {"subject": SUBJECT.id, "root": os.environ.get("KG_SUBJECT"), "store": (os.environ.get("KG_STORE") or "neo4j").lower(),
                 "register": os.environ.get("KG_REGISTER"), "timings_s": {}}
-    register = Path(os.environ.get("KG_REGISTER") or ROOT / "demo" / "register")
+    try:
+        register = cadence.register_root()   # task-0339: an instance subject with no KG_REGISTER is refused (RegisterUnnamed), never demo/register
+    except instance_register.RegisterUnnamed as e:
+        print(f"cannot run: {e}", file=sys.stderr)
+        return 2
 
     ev["walk"], ev["timings_s"]["walk"] = timed(collect_walk, SUBJECT, register, failures)
 
