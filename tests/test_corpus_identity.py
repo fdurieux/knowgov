@@ -67,6 +67,7 @@ def _env(root: Path | None = None) -> dict:
     env.pop("KG_RDFLIB_FILE", None)
     if root is not None:
         env.update(KG_SUBJECT=str(root), KG_SUBJECTS=str(root.parent))
+        env.setdefault("KG_REGISTER", str(HARNESS.parent / "demo" / "register"))   # a copy outside the checkout names its register (task-0334)
     return env
 
 

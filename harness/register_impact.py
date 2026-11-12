@@ -51,8 +51,14 @@ class ImpactError(ValueError):
 
 
 def register_root() -> Path:
+    """``cadence.register_root``; an instance's subject with no ``KG_REGISTER`` is ``RegisterUnreadable`` here,
+    so every reader that names an unreadable register names this too (task-0334, decision-0039 §3.1)."""
     import cadence
-    return cadence.register_root()
+    import instance_register
+    try:
+        return cadence.register_root()
+    except instance_register.RegisterUnnamed as e:
+        raise RegisterUnreadable(str(e)) from None
 
 
 class RegisterUnreadable(ImpactError):
@@ -98,10 +104,16 @@ def require(root: Path | None = None, by: str | None = None, tools: bool = True)
 
 
 def require_named(tools: bool = True) -> None:
-    """``RegisterUnreadable`` when ``KG_REGISTER`` names a register that cannot be read; nothing when it is unset."""
+    """``RegisterUnreadable`` when ``KG_REGISTER`` names a register that cannot be read, or is unset while the
+    subject lies outside this checkout (task-0334, decision-0039 §3.1: an instance reads its own register or
+    refuses); nothing when it is unset for a subject that ships here, whose default register is the command's own
+    business, as before."""
+    import instance_register
     n = named()
     if n:
         require(n[0], n[1], tools)
+    elif why := instance_register.unnamed():
+        raise RegisterUnreadable(why)
 
 
 @contextlib.contextmanager

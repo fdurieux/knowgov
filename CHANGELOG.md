@@ -29,6 +29,16 @@ names that section with the version.
 - `check_subject` reads a directory artefact's Versions as the load does (its `include`, per file): an edit or an added file within the include is one error naming the file, even when no listed digest is stale; an old digest kept beside the new one is told to be replaced; an empty `authored` or `approval` list is noted as attesting nothing (task-0319).
 
 ### Contract changes
+- **An instance reads its own register, or refuses** (task-0334, decision-0039 §3.1). Before, with `KG_REGISTER`
+  unset, every command fell back to the public register under `demo/register`, and neither `knowgov-gate.sh` nor
+  the Claude Code hook set it, so a client's verdicts, review months and accepted givers followed the public
+  register. Now a command whose subject (`KG_SUBJECT`, `--subject`) lies outside the knowgov checkout, with
+  `KG_REGISTER` unset, exits 2 naming `KG_REGISTER`: `gate_cli`, `run`, `trace`, `capture`, `register_nodes`,
+  `upward`, `proposal_impact`, the MCP reader at start, and through them `register_impact` and the review months.
+  `knowgov-gate.sh` (so both CI templates) and the hook pass `<instance>/register` unless one is set. The public
+  subjects inside the checkout keep `demo/register`, so the record does not move.
+  - **What an adopter does:** keep the register at `<instance>/register`, or set `KG_REGISTER`; set it too when
+    you run a command by hand.
 - **An execution verification also binds to the code it ran and the suite that judged it** (task-0320,
   decision-0038 N-b). Before, `evidence_sha256` recorded the reference code, but nothing compared it: editing
   `reference_impl.py` kept every execution verification and PROCEED.

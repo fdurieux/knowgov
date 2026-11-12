@@ -77,7 +77,10 @@ cd demo && docker compose up -d --build --wait   # the stack; CI loads S1 determ
   fixtures land only in a temporary example instance; nothing under `harness/` or `demo/app` names the vendor (task-0063).
 - The register the page reads is `KG_REGISTER` (default `demo/register`, the public register
   vendored at a tag): one register per organisation, shared by every subject of it; an
-  instance mounts its own checkout read-only (`demo/docker-compose.instance.yml`). A subject
+  instance mounts its own checkout read-only (`demo/docker-compose.instance.yml`). A subject outside
+  the checkout with `KG_REGISTER` unset is refused, exit 2 naming it, by every register reader
+  (`harness/instance_register.py` through `cadence.register_root` and `register_impact.require_named`);
+  `knowgov-gate.sh` and the hook pass `<instance>/register` unless one is set (task-0334, decision-0039 §3.1). A subject
   joins it through its own `register_map.toml` and `export_manifest`; no module under
   `demo/app` names a register path or an export folder (`tests/test_subject.py` guards the
   subject's export date as it guards its names).
