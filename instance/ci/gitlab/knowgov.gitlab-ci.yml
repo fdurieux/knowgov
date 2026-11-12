@@ -21,7 +21,7 @@
 .knowgov-gate:
   image: python:3.12@sha256:17b9724493d916f56565c131f389faff2597f46dec6ce09516f95125bc9f519f   # tag and index digest (task-0092)
   variables:
-    KNOWGOV_REF: v0.8.0        # this include's release, held equal to VERSION (tests/test_ci_wrappers.py)
+    KNOWGOV_REF: v0.9.0        # this include's release, held equal to VERSION (tests/test_ci_wrappers.py)
     KNOWGOV_PIP: "pumllint==0.35.0 rdflib==7.6.0 pyshacl==0.40.2 pyyaml==6.0.3"   # the tag's harness.yml pins; for Neo4j add "neo4j==6.4.1"
     KG_GATE: gate              # preload, gate, trace-check or trace-register
     KG_INSTANCE: instance

@@ -8,7 +8,32 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
-## Unreleased
+## 0.9.0 — 2026-11-12
+
+0.9.0 is the contract freeze (decision-0016). The contracts an instance relies on are fixed here: 0.9.x
+carries fixes only, and any contract change is 0.10.0 and restarts the freeze. An instance now reads its
+own register or refuses: a subject outside the checkout with `KG_REGISTER` unset exits 2, and the CI script
+and the hook pass `<instance>/register`. What the gate counts as verified is bound to what it was verified
+on: an attestation to the document Versions it lists (decision-0019, decision-0036); an execution
+verification also to the raw-byte digests of the reference implementation and of the suite, the files
+`[oracle] suite` declares included (decision-0038, decision-0039); a review to the giver of the answer it
+ruled on; a person's act to what it ruled on. The gate report, schema version 3, names what it decided
+on: the task profile, the register's tag, commit and files, the knowgov build, the corpus, the
+attestations, the captures applied, the subject's configuration, the code and suite compared and the
+pre-load report applied. `--baseline` names each identity field that differs, on the CLI and in MCP
+`gate_verdict`, and the trace report's gate block carries the same fields. There is one rule each for a
+knowledge key (`entity|attribute`, stored in NFC, characters up to U+FFFF), a scenario id, a task class's
+name and a date; an instance's input files carry a format version (missing reads as 1, a newer one is
+refused with exit 2); and one table says which `KG_*` settings are contracts. The gate command loads into
+a private store unless `--publish`; one reader answers for every subject, by id; a conflict's id names its
+two statements; a file Version's digest is over its raw bytes; a task class may require approved (the
+intended bar), a pre-load finding on a loaded document is a gap with an owner and a route, and a kit
+statement says what it claims (decision-0018); `register_impact` walks the thread. Arms runs now need
+Landlock ABI 3 (Linux 6.2). Both servers cap a response's size, a Neo4j load that would not fit the
+server's transaction memory is refused before it starts, and a reader recovers from an abandoned Neo4j
+publication.
+
+### Fixes and clarifications before the cut
 
 - `instance/README` states what the Claude Desktop test showed (task-0148): Desktop lists the `new_subject` and `add_artefact` prompts, attaches them with their arguments, and runs `subject_check` on a proposed subject, reading the findings back with their fixes. Onboarding stays Claude Code's, because Chat has no shell for the gate's dry run and opens no pull request. The guide also names `Server transport closed unexpectedly` (the stack was restarted under a connected Desktop) and its remedy.
 - An execution attestation binds every file it lists and only the instance's (task-0340, task-0338 residues): a listed implementation or suite digest that no current file holds (a file deleted from a listed directory) verifies nothing by execution and is named by the gate's attestation finding and `check_subject`; the load refuses a code, script or suite path outside the instance, exit 2; the attestation hook refuses an assistant write that changes `[oracle] script` or `[reference] code` while `[verification]` stays; `check_subject` notes a script also listed in `[oracle] suite`.
@@ -31,7 +56,7 @@ names that section with the version.
 - `check_subject`: an empty `versions` in `execution` or `review` is noted as verifying nothing, as a missing one is; an edited document is one error per artefact and declaration, naming the artefact and its new digest, not one per stale digest (task-0318).
 - `check_subject` reads a directory artefact's Versions as the load does (its `include`, per file): an edit or an added file within the include is one error naming the file, even when no listed digest is stale; an old digest kept beside the new one is told to be replaced; an empty `authored` or `approval` list is noted as attesting nothing (task-0319).
 
-### Contract changes
+### Contract changes (why this is 0.9.0, decision-0003)
 - **`register_impact` walks the thread** (task-0336, decision-0039 §3.3): `walk` takes `thread` beside
   `dependants` and `realisers`, the register's own THREAD walk (`tools/impact.py --walk thread`: a journey step to its
   process, the process to the capability it realises, the applications that support it and the information it reads
@@ -1250,6 +1275,107 @@ names that section with the version.
   proves its own key only, and LiteLLM's `/health` would make a paid call, so the Anthropic key is first
   tested by a run. Each row in `GET /api/scenarios` and knowgov-runs' `run_options` carries
   `key_check`, and `demo/models.toml` gains an optional `gateway` field. Both are additive.
+
+### What this release carries
+
+| what | version |
+|---|---|
+| pumllint (the sequence-diagram mapper's parser) | 0.35.0, from PyPI (0.33.0 in 0.8.0) |
+| the IEAM register, vendored under `demo/register/` | ieam-register `v0.2.13` (`v0.2.11` in 0.8.0) |
+| the record's pins | otherwise unchanged from 0.8.0 |
+| Python | 3.12 in the image |
+
+The image is `ghcr.io/fdurieux/knowgov:v0.9.0`, and it names its own build (task-0227). The compose
+file pins v0.8.0 by its index digest for `app` and `worker`, and moves to v0.9.0's digest in a follow-up,
+once the Release has published it; until then the published compose runs v0.8.0.
+
+### Known limits
+
+Platform and stores:
+- Contained execution, which Arms runs need, requires Linux with Landlock ABI 3 or later (Linux 6.2) and
+  a container engine that runs the compose `worker` service under `--profile arms`. Below ABI 3 the worker
+  refuses to serve and every Arms run is refused; Docker Desktop for Mac 4.48.0's kernel has no Landlock.
+  The route attested is an EC2 instance with Ubuntu Server 24.04 (`demo/README.md`). The page,
+  deterministic runs, the gate and the MCP server are unaffected. `KG_ALLOW_UNCONTAINED_EXECUTION=1` is
+  the only escape, and it runs the code on the host.
+- A worker whose clean-up cannot confirm a job's processes gone within 10 seconds exits with code 4, and
+  Arms runs are refused until it is restarted by hand; nothing restarts it (task-0238).
+- Neo4j keeps no earlier generation: a reader open across a publication is refused and read again, and one
+  that cannot get a whole generation within `KG_STORE_READ_ATTEMPTS` refuses (`gate_cli` exit 2, an MCP
+  error result, 503 on the page). While a killed writer's lease is live, reads wait up to
+  `KG_NEO4J_READ_WAIT` seconds, then refuse; once the lease has run out, the next reader recovers.
+- The server's transaction memory bounds a Neo4j load. A load forecast over it is refused before its first
+  write (exit 2). The forecast is measured on Neo4j 5.26 Community and over-reads a run of several scenarios
+  by up to about two times; `KG_LOAD_MEMORY_CHECK=off` is the answer when it refuses a load that would fit.
+  `instance/README.md` states the heap an instance needs.
+- Terminating a stale writer's transaction needs a role allowed to run `TERMINATE TRANSACTIONS`; without
+  it the epoch check still refuses that writer's commit, but its open transaction holds its locks until its
+  connection ends.
+- One MCP process holds one parsed rdflib store, the latest publication only: about 15 MB for CargoQuote
+  S1 and 82 MB for J-F C.
+- A store-backed tool answers only for the subject whose scenario the store holds; for another subject it
+  refuses, naming the run that would load it (task-0164). A call naming another subject runs a child
+  process: about 0.4 s a call on Neo4j (p95 0.51 s), bounded by `KG_SUBJECT_CALL_TIMEOUT`.
+- A file-backed store supports its writers on POSIX with `flock`, on a local disk.
+- A page older than task-0167, which reports no `execution`, reads as refused to `knowgov-runs`.
+- The MCP server's HTTP transport binds IPv4 only. On a loopback address it needs no token unless
+  `KG_MCP_TOKEN` is set, so every local user of the host can read it.
+- The rdflib store has no console: Neo4j Browser and the saved queries need Neo4j.
+
+What a verification means:
+- No oracle runs when the documents load. An execution verification is the result the subject attests,
+  bound to the document Versions, implementation and suite digests it lists; listing them asserts that the
+  suite passed on that code for those Versions, and knowgov cannot check it. Re-listing an edited document's
+  digest with the implementation and suite unchanged asserts the old result for the new values. The suite
+  judges the implementation and does not read the documents.
+- The implementation and suite files are bound by their digests, not by their names or their number: a
+  rename with the same bytes passes, and so does deleting one of two byte-identical files.
+- `suite` binds the oracle script and the files `[oracle] suite` lists. A file the script reads that the
+  manifest does not list is not bound, and no import is followed.
+- An execution verification's `at` is when the load recorded the attestation, not when a run happened; the
+  run is identified by its digests. A `[verification]` declaration carries one `at`, so one document's
+  re-review cannot be dated apart from the others there; `capture.py review` rules on it on its own date.
+- Handles are self-asserted. `capture.py review` accepts any issued handle with `approves` (or `closes`)
+  that the review file names, whoever runs it; only the pull request's review guards an approval.
+- With its capture file gone, a ruling's recorded `giver` is checked against a reading of the answer id's
+  stem only: where the stem reads as two issued givers (`…-ops-2`), a `giver` edited from one reading to the
+  other still binds.
+- The attestation hook sees a write by Edit, Write, MultiEdit or NotebookEdit, not a shell command writing
+  the same file, and it reads capture- or review-shaped content in `.toml` files only. The pre-load check,
+  the review files and the pull request are the backstop.
+- Two approved readings of one key in `k=v;k=v` form that agree on the fields they share (one a subset of
+  the other) are not a conflict, and `three_valued_answer` returns both.
+- A statement's `version` is the first Version that yielded it: stage 2 carries a statement forward when its
+  value and fragments are unchanged, where a fresh load binds every statement to the current Version.
+- Keys use characters up to U+FFFF only.
+
+Change and identity:
+- A register change is read only when the previous register is given: the gate's `--register-previous`,
+  the page's `KG_REGISTER_PREVIOUS`. The CI template passes none. Passed to the gate, it stales the keys
+  the change touched on every run, reviewed captures included, so the capture route cannot restore such a
+  key; moving the previous register forward clears it.
+- `code`, `configuration` and a file Version's digest are over raw bytes, so a whitespace or comment edit
+  moves them and `--baseline` names it; `configuration` and `code` key each file by the path the manifest
+  gives.
+- `trace.py check` fails at `blocker` by default, so a pipeline stops on a changed registered file
+  (`drift`, minor) only with `--fail-on minor`.
+- Code reaches knowledge file by file, not by function. There is no read of the keys one owner holds, of
+  what approving a document Version would change, or of what withdrawing a link would: a proposal overlay
+  only adds.
+- `proposal_impact`'s branch mode reads a branch's additions only. A node changed in place is read as
+  reused; a node deleted or moved to `retired` or `deprecated`, and a link changed or removed, is listed
+  under `not_read`.
+- A proposal's slices are as fine as the register's links: steps supported only by one end-to-end process
+  share one thread.
+- The subject check compares keys with the documents' yield only where the mappers run.
+- A run folder from before `run.json` is inferred: its status, start and initiator are unknown.
+
+Not yet proven on a real installation:
+- The connector has run only on the synthetic CargoQuote export (task-0063).
+- The GitLab include is proven by shell, not yet on a GitLab runner (task-0108).
+
+Fix-only residues found by the reviews before the cut are tasked for 0.9.x (task-0311 to task-0315,
+task-0323, task-0329).
 
 ## 0.8.0 — 2026-11-06
 
