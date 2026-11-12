@@ -390,6 +390,14 @@ def code_digests(m: dict, root: Path, which: str) -> tuple[str | None, dict[str,
     return rel, files
 
 
+def _script_in_suite(rep: Report, o: dict, v: list) -> None:
+    """task-0340 R4: the script is also a path ``[oracle] suite`` lists, which binds it twice and says nothing more."""
+    s = o.get("script")
+    if isinstance(s, str) and s in v:
+        rep.note("path", "[oracle] suite", f"also lists the script {s}, which the suite digest binds already",
+                 "list the files the script reads beside it")
+
+
 def check_oracle_suite(rep: Report, m: dict, root: Path) -> None:
     """task-0338 (decision-0039 §3.5): ``[oracle] suite``, optional, lists the files the suite reads beside its script
     (its expectations), each digested into ``[verification] execution``'s ``suite``; each a relative path inside the
@@ -402,6 +410,7 @@ def check_oracle_suite(rep: Report, m: dict, root: Path) -> None:
         rep.error("path", where, "is not a list of paths (strings, relative to the subject root)",
                   'list the files the suite reads beside its script, e.g. suite = ["tests/expectations.py"]')
         return
+    _script_in_suite(rep, o, v)
     for x in sorted(set(v)):
         p = Path(x)
         inside = not p.is_absolute() and "\\" not in x and (root / p).resolve().is_relative_to(root.resolve().parent.parent)
@@ -440,7 +449,12 @@ def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, t
                   f"list each file's raw-byte digest: {which} = {json.dumps(now)}")
         return
     miss = {r: d for r, d in sorted(files.items()) if not d or d not in listed}
-    if miss or not files:
+    stale = sorted(d for d in listed if d not in set(files.values()))   # task-0340 R1, as a document's "matches no current Version"
+    if stale:
+        rep.error("attestation", where, f"{which} lists {', '.join(stale)}, which matches no current file of [{table}] {field} "
+                  f"{rel}: a file was deleted or changed, so the load verifies nothing by execution (decision-0038)",
+                  "run the suite again and list the digests of the files as they are, or restore the file")
+    if miss or (not files and not stale):
         from subject import suite_files
         also = " or a file [oracle] suite lists" if which == "suite" and suite_files(m.get("oracle")) else ""   # task-0338
         rep.error("attestation", where, f"[{table}] {field} {rel}{also} changed since the execution was attested: "
