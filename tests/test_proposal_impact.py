@@ -823,7 +823,7 @@ def test_the_command_and_the_mcp_tool_take_the_scope_alone_and_agree():
     assert text.startswith("scope JRN-0001 (journey") and "read as it is: no overlay" in text and "keys " in text
     bad = subprocess.run([sys.executable, str(ROOT / "harness" / "proposal_impact.py"), "--no-store"], capture_output=True, text=True, env=env, cwd=ROOT)
     assert bad.returncode == 2 and "--scope" in bad.stderr
-    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
+    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## 0.9.0 ", 1)[1].split("\n## ", 1)[0]
     contract = log.split("### Contract changes", 1)[1].split("### Changes", 1)[0]
     assert "task-0191" in contract and "scope" in contract
 
@@ -906,5 +906,5 @@ def test_with_a_scenario_held_a_design_slice_reads_the_design_gates_levels_and_i
         assert "design" in str(e)
     else:
         raise AssertionError("a design report levelled under codegen")
-    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
+    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## 0.9.0 ", 1)[1].split("\n## ", 1)[0]
     assert "task-0252" in log.split("### Contract changes", 1)[1].split("### Changes", 1)[0]

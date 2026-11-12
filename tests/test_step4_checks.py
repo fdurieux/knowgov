@@ -147,7 +147,7 @@ def test_a_document_only_a_check_judged_is_judged_by_it_and_its_findings_are_lin
 
 
 def test_the_changelog_names_it_and_the_trace_runs_on_the_pinned_pumllint():
-    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
+    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## 0.9.0 ", 1)[1].split("\n## ", 1)[0]
     assert "task-0217" in log
     for f in ("tools/step4_checks.py", "tools/check_preload_linters.py", "instance/README.md"):
         assert "KG_PUMLLINT_TRACE" not in (ROOT / f).read_text(encoding="utf-8"), f   # no side install: the pin is the trace's

@@ -73,7 +73,7 @@ def test_a_report_level_off_the_ladder_is_named_never_the_store():
 
 
 def test_the_changelog_names_it_under_contract_changes():
-    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
+    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## 0.9.0 ", 1)[1].split("\n## ", 1)[0]
     assert "task-0286" in log.split("### Contract changes", 1)[1].split("### Changes", 1)[0]
 
 

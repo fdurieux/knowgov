@@ -140,7 +140,7 @@ def test_a_relint_at_the_same_tool_versions_shows_the_delta():
 
 
 def test_the_changelog_names_it_under_contract_changes_and_the_check_runs_in_both_workflows():
-    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
+    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## 0.9.0 ", 1)[1].split("\n## ", 1)[0]
     contract = log.split("### Contract changes", 1)[1].split("### Changes", 1)[0]
     assert "task-0216" in contract and "lint" in contract
     for wf in ("harness.yml", "demo.yml"):

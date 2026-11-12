@@ -79,5 +79,5 @@ def test_the_description_and_the_schema_say_what_the_field_is():
     schema = json.loads((ROOT / "harness" / "schemas" / "held-keys.schema.json").read_text(encoding="utf-8"))
     assert "own required keys" in schema["properties"]["gate"]["description"]
     assert "whatever the store holds" in schema["properties"]["gate"]["description"]
-    assert "task-0292" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
-    assert "task-0283" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
+    assert "task-0292" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## 0.9.0 ", 1)[1].split("\n## ", 1)[0]
+    assert "task-0283" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## 0.9.0 ", 1)[1].split("\n## ", 1)[0]
