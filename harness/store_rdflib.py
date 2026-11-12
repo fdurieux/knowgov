@@ -49,7 +49,7 @@ from urllib.parse import quote, unquote
 
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
 
-from store import (DEAD, DOCUMENT_BASES, DUPLICATE, Store, StoreBusy, StoreCorrupt, StoreFenced, StoreReadOnly, by_content, by_id, held_from,
+from store import (DEAD, DOCUMENT_BASES, DUPLICATE, Store, StoreBusy, StoreCorrupt, StoreFenced, StoreReadOnly, by_content, by_id, held_from, inputs_digest,
                    changed_of, part_list, part_rows, stem, suspect_rows, suspicion)
 
 try:
@@ -1074,6 +1074,15 @@ class RdflibStore(Store):
     def attestations(self) -> list[dict]:
         return by_id([json.loads(self.prop(a, f"attestation_{d}")) for a in self.nodes("Agent") for d in ("approval", "authored", "execution", "review")
                       if self.prop(a, f"attestation_{d}")])
+
+    def record_inputs(self, row) -> None:
+        h = self.node("agent:harness", "Agent")
+        if h is not None:
+            self.set_props(h, {f"input_{k}": row[k] for k in self.INPUTS if k in row})
+
+    def inputs(self) -> dict:
+        h = self.node("agent:harness", "Agent")
+        return inputs_digest({f"input_{k}": self.prop(h, f"input_{k}") for k in self.INPUTS} if h is not None else {})
 
     def clear_act_findings(self) -> None:
         for a in list(self.nodes("ActFinding")):

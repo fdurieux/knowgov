@@ -26,8 +26,8 @@
    "floor": 58
   },
   "demo/app/register_view.py::impact": {
-   "value": 33,
-   "floor": 33
+   "value": 27,
+   "floor": 27
   },
   "demo/app/server.py::Handler._get": {
    "value": 50,
@@ -174,8 +174,8 @@
    "floor": 18
   },
   "harness/gate_cli.py::attestation_findings": {
-   "value": 25,
-   "floor": 25
+   "value": 21,
+   "floor": 21
   },
   "harness/gate_cli.py::evaluate": {
    "value": 19,
@@ -206,8 +206,8 @@
    "floor": 19
   },
   "harness/load.py::load_reviews": {
-   "value": 47,
-   "floor": 47
+   "value": 33,
+   "floor": 33
   },
   "harness/load.py::load_scenario": {
    "value": 62,
@@ -262,8 +262,8 @@
    "floor": 22
   },
   "harness/proposal_impact.py::branch_overlay": {
-   "value": 35,
-   "floor": 35
+   "value": 30,
+   "floor": 30
   },
   "harness/proposal_impact.py::candidates": {
    "value": 97,
@@ -441,10 +441,6 @@
    "value": 31,
    "floor": 31
   },
-  "instance/ci/claude/attestation_paths.py::check": {
-   "value": 22,
-   "floor": 22
-  },
   "instance/ci/claude/knowgov_hook.py::_stages_spec": {
    "value": 33,
    "floor": 33
@@ -559,12 +555,12 @@
    "floor": 16
   },
   "tools/check_register_change.py::main": {
-   "value": 73,
-   "floor": 73
+   "value": 72,
+   "floor": 72
   },
   "tools/check_round_trip.py::check": {
-   "value": 18,
-   "floor": 18
+   "value": 17,
+   "floor": 17
   },
   "tools/check_round_trip.py::differences": {
    "value": 34,

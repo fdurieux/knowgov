@@ -70,6 +70,70 @@ def bundle_files(root: Path, include: list[str] | None = None) -> list[tuple[str
     return out
 
 
+REFERENCE_INCLUDE = ["*.py", "**/*.py"]   # the files of a reference implementation directory the load bundles and digests
+
+
+class CodePathOutside(Exception):
+    """A code or suite path leaving the instance (task-0340 R2); exits 2 under cli_exit, the message the cause."""
+
+
+def suite_files(oracle) -> list[str]:
+    """``[oracle] suite`` (task-0338, decision-0039 §3.5): the files the suite reads beside ``[oracle] script``, its
+    expectations among them, as the manifest names them relative to the subject root, sorted by path; [] when the
+    field is missing or holds no string (check_subject names a malformed one)."""
+    v = oracle.get("suite") if isinstance(oracle, dict) else None
+    return sorted({x for x in v if isinstance(x, str) and x}) if isinstance(v, list) else []
+
+
+def _file_digests(p: Path, include: list[str] | None, prefix: str) -> dict[str, str]:
+    """Each file of ``p`` by its path (``prefix`` for a file, ``prefix/<relative>`` for a directory's, the relative
+    path alone with no prefix), with the SHA-256 of its raw bytes; {} when ``p`` is neither."""
+    if p.is_file():
+        return {prefix: hashlib.sha256(p.read_bytes()).hexdigest()}
+    fs = bundle_files(p, include) if p.is_dir() else []
+    return {(f"{prefix.rstrip('/')}/{r}" if prefix else r): hashlib.sha256(f.read_bytes()).hexdigest() for r, f in fs}
+
+
+def code_files(root: Path, reference, oracle, which: str) -> tuple[str | None, dict[str, str], dict[str, str]]:
+    """(the path, each file's raw-byte SHA-256 by relative path, the declared suite files' share of them) of what an
+    execution verification ran (task-0320, decision-0038 N-b), from a manifest's ``[reference]`` and ``[oracle]``
+    tables: ``implementation``, ``[reference] code``, the files ``reference_code`` bundles; ``suite``, ``[oracle]
+    script`` (a file one entry named '') and, task-0338 (decision-0039 §3.5), each path ``[oracle] suite`` lists in
+    sorted path order, keyed by that path (a directory's files under it), one that holds no file keyed with the digest
+    '', which no listing holds. (None, {}, {}) when the manifest declares none; ``[oracle] suite`` missing, the suite
+    is the script alone, as before. One reading for the load (``Subject.code_parts``) and ``check_subject``."""
+    table = reference if which == "implementation" else oracle
+    rel = table.get("code" if which == "implementation" else "script") if isinstance(table, dict) else None
+    if not isinstance(rel, str) or not rel:
+        return None, {}, {}
+    parts = _file_digests(root / rel, REFERENCE_INCLUDE if which == "implementation" else None, "")
+    declared: dict[str, str] = {}
+    for extra in suite_files(oracle) if which == "suite" else []:
+        declared.update(_file_digests(root / extra, None, extra) or {extra: ""})
+    return rel, {**parts, **declared}, declared
+
+
+def code_digests(root: Path, reference, oracle) -> dict[str, str]:
+    """The code identity (task-0341, decision-0040 (a)): the raw-byte SHA-256 of each file ``code_files`` reads for
+    ``implementation`` and ``suite``, the load's part selection, keyed by its path under the subject root as the
+    manifest names it (``[reference] code`` or ``[oracle] script`` for a file, ``<it>/<relative>`` for a directory's,
+    each ``[oracle] suite`` path as listed), sorted; a file that is not there left out. {} when the manifest declares
+    neither."""
+    out: dict[str, str] = {}
+    for which in ("implementation", "suite"):
+        rel, parts, declared = code_files(root, reference, oracle, which)
+        out.update({_code_path(rel, k, declared): d for k, d in parts.items() if d})
+    return dict(sorted(out.items()))
+
+
+def _code_path(rel: str, key: str, declared: dict[str, str]) -> str:
+    """A ``code_files`` key as its path under the subject root: a listed suite path as listed, ``rel`` itself for a
+    file (the key ''), ``rel/<key>`` for a directory's file."""
+    if key in declared:
+        return Path(key).as_posix()
+    return Path(f"{rel.rstrip('/')}/{key}" if key else rel).as_posix()
+
+
 def bundle(root: Path, include: list[str] | None = None) -> str:
     """Every file ``bundle_files`` names, in path order, each prefixed by its marker line and ended
     by a newline (added when the file lacks one, so a part's text is not always its file's bytes)."""
@@ -86,6 +150,16 @@ DEFAULT = ROOT / "subjects" / "cargo_quote"
 
 def _toml(p: Path) -> dict:
     return tomllib.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+
+
+def _toml_read(p: Path) -> tuple[dict, str | None]:
+    """``_toml`` and the sha256, hex, of the raw bytes it parsed (task-0335, decision-0039 §3.2): None for a file that
+    is not there. The text is decoded as ``read_text`` decodes it, universal newlines, so the parse is ``_toml``'s."""
+    if not p.exists():
+        return {}, None
+    raw = p.read_bytes()
+    text = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    return tomllib.loads(text), hashlib.sha256(raw).hexdigest()
 
 
 MANIFESTS = ("subject.toml", "scenarios.toml")   # what a reader of a subject watches for an edit (task-0206)
@@ -110,7 +184,8 @@ class Subject:
         if not (self.root / "subject.toml").exists():
             raise FileNotFoundError(f"{self.root} holds no subject.toml")
         self.stamp = stamp(self.root)   # read before the files, so an edit while they are read leaves it stale
-        m = _toml(self.root / "subject.toml")
+        self._read: dict[str, str] = {}   # task-0335: each configuration file's digest, as read (``configuration``)
+        m = self._config("subject.toml")
         import formats   # task-0174, decision-0023: one version for the root's configuration, a newer one refused
         self.format: int = formats.version(m, (self.root / "subject.toml").as_posix(), formats.SUBJECT)
         self.manifest = m
@@ -121,16 +196,16 @@ class Subject:
         self.record_model: str = s.get("record_model", "")
         self.record_effort: str = s.get("record_effort", "")   # the reasoning effort the record's arms ran at; "" is the API default (task-0028)
         self.artefacts: list[dict] = list(m.get("artefact", []))
-        sc = _toml(self.root / "scenarios.toml")
+        sc = self._config("scenarios.toml")
         import scenario_ids   # task-0295, decision-0034 choice 2: an id the pattern refuses, a duplicate or none stops the load
         scenario_ids.check(sc.get("scenario", []), (self.root / "scenarios.toml").as_posix())
         self.scenarios: dict[str, dict] = {x["id"]: x for x in sc.get("scenario", [])}
         self.order: list[str] = list(self.scenarios)
-        pl = _toml(self.root / "plants.toml")
+        pl = self._config("plants.toml")
         self.plants: dict[str, list[dict]] = pl.get("plant", {})
         self.stage2_plants: dict[str, list[dict]] = pl.get("stage2", {})
         self.inferred: dict | None = pl.get("inferred")
-        self.queries: list[dict] = list(_toml(self.root / "queries.toml").get("query", []))
+        self.queries: list[dict] = list(self._config("queries.toml").get("query", []))
         self.reference: dict = m.get("reference", {})
         self.oracle: dict = m.get("oracle", {})
         self.provenance: dict = m.get("provenance", {})
@@ -153,6 +228,28 @@ class Subject:
         self.capture_dir: Path = self.root / m.get("capture", {}).get("dir", "captures")
 
     # ---- paths and files
+    def _config(self, rel: str) -> dict:
+        """A configuration file of the root, parsed, its raw digest kept under ``rel`` as named (task-0335)."""
+        m, digest = _toml_read(self.path(rel))
+        name = Path(rel).as_posix()
+        if digest is None:
+            self._read.pop(name, None)
+        else:
+            self._read[name] = digest
+        return m
+
+    def configuration(self) -> dict[str, str]:
+        """The subject's configuration as a load reads it (task-0335, decision-0039 §3.2): the sha256, hex, of the raw
+        bytes of each configuration file read, by its path under the root as the manifest names it: ``subject.toml``
+        whole and ``scenarios.toml``, ``plants.toml`` and ``queries.toml`` as this Subject read them, and the register
+        map (``[register] map``) and the verification map (``[verification] map``) as read now, the gate's reads of
+        them; a file that is not there is left out. Recorded at each load (``Store.record_inputs``), read by the gate
+        report's ``configuration``."""
+        for rel in (self.register.get("map"), self.verification.get("map")):
+            if isinstance(rel, str) and rel:
+                self._config(rel)
+        return dict(sorted(self._read.items()))
+
     def path(self, rel: str) -> Path:
         return self.root / rel
 
@@ -233,7 +330,44 @@ class Subject:
         if not rel:
             return ""
         p = self.path(rel)
-        return bundle(p, ["*.py", "**/*.py"]) if p.is_dir() else p.read_text(encoding="utf-8")
+        return bundle(p, REFERENCE_INCLUDE) if p.is_dir() else p.read_text(encoding="utf-8")
+
+    def code_parts(self, which: str) -> tuple[str | None, dict[str, str]]:
+        """(the path, each file's raw-byte SHA-256 by relative path) of what an execution verification ran (task-0320,
+        decision-0038 N-b): ``implementation``, ``[reference] code``, the files ``reference_code`` bundles; ``suite``,
+        ``[oracle] script``, the suite that judged it, with the files ``[oracle] suite`` lists (task-0338). Each digested
+        as a directory artefact is (``bundle_files``, the load's own part selection; a file one entry named '');
+        ``code_files``. (None, {}) when the subject declares none."""
+        rel, parts, _declared = code_files(self.root, self.reference, self.oracle, which)
+        return (None if rel is None else str(rel)), parts
+
+    def require_code_inside(self) -> None:
+        """task-0340 R2 (decision-0039 §3.5): ``[reference] code``, ``[oracle] script`` and each ``[oracle] suite`` path
+        lie inside the instance (relative, at most ../../ up), as ``check_subject`` requires; else ``CodePathOutside``."""
+        top = self.root.resolve().parent.parent
+        for name, table, field in (("[reference] code", self.reference, "code"), ("[oracle] script", self.oracle, "script")):
+            v = table.get(field) if isinstance(table, dict) else None
+            paths = [(name, v)] if isinstance(v, str) and v else []
+            paths += [("[oracle] suite", x) for x in suite_files(self.oracle)] if field == "script" else []
+            for where, x in paths:
+                if Path(x).is_absolute() or "\\" in x or not (self.root / x).resolve().is_relative_to(top):
+                    raise CodePathOutside(f"{self.id}: {where} names {x}, which is not a relative path inside the subject's "
+                                          "instance; the load digests no file outside it (decision-0039 §3.5)")
+
+    def code(self) -> dict[str, str] | None:
+        """The code and suite an execution verification is compared against, as the load reads them now (task-0341,
+        decision-0040 (a)): ``code_digests``; None, unknown, when a path lies outside the instance (``require_code_inside``:
+        no file outside it is digested). Recorded at each load (``Store.record_inputs``), read by the gate report's
+        ``code``."""
+        try:
+            self.require_code_inside()
+        except CodePathOutside:
+            return None
+        return code_digests(self.root, self.reference, self.oracle)
+
+    def suite_declared(self) -> dict[str, str]:
+        """The files ``[oracle] suite`` lists, each with its raw-byte SHA-256 ('' when it holds no file), by path."""
+        return code_files(self.root, self.reference, self.oracle, "suite")[2]
 
     def oracle_script(self) -> Path | None:
         rel = self.oracle.get("script")
@@ -245,7 +379,7 @@ class Subject:
 
     def verification_map(self) -> dict:
         rel = self.verification.get("map")
-        m = _toml(self.path(rel)) if rel else {}
+        m = self._config(rel) if rel else {}
         import key_rule   # task-0301: the keys it verifies in NFC, as the store holds them
         for scen, keys in list((m.get("execution") or {}).items()):
             m["execution"][scen] = key_rule.normalise_all(keys)
@@ -268,7 +402,7 @@ class Subject:
 
     def register_map(self) -> dict:
         rel = self.register.get("map")
-        m = _toml(self.path(rel)) if rel else {}
+        m = self._config(rel) if rel else {}
         import key_rule   # task-0301: each row's key in NFC, as the store holds it
         for row in m.get("row", []) if isinstance(m.get("row"), list) else []:
             if isinstance(row, dict) and "key" in row:

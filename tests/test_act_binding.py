@@ -257,7 +257,7 @@ def test_a_review_of_an_ambiguous_stem_is_refused_at_write_time_task_0310():
     rows = [_answer("2026-11-05-ORG-0002-ops-2", 1, "ops-2")]
     errs, rv = _ops_check(aid, rows)
     msg = " ".join(errs)
-    assert "ops-2" in msg and "ops's second" in msg and "decision pending, 2026-11-10" in msg, errs
+    assert "ops-2" in msg and "ops's second" in msg and "decision-0038" in msg and "no capture file holds" in msg, errs
     assert rv["rulings"] == [], rv
     errs, rv = _ops_check(aid, rows, {"assertion": aid, "outcome": "approved"})   # the reviewer's input: no key, value, sha256
     assert any("two givers" in e for e in errs) and rv["rulings"] == [], (errs, rv)
@@ -267,3 +267,222 @@ def test_a_single_reading_stem_is_still_accepted_at_write_time_task_0310():
     aid = "A:cap:2026-11-05-ORG-0002-employee-1:1@capture"
     errs, rv = _ops_check(aid, [_answer("2026-11-05-ORG-0002-employee-1", 1, "employee-1")])
     assert not any("two givers" in e for e in errs) and [r["statement"] for r in rv["rulings"]] == [aid], (errs, rv)
+
+
+def _load_check(aid, giver, captures, rows=None):
+    """A load (not strict) of one ruling that records ``giver``."""
+    ru = {**_answer_ruling(aid), "giver": giver}
+    doc = {"review": {"by": "employee-2", "on": "2026-11-05", "record": "m.md"}, "ruling": [ru]}
+    return review.check(doc, Store(rows if rows is not None else []), handles=HANDLES, owners={"response|hold_presence": ["ORG-0002"]},
+                        units={}, captures=captures, now=dt.date(2026, 11, 5),
+                        compatible=lambda a, b, _p="": "equal" if a == b else "conflict", strict=False)[1]
+
+
+def test_a_recorded_giver_the_load_cannot_confirm_is_an_act_task_0321():
+    """H1: the capture gone, the identical answer of employee-3 remains; a file edited to name employee-3 binds nothing
+    and reads as a changed act naming both givers. Check on both the present and the vanished capture."""
+    aid = "A:cap:2026-11-05-ORG-0002-employee-1:1@capture"
+    rows = [_answer("2026-11-06-ORG-0002-employee-3", 1, "employee-3")]
+    rv = _load_check(aid, "employee-3", {}, rows)
+    assert rv["rulings"] == [] and [x["why"] for x in rv["skipped"]] == ["changed"], rv
+    msg = rv["skipped"][0]["reasons"][0]
+    assert "employee-3" in msg and "employee-1" in msg, msg
+    rv = _load_check(aid, "employee-3", {aid: {"from": "employee-1"}}, [_answer("2026-11-05-ORG-0002-employee-1", 1, "employee-1")])
+    assert rv["rulings"] == [] and "employee-1" in rv["skipped"][0]["reasons"][0], rv
+
+
+def test_honest_givers_bind_as_before_task_0321():
+    one = "A:cap:2026-11-05-ORG-0002-employee-1:1@capture"
+    held = [_answer("2026-11-05-ORG-0002-employee-1", 1, "employee-1")]
+    assert _load_check(one, "employee-1", {one: {"from": "employee-1"}}, held)["skipped"] == []   # capture present
+    again = [_answer("2026-11-06-ORG-0002-employee-1", 1, "employee-1")]
+    rv = _load_check(one, "employee-1", {}, again)   # vanished, single reading, the same giver again
+    assert rv["skipped"] == [] and len(rv["rulings"]) == 1, rv
+    amb = "A:cap:2026-11-05-ORG-0002-ops-2:1@capture"
+    for giver in ("ops", "ops-2"):   # an ambiguous stem: either reading is honest
+        rv = _load_check(amb, giver, {}, [_answer("2026-11-05-ORG-0002-ops-2", 1, giver)])
+        assert rv["skipped"] == [] and len(rv["rulings"]) == 1, (giver, rv)
+    assert _load_check(amb, "employee-1", {}, [])["skipped"][0]["why"] == "changed"
+
+
+def _ambiguous_act(reasons):
+    return {**_gone_act(), "why": "ambiguous", "reasons": reasons}
+
+
+def test_an_ambiguous_act_settled_by_a_later_review_reads_info_task_0321():
+    """H2: settled, info and naming the review; unsettled, major as before."""
+    import gate_cli
+    f = gate_cli.act_finding(_ambiguous_act(["settled by captures/reviews/2026-11-06-employee-3.toml"]))
+    assert f["severity"] == "info" and "2026-11-06-employee-3" in f["message"], f
+    assert gate_cli.act_finding(_ambiguous_act([]))["severity"] == "major"
+
+
+def test_a_second_review_the_same_day_orders_after_the_first_task_0322():
+    """J1: ``-`` sorts before ``.``, so ``<on>-<by>-2.toml`` sorted before ``<on>-<by>.toml`` by name."""
+    docs = {n: {"review": {"by": "employee-2", "on": "2026-11-06"}} for n in ("2026-11-06-employee-2", "2026-11-06-employee-2-2", "2026-11-06-employee-2-10")}
+    assert sorted(docs)[0] != "2026-11-06-employee-2" or sorted(docs)[1] != "2026-11-06-employee-2-2"   # by name it is not this order
+    by_key = sorted(docs, key=lambda n: review.order_key(Path(n + ".toml"), docs[n]))
+    assert by_key == ["2026-11-06-employee-2", "2026-11-06-employee-2-2", "2026-11-06-employee-2-10"], by_key
+    other_day = {"review": {"by": "employee-2", "on": "2026-11-07"}}
+    assert review.order_key(Path("2026-11-06-employee-2-2.toml"), docs["2026-11-06-employee-2"]) < review.order_key(Path("x.toml"), other_day)
+
+
+def _pending(statement="A:cap:2026-11-05-ORG-0002-ops-2:1@capture"):
+    return {"statement": statement, "key": "response|hold_presence", "from_value": "held_unscreened only", "from_sha256": review.content_digest([])}
+
+
+def _bound(rel, id_, giver, outcome="approved", at=("2026-11-06", "employee-3", 0, "x")):
+    return {"at": at, "rel": rel, "id": id_, "key": "response|hold_presence", "value": "held_unscreened only",
+            "sha256": review.content_digest([]), "giver": giver, "outcome": outcome}
+
+
+def test_only_a_ruling_of_the_same_statement_settles_an_ambiguous_act_task_0322():
+    """J2: another person's identical answer, approved later, supersedes the act for the key; it does not settle it."""
+    at = ("2026-11-05", "employee-2", 0, "a")
+    same = _bound("r-same.toml", "A:cap:2026-11-05-ORG-0002-ops-2:1@capture", "ops-2")
+    assert review.settling(_pending(), at, [same], HANDLES) == "settled by r-same.toml"
+    other = _bound("r-other.toml", "A:cap:2026-11-07-ORG-0002-employee-1:1@capture", "employee-1")
+    why = review.settling(_pending(), at, [other], HANDLES)
+    assert why == "superseded for the key by r-other.toml; the answer it named stays unruled", why
+    rejected = _bound("r-rej.toml", other["id"], "employee-1", "rejected")
+    assert "stays unruled" in review.settling(_pending(), at, [rejected], HANDLES) and "superseded" not in review.settling(_pending(), at, [rejected], HANDLES)
+    assert review.settling(_pending(), at, [_bound("r-early.toml", same["id"], "ops-2", at=("2026-11-04", "x", 0, "x"))], HANDLES) is None
+
+
+def test_the_gate_reads_a_superseded_act_at_info_only_while_the_key_is_approved_task_0322():
+    import gate_cli
+    f = gate_cli.act_finding(_ambiguous_act(["superseded for the key by r.toml; the answer it named stays unruled"]))
+    assert f["severity"] == "info" and "stays unruled" in f["message"], f
+    f = gate_cli.act_finding(_ambiguous_act(["the key was ruled by r.toml (rejected); the answer it named stays unruled"]))
+    assert f["severity"] == "major" and "stays unruled" in f["message"], f
+
+
+def test_every_reason_load_writes_is_one_the_gate_recognises_task_0322():
+    """The prefixes are one set (review.REASON_PREFIXES): each reason ``_settling`` writes starts with one, and the gate
+    reads the info ones at info and the rest at major."""
+    import gate_cli
+    at = ("2026-11-05", "employee-2", 0, "a")
+    other = "A:cap:2026-11-07-ORG-0002-employee-1:1@capture"
+    cases = [_bound("r.toml", "A:cap:2026-11-05-ORG-0002-ops-2:1@capture", "ops-2"), _bound("r.toml", other, "employee-1"),
+             _bound("r.toml", other, "employee-1", "rejected"), _bound("r.toml", other, "employee-1", "referred")]
+    seen = set()
+    for b in cases:
+        why = review.settling(_pending(), at, [b], HANDLES)
+        pre = next((p for p in review.REASON_PREFIXES if why.startswith(p)), None)
+        assert pre is not None, why
+        seen.add(pre)
+        want = "info" if pre in review.INFO_REASONS else "major"
+        assert gate_cli.act_finding(_ambiguous_act([why]))["severity"] == want, (why, want)
+    assert seen == set(review.REASON_PREFIXES) - {review.OPPOSED}, seen   # OPPOSED is written by the load itself (task-0328)
+
+
+def _rows(*rs, d="2026-11-06", st="A:cap:x:1@capture"):
+    return [(st, d, by, oc, f"{by}.toml") for by, oc in rs]
+
+
+def test_opposing_rulings_the_same_day_by_two_reviewers_cancel_whichever_is_first_task_0328():
+    """K1: approved against rejected or referred, one statement, one day, two reviewers: both set aside, and the result
+    is the same when the handles are swapped (the alphabetical order decided it before)."""
+    for oc in ("rejected", "referred"):
+        for pair in ((("boss", oc), ("employee-2", "approved")), (("boss", "approved"), ("employee-2", oc)),
+                     (("zed", oc), ("employee-2", "approved")), (("employee-2", "approved"), ("zed", oc))):
+            got = review.opposed_rulings(_rows(*pair))
+            assert len(got) == 2, (pair, got)
+            assert len({review.opposed_reason(g) for g in got.values()}) == 1   # the same act from either file
+
+
+def test_every_act_of_a_cancelled_set_names_every_file_of_it_task_0331():
+    """R3: employee-2 approved, boss rejected, carol approved: one set of three, one reason naming all three."""
+    got = review.opposed_rulings(_rows(("employee-2", "approved"), ("boss", "rejected"), ("carol", "approved")))
+    reasons = {review.opposed_reason(g) for g in got.values()}
+    assert len(got) == 3 and len(reasons) == 1, got
+    assert all(f"{n}.toml" in next(iter(reasons)) for n in ("employee-2", "boss", "carol"))
+
+
+def test_agreeing_rulings_another_day_another_statement_or_the_same_reviewer_are_not_opposed_task_0328():
+    d = "2026-11-06"
+    assert review.opposed_rulings(_rows(("boss", "approved"), ("employee-2", "approved"))) == {}
+    assert review.opposed_rulings(_rows(("boss", "rejected"), ("employee-2", "referred"))) == {}   # neither approves
+    one = [("S", d, "boss", "rejected", "a.toml"), ("S", "2026-11-07", "employee-2", "approved", "b.toml")]
+    assert review.opposed_rulings(one) == {}   # a later day rules
+    two = [("S", d, "boss", "rejected", "a.toml"), ("T", d, "employee-2", "approved", "b.toml")]
+    assert review.opposed_rulings(two) == {}
+    same = [("S", d, "boss", "rejected", "a.toml"), ("S", d, "boss", "approved", "a-2.toml")]
+    assert review.opposed_rulings(same) == {}   # the same reviewer's -2 (task-0322)
+
+
+def _opposed_act(reasons=None):
+    group = [("captures/reviews/2026-11-06-boss.toml", "rejected"), ("captures/reviews/2026-11-06-employee-2.toml", "approved")]
+    return {**_gone_act(), "why": "ambiguous", "reasons": reasons or [review.opposed_reason(group)]}
+
+
+def test_the_gate_reads_an_opposed_act_at_major_naming_both_files_without_the_generic_clause_task_0331():
+    """R2: the message is the opposed reason alone."""
+    import gate_cli
+    f = gate_cli.act_finding(_opposed_act())
+    assert f["severity"] == "major" and "2026-11-06-boss" in f["message"] and "2026-11-06-employee-2" in f["message"], f
+    assert "several statements hold" not in f["message"] and "two givers" not in f["message"], f["message"]
+    assert f["act"]["why"] == "ambiguous" and review.OPPOSED in review.MAJOR_REASONS
+
+
+def test_a_later_decided_ruling_settles_an_opposed_act_approved_or_rejected_task_0333():
+    """R1': the owners rule again, approving or rejecting: info; a referral decides nothing. R6: no route once settled."""
+    import gate_cli
+    at = ("2026-11-06", "boss", 0, "x")
+    fa = {"statement": "S", "key": "k"}
+    app = {"id": "S", "at": ("2026-11-08", "carol", 0, "c"), "rel": "carol.toml", "outcome": "approved"}
+    rej = {"id": "S", "at": ("2026-11-09", "dave", 0, "d"), "rel": "dave.toml", "outcome": "rejected"}
+    ref = {"id": "S", "at": ("2026-11-09", "dave", 0, "d"), "rel": "dave.toml", "outcome": "referred"}
+    same_day = {"id": "S", "at": ("2026-11-06", "zed", 0, "z"), "rel": "zed.toml", "outcome": "approved"}
+    assert review.opposed_settling(fa, at, []) is None and review.opposed_settling(fa, at, [same_day]) is None
+    assert review.opposed_settling(fa, at, [app, ref]) == "settled by carol.toml"   # a referral decides nothing
+    why = review.opposed_settling(fa, at, [app, rej])
+    assert why == "settled by dave.toml", why   # the latest decided ruling, a rejection too
+    assert review.opposed_settling(fa, at, [rej]) == "settled by dave.toml"
+    for by in ("carol", "dave"):
+        sett = gate_cli.act_finding(_opposed_act([*_opposed_act()["reasons"], f"settled by {by}.toml"]))
+        assert sett["severity"] == "info" and f"settled by {by}.toml" in sett["message"] and "reads from that ruling" in sett["message"], sett
+    open_ = gate_cli.act_finding(_opposed_act())
+    assert open_["severity"] == "major"
+
+
+def test_a_settled_opposed_act_no_longer_carries_the_owners_rule_again_route_task_0333():
+    """R6."""
+    import gate_cli
+    a = {**_opposed_act(), "act": "ruling"}
+    opened = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": a["reasons"]}}
+    settled = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": [*a["reasons"], "settled by c.toml"]}}
+    assert "rule again in one review" in gate_cli._act_route(opened, "questionnaire route")
+    assert gate_cli._act_route(settled, "questionnaire route") == "nothing to do: settled by c.toml"
+    legacy = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": ["settled by c.toml"]}}   # task-0322's act
+    assert gate_cli._act_route(legacy, "questionnaire route") == "nothing to do: settled by c.toml"
+    sup = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": ["superseded for the key by c.toml; the answer it named stays unruled"]}}
+    assert gate_cli._act_route(sup, "questionnaire route") == "questionnaire route"   # info, but it keeps its own route
+    unsettled = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": []}}
+    ruled = {"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": ["the key was ruled by c.toml (rejected); the answer it named stays unruled"]}}
+    for f in (unsettled, ruled, {"kind": "act", "act": {"why": "changed", "act": "ruling", "reasons": ["settled by c.toml"]}}):
+        assert gate_cli._act_route(f, "questionnaire route") == "questionnaire route", f   # still open, or not an ambiguous act
+
+
+def test_capture_review_warns_before_it_writes_a_ruling_that_opposes_the_days_task_0331():
+    """R4: ``capture._opposes`` over the review files already saved."""
+    import datetime as dt
+    import tempfile
+    import capture
+    with tempfile.TemporaryDirectory() as td:
+        into = Path(td)
+        (into / "2026-11-06-boss.toml").write_text('[review]\nby = "boss"\non = 2026-11-06\n\n[[ruling]]\nassertion = "S"\noutcome = "rejected"\n', encoding="utf-8")
+        rv = {"on": dt.date(2026, 11, 6), "by": "employee-2", "rulings": [{"statement": "S", "outcome": "approved"}]}
+        got = capture._opposes(review, into, into / "2026-11-06-employee-2.toml", rv)
+        assert len(got) == 1 and "2026-11-06-boss.toml" in got[0] and "written all the same" in got[0], got
+        assert "is cancelled with 2026-11-06-boss.toml (rejected)" in got[0] and "none applies" in got[0], got   # R7: the act's wording
+        rv["rulings"][0]["outcome"] = "rejected"
+        assert capture._opposes(review, into, into / "2026-11-06-employee-2.toml", rv) == []
+        rv["on"] = dt.date(2026, 11, 7)
+        rv["rulings"][0]["outcome"] = "approved"
+        assert capture._opposes(review, into, into / "2026-11-07-employee-2.toml", rv) == []
+
+
+def test_the_readme_states_the_opposed_rule_and_the_remedy_task_0331():
+    t = " ".join((ROOT / "instance" / "README.md").read_text(encoding="utf-8").split())
+    assert "cancel each other" in t and "rule again in one review, on a later day" in t and "settled by" in t

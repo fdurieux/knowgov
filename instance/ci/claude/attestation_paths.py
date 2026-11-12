@@ -12,7 +12,9 @@ MultiEdit and NotebookEdit) and refuses a write that would attest for a person:
   ``[provenance] human`` names who attests). The tables are compared parsed, before and after the
   write, so an ordinary edit (an ``[[artefact]]``, a task class, a comment) passes, and so does removing
   a table outright, which attests nothing; removing ``[provenance]`` while ``[verification]`` stays
-  does not, since the declared verification would then fall to the default agent;
+  does not, since the declared verification would then fall to the default agent; nor does adding,
+  changing or removing ``[oracle] suite`` while ``[verification]`` stays (task-0338), since removing it
+  unbinds the suite's expectations from ``[verification] execution``'s ``suite`` digests;
 - anything under a ``captures/`` folder (the answers, ``reviews/``, ``inferred/``), or under the
   folder a manifest's ``[capture] dir`` names;
 - the file a manifest's ``[verification] map`` names (its ``review`` rows say which keys a review covers);
@@ -183,7 +185,13 @@ def _tables(text: str, where: str) -> dict:
         doc = tomllib.loads(text)
     except tomllib.TOMLDecodeError as e:
         raise ValueError(f"{where} does not parse as TOML ({e})") from None
-    return {t: doc.get(t) for t in ATTESTING}
+    out = {t: doc.get(t) for t in ATTESTING}
+    oracle = doc.get("oracle")   # task-0338: [oracle] suite says which files the suite digest binds
+    out["oracle suite"] = oracle.get("suite") if isinstance(oracle, dict) else None
+    ref = doc.get("reference")   # task-0340 R4: what the implementation and suite digests bind to
+    out["oracle script"] = oracle.get("script") if isinstance(oracle, dict) else None
+    out["reference code"] = ref.get("code") if isinstance(ref, dict) else None
+    return out
 
 
 def _is_review(text: str) -> bool:
@@ -210,6 +218,25 @@ def _is_capture(text: str) -> bool:
     return "answer" in doc or "unknown" in doc or "capture" in doc or signed
 
 
+def _manifest_write(p: Path, rel: str, after: str) -> tuple[int, str]:
+    """A write to a ``subject.toml``: refused when it adds or changes an attesting table, removes ``[provenance]``
+    while ``[verification]`` stays, or touches ``[oracle] suite`` while ``[verification]`` stays (task-0338)."""
+    before = p.read_text(encoding="utf-8") if p.exists() else ""
+    b, a = _tables(before, f"{rel} before the write"), _tables(after, f"{rel} after the write")
+    changed = [f"[{t}]" for t in ATTESTING if a[t] is not None and a[t] != b[t]]
+    if a["provenance"] is None and b["provenance"] is not None and a["verification"] is not None:
+        changed.append("[provenance (removed while [verification] stays)]")
+    if a["oracle suite"] != b["oracle suite"] and a["verification"] is not None:
+        changed.append("[oracle] suite while [verification] stays (the files the execution's suite digest binds, task-0338)")
+    for k, name in (("oracle script", "[oracle] script"), ("reference code", "[reference] code")):
+        if a[k] != b[k] and a["verification"] is not None:
+            changed.append(f"{name} while [verification] stays (what the execution's digests bind, task-0340)")
+    if not changed:
+        return CLEAR, ""
+    return PROTECTED, (f"{rel}: the write adds or changes {', '.join(changed)}. These tables say who "
+                       "attests and when (decision-0009); the person of record writes them.")
+
+
 def check(event: dict, inst: Path) -> tuple[int, str]:
     p = target(event, Path(str(event.get("cwd") or inst)))
     if p is None or not _inside(p, inst):
@@ -234,15 +261,7 @@ def check(event: dict, inst: Path) -> tuple[int, str]:
     if after is None:
         return CLEAR, ""
     if p.name.casefold() == "subject.toml":
-        before = p.read_text(encoding="utf-8") if p.exists() else ""
-        b, a = _tables(before, f"{rel} before the write"), _tables(after, f"{rel} after the write")
-        changed = [t for t in ATTESTING if a[t] is not None and a[t] != b[t]]
-        if a["provenance"] is None and b["provenance"] is not None and a["verification"] is not None:
-            changed.append("provenance (removed while [verification] stays)")
-        if changed:
-            return PROTECTED, (f"{rel}: the write adds or changes [{'], ['.join(changed)}]. These tables say who "
-                               "attests and when (decision-0009); the person of record writes them.")
-        return CLEAR, ""
+        return _manifest_write(p, rel, after)
     if p.suffix.casefold() == ".toml" and _is_review(after):
         return PROTECTED, (f"{rel} would be a review file ([review] or [[ruling]]): a second person's ruling on what "
                            "the store holds (decision-0002). The reviewer writes it.")

@@ -23,7 +23,11 @@ Every gate runs ``--as-of`` ON with KG_TODAY ON and the clock pinned (task-0075)
   approval does not move to another person's answer (not approved, a major ``gone`` act naming the vanished id);
   employee-1 giving it again on another day carries it (the same giver repairs).
 - task-0308: ``ops`` ingests twice the same day, so its second file has ``ops-2``'s first stem; the approval of that id,
-  its files deleted and ``ops-2`` giving the value, is not carried (not approved, a major ``ambiguous`` act).
+  its files deleted and ``ops-2`` giving the value, is not carried (not approved: a review recording ``ops`` as its
+  giver a ``gone`` act, one written before without a giver a major ``ambiguous`` act).
+- task-0320 (decision-0038 G1, G2): with ``ops`` and ``ops-2`` issued, ``ops-2``'s answers are ruled on as employee-1's
+  are in the review walkthrough, the review recording ``ops-2`` from the capture's content: the dispute is settled and
+  the gate PROCEEDs.
 - Item 7 at stage 2 (S6): employee-3 approves P2's surcharge (316.00); ``--stage 2`` re-extracts the tariff
   change: the ruling is not moved onto the successor (341.00) and is an ``act`` finding naming both.
 - I4: employee-3 approving the model's statement on S5 is refused (rejecting it is not).
@@ -138,18 +142,119 @@ def giver_cases(out: Path) -> list[str]:
     return errs
 
 
+def forged_cases(out: Path) -> list[str]:
+    """task-0321 H1: the recorded giver is checked at the load. employee-2's approval of employee-1's answer records
+    ``employee-1``; the capture deleted and employee-3 giving the same value, the file edited to name employee-3 as
+    giver is an act finding (the key not approved), where the honest file is the ``gone`` act."""
+    errs: list[str] = []
+    print("== task-0321: a review's recorded giver edited to the person whose identical answer remains (S2')")
+    hold = "response|hold_presence"
+    env = fresh(out, "giver-forged", decided=True)
+    d = out / "giver-forged"
+    cap = w.answer(env, d)
+    capdir = d / "subjects" / "cargo_quote" / "captures"
+    capfile = next(capdir.glob("*.toml"))
+    n = 1 + [a["key"] for a in tomllib.loads(capfile.read_text(encoding="utf-8"))["answer"]].index(hold)
+    ruled = f"{cap}:{n}@capture"
+    got = w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
+    saved = Path(re.search(r"into (\S+\.toml)", got).group(1))
+    capfile.unlink()
+    w.answer(env, d, handle="employee-3", want={hold: "held_unscreened only"})
+    honest = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled]
+    saved.write_text(saved.read_text(encoding="utf-8").replace('giver = "employee-1"', 'giver = "employee-3"'), encoding="utf-8")
+    held = {k: v for k, v in approvals(env, "S2", hold).items() if v}
+    forged = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled]
+    if held or len(honest) != 1 or len(forged) != 1 or forged[0]["severity"] != "major" or not all(
+            g in forged[0]["message"] for g in ("employee-3", "employee-1")):
+        errs.append(f"task-0321: a forged giver should be a major act naming both givers and approve nothing: approved {held}, honest {honest}, forged {forged}")
+    print(f"    approved on {sorted(held) or 'nothing'}; {forged[0]['severity'] + ' act: ' + forged[0]['message'] if forged else 'no act'}")
+    return errs
+
+
+def _ops(d: Path) -> None:
+    """Issue ``ops`` and ``ops-2`` (gives) in the instance's register: a handle and its ``-<n>`` neighbour."""
+    hp = d / "register" / "people" / "handles.toml"
+    hp.write_text(hp.read_text(encoding="utf-8") + "".join(
+        f'\n[[handle]]\nhandle = "{h}"\nunit = "ORG-0002"\nroles = ["gives"]\nissued = 2026-11-02\n' for h in ("ops", "ops-2")), encoding="utf-8")
+
+
+def same_day_cases(out: Path) -> list[str]:
+    """task-0322 J1: the legacy review (no giver) and employee-2's re-ruling the same day, which ``capture.py review``
+    saves as ``<on>-<by>-2.toml``, a name that sorts before ``<on>-<by>.toml``: the re-ruling is still the later, so the
+    ambiguous act is settled at info and the key reads approved."""
+    errs: list[str] = []
+    print("== task-0322: a same-day re-ruling settles the legacy ambiguous act (ops, ops-2)")
+    hold = "response|hold_presence"
+    env = fresh(out, "giver-same-day", decided=True)
+    d = out / "giver-same-day"
+    _ops(d)
+    want = {hold: "held_unscreened only"}
+    w.answer(env, d, handle="ops", want=want)
+    w.answer(env, d, handle="ops", want=want)
+    capdir = d / "subjects" / "cargo_quote" / "captures"
+    second = next(capdir.glob("*-ops-2.toml"))
+    n = 1 + [a["key"] for a in tomllib.loads(second.read_text(encoding="utf-8"))["answer"]].index(hold)
+    ruled = f"A:cap:{second.stem}:{n}@capture"
+    got = w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
+    saved = Path(re.search(r"into (\S+\.toml)", got).group(1))
+    saved.write_text(re.sub(r'(?m)^giver = .*\n', "", saved.read_text(encoding="utf-8")), encoding="utf-8")   # a review from before the giver
+    for f in capdir.glob("*-ops*.toml"):
+        f.unlink()
+    w.answer(env, d, handle="ops-2", want=want)
+    before = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
+    w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r2.toml", "employee-2", "S2", [(ruled, "approved")])))
+    second_review = sorted((capdir / "reviews").glob("*-employee-2-2.toml"))
+    after = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
+    held = {k: v for k, v in approvals(env, "S2", hold).items() if v}
+    if after and not after[0].get("route", "").startswith("nothing to do: settled by "):   # task-0333: a settled act has nothing to do
+        errs.append(f"task-0333: a settled legacy act should route to nothing to do: {after[0].get('route')!r}")
+    if before and "nothing to do" in before[0].get("route", ""):
+        errs.append(f"task-0333: an unsettled legacy act routed to nothing to do: {before[0].get('route')!r}")
+    if not second_review or len(before) != 1 or before[0]["severity"] != "major" or len(after) != 1 or after[0]["severity"] != "info" or not held:
+        errs.append(f"task-0322: a same-day re-ruling should settle the legacy act at info: before {before}, after {after}, approved {held}")
+    print(f"    approved on {sorted(held) or 'nothing'}; {after[0]['severity'] + ': ' + after[0]['message'][-90:] if after else 'no act'}")
+    return errs
+
+
+def x_n_cases(out: Path) -> list[str]:
+    """task-0320 (decision-0038 G1, G2): with ``ops`` and ``ops-2`` both issued, ``ops-2``'s answers have the stem
+    ``ops``'s second file of the day would have. The review records the giver from the capture's own content, so
+    ``ops-2``'s answers are approved and the dispute its statuses answer raises is settled, as employee-1's are in the
+    review walkthrough: PROCEED."""
+    errs: list[str] = []
+    print("== task-0320: X and X-n issued; X-n's answer approved and its dispute settled (S2')")
+    env = fresh(out, "giver-x-n", decided=True)
+    d = out / "giver-x-n"
+    _ops(d)
+    cap = w.answer(env, d, handle="ops-2")
+    docs = [("A:oas:response|statuses@v1", "rejected"), ("A:spec:response|statuses@v1", "rejected")]
+    got = w.expect(env, 0, "3 ruling(s)", "capture.py", "review",
+                   str(w.write_review(d / "r-3.toml", "employee-3", "S2", [*docs, (f"{cap}:2@capture", "approved")])))
+    givers = [r.get("giver") for r in written(got)["ruling"] if r["assertion"].startswith("A:cap:")]
+    if givers != ["ops-2"]:
+        errs.append(f"task-0320: the review should record ops-2, read from the capture's content, as the giver: {givers}")
+    w.expect(env, 0, "2 ruling(s)", "capture.py", "review",
+             str(w.write_review(d / "r-2.toml", "employee-2", "S2", [(f"{cap}:{i}@capture", "approved") for i in (1, 3)])))
+    rep = gate(env, "S2", "--fail-on", "major")
+    held = {k: v for k, v in approvals(env, "S2", "response|statuses").items() if v}
+    if rep["verdict"] != "PROCEED" or acts(rep) or f"{cap}:2@capture" not in held:
+        errs.append(f"task-0320: ops-2's answers ruled on should PROCEED with no act: {rep['verdict']}, acts {acts(rep)}, approved {held}")
+    print(f"    {cap}: {rep['verdict']}, statuses approved on {sorted(held)}, {len(acts(rep))} act(s)")
+    return errs
+
+
 def stem_cases(out: Path) -> list[str]:
     """task-0308 (the re-check of task-0302): ``ops`` ingests twice the same day, so its second file shares a stem with
-    ``ops-2``'s first. employee-2 approves ``…-ops-2:n``; both files are deleted and ``ops-2`` gives the value again:
-    the stem names two givers, so the approval does not pass to ``ops-2`` (not approved, a major ``ambiguous`` act)."""
+    ``ops-2``'s first. employee-2 approves ``…-ops-2:n``; since task-0320 the command records ``ops``, read from that
+    file's content, as its giver. A file without the giver, saved before, keeps the stem's rule. Both files are deleted
+    and ``ops-2`` gives the value again: neither approval passes to ``ops-2`` (not approved; the recorded giver's ruling
+    a ``gone`` act, the file without one a major ``ambiguous`` act)."""
     errs: list[str] = []
     print("== task-0308: a capture stem that reads as two givers (ops, second file / ops-2, first file)")
     hold = "response|hold_presence"
     env = fresh(out, "giver-stem", decided=True)
     d = out / "giver-stem"
-    hp = d / "register" / "people" / "handles.toml"
-    hp.write_text(hp.read_text(encoding="utf-8") + "".join(
-        f'\n[[handle]]\nhandle = "{h}"\nunit = "ORG-0002"\nroles = ["gives"]\nissued = 2026-11-02\n' for h in ("ops", "ops-2")), encoding="utf-8")
+    _ops(d)
     want = {hold: "held_unscreened only"}
     first = w.answer(env, d, handle="ops", want=want)
     w.answer(env, d, handle="ops", want=want)
@@ -158,10 +263,10 @@ def stem_cases(out: Path) -> list[str]:
     n = 1 + [a["key"] for a in tomllib.loads(second.read_text(encoding="utf-8"))["answer"]].index(hold)
     ruled = f"A:cap:{second.stem}:{n}@capture"
     rdir = capdir / "reviews"
-    w.expect(env, 1, "two givers", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
-    if rdir.is_dir() and list(rdir.glob("*.toml")):   # task-0310: write time refuses what load time refuses; nothing is written
-        errs.append(f"task-0310: a review of {ruled} was written: {sorted(f.name for f in rdir.glob('*.toml'))}")
-    # the file a reviewer had saved before the refusal: it carries key, value and sha256, as the load reads it
+    got = w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
+    if [r.get("giver") for r in written(got)["ruling"]] != ["ops"]:   # task-0320: the content's giver, never the stem's
+        errs.append(f"task-0320: the review of {ruled} should record ops, its file's own from: {written(got)['ruling']}")
+    # the file a reviewer had saved before task-0320: it carries key, value and sha256 and no giver, as the load reads it
     rdir.mkdir(parents=True, exist_ok=True)
     (rdir / "2026-11-05-employee-2.toml").write_text(review.review_toml(
         {"by": "employee-2", "on": dt.date(2026, 11, 5), "record": "minutes/2026-11-03-outage-rule.md", "scenario": "S2", "closes": [],
@@ -171,11 +276,87 @@ def stem_cases(out: Path) -> list[str]:
         f.unlink()
     again = w.answer(env, d, handle="ops-2", want=want)
     got = {k: v for k, v in approvals(env, "S2", hold).items() if v}
-    found = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
-    if got or len(found) != 1 or found[0]["severity"] != "major":
-        errs.append(f"task-0308: ops-2's answer inherited the approval of {ruled}: approved {got}, ambiguous acts {found}")
+    mine = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled]
+    found = [f for f in mine if f["act"]["why"] == "ambiguous"]
+    gone = [f for f in mine if f["act"]["why"] in ("gone", "changed")]
+    if got or len(found) != 1 or found[0]["severity"] != "major" or len(gone) != 1:
+        errs.append(f"task-0308: ops-2's answer inherited the approval of {ruled}: approved {got}, ambiguous acts {found}, gone acts {gone}")
     print(f"    {first} twice, then {again}: approved on {sorted(got) or 'nothing'}; "
-          f"{found[0]['severity'] + ' act' if found else 'no ambiguous act'}")
+          f"{found[0]['severity'] + ' ambiguous act' if found else 'no ambiguous act'}, {len(gone)} gone act(s) for the giver's ruling")
+    # task-0321 H2: a later review (6 November) rules on ops-2's answer, the same id and content, binding by the giver it records
+    (rdir / "2026-11-06-employee-3.toml").write_text(review.review_toml(
+        {"by": "employee-3", "on": dt.date(2026, 11, 6), "record": "minutes/2026-11-03-outage-rule.md", "scenario": "S2", "closes": [],
+         "rulings": [{"assertion": ruled, "key": hold, "value": "held_unscreened only", "sha256": review.content_digest([]),
+                      "outcome": "approved", "giver": "ops-2"}]}), encoding="utf-8")
+    settled = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
+    held = {k: v for k, v in approvals(env, "S2", hold).items() if v}
+    if len(settled) != 1 or settled[0]["severity"] != "info" or "2026-11-06-employee-3" not in settled[0]["message"] or not held \
+            or not settled[0].get("route", "").startswith("nothing to do: settled by "):
+        errs.append(f"task-0321: the ambiguous act should read info naming the review that settled it, the key approved: {settled}, approved {held}")
+    print(f"    settled by a later review: approved on {sorted(held) or 'nothing'}; "
+          f"{settled[0]['severity'] + ': ' + settled[0]['message'][-80:] if settled else 'no ambiguous act'}")
+    return errs
+
+
+def _opposed_ok(mine: list, live: dict, got: dict, ruled: str, pair: tuple, clash: bool, later: str | None) -> bool:
+    """What the gate must show for one case of ``_opposed_case``: a later approval or rejection (task-0333) settles both acts
+    at info, with no "owners rule again" route; a later referral, or none, leaves them major and routed to a new review."""
+    a, b = pair
+    settled = later in ("approved", "rejected")
+    named = len(mine) == 2 and all(all(x in f["message"] for x in (f"{ON}-{a}", f"{ON}-{b}")) and "several statements" not in f["message"]
+                                   and (f.get("route", "").startswith("nothing to do: settled by ") if settled
+                                        else "capture.py review" in f.get("route", "")) for f in mine)
+    if not clash:
+        return not mine and ruled in got
+    sev = {f["severity"] for f in mine}
+    if settled:
+        return (named and sev == {"info"} and all("settled by" in f["message"] for f in mine)
+                and (ruled in got if later == "approved" else not got and ruled not in live))
+    return named and sev == {"major"} and not got and ruled in live and {f["act"]["by"] for f in mine} == {a, b}
+
+
+def _opposed_case(out: Path, hold: str, name: str, a: str, oa: str, b: str, ob: str, clash: bool, later: str | None = None) -> list[str]:
+    """One pair of same-day rulings (reviewer ``a`` then ``b``), written, loaded and read by the gate; with ``later``, a
+    ruling of that outcome by employee-3 on 8 November (task-0331: the remedy, or a rejection, after the pair)."""
+    env = fresh(out, f"opposed-{name}", decided=True)
+    d = out / f"opposed-{name}"
+    hp = d / "register" / "people" / "handles.toml"
+    hp.write_text(hp.read_text(encoding="utf-8") + '\n[[handle]]\nhandle = "boss"\nunit = "ORG-0002"\nroles = ["gives", "approves"]\nissued = 2026-11-02\n',
+                  encoding="utf-8")
+    cap = w.answer(env, d)
+    capdir = d / "subjects" / "cargo_quote" / "captures"
+    ruled = f"{cap}:{1 + [x['key'] for x in tomllib.loads(next(capdir.glob('*.toml')).read_text(encoding='utf-8'))['answer']].index(hold)}@capture"
+    saved = None
+    for who, outcome in ((a, oa), (b, ob)):
+        saved = written(w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / f"r-{who}.toml", who, "S2", [(ruled, outcome)]))))
+    if later:
+        (capdir / "reviews" / "2026-11-08-employee-3.toml").write_text(review.review_toml(
+            {"by": "employee-3", "on": dt.date(2026, 11, 8), "record": "minutes/2026-11-03-outage-rule.md", "scenario": "S2", "closes": [],
+             "rulings": [{**saved["ruling"][0], "outcome": later}]}), encoding="utf-8")
+    live = approvals(env, "S2", hold)   # every live statement of the key: a rejected one is absent, a proposed one is here
+    got = {k: v for k, v in live.items() if v}
+    mine = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
+    ok = _opposed_ok(mine, live, got, ruled, (a, b), clash, later)
+    print(f"    {name} ({a} {oa}, {b} {ob}{', then ' + later if later else ''}): approved on {sorted(got) or 'nothing'}; "
+          f"{mine[0]['severity'] + ': ' + mine[0]['message'][-110:] if mine else 'no act'}")
+    return [] if ok else [f"task-0328/0331 {name}: acts {mine}, approved {got}, live {sorted(live)}"]
+
+
+def opposed_cases(out: Path) -> list[str]:
+    """task-0328, task-0331: employee-2 and ``boss`` rule on employee-1's answer the same day, one approving and one not.
+    Neither ruling applies, whichever file comes first: a major act per file, each naming both files and routed to
+    ``capture.py review``, the statement unapproved and still live; two rulings that agree keep their approval. A later
+    day's approval or rejection settles both acts at info (the key read from it); a later referral leaves them major."""
+    errs: list[str] = []
+    print("== task-0328, task-0331: opposing rulings of one answer on one day by two reviewers (S2')")
+    hold = "response|hold_presence"
+    cases = (("approve-last", "boss", "rejected", "employee-2", "approved", True), ("approve-first", "boss", "approved", "employee-2", "rejected", True),
+             ("referred", "boss", "referred", "employee-2", "approved", True), ("agree", "boss", "approved", "employee-2", "approved", False),
+             ("settled", "boss", "rejected", "employee-2", "approved", True, "approved"),
+             ("rejected-after", "boss", "rejected", "employee-2", "approved", True, "rejected"),
+             ("referred-after", "boss", "rejected", "employee-2", "approved", True, "referred"))
+    for case in cases:
+        errs += _opposed_case(out, hold, *case)
     return errs
 
 
@@ -269,7 +450,11 @@ def main(out: Path) -> int:
     print(f"    {before['verdict']} -> {after['verdict']}; {w.OUT} approved on {sorted(moved)}")
 
     errs += giver_cases(out)
+    errs += forged_cases(out)
     errs += stem_cases(out)
+    errs += same_day_cases(out)
+    errs += x_n_cases(out)
+    errs += opposed_cases(out)
 
     print("== item 7 at stage 2 (S6): a ruling on P2's surcharge, then the tariff change")
     env = fresh(out, "s6", decided=False)

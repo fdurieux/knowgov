@@ -84,6 +84,9 @@ class Stub:
     def suspect_derived(self):
         return []
 
+    def derived_outputs(self):   # task-0327: register_impact reads the statements' keys
+        return []
+
     def census(self):
         return {"nodes": 1}
 

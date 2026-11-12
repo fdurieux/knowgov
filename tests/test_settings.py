@@ -180,4 +180,4 @@ def test_the_page_and_the_worker_refuse_a_bad_setting_at_start_with_exit_2():
 
 def test_the_changelog_names_it():
     log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
-    assert log.startswith("Unreleased") and "task-0264" in log
+    assert log.startswith(("Unreleased", "0.9.0 ")) and "task-0264" in log   # released in 0.9.0

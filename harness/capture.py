@@ -68,7 +68,9 @@ class CannotRun(Exception):
 
 
 def register_root() -> Path:
-    return Path(os.environ.get("KG_REGISTER") or (ROOT / "demo" / "register")).resolve()
+    """``cadence.register_root``: the one resolution, an instance's subject with no ``KG_REGISTER`` refused (task-0334)."""
+    import cadence
+    return cadence.register_root()
 
 
 def register_nodes(root: Path) -> dict[str, dict]:
@@ -527,6 +529,26 @@ def _due(args) -> int:
     return 0
 
 
+def _opposes(review, into: Path, dest: Path, rv: dict) -> list[str]:
+    """The warnings for the rulings of ``rv`` (about to be saved as ``dest``) that oppose another reviewer's ruling of the
+    same statement on the same day (``review.opposed_rulings``): the load applies neither (task-0328, task-0331)."""
+    on, rows = rv["on"].isoformat(), []
+    for f in sorted(into.glob("*.toml")):
+        try:
+            d = tomllib.loads(f.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        r = d.get("review", {})
+        rows += [(x.get("assertion"), on, str(r.get("by")), x.get("outcome"), f.name) for x in d.get("ruling", [])
+                 if str(r.get("on")) == on]
+    rows += [(ru["statement"], on, rv["by"], ru["outcome"], dest.name) for ru in rv["rulings"]]
+    return [f"warning: {dest.name} ruling {st} ({oc}) is cancelled with {', '.join(f'{f} ({o})' for f, o in g if f != dest.name)}, "
+            "a ruling of another reviewer the same day: none applies and the gate reports it; the owners rule again in one "
+            "review on a later day (written all the same)"
+            for (st, _on, rel), g in sorted(review.opposed_rulings(rows).items()) if rel == dest.name
+            for oc in [next(o for f, o in g if f == dest.name)]]
+
+
 def _review(args) -> int:
     import review
     from subject import SUBJECT
@@ -562,6 +584,8 @@ def _review(args) -> int:
         n += 1
         dest = into / f"{stem}-{n}.toml"
     into.mkdir(parents=True, exist_ok=True)
+    for line in _opposes(review, into, dest, rv):   # task-0331 R4: said before the file is written, which still is
+        print(line, file=sys.stderr)
     dest.write_text(review.review_toml(rv), encoding="utf-8")
     print(f"reviewed by {rv['by']} on {rv['on']}: {len(rv['rulings'])} ruling(s), {len(rv['closes'])} gap(s) closed, into {dest}")
     return 0

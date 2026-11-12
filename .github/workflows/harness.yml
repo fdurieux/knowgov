@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 45   # task-0159's rule: above this job's worst run (tests/test_ci_hygiene.py), never the 12-minute budget
+    timeout-minutes: 75   # task-0159's rule: above this job's worst run (tests/test_ci_hygiene.py), never the 12-minute budget
     env:
       # task-0075: no step reads the wall clock; a command that asks today's date with no KG_TODAY
       # fails here (harness/review.py today()), so no outcome moves by the calendar
@@ -388,6 +388,17 @@ jobs:
         continue-on-error: true
         uses: ./instance/ci/github
         with: { gate: trace-check, instance: runs/wrap/instance, ledger: runs/wrap/ledger.json, base: HEAD~1, report: runs/wrap/trace-check.json }
+      - name: "The edit leaves the execution unattested (task-0320, decision-0038 N-b): the layout check names reference_impl.py under [verification] execution; then the edit is reverted, so the pre-load steps below test their own layout"
+        run: |
+          f=subjects/cargo_quote/vendor/stack_experiment/cargo_quote/reference_impl.py
+          rc=0; python tools/check_instance.py runs/wrap/instance > runs/wrap/layout-edited.txt 2>&1 || rc=$?
+          test "$rc" = 1
+          grep -E '\[verification\] execution: .*reference_impl\.py.*decision-0038' runs/wrap/layout-edited.txt
+          git -C runs/wrap/instance checkout HEAD~1 -- "$f"
+          git -C runs/wrap/instance -c user.name=ci -c user.email=ci@example.invalid commit -qam "revert the edit"
+          python tools/check_instance.py runs/wrap/instance > runs/wrap/layout-reverted.txt 2>&1 || true
+          if grep -q '\[verification\] execution' runs/wrap/layout-reverted.txt; then cat runs/wrap/layout-reverted.txt; exit 1; fi
+          echo "layout: reverted, the execution attested again"
       - name: "The action's two failing steps failed with exit 1, by their reports; then the GitLab include's script lines, run by a shell, the same command line"
         env:
           STAGE2: ${{ steps.wrap_stage2.outcome }}

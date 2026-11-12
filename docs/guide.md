@@ -685,11 +685,16 @@ whose row in `register_map.toml` names nodes of several kinds takes the shortest
 the default. The load writes the due date as the verification's `valid_until`. On the day after it, the
 statement reads *validated*, its approval falls with it, and the gate lists a *lapsed* finding (major)
 naming the statement, its date and the review. A verification by execution never lapses by date, but it
-is no fresh run either: no oracle runs at load. It is the subject's attested result, `[verification]
+is no fresh run either: no oracle runs at load, so the verification's `at` is when the load recorded the attestation, never when a run happened. The run is identified by its digests (the document Versions, the implementation and the suite), not by a date. It is the subject's attested result, `[verification]
 execution`'s `versions`, and it holds only for the document Versions that list names (decision-0036). A
 review verification is bound the same way, by `review`'s `versions`. Edit a document and its statements fall
-below verified, and so out of approval, until the attestation lists the new Version's digest. A declaration
-that lists none verifies nothing.
+below verified, and so out of approval, until the attestation lists the new Version's digest. For execution
+that listing means something only if the reference implementation and the suite were brought in line with the new
+Version where its values differ, and the suite run on it: if they differ and are unchanged, listing the digest only asserts the old result for the new values (no
+oracle runs at load; `check_subject` notes it when it sees the edit as a listed digest matching no current Version,
+and a digest replaced outright leaves no trace, so that case gets no note). A declaration that lists none verifies nothing.
+The suite's digests are its script's and, when the subject names them in `[oracle] suite`, those of the files the script
+reads its expectations from (decision-0039). Without that field, a change to the expectations alone moves no digest.
 
 ```bash
 python harness/gate_cli.py --scenario S1 --as-of 2027-08-07 --baseline record

@@ -13,7 +13,7 @@ import re
 import tomllib
 
 from kitio import FAMILY, sha256, pristine
-from store import stem
+from store import canonical_digest, configuration_text, stem
 import dates     # task-0262: one strict YYYY-MM-DD parse
 import formats   # task-0174, decision-0023: a capture or review file names the format it was written in
 import load_memory
@@ -123,6 +123,9 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
     ts = now()
     aid = f"act:extract:{scenario}:{version_tag}"
     st.ensure_agents(TOOL, version_tag, HUMAN, LLM)
+    st.record_inputs({"attestations": attestations_digest(),   # task-0320 (decision-0038 N2): the tables as this load reads them
+                      "configuration": configuration_text(SUBJECT.configuration()),   # task-0335 (decision-0039 §3.2): its files as read
+                      **load_identity()})   # task-0341 (decision-0040 (a)): the code and suite compared, the pre-load report applied
     st.create_activity(aid, "extraction", ts, TOOL, activity_note, "agent:harness", subject=SUBJECT.id, scenario=scenario)   # task-0195
     n_frag = n_ass = n_reused = 0
     for path, text in kit.items():
@@ -176,6 +179,16 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
     return {"fragments": n_frag, "fragments_reused": n_reused, "assertions": n_ass,
             "unresolved_symbols": unresolved, "activity": aid, **({"unmapped": unmapped} if unmapped else {}),
             **({"preload": preload} if preload else {})}
+
+
+def load_identity() -> dict[str, str]:
+    """``code`` and ``preload`` as ``record_inputs`` keeps them (task-0341, decision-0040 (a)): ``Subject.code``, the
+    files an execution verification is compared against, left unrecorded (unknown) when a path lies outside the
+    instance; ``preload.identity``, the report ``_record_preload`` applies, or none with why."""
+    import preload
+    code = SUBJECT.code()
+    return {**({"code": configuration_text(code)} if code is not None else {}),
+            "preload": configuration_text(preload.identity(SUBJECT))}
 
 
 def _record_preload(st, kit: dict[str, str], version_tag: str) -> dict | None:
@@ -258,13 +271,16 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
     execution = execution_map(kit)
     ts = now()
     counts = {"execution": 0, "review": 0, "approved": 0}
-    smoke_digest = sha256(SUBJECT.reference_code())
+    smoke_digest = sha256(SUBJECT.reference_code())   # the evidence each execution verification records (evidence_sha256)
     review, authored, approval = attestation("review"), attestation("authored"), attestation("approval")
     docs = kit if kit is not None else SUBJECT.pristine()
     # decision-0036 (task-0306): an execution or review verification is the subject's attested result, bound to the
     # document Versions its declaration lists ([verification] execution and review, versions); no suite runs at load.
     # An unlisted Version is not verified, and a declaration that lists none verifies nothing: there is no read rule
     exec_arts, review_arts = bound_artefacts(docs, VER.get("execution")), bound_artefacts(docs, review)
+    # decision-0038 N-b (task-0320): the evidence is the code the suite ran on, and it was judged by the suite; both
+    # compared with the digests the declaration lists, and a changed or unlisted one verifies nothing by execution
+    exec_arts, code = executed(exec_arts, execution)
     marks = [attested_artefacts(docs, d, name)[1] for name, d in (("authored", authored), ("approval", approval)) if d]
     # decision-0019, quoted: "An unlisted Version is not attested: its authored statements read proposed, and nothing in
     # it is approved by construction." An earlier load (stage 1) may have attested or verified by execution what this
@@ -296,7 +312,7 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
     for mark in marks:   # a bound declaration only: the read rule's is the manifest's own (gate.attestation_behind), so its store is as before
         if mark["bound"]:
             st.record_attestation(mark)
-    record_bound_attestations(st, docs, review)
+    record_bound_attestations(st, docs, review, code)
     if withdrawn:
         from rules import r_corroborate, r_unverified
         r_corroborate(st)
@@ -308,12 +324,61 @@ def load_verifications(st, scenario: str, pristine: dict[str, set[str]], kit: di
     return counts
 
 
-def record_bound_attestations(st, docs: dict[str, str], review: dict | None) -> None:
+def record_bound_attestations(st, docs: dict[str, str], review: dict | None, code: list[dict] | None = None) -> None:
     """task-0318: ``execution`` and ``review`` are bound as ``authored`` and ``approval`` are (decision-0036), so the gate
-    names them beside those when they omit a Version; recorded whenever bound, so stage 2 replaces what stage 1 read."""
+    names them beside those when they omit a Version; recorded whenever bound, so stage 2 replaces what stage 1 read.
+    ``code`` (task-0320): the implementation or suite the execution declaration does not list as it is, kept among its
+    unattested rows, each marked ``code``, for the gate to name."""
     for name, d in (("execution", VER.get("execution")), ("review", review)):
         if isinstance(d, dict) and d.get("versions") is not None:
-            st.record_attestation(attested_artefacts(docs, d, name)[1])
+            mark = attested_artefacts(docs, d, name)[1]
+            if name == "execution" and code:
+                mark = {**mark, "unattested": json.dumps(json.loads(mark["unattested"]) + code, ensure_ascii=False, sort_keys=True)}
+            st.record_attestation(mark)
+
+
+def executed(exec_arts: list[str], execution: dict[str, list[str]]) -> tuple[list[str], list[dict]]:
+    """(the artefacts execution verifies, the code rows it does not attest, ``execution_code``): none when any is."""
+    code = execution_code(VER.get("execution"), sorted({k for ks in execution.values() for k in ks}))
+    return ([] if code else exec_arts), code
+
+
+def execution_code(decl: dict | None, keys: list[str]) -> list[dict]:
+    """What an execution verification ran that its declaration does not attest (task-0320, decision-0038 N-b): for the
+    reference implementation (``[reference] code``) and the suite that judged it (``[oracle] script``), each the subject
+    declares, the files (``Subject.code_parts``, the load's own part selection) whose raw-byte digest
+    ``[verification] execution`` does not list in ``implementation`` or ``suite``; a list left out lists none. The suite
+    is the script with the files ``[oracle] suite`` lists (task-0338, decision-0039 §3.5). Each row
+    {artefact, sha256, parts, code, keys}, with ``files`` [{path, sha256}] naming each of those files it misses: ``parts``
+    the unlisted digests, ``stale`` (task-0340) the listed digests no current file holds, ``keys`` the keys the execution map verifies, which it then does not. Empty when everything is listed, or when no declaration lists Versions (it verifies nothing
+    already)."""
+    SUBJECT.require_code_inside()   # task-0340 R2: before anything is digested
+    if not isinstance(decl, dict) or decl.get("versions") is None:
+        return []
+    rows = (_code_row(which, decl, keys) for which in ("implementation", "suite"))
+    return [r for r in rows if r]
+
+
+def _code_row(which: str, decl: dict, keys: list[str]) -> dict | None:
+    """The row for one of ``implementation`` and ``suite`` when ``decl`` does not attest it as it is, else None."""
+    path, parts = SUBJECT.code_parts(which)
+    listed = decl.get(which)
+    listed = listed if isinstance(listed, list) else []
+    miss = sorted(d for d in parts.values() if d and d not in listed)
+    have = set(parts.values())
+    stale = sorted({d for d in listed if isinstance(d, str) and d not in have})   # task-0340 R1: a listed digest no file holds
+    named = _suite_named(listed) if which == "suite" else []
+    if not (path and (miss or named or stale or not parts)):
+        return None
+    row = {"artefact": path, "sha256": parts.get("", ""), "parts": miss, "code": which, "keys": keys,
+           "missing": which not in decl, **({"stale": stale} if stale else {})}
+    return {**row, "files": named} if named else row
+
+
+def _suite_named(listed: list) -> list[dict]:
+    """task-0338 (decision-0039 §3.5): each file ``[oracle] suite`` lists that ``listed`` misses, or that holds no file,
+    {path, sha256}, by path."""
+    return [{"path": f, "sha256": d} for f, d in sorted(SUBJECT.suite_declared().items()) if not d or d not in listed]
 
 
 def _day(v) -> str | None:
@@ -379,6 +444,20 @@ def attestation(name: str, table: dict | None = None) -> dict | None:
     return {**a, "at": at}
 
 
+def attestations_digest() -> str:
+    """The manifest's ``[verification]``, ``[provenance]`` and ``[capture]`` as the load reads them (task-0320,
+    decision-0038 N2): ``canonical_digest`` of ``{"verification": .., "provenance": .., "capture": ..}``, a table the
+    manifest lacks null. Recorded at each load (``record_inputs``), read by the gate report's ``attestations``."""
+    m = SUBJECT.manifest
+    return canonical_digest({n: m.get(n) for n in ("verification", "provenance", "capture")})
+
+
+def applied_digest(entries: list) -> str:
+    """The files a load applied, ``[name, canonical_digest(content as read)]`` each, by name (task-0320): a file the
+    load skipped (another scenario's review, a refused one) is not among them."""
+    return canonical_digest(sorted(entries))
+
+
 def load_captures(st, scenario: str) -> dict:
     """Every capture in the subject's capture folder (harness/capture.py ingest; task-0009): an
     answer becomes an assertion of basis ``elicited`` at status proposed, attributed to the person's
@@ -386,9 +465,11 @@ def load_captures(st, scenario: str) -> dict:
     date. The verifications never touch basis elicited, so nothing here rises above proposed."""
     files = sorted(SUBJECT.capture_dir.glob("*.toml")) if SUBJECT.capture_dir.is_dir() else []
     counts = {"files": [], "answers": 0, "unknown": 0}
+    applied = []
     for p in files:
         c = tomllib.loads(p.read_text(encoding="utf-8"))
         formats.version(c, p.as_posix(), formats.CAPTURE)   # a newer capture refused, exit 2, never misread
+        applied.append([p.name, canonical_digest(c)])
         cap = c.get("capture", {})
         handle, on, record = cap["from"], str(cap["on"]), cap["record"]
         person, aid = f"person:{handle}", f"act:capture:{p.stem}"
@@ -416,6 +497,7 @@ def load_captures(st, scenario: str) -> dict:
                                 ent, xid, scenario, ent, u["key"])
             counts["unknown"] += 1
         counts["files"].append(record)
+    st.record_inputs({"captures": applied_digest(applied)})   # task-0320: the answers this load applied, as read
     inferred = load_inferred_proposals(st)   # route c's candidates (task-0041); none without <capture dir>/inferred/
     if inferred:
         counts["inferred"] = inferred
@@ -471,19 +553,24 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
     import review
     from rules import compatible
     rdir = SUBJECT.capture_dir / "reviews"
-    files = sorted(rdir.glob("*.toml")) if rdir.is_dir() else []
+    files = _ordered_reviews(rdir)
     counts = {"files": [], "refused": [], "approved": 0, "rejected": 0, "referred": 0, "closed": 0, "settled": 0, "skipped": 0}
     if again:
         st.clear_act_findings()
+    applied: list = []   # task-0320: the review files this load applied, as read
+    pending: list = []   # (act finding, review file): ambiguous rulings, settled or not by a later one
+    bound: list = []     # (review file, key, value, sha256) of every ruling applied
     if not files:
+        st.record_inputs({"reviews": applied_digest(applied)})
         return counts
     reg = capture.register_root()
     handles, units = review.issued_handles(reg), review.organisation_units(reg)
     owners = capture.owners_of(SUBJECT, capture.register_nodes(reg))
     caps = review.capture_index(SUBJECT.capture_dir)
-    for p in files:
-        doc = tomllib.loads(p.read_text(encoding="utf-8"))
-        formats.version(doc, p.as_posix(), formats.REVIEW)   # before the scenario filter: a newer file refused, exit 2
+    opposed = _opposed(files, scenario, st, handles=handles, owners=owners, units=units, captures=caps, now=now,
+                       compatible=compatible, strict=False)
+    for p, doc in files:
+        content = canonical_digest(doc)
         sc = str(doc.get("review", {}).get("scenario", ""))
         if sc and sc != scenario:
             continue
@@ -498,11 +585,7 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
             counts["refused"].append(rel)
             st.record_act_finding(_act(f"actf:{rid}", head, "review", 0, "", "", "", "refused", reasons=errs))
             continue
-        for x in rv["skipped"]:   # an act whose statement changed or vanished: not applied, and said so (doc-0032 §6 item 7)
-            print(f"review act not applied: {rel}: {x['act']} {x['n']} ({x['statement']}): {x['why']}", file=sys.stderr)
-            counts["skipped"] += 1
-            st.record_act_finding(_act(f"actf:{rid}:{x['act']}:{x['n']}", head, x["act"], x["n"], x["statement"], x["outcome"],
-                                       x["key"], x["why"], value=x["value"], sha=x["sha256"], to=x["to"]))
+        counts["skipped"] += _record_skipped(st, rv["skipped"], rid, head, rel, pending, review.order_key(p, doc))
         person, on = f"person:{rv['by']}", rv["on"].isoformat()
         st.ensure_person(person, rv["by"])
         try:
@@ -510,20 +593,7 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
         except ValueError:
             if not again:   # store.UNIQUE_IDS: only stage 2 meets a review stage 1 recorded, and keeps that record
                 raise
-        settled = set()
-        for ru in rv["rulings"]:
-            b = st.assertion_brief(ru["statement"])
-            outcome = ru["outcome"]
-            until = review.until_for(b, caps)
-            if b["status"] == "disputed":
-                settled.add(b["key"])   # the review settled the dispute whole (review.check), lapse or not
-            # task-0198 (H3): applied whatever the day; the approval keeps its until, six months after the answer,
-            # and the gate reads it lapsed as of its date (cadence.lapse), never the load's day
-            st.apply_ruling(b["id"], outcome, rid, person, on, rv["record"], until.isoformat() if until else "")
-            counts[outcome] += 1
-            if ru["unbound"]:   # the read rule: a file from before 0.9.0 binds by id, and the gate says so
-                st.record_act_finding(_act(f"actf:{rid}:ruling:{ru['n']}", head, "ruling", ru["n"], b["id"], outcome, b["key"],
-                                           "unbound", to=[{"id": b["id"], "value": ru["value"], "sha256": ru["sha256"]}]))
+        settled = _apply_rulings(st, rv, (p, doc, rid, head, rel, person, on), caps, opposed, bound, counts, pending)
         for key in sorted(settled):
             counts["settled"] += st.settle_conflicts(key, rid)
         for c in rv.get("resolves", []):   # task-0216: a lint gap's resolution, by its document's owner
@@ -538,7 +608,103 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
                 st.record_act_finding(_act(f"actf:{rid}:close:{c['n']}", head, "close", c["n"], c["gap"], "closed",
                                            (c["keys"] or [""])[0], "unbound"))
         counts["files"].append(rel)
+        applied.append([p.name, content])
+    _record_pending(st, pending, bound, handles)
+    st.record_inputs({"reviews": applied_digest(applied)})
     return counts
+
+
+def _apply_rulings(st, rv: dict, ctx: tuple, caps, opposed: dict, bound: list, counts: dict, pending: list) -> set:
+    """Apply one review's rulings (an opposed one is set aside, task-0328); the keys whose dispute it settled."""
+    import review
+    p, doc, rid, head, rel, person, on = ctx
+    settled = set()
+    for ru in rv["rulings"]:
+        b = st.assertion_brief(ru["statement"])
+        outcome = ru["outcome"]
+        until = review.until_for(b, caps)
+        # task-0198 (H3): applied whatever the day; the approval keeps its until, six months after the answer,
+        # and the gate reads it lapsed as of its date (cadence.lapse), never the load's day
+        against = opposed.get((ru["statement"], on, rel))
+        if against:   # task-0328: neither ruling of an opposed pair applies
+            _set_aside(st, rid, head, rel, ru, b, against, pending, review.order_key(p, doc))
+            continue
+        if b["status"] == "disputed":
+            settled.add(b["key"])   # the review settled the dispute whole (review.check), lapse or not
+        st.apply_ruling(b["id"], outcome, rid, person, on, rv["record"], until.isoformat() if until else "")
+        bound.append({"at": review.order_key(p, doc), "rel": rel, "id": b["id"], "key": b["key"], "value": str(ru["value"]),
+                      "sha256": ru["sha256"], "giver": ru.get("giver"), "outcome": outcome})
+        counts[outcome] += 1
+        if ru["unbound"]:   # the read rule: a file from before 0.9.0 binds by id, and the gate says so
+            st.record_act_finding(_act(f"actf:{rid}:ruling:{ru['n']}", head, "ruling", ru["n"], b["id"], outcome, b["key"],
+                                       "unbound", to=[{"id": b["id"], "value": ru["value"], "sha256": ru["sha256"]}]))
+    return settled
+
+
+def _opposed(files: list, scenario: str, st, **kw) -> dict:
+    """task-0328: the rulings that oppose another reviewer's the same day (``review.opposed_rulings``), read from every
+    file's check before any is applied, so the outcome does not depend on which file is read first."""
+    import review
+    rows = []
+    for p, doc in files:
+        sc = str(doc.get("review", {}).get("scenario", ""))
+        if sc and sc != scenario:
+            continue
+        errs, rv = review.check(doc, st, where=p.as_posix(), **kw)
+        rel = str(p.relative_to(SUBJECT.root)) if p.is_relative_to(SUBJECT.root) else str(p)
+        rows += [] if errs else [(ru["statement"], rv["on"].isoformat(), rv["by"], ru["outcome"], rel) for ru in rv["rulings"]]
+    return review.opposed_rulings(rows)
+
+
+def _set_aside(st, rid: str, head: dict, rel: str, ru: dict, b: dict, group: list, pending: list, at: tuple) -> None:
+    """An opposed ruling is not applied: an ``ambiguous`` act finding names every file of its cancelled set (task-0328,
+    task-0331). It is held in ``pending``, to be settled by a later day's ruling (``review.opposed_settling``)."""
+    import sys
+    import review
+    pending.append((_act(f"actf:{rid}:ruling:{ru['n']}:opposed", head, "ruling", ru["n"], b["id"], ru["outcome"], b["key"],
+                         "ambiguous", value=ru["value"], sha=ru["sha256"], reasons=[review.opposed_reason(group)]), at))
+    print(f"review ruling not applied: {rel} is opposed by {', '.join(f for f, _o in group if f != rel)} on {b['id']}", file=sys.stderr)
+
+
+def _ordered_reviews(rdir: Path) -> list:
+    """(path, document) of every review file in the order they are applied (``review.order_key``, task-0322); a newer
+    file than this release reads is refused here, before the scenario filter (exit 2)."""
+    import review
+    out = []
+    for p in sorted(rdir.glob("*.toml")) if rdir.is_dir() else []:
+        doc = tomllib.loads(p.read_text(encoding="utf-8"))
+        formats.version(doc, p.as_posix(), formats.REVIEW)
+        out.append((p, doc))
+    return sorted(out, key=lambda x: review.order_key(*x))
+
+
+def _record_skipped(st, skipped: list, rid: str, head: dict, rel: str, pending: list, at: tuple) -> int:
+    """Record the acts a review's load set aside (doc-0032 §6 item 7), an ambiguous ruling held back for
+    ``_record_pending``; returns how many."""
+    import sys
+    for x in skipped:   # an act whose statement changed or vanished: not applied, and said so
+        print(f"review act not applied: {rel}: {x['act']} {x['n']} ({x['statement']}): {x['why']}", file=sys.stderr)
+        fa = _act(f"actf:{rid}:{x['act']}:{x['n']}", head, x["act"], x["n"], x["statement"], x["outcome"],
+                  x["key"], x["why"], value=x["value"], sha=x["sha256"], to=x["to"], reasons=x.get("reasons", ()))
+        if x["why"] == "ambiguous" and x["act"] == "ruling":
+            pending.append((fa, at))   # task-0321 H2: recorded once a later ruling is known to settle it, or not
+        else:
+            st.record_act_finding(fa)
+    return len(skipped)
+
+
+def _record_pending(st, pending: list, bound: list, handles: dict) -> None:
+    """task-0321 H2, task-0322: an ambiguous ruling a later applied review settled or superseded is recorded with the
+    reason (the gate reads it at info when it is settled or the key reads approved); the rest as they were."""
+    import review
+    for fa, at in pending:
+        reasons = json.loads(fa["reasons"])
+        if review.is_opposed(reasons):   # task-0331: its own reason stays first, the settling one follows
+            why = review.opposed_settling(fa, at, bound)
+            st.record_act_finding({**fa, "reasons": json.dumps([*reasons, why], ensure_ascii=False)} if why else fa)
+            continue
+        why = review.settling(fa, at, bound, handles)
+        st.record_act_finding({**fa, "reasons": json.dumps([why], ensure_ascii=False)} if why else fa)
 
 
 def _act(fid: str, head: dict, act: str, n: int, statement: str, outcome: str, key: str, why: str, *,
