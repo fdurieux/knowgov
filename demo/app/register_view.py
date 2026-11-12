@@ -189,6 +189,11 @@ def followed(e: dict) -> str:
     return "yes, back to the start, not counted" if e.get("to_start") else "yes"
 
 
+def _thread_buckets(walk: str, by_prefix) -> dict:
+    """task-0314 R-T2: the thread walk reaches capabilities and information entities too."""
+    return {"capabilities": by_prefix("CAP"), "entities": by_prefix("ENT")} if walk == "thread" else {}
+
+
 @takes_subject
 def impact(start: str, walk: str = "dependants", children: bool = False) -> dict | None:
     """The register's own impact walk from one node (tools/impact.py, vendored), each edge
@@ -270,8 +275,7 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
               + (", with its descendants" if children else ""))
     out = {"from": start, "walk": walk, "children": children, "edges": edges, "rows": rows, "owners": owners,
            "reached": {"products": products, "journeys": journeys, "processes": processes, "applications": applications, "all": reached,
-                       # task-0314 R-T2: the thread walk reaches capabilities and information entities too
-                       **({"capabilities": by_prefix("CAP"), "entities": by_prefix("ENT")} if walk == "thread" else {})},
+                       **_thread_buckets(walk, by_prefix)},
            "panel": {"title": title, "intro": intro, "sections": sections},
            "text_registry": reg_sentences}
     if children:

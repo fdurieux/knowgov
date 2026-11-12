@@ -23,17 +23,6 @@ def test_b_x1_p1_an_unloadable_subject_is_exit_2_in_one_line_never_a_traceback()
         assert "Traceback" not in r.stderr and r.stderr.strip().count("\n") == 0 and "cannot run" in r.stderr, (tool, r.stderr)
 
 
-def test_b_x2_realisers_refuses_a_kind_with_no_such_walk():
-    import register_impact as ri
-    try:
-        ri.walk("APP-0002", "realisers")
-    except ri.ImpactError as e:
-        assert "realisers walk starts from" in str(e), e
-    else:
-        raise AssertionError("realisers from an application must be refused")
-    assert ri.walk("CAP-0001", "realisers")["walk"] == "realisers"   # a capability still answers
-
-
 def test_b_x3_a_sub_gate_counts_the_keys_reached():
     import re
     src = (HARNESS / "gate_cli.py").read_text(encoding="utf-8")

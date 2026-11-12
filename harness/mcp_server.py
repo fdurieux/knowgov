@@ -574,6 +574,17 @@ def _stage(scenario: str, version: str | None) -> int:
     return 2 if cfg2 and version == cfg2.get("version", "v2") else 1   # change.version_of, without its load imports
 
 
+def _unmodelled(key: str, answer: str) -> str:
+    """task-0314 A-F10: for an unknown answer on a key no modelling names, say so (and the nearest key), so it does not read
+    as a documented absence."""
+    import key_rule
+    import trace
+    known = trace.known_keys()
+    if answer != "unknown" or key in known:
+        return ""
+    return f"; {key} is in no register map row or task's keys of the subject" + key_rule.did_you_mean(key, known)
+
+
 class Tools:
     """The tools over a store opener; each call opens the store, reads and releases it. ``as_of`` is
     the session's date (default: ``KG_AS_OF``, else ``today``), read here and resolved on first use
@@ -1071,12 +1082,7 @@ class Tools:
                    "as_of": on, "statements": statements, "invalidated": invalidated_on_key(st, key)}
             if "why" in ans:
                 out["why"] = ans["why"]
-                if ans["answer"] == "unknown":   # task-0314 A-F10: a key no modelling names reads as one, not as an absence
-                    import key_rule
-                    import trace
-                    known = trace.known_keys()
-                    out["why"] += (f"; {key} is in no register map row or task's keys of {SUBJECT.id}" + key_rule.did_you_mean(key, known)
-                                   if key not in known else "")
+                out["why"] += _unmodelled(key, ans["answer"])   # task-0314 A-F10
             if ans.get("disputed"):   # task-0201 (doc-0030 M4): the statements the documents disagree on
                 out["disputed"] = ans["disputed"]
             return out
