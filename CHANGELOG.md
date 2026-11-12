@@ -11,6 +11,7 @@ names that section with the version.
 ## Unreleased
 
 - The pre-load check's Spectral pin moves to 6.17.1, the same in `instance/ci/package.json`, `instance/ci/preload-check.yml` and the harness workflow (Dependabot #471, which moved only the first).
+- Onboarding and pre-load messages (task-0312): `check_subject` notes a missing `register_map.toml`; a document judged only by a step-4 check, its kind's linter never having run, stays `unchecked` in the pre-load report (it was `clean`), and a `KG_PRELOAD_REPORT` that names no file is said so, not blamed on the store.
 
 ## 0.9.0 — 2026-11-12
 

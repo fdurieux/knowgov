@@ -567,7 +567,9 @@ def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: lis
 def check_map(rep: Report, m: dict, root: Path, register: Path | None) -> None:
     rel = (m.get("register") or {}).get("map", "register_map.toml") if isinstance(m.get("register"), dict) else "register_map.toml"
     p = root / rel
-    if not p.is_file():
+    if not p.is_file():   # task-0312 C1-1: a map nothing reads is a subject whose keys have no owner and no walk
+        rep.note("map", rel, f"{rel} is not there: no key of this subject maps to a register node, so no key has an owner and none walks the register "
+                 "(add it, or name its path under [register] map in subject.toml; a subject that reads no register may go without)")
         return
     rows = _toml(p).get("row", [])
     nodes = register_nodes(register) if register else None
