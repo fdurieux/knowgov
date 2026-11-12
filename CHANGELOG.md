@@ -11,6 +11,10 @@ names that section with the version.
 ## Unreleased
 
 - The pre-load check's Spectral pin moves to 6.17.1, the same in `instance/ci/package.json`, `instance/ci/preload-check.yml` and the harness workflow (Dependabot #471, which moved only the first).
+- A node found stale by one landing of an export stays stale in the next while its id is still absent, until an export carries it again (`tools/connector.py`).
+- The page's register impact panel counts capabilities among what the dependants walk reaches, and its statements view names its join (the start's cited anchors, not the register map `register_impact` uses).
+- The comparator reads a run that registered the Derived output against the scored record with `valid_until` set aside, as the page's record check does; it no longer disagrees on a page-started S6 run. `--record-for` still reads every leaf.
+- The page leaves out and logs a subject whose task policy the gate refuses, instead of serving it to a run that exits 2.
 
 ## 0.9.0 — 2026-11-12
 
