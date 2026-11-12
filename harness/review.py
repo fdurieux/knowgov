@@ -307,18 +307,26 @@ def opposed_settling(fa: dict, at: tuple, bound: list) -> str | None:
     return f"{SETTLED}{later[-1]['rel']}"
 
 
+def _later(b: dict, at: tuple) -> bool:
+    """task-0323 L2: later in the order applied, or the same day by another reviewer, whose handle order is no order of writing."""
+    return b["at"] > at or (b["at"][0] == at[0] and b["at"][1] != at[1])
+
+
 def settling(fa: dict, at: tuple, bound: list, handles: dict) -> str | None:
     """The reason an ambiguous ruling's act is settled or superseded by a later applied ruling (task-0322), else None.
-    Settled: a later ruling of the same statement (its id, or the same key, value and digest by a giver the stem
-    reads as). Superseded: a later ruling of the same content on another statement, the answer it named unruled."""
+    Settled (task-0323 L1): the latest later decided ruling of the same statement (its id, or the same key, value and
+    digest by a giver the stem reads as); a referral never settles. Superseded: a later ruling of the same content on
+    another statement, the answer it named unruled."""
     mine = _readings(fa["statement"], handles)
-    for b in bound:
-        if b["at"] <= at or (b["key"], b["value"], b["sha256"]) != (fa["key"], fa["from_value"], fa["from_sha256"]):
-            continue
-        if b["id"] == fa["statement"] or b["giver"] in mine:
-            return f"{SETTLED}{b['rel']}"
-        return (f"{SUPERSEDED}{b['rel']}; the answer it named stays unruled" if b["outcome"] == "approved"
-                else f"{RULED}{b['rel']} ({b['outcome']}); the answer it named stays unruled")
+    same = (fa["key"], fa["from_value"], fa["from_sha256"])
+    later = [b for b in bound if _later(b, at) and (b["key"], b["value"], b["sha256"]) == same]
+    own = [b for b in later if (b["id"] == fa["statement"] or b["giver"] in mine) and b["outcome"] in ("approved", "rejected")]
+    if own:
+        return f"{SETTLED}{own[-1]['rel']}"
+    for b in later:
+        if b["id"] != fa["statement"] and b["giver"] not in mine:
+            return (f"{SUPERSEDED}{b['rel']}; the answer it named stays unruled" if b["outcome"] == "approved"
+                    else f"{RULED}{b['rel']} ({b['outcome']}); the answer it named stays unruled")
     return None
 
 
