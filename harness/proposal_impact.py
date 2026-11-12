@@ -1127,7 +1127,9 @@ def branch_overlay(checkout: Path, base: str, taxonomies: tuple[str, ...]) -> tu
                     links.append({"id": ln.get("id"), "type": typ,
                                   **{k: ln[k] for k in ("source", "target", "rationale", "owner") if k in ln}})
                 elif ln != before[ln.get("id")]:
-                    not_read.append({"path": f"{path} [{ln.get('id')}]", "status": "M", "why": "a link changed in place is not an addition"})
+                    gone = ln.get("state") in ("retired", "deprecated") and before[ln.get("id")].get("state") != ln.get("state")
+                    not_read.append({"path": f"{path} [{ln.get('id')}]", "status": "M", "why": "a link changed in place is not an addition"
+                                     + ("; one moved to " + ln["state"] + " is read by gate_cli --register-previous, which stales the keys it touches" if gone else "")})
             after = {ln.get("id") for ln in new.get("link", [])}
             for lid in sorted(set(before) - after):
                 not_read.append({"path": f"{path} [{lid}]", "status": "D", "why": "a link removed is not an addition"})
@@ -1248,7 +1250,7 @@ def render_text(r: dict) -> str:
     if tk is not None:
         lines.append(f"  task keys{' (' + tk['task'] + ')' if tk['task'] else ''}: {tk['in_slices']} in slices, {tk['on_no_slice']} "
                      f"on no slice, of {tk['denominator']}" + (f": {[k['key'] for k in tk['keys']]}" if tk["keys"] else "")
-                     + (f"; gate {tk['gate']['verdict']}" if tk.get("gate") else ""))
+                     + (f"; gate {tk['gate']['verdict']} (the held scenario's, read as it is: not a verdict on this proposal)" if tk.get("gate") else ""))
     e = sl["elements"]
     lines.append(f"  slices: {e['in_slices']} in slices, {e['in_remainder']} in the remainder, of {e['denominator']} overlay element(s)")
     for k in r["keys"]["by_node"]:

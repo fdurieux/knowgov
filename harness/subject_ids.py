@@ -12,6 +12,7 @@ client that names none sees no change. Standard library only; nothing here reads
 from __future__ import annotations
 
 import os
+import sys
 import re
 import tomllib
 from pathlib import Path
@@ -30,6 +31,9 @@ def _manifest(root: Path) -> dict:
         return tomllib.loads((root / "subject.toml").read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError):
         return {}
+
+
+_SAID: set = set()
 
 
 def _roots() -> list[Path]:
@@ -60,6 +64,11 @@ def subjects() -> list[dict]:
         m = _manifest(root)
         s = m.get("subject", {})
         sid = s.get("id", root.name)
+        if sid in seen and m:   # task-0339: the later root's duplicate is dropped; said once on stderr
+            key = (sid, str(root.resolve()))
+            if key not in _SAID:
+                _SAID.add(key)
+                print(f"subjects: id {sid!r} also found at {root}; the first root's is kept", file=sys.stderr)
         if sid in seen or not m:
             continue
         seen.add(sid)

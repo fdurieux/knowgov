@@ -11,6 +11,7 @@ names that section with the version.
 ## Unreleased
 
 - The pre-load check's Spectral pin moves to 6.17.1, the same in `instance/ci/package.json`, `instance/ci/preload-check.yml` and the harness workflow (Dependabot #471, which moved only the first).
+- Fixes from the redone review (task-0329): `gate_cli --no-load` without `--scenario` reads the scenario the store holds, as the MCP server does; a PROCEED with a suspect derived output says so in its why; the 'is not attested' findings no longer print `owner none in the register map`; a suspect output whose statement's source changed under an equal value says so; `register_impact` with `children` lists an edge once; `check_gate_after_change` and `check_register_change` accept a relative `KG_SUBJECT`; the baseline's stderr lines name the configuration and code files that moved, and the pre-load report is compared by its bytes, not its path; a `CodePathOutside` or a missing named file exits 2 with its own cause; `check_subject` confines `[reference] code` and `[oracle] script` as the load does and names every stale digest with its field; the hook shows one attestation and one lapsed finding in its bar; register-update guidance (`--register-previous` re-applies on every run) in `instance/README.md` and the gate's text report
 
 ## 0.9.0 — 2026-11-12
 

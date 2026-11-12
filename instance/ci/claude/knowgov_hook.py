@@ -437,7 +437,9 @@ def _shown(rep: dict) -> list[dict]:
     worst = [f for f in fs if f.get("severity") in ("blocker", "critical")]
     if not worst:
         return fs[:6]
-    bar = [f for f in fs if f.get("kind") in BAR_KINDS and f not in worst][:2]
+    bar = []   # H7: one slot per kind, attestation first, so lapses cannot crowd the attestation cause out
+    for kind in BAR_KINDS:
+        bar += [f for f in fs if f.get("kind") == kind and f not in worst][:1]
     return worst[:6 - len(bar)] + bar
 
 
@@ -447,6 +449,8 @@ def _route_for(rep: dict) -> str:
     attestation finding is shown, it is the attestation route."""
     shown = _shown(rep)
     blockers = {f.get("kind") for f in shown if f.get("severity") in ("blocker", "critical")} - {"task"}
+    if not blockers - {"attestation"} and any(f.get("kind") == "attestation" for f in shown) and any(f.get("kind") == "lapsed" for f in shown):
+        return ATTESTATION_ROUTE + " A lapsed review is renewed by its reviewer's new dated ruling (harness/capture.py review)."
     return ATTESTATION_ROUTE if not blockers - {"attestation"} and any(f.get("kind") == "attestation" for f in shown) else ROUTE
 
 

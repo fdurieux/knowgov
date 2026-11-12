@@ -509,6 +509,12 @@ the example instance, and runs the GitLab job's own script lines in a shell
 (`tools/check_ci_wrappers.py`). Both use S6: the change turns the registered code suspect, and the
 check fails naming `APP-0001`.
 
+**After a register update.** `gate_cli.py --register-previous DIR` reads what the update withdrew or retired against
+the checkout before it, and stales the statements of the keys resting on it. It does so again on every run it is
+passed, so an answer, an ingest or a review ruling cannot restore them while the option stays. The CI template does
+not pass it. Run it once when the update lands, then either re-map the key in `register_map.toml` to a live node, or,
+once the owner confirms the update, run the gate without it (advance your previous register to the new one).
+
 ## A register pull request read before approval
 
 A proposed product, capability or journey reaches your register as a pull request: new node files
@@ -1821,7 +1827,7 @@ below has one row for every `KG_*` setting this guide or [`docs/security.md`](..
 since decision-0034 choice 1, for every one the code reads or a compose file under `demo/` passes, but for a
 short list of internal names, each with its reason, in `tests/test_settings_table.py`. **A setting is a
 contract when the table marks it so** (decision-0016 point 3, as amended by decision-0033 choice 1): the
-settings an instance's CI, compose file or hook sets in order to run, decision-0027's twenty among them. A row
+settings an instance's CI, compose file or hook sets in order to run, decision-0027's twenty and every one added since among them (the table's contract column decides). A row
 marked *no* is named so you can find it: the demo stack's own settings, tuning knobs, a debugging aid and one
 escape. It may change in any release, so do not build on it. A setting that neither file names is not a
 contract. Where a row says "see", the setting is described there; the worker's limits are in

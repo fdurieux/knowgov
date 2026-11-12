@@ -295,7 +295,9 @@ def walk(node: str, which: str = "dependants", root: Path | None = None, childre
         if not hasattr(T["impact"], "walk_children"):
             raise ImpactError(f"the register at {source(root)['tag'] or root} does not descend parent (its decision 0014, v0.2.8 on)")
         got = T["impact"].walk_children(reg, node, rows)
-        edges, reached = got["edges"], sorted(got["reached"])
+        seen: set = set()   # B-N9: an edge met from several starts is listed once
+        edges = [e for e in got["edges"] if not (repr(e) in seen or seen.add(repr(e)))]
+        reached = sorted(got["reached"])
         listed = [{"id": d["id"], "name": reg["nodes"][d["id"]].get("name", ""), "state": d["state"],
                    "parent": reg["nodes"][d["id"]].get("parent"), "walked": d["live"], "not_followed": not d["live"]}
                   for d in got["descendants"]]
