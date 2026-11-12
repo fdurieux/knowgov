@@ -330,6 +330,8 @@ class Subject:
         if not rel:
             return ""
         p = self.path(rel)
+        if not p.exists():   # S1: a deleted file reads as the attestation finding (the code row), never a crash
+            return ""
         return bundle(p, REFERENCE_INCLUDE) if p.is_dir() else p.read_text(encoding="utf-8")
 
     def code_parts(self, which: str) -> tuple[str | None, dict[str, str]]:
