@@ -131,6 +131,16 @@ def _toml(p: Path) -> dict:
     return tomllib.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
 
 
+def _toml_read(p: Path) -> tuple[dict, str | None]:
+    """``_toml`` and the sha256, hex, of the raw bytes it parsed (task-0335, decision-0039 §3.2): None for a file that
+    is not there. The text is decoded as ``read_text`` decodes it, universal newlines, so the parse is ``_toml``'s."""
+    if not p.exists():
+        return {}, None
+    raw = p.read_bytes()
+    text = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    return tomllib.loads(text), hashlib.sha256(raw).hexdigest()
+
+
 MANIFESTS = ("subject.toml", "scenarios.toml")   # what a reader of a subject watches for an edit (task-0206)
 
 
@@ -153,7 +163,8 @@ class Subject:
         if not (self.root / "subject.toml").exists():
             raise FileNotFoundError(f"{self.root} holds no subject.toml")
         self.stamp = stamp(self.root)   # read before the files, so an edit while they are read leaves it stale
-        m = _toml(self.root / "subject.toml")
+        self._read: dict[str, str] = {}   # task-0335: each configuration file's digest, as read (``configuration``)
+        m = self._config("subject.toml")
         import formats   # task-0174, decision-0023: one version for the root's configuration, a newer one refused
         self.format: int = formats.version(m, (self.root / "subject.toml").as_posix(), formats.SUBJECT)
         self.manifest = m
@@ -164,16 +175,16 @@ class Subject:
         self.record_model: str = s.get("record_model", "")
         self.record_effort: str = s.get("record_effort", "")   # the reasoning effort the record's arms ran at; "" is the API default (task-0028)
         self.artefacts: list[dict] = list(m.get("artefact", []))
-        sc = _toml(self.root / "scenarios.toml")
+        sc = self._config("scenarios.toml")
         import scenario_ids   # task-0295, decision-0034 choice 2: an id the pattern refuses, a duplicate or none stops the load
         scenario_ids.check(sc.get("scenario", []), (self.root / "scenarios.toml").as_posix())
         self.scenarios: dict[str, dict] = {x["id"]: x for x in sc.get("scenario", [])}
         self.order: list[str] = list(self.scenarios)
-        pl = _toml(self.root / "plants.toml")
+        pl = self._config("plants.toml")
         self.plants: dict[str, list[dict]] = pl.get("plant", {})
         self.stage2_plants: dict[str, list[dict]] = pl.get("stage2", {})
         self.inferred: dict | None = pl.get("inferred")
-        self.queries: list[dict] = list(_toml(self.root / "queries.toml").get("query", []))
+        self.queries: list[dict] = list(self._config("queries.toml").get("query", []))
         self.reference: dict = m.get("reference", {})
         self.oracle: dict = m.get("oracle", {})
         self.provenance: dict = m.get("provenance", {})
@@ -196,6 +207,28 @@ class Subject:
         self.capture_dir: Path = self.root / m.get("capture", {}).get("dir", "captures")
 
     # ---- paths and files
+    def _config(self, rel: str) -> dict:
+        """A configuration file of the root, parsed, its raw digest kept under ``rel`` as named (task-0335)."""
+        m, digest = _toml_read(self.path(rel))
+        name = Path(rel).as_posix()
+        if digest is None:
+            self._read.pop(name, None)
+        else:
+            self._read[name] = digest
+        return m
+
+    def configuration(self) -> dict[str, str]:
+        """The subject's configuration as a load reads it (task-0335, decision-0039 §3.2): the sha256, hex, of the raw
+        bytes of each configuration file read, by its path under the root as the manifest names it: ``subject.toml``
+        whole and ``scenarios.toml``, ``plants.toml`` and ``queries.toml`` as this Subject read them, and the register
+        map (``[register] map``) and the verification map (``[verification] map``) as read now, the gate's reads of
+        them; a file that is not there is left out. Recorded at each load (``Store.record_inputs``), read by the gate
+        report's ``configuration``."""
+        for rel in (self.register.get("map"), self.verification.get("map")):
+            if isinstance(rel, str) and rel:
+                self._config(rel)
+        return dict(sorted(self._read.items()))
+
     def path(self, rel: str) -> Path:
         return self.root / rel
 
@@ -314,7 +347,7 @@ class Subject:
 
     def verification_map(self) -> dict:
         rel = self.verification.get("map")
-        m = _toml(self.path(rel)) if rel else {}
+        m = self._config(rel) if rel else {}
         import key_rule   # task-0301: the keys it verifies in NFC, as the store holds them
         for scen, keys in list((m.get("execution") or {}).items()):
             m["execution"][scen] = key_rule.normalise_all(keys)
@@ -337,7 +370,7 @@ class Subject:
 
     def register_map(self) -> dict:
         rel = self.register.get("map")
-        m = _toml(self.path(rel)) if rel else {}
+        m = self._config(rel) if rel else {}
         import key_rule   # task-0301: each row's key in NFC, as the store holds it
         for row in m.get("row", []) if isinstance(m.get("row"), list) else []:
             if isinstance(row, dict) and "key" in row:

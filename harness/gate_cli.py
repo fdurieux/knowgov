@@ -110,7 +110,10 @@ the sha256 of the task table read; ``register``, its tag and commit; ``knowgov``
 version change (task-0307, decision-0037): ``corpus``, the sha256 over the loaded document Versions' digests
 (``store.corpus_digest``: one canonical JSON line ``[artefact, version, sha256]`` each, sorted; task-0320). And
 (task-0320, decision-0038 N2): ``attestations`` and ``captures``, what the load used beyond the documents as the
-store recorded it (``Store.inputs``), and ``register.files``, the register's files a load reads (its own loader's and the issued handles). With ``--baseline``,
+store recorded it (``Store.inputs``), and ``register.files``, the register's files a load reads (its own loader's and the issued handles). And
+(task-0335, decision-0039 §3.2): ``configuration``, the sha256 of each subject configuration file the load read
+(``Subject.configuration``: ``subject.toml`` whole, ``scenarios.toml``, the register map, ``plants.toml``,
+``queries.toml`` and the verification map where read), by path, compared whole. With ``--baseline``,
 each identity field (``IDENTITY_FIELDS``) that differs from the baseline's is listed in ``baseline.differs``
 (``differs``, the MCP reader's too) and named on stderr, one line each; the exit is the ratchet's, unchanged. A
 field the baseline lacks, or holds as unknown (null), and an object's sub-field unknown on either side, is never
@@ -502,8 +505,10 @@ def at_or_above(fs: list[dict], threshold: str) -> list[dict]:
     return [f for f in fs if SEVERITIES.index(f["severity"]) <= SEVERITIES.index(threshold)]
 
 
-# task-0307: what --baseline names when it differs; attestations and captures, task-0320 (decision-0038 N2)
-IDENTITY_FIELDS = ("task_profile", "register", "knowgov", "corpus", "attestations", "captures", "as_of")
+# task-0307: what --baseline names when it differs; attestations and captures, task-0320 (decision-0038 N2);
+# configuration, task-0335 (decision-0039 §3.2)
+IDENTITY_FIELDS = ("task_profile", "register", "knowgov", "corpus", "attestations", "captures", "configuration", "as_of")
+WHOLE = frozenset({"configuration"})   # task-0335: an object compared whole, a file read on one side only a difference
 
 
 def _nfc_levels(levels) -> dict:
@@ -567,7 +572,7 @@ def superseded_map(res: dict) -> dict[str, list[str]]:
     return m(res)
 
 
-NO_INPUTS = {"attestations": None, "captures": None}   # task-0320: a report built with no store's inputs: unknown
+NO_INPUTS = {"attestations": None, "captures": None, "configuration": None}   # task-0320: a report built with no store's inputs: unknown
 
 
 def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loaded: bool,
@@ -608,6 +613,7 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
             "corpus": corpus,   # task-0307, decision-0037: added since, without a version change
             # task-0320, decision-0038 N2: what the load used beyond the documents, as it recorded it; additive
             "attestations": inputs.get("attestations"), "captures": inputs.get("captures"),
+            "configuration": inputs.get("configuration"),   # task-0335, decision-0039 §3.2: the subject's files as read; additive
             **({"register_change": register_change} if register_change is not None else {})}   # task-0122, additive
 
 
@@ -678,10 +684,14 @@ def _show(value) -> str:
     return value if isinstance(value, str) else json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
-def _moved(was, now) -> bool:
+def _moved(was, now, whole: bool = False) -> bool:
     """Whether an identity field moved (task-0320, A-N1): for an object (register, knowgov), a sub-field other than
     ``why`` that both sides know (neither null nor absent) and that differs; a sub-field unknown on either side is
-    never a difference, so a partly unknown object is named only for what both name. Else both known and unequal."""
+    never a difference, so a partly unknown object is named only for what both name. Else both known and unequal.
+    ``whole`` (``WHOLE``, task-0335): an object whose absent member is known, not unknown, the configuration's file
+    the load did not read, so both known and unequal, the map whole."""
+    if whole:
+        return was is not None and now is not None and was != now
     if isinstance(was, dict) and isinstance(now, dict):
         return any(was[k] != now[k] for k in sorted(set(was) & set(now)) if k != "why" and was[k] is not None and now[k] is not None)
     return _known(was) and _known(now) and not isinstance(was, dict) and not isinstance(now, dict) and was != now
@@ -692,7 +702,7 @@ def identity_drift(identity: dict, rep: dict) -> list[dict]:
     something and differ: {field, baseline, now} (task-0307, decision-0037). A field either side lacks or holds
     as unknown is never a difference, nor an object's sub-field (``_moved``, task-0320). Never in the exit."""
     return [{"field": f, "baseline": identity[f], "now": rep.get(f)} for f in IDENTITY_FIELDS
-            if f in identity and _moved(identity[f], rep.get(f))]
+            if f in identity and _moved(identity[f], rep.get(f), f in WHOLE)]
 
 
 def differs(identity: dict | None, rep: dict) -> list[str]:
@@ -1051,14 +1061,14 @@ def with_differs(rep: dict, baseline: tuple[dict, str] | None) -> dict:
 
 
 def load_inputs(st) -> dict:
-    """``{attestations, captures}``: the digests of what the load used beyond the documents, as the store recorded
-    them at load (``Store.inputs``, task-0320, decision-0038 N2); each None on a store loaded before it, or a view
-    without the read, read as unknown."""
+    """``{attestations, captures, configuration}``: the digests of what the load used beyond the documents, as the
+    store recorded them at load (``Store.inputs``, task-0320, decision-0038 N2; configuration, task-0335); each None on
+    a store loaded before it, or a view without the read, read as unknown."""
     try:
         got = st.inputs()
     except (AttributeError, NotImplementedError):
         got = {}
-    return {"attestations": got.get("attestations"), "captures": got.get("captures")}
+    return {k: got.get(k) for k in NO_INPUTS}
 
 
 def _route_keys(task: str) -> set[str] | None:
