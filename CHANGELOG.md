@@ -34,6 +34,16 @@ names that section with the version.
   process, the process to the capability it realises, the applications that support it and the information it reads
   or writes), in the same answer (edges, reached, keys, gate), with or without `children`. Additive: the MCP tool's
   `inputSchema` enum and the page's impact route and select (`?walk=thread`, its Cypher and guides) offer it.
+- **An instance reads its own register, or refuses** (task-0334, decision-0039 §3.1). Before, with `KG_REGISTER`
+  unset, every command fell back to the public register under `demo/register`, and neither `knowgov-gate.sh` nor
+  the Claude Code hook set it, so a client's verdicts, review months and accepted givers followed the public
+  register. Now a command whose subject (`KG_SUBJECT`, `--subject`) lies outside the knowgov checkout, with
+  `KG_REGISTER` unset, exits 2 naming `KG_REGISTER`: `gate_cli`, `run`, `trace`, `capture`, `register_nodes`,
+  `upward`, `proposal_impact`, the MCP reader at start, and through them `register_impact` and the review months.
+  `knowgov-gate.sh` (so both CI templates) and the hook pass `<instance>/register` unless one is set. The public
+  subjects inside the checkout keep `demo/register`, so the record does not move.
+  - **What an adopter does:** keep the register at `<instance>/register`, or set `KG_REGISTER`; set it too when
+    you run a command by hand.
 - **An execution verification also binds to the code it ran and the suite that judged it** (task-0320,
   decision-0038 N-b). Before, `evidence_sha256` recorded the reference code, but nothing compared it: editing
   `reference_impl.py` kept every execution verification and PROCEED.

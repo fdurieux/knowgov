@@ -31,14 +31,21 @@ def mounted(env=None) -> dict[str, str]:
     env = os.environ if env is None else env
     out = {}
     for name in WATCHED:
-        value = (env.get(name) or "").strip()
-        if not value:
-            continue
-        path = Path(value)
-        path = (path if path.is_absolute() else Path.cwd() / path).resolve()
-        if path != ROOT and ROOT not in path.parents:
-            out[name] = str(path)
+        path = outside(env.get(name))
+        if path:
+            out[name] = path
     return out
+
+
+def outside(value: str | None) -> str | None:
+    """The folder ``value`` names, resolved, when it lies outside this checkout; None when it is empty or
+    inside. The one test of "an organisation's instance" (also ``cadence.register_root``'s, task-0334)."""
+    value = (value or "").strip()
+    if not value:
+        return None
+    path = Path(value)
+    path = (path if path.is_absolute() else Path.cwd() / path).resolve()
+    return str(path) if path != ROOT and ROOT not in path.parents else None
 
 
 def refusal(env=None) -> str | None:

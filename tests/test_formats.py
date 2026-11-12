@@ -149,7 +149,8 @@ def test_code_map_and_connectors_for_a_newer_knowgov_are_refused_with_exit_2():
         p = _py(ROOT / "tools" / "check_instance.py", inst)
         assert p.returncode == 2 and "code_map.toml: format = 2" in p.stderr and "Traceback" not in p.stderr, p.stderr
         if importlib.util.find_spec("rdflib") is not None:   # the trace opens its store first; its refusal needs one
-            env = {"KG_CLOCK": "pinned", "KG_STORE": "rdflib", "KG_RDFLIB_FILE": "", "KG_SUBJECT": str(inst / "subjects" / "cargo_quote")}
+            env = {"KG_CLOCK": "pinned", "KG_STORE": "rdflib", "KG_RDFLIB_FILE": "", "KG_SUBJECT": str(inst / "subjects" / "cargo_quote"),
+                   "KG_REGISTER": str(inst / "register")}
             p = _py(ROOT / "harness" / "trace.py", "check", "--instance", inst, "--ledger", Path(t) / "ledger.json",
                     "--task", "codegen", "--as-of", "2026-11-04", env=env)
             assert p.returncode == 2 and "code_map.toml: format = 2" in p.stderr and "Traceback" not in p.stderr, (p.returncode, p.stderr[-600:])
@@ -323,7 +324,8 @@ def test_the_trace_ledger_reads_its_schema_version_by_the_rule():
         if importlib.util.find_spec("rdflib") is not None:   # trace check opens its store before it reads the ledger
             import example_instance
             inst = example_instance.build(tmp / "inst")
-            env = {"KG_CLOCK": "pinned", "KG_STORE": "rdflib", "KG_RDFLIB_FILE": "", "KG_SUBJECT": str(inst / "subjects" / "cargo_quote")}
+            env = {"KG_CLOCK": "pinned", "KG_STORE": "rdflib", "KG_RDFLIB_FILE": "", "KG_SUBJECT": str(inst / "subjects" / "cargo_quote"),
+                   "KG_REGISTER": str(inst / "register")}
             p = _py(ROOT / "harness" / "trace.py", "check", "--instance", inst, "--ledger", new, "--task", "codegen",
                     "--as-of", "2026-11-04", env=env)
             assert p.returncode == 2 and "schema_version = 99" in p.stderr and "Traceback" not in p.stderr, (p.returncode, p.stderr[-600:])

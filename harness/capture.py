@@ -68,7 +68,9 @@ class CannotRun(Exception):
 
 
 def register_root() -> Path:
-    return Path(os.environ.get("KG_REGISTER") or (ROOT / "demo" / "register")).resolve()
+    """``cadence.register_root``: the one resolution, an instance's subject with no ``KG_REGISTER`` refused (task-0334)."""
+    import cadence
+    return cadence.register_root()
 
 
 def register_nodes(root: Path) -> dict[str, dict]:
