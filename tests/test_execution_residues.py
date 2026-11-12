@@ -144,4 +144,4 @@ def test_ac3_check_subject_notes_a_script_also_listed_in_the_suite():
         (root / "run.py").write_text("x = 1\n", encoding="utf-8")
         rep = check_subject.Report(root)
         check_subject.check_oracle_suite(rep, {"oracle": {"script": "run.py", "suite": ["run.py"]}}, root)
-        assert [f["level"] for f in rep.findings] == ["note"] and "also lists the script run.py" in rep.findings[0]["message"], rep.findings
+        assert [n["rule"] for n in rep.notes] == ["path"] and "also lists the script run.py" in rep.notes[0]["message"] and not rep.findings, rep.notes

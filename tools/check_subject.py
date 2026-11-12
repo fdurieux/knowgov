@@ -394,8 +394,7 @@ def _script_in_suite(rep: Report, o: dict, v: list) -> None:
     """task-0340 R4: the script is also a path ``[oracle] suite`` lists, which binds it twice and says nothing more."""
     s = o.get("script")
     if isinstance(s, str) and s in v:
-        rep.note("path", "[oracle] suite", f"also lists the script {s}, which the suite digest binds already",
-                 "list the files the script reads beside it")
+        rep.note("path", "[oracle] suite", f"also lists the script {s}, which the suite digest binds already; list the files the script reads beside it")
 
 
 def check_oracle_suite(rep: Report, m: dict, root: Path) -> None:
