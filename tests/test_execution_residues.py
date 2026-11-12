@@ -94,11 +94,14 @@ def test_ac1_a_deleted_implementation_file_is_stale_too():
     import subject
     with tempfile.TemporaryDirectory() as td:
         root = _copy(td, whole_dir=False)
-        s = subject.Subject(root) if hasattr(subject, "Subject") else None
-        load.SUBJECT = s
-        decl = dict(load.VER["execution"]) if isinstance(load.VER, dict) else None
-        decl["implementation"] = list(decl["implementation"]) + ["0" * 64]
-        rows = load.execution_code(decl, ["K"])
+        keep = load.SUBJECT
+        load.SUBJECT = subject.Subject(root)
+        try:
+            decl = dict(load.VER["execution"])
+            decl["implementation"] = list(decl["implementation"]) + ["0" * 64]
+            rows = load.execution_code(decl, ["K"])
+        finally:
+            load.SUBJECT = keep
         assert [r["code"] for r in rows] == ["implementation"] and rows[0]["stale"] == ["0" * 64], rows
 
 
