@@ -101,7 +101,11 @@ questionnaire, task-0009), so a block explains itself (task-0102, doc-0014 C7); 
 ``[owner UNIT]`` to each such line. A key finding on a declared gap also names the unit that closes
 it (``closer``: the owner its declaration names, decision-0002 point 3, else the key's owners; null
 when that is no unit of the register), and its route ends with the close (task-0110); the text form
-adds ``; closed by UNIT``.
+adds ``; closed by UNIT``. A suspect derived output's owner and route come from the keys of the statements it
+used that are now invalidated or changed (``related``), not from every key of its file (task-0311 N1). A route is
+one line of prose that starts with the command to run (a questionnaire, a review, a registration); an act settled
+or opposed, and the bar's blocker, state their step in words (``nothing to do: ...``), so a reader takes the
+first command as the step and the rest as who does it (task-0311 N4).
 
 The JSON report (-f json) is pinned by harness/schemas/gate-report.schema.json, version 3 (the
 schema's description says what changed from 1 and 2 and what was added since), and validated before
@@ -308,7 +312,7 @@ def _act_route(f: dict, route):
         import review
         if review.is_opposed(reasons):
             return (f"nothing to do: {reasons[-1]}" if len(reasons) > 1 else
-                    "the owners rule again in one review, on a later day (python harness/capture.py review <file>)")
+                    "the owners rule again in one review, on a later day (python harness/capture.py review <file>; from an instance repository, python \"$KG_HOME\"/harness/capture.py)")
         if reasons[0].startswith(review.SETTLED):
             return f"nothing to do: {reasons[0]}"
     return route
@@ -431,7 +435,9 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
             out.append(_finding("blocker", "key", f"{key} is {lvl.replace('_', ' ')}: the task cannot proceed on it",
                                 key=key, level=lvl, flags=flags))
         elif LEVELS.index(lvl) < LEVELS.index("verified"):
-            out.append(_finding("major", "key", f"{key} is {lvl}, below verified: an assistant may use it only as a stated assumption",
+            pend = sorted(v.get("pending_review") or [])   # C2-3 (task-0311): the assertion a reviewer rules on
+            out.append(_finding("major", "key", f"{key} is {lvl}, below verified: an assistant may use it only as a stated assumption"
+                                + (f" (awaiting a reviewer's ruling: {', '.join(pend)})" if pend else ""),
                                 key=key, level=lvl, flags=flags))
         elif flags:
             out.append(_finding("minor", "key", f"{key} is {lvl} but flagged {', '.join(flags)}", key=key, level=lvl, flags=flags))
@@ -441,7 +447,11 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                             "a behaviour shown to hold is not yet one a person intends; its owner approves it or rules otherwise",
                             key=key, level=v["level"], flags=v["flags"]))
     if res["verdict"] == "BLOCKED" and not res["blocked_keys"]:
-        out.append(_finding("blocker", "task", res["why"]))
+        f = _finding("blocker", "task", res["why"])
+        # A-F4 (task-0311): the bar blocker names a next step, the keys below the bar and their routes
+        f["route"] = ("raise the keys below the bar: each key finding above names its owner and the route to approval; "
+                      "the share falls under the bar when enough of them are verified or approved")
+        out.append(f)
     for x in res.get("stale") or []:
         # sorted: the store collects these in its own order, and one store's answer must read the same in another (task-0070)
         settled = sorted(t["id"] for t in x.get("successors") or [] if t.get("id") and t.get("status") in SETTLED)
@@ -465,6 +475,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
     out += [act_finding(a) for a in res.get("acts") or []]
     out += attestation_findings(res.get("attestation") or [], owners, route, _below_verified(res))
     out += [lint_finding(g) for g in res.get("lint") or []]   # task-0216
+    lapsed_by_id = {x["id"]: x for x in res.get("lapsed") or []}
     if owners is not None:
         for f in out:
             if f["kind"] == "lint":   # the document's owning unit: the one unit capture.routing gives every key behind it
@@ -474,6 +485,10 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                 unit = (owners.get(f["key"]) or {}).get("unit")
                 f["owner"] = unit
                 f["route"] = _act_route(f, route(unit, f["key"]) if route else None)
+                if f["kind"] == "lapsed" and f["route"] and not lapsed_by_id.get(f["ref"], {}).get("kind") == "elicited":
+                    # A-F4 (task-0311): a review's lapse is renewed by a new review, not by a questionnaire
+                    f["route"] = ("a reviewer who is not the author and holds the role renews it: python harness/capture.py review FILE "
+                                  "(from an instance repository, python \"$KG_HOME\"/harness/capture.py), dated on or after the as-of date; or " + f["route"])
                 c = (closers or {}).get(f["key"])
                 if f["kind"] == "key" and f["level"] == "declared_gap" and c is not None:
                     from capture import closing_route

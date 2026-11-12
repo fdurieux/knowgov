@@ -11,6 +11,7 @@ names that section with the version.
 ## Unreleased
 
 - The pre-load check's Spectral pin moves to 6.17.1, the same in `instance/ci/package.json`, `instance/ci/preload-check.yml` and the harness workflow (Dependabot #471, which moved only the first).
+- Routes and next steps (task-0311, doc-0037 §5): capture routes say how to run `capture.py` from an instance repository; a review's lapse route names `capture.py review` and its role; the bar's blocker names a next step; a key awaiting a reviewer names the assertion; questionnaires say which task and finding asked; the hook tells the assistant when a QUALIFIED gate lets a step through; annotations end the message with a full stop before `Owner:`.
 
 ## 0.9.0 — 2026-11-12
 
