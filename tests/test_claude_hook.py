@@ -173,8 +173,13 @@ def test_an_unreadable_event_or_a_missing_checkout_blocks():
         assert p.returncode == 2 and "no instance" in p.stderr, p.stderr
 
 
+# the checkout as its own instance has no register/ beside its subjects: it names the public one, as an instance
+# names its own; the hook passes <instance>/register only when none is named (task-0334)
+REGISTER = str(ROOT / "demo" / "register")
+
+
 def _real(event, **kw):
-    env = _env(KG_AS_OF="record", KG_SCENARIO="S1", **kw)
+    env = _env(KG_AS_OF="record", KG_SCENARIO="S1", KG_REGISTER=REGISTER, **kw)
     return _hook(event, "gate", "--task", "codegen", "--instance", str(ROOT), env=env)
 
 
@@ -189,7 +194,7 @@ def test_the_real_gate_with_an_unreachable_store_blocks_and_the_advisory_profile
     kw = dict(KG_SUBJECT=str(ROOT / "subjects" / "cargo_quote"), KG_STORE="neo4j", KG_NEO4J_URI="bolt://127.0.0.1:9", KG_PUBLISH="1")
     p = _real(PUSH, **kw)
     assert p.returncode == 2 and "the gate is unavailable (exit 2)" in p.stderr, p.stderr
-    p = _hook(PUSH, "gate", "--task", "codegen", "--advisory", "--instance", str(ROOT), env=_env(KG_AS_OF="record", **kw))
+    p = _hook(PUSH, "gate", "--task", "codegen", "--advisory", "--instance", str(ROOT), env=_env(KG_AS_OF="record", KG_REGISTER=REGISTER, **kw))
     assert p.returncode == 0 and "FAIL-OPEN" in json.loads(p.stdout)["systemMessage"], (p.returncode, p.stdout)
 
 
@@ -199,7 +204,7 @@ def test_live_proceed_and_blocked_on_an_rdflib_store():
     kw = dict(KG_SUBJECT=str(ROOT / "subjects" / "cargo_quote"), KG_STORE="rdflib")
     p = _real(PLAN, **kw)
     assert p.returncode == 0 and not p.stderr, (p.returncode, p.stderr)
-    p = _hook(PUSH, "gate", "--task", "codegen", "--instance", str(ROOT), env=_env(KG_AS_OF="record", KG_SCENARIO="S2", **kw))
+    p = _hook(PUSH, "gate", "--task", "codegen", "--instance", str(ROOT), env=_env(KG_AS_OF="record", KG_SCENARIO="S2", KG_REGISTER=REGISTER, **kw))
     assert p.returncode == 2 and "BLOCKED by a finding" in p.stderr and "BLOCKED on cargo_quote S2" in p.stderr, p.stderr
 
 

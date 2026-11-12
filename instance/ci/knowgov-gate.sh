@@ -32,6 +32,8 @@
 #                   anything else (an empty element, another format, FORMAT: alone) exits 2 before the command.
 #                   summary appends to its FILE, the others overwrite theirs. Paths in them are relative to
 #                   the working directory the script was called from; a run that exits 2 writes none
+#   KG_REGISTER     every gate: the register checkout (default: <instance>/register, the instance's own; a
+#                   relative path is read from the working directory); one that cannot be read exits 2
 #   KG_STORE, KG_RDFLIB_FILE, KG_NEO4J_*   the store, as the harness reads them
 #   PYTHON          the interpreter, 3.12 or later (default python3 on PATH); every step runs it
 #
@@ -58,6 +60,9 @@ KG=$(cd "$KG" 2>/dev/null && pwd) || { echo "knowgov-gate: the knowgov checkout 
 INST=$(cd "$INST" 2>/dev/null && pwd) || { echo "knowgov-gate: the instance '$inst_named' does not resolve to a directory" >&2; exit 2; }
 
 abspath() { case "$1" in /*) echo "$1" ;; *) echo "$(pwd)/$1" ;; esac; }
+# task-0334 (decision-0039 §3.1): every step reads the instance's own register, <instance>/register, unless
+# KG_REGISTER names one (made absolute here, since the core runs in the harness); never the public one
+KG_REGISTER=$(abspath "${KG_REGISTER:-$INST/register}"); export KG_REGISTER
 flag() {   # an on/off setting (task-0276, harness/switches.py's FLAG): 1 on; 0, empty or unset off; else exit 2
     case "$2" in
     1) return 0 ;;

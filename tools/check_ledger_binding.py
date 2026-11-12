@@ -70,7 +70,8 @@ def main(out: Path) -> int:
         sys.exit(f"FAIL: {out} is not empty")
     out.mkdir(parents=True, exist_ok=True)
     inst = example_instance.build(out / "inst")
-    env = cadence.pin_record(dict(os.environ, KG_SUBJECT=str(inst / "subjects" / "cargo_quote"), KG_RDFLIB_FILE=str(out / "store.ttl"),
+    env = cadence.pin_record(dict(os.environ, KG_SUBJECT=str(inst / "subjects" / "cargo_quote"), KG_REGISTER=str(inst / "register"),
+                                    KG_RDFLIB_FILE=str(out / "store.ttl"),
                                     PYTHONDONTWRITEBYTECODE="1"))   # the record's day, the wall clock refused (task-0075)
     publish(env, "S6")
 
