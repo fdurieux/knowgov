@@ -195,6 +195,11 @@ def _q(s: str) -> str:
     return json.dumps(s, ensure_ascii=False)
 
 
+def _with_open(by_owner: dict[str, list[str]], res: dict) -> dict[str, list[str]]:
+    """task-0315 C2-5: the owners with at least one open key; a questionnaire with nothing to answer is not written."""
+    return {o: ks for o, ks in by_owner.items() if any(res["keys"][k]["level"] in OPEN_LEVELS for k in ks)}
+
+
 def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, today: dt.date) -> dict[str, str]:
     """owner -> the questionnaire's TOML text; a key goes to its answering owner only."""
     route = routing(subject.register_map(), nodes)   # task-0201: where questionnaire_route says the key is
@@ -204,10 +209,8 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
         for o in (route.get(key) or {}).get("files") or [UNASSIGNED]:
             by_owner.setdefault(o, []).append(key)
     out = {}
-    for owner, keys in sorted(by_owner.items()):
+    for owner, keys in sorted(_with_open(by_owner, res).items()):
         open_keys = [k for k in keys if res["keys"][k]["level"] in OPEN_LEVELS]
-        if not open_keys:
-            continue   # task-0315 C2-5: a questionnaire with nothing to answer is not written
         name = nodes.get(owner, {}).get("name", "no owner in the register map")
         lines = [
             f"# Questionnaire for {owner} ({name}): {len(open_keys)} of the {len(keys)} keys you own need an answer.",
@@ -257,6 +260,14 @@ def _date(v) -> dt.date | None:
     return dates.parse(v) if dates.is_date(v) else None   # task-0262
 
 
+def _foreign_unit(q: dict, handle, h: dict | None) -> list[str]:
+    """task-0315 C2-6: a handle answers a questionnaire of its own unit only (a review-due one is addressed to the handle)."""
+    owner = str(q.get("owner") or "")
+    if h is None or q.get("route") == "review-due" or not h.get("unit") or not owner or owner == UNASSIGNED or h["unit"] == owner:
+        return []
+    return [f"answered.from {handle} belongs to {h['unit']}, not to {owner}, whose questionnaire this is"]
+
+
 def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
                   handles: dict[str, dict] | None = None, where: str = "the answered questionnaire") -> tuple[list[str], dict]:
     """(errors, the normalised capture) for an answered questionnaire. ``handles`` is the register's
@@ -281,10 +292,7 @@ def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
             errs.append(f"answered.from {handle!r} is not an issued handle (decision 0009): the register's issued list does not name it")
         elif "gives" not in h.get("roles", set()):
             errs.append(f"answered.from {handle} lacks the role gives, which an answer needs (decision 0009)")
-        owner = str(q.get("owner") or "")
-        if (h is not None and q.get("route") != "review-due" and h.get("unit") and owner and owner != UNASSIGNED
-                and h["unit"] != owner):   # task-0315 C2-6: a handle answers for its own unit's questionnaire only
-            errs.append(f"answered.from {handle} belongs to {h['unit']}, not to {owner}, whose questionnaire this is")
+        errs += _foreign_unit(q, handle, h)
         if h is not None and on is not None:
             if h.get("issued") and h["issued"] > on:
                 errs.append(f"answered.from {handle} was issued on {h['issued']}, after the answer's date {on} (decision 0009)")

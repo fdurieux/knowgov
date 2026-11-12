@@ -30,7 +30,7 @@ def _s2() -> dict:
 def test_one_questionnaire_per_owner_with_its_open_keys_and_the_denominator():
     nodes = capture.register_nodes(ROOT / "demo" / "register")
     qs = capture.questionnaires(_s2(), CARGO_QUOTE, "S2", "codegen", nodes, TODAY)
-    assert sorted(qs) == ["ORG-0001", "ORG-0002"], sorted(qs)
+    assert sorted(qs) == ["ORG-0002"], sorted(qs)   # task-0315 C2-5: ORG-0001 has nothing open, so no file
     doc = tomllib.loads(qs["ORG-0002"])
     q = doc["questionnaire"]
     assert (q["owner"], q["keys_owned"], q["open"]) == ("ORG-0002", 7, 3)
@@ -54,7 +54,7 @@ def test_each_key_has_one_answering_owner_so_the_questionnaires_do_not_overlap()
     qs = capture.questionnaires(_s2(), CARGO_QUOTE, "S2", "codegen", nodes, TODAY)
     owned = {o: tomllib.loads(t)["questionnaire"]["keys_owned"] for o, t in qs.items()}
     asked = {o: [i["key"] for i in tomllib.loads(t).get("item", [])] for o, t in qs.items()}
-    assert owned == {"ORG-0001": 29, "ORG-0002": 7}, owned
+    assert owned == {"ORG-0002": 7}, owned   # ORG-0001 has nothing open: no file (task-0315 C2-5)
     flat = [k for ks in asked.values() for k in ks]
     assert len(flat) == len(set(flat)) == 3, asked
 
@@ -236,7 +236,7 @@ def test_s2s_questionnaire_for_org_0002_names_org_0004_as_closing_od_1():
     want = capture.gap_closers(CARGO_QUOTE, {"QuoteAPI|on_screening_outage": _s2_with_od1()["keys"]["QuoteAPI|on_screening_outage"]["declared_gaps"]})
     assert item["closed_by"] == want["QuoteAPI|on_screening_outage"]["unit"]
     before = capture.questionnaires(_s2(), CARGO_QUOTE, "S2", "codegen", nodes, TODAY)
-    assert qs["ORG-0001"] == before["ORG-0001"] and "closed_by" not in before["ORG-0002"]
+    assert sorted(qs) == sorted(before) and "closed_by" not in before["ORG-0002"]
 
 
 def test_ingest_is_unchanged_and_a_questionnaire_from_before_still_ingests():
@@ -267,7 +267,7 @@ def test_no_questionnaire_is_written_for_an_owner_with_nothing_open():
     """task-0315 C2-5."""
     res = _s2()
     for v in res["keys"].values():
-        v["level"] = "validated"
+        v["level"] = "held"   # not one of OPEN_LEVELS
     qs = capture.questionnaires(res, CARGO_QUOTE, "S2", "codegen", capture.register_nodes(ROOT / "demo" / "register"), TODAY)
     assert qs == {}, sorted(qs)
 
