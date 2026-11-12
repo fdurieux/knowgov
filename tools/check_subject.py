@@ -788,6 +788,9 @@ def main(argv: list[str] | None = None) -> int:
     if not (args.root / "subject.toml").is_file():
         print(f"cannot run: {args.root} holds no subject.toml", file=sys.stderr)
         return 2
+    if not args.register and (why := _unnamed(args.root)):   # task-0339 R2: an instance's subject never reads the public register
+        print(f"cannot run: {why}", file=sys.stderr)
+        return 2
     register = args.register or Path(os.environ.get("KG_REGISTER") or DEFAULT_REGISTER)
     by = "--register" if args.register else "KG_REGISTER" if os.environ.get("KG_REGISTER") else None
     if by:   # task-0279 (decision-0033 choice 5): a register named and not readable exits 2; unchecked is for none named
@@ -803,6 +806,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print(json.dumps(rep, indent=1) if args.json else render(rep))
     return rep["exit_code"]
+
+
+def _unnamed(root: Path) -> str | None:
+    """Why the default register may not be read for ``root`` (``instance_register.unnamed`` with the root as the subject)."""
+    import instance_register
+    return instance_register.unnamed({**os.environ, "KG_SUBJECT": str(root)})
 
 
 if __name__ == "__main__":
