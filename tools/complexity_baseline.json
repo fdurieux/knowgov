@@ -559,8 +559,8 @@
    "floor": 72
   },
   "tools/check_round_trip.py::check": {
-   "value": 18,
-   "floor": 18
+   "value": 17,
+   "floor": 17
   },
   "tools/check_round_trip.py::differences": {
    "value": 34,

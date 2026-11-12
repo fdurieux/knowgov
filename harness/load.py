@@ -124,7 +124,8 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
     aid = f"act:extract:{scenario}:{version_tag}"
     st.ensure_agents(TOOL, version_tag, HUMAN, LLM)
     st.record_inputs({"attestations": attestations_digest(),   # task-0320 (decision-0038 N2): the tables as this load reads them
-                      "configuration": configuration_text(SUBJECT.configuration())})   # task-0335 (decision-0039 §3.2): its files as read
+                      "configuration": configuration_text(SUBJECT.configuration()),   # task-0335 (decision-0039 §3.2): its files as read
+                      **load_identity()})   # task-0341 (decision-0040 (a)): the code and suite compared, the pre-load report applied
     st.create_activity(aid, "extraction", ts, TOOL, activity_note, "agent:harness", subject=SUBJECT.id, scenario=scenario)   # task-0195
     n_frag = n_ass = n_reused = 0
     for path, text in kit.items():
@@ -178,6 +179,16 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
     return {"fragments": n_frag, "fragments_reused": n_reused, "assertions": n_ass,
             "unresolved_symbols": unresolved, "activity": aid, **({"unmapped": unmapped} if unmapped else {}),
             **({"preload": preload} if preload else {})}
+
+
+def load_identity() -> dict[str, str]:
+    """``code`` and ``preload`` as ``record_inputs`` keeps them (task-0341, decision-0040 (a)): ``Subject.code``, the
+    files an execution verification is compared against, left unrecorded (unknown) when a path lies outside the
+    instance; ``preload.identity``, the report ``_record_preload`` applies, or none with why."""
+    import preload
+    code = SUBJECT.code()
+    return {**({"code": configuration_text(code)} if code is not None else {}),
+            "preload": configuration_text(preload.identity(SUBJECT))}
 
 
 def _record_preload(st, kit: dict[str, str], version_tag: str) -> dict | None:

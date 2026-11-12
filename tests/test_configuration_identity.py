@@ -191,7 +191,8 @@ def test_check_round_trip_and_check_mcp_server_hold_the_configuration():
     import check_mcp_server
     import check_round_trip
     full = {"corpus": "e" * 64, "attestations": "1" * 64, "captures": "2" * 64, "register": {"files": "f" * 64},
-            "configuration": CONF}
+            "configuration": CONF, "code": {"vendor/a.py": "4" * 64},   # code and preload: task-0341
+            "preload": {"path": None, "sha256": None, "why": "none applied"}}
     assert check_round_trip.unnamed_corpus(full) == []
     for bad in (None, {}, {"scenarios.toml": "b" * 64}, {**CONF, "subject.toml": "x"}):
         assert check_round_trip.unnamed_corpus({**full, "configuration": bad}) == ["configuration"], bad
