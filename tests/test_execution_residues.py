@@ -90,6 +90,7 @@ def test_ac1_a_deleted_file_of_a_listed_suite_directory_is_stale_in_check_subjec
 
 
 def test_ac1_a_deleted_implementation_file_is_stale_too():
+    need_rdflib()
     import load
     import subject
     with tempfile.TemporaryDirectory() as td:
@@ -147,4 +148,4 @@ def test_ac3_check_subject_notes_a_script_also_listed_in_the_suite():
         (root / "run.py").write_text("x = 1\n", encoding="utf-8")
         rep = check_subject.Report(root)
         check_subject.check_oracle_suite(rep, {"oracle": {"script": "run.py", "suite": ["run.py"]}}, root)
-        assert [n["rule"] for n in rep.notes] == ["path"] and "also lists the script run.py" in rep.notes[0]["message"] and not rep.findings, rep.notes
+        assert [n["rule"] for n in rep.notes] == ["attestation"] and "also lists the script run.py" in rep.notes[0]["message"] and not rep.findings, rep.notes

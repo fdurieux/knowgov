@@ -394,7 +394,7 @@ def _script_in_suite(rep: Report, o: dict, v: list) -> None:
     """task-0340 R4: the script is also a path ``[oracle] suite`` lists, which binds it twice and says nothing more."""
     s = o.get("script")
     if isinstance(s, str) and s in v:
-        rep.note("path", "[oracle] suite", f"also lists the script {s}, which the suite digest binds already; list the files the script reads beside it")
+        rep.note("attestation", "[oracle] suite", f"also lists the script {s}, which the suite digest binds already; list the files the script reads beside it")
 
 
 def check_oracle_suite(rep: Report, m: dict, root: Path) -> None:
@@ -449,7 +449,7 @@ def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, t
         return
     miss = {r: d for r, d in sorted(files.items()) if not d or d not in listed}
     stale = sorted(d for d in listed if d not in set(files.values()))   # task-0340 R1, as a document's "matches no current Version"
-    if len(stale) > len({d for d in miss.values() if d}):   # more listed digests gone than files changed: a deletion
+    if len(stale) > len(miss):   # more listed digests gone than files changed: a deletion
         rep.error("attestation", where, f"{which} lists {', '.join(stale)}, which matches no current file of [{table}] {field} "
                   f"{rel}: a file was deleted or changed, so the load verifies nothing by execution (decision-0038)",
                   "run the suite again and list the digests of the files as they are, or restore the file")
