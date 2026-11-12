@@ -344,6 +344,15 @@ def ledger_suspicion(st, entry: dict) -> dict:
     return {"status": "read", "suspect": r["suspect"], "used_invalidated": r["used_invalidated"], "used_changed": r["used_changed"]}
 
 
+def _was_now(a: str, was: dict, now: dict) -> str:
+    """B-N6: a source row that changed under an equal value is said so, not printed as a changed value."""
+    if a not in now:
+        return f"{a} {was[a]['value']!r} (sha256 {was[a]['sha256'][:12]}) now no longer held"
+    if str(now[a]["value"]) == str(was[a]["value"]):
+        return f"{a} value {was[a]['value']!r} unchanged, its source changed (sha256 {was[a]['sha256'][:12]} now {now[a]['sha256'][:12]})"
+    return f"{a} {was[a]['value']!r} (sha256 {was[a]['sha256'][:12]}) now {now[a]['value']!r} (sha256 {now[a]['sha256'][:12]})"
+
+
 def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None, commit: str | None = None,
           task: str = "codegen", fail_on: str = "blocker", block_levels: set[str] | None = None, resolve=None,
           as_of: str | None = None, known: set[str] | None = None) -> dict:
@@ -403,14 +412,7 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
             if not now:
                 from store import statement_content
                 now.update(statement_content(st, [u["id"] for x in led["entries"] for u in x.get("used") or []]))
-            def _was_now(a):   # B-N6: a source row that changed under an equal value is said so, not printed as a changed value
-                if a not in now:
-                    return f"{a} {was[a]['value']!r} (sha256 {was[a]['sha256'][:12]}) now no longer held"
-                if str(now[a]["value"]) == str(was[a]["value"]):
-                    return (f"{a} value {was[a]['value']!r} unchanged, its source changed (sha256 {was[a]['sha256'][:12]} now "
-                            f"{now[a]['sha256'][:12]})")
-                return f"{a} {was[a]['value']!r} (sha256 {was[a]['sha256'][:12]}) now {now[a]['value']!r} (sha256 {now[a]['sha256'][:12]})"
-            what = "; ".join(_was_now(a) for a in changed)
+            what = "; ".join(_was_now(a, was, now) for a in changed)
             fs.append(_finding("blocker", "suspect", f"{e['path']} ({e['app']}), registered as {e['id']}, was built on statement(s) that "
                                f"changed under their id since: {what}: rebuild it from the current statements and register it again",
                                app=e["app"], path=e["path"], ref=e["id"], related=changed,

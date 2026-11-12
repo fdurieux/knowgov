@@ -750,6 +750,12 @@ def name_drift(base: tuple[dict, str] | None, rep: dict) -> dict:
     return rep
 
 
+def _remedy(rc: dict) -> list[str]:
+    """B-N2: --register-previous re-applies on every run, so no ruling restores what it staled while it is passed."""
+    return ["  remedy   --register-previous stales these statements again on every run it is passed, so a questionnaire, ingest or review cannot "
+            "restore them: re-map the key in register_map.toml, or run without --register-previous once the owner confirms the update"] if rc["invalidated"] else []
+
+
 def render(rep: dict) -> str:
     out = [f"{rep['subject']} {rep['scenario']} {rep['task']}: {rep['verdict']} — {rep['why']}" + (f" (as of {rep['as_of']})" if rep.get("as_of") else "")]
     ch = rep.get("change")
@@ -764,9 +770,7 @@ def render(rep: dict) -> str:
             [f"{n['id']} {n['to'] or 'gone'}" for n in rc["nodes"]] + [f"{ln['id']} {ln['to'] or 'gone'}" for ln in rc["links"]]) or "nothing withdrawn")
                    + f"; {len(rc['keys'])} key(s) resting on it, {len(rc['invalidated'])} statement(s) invalidated"
                    + (f"; derived {rc['derived']} registered" if rc["derived"] else ""))
-        if rc["invalidated"]:   # B-N2: --register-previous re-applies on every run, so no ruling restores what it staled while it is passed
-            out.append("  remedy   --register-previous stales these statements again on every run it is passed, so a questionnaire, ingest or review cannot "
-                       "restore them: re-map the key in register_map.toml, or run without --register-previous once the owner confirms the update")
+        out += _remedy(rc)
     for f in rep["findings"]:
         out.append(f"  {f['severity']:8s} {f['message']}" + (f" [owner {f['owner'] or 'no single unit in the register map'}"
                                                          + (f"; closed by {f['closer'] or 'no unit of the register'}" if "closer" in f else "") + "]"
@@ -1006,14 +1010,12 @@ def _held_scenario(h: dict, default: str) -> str:
     return h.get("scenario") or default
 
 
-def _unanswered(e: Exception) -> str:
-    """S1/P2: the manifest or a file it names is the cause, said as itself; any other failure is the store's."""
+def _own_cause(e: Exception) -> str | None:
+    """S1/P2: the manifest or a file it names is the cause, said as itself; None leaves it to the store's line."""
     from subject import CodePathOutside
     if isinstance(e, CodePathOutside):
         return str(e)
-    if isinstance(e, FileNotFoundError):
-        return f"a file the load reads is missing: {e.filename or e}"
-    return f"the store did not answer: {type(e).__name__}: {e}"
+    return f"a file the load reads is missing: {e.filename or e}" if isinstance(e, FileNotFoundError) else None
 
 
 def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
@@ -1058,7 +1060,7 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
     except DocumentUnreadable as e:   # doc-0030 I11: the document's fault, named, never the store's
         raise CannotRun(f"a document cannot be loaded: {e}") from e
     except Exception as e:  # noqa: BLE001 — an unreachable store fails here, on the first statement
-        raise CannotRun(_unanswered(e)) from e
+        raise CannotRun(_own_cause(e) or f"the store did not answer: {type(e).__name__}: {e}") from e
 
 
 def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshold: str,

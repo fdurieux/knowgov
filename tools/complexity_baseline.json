@@ -398,8 +398,8 @@
    "floor": 30
   },
   "harness/trace.py::check": {
-   "value": 93,
-   "floor": 93
+   "value": 90,
+   "floor": 90
   },
   "harness/trace.py::main": {
    "value": 18,

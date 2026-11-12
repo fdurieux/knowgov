@@ -431,14 +431,27 @@ def check_execution_code(rep: Report, m: dict, root: Path, ex) -> None:
         _execution_listing(rep, m, root, ex, which, table, field)
 
 
-def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, table: str, field: str) -> None:
-    where = "[verification] execution"
+def _owner(m: dict, which: str, table: str, field: str) -> str:
+    """S3: the field that owns a listed digest, the suite's with each file ``[oracle] suite`` lists (task-0338)."""
+    from subject import suite_files
+    return f"[{table}] {field}" + (" or a file [oracle] suite lists" if which == "suite" and suite_files(m.get("oracle")) else "")
+
+
+def _outside(rep: Report, m: dict, root: Path, table: str, field: str) -> bool:
+    """S2: a path outside the instance is refused as the load refuses it (``require_code_inside``); True when it was."""
     sec = m.get(table) if isinstance(m.get(table), dict) else {}
     named = sec.get(field)
-    if isinstance(named, str) and named and (Path(named).is_absolute() or "\\" in named
-                                              or not (root / named).resolve().is_relative_to(root.resolve().parent.parent)):
-        rep.error("path", f"[{table}] {field}", f"{named} is not a relative path inside the subject's instance",   # S2: the load's rule (require_code_inside)
-                  "name it relative to the subject root, at most ../../ up")
+    if not (isinstance(named, str) and named and (Path(named).is_absolute() or "\\" in named
+                                                  or not (root / named).resolve().is_relative_to(root.resolve().parent.parent))):
+        return False
+    rep.error("path", f"[{table}] {field}", f"{named} is not a relative path inside the subject's instance",
+              "name it relative to the subject root, at most ../../ up")
+    return True
+
+
+def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, table: str, field: str) -> None:
+    where = "[verification] execution"
+    if _outside(rep, m, root, table, field):
         return
     rel, files = code_digests(m, root, which)
     if rel is None:
@@ -456,8 +469,7 @@ def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, t
         return
     miss = {r: d for r, d in sorted(files.items()) if not d or d not in listed}
     stale = sorted(d for d in listed if d not in set(files.values()))   # task-0340 R1, as a document's "matches no current Version"
-    from subject import suite_files
-    owner = f"[{table}] {field}" + (" or a file [oracle] suite lists" if which == "suite" and suite_files(m.get("oracle")) else "")
+    owner = _owner(m, which, table, field)
     if len(stale) > len(miss):   # more listed digests gone than files changed: a deletion
         rep.error("attestation", where, f"{which} lists {', '.join(stale)}, which matches no current file of {owner} "
                   f"{rel}: a file was deleted or changed, so the load verifies nothing by execution (decision-0038)",
