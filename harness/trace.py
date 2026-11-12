@@ -309,14 +309,24 @@ def _own(fs: list[dict], owners: dict, route) -> None:
             f["owner"], f["route"] = gate_cli.owner_route(sorted(set(keys)), owners, route)
 
 
-def gate_identity(task: str) -> dict:
+def gate_identity(task: str, st=None) -> dict:
     """What the trace's gate decided on, read as the gate report reads it (decision-0029, task-0304): the digest of the
-    subject's [tasks.<task>] table, the register's tag and commit, and this knowgov's build."""
+    subject's [tasks.<task>] table, the register's tag and commit, and this knowgov's build; and, from the store ``st``
+    holds, as the gate report reads them (task-0335, decision-0039 §3.2): ``corpus`` (``store.corpus_digest`` of its
+    Versions) and what its load recorded, ``attestations``, ``captures`` and ``configuration`` (``gate_cli.load_inputs``)."""
     import gate_cli
+    from store import corpus_digest
     from subject import SUBJECT
     table = dict(SUBJECT.tasks[task]) if task in SUBJECT.tasks else None
-    return {"task_profile": gate_cli.profile_digest(table), "register": gate_cli.register_identity(),
-            "knowgov": gate_cli.knowgov_identity()}
+    out = {"task_profile": gate_cli.profile_digest(table), "register": gate_cli.register_identity(),
+           "knowgov": gate_cli.knowgov_identity()}
+    if st is not None:   # a view without the reads names them unknown, as gate_cli.load_inputs does
+        try:
+            corpus = corpus_digest(st.version_digests())
+        except (AttributeError, NotImplementedError):
+            corpus = None
+        out.update({"corpus": corpus, **gate_cli.load_inputs(st)})
+    return out
 
 
 def ledger_suspicion(st, entry: dict) -> dict:
@@ -419,7 +429,7 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
         if resolve is None:
             from gate import resolve
         res = resolve(st, task, as_of) if as_of else resolve(st, task)
-        gate = {"task": task, "verdict": res["verdict"], "why": res["why"], **gate_identity(task)}   # task-0304: what it decided on
+        gate = {"task": task, "verdict": res["verdict"], "why": res["why"], **gate_identity(task, st)}   # task-0304: what it decided on
         if res.get("as_of"):
             gate["as_of"] = res["as_of"]
         apps = sorted(scope_apps) if scope_apps is not None else sorted({e["app"] for e in led["entries"]})

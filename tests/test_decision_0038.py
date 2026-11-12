@@ -184,7 +184,8 @@ def test_n2_each_input_moves_its_own_field_and_a_skipped_file_moves_none():
         assert text.count(old) == 1
         m.write_text(text.replace(old, old.replace("smoke 2026-10-30", "smoke 2026-10-31")), encoding="utf-8")
         scoped = _gate(root)
-        assert scoped["attestations"] != edited["attestations"] and same(scoped, edited, ("attestations",))
+        assert scoped["attestations"] != edited["attestations"] and same(scoped, edited, ("attestations", "configuration")), \
+            "subject.toml is read whole into configuration too (task-0335)"
         # a register file edited under the same tag and commit
         reg = Path(td) / "register"
         shutil.copytree(ROOT / "demo" / "register", reg)
@@ -233,7 +234,8 @@ def test_n2_the_inputs_survive_export_and_import_and_are_a_read_of_the_port():
     assert "inputs" in store.READS and "inputs" in mcp_server.READS
     a = rdf.RdflibStore(path="")
     a.ensure_agents("harness", "v1", {"id": "agent:m", "name": "m"}, {"id": "agent:l", "name": "l"})
-    assert a.inputs() == {"attestations": None, "captures": None}, "a store loaded before task-0320: unknown"
+    assert a.inputs() == {"attestations": None, "captures": None, "configuration": None}, \
+        "a store loaded before task-0320: unknown (configuration: task-0335)"
     a.record_inputs({"attestations": "1" * 64, "captures": "2" * 64})
     a.record_inputs({"reviews": "3" * 64})
     got = a.inputs()
