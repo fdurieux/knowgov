@@ -3,11 +3,11 @@ id: TASK-0148
 title: >-
   The subject wizard as procedure: new_subject and add_artefact prompts on the
   reader and a Claude Code skill (doc-0018 candidate 4)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-05T21:24:00Z'
-updated_date: '2026-11-08T19:53:00Z'
+updated_date: '2026-11-12T17:16:00Z'
 labels: []
 dependencies:
   - TASK-0146
@@ -33,7 +33,7 @@ Onboarding a subject is the lighthouse's first hour. doc-0018 §4 lists the step
 - [x] #2 A Claude Code skill under instance/ci/claude/ walks doc-0018 §4: scaffold on a branch with the client's file tools, subject_check or check_instance.py after every write, proposal_impact first for a subject about a new product, and the exits (a pull request, the owners' questionnaires)
 - [x] #3 instance/README.md walks a first subject through it in the adopter register; the onboarding study's findings are applied or the departure recorded; CHANGELOG Unreleased carries the line
 - [x] #4 Prompt and skill carry the never-list (no content drafted, no attestation written, no key drawn from the yield) and the stop condition, and name only tools that exist; task-0147's hook backs the never-list
-- [ ] #5 instance/README.md states Claude Desktop's role: asking the gate (gate_verdict, evidence_bundle, the impact tools) until the maintainer's Desktop test on this task's branch shows the prompts listed and subject_check running; onboarding is Claude Code's (maintainer, 2026-11-05, doc-0021 §10.2). MRTR elicitation is not in this task (doc-0021 §10.4)
+- [x] #5 instance/README.md states Claude Desktop's role: asking the gate (gate_verdict, evidence_bundle, the impact tools) until the maintainer's Desktop test on this task's branch shows the prompts listed and subject_check running; onboarding is Claude Code's (maintainer, 2026-11-05, doc-0021 §10.2). MRTR elicitation is not in this task (doc-0021 §10.4)
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -54,4 +54,12 @@ Merged as fdurieux/knowgov#245 on a fully green matrix at 54a8207 (tests, stack,
 AC #5 left open: instance/README.md states Desktop's role (it asks the gate; onboarding is Claude Code's), but the AC holds until the maintainer's own Claude Desktop test shows the prompts listed and subject_check running. The task stays In Progress until then; the README's Desktop paragraph is updated with the result (coordinator, 2026-11-05).
 
 2026-11-08: the maintainer will run the Claude Desktop test (AC #5) on 2026-11-09. Steps given in the coordinator's reply of 2026-11-08 and on the queue page.
+
+AC #5 (2026-11-12): the maintainer's Claude Desktop test, in Chat with the server over SSH on the EC2 stack. Desktop listed new_subject and add_artefact under +, took id and task, and attached the prompt's text (177 lines, 13.90 KB, the 14233 characters prompts/get returns). Given tools/fixtures/subject_probe's three files, it called subject_check, which returned exit_code 1: four errors, one warning and one note. It read each back with its fix and drafted nothing. It asked no permission, since every tool declares readOnlyHint. A first try failed with 'Failed to attach prompt': the stack was rebuilt under a connected Desktop (log: Server transport closed unexpectedly), and quitting and reopening Desktop fixed it. instance/README states the role, the permission note and the log line; doc-0028 G9-3 met, K10 closed.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+The wizard as procedure: the reader serves new_subject and add_artefact through prompts/list and prompts/get in both eras, cut verbatim from the Claude Code skill, which carries the never-list and the stop condition. instance/README walks a first subject through it. The maintainer's Desktop test (2026-11-12) showed Desktop listing and attaching the prompts and running subject_check, so Desktop asks the gate and checks a proposal, while onboarding stays Claude Code's (no shell for the dry run, no pull request). G9-3 met, K10 closed.
+<!-- SECTION:FINAL_SUMMARY:END -->

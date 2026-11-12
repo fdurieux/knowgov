@@ -1368,10 +1368,11 @@ Desktop on a Mac usually gives `/usr/local/bin/docker`).
 
 3. Quit Claude Desktop completely (on a Mac, Claude › Quit, not only closing the window) and reopen
    it. It reads the file only when it starts.
-4. Ask in a Chat conversation. The first time the assistant calls a knowgov tool, Claude Desktop
-   asks your permission; allow it. Chat in Claude Desktop runs on your computer and reaches the
-   stack there. A Claude Code session running in the cloud (claude.ai/code, or the Code tab when it
-   runs a cloud session) runs on a remote machine and cannot reach a stack on your computer.
+4. Ask in a Chat conversation. If Claude Desktop asks your permission the first time the assistant
+   calls a knowgov tool, allow it. It may not ask: every knowgov tool declares itself read-only, and
+   in the maintainer's test (2026-11-12) Desktop ran `subject_check` without a prompt. Chat in
+   Claude Desktop runs on your computer and reaches the stack there. A Claude Code session running
+   in the cloud (claude.ai/code, or the Code tab when it runs a cloud session) runs on a remote machine and cannot reach a stack on your computer.
 
 If the tools do not appear, the server's own messages are in
 `~/Library/Logs/Claude/mcp-server-knowgov.log` on macOS (`%APPDATA%\Claude\logs\` on Windows). A
@@ -1614,6 +1615,10 @@ about?" (`list_subjects`).
 - `permission denied while trying to connect to the Docker daemon socket`: step 3.
 - `no such service: app`, or `open …docker-compose.yml: no such file`: the stack is not running, or
   the path on the server is not where you cloned knowgov.
+- `Server transport closed unexpectedly`, and in the conversation *Failed to attach prompt* or a
+  tool call that never answers: the stack was restarted or rebuilt after Claude Desktop connected,
+  which ends the server process it was talking to. Desktop does not reconnect by itself, and still
+  shows the prompts and tools it listed before. Quit Claude Desktop completely and reopen it.
 
 ## Creating a subject with an assistant
 
@@ -1674,12 +1679,16 @@ servers answer for it by id with no relaunch (every tool takes `subject`; see "O
 every subject" below). One step is yours: load `<id>-S0` (on the page, or `start_run` on `knowgov-runs`
 with the subject's id), knowing the load replaces what everyone else viewing that store sees.
 
-**Claude Desktop's role, for now: asking the gate, not onboarding.** In Claude Desktop, use the
-server to ask `gate_verdict`, `evidence_bundle`, `three_valued_answer`, `register_impact` and
-`proposal_impact`. Creating a subject is Claude Code's job: it writes files on a branch, runs the
-checks and the dry run, and opens the pull request. Whether Desktop lists these prompts and runs
-`subject_check` has not been tried yet. Until that test shows both, treat Desktop's assistant,
-which writes no files without a file extension and has no shell, as unfit to onboard a subject.
+**Claude Desktop's role: asking the gate and checking a proposal, not onboarding.** In Claude
+Desktop, use the server to ask `gate_verdict`, `evidence_bundle`, `three_valued_answer`,
+`register_impact` and `proposal_impact`, and to check a subject before anyone writes it. Desktop has
+been tried on this (2026-11-12, a Chat conversation reaching the server over SSH). It lists both
+prompts under **+**, asks for their arguments, and attaches the prompt's text to the conversation.
+Given a proposed `subject.toml`, `register_map.toml` and the documents' text, its assistant calls
+`subject_check` and reads each finding back with its fix, drafting no content and writing no
+attestation. Creating a subject stays Claude Code's job, because Desktop cannot finish one. Chat
+writes no files on a branch and has no shell, so it can neither run the gate's dry run (the second
+of the three stop conditions) nor open the pull request.
 
 ## A fail-closed hook for Claude Code
 

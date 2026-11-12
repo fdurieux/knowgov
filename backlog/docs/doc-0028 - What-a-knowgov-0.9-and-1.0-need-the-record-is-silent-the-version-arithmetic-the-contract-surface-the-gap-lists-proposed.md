@@ -5,7 +5,7 @@ title: >-
   the contract surface, the gap lists (proposed)
 type: specification
 created_date: '2026-11-06T09:04:00Z'
-updated_date: '2026-11-09T22:55:00Z'
+updated_date: '2026-11-12T17:15:00Z'
 tags:
   - brief
   - release
@@ -103,7 +103,7 @@ Every item here is the maintainer's to meet.
 |--:|---|---|
 | G9-1 | met | decision-0016, accepted 2026-11-06 |
 | G9-2 | met | task-0174 Done (#382): `[format] version` and `format = 1` (decision-0023). What a missing version means after 0.9.0 is decision-0023 Amendment A1, accepted 2026-11-09 as R1: it reads as version 1, in every release. task-0236 builds it in #397 |
-| G9-3 | **open: one task** | task-0157 and task-0160 Done; task-0148 In Progress, its AC #5 waiting on the maintainer's Claude Desktop test (K10) |
+| G9-3 | met (2026-11-12) | task-0157 and task-0160 Done. task-0148 Done: in the maintainer's Claude Desktop test (Chat, server over SSH on the EC2 stack), Desktop listed both prompts, attached `new_subject` with its arguments, and ran `subject_check` on `tools/fixtures/subject_probe`, reading back every finding with its fix and drafting nothing. K10 closed |
 | G9-4 | met for 0.8.0; met again at the cut | v0.8.0 published (tag `0c629d8`), the compose file pins its digest; 0.9.0's image is the release's own build, carrying pumllint 0.35.0 (G9-15) and naming its commit (task-0227, #375) |
 | G9-5 | met, on decision-0016 point 1's text ("task-0163 merged") | task-0163 Done (rdflib and rdflib-readers in parallel). The CI budget (task-0084: 12 min uncontended) is not shown: task-0163 AC #2 stays open (contended rdflib-readers runs of 12.5, 13.9 and 16.8 min), task-0180 To Do. rdflib-readers is not yet a required check, which is the maintainer's to add. Neither is a cut condition |
 | G9-6 | **met, but K10** (decision-0024, 2026-11-08) | P3 done (task-0173). The proposed 1.0 limits of §10 are named (decision-0024); K21 is a 1.0 limit by decision-0021; K22, the worker's manual restart after (A'), is tasked (task-0238) |
@@ -121,8 +121,8 @@ Every item here is the maintainer's to meet.
 
 **Left before the cut:**
 - **work**: G9-17 is met (doc-0036). Before the cut: the builds of decisions 0035, 0036 and 0037 (task-0303 to task-0307, from the functional review, doc-0037) and the fix-only task-0308 and task-0309 pulled ahead of it, each merged on a whole green matrix and re-checked;
-- **the maintainer's**: G9-3's Desktop test (2026-11-09);
-- **the release PR**: its Known limits. These are decision-0024's thirteen, decision-0021's K21, K10 unless the Desktop test closes it, and the tasked K16, K19, K22 and U1, with K1 at the current Landlock floor (ABI 3, task-0203).
+- **the maintainer's**: none. G9-3's Desktop test passed on 2026-11-12;
+- **the release PR**: its Known limits. These are decision-0024's thirteen, decision-0021's K21, K10 no longer (the Desktop test closed it, 2026-11-12), and the tasked K16, K19, K22 and U1, with K1 at the current Landlock floor (ABI 3, task-0203).
 
 **Not cut conditions:**
 - task-0058's re-stamp. decision-0016 point 1 needs the boundary decided, and decision-0026 decided it. The re-stamp lands in a 0.9.x when counsel answers, or before the cut if counsel answers first.
@@ -210,7 +210,7 @@ No released `CHANGELOG.md` section is edited.
 | K7 | A file artefact's Version digest hashes its text, so a CRLF file's digest differs from a register citation over raw bytes (0.8.0) | tasked | task-0160, under doc-0029's plan; its AC #3 stops it if a recorded digest would move |
 | K8 | A file-backed store supports its writers on POSIX with `flock`, on a local disk (0.7.0) | **1.0 limit** (decision-0024; proposed by the pass) | `store_rdflib.py` refuses a writer where `fcntl.flock` is missing. The rdflib file store is the no-database route; Neo4j is the shared, multi-host store. Windows and network filesystems are not writer platforms for it |
 | K9 | Response sizes are not capped by the HTTP limits (0.7.0) | to mint | no cap in `demo/app` or `harness/mcp_server.py`. H2 (task-0141.04) bounded requests only. Minted as task-0177 (T-c) |
-| K10 | Claude Desktop's role is asking the gate until the maintainer's own Desktop test shows the prompts and `subject_check` (0.7.0) | tasked | task-0148 AC #5, In Progress, waits on the maintainer's test |
+| K10 | Claude Desktop's role is asking the gate until the maintainer's own Desktop test shows the prompts and `subject_check` (0.7.0) | closed (2026-11-12) | task-0148 AC #5: the test showed both. Onboarding stays Claude Code's (no shell for the dry run, no pull request), as `instance/README` states |
 | K11 | A proposal's slices are as fine as the register's links: steps supported only by one end-to-end process share one thread (0.7.0) | **1.0 limit** (decision-0024; proposed by the pass) | by design: doc-0022 K1 slices on the register's own `THREAD` walk, facts only. A finer slice is the register's to model (ieam-register), not knowgov's to infer |
 | K12 | An attestation is the manifest's declaration and is not bound to a document's version (0.7.0) | **decided for 0.9.0** (decision-0019, 2026-11-08; G9-13); first proposed as a 1.0 limit | decision-0009 (a) chose attestation by the subject's declaration, built by task-0136. Binding an attestation to a version is a new decision, not a fix. If the maintainer wants it before 1.0, it needs a decision record first |
 | K13 | A run folder from before `run.json` is inferred: status, start and initiator unknown (0.7.0) | **1.0 limit** (decision-0024; proposed by the pass) | historical runs only. Every run since task-0127 writes `run.json`, and `runs/` is gitignored and never the record |
