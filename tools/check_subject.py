@@ -338,7 +338,7 @@ def _planted_versions(plants: dict, texts: dict, h, out: set, planted: dict | No
         for patches in (plants.get(stage) or {}).values():
             kit = _patched(texts, patches)
             made = {h(t.encode("utf-8")): k for k, t in kit.items() if texts.get(k) != t}
-            out |= made.keys()
+            out.update(made)
             if planted is not None:
                 planted.update(made)
 
