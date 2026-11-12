@@ -222,7 +222,7 @@ def test_every_public_key_is_ascii_and_so_unchanged():
 def test_the_docs_and_the_changelog_say_so():
     readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
     assert "git config core.precomposeunicode true" in readme and "NFC" in readme
-    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
+    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## 0.9.0 ", 1)[1].split("\n## ", 1)[0]
     contract = log.split("### Contract changes", 1)[1].split("### Changes", 1)[0]
     assert "task-0301" in contract and "NFC" in contract
 

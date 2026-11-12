@@ -199,6 +199,6 @@ def test_knowgov_runs_forwards_the_subject_id_to_the_page_and_refuses_a_path():
 def test_the_readme_and_the_changelog_say_one_registration_serves_every_subject():
     readme = (ROOT / "instance" / "README.md").read_text(encoding="utf-8")
     assert "list_subjects" in readme and "store-backed" in readme and "KG_SUBJECTS" in readme
-    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
+    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## 0.9.0 ", 1)[1].split("\n## ", 1)[0]
     contract = log.split("### Contract changes", 1)[1].split("### Changes", 1)[0]
     assert "task-0157" in contract and "subject" in contract

@@ -260,7 +260,7 @@ def test_ac4_the_record_reads_code_and_preload_as_unknown_and_the_changelog_name
     assert set(base) == {"as_of"}, base
     assert gate_cli.differs(base, {**NOW, "as_of": base["as_of"]}) == [], "baseline=record names neither"
     log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    top = log.split("\n## ", 2)[1]   # Unreleased, or the release section that renamed it
+    top = log.split("\n## 0.9.0 ", 1)[1].split("\n## ", 1)[0]   # released in 0.9.0
     contract = top.split("\n### Contract changes", 1)[1].split("\n### Changes", 1)[0]
     assert re.search(r"\*\*The gate report names the code and suite it compared and the pre-load report it applied\*\* \(task-0341", contract)
     workflow = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")

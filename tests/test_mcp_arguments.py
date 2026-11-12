@@ -154,6 +154,6 @@ def test_the_pages_run_body_refuses_a_key_outside_its_fields_naming_it():
 
 
 def test_the_changelog_rewords_m5():
-    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ", 2)[1]
+    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## 0.9.0 ", 1)[1].split("\n## ", 1)[0]
     contract = log.split("### Contract changes", 1)[1].split("### Changes", 1)[0]
     assert "task-0281" in contract and "M5" in contract and "outside a tool's input schema" in contract
