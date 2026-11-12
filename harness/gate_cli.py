@@ -1011,11 +1011,9 @@ def _held_scenario(h: dict, default: str) -> str:
 
 
 def _own_cause(e: Exception) -> str | None:
-    """S1/P2: the manifest or a file it names is the cause, said as itself; None leaves it to the store's line."""
+    """S1: the manifest is the cause (a missing file is task-0312's), said as itself; None leaves it to the store's line."""
     from subject import CodePathOutside
-    if isinstance(e, CodePathOutside):
-        return str(e)
-    return f"a file the load reads is missing: {e.filename or e}" if isinstance(e, FileNotFoundError) else None
+    return str(e) if isinstance(e, CodePathOutside) else None
 
 
 def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
