@@ -169,6 +169,10 @@ anything. That covers `harness/gate_cli.py` (and its `--register-previous`), `ha
 `harness/upward.py`, `harness/proposal_impact.py` and `harness/step_grid.py`. The MCP reader and the
 page refuse to start.
 
+The same commands also stop with exit 2, naming `KG_REGISTER`, when no register is named and the subject lies
+outside the knowgov checkout: an instance reads its own register, never the public one (see "Running the
+gates in your pipeline").
+
 ### Format versions
 
 Each file you keep in your instance says which version of its format it is written in, so a
@@ -419,6 +423,16 @@ path, so another `python3` earlier on `PATH` never runs a step. An interpreter t
 than Python 3.12 cannot run: exit 2 with the reason, and no report is written or annotated. The same holds
 for `preload-check.sh` and `proposal-impact.sh`; the Claude Code hook passes its own interpreter unless
 `PYTHON` is set (task-0141.01).
+
+Every step reads your instance's own register. The script sets `KG_REGISTER` to `<instance>/register`, the
+`register/` folder of the instance checkout you pass it, unless you set `KG_REGISTER` yourself; the Claude Code
+hook passes the same. The register decides the gate: its lifecycle months decide when a review lapses, its owners
+whom a finding names, its issued handles whose answers count. Without it, a client's verdicts would follow the
+public register this copy of knowgov carries. If that folder is missing or is not a register, the step stops
+with exit 2 and names `KG_REGISTER` and the path. Run a command by hand on a subject outside the knowgov
+checkout with `KG_REGISTER` unset, and it stops the same way, with exit 2 naming `KG_REGISTER`: set it to
+`<instance>/register`. Only the public subjects that ship inside the knowgov checkout read the public register
+by default (task-0334, decision-0039).
 
 `KG_AS_OF` is the date the gate, `trace-check` and `trace-register` read review currency on (`--as-of`, decision-0005):
 a `YYYY-MM-DD` date, `record` (the subject's pinned record date) or `today`, the default. Set it to
@@ -911,6 +925,12 @@ see changes. The copy needs the harness's Python packages (`pip install -r demo/
 inside the stack's container they are there already); without them the command says so and exits 2.
 `capture.py review` and `harness/transcript.py` load the same way.
 
+Set `KG_REGISTER` to your instance's register (`<instance>/register`) before you run `capture.py`. The owners
+the questionnaires go to, the handles `ingest` accepts and the review dates `due` reads all come from that
+register. With `KG_SUBJECT` naming your subject and `KG_REGISTER` unset, every `capture.py` command stops with
+exit 2 and names `KG_REGISTER`; it never falls back to the public register, whose handles (`employee-1` to
+`employee-4`) are not your people (task-0334, decision-0039).
+
 The owner fills it in: a value in `answer`, or `nobody_knows = true` when no one can say. They
 add their *handle* and the date under `[answered]`. A handle is a short lower-case label such
 as `employee-1`, never a name or an e-mail address, and one your register has issued (its
@@ -1117,7 +1137,7 @@ a load needs is about
 To get your subject's figures, run this from your knowgov checkout:
 
 ```bash
-KG_SUBJECT=/path/to/your/instance/subjects/<id> python harness/load_memory.py
+KG_SUBJECT=/path/to/your/instance/subjects/<id> KG_REGISTER=/path/to/your/instance/register python harness/load_memory.py
 ```
 
 It prints each scenario's statement count, what a gate load and a full run need, and the heap that
@@ -1252,7 +1272,9 @@ not the subject's id: `subjects/cargo_quote` from a knowgov checkout, `/repo/sub
 inside the container, never the bare `cargo_quote`. On the public stack it is already set to the
 subject the page opens on. On your instance's stack it still names the public CargoQuote subject,
 which your page does not list. Start the stack with `KG_SUBJECT=/instance/subjects/<id>` or name
-your subject's id in each call (`subject`).
+your subject's id in each call (`subject`). A server you start by hand on your instance's subject also needs
+`KG_REGISTER`, your register's path: without it, the server refuses to start and names `KG_REGISTER`.
+The instance's compose file sets it for the stack.
 
 **Which scenario it reads.** The server reads whatever scenario the store holds: the one the page
 or a run loaded last. Have the assistant pass `scenario` (for example `"S1"`) in every call to
@@ -1825,7 +1847,7 @@ input; the GitLab include's `KG_PUBLISH` and `KG_NO_LOAD` follow the rule above.
 | `KG_DMNLINT` | Pre-load linters | the dmnlint command, when it is not on `PATH` | on `PATH` | yes |
 | `KG_SUBJECT` | Subject and register | the subject root a command reads | in the CI templates, the instance's only subject | yes |
 | `KG_SUBJECTS` | Subject and register | the folder of subjects the page and both MCP servers list | `subjects/` of the checkout | yes |
-| `KG_REGISTER` | Subject and register | the register checkout every subject joins | `demo/register`, the public register | yes |
+| `KG_REGISTER` | Subject and register | the register checkout every subject joins | in the CI templates and the hook, `<instance>/register`; for a subject outside the knowgov checkout, none: a command stops with exit 2 naming it; for the public subjects inside the checkout, `demo/register`, the public register | yes |
 | `KG_REGISTER_PREVIOUS` | Subject and register | the register checkout before an update, which the page's register view reads to show what the update withdrew; the gate's own option for it is `--register-previous` | none | yes |
 | `KG_INSTANCE` | Subject and register | your instance's checkout, for the stack's compose file and the upward joins | none | yes |
 | `KG_PRELOAD_REPORT` | Subject and register | the pre-load report the load records per document version | `preload-report.json` at your instance's root | yes |

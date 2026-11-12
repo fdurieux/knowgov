@@ -491,6 +491,16 @@ def render(rep: dict) -> str:
     return "\n".join(out)
 
 
+def _require_register() -> None:
+    """``CannotRun`` when the register is named and unreadable, or unnamed for a subject outside this checkout
+    (``register_impact.require_named``; task-0288, task-0334). Called once ``--subject`` is in ``KG_SUBJECT``."""
+    import register_impact
+    try:
+        register_impact.require_named()
+    except register_impact.RegisterUnreadable as e:
+        raise CannotRun(str(e)) from None
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="trace.py", description="From a code change to the knowledge it rests on; exit 0, 1 or 2.")
     sub = ap.add_subparsers(dest="command", required=True)
@@ -528,6 +538,7 @@ def main(argv: list[str] | None = None) -> int:
             from tasks import TASKS
         except Exception as e:  # noqa: BLE001
             raise CannotRun(f"the subject does not load: {e}") from e
+        _require_register()   # task-0334: --subject outside this checkout with KG_REGISTER unset reads no default register
         if args.command == "register" and args.keys == []:
             raise CannotRun("--keys names no key")
         if args.task not in TASKS:
