@@ -188,6 +188,9 @@ def _tables(text: str, where: str) -> dict:
     out = {t: doc.get(t) for t in ATTESTING}
     oracle = doc.get("oracle")   # task-0338: [oracle] suite says which files the suite digest binds
     out["oracle suite"] = oracle.get("suite") if isinstance(oracle, dict) else None
+    ref = doc.get("reference")   # task-0340 R4: what the implementation and suite digests bind to
+    out["oracle script"] = oracle.get("script") if isinstance(oracle, dict) else None
+    out["reference code"] = ref.get("code") if isinstance(ref, dict) else None
     return out
 
 
@@ -225,6 +228,9 @@ def _manifest_write(p: Path, rel: str, after: str) -> tuple[int, str]:
         changed.append("[provenance (removed while [verification] stays)]")
     if a["oracle suite"] != b["oracle suite"] and a["verification"] is not None:
         changed.append("[oracle] suite while [verification] stays (the files the execution's suite digest binds, task-0338)")
+    for k, name in (("oracle script", "[oracle] script"), ("reference code", "[reference] code")):
+        if a[k] != b[k] and a["verification"] is not None:
+            changed.append(f"{name} while [verification] stays (what the execution's digests bind, task-0340)")
     if not changed:
         return CLEAR, ""
     return PROTECTED, (f"{rel}: the write adds or changes {', '.join(changed)}. These tables say who "

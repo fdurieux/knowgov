@@ -73,6 +73,10 @@ def bundle_files(root: Path, include: list[str] | None = None) -> list[tuple[str
 REFERENCE_INCLUDE = ["*.py", "**/*.py"]   # the files of a reference implementation directory the load bundles and digests
 
 
+class CodePathOutside(Exception):
+    """A code or suite path leaving the instance (task-0340 R2); exits 2 under cli_exit, the message the cause."""
+
+
 def suite_files(oracle) -> list[str]:
     """``[oracle] suite`` (task-0338, decision-0039 §3.5): the files the suite reads beside ``[oracle] script``, its
     expectations among them, as the manifest names them relative to the subject root, sorted by path; [] when the
@@ -315,6 +319,19 @@ class Subject:
         ``code_files``. (None, {}) when the subject declares none."""
         rel, parts, _declared = code_files(self.root, self.reference, self.oracle, which)
         return (None if rel is None else str(rel)), parts
+
+    def require_code_inside(self) -> None:
+        """task-0340 R2 (decision-0039 §3.5): ``[reference] code``, ``[oracle] script`` and each ``[oracle] suite`` path
+        lie inside the instance (relative, at most ../../ up), as ``check_subject`` requires; else ``CodePathOutside``."""
+        top = self.root.resolve().parent.parent
+        for name, table, field in (("[reference] code", self.reference, "code"), ("[oracle] script", self.oracle, "script")):
+            v = table.get(field) if isinstance(table, dict) else None
+            paths = [(name, v)] if isinstance(v, str) and v else []
+            paths += [("[oracle] suite", x) for x in suite_files(self.oracle)] if field == "script" else []
+            for where, x in paths:
+                if Path(x).is_absolute() or "\\" in x or not (self.root / x).resolve().is_relative_to(top):
+                    raise CodePathOutside(f"{self.id}: {where} names {x}, which is not a relative path inside the subject's "
+                                          "instance; the load digests no file outside it (decision-0039 §3.5)")
 
     def suite_declared(self) -> dict[str, str]:
         """The files ``[oracle] suite`` lists, each with its raw-byte SHA-256 ('' when it holds no file), by path."""

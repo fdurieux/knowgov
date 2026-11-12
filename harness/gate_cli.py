@@ -256,7 +256,11 @@ def _code_listed(u: dict, files: list[dict]) -> str:
     by_path = {x["sha256"] for x in files}
     unlisted = [d[:12] for d in u["parts"] if d not in by_path] + [
         f"{x['path']} ({x['sha256'][:12]})" if x["sha256"] else f"{x['path']} (no file there)" for x in files]
-    return f"does not list {', '.join(unlisted)}" if unlisted else "lists it, and it holds no file"
+    stale = u.get("stale") or []   # task-0340 R1: listed digests no current file holds (a file deleted)
+    tail = f"lists {', '.join(d[:12] for d in stale)}, which no current file holds" if stale else ""
+    if unlisted:
+        return f"does not list {', '.join(unlisted)}" + (f" and {tail}" if tail else "")
+    return tail or "lists it, and it holds no file"
 
 
 def code_finding(u: dict, r: dict, owners: dict | None, route) -> dict:

@@ -38,7 +38,7 @@ import traceback
 CANNOT_RUN = 2
 # raised to say "cannot run" in the command's own words: the message is the cause, no type name added
 OWN = {"CannotRun", "WallClock", "LoadTooLarge", "ScratchUnavailable", "FormatError", "FormatTooNew", "BadSwitch",
-       "RegisterUnreadable", "RegisterUnnamed", "ScenarioIdError"}
+       "RegisterUnreadable", "RegisterUnnamed", "ScenarioIdError", "CodePathOutside"}
 
 
 def cause(e: BaseException) -> str:

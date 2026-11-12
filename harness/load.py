@@ -339,22 +339,29 @@ def execution_code(decl: dict | None, keys: list[str]) -> list[dict]:
     ``[verification] execution`` does not list in ``implementation`` or ``suite``; a list left out lists none. The suite
     is the script with the files ``[oracle] suite`` lists (task-0338, decision-0039 §3.5). Each row
     {artefact, sha256, parts, code, keys}, with ``files`` [{path, sha256}] naming each of those files it misses: ``parts``
-    the unlisted digests, ``keys`` the keys the execution map verifies, which it then does not. Empty when everything is listed, or when no declaration lists Versions (it verifies nothing
+    the unlisted digests, ``stale`` (task-0340) the listed digests no current file holds, ``keys`` the keys the execution map verifies, which it then does not. Empty when everything is listed, or when no declaration lists Versions (it verifies nothing
     already)."""
+    SUBJECT.require_code_inside()   # task-0340 R2: before anything is digested
     if not isinstance(decl, dict) or decl.get("versions") is None:
         return []
-    out = []
-    for which in ("implementation", "suite"):
-        path, parts = SUBJECT.code_parts(which)
-        listed = decl.get(which)
-        listed = listed if isinstance(listed, list) else []
-        miss = sorted(d for d in parts.values() if d and d not in listed)
-        named = _suite_named(listed) if which == "suite" else []
-        if path and (miss or named or not parts):
-            row = {"artefact": path, "sha256": parts.get("", ""), "parts": miss, "code": which, "keys": keys,
-                   "missing": which not in decl}
-            out.append({**row, "files": named} if named else row)
-    return out
+    rows = (_code_row(which, decl, keys) for which in ("implementation", "suite"))
+    return [r for r in rows if r]
+
+
+def _code_row(which: str, decl: dict, keys: list[str]) -> dict | None:
+    """The row for one of ``implementation`` and ``suite`` when ``decl`` does not attest it as it is, else None."""
+    path, parts = SUBJECT.code_parts(which)
+    listed = decl.get(which)
+    listed = listed if isinstance(listed, list) else []
+    miss = sorted(d for d in parts.values() if d and d not in listed)
+    have = set(parts.values())
+    stale = sorted({d for d in listed if isinstance(d, str) and d not in have})   # task-0340 R1: a listed digest no file holds
+    named = _suite_named(listed) if which == "suite" else []
+    if not (path and (miss or named or stale or not parts)):
+        return None
+    row = {"artefact": path, "sha256": parts.get("", ""), "parts": miss, "code": which, "keys": keys,
+           "missing": which not in decl, **({"stale": stale} if stale else {})}
+    return {**row, "files": named} if named else row
 
 
 def _suite_named(listed: list) -> list[dict]:
