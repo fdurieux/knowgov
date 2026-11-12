@@ -373,6 +373,7 @@ def check_bindings(rep: Report, m: dict, root: Path) -> None:
         a = ver.get(name)
         if isinstance(a, dict):
             _check_versions(rep, m, root, name, a.get("versions"), known)
+    check_oracle_suite(rep, m, root)
     check_execution_code(rep, m, root, ver.get("execution"))
 
 
@@ -381,17 +382,34 @@ EXECUTED = (("implementation", "reference", "code"), ("suite", "oracle", "script
 
 def code_digests(m: dict, root: Path, which: str) -> tuple[str | None, dict[str, str]]:
     """(the path, its files' raw-byte SHA-256 by relative path) of what an execution ran, as the load digests it
-    (``Subject.code_parts``: ``[reference] code`` with the files ``reference_code`` bundles, ``[oracle] script`` whole;
-    a file one entry named ''). (None, {}) when the manifest names none."""
-    import hashlib
-    from subject import REFERENCE_INCLUDE, bundle_files
-    table, field = next((t, f) for w, t, f in EXECUTED if w == which)
-    rel = (m.get(table) or {}).get(field) if isinstance(m.get(table), dict) else None
-    if not isinstance(rel, str) or not rel:
-        return None, {}
-    p = root / rel
-    fs = [("", p)] if p.is_file() else bundle_files(p, REFERENCE_INCLUDE if which == "implementation" else None) if p.is_dir() else []
-    return rel, {r: hashlib.sha256(f.read_bytes()).hexdigest() for r, f in fs}
+    (``subject.code_files``, ``Subject.code_parts``'s own reading: ``[reference] code`` with the files ``reference_code``
+    bundles, ``[oracle] script`` whole with each file ``[oracle] suite`` lists, task-0338; a file one entry named '',
+    a listed suite file holding none the digest ''). (None, {}) when the manifest names none."""
+    from subject import code_files
+    rel, files, _declared = code_files(root, m.get("reference"), m.get("oracle"), which)
+    return rel, files
+
+
+def check_oracle_suite(rep: Report, m: dict, root: Path) -> None:
+    """task-0338 (decision-0039 §3.5): ``[oracle] suite``, optional, lists the files the suite reads beside its script
+    (its expectations), each digested into ``[verification] execution``'s ``suite``; each a relative path inside the
+    subject's instance (at most ../../ up, as a document's) that holds a file or a directory."""
+    o = m.get("oracle") if isinstance(m.get("oracle"), dict) else {}
+    if "suite" not in o:
+        return
+    v, where = o["suite"], "[oracle] suite"
+    if not isinstance(v, list) or not all(isinstance(x, str) and x for x in v):
+        rep.error("path", where, "is not a list of paths (strings, relative to the subject root)",
+                  'list the files the suite reads beside its script, e.g. suite = ["tests/expectations.py"]')
+        return
+    for x in sorted(set(v)):
+        p = Path(x)
+        inside = not p.is_absolute() and "\\" not in x and (root / p).resolve().is_relative_to(root.resolve().parent.parent)
+        if not inside:
+            rep.error("path", where, f"{x} is not a relative path inside the subject's instance",
+                      "name it relative to the subject root, at most ../../ up")
+        elif not (root / p).exists():
+            rep.error("path", where, f"{x} does not exist", "fix the path; it is relative to the subject root")
 
 
 def check_execution_code(rep: Report, m: dict, root: Path, ex) -> None:
@@ -411,7 +429,7 @@ def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, t
     if rel is None:
         return
     listed = ex.get(which)
-    now = sorted(set(files.values()))
+    now = sorted(set(files.values()) - {""})
     if listed is None:
         rep.warning("attestation", where, f"lists no {which} digests: the load verifies nothing by execution, since an "
                     f"execution binds to the [{table}] {field} it ran on ({rel}) as well as to the documents (decision-0038)",
@@ -421,12 +439,19 @@ def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, t
         rep.error("attestation", where, f"{which} is not a list of SHA-256 digests (64 lower-case hex characters)",
                   f"list each file's raw-byte digest: {which} = {json.dumps(now)}")
         return
-    miss = {r: d for r, d in sorted(files.items()) if d not in listed}
+    miss = {r: d for r, d in sorted(files.items()) if not d or d not in listed}
     if miss or not files:
-        what = ", ".join(f"{r} ({d})" if r else f"its file {d}" for r, d in miss.items()) or "no file is there"
-        rep.error("attestation", where, f"[{table}] {field} {rel} changed since the execution was attested: {what} "
-                  f"is not listed under {which}, so the load verifies nothing by execution (decision-0038)",
+        from subject import suite_files
+        also = " or a file [oracle] suite lists" if which == "suite" and suite_files(m.get("oracle")) else ""   # task-0338
+        rep.error("attestation", where, f"[{table}] {field} {rel}{also} changed since the execution was attested: "
+                  f"{_unlisted(miss)} is not listed under {which}, so the load verifies nothing by execution (decision-0038)",
                   "run the suite on it again and list the new digest, or restore it")
+
+
+def _unlisted(miss: dict[str, str]) -> str:
+    """The files an execution listing misses: a directory's part or an ``[oracle] suite`` file by its path and digest
+    (one holding no file said so), the script or a one-file implementation as its file."""
+    return ", ".join((f"{r} ({d})" if d else f"{r} (no file there)") if r else f"its file {d}" for r, d in miss.items()) or "no file is there"
 
 
 def _relist_fix(name: str, restore: bool = False) -> str:

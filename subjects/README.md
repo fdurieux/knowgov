@@ -70,6 +70,11 @@ code = "vendor/stack_experiment/cargo_quote/reference_impl.py"   # the code the 
 [oracle]
 script = "vendor/stack_experiment/smoke_test.py"   # the suite runner the measures load: suite_mod.SUITE["scenarios"],
                               # suite_mod.OVERLAYS, build_spec(name), run_child(artifact, spec); absent, the arms stay off
+suite = ["vendor/tools/acceptance/cargo_quote_suite.py"]   # optional (task-0338, decision-0039 §3.5): the files the
+                              # script reads beside it, its expectations among them, each a file or a directory relative
+                              # to the subject root; each file's raw-byte digest joins the script's in [verification]
+                              # execution's suite, in sorted path order, so editing the expectations alone voids the
+                              # execution until it is re-run and re-listed; missing, the suite is the script alone
 suite_order = ["quoted_low_risk", "..."]           # the oracle's scenarios, in display order
 status_scenario = "screening_down_hold"            # the suite scenario whose detail carries the status the code returned
 
@@ -90,6 +95,9 @@ execution_scope = "suite scenario {scenario} on reference_impl.py (smoke 2026-10
 execution = { versions = ["<sha256>"] }        # the Versions the suite's result was attested on (decision-0036): an
                               # execution verification holds for those only, since no suite runs at load; none listed,
                               # none verified. review takes versions the same way, with no read rule either
+                              # implementation = [...] and suite = [...] list the raw-byte digest of each file of
+                              # [reference] code and of [oracle] script with each file [oracle] suite lists (decision-0038,
+                              # task-0338); one not listed as it is verifies nothing by execution
 review = { at = "2026-08-06", scope = "..." }       # the dated human review; it lapses after its keys' review months (decision-0005)
 authored = { at = "2026-10-30", scope = "..." }     # authored statements: reviewed by construction, only when declared
 approval = { at = "2026-08-06", record = "..." }    # the owner's approval of every verified assertion, only when declared

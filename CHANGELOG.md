@@ -45,6 +45,17 @@ names that section with the version.
   subjects inside the checkout keep `demo/register`, so the record does not move.
   - **What an adopter does:** keep the register at `<instance>/register`, or set `KG_REGISTER`; set it too when
     you run a command by hand.
+- **The suite digest binds the files the suite declares** (task-0338, decision-0039 §3.5). Before, `suite` was
+  `[oracle] script`'s own bytes, so expectations the script imports moved no digest: editing CargoQuote's
+  `tools/acceptance/cargo_quote_suite.py` to match a wrong implementation kept PROCEED.
+  - `subject.toml`'s `[oracle]` gains an optional `suite`, a list of paths (a file, or a folder's files) the script
+    reads beside it. Each file's raw-byte digest joins the script's in `[verification] execution`'s `suite`, in sorted
+    path order. Missing, the suite is the script alone, as before. Additive; the subject format stays version 1.
+  - A listed file changed or gone voids every execution verification. The gate's `attestation` finding names it by
+    path and digest, and `tools/check_subject.py` names it as an error and refuses a malformed or missing path.
+  - CargoQuote lists its acceptance module and its `suite` digests are re-pinned; the record holds.
+  - The attestation hook (`instance/ci/claude/attestation_paths.py`) refuses a write that adds, changes or removes
+    `[oracle] suite` while `[verification]` stays, since removing it would unbind the expectations unseen.
 - **An execution verification also binds to the code it ran and the suite that judged it** (task-0320,
   decision-0038 N-b). Before, `evidence_sha256` recorded the reference code, but nothing compared it: editing
   `reference_impl.py` kept every execution verification and PROCEED.
