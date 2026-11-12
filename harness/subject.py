@@ -73,6 +73,42 @@ def bundle_files(root: Path, include: list[str] | None = None) -> list[tuple[str
 REFERENCE_INCLUDE = ["*.py", "**/*.py"]   # the files of a reference implementation directory the load bundles and digests
 
 
+def suite_files(oracle) -> list[str]:
+    """``[oracle] suite`` (task-0338, decision-0039 §3.5): the files the suite reads beside ``[oracle] script``, its
+    expectations among them, as the manifest names them relative to the subject root, sorted by path; [] when the
+    field is missing or holds no string (check_subject names a malformed one)."""
+    v = oracle.get("suite") if isinstance(oracle, dict) else None
+    return sorted({x for x in v if isinstance(x, str) and x}) if isinstance(v, list) else []
+
+
+def _file_digests(p: Path, include: list[str] | None, prefix: str) -> dict[str, str]:
+    """Each file of ``p`` by its path (``prefix`` for a file, ``prefix/<relative>`` for a directory's, the relative
+    path alone with no prefix), with the SHA-256 of its raw bytes; {} when ``p`` is neither."""
+    if p.is_file():
+        return {prefix: hashlib.sha256(p.read_bytes()).hexdigest()}
+    fs = bundle_files(p, include) if p.is_dir() else []
+    return {(f"{prefix.rstrip('/')}/{r}" if prefix else r): hashlib.sha256(f.read_bytes()).hexdigest() for r, f in fs}
+
+
+def code_files(root: Path, reference, oracle, which: str) -> tuple[str | None, dict[str, str], dict[str, str]]:
+    """(the path, each file's raw-byte SHA-256 by relative path, the declared suite files' share of them) of what an
+    execution verification ran (task-0320, decision-0038 N-b), from a manifest's ``[reference]`` and ``[oracle]``
+    tables: ``implementation``, ``[reference] code``, the files ``reference_code`` bundles; ``suite``, ``[oracle]
+    script`` (a file one entry named '') and, task-0338 (decision-0039 §3.5), each path ``[oracle] suite`` lists in
+    sorted path order, keyed by that path (a directory's files under it), one that holds no file keyed with the digest
+    '', which no listing holds. (None, {}, {}) when the manifest declares none; ``[oracle] suite`` missing, the suite
+    is the script alone, as before. One reading for the load (``Subject.code_parts``) and ``check_subject``."""
+    table = reference if which == "implementation" else oracle
+    rel = table.get("code" if which == "implementation" else "script") if isinstance(table, dict) else None
+    if not isinstance(rel, str) or not rel:
+        return None, {}, {}
+    parts = _file_digests(root / rel, REFERENCE_INCLUDE if which == "implementation" else None, "")
+    declared: dict[str, str] = {}
+    for extra in suite_files(oracle) if which == "suite" else []:
+        declared.update(_file_digests(root / extra, None, extra) or {extra: ""})
+    return rel, {**parts, **declared}, declared
+
+
 def bundle(root: Path, include: list[str] | None = None) -> str:
     """Every file ``bundle_files`` names, in path order, each prefixed by its marker line and ended
     by a newline (added when the file lacks one, so a part's text is not always its file's bytes)."""
@@ -274,14 +310,15 @@ class Subject:
     def code_parts(self, which: str) -> tuple[str | None, dict[str, str]]:
         """(the path, each file's raw-byte SHA-256 by relative path) of what an execution verification ran (task-0320,
         decision-0038 N-b): ``implementation``, ``[reference] code``, the files ``reference_code`` bundles; ``suite``,
-        ``[oracle] script``, the suite that judged it. Each digested as a directory artefact is (``bundle_files``, the
-        load's own part selection; a file one entry named ''). (None, {}) when the subject declares none."""
-        rel = (self.reference if which == "implementation" else self.oracle).get("code" if which == "implementation" else "script")
-        if not rel:
-            return None, {}
-        p = self.path(rel)
-        fs = [("", p)] if p.is_file() else bundle_files(p, REFERENCE_INCLUDE if which == "implementation" else None) if p.is_dir() else []
-        return str(rel), {r: hashlib.sha256(f.read_bytes()).hexdigest() for r, f in fs}
+        ``[oracle] script``, the suite that judged it, with the files ``[oracle] suite`` lists (task-0338). Each digested
+        as a directory artefact is (``bundle_files``, the load's own part selection; a file one entry named '');
+        ``code_files``. (None, {}) when the subject declares none."""
+        rel, parts, _declared = code_files(self.root, self.reference, self.oracle, which)
+        return (None if rel is None else str(rel)), parts
+
+    def suite_declared(self) -> dict[str, str]:
+        """The files ``[oracle] suite`` lists, each with its raw-byte SHA-256 ('' when it holds no file), by path."""
+        return code_files(self.root, self.reference, self.oracle, "suite")[2]
 
     def oracle_script(self) -> Path | None:
         rel = self.oracle.get("script")

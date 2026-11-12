@@ -336,9 +336,10 @@ def execution_code(decl: dict | None, keys: list[str]) -> list[dict]:
     """What an execution verification ran that its declaration does not attest (task-0320, decision-0038 N-b): for the
     reference implementation (``[reference] code``) and the suite that judged it (``[oracle] script``), each the subject
     declares, the files (``Subject.code_parts``, the load's own part selection) whose raw-byte digest
-    ``[verification] execution`` does not list in ``implementation`` or ``suite``; a list left out lists none. Each row
-    {artefact, sha256, parts, code, keys}: ``parts`` the unlisted digests, ``keys`` the keys the execution map verifies,
-    which it then does not. Empty when everything is listed, or when no declaration lists Versions (it verifies nothing
+    ``[verification] execution`` does not list in ``implementation`` or ``suite``; a list left out lists none. The suite
+    is the script with the files ``[oracle] suite`` lists (task-0338, decision-0039 §3.5). Each row
+    {artefact, sha256, parts, code, keys}, with ``files`` [{path, sha256}] naming each of those files it misses: ``parts``
+    the unlisted digests, ``keys`` the keys the execution map verifies, which it then does not. Empty when everything is listed, or when no declaration lists Versions (it verifies nothing
     already)."""
     if not isinstance(decl, dict) or decl.get("versions") is None:
         return []
@@ -347,11 +348,19 @@ def execution_code(decl: dict | None, keys: list[str]) -> list[dict]:
         path, parts = SUBJECT.code_parts(which)
         listed = decl.get(which)
         listed = listed if isinstance(listed, list) else []
-        miss = sorted(d for d in parts.values() if d not in listed)
-        if path and (miss or not parts):
-            out.append({"artefact": path, "sha256": parts.get("", ""), "parts": miss, "code": which, "keys": keys,
-                        "missing": which not in decl})
+        miss = sorted(d for d in parts.values() if d and d not in listed)
+        named = _suite_named(listed) if which == "suite" else []
+        if path and (miss or named or not parts):
+            row = {"artefact": path, "sha256": parts.get("", ""), "parts": miss, "code": which, "keys": keys,
+                   "missing": which not in decl}
+            out.append({**row, "files": named} if named else row)
     return out
+
+
+def _suite_named(listed: list) -> list[dict]:
+    """task-0338 (decision-0039 §3.5): each file ``[oracle] suite`` lists that ``listed`` misses, or that holds no file,
+    {path, sha256}, by path."""
+    return [{"path": f, "sha256": d} for f, d in sorted(SUBJECT.suite_declared().items()) if not d or d not in listed]
 
 
 def _day(v) -> str | None:
