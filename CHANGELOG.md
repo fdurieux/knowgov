@@ -10,6 +10,7 @@ names that section with the version.
 
 ## Unreleased
 
+- The published compose file runs the v0.9.0 release: `app` and `worker` pin `ghcr.io/fdurieux/knowgov:v0.9.0` by its index digest (`sha256:1785793d…`), where they ran v0.8.0.
 - The pre-load check's Spectral pin moves to 6.17.1, the same in `instance/ci/package.json`, `instance/ci/preload-check.yml` and the harness workflow (Dependabot #471, which moved only the first).
 - With an organisation's instance mounted, a configured contained worker (`KG_WORKER_JOBS`) is admitted for arms runs; the host guard still refuses without `KG_ALLOW_UNCONTAINED_EXECUTION=1`, and its message now names the worker as the way forward (task-0315, C-F7-1).
 - `capture.py questionnaire` writes no file for an owner with no open item, and `ingest` refuses a handle of another unit in a questionnaire it does not own (task-0315, C2-5, C2-6).
