@@ -11,6 +11,8 @@ names that section with the version.
 ## Unreleased
 
 - The pre-load check's Spectral pin moves to 6.17.1, the same in `instance/ci/package.json`, `instance/ci/preload-check.yml` and the harness workflow (Dependabot #471, which moved only the first).
+- With an organisation's instance mounted, a configured contained worker (`KG_WORKER_JOBS`) is admitted for arms runs; the host guard still refuses without `KG_ALLOW_UNCONTAINED_EXECUTION=1`, and its message now names the worker as the way forward (task-0315, C-F7-1).
+- `capture.py review --show` shows a document statement's recorded key, value and digest instead of only "not a captured answer" (task-0315).
 
 ## 0.9.0 — 2026-11-12
 

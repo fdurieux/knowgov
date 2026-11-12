@@ -134,3 +134,13 @@ def test_the_public_demo_still_loads_the_oracle_and_the_opt_in_lifts_the_refusal
         assert hasattr(smoke, "run_child")
     with _env(**MOUNTED, **{eg.OPT_IN: "1"}):   # the opt-in lifts the refusal
         assert hasattr(measures._smoke(), "run_child")
+
+
+def test_a_configured_worker_is_admitted_on_an_instances_own_corpus_and_the_host_is_not():
+    import execution
+    jobs = {execution.JOBS_VAR: "/jobs"}
+    assert execution.check(dict(MOUNTED, **jobs)) == "worker"
+    assert execution.check(dict(PUBLIC, **jobs)) == "worker"
+    why = _refused(lambda: execution.check(MOUNTED))   # no worker: the host guard refuses first, as before
+    assert "X1" in why and eg.OPT_IN in why and "KG_WORKER_JOBS" in why, why
+    assert execution.check(dict(MOUNTED, **{eg.OPT_IN: "1"})) == "host"

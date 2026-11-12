@@ -132,6 +132,9 @@ def test_the_reviewer_sees_each_ruled_answers_note_before_ruling():
     assert "note: 'as the author of the 2025 memo'" in out and "note: none" in out
     assert "ruling 3 (A:doc:1): not a captured answer" in out and "reject the statement if it does" in out
     assert "reject" not in capture.show_rulings({"ruling": doc["ruling"][1:]}, caps), "no note, no prompt"
+    bound = {"ruling": [{"assertion": "A:doc:1", "key": "K", "value": "v", "sha256": "ab", "outcome": "approved"}]}
+    shown = capture.show_rulings(bound, caps)   # task-0315 N3: a document statement shows what it was bound to
+    assert "not a captured answer" in shown and "key 'K'" in shown and "value 'v'" in shown and "sha256 'ab'" in shown, shown
 
 
 def test_ingest_refuses_a_handle_the_register_has_not_issued_by_the_answers_date():

@@ -407,7 +407,11 @@ def show_rulings(doc: dict, captures: dict[str, dict]) -> str:
         aid = str(ru.get("assertion", ""))
         c = captures.get(aid)
         if c is None:
-            out.append(f"ruling {i} ({aid}): not a captured answer")
+            # a document statement: no capture holds it, so show what the ruling itself recorded of it (its id
+            # names the document and Version; key, value and digest are what it was bound to)
+            held = [f"{n} {ru[n]!r}" for n in ("key", "value", "sha256") if ru.get(n) is not None]
+            out.append(f"ruling {i} ({aid}): not a captured answer"
+                       + (f"; a document statement, as the ruling bound it: {', '.join(held)}" if held else ""))
             continue
         out.append(f"ruling {i} ({aid}): {c['from']} on {c['on']}: {c['value']!r}")
         out.append(f"  note: {c['note']!r}" if c["note"] else "  note: none")

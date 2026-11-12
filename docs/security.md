@@ -309,8 +309,8 @@ from an attestation that holds, as untrusted strings (printable, capped). A clou
 of the kernel release's suffix (`-aws` and the like), labelled as a reading; nothing asks a metadata
 service, and the worker has no network to ask. Without a worker nothing runs: there is no fall back to
 the host. The only escape is `KG_ALLOW_UNCONTAINED_EXECUTION=1`, which runs the code on the host,
-uncontained, as before. With an organisation's instance mounted, the interim guard (task-0141.07,
-`harness/execution_guard.py`) still refuses first: the worker sees only the public subjects. Supported:
+uncontained, as before. With an organisation's instance mounted, a configured worker is admitted (it sees only what ships in its image,
+not the instance); on the host the guard (task-0141.07, `harness/execution_guard.py`) still refuses unless the opt-in is set. Supported:
 Linux with Landlock at ABI 3 or later (Linux 6.2 or later, enabled; task-0203: below ABI 3 Landlock does not
 confine truncation, so `write_confined` is not attested: the worker refuses to serve, the page's worker chip
 reads *worker: not attested · Landlock ABI N, 3 needed*, and every arms run is refused) and a container engine that runs the compose

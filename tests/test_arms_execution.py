@@ -69,13 +69,18 @@ def test_the_status_carries_execution_from_the_refusal_absent_fresh_and_stale():
             assert got == {"ok": True, "why": None}, (name, got)
         else:
             assert got["ok"] is False and words in got["why"], (name, got)
-    # the instance guard comes first: an instance mounted refuses whatever the worker says
+    # task-0315 C-F7-1: an instance mounted admits a configured, attested worker (it sees only its image), and a
+    # worker that has not attested is still refused by its attestation
     import server
     with tempfile.TemporaryDirectory() as td:
         (Path(td) / execution.ATTEST).write_text(json.dumps({**FRESH, "heartbeat": time.time()}), encoding="utf-8")
         with _env(**dict(PUBLIC, KG_SUBJECTS="/instance/subjects", KG_REGISTER="/instance/register"), KG_WORKER_JOBS=td):
             got = server.execution_view()
-    assert got["ok"] is False and "X1" in got["why"], got
+        assert got == {"ok": True, "why": None}, got
+        (Path(td) / execution.ATTEST).write_text(json.dumps({**FRESH, "heartbeat": time.time() - 3600}), encoding="utf-8")
+        with _env(**dict(PUBLIC, KG_SUBJECTS="/instance/subjects", KG_REGISTER="/instance/register"), KG_WORKER_JOBS=td):
+            got = server.execution_view()
+    assert got["ok"] is False and "stale" in got["why"], got
 
 
 def test_the_server_calls_the_refusal_and_keeps_arms_enabled_as_it_was():
