@@ -29,6 +29,11 @@ names that section with the version.
 - `check_subject` reads a directory artefact's Versions as the load does (its `include`, per file): an edit or an added file within the include is one error naming the file, even when no listed digest is stale; an old digest kept beside the new one is told to be replaced; an empty `authored` or `approval` list is noted as attesting nothing (task-0319).
 
 ### Contract changes
+- **`register_impact` walks the thread** (task-0336, decision-0039 §3.3): `walk` takes `thread` beside
+  `dependants` and `realisers`, the register's own THREAD walk (`tools/impact.py --walk thread`: a journey step to its
+  process, the process to the capability it realises, the applications that support it and the information it reads
+  or writes), in the same answer (edges, reached, keys, gate), with or without `children`. Additive: the MCP tool's
+  `inputSchema` enum and the page's impact route and select (`?walk=thread`, its Cypher and guides) offer it.
 - **An instance reads its own register, or refuses** (task-0334, decision-0039 §3.1). Before, with `KG_REGISTER`
   unset, every command fell back to the public register under `demo/register`, and neither `knowgov-gate.sh` nor
   the Claude Code hook set it, so a client's verdicts, review months and accepted givers followed the public

@@ -337,7 +337,7 @@ GUIDE_WHAT = {"rows": "one row per edge", "paths": "the paths, for the graph vie
 
 def variant_of(walk: str = "dependants", children: bool = False) -> str:
     """The name a walk and its children option go by in a guide's path (task-0112): dependants,
-    dependants-children, realisers, realisers-children. A path segment, not a query string: the
+    dependants-children, realisers, realisers-children, thread, thread-children (task-0336). A path segment, not a query string: the
     Browser reads the play command's argument only up to the first ``&``."""
     return walk + ("-children" if children else "")
 
@@ -349,7 +349,8 @@ def guide_path(start: str, form: str, variant: str = "dependants") -> str:
 
 
 GUIDE_TITLE = {"dependants": "Impact of retiring {}", "dependants-children": "Impact of retiring {} and its descendants",
-               "realisers": "What realises {}", "realisers-children": "What realises {} and its descendants"}
+               "realisers": "What realises {}", "realisers-children": "What realises {} and its descendants",
+               "thread": "What {} uses, down to the data", "thread-children": "What {} and its descendants use, down to the data"}
 
 
 def guide_html(start: str, form: str, text: str, variant: str = "dependants") -> str:

@@ -244,7 +244,7 @@ jobs:
       - name: The impact panel's Browser links carry the walk and the statements view's query (task-0078), for every node of the register
         run: |
           docker compose exec -T app python demo/tools/check_impact_cypher.py | tee impact-cypher.txt
-          grep -E '^every node agrees: 57 nodes, 4 walks in both forms and the statements view \(17 nodes reach statements\)$' impact-cypher.txt
+          grep -E '^every node agrees: 57 nodes, 6 walks in both forms and the statements view \(17 nodes reach statements\)$' impact-cypher.txt
 
       - name: An empty subject loads and the gate reports every required key absent
         run: |
