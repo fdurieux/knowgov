@@ -344,6 +344,8 @@ jobs:
           docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j --expect-parts ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
       - name: "The gate report names the subject's configuration on Neo4j (task-0335, decision-0039 §3.2): doc-0038 §3.2's three repros, a register map's rows reduced, S1's verifications off, [rules] vague_words emptied, each moves configuration alone and --baseline names it"
         run: docker compose exec -T app python tools/check_configuration.py --store neo4j
+      - name: "The gate report names the code and suite it compared and the pre-load report it applied on Neo4j (task-0341, decision-0040 (a)): Group A's R3, the suite's expectations and the implementation edited, each moves code alone, and Q1, the example instance's pre-load report applied, moves preload alone, and --baseline names it"
+        run: docker compose exec -T app python tools/check_code_preload.py --store neo4j
 
       - name: A register node to the statements its cited anchor names (task-0046), on Neo4j, S6 with the S1 code as derived, equal to the rdflib port
         run: |

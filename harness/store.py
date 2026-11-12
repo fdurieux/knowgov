@@ -122,7 +122,9 @@ def inputs_digest(props: dict) -> dict:
     both = None if all(v is None for v in caps.values()) else hashlib.sha256(
         json.dumps(caps, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
     return {"attestations": props.get("input_attestations"), "captures": both,
-            "configuration": configuration_of(props.get("input_configuration"))}
+            "configuration": configuration_of(props.get("input_configuration")),
+            "code": configuration_of(props.get("input_code")),   # task-0341 (decision-0040 (a)): the same {file: sha256} form
+            "preload": preload_of(props.get("input_preload"))}
 
 
 def configuration_text(files: dict[str, str]) -> str:
@@ -142,6 +144,23 @@ def configuration_of(text) -> dict[str, str] | None:
     if not isinstance(got, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in got.items()):
         return None
     return dict(sorted(got.items()))
+
+
+PRELOAD_FIELDS = ("path", "sha256", "why")
+
+
+def preload_of(text) -> dict | None:
+    """The pre-load identity (``preload.identity``, task-0341) read back from its ``configuration_text``: {path, sha256,
+    why}, None when none was recorded (a load before task-0341) or the property does not read as one."""
+    if not isinstance(text, str):
+        return None
+    try:
+        got = json.loads(text)
+    except ValueError:
+        return None
+    if not isinstance(got, dict) or set(got) != set(PRELOAD_FIELDS) or not all(got[k] is None or isinstance(got[k], str) for k in got):
+        return None
+    return {k: got[k] for k in PRELOAD_FIELDS}
 
 
 def canonical_digest(value) -> str:
@@ -615,22 +634,24 @@ class Store:
         """Every ``Attestation``: id and ``ATTESTATION_FIELDS``, by id. Empty when the subject declares none."""
         raise NotImplementedError
 
-    INPUTS = ("attestations", "captures", "reviews", "configuration")   # task-0320: what a load used beyond the documents, by name; configuration, task-0335
+    INPUTS = ("attestations", "captures", "reviews", "configuration", "code", "preload")   # task-0320: what a load used beyond the documents, by name; configuration, task-0335; code and preload, task-0341
 
     def record_inputs(self, row: dict) -> None:
         """Keep the digest of what a load used beyond the documents (task-0320, decision-0038 N2), ``row`` a map of some
         of ``INPUTS`` to a sha256 (hex): ``attestations`` the manifest's ``[verification]``, ``[provenance]`` and
         ``[capture]`` as read (``load_scenario``), ``captures`` the capture files applied (``load_captures``), ``reviews``
         the review files applied (``load_reviews``), ``configuration`` the subject's configuration files as read,
-        ``configuration_text`` of ``Subject.configuration`` (task-0335, decision-0039 §3.2). Kept on the tool's Agent node (``agent:harness``) as the property
+        ``configuration_text`` of ``Subject.configuration`` (task-0335, decision-0039 §3.2), ``code`` of ``Subject.code``
+        and ``preload`` of ``preload.identity`` likewise (task-0341, decision-0040 (a)). Kept on the tool's Agent node (``agent:harness``) as the property
         ``input_<name>``, never a node of its own, so the record's census is as before; writing one again replaces it,
         so stage 2 records what it read."""
         raise NotImplementedError
 
     def inputs(self) -> dict:
-        """``{attestations, captures, configuration}`` for the gate report (task-0320): ``attestations`` as recorded,
-        ``captures`` ``inputs_digest`` of the captures and reviews recorded, ``configuration`` the {file: sha256} map
-        recorded (task-0335); each None when the store holds none (a load before task-0320, or task-0335)."""
+        """``{attestations, captures, configuration, code, preload}`` for the gate report (task-0320): ``attestations`` as
+        recorded, ``captures`` ``inputs_digest`` of the captures and reviews recorded, ``configuration`` the {file: sha256}
+        map recorded (task-0335), ``code`` the same of the code and suite, ``preload`` the {path, sha256, why} recorded
+        (task-0341); each None when the store holds none (a load before task-0320, task-0335 or task-0341)."""
         raise NotImplementedError
 
     def clear_act_findings(self) -> None:

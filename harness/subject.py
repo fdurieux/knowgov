@@ -113,6 +113,27 @@ def code_files(root: Path, reference, oracle, which: str) -> tuple[str | None, d
     return rel, {**parts, **declared}, declared
 
 
+def code_digests(root: Path, reference, oracle) -> dict[str, str]:
+    """The code identity (task-0341, decision-0040 (a)): the raw-byte SHA-256 of each file ``code_files`` reads for
+    ``implementation`` and ``suite``, the load's part selection, keyed by its path under the subject root as the
+    manifest names it (``[reference] code`` or ``[oracle] script`` for a file, ``<it>/<relative>`` for a directory's,
+    each ``[oracle] suite`` path as listed), sorted; a file that is not there left out. {} when the manifest declares
+    neither."""
+    out: dict[str, str] = {}
+    for which in ("implementation", "suite"):
+        rel, parts, declared = code_files(root, reference, oracle, which)
+        out.update({_code_path(rel, k, declared): d for k, d in parts.items() if d})
+    return dict(sorted(out.items()))
+
+
+def _code_path(rel: str, key: str, declared: dict[str, str]) -> str:
+    """A ``code_files`` key as its path under the subject root: a listed suite path as listed, ``rel`` itself for a
+    file (the key ''), ``rel/<key>`` for a directory's file."""
+    if key in declared:
+        return Path(key).as_posix()
+    return Path(f"{rel.rstrip('/')}/{key}" if key else rel).as_posix()
+
+
 def bundle(root: Path, include: list[str] | None = None) -> str:
     """Every file ``bundle_files`` names, in path order, each prefixed by its marker line and ended
     by a newline (added when the file lacks one, so a part's text is not always its file's bytes)."""
@@ -332,6 +353,17 @@ class Subject:
                 if Path(x).is_absolute() or "\\" in x or not (self.root / x).resolve().is_relative_to(top):
                     raise CodePathOutside(f"{self.id}: {where} names {x}, which is not a relative path inside the subject's "
                                           "instance; the load digests no file outside it (decision-0039 §3.5)")
+
+    def code(self) -> dict[str, str] | None:
+        """The code and suite an execution verification is compared against, as the load reads them now (task-0341,
+        decision-0040 (a)): ``code_digests``; None, unknown, when a path lies outside the instance (``require_code_inside``:
+        no file outside it is digested). Recorded at each load (``Store.record_inputs``), read by the gate report's
+        ``code``."""
+        try:
+            self.require_code_inside()
+        except CodePathOutside:
+            return None
+        return code_digests(self.root, self.reference, self.oracle)
 
     def suite_declared(self) -> dict[str, str]:
         """The files ``[oracle] suite`` lists, each with its raw-byte SHA-256 ('' when it holds no file), by path."""

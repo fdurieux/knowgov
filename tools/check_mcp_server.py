@@ -950,16 +950,17 @@ def check_store_reads(client: "StdioClient", sc: str, failures: list[str], label
           f"document_statements on {len(port_docs)} document(s), each the port's read")
 
 
-IDENTITY_HELD = ("corpus", "attestations", "captures", "configuration")   # task-0307; task-0320 (decision-0038 N2); task-0335
+IDENTITY_HELD = ("corpus", "attestations", "captures", "configuration", "code", "preload")   # task-0307; task-0320 (decision-0038 N2); task-0335; task-0341
 
 
 def corpus_held(label: str, got: dict, want: dict | None, failures: list[str]) -> None:
     """task-0307: gate_verdict names a corpus, the one ``want``, a report, names (gate_cli's, or the publishing load's);
     task-0320: and the same ``attestations``, ``captures`` and register ``files``, what the load used, as recorded;
-    task-0335 (decision-0039 §3.2): and the same ``configuration``, the subject's files the load read."""
+    task-0335 (decision-0039 §3.2): and the same ``configuration``, the subject's files the load read; task-0341
+    (decision-0040 (a)): and the same ``code`` and ``preload``, the code compared and the pre-load report applied."""
     want = want or {}
     for f in IDENTITY_HELD:
-        if not got.get(f) or got.get(f) != want.get(f):
+        if got.get(f) in (None, "") or got.get(f) != want.get(f):   # task-0341: code {} (a subject declaring none) is named
             failures.append(f"{label}: gate_verdict's {f} {got.get(f)!r} is not gate_cli's {want.get(f)!r}")
     if not (got.get("register") or {}).get("files") or (got.get("register") or {}).get("files") != (want.get("register") or {}).get("files"):
         failures.append(f"{label}: gate_verdict's register files digest is not gate_cli's")

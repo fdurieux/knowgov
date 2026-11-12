@@ -40,6 +40,23 @@ def report_path(subject) -> Path | None:
     return p if p and p.is_file() else None
 
 
+NONE_SET = "KG_PRELOAD_REPORT is not set and "
+
+
+def identity(subject) -> dict:
+    """The pre-load report a load applies (task-0341, decision-0040 (a)), the gate report's ``preload``: {path, sha256,
+    why}, ``path`` as ``KG_PRELOAD_REPORT`` names it, else ``preload-report.json``, the instance's own, and ``sha256``
+    the SHA-256, hex, of its raw bytes; with none, both null and ``why`` the reason. A report named but not there
+    raises, as the load's read of it does."""
+    path = report_path(subject)
+    if path is None:
+        why = NONE_SET + (f"the subject's instance holds no {DEFAULT_NAME}" if instance_root(subject)
+                          else "the subject is not in an instance")
+        return {"path": None, "sha256": None, "why": why}
+    shown = os.environ.get("KG_PRELOAD_REPORT") or DEFAULT_NAME
+    return {"path": shown, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "why": None}
+
+
 def read_report(path: Path) -> dict:
     """The report, held to harness/schemas/preload-report.schema.json; raises ValueError otherwise."""
     import schema_check

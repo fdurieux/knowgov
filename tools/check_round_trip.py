@@ -26,7 +26,9 @@ Each gate report must also name what it decided on (task-0237, decision-0029): `
 digest of the subject's task table, ``register`` and ``knowgov`` as this process reads them, and ``corpus``, the
 digest of the loaded document Versions (task-0307), ``attestations`` and ``captures``, what the load used beyond the
 documents as the store recorded it, and the register's ``files`` (task-0320), and ``configuration``, the digest of each
-subject configuration file the load read (task-0335), and each hop must give the same.
+subject configuration file the load read (task-0335), and ``code`` and ``preload``, the code and suite an execution
+verification is compared against and the pre-load report the load applied, as this process reads them (task-0341),
+and each hop must give the same.
 
 The chain names store kinds (``KG_STORE``'s values), first the one loaded: ``rdflib,rdflib`` needs
 no database (harness.yml); ``neo4j,rdflib,neo4j`` is Neo4j to Turtle to rdflib and back, the stack
@@ -179,9 +181,7 @@ def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = 
     # task-0237, decision-0029: each report names what the gate decided on, the task table's digest, the
     # register and the build, as this process reads them; differences() then holds them equal across the hops
     for t, rep in base["gate"].items():
-        want = {"task_profile": gate_cli.profile_digest(SUBJECT.tasks.get(t)), "register": gate_cli.register_identity(),
-                "knowgov": gate_cli.knowgov_identity()}
-        off = sorted(f for f, w in want.items() if rep.get(f) != w or w is None) + unnamed_corpus(rep)
+        off = unread(rep, gate_cli.profile_digest(SUBJECT.tasks.get(t)), expect_preload)
         if off:
             failures.append(f"{label} {chain[0]}: gate {t} does not name what it decided on: {off}")
     if expect_parts and not base["parts"]:
@@ -210,17 +210,39 @@ def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = 
     return failures
 
 
+def unread(rep: dict, profile: str | None, expect_preload: bool) -> list[str]:
+    """The identity fields a gate report does not name as this process reads them (task-0237, decision-0029): the task
+    table's digest, the register and the build; task-0341 (decision-0040 (a)): ``code`` and ``preload``, a report
+    applied when ``expect_preload``; then ``unnamed_corpus``."""
+    import gate_cli
+    import preload
+    from subject import SUBJECT
+    want = {"task_profile": profile, "register": gate_cli.register_identity(), "knowgov": gate_cli.knowgov_identity(),
+            "code": SUBJECT.code(), "preload": preload.identity(SUBJECT)}
+    off = sorted(f for f, w in want.items() if rep.get(f) != w or w is None) + unnamed_corpus(rep)
+    return off + (["preload.sha256"] if expect_preload and not (rep.get("preload") or {}).get("sha256") else [])
+
+
 def unnamed_corpus(rep: dict) -> list[str]:
     """task-0307: ["corpus"] when the report names no corpus digest; task-0320 (decision-0038 N2): likewise
     ``attestations`` and ``captures``, what the load used beyond the documents, as the store recorded it, and the
     register's ``files``; task-0335 (decision-0039 §3.2): ``configuration``, a digest per subject configuration file
-    the load read, ``subject.toml`` among them. differences() holds each equal across the hops."""
+    the load read, ``subject.toml`` among them; task-0341 (decision-0040 (a)): ``code``, a digest per code and suite
+    file, and ``preload``, a report's path and digest or null ones with why. differences() holds each equal across the
+    hops."""
     named = {"corpus": rep.get("corpus"), "attestations": rep.get("attestations"), "captures": rep.get("captures"),
              "register.files": (rep.get("register") or {}).get("files")}
     conf = rep.get("configuration")
     off = [f for f, v in named.items() if not re.fullmatch(r"[0-9a-f]{64}", str(v))]
     if not (isinstance(conf, dict) and "subject.toml" in conf and all(re.fullmatch(r"[0-9a-f]{64}", str(v)) for v in conf.values())):
         off.append("configuration")
+    code, pre = rep.get("code"), rep.get("preload")
+    if not (isinstance(code, dict) and all(re.fullmatch(r"[0-9a-f]{64}", str(v)) for v in code.values())):
+        off.append("code")
+    if not (isinstance(pre, dict) and set(pre) == {"path", "sha256", "why"} and (
+            (isinstance(pre["path"], str) and re.fullmatch(r"[0-9a-f]{64}", str(pre["sha256"])) and pre["why"] is None)
+            or (pre["path"] is None and pre["sha256"] is None and isinstance(pre["why"], str) and pre["why"]))):
+        off.append("preload")
     return off
 
 

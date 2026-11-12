@@ -113,7 +113,11 @@ version change (task-0307, decision-0037): ``corpus``, the sha256 over the loade
 store recorded it (``Store.inputs``), and ``register.files``, the register's files a load reads (its own loader's and the issued handles). And
 (task-0335, decision-0039 §3.2): ``configuration``, the sha256 of each subject configuration file the load read
 (``Subject.configuration``: ``subject.toml`` whole, ``scenarios.toml``, the register map, ``plants.toml``,
-``queries.toml`` and the verification map where read), by path, compared whole. With ``--baseline``,
+``queries.toml`` and the verification map where read), by path, compared whole. And (task-0341, decision-0040 (a)):
+``code``, the sha256 of each ``[reference] code``, ``[oracle] script`` and ``[oracle] suite`` file an execution
+verification is compared against (``Subject.code``, the load's part selection), by path, and ``preload``, the
+pre-load report the load applied, {path, sha256, why}, both null with ``why`` when none was (``preload.identity``),
+each compared whole. With ``--baseline``,
 each identity field (``IDENTITY_FIELDS``) that differs from the baseline's is listed in ``baseline.differs``
 (``differs``, the MCP reader's too) and named on stderr, one line each; the exit is the ratchet's, unchanged. A
 field the baseline lacks, or holds as unknown (null), and an object's sub-field unknown on either side, is never
@@ -506,9 +510,12 @@ def at_or_above(fs: list[dict], threshold: str) -> list[dict]:
 
 
 # task-0307: what --baseline names when it differs; attestations and captures, task-0320 (decision-0038 N2);
-# configuration, task-0335 (decision-0039 §3.2)
-IDENTITY_FIELDS = ("task_profile", "register", "knowgov", "corpus", "attestations", "captures", "configuration", "as_of")
-WHOLE = frozenset({"configuration"})   # task-0335: an object compared whole, a file read on one side only a difference
+# configuration, task-0335 (decision-0039 §3.2); code and preload, task-0341 (decision-0040 (a))
+IDENTITY_FIELDS = ("task_profile", "register", "knowgov", "corpus", "attestations", "captures", "configuration", "code",
+                   "preload", "as_of")
+# task-0335: an object compared whole, a file read on one side only a difference; task-0341: code likewise, and preload,
+# whose null path and digest with a why are known (no report applied), not unknown
+WHOLE = frozenset({"configuration", "code", "preload"})
 
 
 def _nfc_levels(levels) -> dict:
@@ -572,7 +579,7 @@ def superseded_map(res: dict) -> dict[str, list[str]]:
     return m(res)
 
 
-NO_INPUTS = {"attestations": None, "captures": None, "configuration": None}   # task-0320: a report built with no store's inputs: unknown
+NO_INPUTS = {"attestations": None, "captures": None, "configuration": None, "code": None, "preload": None}   # task-0320: a report built with no store's inputs: unknown
 
 
 def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loaded: bool,
@@ -614,6 +621,8 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
             # task-0320, decision-0038 N2: what the load used beyond the documents, as it recorded it; additive
             "attestations": inputs.get("attestations"), "captures": inputs.get("captures"),
             "configuration": inputs.get("configuration"),   # task-0335, decision-0039 §3.2: the subject's files as read; additive
+            # task-0341, decision-0040 (a): the code and suite compared, the pre-load report applied; additive
+            "code": inputs.get("code"), "preload": inputs.get("preload"),
             **({"register_change": register_change} if register_change is not None else {})}   # task-0122, additive
 
 
@@ -689,7 +698,7 @@ def _moved(was, now, whole: bool = False) -> bool:
     ``why`` that both sides know (neither null nor absent) and that differs; a sub-field unknown on either side is
     never a difference, so a partly unknown object is named only for what both name. Else both known and unequal.
     ``whole`` (``WHOLE``, task-0335): an object whose absent member is known, not unknown, the configuration's file
-    the load did not read, so both known and unequal, the map whole."""
+    the load did not read, so both known and unequal, the map whole; ``code`` and ``preload`` likewise (task-0341)."""
     if whole:
         return was is not None and now is not None and was != now
     if isinstance(was, dict) and isinstance(now, dict):
@@ -1061,8 +1070,9 @@ def with_differs(rep: dict, baseline: tuple[dict, str] | None) -> dict:
 
 
 def load_inputs(st) -> dict:
-    """``{attestations, captures, configuration}``: the digests of what the load used beyond the documents, as the
-    store recorded them at load (``Store.inputs``, task-0320, decision-0038 N2; configuration, task-0335); each None on
+    """``{attestations, captures, configuration, code, preload}``: the digests of what the load used beyond the
+    documents, as the store recorded them at load (``Store.inputs``, task-0320, decision-0038 N2; configuration,
+    task-0335; code and preload, task-0341); each None on
     a store loaded before it, or a view without the read, read as unknown."""
     try:
         got = st.inputs()

@@ -313,7 +313,8 @@ def gate_identity(task: str, st=None) -> dict:
     """What the trace's gate decided on, read as the gate report reads it (decision-0029, task-0304): the digest of the
     subject's [tasks.<task>] table, the register's tag and commit, and this knowgov's build; and, from the store ``st``
     holds, as the gate report reads them (task-0335, decision-0039 §3.2): ``corpus`` (``store.corpus_digest`` of its
-    Versions) and what its load recorded, ``attestations``, ``captures`` and ``configuration`` (``gate_cli.load_inputs``)."""
+    Versions) and what its load recorded, ``attestations``, ``captures`` and ``configuration`` (``gate_cli.load_inputs``),
+    and ``code`` and ``preload`` (task-0341, decision-0040 (a))."""
     import gate_cli
     from store import corpus_digest
     from subject import SUBJECT

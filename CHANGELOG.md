@@ -100,6 +100,19 @@ names that section with the version.
 
   Before, reducing a register map's rows (QUALIFIED to PROCEED as of 2027-02-07), setting `verifications = false`
   for S1 (PROCEED to BLOCKED) or emptying `[rules] vague_words` left every identity field equal and `differs` empty.
+- **The gate report names the code and suite it compared and the pre-load report it applied** (task-0341,
+  decision-0040 (a)). Optional and additive, schema versions unchanged, so earlier reports still validate:
+  - `code`: the sha256 of each `[reference] code`, `[oracle] script` and `[oracle] suite` file an execution
+    verification is compared against, by its path under the subject root, in the load's part selection.
+  - `preload`: the pre-load report the load applied (`KG_PRELOAD_REPORT`, else `<instance>/preload-report.json`), its
+    `path` and the `sha256` of its bytes; with none, both null and `why` says why.
+  - Both are recorded in the store at the load and read back, equal on both stores and through export and import.
+    The CLI report, MCP `gate_verdict` and the trace report's gate block carry them. `baseline.differs` and the
+    CLI's stderr name each one when it differs, compared whole. A baseline kept before (the record's included)
+    reads them as unknown and names neither.
+
+  Before, editing the suite's expectations or the reference implementation moved S1 from PROCEED to BLOCKED, and
+  applying the example instance's pre-load report moved its findings from 0 to 6, each with `differs` empty.
 - **The corpus digest's lines are canonical JSON** (task-0320, decision-0038 N4): one `[artefact, version, sha256]`
   array per loaded Version, sorted. A tab or newline in an id, or null against "", can no longer collide. `corpus`
   is unreleased, so its values change once; the record does not hold it.

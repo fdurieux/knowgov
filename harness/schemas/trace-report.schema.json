@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/trace-report.schema.json",
  "title": "knowgov trace report",
- "description": "What `python harness/trace.py register|check -f json` prints (task-0051): the registered outputs (register: those just recorded; check: those in scope, with their state against the files and the statements they used now invalidated), the task's gate on the store as it is (check only), the findings on the contract's severity ladder (kind suspect, unmapped, missing, drift, or gate:<the gate report's kind>), the threshold and the exit code. A registered row's as_of is the date its registration read (task-0093, additive); its keys, the keys a hand-written file was registered on with --keys or --cited (task-0124, additive), with the finding kinds unknown_key, malformed_citation, uncited and uncitable. A finding that rests on keys names their owner and route, and the gate block what the gate decided on (task_profile, register, knowgov), as the gate report does (task-0304, decision-0035 B2, additive), and corpus, attestations, captures and configuration, the gate report's, from the store the check reads (task-0335, decision-0039 §3.2, additive). Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "description": "What `python harness/trace.py register|check -f json` prints (task-0051): the registered outputs (register: those just recorded; check: those in scope, with their state against the files and the statements they used now invalidated), the task's gate on the store as it is (check only), the findings on the contract's severity ladder (kind suspect, unmapped, missing, drift, or gate:<the gate report's kind>), the threshold and the exit code. A registered row's as_of is the date its registration read (task-0093, additive); its keys, the keys a hand-written file was registered on with --keys or --cited (task-0124, additive), with the finding kinds unknown_key, malformed_citation, uncited and uncitable. A finding that rests on keys names their owner and route, and the gate block what the gate decided on (task_profile, register, knowgov), as the gate report does (task-0304, decision-0035 B2, additive), and corpus, attestations, captures and configuration, the gate report's, from the store the check reads (task-0335, decision-0039 §3.2, additive), and code and preload (task-0341, decision-0040 (a), additive). Version 1; a change is additive or a new version. Exit 2 prints no report.",
  "type": "object",
  "required": [
   "schema_version",
@@ -205,6 +205,54 @@
       "pattern": "^[0-9a-f]{64}$"
      },
      "description": "task-0335 (decision-0039 §3.2), optional and additive: as the gate report's, read from the store the check reads: task-0335 (decision-0039 §3.2), optional and additive: the subject's configuration files the load read, each by its path under the subject root as the manifest names it, to the sha256, hex, of its raw bytes as read: subject.toml whole, scenarios.toml, the register map ([register] map), and plants.toml, queries.toml and the verification map ([verification] map) where read, a file that is not there left out (harness/subject.py Subject.configuration); recorded at the load (Store.record_inputs) and read back (Store.inputs), so a --no-load or MCP read names the load's; equal on both stores and through export and import; with --baseline compared whole, a file read on one side only a difference; null on a store loaded before it"
+    },
+    "code": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "additionalProperties": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+     },
+     "description": "task-0341 (decision-0040 (a)), optional and additive: as the gate report's, read from the store the check reads: task-0341 (decision-0040 (a)), optional and additive: the code and suite an execution verification is compared against, each file the load's part selection reads for [reference] code (a file, or a directory's *.py files) and for [oracle] script with each path [oracle] suite lists (harness/subject.py code_files), by its path under the subject root as the manifest names it (a directory's file as <it>/<relative>), to the sha256, hex, of its raw bytes, a file that is not there left out, {} when the manifest declares neither (Subject.code); recorded at the load (Store.record_inputs) and read back (Store.inputs), so a --no-load or MCP read names the load's; equal on both stores and through export and import; with --baseline compared whole, a file on one side only a difference; null on a store loaded before it, or when a path lies outside the instance"
+    },
+    "preload": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "required": [
+      "path",
+      "sha256",
+      "why"
+     ],
+     "additionalProperties": false,
+     "properties": {
+      "path": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "the report's path as KG_PRELOAD_REPORT names it, else preload-report.json, the instance's own; null when none was applied"
+      },
+      "sha256": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "pattern": "^[0-9a-f]{64}$",
+       "description": "the sha256, hex, of the report's raw bytes; null when none was applied"
+      },
+      "why": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "why no report was applied (KG_PRELOAD_REPORT unset and the instance holds none, or the subject is in no instance); null when one was"
+      }
+     },
+     "description": "task-0341 (decision-0040 (a)), optional and additive: as the gate report's, read from the store the check reads: task-0341 (decision-0040 (a)), optional and additive: the pre-load report the load applied (harness/preload.py identity: KG_PRELOAD_REPORT, else <instance>/preload-report.json), its path and the digest of its raw bytes, or both null with why when none was applied; recorded at the load (Store.record_inputs) and read back (Store.inputs); equal on both stores and through export and import; with --baseline compared whole, so a report applied on one side only is a difference; null on a store loaded before it"
     }
    }
   },

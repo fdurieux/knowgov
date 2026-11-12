@@ -678,13 +678,16 @@ documents loaded (`corpus`, a digest of every document version's bytes), the sub
 `[provenance]` and `[capture]` as the load read them (`attestations`), the answers and reviews the load
 applied (`captures`), the subject's own configuration files as the load read them (`configuration`: a
 digest per file, `subject.toml` whole, `scenarios.toml`, the register map, and `plants.toml`, `queries.toml`
-and the verification map where there is one) and the date (`as_of`). The load records `attestations`,
-`captures` and `configuration` in the store, so a read of the store, the MCP reader's included, names the
-load's own. The trace report's gate block names the same `corpus`, `attestations`, `captures` and
-`configuration`. Under `--baseline`, each one
+and the verification map where there is one), the code and suite an execution verification is compared
+against (`code`: a digest per `[reference] code`, `[oracle] script` and `[oracle] suite` file), the pre-load
+report the load applied (`preload`: its path and digest, or none and why) and the date (`as_of`). The load
+records `attestations`, `captures`, `configuration`, `code` and `preload` in the store, so a read of the store,
+the MCP reader's included, names the load's own. The trace report's gate block names the same `corpus`,
+`attestations`, `captures`, `configuration`, `code` and `preload`. Under `--baseline`, each one
 that differs from the baseline's is listed in the report's `baseline.differs` and named on stderr, one
-line each, so the comparison above names its `as_of`, an edited document names `corpus`, and an edited
-`register_map.toml` or `scenarios.toml` names `configuration`. The MCP
+line each, so the comparison above names its `as_of`, an edited document names `corpus`, an edited
+`register_map.toml` or `scenarios.toml` names `configuration`, an edited suite names `code`, and a pre-load
+report applied on one side only names `preload`. The MCP
 reader's `gate_verdict` carries the same `baseline.differs`. Naming one never changes the exit. A
 baseline kept before a field existed says nothing about that field, and none is named; a part of the
 register or build that either side does not know is never named either.
