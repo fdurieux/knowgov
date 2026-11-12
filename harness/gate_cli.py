@@ -1002,13 +1002,26 @@ def run(args) -> dict:
                 pass
 
 
+def _held_scenario(h: dict, default: str) -> str:
+    return h.get("scenario") or default
+
+
+def _unanswered(e: Exception) -> str:
+    """S1/P2: the manifest or a file it names is the cause, said as itself; any other failure is the store's."""
+    from subject import CodePathOutside
+    if isinstance(e, CodePathOutside):
+        return str(e)
+    if isinstance(e, FileNotFoundError):
+        return f"a file the load reads is missing: {e.filename or e}"
+    return f"the store did not answer: {type(e).__name__}: {e}"
+
+
 def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
     """The gate on one store handle: read as it is (``--no-load``), loaded into the scratch store, or
     loaded into the configured store and published (``--publish``)."""
     import load_memory
     import switches
     from kitio import DocumentUnreadable
-    from subject import CodePathOutside
     from store import StoreChanged
     from tasks import TASKS
     change = None
@@ -1019,7 +1032,7 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
             why = held_state.refusal(h, SUBJECT.id, args.scenario)   # A-N5: unnamed, the scenario held, as the MCP server reads it
             if why:
                 raise CannotRun(f"{why}; load it, or drop --no-load")
-            scenario = h.get("scenario") or scenario
+            scenario = _held_scenario(h, scenario)
             version = h["version"]
         else:
             _load(st, scenario)
@@ -1044,10 +1057,8 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
         raise CannotRun(str(e)) from e
     except DocumentUnreadable as e:   # doc-0030 I11: the document's fault, named, never the store's
         raise CannotRun(f"a document cannot be loaded: {e}") from e
-    except (CodePathOutside, FileNotFoundError) as e:   # S1/P2: the manifest or a named file is the cause, not the store
-        raise CannotRun(str(e) if isinstance(e, CodePathOutside) else f"a file the load reads is missing: {e.filename or e}") from e
     except Exception as e:  # noqa: BLE001 — an unreachable store fails here, on the first statement
-        raise CannotRun(f"the store did not answer: {type(e).__name__}: {e}") from e
+        raise CannotRun(_unanswered(e)) from e
 
 
 def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshold: str,
