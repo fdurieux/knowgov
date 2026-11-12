@@ -541,9 +541,12 @@ def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: 
     stale = sorted(set(listed) - known[0])
     if _edited(rep, m, root, name, listed, stale):   # task-0318, task-0319: the edit, by artefact and file
         return
+    files = {d: f"{art}/{rel}" if rel else art for art, fs in sorted(artefact_digests(m, root).items()) for rel, d in fs.items()}
+    held = ", ".join(f"{d} is {files[d]}" for d in listed if d in files)   # task-0315 C2-7: a bare digest names no file
     for d in stale:
-        rep.error("attestation", where, f"versions lists {d}, which matches no current Version of the subject's artefacts: "
-                  "it attests nothing the load reads", _relist_fix(name))
+        rep.error("attestation", where, f"versions lists {d}, which matches no current Version of the subject's artefacts"
+                  + (f" (the listed digests that do match a file: {held})" if held else "")
+                  + ": it attests nothing the load reads", _relist_fix(name))
 
 
 def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: list, stale: bool) -> bool:

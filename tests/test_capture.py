@@ -261,3 +261,24 @@ def test_ingest_is_unchanged_and_a_questionnaire_from_before_still_ingests():
         caps.append(capture.capture_toml(cap, "captures/2026-11-02-ORG-0002-employee-1.toml"))
     assert caps[0] == caps[1]
     assert tomllib.loads(caps[0])["unknown"] == [{"key": "QuoteAPI|on_screening_outage", "note": "compliance has not decided"}]
+
+
+def test_no_questionnaire_is_written_for_an_owner_with_nothing_open():
+    """task-0315 C2-5."""
+    res = _s2()
+    for v in res["keys"].values():
+        v["level"] = "validated"
+    qs = capture.questionnaires(res, CARGO_QUOTE, "S2", "codegen", capture.register_nodes(ROOT / "demo" / "register"), TODAY)
+    assert qs == {}, sorted(qs)
+
+
+def test_ingest_refuses_a_handle_of_another_unit_in_a_questionnaire_it_does_not_own():
+    """task-0315 C2-6: employee-3 belongs to ORG-0001; the questionnaire is ORG-0002's."""
+    import review
+    keys = set(CARGO_QUOTE.tasks["codegen"]["keys"])
+    reg = ROOT / "demo" / "register"
+    pattern, handles = capture.handle_pattern(reg), review.issued_handles(reg)
+    assert handles["employee-3"]["unit"] == "ORG-0001", handles["employee-3"]
+    errs, _ = capture.check_answers(_answered(handle="employee-3"), pattern, keys, TODAY, handles)
+    assert any("ORG-0001" in e and "ORG-0002" in e for e in errs), errs
+    assert capture.check_answers(_answered(handle="employee-1"), pattern, keys, TODAY, handles)[0] == []

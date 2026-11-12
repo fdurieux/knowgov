@@ -206,6 +206,8 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
     out = {}
     for owner, keys in sorted(by_owner.items()):
         open_keys = [k for k in keys if res["keys"][k]["level"] in OPEN_LEVELS]
+        if not open_keys:
+            continue   # task-0315 C2-5: a questionnaire with nothing to answer is not written
         name = nodes.get(owner, {}).get("name", "no owner in the register map")
         lines = [
             f"# Questionnaire for {owner} ({name}): {len(open_keys)} of the {len(keys)} keys you own need an answer.",
@@ -279,6 +281,10 @@ def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
             errs.append(f"answered.from {handle!r} is not an issued handle (decision 0009): the register's issued list does not name it")
         elif "gives" not in h.get("roles", set()):
             errs.append(f"answered.from {handle} lacks the role gives, which an answer needs (decision 0009)")
+        owner = str(q.get("owner") or "")
+        if (h is not None and q.get("route") != "review-due" and h.get("unit") and owner and owner != UNASSIGNED
+                and h["unit"] != owner):   # task-0315 C2-6: a handle answers for its own unit's questionnaire only
+            errs.append(f"answered.from {handle} belongs to {h['unit']}, not to {owner}, whose questionnaire this is")
         if h is not None and on is not None:
             if h.get("issued") and h["issued"] > on:
                 errs.append(f"answered.from {handle} was issued on {h['issued']}, after the answer's date {on} (decision 0009)")
