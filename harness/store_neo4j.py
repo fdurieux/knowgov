@@ -88,7 +88,16 @@ REALISER_STEPS = [
     ("capabilities", ("REG_REALIZES",), False),
     ("processes", ("REG_SUPPORTS",), False),
 ]
-WALK_STEPS = {"dependants": IMPACT_STEPS, "realisers": REALISER_STEPS}
+# The register's third walk (its decision 0018; task-0336): what a journey step uses, down to the data. The step to
+# the process that supports it, the process to the capability it realises, the applications that support it and the
+# information it reads or writes, an application to the information it manages; every step points away from the journey.
+THREAD_STEPS = [
+    ("journeys", ("REG_IS_SUPPORTED_BY",), True),
+    ("processes", ("REG_REALIZES", "REG_CRUD"), True),
+    ("processes", ("REG_SUPPORTS",), False),
+    ("applications", ("REG_MANAGES",), True),
+]
+WALK_STEPS = {"dependants": IMPACT_STEPS, "realisers": REALISER_STEPS, "thread": THREAD_STEPS}
 
 def _step(n: str, r: str, steps: list = IMPACT_STEPS) -> str:
     """The predicate: ``r`` is a step the walk takes from ``n``, by ``n``'s taxonomy."""
@@ -140,7 +149,9 @@ _ROWS_TAIL = (
 _WHAT = {("dependants", False): "the walk tools/impact.py makes",
          ("dependants", True): "the walk tools/impact.py --children makes, from the node and each approved descendant",
          ("realisers", False): "the walk tools/impact.py --walk realisers makes, toward what implements the node",
-         ("realisers", True): "the walk tools/impact.py --walk realisers --children makes, from the node and each approved descendant"}
+         ("realisers", True): "the walk tools/impact.py --walk realisers --children makes, from the node and each approved descendant",
+         ("thread", False): "the walk tools/impact.py --walk thread makes, from a journey step down to the data",
+         ("thread", True): "the walk tools/impact.py --walk thread --children makes, from the node and each approved descendant"}
 
 
 def impact_texts(walk: str = "dependants", children: bool = False) -> dict:

@@ -26,8 +26,8 @@
    "floor": 58
   },
   "demo/app/register_view.py::impact": {
-   "value": 33,
-   "floor": 33
+   "value": 27,
+   "floor": 27
   },
   "demo/app/server.py::Handler._get": {
    "value": 50,

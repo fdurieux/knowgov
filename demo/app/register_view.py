@@ -150,7 +150,33 @@ def _node_panel(nid: str, n: dict, reg: dict, C, D) -> dict:
             "panel": {"title": C(f"{nid}, a {kind_words} in {tax}"), "intro": intro, "sections": secs}}
 
 
-WALKS = ("dependants", "realisers")   # the register's named walks (its decisions 0010 and 0012)
+WALKS = ("dependants", "realisers", "thread")   # the register's named walks (its decisions 0010, 0012 and 0018; task-0336)
+WALK_INTRO = {   # what each walk follows, by the node's kind, in the panel's controlled sentences
+    "dependants": ("It follows approved links toward what rests on each node, by the node's kind.",
+                   "An application leads to its processes; a process to its products, capabilities and journey steps.",
+                   "A capability leads to the products that require it.",
+                   "An information entity leads to the processes and applications that use it.",
+                   "A product leads to its journeys and processes; a journey step to its process and product."),
+    "realisers": ("This is the realiser walk: it follows approved links toward what implements a capability.",
+                  "A capability leads to the processes that realise it; a process to the applications that support it.",
+                  "An application leads nowhere, so the walk never turns back to what rests on the capability."),
+    "thread": ("This is the thread walk: it follows approved links from a journey step down to the data.",
+               "A journey step leads to the process that supports it.",
+               "A process leads to the capability it realises, the applications that support it and the information it uses.",
+               "An application leads to the information it manages.",
+               "A capability or information entity leads nowhere, so the walk never turns back toward the product."),
+}
+WALK_REACH = {"dependants": (("PROC", "process", "processes"), ("PRD", "product", "products"), ("JRN", "journey element", "journey elements")),
+              "realisers": (("PROC", "process", "processes"), ("APP", "application", "applications")),
+              "thread": (("PROC", "process", "processes"), ("CAP", "capability", "capabilities"), ("APP", "application", "applications"),
+                         ("ENT", "information entity", "information entities"))}
+
+
+def _walk_summary(walk: str, edges: int, not_followed: int, by_prefix) -> str:
+    """The Edges walked section's first sentence: the edges, those not followed, and what was reached by the kinds the walk reaches."""
+    parts = [views._plural(len(by_prefix(p)), one, many) for p, one, many in WALK_REACH[walk]]
+    return (f"{views._plural(edges, 'edge')} walked, {not_followed} not followed; "
+            f"{', '.join(parts[:-1])} and {parts[-1]} reached.")
 
 
 def followed(e: dict) -> str:
@@ -200,16 +226,7 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
     products, journeys, processes, applications = by_prefix("PRD"), by_prefix("JRN"), by_prefix("PROC"), by_prefix("APP")
     start_node = reg["nodes"][start]
     intro = C(f"The walk starts at {start}, a {start_node.get('kind', '').replace('_', ' ')} in state {start_node.get('state')}.")
-    if walk == "dependants":
-        intro += " " + C("It follows approved links toward what rests on each node, by the node's kind.",
-                         "An application leads to its processes; a process to its products, capabilities and journey steps.",
-                         "A capability leads to the products that require it.",
-                         "An information entity leads to the processes and applications that use it.",
-                         "A product leads to its journeys and processes; a journey step to its process and product.")
-    else:
-        intro += " " + C("This is the realiser walk: it follows approved links toward what implements a capability.",
-                         "A capability leads to the processes that realise it; a process to the applications that support it.",
-                         "An application leads nowhere, so the walk never turns back to what rests on the capability.")
+    intro += " " + C(*WALK_INTRO[walk])
     intro += " " + C("It stops at a deprecated or retired node.", "An edge that is not approved is listed with its state and not followed.",
                      "Its link is not approved, or its far node is deprecated or retired.")
     intro += " " + C("An edge back to the start is listed and not counted: the start is never among what it reaches.")
@@ -221,14 +238,9 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
     else:
         intro += " " + C("It does not climb a node's parent, so a module's application is not reached.")
     intro += " " + D(f"Name: {names.get(start, '')}.")
-    if walk == "dependants":
-        summary = C(f"{views._plural(len(edges), 'edge')} walked, {not_followed} not followed; {views._plural(len(processes), 'process', 'processes')}, "
-                    f"{views._plural(len(products), 'product')} and {views._plural(len(journeys), 'journey element')} reached.")
-        if not products and (processes or journeys):
-            summary += " " + C("No product is reached: no approved link leads from a reached node to a product.")
-    else:
-        summary = C(f"{views._plural(len(edges), 'edge')} walked, {not_followed} not followed; {views._plural(len(processes), 'process', 'processes')} "
-                    f"and {views._plural(len(applications), 'application')} reached.")
+    summary = C(_walk_summary(walk, len(edges), not_followed, by_prefix))
+    if walk == "dependants" and not by_prefix("PRD") and (by_prefix("PROC") or by_prefix("JRN")):
+        summary += " " + C("No product is reached: no approved link leads from a reached node to a product.")
     if not edges:
         summary += " " + C("No link starts at this node in a direction the walk follows." if not children else
                            "No link starts at this node or a walked descendant in a direction the walk follows.")
@@ -254,7 +266,8 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
                             "table": {"cols": ["descendant", "name", "parent", "node state", "walked"],
                                       "rows": [[d["id"], names.get(d["id"], ""), reg["nodes"][d["id"]].get("parent", ""), d["state"],
                                                 "yes" if d["live"] else f"no, not followed ({d['state']})"] for d in descendants]}})
-    title = C((f"Impact of retiring {start}" if walk == "dependants" else f"What realises {start}") + (", with its descendants" if children else ""))
+    title = C({"dependants": f"Impact of retiring {start}", "thread": f"What {start} uses, down to the data"}.get(walk, f"What realises {start}")
+              + (", with its descendants" if children else ""))
     out = {"from": start, "walk": walk, "children": children, "edges": edges, "rows": rows, "owners": owners,
            "reached": {"products": products, "journeys": journeys, "processes": processes, "applications": applications, "all": reached},
            "panel": {"title": title, "intro": intro, "sections": sections},
