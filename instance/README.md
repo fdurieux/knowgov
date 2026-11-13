@@ -1013,6 +1013,13 @@ writes such a ruling (it still writes it). To clear it, the owners rule again in
 later day. When that ruling approves or rejects, the findings read `info`, "settled by" that file, and
 the key reads from it; a referral decides nothing and leaves them `major`.
 
+Another reviewer's decided ruling of the same statement the same day settles an earlier legacy
+ambiguous act, as a later day's does: the order across reviewers by handle is no order of writing.
+Only a decided ruling (approved or rejected) settles such an act; a referral never reads as settling it.
+
+To check the act path on Neo4j rather than the gate's private rdflib copy, run the gate with `--publish`
+(or `KG_PUBLISH=1` for the CI script), which loads into the store `KG_STORE` names (decision-0017).
+
 Before ruling, read what you rule on:
 
 ```bash

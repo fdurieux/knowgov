@@ -11,6 +11,7 @@ names that section with the version.
 ## Unreleased
 
 - The published compose file runs the v0.9.0 release: `app` and `worker` pin `ghcr.io/fdurieux/knowgov:v0.9.0` by its index digest (`sha256:1785793d…`), where they ran v0.8.0.
+- An ambiguous review act is settled only by a later decided ruling (approved or rejected) of its statement, never by a referral, and another reviewer's decided ruling the same day settles it too; the review walkthrough names `--publish` / `KG_PUBLISH=1` for checking the act path on Neo4j (task-0323).
 - The pre-load check's Spectral pin moves to 6.17.1, the same in `instance/ci/package.json`, `instance/ci/preload-check.yml` and the harness workflow (Dependabot #471, which moved only the first).
 - A node found stale by one landing of an export stays stale in the next while its id is still absent, until an export carries it again (`tools/connector.py`).
 - The page's register impact panel counts capabilities among what the dependants walk reaches, and its statements view names its join (the start's cited anchors, not the register map `register_impact` uses).

@@ -486,3 +486,16 @@ def test_capture_review_warns_before_it_writes_a_ruling_that_opposes_the_days_ta
 def test_the_readme_states_the_opposed_rule_and_the_remedy_task_0331():
     t = " ".join((ROOT / "instance" / "README.md").read_text(encoding="utf-8").split())
     assert "cancel each other" in t and "rule again in one review, on a later day" in t and "settled by" in t
+
+
+def test_only_a_decided_ruling_settles_and_a_same_day_other_reviewer_does_task_0323():
+    """L1: a referral never settles; the later approval is named. L2 repro A: boss, ruling the same day, settles employee-2's act."""
+    sid = "A:cap:2026-11-05-ORG-0002-ops-2:1@capture"
+    at = ("2026-11-05", "employee-2", 0, "a")
+    ref = _bound("r-ref.toml", sid, "ops-2", "referred", at=("2026-11-06", "employee-2", 2, "x"))
+    app = _bound("r-app.toml", sid, "ops-2", "approved", at=("2026-11-08", "employee-2", 0, "y"))
+    assert review.settling(_pending(), at, [ref], HANDLES) is None
+    assert review.settling(_pending(), at, [ref, app], HANDLES) == "settled by r-app.toml"
+    same_day = ("2026-11-06", "employee-2", 0, "a")
+    boss = _bound("r-boss.toml", sid, "ops-2", "approved", at=("2026-11-06", "boss", 0, "b"))
+    assert review.settling(_pending(), same_day, [boss], HANDLES) == "settled by r-boss.toml"
