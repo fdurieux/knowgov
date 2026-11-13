@@ -302,6 +302,26 @@ def check_attestations(rep: Report, m: dict, root: Path) -> None:
                   'add [provenance] human = { id = "agent:<who>", name = "..." }, the person who attests')
 
 
+def _doc_bytes(p: Path, a: dict) -> bytes:
+    """A document's raw bytes; one this user cannot read is the manifest's cause (task-0329), never a traceback."""
+    from subject import FileUnreadable
+    try:
+        return p.read_bytes()
+    except PermissionError as e:
+        raise FileUnreadable(f"document {a.get('path')} ({a.get('key')}) cannot be read (permission denied)",
+                             where="[[artefact]]") from e
+
+
+def _doc_text(p: Path, a: dict, errors: str | None = None) -> str:
+    """A document's text as ``read_text`` reads it (universal newlines), the same refusal as ``_doc_bytes``."""
+    from subject import FileUnreadable
+    try:
+        return p.read_text(encoding="utf-8", errors=errors) if errors else p.read_text(encoding="utf-8")
+    except PermissionError as e:
+        raise FileUnreadable(f"document {a.get('path')} ({a.get('key')}) cannot be read (permission denied)",
+                             where="[[artefact]]") from e
+
+
 def artefact_digests(m: dict, root: Path) -> dict[str, dict[str, str]]:
     """Each artefact's current Version files as on disk, by name then raw-byte SHA-256: a file artefact one entry
     named '', a directory artefact the files the load bundles (``subject.bundle_files`` with the artefact's
@@ -316,7 +336,7 @@ def artefact_digests(m: dict, root: Path) -> dict[str, dict[str, str]]:
         inc = a.get("include") if isinstance(a.get("include"), list) else None
         fs = [("", p)] if p.is_file() else bundle_files(p, inc) if p.is_dir() else []
         if fs:
-            out[str(a.get("key") or a["path"])] = {rel: hashlib.sha256(f.read_bytes()).hexdigest() for rel, f in fs}
+            out[str(a.get("key") or a["path"])] = {rel: hashlib.sha256(_doc_bytes(f, a)).hexdigest() for rel, f in fs}
     return out
 
 
@@ -357,13 +377,13 @@ def subject_versions(m: dict, root: Path, planted: dict | None = None) -> set[st
             continue
         p = root / a["path"]
         if p.is_file():
-            out.add(h(p.read_bytes()))
-            texts[str(a.get("key"))] = p.read_text(encoding="utf-8")
+            out.add(h(_doc_bytes(p, a)))
+            texts[str(a.get("key"))] = _doc_text(p, a)
         elif p.is_dir():
             for f in sorted(p.rglob("*")):
                 if f.is_file():
-                    out.add(h(f.read_bytes()))
-                    t = f.read_text(encoding="utf-8", errors="replace")
+                    out.add(h(_doc_bytes(f, a)))
+                    t = _doc_text(f, a, errors="replace")
                     texts[str(a.get("key")) + f.relative_to(p).as_posix()] = t if t.endswith("\n") else t + "\n"   # as bundled
     _planted_versions(_toml(root / "plants.toml"), texts, h, out, planted)
     return out
@@ -893,21 +913,36 @@ def check(root: Path, register: Path | None = None, mappers: set[str] | None = N
     out["format"] = formats.version(m, (root / "subject.toml").as_posix(), formats.SUBJECT)
     sub = m.get("subject") if isinstance(m.get("subject"), dict) else {}
     out["subject"] = sub.get("id", root.name)
-    check_manifest(rep, m, root, mappers if mappers is not None else kinds_mappers())
-    check_map(rep, m, root, register)
+    from subject import FileUnreadable
+    try:
+        check_manifest(rep, m, root, mappers if mappers is not None else kinds_mappers())
+        check_map(rep, m, root, register)
+    except FileUnreadable as e:   # task-0329: a file the manifest names that cannot be read is a path error, never a traceback
+        rep.error("path", e.where or "[[artefact]]", str(e),
+                  "make the file readable by the account that loads the subject, or name another")
     if run_yield:
         out["yield"] = check_yield(rep, m, root)
     out["exit_code"] = 1 if any(f["level"] == "error" for f in rep.findings) else 0
     return out
 
 
+def _said_once(f: dict) -> str:
+    """task-0329: a message that opens with its own field reads once, since the line already names it."""
+    where = f.get("where") or ""
+    msg = f["message"]
+    return msg[len(where):].lstrip() if where and msg.startswith(where + " ") else msg
+
+
 def render(rep: dict) -> str:
     out = [f"subject {rep['subject']} ({rep['root']})"]
     y = rep["yield"]
-    out.append(f"yield: {y['keys']} key(s) from {len(y['artefacts'])} artefact(s)" if y["state"] == "checked"
-               else f"yield: unchecked ({y['why']})")
+    unreadable = any(f["level"] == "error" and "cannot be read" in f["message"] for f in rep["findings"])
+    if y["state"] == "checked":
+        out.append(f"yield: {y['keys']} key(s) from {len(y['artefacts'])} artefact(s)")
+    elif not unreadable:   # task-0329: the cause is said once, as the ERROR below
+        out.append(f"yield: unchecked ({y['why']})")
     for f in rep["findings"]:
-        out.append(f"{f['level'].upper()} {f['where']}: {f['message']}. Fix: {f['fix']}")
+        out.append(f"{f['level'].upper()} {f['where']}: {_said_once(f)}. Fix: {f['fix']}")
     for n in rep["notes"]:
         out.append(f"NOTE {n['where']}: {n['message']}")
     errs = sum(f["level"] == "error" for f in rep["findings"])
