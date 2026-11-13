@@ -103,9 +103,8 @@ it (``closer``: the owner its declaration names, decision-0002 point 3, else the
 when that is no unit of the register), and its route ends with the close (task-0110); the text form
 adds ``; closed by UNIT``. A suspect derived output's owner and route come from the keys of the statements it
 used that are now invalidated or changed (``related``), not from every key of its file (task-0311 N1). A route is
-one line of prose that starts with the command to run (a questionnaire, a review, a registration); an act settled
-or opposed, and the bar's blocker, state their step in words (``nothing to do: ...``), so a reader takes the
-first command as the step and the rest as who does it (task-0311 N4).
+one line of text, never parsed: the questionnaire's or the close's command, or a sentence naming who does what (an
+attestation's step, a review lapse's, a settled act's ``nothing to do: ...``, the bar's blocker) (task-0311 N4).
 
 The JSON report (-f json) is pinned by harness/schemas/gate-report.schema.json, version 3 (the
 schema's description says what changed from 1 and 2 and what was added since), and validated before
@@ -313,7 +312,7 @@ def _act_route(f: dict, route):
         import review
         if review.is_opposed(reasons):
             return (f"nothing to do: {reasons[-1]}" if len(reasons) > 1 else
-                    "the owners rule again in one review, on a later day (python harness/capture.py review <file>; from an instance repository, python \"$KG_HOME\"/harness/capture.py)")
+                    "the owners rule again in one review, on a later day (python harness/capture.py review <file>" + _from_instance() + ")")
         if reasons[0].startswith(review.SETTLED):
             return f"nothing to do: {reasons[0]}"
     return route
@@ -420,6 +419,11 @@ def suspect_finding(d: dict, scope: dict | None) -> dict:
                     ref=d["id"], related=used + changed)
 
 
+def _from_instance() -> str:
+    from capture import FROM_INSTANCE
+    return FROM_INSTANCE
+
+
 def _awaiting(v: dict) -> str:
     """C2-3 (task-0311): the assertions a reviewer rules on, named in the key's finding."""
     pend = sorted(v.get("pending_review") or [])
@@ -429,7 +433,7 @@ def _awaiting(v: dict) -> str:
 def _bar_finding(res: dict) -> dict:
     """A-F4 (task-0311): the bar's blocker names a next step, the keys below the bar and their routes."""
     f = _finding("blocker", "task", res["why"])
-    f["route"] = ("raise the keys below the bar: each key finding above names its owner and the route to approval; "
+    f["route"] = ("raise the keys below the bar: the key findings after this one each name their owner and the route to approval; "
                   "the share falls under the bar when enough of them are verified or approved")
     return f
 
@@ -439,8 +443,27 @@ def _lapse_route(f: dict, res: dict) -> str | None:
     lapsed_by_id = {x["id"]: x for x in res.get("lapsed") or []}
     if f["kind"] != "lapsed" or not f["route"] or lapsed_by_id.get(f["ref"], {}).get("kind") == "elicited":
         return f["route"]
-    return ("a reviewer who is not the author and holds the role renews it: python harness/capture.py review FILE "
-            "(from an instance repository, python \"$KG_HOME\"/harness/capture.py), dated on or after the as-of date; or " + f["route"])
+    return ("a reviewer who is not the author, under a handle whose unit owns the key and holds the role `closes`, renews it: "
+            "python harness/capture.py review FILE" + _from_instance() + ", the review dated on or before the as-of date; or " + f["route"])
+
+
+def _key_finding(key: str, v: dict, block_levels: set[str], rel: list[str]) -> dict | None:
+    """The finding one required key gives, by its level: a blocker, a major below verified, a minor when flagged, else (R3,
+    task-0311) an info when an answer awaits a reviewer's ruling; None when it reads clean."""
+    lvl, flags = v["level"], v["flags"]
+    if lvl in block_levels:
+        return _finding("blocker", "key", f"{key} is {lvl.replace('_', ' ')}: the task cannot proceed on it",
+                        key=key, level=lvl, flags=flags, related=rel)
+    if LEVELS.index(lvl) < LEVELS.index("verified"):
+        return _finding("major", "key", f"{key} is {lvl}, below verified: an assistant may use it only as a stated assumption"
+                        + _awaiting(v), key=key, level=lvl, flags=flags, related=rel)
+    if flags:
+        return _finding("minor", "key", f"{key} is {lvl} but flagged {', '.join(flags)}" + _awaiting(v),
+                        key=key, level=lvl, flags=flags, related=rel)
+    if v.get("pending_review"):
+        return _finding("info", "key", f"{key} is {lvl}" + _awaiting(v) + ": the answer is not counted in the level until it is ruled on",
+                        key=key, level=lvl, flags=flags, related=rel)
+    return None
 
 
 def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None = None,
@@ -454,17 +477,9 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
     import cadence
     out = []
     for key, v in res["keys"].items():
-        lvl, flags = v["level"], v["flags"]
-        rel = conflict_ids(res, key)   # task-0314 A-F6
-        if lvl in block_levels:
-            out.append(_finding("blocker", "key", f"{key} is {lvl.replace('_', ' ')}: the task cannot proceed on it",
-                                key=key, level=lvl, flags=flags, related=rel))
-        elif LEVELS.index(lvl) < LEVELS.index("verified"):
-            out.append(_finding("major", "key", f"{key} is {lvl}, below verified: an assistant may use it only as a stated assumption"
-                                + _awaiting(v),
-                                key=key, level=lvl, flags=flags, related=rel))
-        elif flags:
-            out.append(_finding("minor", "key", f"{key} is {lvl} but flagged {', '.join(flags)}", key=key, level=lvl, flags=flags, related=rel))
+        kf = _key_finding(key, v, block_levels, conflict_ids(res, key))   # task-0314 A-F6: the conflicts a key is in
+        if kf:
+            out.append(kf)
     for key in res.get("unintended") or []:   # task-0215: the intended bar, decision-0018 point 4
         v = res["keys"][key]
         out.append(_finding("major", "intended", f"{key} is verified but not approved, and the task class requires approved: "

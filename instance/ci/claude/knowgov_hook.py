@@ -67,7 +67,8 @@ ROUTE = ("Route to approval: the owner of each blocking key answers it (harness/
          "then ingest), and a reviewer who is not the author settles it in a review file (harness/capture.py "
          "review; decision-0002: a session may propose, never approve, its own knowledge). An exception is "
          "granted by whoever owns the managed settings, never by this session; do not retry around the gate. "
-         "From an instance repository, run the tool as python \"$KG_HOME\"/harness/capture.py.")
+         "From an instance root, run the tool as KG_SUBJECT=subjects/<subject> KG_REGISTER=register "
+         "python \"$KG_HOME\"/harness/capture.py ...")
 ATTESTATION_ROUTE = ("Route to approval: an attestation is a person's act, not this session's (decision-0002, decision-0009). The "
                      "route on each attestation finding above names who lists which Version; an execution is listed only "
                      "after the implementation and suite are brought in line with the Version where its values differ, and the suite run on it. An exception is granted by "
@@ -436,8 +437,10 @@ def _shown(rep: dict) -> list[dict]:
     attestation and lapsed findings the verdict rests on below them, a slot each (two at most) held for those that exist."""
     fs = rep.get("findings") or []
     worst = [f for f in fs if f.get("severity") in ("blocker", "critical")]
-    if not worst:
-        return fs[:6]
+    if not worst:   # R4 (task-0311): an attestation finding is kept, so the assistant is told a document changed
+        first = fs[:6]
+        att = [f for f in fs if f.get("kind") == "attestation"][:1]
+        return first if not att or att[0] in first else first[:5] + att
     bar = []   # H7: one slot per kind, attestation first, so lapses cannot crowd the attestation cause out
     for kind in BAR_KINDS:
         bar += [f for f in fs if f.get("kind") == kind and f not in worst][:1]
