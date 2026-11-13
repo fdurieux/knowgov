@@ -529,3 +529,10 @@ def test_a_named_report_that_is_not_there_is_named_task_0312():   # C4-6
             os.environ.pop("KG_PRELOAD_REPORT")
         else:
             os.environ["KG_PRELOAD_REPORT"] = old
+
+
+def test_the_gate_names_a_missing_preload_report_as_itself_task_0312_r2():
+    import gate_cli
+    e = FileNotFoundError("KG_PRELOAD_REPORT names /x/pr.json, which is not a file: unset it, or point it at the pre-load report")
+    assert gate_cli._own_cause(e) == str(e)
+    assert gate_cli._own_cause(FileNotFoundError("[Errno 2] No such file: 'x'")) is None

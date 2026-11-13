@@ -501,7 +501,7 @@ def check(instance: Path, changed: list[str] | None = None, threshold: str = "ma
         if res["state"] == "ran":
             read = set(res.get("read", []))
             for r in rows:   # a document the check read and its kind's linter left unchecked is judged by the check alone
-                if r["file"] in read and r["state"] == "unchecked":
+                if r["file"] in read and r["state"] == "unchecked" and r["file"] not in only:   # the first check keeps the row (task-0312 R5)
                     only[r["file"]] = f"judged by {name} alone; {r['why']}"
                     r.update(tool=name)   # task-0312 C4-1: its kind's linter never ran, so it stays unchecked unless a finding lands
                     settled.append(r["file"])
