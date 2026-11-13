@@ -307,35 +307,24 @@ def opposed_settling(fa: dict, at: tuple, bound: list) -> str | None:
     return f"{SETTLED}{later[-1]['rel']}"
 
 
-def _day_after(b: dict, at: tuple) -> bool:
-    return b["at"][0] > at[0]
-
-
 def _later(b: dict, fa: dict, at: tuple) -> bool:
-    """task-0323 L2, R2: later in the order applied, or the same day by another reviewer (the recorded ``by``, never the
-    file name), whose handle order is no order of writing."""
-    return b["at"] > at or (b["at"][0] == at[0] and b.get("by") != fa.get("by"))
-
-
-def _opposes(b: dict, fa: dict, at: tuple) -> bool:
-    """R1: a decided ruling of the same day by another reviewer, whose outcome is not the legacy act's."""
-    return b["at"][0] == at[0] and b.get("by") != fa.get("by") and b["outcome"] != fa["outcome"]
+    """task-0323 L2: a ruling is later by its date; the same day by another reviewer (the recorded ``by``, never the file
+    name, handle order being no order of writing); the same day by the same reviewer by its ``-n`` number, never the stem."""
+    if b["at"][0] != at[0]:
+        return b["at"][0] > at[0]
+    return b.get("by") != fa.get("by") or b["at"][2] > at[2]
 
 
 def settling(fa: dict, at: tuple, bound: list, handles: dict) -> str | None:
     """The reason an ambiguous ruling's act is settled or superseded by a later applied ruling (task-0322), else None.
     Settled (task-0323 L1): the latest later decided ruling of the same statement (its id, or the same key, value and
-    digest by a giver the stem reads as); a referral never settles. A decided ruling of the same day by another reviewer
-    settles it only when its outcome is the act's (R1): an opposing one leaves it major, naming both files, unless a later
-    day decided. Superseded: a later ruling of the same content on another statement, the answer it named unruled."""
+    digest by a giver the stem reads as); a referral never settles. A same-day ruling by another reviewer that opposes
+    the act never reaches here: the load sets both aside (``opposed_rulings``, R1). Superseded: a later ruling of the same
+    content on another statement, the answer it named unruled."""
     mine = _readings(fa["statement"], handles)
     same = (fa["key"], fa["from_value"], fa["from_sha256"])
     later = [b for b in bound if _later(b, fa, at) and (b["key"], b["value"], b["sha256"]) == same]
     own = [b for b in later if (b["id"] == fa["statement"] or b["giver"] in mine) and b["outcome"] in ("approved", "rejected")]
-    if own and not _day_after(own[-1], at):
-        clash = [b for b in own if _opposes(b, fa, at)]
-        if clash:
-            return opposed_legacy_reason([(fa["review"], fa["outcome"]), *[(b["rel"], b["outcome"]) for b in clash]])
     if own:
         return f"{SETTLED}{own[-1]['rel']}"
     for b in later:
@@ -343,13 +332,6 @@ def settling(fa: dict, at: tuple, bound: list, handles: dict) -> str | None:
             return (f"{SUPERSEDED}{b['rel']}; the answer it named stays unruled" if b["outcome"] == "approved"
                     else f"{RULED}{b['rel']} ({b['outcome']}); the answer it named stays unruled")
     return None
-
-
-def opposed_legacy_reason(group: list) -> str:
-    """R1: the reason of a legacy ambiguous act another reviewer's decided ruling of the same day opposes; its files all named."""
-    files = ", ".join(f"{rel} ({oc})" for rel, oc in sorted(group))
-    return (f"{OPPOSED}{files}; two reviewers ruled on one statement on one day and neither alone approves, so the "
-            "owners rule again in one review on a later day")
 
 
 def _as_reported(how: dict) -> dict:
