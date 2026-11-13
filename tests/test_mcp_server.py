@@ -765,7 +765,7 @@ def test_register_impact_reads_the_keys_under_the_task_class_named_and_refuses_k
         on = _call(s, "register_impact", {**args, "task": task})["result"]["structuredContent"]
         keys = [k["key"] for k in on["keys"]]
         want = _call(s, "gate_verdict", {"task": task, "keys": keys, "as_of": DAY})["result"]["structuredContent"]
-        assert on["gate"]["task"] == task and on["gate"]["verdict"] == want["verdict"] and on["gate"]["why"] == want["why"], task
+        assert on["gate"]["task"] == task and on["gate"]["verdict"] == want["verdict"] and on["gate"]["why"] == gate_cli.sub_gate_why(True, want["why"]), task   # task-0314: the walk's sub-gate words its why "keys reached"
         assert {k["key"]: k["level"] for k in on["keys"]} == want["levels"], task
         for k in on["keys"]:
             assert k["findings"] == [f for f in want["findings"] if f["kind"] in gate_cli.OWNED and f["key"] == k["key"]], (task, k["key"])
