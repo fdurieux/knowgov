@@ -278,6 +278,20 @@ def opposes(a: str, b: str) -> bool:
     return (a == "approved") != (b == "approved") and "approved" in (a, b)
 
 
+def equivalent(statement: str, same: tuple, row_id: str, row_same: tuple, row_giver, handles) -> bool:
+    """Whether a ruling on ``row_id`` is on ``statement`` or an equivalent one (task-0323 R1, R2, R-A): the same key, value
+    and digest and a giver the statement's stem reads as (``_readings``), or the statement itself. The one definition that
+    ``settling``, ``opposed_settling`` and the load's ``_opposed`` share."""
+    return row_id == statement or (row_same == same and row_giver is not None and row_giver in _readings(statement, handles))
+
+
+def read_as(row: tuple, rows: list, handles) -> str:
+    """The statement a ruling counts for among the day's ``rows`` (statement, (key, value, digest), giver, on): the least
+    statement id of those it is equivalent to, itself included, so equivalent rulings pair under one id."""
+    stmt, same, giver, on = row
+    return min([stmt] + [s2 for s2, same2, _g2, on2 in rows if on2 == on and equivalent(s2, same2, stmt, same, giver, handles)])
+
+
 def opposed_rulings(rows: list) -> dict:
     """The rulings that cancel each other (task-0328, task-0331): ``rows`` are (statement, on, by, outcome, review file) of
     every ruling the load would apply. Within a day the order across reviewers is only alphabetical, so a ruling approving
@@ -302,12 +316,14 @@ def is_opposed(reasons) -> bool:
     return bool(reasons) and str(reasons[0]).startswith(OPPOSED)
 
 
-def opposed_settling(fa: dict, at: tuple, bound: list) -> str | None:
+def opposed_settling(fa: dict, at: tuple, bound: list, handles: dict | None = None) -> str | None:
     """task-0331 R1, task-0333 R1': the second reason of an opposed act once a later day's applied ruling of the same
     statement decided it, the latest one, approved or rejected: ``settled by <file>`` (info). The owners did what the route
     asked; the key reads from that ruling (absent after a rejection). A referral decides nothing: the act stays major.
-    None while no later ruling decided it."""
-    later = [b for b in bound if b["id"] == fa["statement"] and b["at"][0] > at[0] and b["outcome"] in ("approved", "rejected")]
+    The statement is read as ``settling`` reads it (``equivalent``, task-0323 R1). None while no later ruling decided it."""
+    same = (fa.get("key"), fa.get("from_value"), fa.get("from_sha256"))
+    later = [b for b in bound if b["at"][0] > at[0] and b["outcome"] in ("approved", "rejected")
+             and equivalent(fa["statement"], same, b["id"], (b.get("key"), b.get("value"), b.get("sha256")), b.get("giver"), handles)]
     if not later:
         return None
     return f"{SETTLED}{later[-1]['rel']}"
@@ -331,17 +347,16 @@ def settling(fa: dict, at: tuple, bound: list, handles: dict) -> str | None:
     digest by a giver the stem reads as); a referral never settles. A same-day ruling by another reviewer that opposes
     the act never reaches here: the load sets both aside (``opposed_rulings``, R1). Superseded: a later ruling of the same
     content on another statement, the answer it named unruled."""
-    mine = _readings(fa["statement"], handles)
     same = (fa["key"], fa["from_value"], fa["from_sha256"])
     later = [b for b in bound if _later(b, fa, at) and (b["key"], b["value"], b["sha256"]) == same]
-    own = [b for b in later if (b["id"] == fa["statement"] or b["giver"] in mine) and b["outcome"] in ("approved", "rejected")]
+    own = [b for b in later if equivalent(fa["statement"], same, b["id"], same, b["giver"], handles) and b["outcome"] in ("approved", "rejected")]
     clash = [b for b in own if b["at"][0] == at[0] and b.get("by") != fa.get("by") and opposes(b["outcome"], fa["outcome"])]
     if clash and not _day_after(own[-1], at):   # task-0323 R-A: the equivalent statement's opposing ruling, same day
         return opposed_reason([(fa["review"], fa["outcome"]), *[(b["rel"], b["outcome"]) for b in clash]])
     if own:
         return f"{SETTLED}{own[-1]['rel']}"
     for b in later:
-        if b["id"] != fa["statement"] and b["giver"] not in mine:
+        if not equivalent(fa["statement"], same, b["id"], same, b["giver"], handles):
             return (f"{SUPERSEDED}{b['rel']}; the answer it named stays unruled" if b["outcome"] == "approved"
                     else f"{RULED}{b['rel']} ({b['outcome']}); the answer it named stays unruled")
     return None
