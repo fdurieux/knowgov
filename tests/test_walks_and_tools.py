@@ -112,13 +112,16 @@ def test_n2_the_suspect_block_names_the_scenario_and_version_it_was_read_against
 def test_a_f10_the_mcp_answer_and_trace_name_the_near_key_and_trace_names_each_keys_own():
     import mcp_server
     import trace
-    near = "weight_kg|mn"
-    assert "no register map row" in mcp_server._unmodelled(near, "unknown") and "did you mean weight_kg|min" in mcp_server._unmodelled(near, "unknown")
-    assert mcp_server._unmodelled("weight_kg|min", "unknown") == "" and mcp_server._unmodelled(near, "approved") == ""
+    known = sorted(trace.known_keys())
+    a, b = known[0], known[-1]   # the subject's own keys, whichever subject this is
+    near_a, near_b = a + "x", b + "x"
+    got = mcp_server._unmodelled(near_a, "unknown")
+    assert "no register map row" in got and f"did you mean {a}" in got, got
+    assert mcp_server._unmodelled(a, "unknown") == "" and mcp_server._unmodelled(near_a, "approved") == ""
     try:
-        trace._key_ids(None, ["weight_kg|mn", "shipper_id|presnt"], trace.known_keys())
+        trace._key_ids(None, [near_a, near_b], trace.known_keys())
     except trace.CannotRun as e:
-        assert "did you mean weight_kg|min for weight_kg|mn?" in str(e) and "did you mean shipper_id|present for shipper_id|presnt?" in str(e), str(e)
+        assert f"did you mean {a} for {near_a}?" in str(e) and f"did you mean {b} for {near_b}?" in str(e), str(e)
     else:
         raise AssertionError("unknown keys are refused")
 
@@ -151,7 +154,8 @@ def test_b_x7_r5_help_exits_0_prints_and_creates_nothing_in_every_main_script():
         with tempfile.TemporaryDirectory() as td:
             try:
                 r = subprocess.run([sys.executable, str(p), "--help"], cwd=td, capture_output=True, text=True, timeout=60,
-                                   env={**os.environ, "KG_CLOCK": "pinned", "PYTHONDONTWRITEBYTECODE": "1"})
+                                   env={**{k: v for k, v in os.environ.items() if k not in ("KG_SUBJECT", "KG_SUBJECTS")},
+                                        "KG_CLOCK": "pinned", "PYTHONDONTWRITEBYTECODE": "1"})   # a relative subject path breaks in another cwd
                 rc, tb, err = r.returncode, "Traceback" in r.stderr, r.stderr
             except subprocess.TimeoutExpired:
                 rc, tb, err = "timeout", False, ""
