@@ -199,3 +199,12 @@ def test_the_fingerprint_is_the_md5_of_its_base_as_before_usedforsecurity():
     assert first == hashlib.md5(b"knowgov gate|key|K|v|subject.toml|3").hexdigest()
     assert annotate._fingerprint(rep, f, seen) == hashlib.md5(b"knowgov gate|key|K|v|subject.toml|3|2").hexdigest()
     assert "usedforsecurity=False" in (ROOT / "harness" / "annotate.py").read_text(encoding="utf-8")
+
+
+def test_message_ends_with_a_full_stop_before_the_owner():
+    """Task-0311 N3: the owner and route follow a sentence; a route alone names no owner."""
+    assert annotate._stop("no stop", " Owner: u.") == "no stop."
+    assert annotate._stop("stopped.", " Owner: u.") == "stopped."
+    assert annotate._stop("plain", "") == "plain"
+    assert annotate._answers({"route": "r"}) == " Route: r"
+    assert annotate._answers({"owner": "ORG-1", "route": "r"}) == " Owner: ORG-1. Route: r"

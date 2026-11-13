@@ -17,6 +17,7 @@ names that section with the version.
 - The page's register impact panel counts capabilities among what the dependants walk reaches, and its statements view names its join (the start's cited anchors, not the register map `register_impact` uses).
 - The comparator reads a run that registered the Derived output against the scored record with `valid_until` set aside, as the page's record check does; it no longer disagrees on a page-started S6 run. `--record-for` still reads every leaf.
 - The page leaves out and logs a subject whose task policy the gate refuses, instead of serving it to a run that exits 2.
+- Routes and next steps (task-0311, doc-0037 §5): capture routes say how to run `capture.py` from an instance repository; a review's lapse route names `capture.py review` and its role; the bar's blocker names a next step; a key awaiting a reviewer names the assertion; questionnaires say which task and finding asked; the hook tells the assistant when a QUALIFIED gate lets a step through; annotations end the message with a full stop before `Owner:`.
 
 ## 0.9.0 — 2026-11-12
 

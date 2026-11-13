@@ -166,6 +166,10 @@ def gap_closers(subject, gaps: dict[str, list[dict]], root: Path | None = None) 
     return out
 
 
+# C3-1 (task-0311): the routes name the tool by its path in a knowgov checkout; an instance repository holds none, so say so once
+FROM_INSTANCE = " (from an instance repository, run it as python \"$KG_HOME\"/harness/capture.py)"
+
+
 def closing_route(gap: str, unit: str | None) -> str:
     """The route's closing half for a declared gap (task-0110): the unit its declaration names closes it
     by a review whose handle holds the role closes (decision-0002 point 3, task-0054)."""
@@ -182,7 +186,7 @@ def questionnaire_route(subject_id: str, scenario: str, task: str, unit: str | N
     where = " or ".join(f"DIR/questionnaire-{subject_id}-{scenario}-{f}.toml" for f in files)
     return (f"python harness/capture.py questionnaire --scenario {scenario} --task {task} --out DIR; "
             f"{who} answers {where}, "
-            "then python harness/capture.py ingest it and a reviewer who is not the author rules on it")
+            "then python harness/capture.py ingest it and a reviewer who is not the author rules on it" + FROM_INSTANCE)
 
 
 def question_for(key: str) -> str:
@@ -239,6 +243,8 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
             if c:   # task-0113: who closes the declared gap, as the gate's finding names it (task-0110)
                 lines.append(f"# {c['gap']} is closed by {c['unit'] + ' ' + c['name'] if c['unit'] else 'the owner its declaration names'}, "
                              "by a review under a handle with the role closes; an answer here does not close it.")
+            lines += [f"# Asked by task {task}: the gate's finding on {k} ({v['level'].replace('_', ' ')}). If the documents changed since "
+                      "an earlier answer, the route may be re-attesting the new Version instead (the finding's route names it)."]
             lines += ["[[item]]", f"key = {_q(k)}", f"level = {_q(v['level'])}",
                       "known = [" + ", ".join(_q(x) for x in known) + "]",
                       "declared_gaps = [" + ", ".join(_q(x) for x in gaps) + "]"]

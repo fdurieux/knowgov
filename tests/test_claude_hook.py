@@ -426,3 +426,13 @@ def test_the_summary_carries_the_attestation_finding_and_the_route_follows_the_c
     assert hook._route_for(rep) == hook.ROUTE
     rep["findings"][0] = {"severity": "blocker", "kind": "attestation", "key": None, "message": "x is not attested"}
     assert hook._route_for(rep) == hook.ATTESTATION_ROUTE and "questionnaire" not in hook.ATTESTATION_ROUTE
+
+
+def test_routes_say_how_to_run_capture_from_an_instance_and_qualified_reaches_the_assistant():
+    """Task-0311 C3-1, C3-3: the routes name $KG_HOME for an instance repository; a QUALIFIED gate that lets the step
+    through is stated to the assistant as additional context, not silent."""
+    assert "$KG_HOME" in hook.ROUTE
+    sys.path.insert(0, str(ROOT / "harness"))
+    import capture
+    assert "$KG_HOME" in capture.questionnaire_route("s", "S1", "codegen", "ORG-1")
+    assert "$KG_HOME" in capture.FROM_INSTANCE
