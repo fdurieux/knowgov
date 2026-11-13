@@ -599,12 +599,12 @@ def test_load_opposed_pairs_two_applied_rulings_on_equivalent_statements_task_03
     old, new = "A:cap:2026-11-02-ORG-0002-ops-2:1@capture", "A:cap:2026-11-03-ORG-0002-ops-2:1@capture"
     sha, val = review.content_digest([]), "held_unscreened only"
 
-    def run(first, second, day2="2026-11-06"):
+    def run(first, second, day2="2026-11-06", ids=(old, new)):
         docs = {"2026-11-06-employee-2.toml": {"review": {"by": "employee-2"}, "tag": "e"}, "2026-11-06-boss.toml": {"review": {"by": "boss"}, "tag": "b"}}
         rv = {"e": {"by": "employee-2", "on": dt.date(2026, 11, 6), "skipped": [],
-                    "rulings": [{"statement": old, "outcome": first, "key": KEY, "value": val, "sha256": sha, "giver": "ops-2"}]},
+                    "rulings": [{"statement": ids[0], "outcome": first, "key": KEY, "value": val, "sha256": sha, "giver": "ops-2"}]},
               "b": {"by": "boss", "on": dt.date.fromisoformat(day2), "skipped": [],
-                    "rulings": [{"statement": new, "outcome": second, "key": KEY, "value": val, "sha256": sha, "giver": "ops-2"}]}}
+                    "rulings": [{"statement": ids[1], "outcome": second, "key": KEY, "value": val, "sha256": sha, "giver": "ops-2"}]}}
         real = review.check
         review.check = lambda doc, st, **kw: ([], rv[doc["tag"]])
         try:
@@ -616,3 +616,30 @@ def test_load_opposed_pairs_two_applied_rulings_on_equivalent_statements_task_03
     day = "2026-11-06"
     assert got[(old, day, "2026-11-06-employee-2.toml")] == pair and got[(new, day, "2026-11-06-boss.toml")] == pair, got   # each under its own id
     assert run("rejected", "rejected") == {} and run("rejected", "approved", "2026-11-07") == {}
+    rev = run("rejected", "approved", ids=(new, old))   # round 6: the older id on boss's side
+    assert rev[(new, day, "2026-11-06-employee-2.toml")] == pair and rev[(old, day, "2026-11-06-boss.toml")] == pair, rev
+
+
+def test_equivalent_rulings_pair_whichever_is_legacy_and_whichever_id_is_older_task_0323():
+    """Round 6: the pairing is the closure of ``review.related`` among a day's rulings, so a legacy ruling on the newer id
+    and an applied one (giver ops-2) on the older id read as one statement, as in the other orientation; settling and
+    ``opposed_settling`` read the same relation."""
+    old, new = "A:cap:2026-11-02-ORG-0002-ops-2:1@capture", "A:cap:2026-11-03-ORG-0002-ops-2:1@capture"
+    other = "A:cap:2026-11-03-ORG-0002-employee-1:1@capture"
+    sha, val, day = review.content_digest([]), "held_unscreened only", "2026-11-06"
+    same = (KEY, val, sha)
+    for legacy_id, applied_id in ((old, new), (new, old)):
+        rows = [(legacy_id, same, None, day), (applied_id, same, "ops-2", day)]
+        assert review.read_as(rows, HANDLES) == [old, old], (legacy_id, applied_id)
+        assert review.read_as(rows[::-1], HANDLES) == [old, old]
+    assert review.read_as([(old, same, "ops-2", day), (new, same, "ops-2", day)], HANDLES) == [old, old]   # two applied
+    assert review.read_as([(old, same, None, day), (other, same, "employee-1", day)], HANDLES) == [old, other]   # another giver
+    assert review.read_as([(old, same, None, day), (new, same, "ops-2", "2026-11-07")], HANDLES) == [old, new]   # another day
+    # settling and opposed_settling, the legacy act on the newer id and the later ruling on the older one
+    fa = {**_pending(new), "outcome": "rejected"}
+    at = (day, "employee-2", 0, "2026-11-06-employee-2.toml")
+    carol = _bound("2026-11-08-carol.toml", old, "ops-2", "approved", at=("2026-11-08", "carol", 0, "c"), by="carol")
+    assert review.opposed_settling(fa, at, [carol], HANDLES) == "settled by 2026-11-08-carol.toml"
+    assert review.settling(fa, at, [carol], HANDLES) == "settled by 2026-11-08-carol.toml"
+    boss = _bound("2026-11-06-boss.toml", old, "ops-2", "approved", at=(day, "boss", 0, "b"), by="boss")
+    assert review.settling(fa, at, [boss], HANDLES).startswith(review.OPPOSED)

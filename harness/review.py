@@ -285,11 +285,35 @@ def equivalent(statement: str, same: tuple, row_id: str, row_same: tuple, row_gi
     return row_id == statement or (row_same == same and row_giver is not None and row_giver in _readings(statement, handles))
 
 
-def read_as(row: tuple, rows: list, handles) -> str:
-    """The statement a ruling counts for among the day's ``rows`` (statement, (key, value, digest), giver, on): the least
-    statement id of those it is equivalent to, itself included, so equivalent rulings pair under one id."""
-    stmt, same, giver, on = row
-    return min([stmt] + [s2 for s2, same2, _g2, on2 in rows if on2 == on and equivalent(s2, same2, stmt, same, giver, handles)])
+def related(a_id: str, a_same: tuple, a_giver, b_id: str, b_same: tuple, b_giver, handles) -> bool:
+    """Whether two rulings are on one statement or on equivalent ones, whichever of them is the one whose stem is read
+    (task-0323 round 6): ``equivalent`` asks whether the row's giver is among the statement's stem readings, so a legacy
+    ruling, which records no giver, is only ever the statement; the pairing is the same either way round."""
+    return equivalent(a_id, a_same, b_id, b_same, b_giver, handles) or equivalent(b_id, b_same, a_id, a_same, a_giver, handles)
+
+
+def read_as(rows: list, handles) -> list[str]:
+    """The statement each ruling of ``rows`` (statement, (key, value, digest), giver, on) counts for: the least statement id
+    of its class, the classes being the closure of ``related`` among the rulings of one day, so equivalent rulings pair
+    under one id whichever is legacy and whichever id is older."""
+    parent = list(range(len(rows)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i, (a, a_same, a_giver, a_on) in enumerate(rows):
+        for j in range(i):
+            b, b_same, b_giver, b_on = rows[j]
+            if a_on == b_on and related(a, a_same, a_giver, b, b_same, b_giver, handles):
+                parent[find(i)] = find(j)
+    least: dict[int, str] = {}
+    for i, row in enumerate(rows):
+        r = find(i)
+        least[r] = min(least.get(r, row[0]), row[0])
+    return [least[find(i)] for i in range(len(rows))]
 
 
 def opposed_rulings(rows: list) -> dict:
@@ -320,10 +344,10 @@ def opposed_settling(fa: dict, at: tuple, bound: list, handles: dict | None = No
     """task-0331 R1, task-0333 R1': the second reason of an opposed act once a later day's applied ruling of the same
     statement decided it, the latest one, approved or rejected: ``settled by <file>`` (info). The owners did what the route
     asked; the key reads from that ruling (absent after a rejection). A referral decides nothing: the act stays major.
-    The statement is read as ``settling`` reads it (``equivalent``, task-0323 R1). None while no later ruling decided it."""
+    The statement is read as ``settling`` reads it (``related``, task-0323 R1). None while no later ruling decided it."""
     same = (fa.get("key"), fa.get("from_value"), fa.get("from_sha256"))
     later = [b for b in bound if b["at"][0] > at[0] and b["outcome"] in ("approved", "rejected")
-             and equivalent(fa["statement"], same, b["id"], (b.get("key"), b.get("value"), b.get("sha256")), b.get("giver"), handles)]
+             and related(fa["statement"], same, None, b["id"], (b.get("key"), b.get("value"), b.get("sha256")), b.get("giver"), handles)]
     if not later:
         return None
     return f"{SETTLED}{later[-1]['rel']}"
@@ -349,14 +373,14 @@ def settling(fa: dict, at: tuple, bound: list, handles: dict) -> str | None:
     content on another statement, the answer it named unruled."""
     same = (fa["key"], fa["from_value"], fa["from_sha256"])
     later = [b for b in bound if _later(b, fa, at) and (b["key"], b["value"], b["sha256"]) == same]
-    own = [b for b in later if equivalent(fa["statement"], same, b["id"], same, b["giver"], handles) and b["outcome"] in ("approved", "rejected")]
+    own = [b for b in later if related(fa["statement"], same, None, b["id"], same, b["giver"], handles) and b["outcome"] in ("approved", "rejected")]
     clash = [b for b in own if b["at"][0] == at[0] and b.get("by") != fa.get("by") and opposes(b["outcome"], fa["outcome"])]
     if clash and not _day_after(own[-1], at):   # task-0323 R-A: the equivalent statement's opposing ruling, same day
         return opposed_reason([(fa["review"], fa["outcome"]), *[(b["rel"], b["outcome"]) for b in clash]])
     if own:
         return f"{SETTLED}{own[-1]['rel']}"
     for b in later:
-        if not equivalent(fa["statement"], same, b["id"], same, b["giver"], handles):
+        if not related(fa["statement"], same, None, b["id"], same, b["giver"], handles):
             return (f"{SUPERSEDED}{b['rel']}; the answer it named stays unruled" if b["outcome"] == "approved"
                     else f"{RULED}{b['rel']} ({b['outcome']}); the answer it named stays unruled")
     return None

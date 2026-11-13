@@ -667,9 +667,8 @@ def _opposed(files: list, scenario: str, st, **kw) -> dict:
         legacy += [(x["statement"], (x["key"], str(x["value"]), x["sha256"]), None, on, by, x["outcome"], rel)
                    for x in rv["skipped"] if x["act"] == "ruling" and x["why"] == "ambiguous"]
     handles, canon = kw.get("handles"), {}
-    day = [(stmt, same, giver, on) for stmt, same, giver, on, _b, _o, _r in ruled + legacy]
-    for stmt, same, giver, on, by, oc, rel in ruled + legacy:
-        as_read = review.read_as((stmt, same, giver, on), day, handles)
+    every = ruled + legacy
+    for (stmt, _same, _giver, on, by, oc, rel), as_read in zip(every, review.read_as([(r[0], r[1], r[2], r[3]) for r in every], handles)):
         canon[(stmt, on, rel)] = as_read
         rows.append((as_read, on, by, oc, rel))
     found = review.opposed_rulings(rows)
