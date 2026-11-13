@@ -18,8 +18,8 @@ Every gate runs ``--as-of`` ON with KG_TODAY ON and the clock pinned (task-0075)
 - Item 8, renumbered answers (S2'): employee-1's answers ruled on as in the review walkthrough, then the
   capture's first answer moved last, so every answer has another id: the approvals follow their content (PROCEED, no
   act), and none lands on the answer that now carries the old id.
-- task-0302 (decision-0032 C2-1): employee-2 approves employee-1's answer on ``response|hold_presence``, its capture
-  is deleted and employee-3 gives the identical answer: a captured answer's digest is the empty text's, yet the
+- task-0302 (decision-0032 C2-1): employee-3 approves employee-1's answer on ``response|hold_presence``, its capture
+  is deleted and employee-2 gives the identical answer: a captured answer's digest is the empty text's, yet the
   approval does not move to another person's answer (not approved, a major ``gone`` act naming the vanished id);
   employee-1 giving it again on another day carries it (the same giver repairs).
 - task-0308: ``ops`` ingests twice the same day, so its second file has ``ops-2``'s first stem; the approval of that id,

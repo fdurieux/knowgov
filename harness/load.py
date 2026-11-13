@@ -362,6 +362,7 @@ def execution_code(decl: dict | None, keys: list[str]) -> list[dict]:
 def _code_row(which: str, decl: dict, keys: list[str]) -> dict | None:
     """The row for one of ``implementation`` and ``suite`` when ``decl`` does not attest it as it is, else None."""
     path, parts = SUBJECT.code_parts(which)
+    path = None if path is None else path or "(an empty path)"   # R7
     listed = decl.get(which)
     listed = listed if isinstance(listed, list) else []
     miss = sorted(d for d in parts.values() if d and d not in listed)
@@ -635,7 +636,7 @@ def _apply_rulings(st, rv: dict, ctx: tuple, caps, opposed: dict, bound: list, c
             settled.add(b["key"])   # the review settled the dispute whole (review.check), lapse or not
         st.apply_ruling(b["id"], outcome, rid, person, on, rv["record"], until.isoformat() if until else "")
         bound.append({"at": review.order_key(p, doc), "rel": rel, "id": b["id"], "key": b["key"], "value": str(ru["value"]),
-                      "sha256": ru["sha256"], "giver": ru.get("giver"), "outcome": outcome})
+                      "sha256": ru["sha256"], "giver": ru.get("giver"), "outcome": outcome, "by": rv["by"]})
         counts[outcome] += 1
         if ru["unbound"]:   # the read rule: a file from before 0.9.0 binds by id, and the gate says so
             st.record_act_finding(_act(f"actf:{rid}:ruling:{ru['n']}", head, "ruling", ru["n"], b["id"], outcome, b["key"],

@@ -166,8 +166,10 @@ def gap_closers(subject, gaps: dict[str, list[dict]], root: Path | None = None) 
     return out
 
 
-# C3-1 (task-0311): the routes name the tool by its path in a knowgov checkout; an instance repository holds none, so say so once
-FROM_INSTANCE = " (from an instance repository, run it as python \"$KG_HOME\"/harness/capture.py)"
+# C3-1, R1 (task-0311): the routes name the tool by its path in a knowgov checkout and the instance's own subject and register;
+# run from an instance root with only KG_HOME set, capture.py would read knowgov's own subject and write its captures there
+FROM_INSTANCE = (" (from an instance root: KG_SUBJECT=subjects/<subject> KG_REGISTER=register "
+                 "python \"$KG_HOME\"/harness/capture.py ..., the same arguments)")
 
 
 def closing_route(gap: str, unit: str | None) -> str:
@@ -224,6 +226,7 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
             "# A note must not identify you: no name, no role only you hold, no \"as the author of ...\". It is copied",
             "# beside your answer wherever the answer goes; nothing checks it but the person who reviews it.",
             "# Then: python harness/capture.py ingest <this file>",
+            '#   (from an instance root: KG_SUBJECT=subjects/<subject> KG_REGISTER=register python "$KG_HOME"/harness/capture.py ingest <this file>)',
             "",
             "[questionnaire]",
             f"subject = {_q(subject.id)}",
@@ -249,7 +252,7 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
                 lines.append(f"# {c['gap']} is closed by {c['unit'] + ' ' + c['name'] if c['unit'] else 'the owner its declaration names'}, "
                              "by a review under a handle with the role closes; an answer here does not close it.")
             lines += [f"# Asked by task {task}: the gate's finding on {k} ({v['level'].replace('_', ' ')}). If the documents changed since "
-                      "an earlier answer, the route may be re-attesting the new Version instead (the finding's route names it)."]
+                      "an earlier answer, an attestation finding of the gate, where it raises one, names the re-attestation."]
             lines += ["[[item]]", f"key = {_q(k)}", f"level = {_q(v['level'])}",
                       "known = [" + ", ".join(_q(x) for x in known) + "]",
                       "declared_gaps = [" + ", ".join(_q(x) for x in gaps) + "]"]
@@ -266,10 +269,15 @@ def _date(v) -> dt.date | None:
     return dates.parse(v) if dates.is_date(v) else None   # task-0262
 
 
-def _foreign_unit(q: dict, handle, h: dict | None) -> list[str]:
-    """task-0315 C2-6: a handle answers a questionnaire of its own unit only (a review-due one is addressed to the handle)."""
+def _foreign_unit(q: dict, handle, h: dict | None, handles: dict | None = None) -> list[str]:
+    """task-0315 C2-6: a handle answers a questionnaire of its own unit only; a review-due one is addressed to its ``to``,
+    the handle, or the owner unit when the handle is withdrawn (L5: the file's fields are the answerer's own to edit)."""
     owner = str(q.get("owner") or "")
-    if h is None or q.get("route") == "review-due" or not h.get("unit") or not owner or owner == UNASSIGNED or h["unit"] == owner:
+    if h is not None and q.get("route") == "review-due":
+        to = str(q.get("to") or "")
+        mine = to in (handles or {}) and to != str(handle) or to not in (handles or {}) and to and h.get("unit") != to
+        return [f"answered.from {handle} is not who this review-due questionnaire is addressed to ({to})"] if mine else []
+    if h is None or not h.get("unit") or not owner or owner == UNASSIGNED or h["unit"] == owner:
         return []
     return [f"answered.from {handle} belongs to {h['unit']}, not to {owner}, whose questionnaire this is"]
 
@@ -298,7 +306,7 @@ def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
             errs.append(f"answered.from {handle!r} is not an issued handle (decision 0009): the register's issued list does not name it")
         elif "gives" not in h.get("roles", set()):
             errs.append(f"answered.from {handle} lacks the role gives, which an answer needs (decision 0009)")
-        errs += _foreign_unit(q, handle, h)
+        errs += _foreign_unit(q, handle, h, handles)
         if h is not None and on is not None:
             if h.get("issued") and h["issued"] > on:
                 errs.append(f"answered.from {handle} was issued on {h['issued']}, after the answer's date {on} (decision 0009)")
@@ -407,6 +415,7 @@ def due_questionnaires(items: list[dict], handles: dict | None, on: dt.date) -> 
             "# A confirmation is a new capture on the date you give; the earlier capture is never edited.",
             "# A note must not identify you: no name, no role only you hold. Fill [answered] with your handle and the date.",
             "# Then: python harness/capture.py ingest <this file>",
+            '#   (from an instance root: KG_SUBJECT=subjects/<subject> KG_REGISTER=register python "$KG_HOME"/harness/capture.py ingest <this file>)',
             "", "[questionnaire]", f"subject = {_q(subject)}", f"scenario = {_q(xs[0]['scenario'])}", f"task = {_q(task)}",
             f"owner = {_q(xs[0]['owner'])}", f"to = {_q(to)}", 'route = "review-due"', f"generated_on = {on.isoformat()}",
             "", "[answered]", 'from = ""', 'on = ""']
@@ -431,7 +440,7 @@ def show_rulings(doc: dict, captures: dict[str, dict]) -> str:
             # names the document and Version; key, value and digest are what it was bound to)
             held = [f"{n} {ru[n]!r}" for n in ("key", "value", "sha256") if ru.get(n) is not None]
             out.append(f"ruling {i} ({aid}): not a captured answer"
-                       + (f"; a document statement, as the ruling bound it: {', '.join(held)}" if held else ""))
+                       + (f"; a document statement; the ruling's own recorded fields, not read from the store and unchecked: {', '.join(held)}" if held else ""))
             continue
         out.append(f"ruling {i} ({aid}): {c['from']} on {c['on']}: {c['value']!r}")
         out.append(f"  note: {c['note']!r}" if c["note"] else "  note: none")
@@ -490,6 +499,8 @@ def _questionnaire(args) -> int:
     nodes = register_nodes(register_root())
     qs = questionnaires(res, SUBJECT, scenario, args.task, nodes, review.today())
     args.out.mkdir(parents=True, exist_ok=True)
+    if not qs:   # task-0315 L4: no file is written for an owner with nothing open, and the exit is unchanged
+        print(f"nothing is open for any owner: no questionnaire written (an earlier one left in {args.out} is not removed)")
     for owner, text in qs.items():
         (args.out / f"questionnaire-{SUBJECT.id}-{scenario}-{owner}.toml").write_text(text, encoding="utf-8")
         head = text.splitlines()[0].lstrip("# ")

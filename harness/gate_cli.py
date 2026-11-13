@@ -103,9 +103,8 @@ it (``closer``: the owner its declaration names, decision-0002 point 3, else the
 when that is no unit of the register), and its route ends with the close (task-0110); the text form
 adds ``; closed by UNIT``. A suspect derived output's owner and route come from the keys of the statements it
 used that are now invalidated or changed (``related``), not from every key of its file (task-0311 N1). A route is
-one line of prose that starts with the command to run (a questionnaire, a review, a registration); an act settled
-or opposed, and the bar's blocker, state their step in words (``nothing to do: ...``), so a reader takes the
-first command as the step and the rest as who does it (task-0311 N4).
+one line of text, never parsed: the questionnaire's or the close's command, or a sentence naming who does what (an
+attestation's step, a review lapse's, a settled act's ``nothing to do: ...``, the bar's blocker) (task-0311 N4).
 
 The JSON report (-f json) is pinned by harness/schemas/gate-report.schema.json, version 3 (the
 schema's description says what changed from 1 and 2 and what was added since), and validated before
@@ -313,7 +312,7 @@ def _act_route(f: dict, route):
         import review
         if review.is_opposed(reasons):
             return (f"nothing to do: {reasons[-1]}" if len(reasons) > 1 else
-                    "the owners rule again in one review, on a later day (python harness/capture.py review <file>; from an instance repository, python \"$KG_HOME\"/harness/capture.py)")
+                    "the owners rule again in one review, on a later day (python harness/capture.py review <file>" + _from_instance() + ")")
         if reasons[0].startswith(review.SETTLED):
             return f"nothing to do: {reasons[0]}"
     return route
@@ -420,6 +419,11 @@ def suspect_finding(d: dict, scope: dict | None) -> dict:
                     ref=d["id"], related=used + changed)
 
 
+def _from_instance() -> str:
+    from capture import FROM_INSTANCE
+    return FROM_INSTANCE
+
+
 def _awaiting(v: dict) -> str:
     """C2-3 (task-0311): the assertions a reviewer rules on, named in the key's finding."""
     pend = sorted(v.get("pending_review") or [])
@@ -429,7 +433,7 @@ def _awaiting(v: dict) -> str:
 def _bar_finding(res: dict) -> dict:
     """A-F4 (task-0311): the bar's blocker names a next step, the keys below the bar and their routes."""
     f = _finding("blocker", "task", res["why"])
-    f["route"] = ("raise the keys below the bar: each key finding above names its owner and the route to approval; "
+    f["route"] = ("raise the keys below the bar: the key findings after this one each name their owner and the route to approval; "
                   "the share falls under the bar when enough of them are verified or approved")
     return f
 
@@ -439,8 +443,27 @@ def _lapse_route(f: dict, res: dict) -> str | None:
     lapsed_by_id = {x["id"]: x for x in res.get("lapsed") or []}
     if f["kind"] != "lapsed" or not f["route"] or lapsed_by_id.get(f["ref"], {}).get("kind") == "elicited":
         return f["route"]
-    return ("a reviewer who is not the author and holds the role renews it: python harness/capture.py review FILE "
-            "(from an instance repository, python \"$KG_HOME\"/harness/capture.py), dated on or after the as-of date; or " + f["route"])
+    return ("a reviewer who is not the author, under a handle whose unit owns the key and holds the role `closes`, renews it: "
+            "python harness/capture.py review FILE" + _from_instance() + ", the review dated on or before the as-of date; or " + f["route"])
+
+
+def _key_finding(key: str, v: dict, block_levels: set[str], rel: list[str]) -> dict | None:
+    """The finding one required key gives, by its level: a blocker, a major below verified, a minor when flagged, else (R3,
+    task-0311) an info when an answer awaits a reviewer's ruling; None when it reads clean."""
+    lvl, flags = v["level"], v["flags"]
+    if lvl in block_levels:
+        return _finding("blocker", "key", f"{key} is {lvl.replace('_', ' ')}: the task cannot proceed on it",
+                        key=key, level=lvl, flags=flags, related=rel)
+    if LEVELS.index(lvl) < LEVELS.index("verified"):
+        return _finding("major", "key", f"{key} is {lvl}, below verified: an assistant may use it only as a stated assumption"
+                        + _awaiting(v), key=key, level=lvl, flags=flags, related=rel)
+    if flags:
+        return _finding("minor", "key", f"{key} is {lvl} but flagged {', '.join(flags)}" + _awaiting(v),
+                        key=key, level=lvl, flags=flags, related=rel)
+    if v.get("pending_review"):
+        return _finding("info", "key", f"{key} is {lvl}" + _awaiting(v) + ": the answer is not counted in the level until it is ruled on",
+                        key=key, level=lvl, flags=flags, related=rel)
+    return None
 
 
 def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None = None,
@@ -454,17 +477,9 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
     import cadence
     out = []
     for key, v in res["keys"].items():
-        lvl, flags = v["level"], v["flags"]
-        rel = conflict_ids(res, key)   # task-0314 A-F6
-        if lvl in block_levels:
-            out.append(_finding("blocker", "key", f"{key} is {lvl.replace('_', ' ')}: the task cannot proceed on it",
-                                key=key, level=lvl, flags=flags, related=rel))
-        elif LEVELS.index(lvl) < LEVELS.index("verified"):
-            out.append(_finding("major", "key", f"{key} is {lvl}, below verified: an assistant may use it only as a stated assumption"
-                                + _awaiting(v),
-                                key=key, level=lvl, flags=flags, related=rel))
-        elif flags:
-            out.append(_finding("minor", "key", f"{key} is {lvl} but flagged {', '.join(flags)}", key=key, level=lvl, flags=flags, related=rel))
+        kf = _key_finding(key, v, block_levels, conflict_ids(res, key))   # task-0314 A-F6: the conflicts a key is in
+        if kf:
+            out.append(kf)
     for key in res.get("unintended") or []:   # task-0215: the intended bar, decision-0018 point 4
         v = res["keys"][key]
         out.append(_finding("major", "intended", f"{key} is verified but not approved, and the task class requires approved: "
@@ -487,8 +502,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
         out.append(_finding("major", "lapsed", f"{x['id']} on {x['key']} {cadence.describe(x, res.get('as_of'))}",
                             key=x["key"], level=x.get("to", "validated"), ref=x["id"], related=x["verifications"]))
     for d in res.get("preload") or []:   # task-0064: form unchecked, or findings, on a document behind the keys
-        what = {"unchecked": "its form was not checked before the load", "findings": "the pre-load check found findings in it",
-                "held": "the pre-load check holds findings in it against a baseline"}[d["state"]]
+        what = _preload_what(d)
         out.append(_finding("info", "preload", f"{d['artefact']} {d['version']}, behind {len(d['keys'])} required key(s): {what}"
                             + (f" ({d['tool']})" if d.get("tool") else "") + (f"; {d['why']}" if d.get("why") else ""),
                             ref=f"{d['artefact']}@{d['version']}", related=d["keys"]))
@@ -513,6 +527,15 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                         f["route"] += closing_route(c["gap"], c["unit"])
     kinds = ["task", "key", "intended", "suspect_derived", "stale", "lapsed", "act", "attestation", "lint", "preload"]
     return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), kinds.index(f["kind"]), f["key"] or "", f["ref"] or ""))
+
+
+def _preload_what(d: dict) -> str:
+    """The gate's words for a document the pre-load check left unchecked, found in findings or held (task-0064); a row a
+    step-4 check judged alone says so (task-0312 R1)."""
+    if d["state"] == "unchecked" and d.get("tool") and f"judged by {d['tool']} alone" in (d.get("why") or ""):
+        return f"judged by {d['tool']} alone, its linter never ran"
+    return {"unchecked": "its form was not checked before the load", "findings": "the pre-load check found findings in it",
+            "held": "the pre-load check holds findings in it against a baseline"}[d["state"]]
 
 
 def owner_route(keys: list[str], owners: dict[str, dict], route) -> tuple[str | None, str | None]:
@@ -630,7 +653,7 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
     def route(unit, key):   # the files routing names, so the route points where the questionnaire is written (G8)
         files = ((owners or {}).get(key) or {}).get("files")
         return questionnaire_route(subject, scenario, rt, unit, files) if route_keys is None or key in route_keys else None
-    fs = findings(res, block_levels, owners, route, closers, suspect_scope)
+    fs = register_routes(findings(res, block_levels, owners, route, closers, suspect_scope), register_change)
     fail = baseline["regression"] if baseline is not None else bool(at_or_above(fs, threshold))
     if baseline is not None:
         mark_held(fs, baseline)
@@ -655,6 +678,22 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
             # task-0341, decision-0040 (a): the code and suite compared, the pre-load report applied; additive
             "code": inputs.get("code"), "preload": inputs.get("preload"),
             **({"register_change": register_change} if register_change is not None else {})}   # task-0122, additive
+
+
+REGISTER_ROUTE = ("the register update (--register-previous) stales these statements again on every run it is passed, so a "
+                  "questionnaire, ingest or review cannot restore them: re-map the key in register_map.toml, or advance the previous "
+                  "register to the new one once the owner confirms the update")
+
+
+def register_routes(fs: list[dict], rc: dict | None) -> list[dict]:
+    """R3 (B-N2): a key, or a stale statement of it, that a register update staled names the remedy as its route, not the
+    owner's questionnaire, which can never restore it while ``--register-previous`` is passed."""
+    keys = {k["key"] for k in (rc or {}).get("keys") or []}
+    gone = set((rc or {}).get("invalidated") or [])
+    for f in fs:
+        if f["kind"] in ("key", "stale") and f["key"] in keys and (f["kind"] == "key" or f["ref"] in gone) and f.get("route"):
+            f["route"] = REGISTER_ROUTE
+    return fs
 
 
 def suspect_scope(st, res: dict, spec: dict) -> dict[str, dict] | None:
@@ -976,7 +1015,7 @@ def run(args) -> dict:
         from tasks import TASKS
     except Exception as e:  # noqa: BLE001 — a subject that does not load is a cannot-run
         raise CannotRun(f"the subject does not load: {e}") from e
-    scenario = args.scenario or (SUBJECT.order[0] if SUBJECT.order else "")
+    scenario = _scenario_read(args, SUBJECT)
     if scenario not in SUBJECT.scenarios:
         raise CannotRun(f"{SUBJECT.id}: no scenario {scenario!r}; the subject declares {SUBJECT.order or 'none'}")
     if args.task not in TASKS:
@@ -1037,14 +1076,45 @@ def run(args) -> dict:
                 pass
 
 
+def _scenario_read(args, SUBJECT) -> str:
+    """The scenario named, else (R1) with ``--no-load`` the one the store holds, else the subject's first: resolved before
+    the baseline is checked against it."""
+    if args.scenario:
+        return args.scenario
+    first = SUBJECT.order[0] if SUBJECT.order else ""
+    return _peek_held(SUBJECT, first) if args.no_load else first
+
+
+def _peek_held(SUBJECT, default: str) -> str:
+    """The scenario the store holds for this subject, else ``default`` (the refusal then names why, in ``_gate_on``)."""
+    from store import open_store
+    try:
+        st = open_store(instance=SUBJECT.id, access="read")
+    except Exception:  # noqa: BLE001 — a store that cannot open is reported where it is opened for the read
+        return default
+    try:
+        h = st.held()
+        return h.get("scenario") if h and h.get("scenario") in SUBJECT.scenarios and h.get("subject", SUBJECT.id) == SUBJECT.id else default
+    except Exception:  # noqa: BLE001
+        return default
+    finally:
+        try:
+            st.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def _held_scenario(h: dict, default: str) -> str:
     return h.get("scenario") or default
 
 
 def _own_cause(e: Exception) -> str | None:
-    """S1: the manifest is the cause (a missing file is task-0312's), said as itself; None leaves it to the store's line."""
-    from subject import CodePathOutside
-    return str(e) if isinstance(e, CodePathOutside) else None
+    """S1: the manifest is the cause, said as itself (task-0329 R6: a code file outside, unreadable or not a path); so is a
+    ``KG_PRELOAD_REPORT`` that names no file (task-0312 R2). None leaves it to the store's line."""
+    from subject import CodePathOutside, CodeUnreadable
+    if isinstance(e, (CodePathOutside, CodeUnreadable)):
+        return str(e)
+    return str(e) if isinstance(e, FileNotFoundError) and "KG_PRELOAD_REPORT names" in str(e) else None
 
 
 def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
@@ -1092,33 +1162,53 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
         raise CannotRun(_own_cause(e) or f"the store did not answer: {type(e).__name__}: {e}") from e
 
 
-def sub_gate_why(task: str, why):
-    """task-0314 B-X3, R-T4: a sub-gate (task ``keys``) counts the keys reached, not the class's required keys."""
-    if task != "keys" or not isinstance(why, str):
+SUB_GATE_WHY = (   # the gate's three forms (gate.py) and the sub-gate's words for each, most specific first (task-0314 B-X3, R1)
+    (r"\b(\d+) required key\(s\) at\b", r"\1 of the keys reached at"),
+    (r"\ball (\d+) required keys\b", r"all of the \1 keys reached"),
+    (r"\bof (\d+) required keys\b", r"of the \1 keys reached"),
+    (r"\b(\d+) required keys?\b", r"the \1 keys reached"))
+
+
+def sub_gate_why(sub_gate: bool, why):
+    """task-0314 B-X3, R-T4, R1: a sub-gate over the keys a walk reached (``register_impact``, ``proposal_impact``) counts
+    "the N keys reached", not the class's required keys; any other evaluation, ``gate_verdict`` on keys the caller named
+    included, keeps the gate's own words."""
+    if not sub_gate or not isinstance(why, str):
         return why
-    why = re.sub(r"\b(\d+) required keys?\b", lambda m: f"the {m.group(1)} keys reached", why)
-    return re.sub(r"\b(\d+) required key\(s\) at", r"\1 of the keys reached at", why)
+    for pattern, words in SUB_GATE_WHY:
+        why = re.sub(pattern, words, why)
+    return why
 
 
 def conflict_ids(res: dict, key: str) -> list[str]:
-    """task-0314 A-F6: the conflicts on ``key`` (gap:conflict:<key>:<a>~<b>, decision-0020), by id."""
-    return sorted(c["id"] for c in res.get("conflicts") or [] if str(c.get("id", "")).startswith(f"gap:conflict:{key}:"))
+    """task-0314 A-F6, R3: the conflicts on ``key`` (``gap:conflict:<key>:<a>~<b>``, decision-0020) whose two ends are
+    assertion ids of this key, by id: a key may contain ':' and be the start of another's, so the prefix alone is not a match."""
+    mine = {a["id"] for a in res["keys"].get(key, {}).get("assertions") or []}
+    head = f"gap:conflict:{key}:"
+    out = []
+    for c in res.get("conflicts") or []:
+        cid = str(c.get("id", ""))
+        ends = cid[len(head):].split("~") if cid.startswith(head) else []
+        if len(ends) == 2 and set(ends) <= mine:
+            out.append(cid)
+    return sorted(out)
 
 
 def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshold: str,
              baseline: tuple[dict, str] | None, loaded: bool, version: str | None = None,
              change: dict | None = None, as_of="today", owners: dict[str, dict] | None = None,
              route_task: str | None = None, closers: dict[str, dict] | None = None,
-             register_change: dict | None = None) -> dict:
+             register_change: dict | None = None, sub_gate: bool = False) -> dict:
     """Resolve ``spec`` on the store as it stands, as of ``as_of`` (today by default; harness/cadence.py), and build the report. The command calls this
     after its load (and stage 2's change, if any); the MCP server (harness/mcp_server.py) calls it
     on a store it only reads, so one input gives one report whichever way it was asked. ``owners``
     defaults to the loaded subject's (``capture.finding_owners``) when ``subject`` is its id;
-    ``route_task``, the class an agent-chosen key set was resolved under, names its questionnaire."""
+    ``route_task``, the class an agent-chosen key set was resolved under, names its questionnaire; ``sub_gate``, a gate over
+    the keys a walk reached, words its ``why`` as "the N keys reached" (task-0314)."""
     from gate import resolve_spec
     from store import corpus_digest
     res = resolve_spec(st, task, spec, as_of)
-    res["why"] = sub_gate_why(task, res["why"])
+    res["why"] = sub_gate_why(sub_gate, res["why"])
     from subject import SUBJECT
     scope = suspect_scope(st, res, spec)   # task-0282: which suspect outputs rest on this task's keys
     table = None   # task-0237: the subject's [tasks.<class>] as read, the keys asked for in place of its own
@@ -1257,7 +1347,7 @@ def deliver(rep: dict, args) -> None:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="gate_cli.py", description="Resolve a task's required knowledge and exit 0, 1 or 2.")
     ap.add_argument("--subject", help="the subject root (default: KG_SUBJECT, else subjects/cargo_quote)")
-    ap.add_argument("--scenario", help="the scenario to load (default: the subject's first)")
+    ap.add_argument("--scenario", help="the scenario to load (default: the subject's first; with --no-load, the one the store holds)")
     ap.add_argument("--task", default="codegen", help="the task class (default: codegen)")
     ap.add_argument("--fail-on", choices=SEVERITIES, default="blocker", help="the severity at or above which the gate exits 1 (default: blocker)")
     ap.add_argument("--baseline", default="none", help="none (default), record (stage 1 only), or the path of an earlier report or deterministic.json: exit 1 only on a regression")

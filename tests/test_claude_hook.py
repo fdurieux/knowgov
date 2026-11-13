@@ -277,7 +277,7 @@ def test_unavailable_takes_its_own_route_and_the_summary_names_the_owner():
                         {"severity": "blocker", "kind": "key", "key": "k|q", "message": "k|q is absent", "owner": None, "route": "r2"},
                         {"severity": "blocker", "kind": "suspect_derived", "key": None, "message": "d1 used a1"}]}
     text = hook._summary(rep)
-    assert "k|p is absent (owner ORG-0002)" in text and "k|q is absent (owner none in the register map)" in text
+    assert "k|p is absent (owner ORG-0002)" in text and "k|q is absent (owner no single unit in the register map)" in text
     assert "d1 used a1\n" in text + "\n" and "d1 used a1 (owner" not in text
     assert "  route: python harness/capture.py questionnaire ..." in text and "  route: r2" in text
     p = _hook(PLAN, "run", "--unavailable-route", "Route: mine.", "--", "sh", "-c", "exit 2")
@@ -436,3 +436,18 @@ def test_routes_say_how_to_run_capture_from_an_instance_and_qualified_reaches_th
     import capture
     assert "$KG_HOME" in capture.questionnaire_route("s", "S1", "codegen", "ORG-1")
     assert "$KG_HOME" in capture.FROM_INSTANCE
+
+
+def test_a_qualified_pass_reaches_the_assistant_and_keeps_the_attestation_finding():
+    """Task-0311 R4, R6: `_qualified` turns a QUALIFIED pass into additionalContext; with no blockers `_shown` keeps the attestation
+    finding among the six; a PROCEED, a block and a non-pass are left as they were."""
+    fs = [{"severity": "major", "kind": "key", "key": f"k|{i}", "message": f"m{i}"} for i in range(8)]
+    fs.append({"severity": "major", "kind": "attestation", "message": "a document changed", "route": "list the Version"})
+    rep = {"verdict": "QUALIFIED", "subject": "s", "scenario": "S1", "task": "codegen", "as_of": "2026-11-13", "threshold": "blocker", "findings": fs}
+    assert len(hook._shown(rep)) == 6 and any(f["kind"] == "attestation" for f in hook._shown(rep))
+    d = hook._qualified(hook.decide(0), rep, "gate", 0)
+    ctx = d.output["hookSpecificOutput"]["additionalContext"]
+    assert d.exit_code == 0 and "QUALIFIED" in ctx and "a document changed" in ctx
+    assert hook._qualified(hook.decide(0), {**rep, "verdict": "PROCEED"}, "gate", 0).output is None
+    assert hook._qualified(hook.decide(1), rep, "gate", 1).exit_code == 2
+    assert "KG_SUBJECT=" in hook.ROUTE and "KG_REGISTER=" in hook.ROUTE

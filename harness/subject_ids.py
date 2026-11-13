@@ -55,26 +55,36 @@ def _roots() -> list[Path]:
     return out
 
 
+def _said(sid: str, dropped: Path, kept: Path) -> None:
+    """task-0339 (R8): a duplicate id dropped, named once on stderr with the root kept."""
+    if (sid, str(dropped)) not in _SAID:
+        _SAID.add((sid, str(dropped)))
+        print(f"subjects: id {sid!r} is also at {dropped}; the root kept is {kept}", file=sys.stderr)
+
+
 def subjects() -> list[dict]:
     """Every subject this process may answer for: id, name, root (resolved) and scenarios, in the page's
     order, ids unique (the first root with an id wins, as on the page), the default first."""
     from subject import SUBJECT
-    listed, seen = [], set()
+    listed, kept, seen_roots = [], {}, set()
     for root in _roots():
+        if root.resolve() in seen_roots:   # the same root named twice is one root
+            continue
+        seen_roots.add(root.resolve())
         m = _manifest(root)
         s = m.get("subject", {})
         sid = s.get("id", root.name)
-        if sid in seen and m:   # task-0339: the later root's duplicate is dropped; said once on stderr
-            key = (sid, str(root.resolve()))
-            if key not in _SAID:
-                _SAID.add(key)
-                print(f"subjects: id {sid!r} also found at {root}; the first root's is kept", file=sys.stderr)
-        if sid in seen or not m:
+        if sid in kept and m:
+            _said(sid, root.resolve(), kept[sid])
+        if sid in kept or not m:
             continue
-        seen.add(sid)
+        kept[sid] = root.resolve()
         listed.append({"id": sid, "name": s.get("name", sid), "root": root.resolve(), "scenarios": _scenarios(root)})
     own = Path(SUBJECT.root).resolve()
     if not any(x["root"] == own for x in listed):   # the process's own subject is always answerable
+        for x in listed:
+            if x["id"] == SUBJECT.id:
+                _said(x["id"], x["root"], own)
         listed = [x for x in listed if x["id"] != SUBJECT.id]   # task-0339: an id is named once, the default's
         listed.insert(0, {"id": SUBJECT.id, "name": SUBJECT.name, "root": own, "scenarios": list(SUBJECT.order)})
     first = [x for x in listed if x["root"] == own]

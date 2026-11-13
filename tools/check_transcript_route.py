@@ -135,6 +135,8 @@ def main(out: Path) -> int:
 
 
 if __name__ == "__main__":
+    import _outcomes   # task-0314 R5
+    _outcomes.help_exit(__doc__)
     import _outcomes   # task-0159: the outcome recorded when KG_OUTCOMES names a file
     if sys.argv[1:2] == ["--inside"]:
         print(json.dumps(inside(Path(sys.argv[2]), Path(sys.argv[3])), default=str))

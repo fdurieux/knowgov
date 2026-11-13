@@ -176,9 +176,11 @@ WALK_REACH = {"dependants": (("PROC", "process", "processes"), ("PRD", "product"
 
 def _walk_summary(walk: str, edges: int, not_followed: int, by_prefix) -> str:
     """The Edges walked section's first sentence: the edges, those not followed, and what was reached by the kinds the walk reaches."""
-    parts = [views._plural(len(by_prefix(p)), one, many) for p, one, many in WALK_REACH[walk]]
-    return (f"{views._plural(edges, 'edge')} walked, {not_followed} not followed; "
-            f"{', '.join(parts[:-1])} and {parts[-1]} reached.")
+    parts = [views._plural(len(by_prefix(p)), one, many) for p, one, many in WALK_REACH[walk] if by_prefix(p)]
+    if not parts:   # a kind not reached is not named (task-0313); nothing reached says so
+        return f"{views._plural(edges, 'edge')} walked, {not_followed} not followed; nothing reached."
+    named = parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} and {parts[-1]}"
+    return f"{views._plural(edges, 'edge')} walked, {not_followed} not followed; {named} reached."
 
 
 def followed(e: dict) -> str:
@@ -189,6 +191,13 @@ def followed(e: dict) -> str:
             return f"no, not followed (link {e.get('state') or 'without a state'})"
         return "no, not followed (far node deprecated or retired)"
     return "yes, back to the start, not counted" if e.get("to_start") else "yes"
+
+
+def _no_step(start_node: dict, rows_of: dict, start: str) -> list[str]:
+    """task-0314 B-X2, R-T1: the sentence saying a walk has no step from the start's kind (a list: none when it has one)."""
+    if start_node.get("_taxonomy") in rows_of:
+        return []
+    return [f"This walk has no step from a {start_node.get('kind', '').replace('_', ' ')}, so it follows no link from {start}."]
 
 
 def _thread_buckets(walk: str, by_prefix) -> dict:
@@ -234,6 +243,7 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
     start_node = reg["nodes"][start]
     intro = C(f"The walk starts at {start}, a {start_node.get('kind', '').replace('_', ' ')} in state {start_node.get('state')}.")
     intro += " " + C(*WALK_INTRO[walk])
+    intro += "".join(" " + C(x) for x in _no_step(start_node, rows_of, start))
     intro += " " + C("It stops at a deprecated or retired node.", "An edge that is not approved is listed with its state and not followed.",
                      "Its link is not approved, or its far node is deprecated or retired.")
     intro += " " + C("An edge back to the start is listed and not counted: the start is never among what it reaches.")

@@ -53,6 +53,8 @@ def changed(dest: Path) -> Path:
 
 
 if __name__ == "__main__":
+    import _outcomes   # task-0314 R5
+    _outcomes.help_exit(__doc__)
     import sys
     if len(sys.argv) != 3 or sys.argv[1] not in ("changed", "same"):
         raise SystemExit("usage: register_fixture.py changed|same <dir>")

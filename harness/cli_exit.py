@@ -38,7 +38,7 @@ import traceback
 CANNOT_RUN = 2
 # raised to say "cannot run" in the command's own words: the message is the cause, no type name added
 OWN = {"CannotRun", "WallClock", "LoadTooLarge", "ScratchUnavailable", "FormatError", "FormatTooNew", "BadSwitch",
-       "RegisterUnreadable", "RegisterUnnamed", "ScenarioIdError", "CodePathOutside"}
+       "RegisterUnreadable", "RegisterUnnamed", "ScenarioIdError", "CodePathOutside", "CodeUnreadable"}
 
 
 def cause(e: BaseException) -> str:
@@ -72,6 +72,14 @@ def guard(tool: str) -> None:
         sys.stdout.flush()
         os._exit(CANNOT_RUN)
     sys.excepthook = hook
+
+
+def help_exit(doc) -> None:
+    """task-0314 R5: ``-h`` or ``--help`` among the arguments prints the script's docstring and exits 0, before the script reads
+    an argument as an input or an output folder."""
+    if asks_help():
+        print(doc or f"usage: {sys.argv[0]}")
+        sys.exit(0)
 
 
 def asks_help(argv: list[str] | None = None) -> bool:

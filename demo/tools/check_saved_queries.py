@@ -111,6 +111,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if {"-h", "--help"} & set(__import__("sys").argv[1:]):   # task-0314 R5
+        print(__doc__ or "usage: python " + __import__("sys").argv[0])
+        raise SystemExit(0)
     sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[2] / 'tools'))
     import _outcomes   # task-0159: the outcome recorded when KG_OUTCOMES names a file
     sys.exit(_outcomes.run(main))

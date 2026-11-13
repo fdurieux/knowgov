@@ -182,16 +182,16 @@
    "floor": 19
   },
   "harness/gate_cli.py::findings": {
-   "value": 60,
-   "floor": 60
+   "value": 58,
+   "floor": 58
   },
   "harness/gate_cli.py::render": {
    "value": 34,
    "floor": 34
   },
   "harness/gate_cli.py::run": {
-   "value": 46,
-   "floor": 46
+   "value": 44,
+   "floor": 44
   },
   "harness/http_boundary.py::check": {
    "value": 18,

@@ -1357,3 +1357,9 @@ def test_dependants_summary_counts_applications_an_entity_reaches():
     """task-0313 L1."""
     w = register_view.impact("ENT-0002")
     assert w["reached"]["applications"] == ["APP-0002"] and "1 application" in w["panel"]["sections"][0]["text"]
+
+
+def test_the_dependants_summary_names_only_the_kinds_it_reaches():
+    """task-0313: no '0 applications' for a kind the walk did not reach."""
+    text = register_view.impact("APP-0002")["panel"]["sections"][0]["text"]
+    assert " 0 " not in text.split("not followed;", 1)[1], text

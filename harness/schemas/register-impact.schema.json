@@ -199,7 +199,8 @@
       }
      },
      "live": {
-      "type": "boolean"
+      "type": "boolean",
+      "description": "true when the link is approved and its far node is neither deprecated nor retired; false on an edge whose link is approved means the far node is deprecated or retired, else the link's state says why"
      },
      "to_start": {
       "type": "boolean"

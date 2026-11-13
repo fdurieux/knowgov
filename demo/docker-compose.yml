@@ -23,7 +23,8 @@
 #                      runs in the worker service below, contained (task-0141.05), never in the app, and the
 #                      worker starts only with `--profile arms` (decision-0015); for the
 #                      public demo use a project key with a spending cap. With an organisation's data mounted
-#                      (docker-compose.instance.yml) every arms run still refuses (task-0141.07)
+#                      (docker-compose.instance.yml) the worker grades only the subjects its image ships; an arms run
+#                      on the instance's own subject refuses (task-0141.07, task-0315)
 #   KG_MODEL_BASE_URL  the model endpoint (default api.openai.com): Google's compatible endpoint, or a
 #                      private model behind vLLM, Ollama, LiteLLM or a gateway
 #   KG_MODEL_API_KEY_VAR  the name of the variable holding the key (default OPENAI_API_KEY); the compose

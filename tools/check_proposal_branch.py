@@ -192,5 +192,7 @@ def one(fixture: Path, want: list[tuple[str, str]]) -> list[str]:
     return failures
 
 if __name__ == "__main__":
+    import _outcomes   # task-0314 R5
+    _outcomes.help_exit(__doc__)
     import _outcomes   # task-0159: the outcome recorded when KG_OUTCOMES names a file
     sys.exit(_outcomes.run(main))
