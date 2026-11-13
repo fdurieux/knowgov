@@ -10,6 +10,7 @@ names that section with the version.
 
 ## Unreleased
 
+- A stale node returns only on its own system's id (`[source]` id field, compared before `#`), not on any other value of its source table; the dependants summary names only the kinds the walk reached.
 - A node found stale by the register's GUID rule is cleared once its object returns in an export, even without its AT_ID; the dependants summary counts applications; `compare_deterministic.py --record-for` for one scenario no longer clears the asides of the others, and its help says which record a derived-registering run is read against.
 - A decided ruling of the same day by another reviewer settles a legacy ambiguous review act only when its outcome is the act's; an opposing one leaves the act major, naming both files, until a later day rules. The reviewer is read from the ruling's recorded `by`, never the file name (task-0323).
 - The published compose file runs the v0.9.0 release: `app` and `worker` pin `ghcr.io/fdurieux/knowgov:v0.9.0` by its index digest (`sha256:1785793d…`), where they ran v0.8.0.
