@@ -174,7 +174,7 @@ TOOLS = [
                     "subject's: held_by_other_subject names it then, and every scenario-reading tool refuses), the store kind, the task "
                     "classes with their required keys (and the rationale a class states), the keys the subject asks the three-valued question of, and "
                     "the date gate_verdict and evidence_bundle read on when a call names none (as_of, from as_of_from). The scenario's stage "
-                    "(1, or 2 once its change is applied) is the gate report's version, as gate_verdict gives it.",
+                    "(v1, or v2 once its change is applied) is the gate report's version, as gate_verdict gives it.",
      "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
      "annotations": READ_ONLY},
     {"name": "gate_verdict", "title": "May I build on this?",
@@ -871,7 +871,7 @@ class Tools:
     trace_cfg: dict | None = None   # the code leg's instance and ledger (upward.config), set once at start by main
 
     def key_nodes(self, args: dict) -> dict:
-        """The register-map rows on a key with their register nodes (``upward.key_nodes``, task-0143); no store."""
+        """The register-map rows on a key with their register nodes (``upward.key_nodes``, task-0143); files, and the held store's keys for a key with no row (task-0314)."""
         import upward
         try:
             return upward.key_nodes(args.get("key"), held=self._held_key_names())

@@ -1162,36 +1162,36 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
         raise CannotRun(_own_cause(e) or f"the store did not answer: {type(e).__name__}: {e}") from e
 
 
-SUB_GATE_WHY = (   # the gate's three forms (gate.py) and the sub-gate's words for each, most specific first (task-0314 B-X3, R1)
-    (r"\b(\d+) required key\(s\) at\b", r"\1 of the keys reached at"),
-    (r"\ball (\d+) required keys\b", r"all of the \1 keys reached"),
-    (r"\bof (\d+) required keys\b", r"of the \1 keys reached"),
-    (r"\b(\d+) required keys?\b", r"the \1 keys reached"))
-
-
-def sub_gate_why(sub_gate: bool, why):
-    """task-0314 B-X3, R-T4, R1: a sub-gate over the keys a walk reached (``register_impact``, ``proposal_impact``) counts
-    "the N keys reached", not the class's required keys; any other evaluation, ``gate_verdict`` on keys the caller named
-    included, keeps the gate's own words."""
+def sub_gate_why(sub_gate, why, total=None):
+    """task-0314 B-X3, R-T4, R1, L3, L6: a sub-gate over the keys a walk reached (``register_impact``, ``proposal_impact``)
+    counts "the N keys reached", not the class's required keys; ``sub_gate`` a string names the set otherwise ("keys no slice
+    reaches"). ``total``, the keys evaluated, completes the blocking form ("1 of the 2 keys reached at a blocking level").
+    Any other evaluation, ``gate_verdict`` on keys the caller named included, keeps the gate's own words."""
     if not sub_gate or not isinstance(why, str):
         return why
-    for pattern, words in SUB_GATE_WHY:
+    noun = "keys reached" if sub_gate is True else str(sub_gate)
+
+    def n_noun(n: str) -> str:
+        return noun if int(n) != 1 else noun.replace("keys", "key", 1)
+    forms = (   # the gate's three forms (gate.py), most specific first
+        (r"\b(\d+) required key\(s\) at\b", lambda m: f"{m.group(1)} of the {total} {n_noun(str(total))} at" if total else f"{m.group(1)} of the {noun} at"),
+        (r"\ball (\d+) required keys\b", lambda m: f"all of the {m.group(1)} {n_noun(m.group(1))}"),
+        (r"\bof (\d+) required keys\b", lambda m: f"of the {m.group(1)} {n_noun(m.group(1))}"),
+        (r"\b(\d+) required keys?\b", lambda m: f"the {m.group(1)} {n_noun(m.group(1))}"))
+    for pattern, words in forms:
         why = re.sub(pattern, words, why)
     return why
 
 
 def conflict_ids(res: dict, key: str) -> list[str]:
-    """task-0314 A-F6, R3: the conflicts on ``key`` (``gap:conflict:<key>:<a>~<b>``, decision-0020) whose two ends are
-    assertion ids of this key, by id: a key may contain ':' and be the start of another's, so the prefix alone is not a match."""
-    mine = {a["id"] for a in res["keys"].get(key, {}).get("assertions") or []}
+    """task-0314 A-F6, R3, L1: the conflicts on ``key`` (``gap:conflict:<key>:<a>~<b>``, decision-0020) whose two ends are
+    assertion ids of this key, by id. Matched whole against each sorted pair of the key's own assertion ids, so neither a
+    longer key that starts with this one nor a '~' inside a key or an id (both are allowed) misreads the id."""
+    import itertools
+    mine = sorted(a["id"] for a in (res.get("keys") or {}).get(key, {}).get("assertions") or [])
+    held = {str(c.get("id", "")) for c in res.get("conflicts") or []}
     head = f"gap:conflict:{key}:"
-    out = []
-    for c in res.get("conflicts") or []:
-        cid = str(c.get("id", ""))
-        ends = cid[len(head):].split("~") if cid.startswith(head) else []
-        if len(ends) == 2 and set(ends) <= mine:
-            out.append(cid)
-    return sorted(out)
+    return sorted(cid for x, y in itertools.combinations(mine, 2) for cid in (f"{head}{x}~{y}", f"{head}{y}~{x}") if cid in held)
 
 
 def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshold: str,
@@ -1208,7 +1208,7 @@ def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshol
     from gate import resolve_spec
     from store import corpus_digest
     res = resolve_spec(st, task, spec, as_of)
-    res["why"] = sub_gate_why(sub_gate, res["why"])
+    res["why"] = sub_gate_why(sub_gate, res["why"], len(res["keys"]))
     from subject import SUBJECT
     scope = suspect_scope(st, res, spec)   # task-0282: which suspect outputs rest on this task's keys
     table = None   # task-0237: the subject's [tasks.<class>] as read, the keys asked for in place of its own
