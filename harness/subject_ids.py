@@ -66,7 +66,7 @@ def subjects() -> list[dict]:
     """Every subject this process may answer for: id, name, root (resolved) and scenarios, in the page's
     order, ids unique (the first root with an id wins, as on the page), the default first."""
     from subject import SUBJECT
-    listed, kept, seen_roots = [], {}, set()
+    listed, kept, seen_roots, dropped = [], {}, set(), []
     for root in _roots():
         if root.resolve() in seen_roots:   # the same root named twice is one root
             continue
@@ -75,18 +75,20 @@ def subjects() -> list[dict]:
         s = m.get("subject", {})
         sid = s.get("id", root.name)
         if sid in kept and m:
-            _said(sid, root.resolve(), kept[sid])
+            dropped.append((sid, root.resolve()))
         if sid in kept or not m:
             continue
         kept[sid] = root.resolve()
         listed.append({"id": sid, "name": s.get("name", sid), "root": root.resolve(), "scenarios": _scenarios(root)})
     own = Path(SUBJECT.root).resolve()
     if not any(x["root"] == own for x in listed):   # the process's own subject is always answerable
-        for x in listed:
-            if x["id"] == SUBJECT.id:
-                _said(x["id"], x["root"], own)
+        dropped += [(x["id"], x["root"]) for x in listed if x["id"] == SUBJECT.id]
+        kept[SUBJECT.id] = own   # L6: only the root actually kept is named, below
         listed = [x for x in listed if x["id"] != SUBJECT.id]   # task-0339: an id is named once, the default's
         listed.insert(0, {"id": SUBJECT.id, "name": SUBJECT.name, "root": own, "scenarios": list(SUBJECT.order)})
+    for sid, root in dropped:
+        if root != kept[sid]:   # the own subject's root, first dropped as a duplicate, is the one kept
+            _said(sid, root, kept[sid])
     first = [x for x in listed if x["root"] == own]
     return first + [x for x in listed if x not in first]
 
