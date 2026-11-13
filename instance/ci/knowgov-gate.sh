@@ -34,6 +34,8 @@
 #                   the working directory the script was called from; a run that exits 2 writes none
 #   KG_REGISTER     every gate: the register checkout (default: <instance>/register, the instance's own; a
 #                   relative path is read from the working directory); one that cannot be read exits 2
+#   KG_PRELOAD_REPORT   every gate: the pre-load report the load applies, relative to the instance (an absolute path as
+#                   given), since the core runs in the harness (task-0312)
 #   KG_STORE, KG_RDFLIB_FILE, KG_NEO4J_*   the store, as the harness reads them
 #   PYTHON          the interpreter, 3.12 or later (default python3 on PATH); every step runs it
 #
@@ -63,6 +65,10 @@ abspath() { case "$1" in /*) echo "$1" ;; *) echo "$(pwd)/$1" ;; esac; }
 # task-0334 (decision-0039 §3.1): every step reads the instance's own register, <instance>/register, unless
 # KG_REGISTER names one (made absolute here, since the core runs in the harness); never the public one
 KG_REGISTER=$(abspath "${KG_REGISTER:-$INST/register}"); export KG_REGISTER
+if [ -n "${KG_PRELOAD_REPORT:-}" ]; then   # relative to the instance, as KG_PRELOAD_BASELINE is (task-0312 L2)
+    case "$KG_PRELOAD_REPORT" in /*) ;; *) KG_PRELOAD_REPORT=$INST/$KG_PRELOAD_REPORT ;; esac
+    export KG_PRELOAD_REPORT
+fi
 flag() {   # an on/off setting (task-0276, harness/switches.py's FLAG): 1 on; 0, empty or unset off; else exit 2
     case "$2" in
     1) return 0 ;;

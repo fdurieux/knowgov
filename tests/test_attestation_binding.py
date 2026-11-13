@@ -144,20 +144,31 @@ def test_the_plants_artefact_is_the_exact_key_then_the_longest_prefix_task_0312_
         assert [a for a, _ in got] == ["c/dmn/"], got
 
 
-def test_a_whole_artefact_is_named_only_while_stale_digests_account_for_it_task_0312_r4():
+def test_wholly_unlisted_artefacts_are_named_only_when_the_stale_digests_cover_them_all_task_0312_r4_l1():
     import hashlib
     import check_subject
     h = lambda t: hashlib.sha256(t.encode()).hexdigest()  # noqa: E731
-    with tempfile.TemporaryDirectory() as td:
-        root = Path(td)
-        (root / "doc.md").write_text("new\n", encoding="utf-8")
-        (root / "other.md").write_text("never attested\n", encoding="utf-8")
-        m = {"artefact": [{"key": "doc", "path": "doc.md"}, {"key": "other", "path": "other.md"}]}
-        rep = check_subject.Report(root)
-        assert check_subject._changed_artefacts(rep, m, root, "[verification] approval", [h("old\n")], 1)
-        assert [f["message"].split(" ")[0] for f in rep.findings] == ["doc"], rep.findings   # one stale digest, one file named
-        rep = check_subject.Report(root)
-        assert not check_subject._changed_artefacts(rep, m, root, "[verification] approval", [h("new\n"), h("never attested\n")], 0)
+    for uml in ("a_uml", "z_uml"):   # the answer must not depend on the order of the keys
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "doc.md").write_text("new\n", encoding="utf-8")
+            (root / "never").mkdir()
+            (root / "never" / "x.puml").write_text("never attested\n", encoding="utf-8")
+            m = {"artefact": [{"key": uml, "path": "never"}, {"key": "doc", "path": "doc.md"}]}
+            listed = [h("old\n")]
+            # one stale digest cannot account for the edited doc and the never-attested directory: none is named, and
+            # the per-digest error is left to say what is stale
+            rep = check_subject.Report(root)
+            assert not check_subject._changed_artefacts(rep, m, root, "[verification] approval", listed, 1) and rep.findings == []
+            rep = check_subject.Report(root)
+            check_subject._check_versions(rep, m, root, "approval", listed, [None])
+            assert [f["message"].split(" ")[0] for f in rep.findings] == ["versions"], (uml, rep.findings)
+            # the directory attested, the doc edited: one stale digest, one artefact named
+            rep = check_subject.Report(root)
+            assert check_subject._changed_artefacts(rep, m, root, "[verification] approval", [h("never attested\n"), h("old\n")], 1)
+            assert [f["message"].split(" ")[0] for f in rep.findings] == ["doc"], (uml, rep.findings)
+            rep = check_subject.Report(root)
+            assert not check_subject._changed_artefacts(rep, m, root, "[verification] approval", [h("new\n"), h("never attested\n")], 0)
 
 
 def test_a_stale_digest_says_it_may_have_been_a_plants_version_task_0312_r6():

@@ -628,22 +628,23 @@ def _unlisted_plants(rep: Report, m: dict, root: Path, where: str, listed: list,
 def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: list, stale: int) -> bool:
     """One error per artefact whose Version this declaration lists in part or, once it lists a digest no Version has any
     more, does not list as it is now (task-0318, task-0319): the artefact changed since it was attested. A directory
-    artefact listed in part has a file added or changed, and the error names it; a file or directory listed not at all is
-    flagged only while the digests the declaration lists that no Version has any more (``stale``, a count) still account for
-    its files, since it may never have been attested (task-0312 F1, R4). True when it named at least one."""
-    named = False
+    artefact listed in part has a file added or changed, and the error names it. The artefacts it lists not at all are
+    named only when their files together fit the digests it lists that no Version has any more (``stale``, a count), as
+    they may never have been attested; otherwise none of them is, and the per-digest errors say what is stale (task-0312
+    F1, R4, L1). True when it named at least one."""
+    parts, wholes = [], []
     for art, files in sorted(artefact_digests(m, root).items()):
         miss = {rel: d for rel, d in files.items() if d not in listed}
-        whole = len(miss) == len(files)
-        if not miss or (whole and stale < len(files)):   # task-0312 F1: a directory fully changed is named as a file is
-            continue
-        stale -= len(files) if whole else 0
+        if miss:
+            (wholes if len(miss) == len(files) else parts).append((art, files, miss))
+    if sum(len(f) for _, f, _ in wholes) > stale:
+        wholes = []
+    for art, files, miss in sorted(parts + wholes, key=lambda t: t[0]):
         what = ", ".join(f"{rel} ({d})" if rel else f"its Version {d}" for rel, d in sorted(miss.items()))
         rep.error("attestation", where, f"{art} changed since it was attested: {what} is not listed under {where}"
                   + ("" if "" in files else " (a file added or changed)"),
                   _relist_fix(where.rsplit(" ", 1)[-1], restore=True))
-        named = True
-    return named
+    return bool(parts or wholes)
 
 
 def check_map(rep: Report, m: dict, root: Path, register: Path | None) -> None:

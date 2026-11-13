@@ -233,3 +233,21 @@ def test_the_action_uploads_sarif_only_when_asked_pinned_and_after_any_exit():
     for s in ("`sarif: true`", "security-events: write", "code scanning", "Advanced Security", "fork", "`sarif-id`",
               "same-repository pull requests only, never on `main`"):
         assert s in sec, s
+
+
+def test_a_relative_kg_preload_report_is_read_from_the_instance_task_0312_l2():
+    """The core runs under the harness, so the script resolves KG_PRELOAD_REPORT against the instance, as it does
+    KG_PRELOAD_BASELINE; an absolute path is passed as given."""
+    with tempfile.TemporaryDirectory() as td:
+        inst = Path(td) / "inst"
+        (inst / "subjects" / "s0").mkdir(parents=True)
+        (inst / "subjects" / "s0" / "subject.toml").write_text('[subject]\nid = "s0"\n', encoding="utf-8")
+        log = Path(td, "env.log")
+        stub = Path(td, "python")
+        stub.write_text(f'#!/bin/sh\nif [ "$1" = -c ]; then echo "{stub}"; exit 0; fi\necho "${{KG_PRELOAD_REPORT:-unset}}" >> "{log}"\nexit 0\n', encoding="utf-8")
+        stub.chmod(0o755)
+        for given, want in (("preload-report.json", f"{inst.resolve()}/preload-report.json"), ("/abs/pr.json", "/abs/pr.json"), (None, "unset")):
+            log.unlink(missing_ok=True)
+            env = {"PATH": "/usr/bin:/bin", "PYTHON": str(stub)} | ({"KG_PRELOAD_REPORT": given} if given else {})
+            p = subprocess.run(["sh", str(SCRIPT), str(ROOT), str(inst), "gate"], capture_output=True, text=True, env=env, cwd=td)
+            assert p.returncode == 0 and log.read_text().split() == [want], (given, p.stderr, log.read_text() if log.exists() else None)

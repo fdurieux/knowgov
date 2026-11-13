@@ -536,9 +536,9 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
         out.append(_finding("major", "lapsed", f"{x['id']} on {x['key']} {cadence.describe(x, res.get('as_of'))}",
                             key=x["key"], level=x.get("to", "validated"), ref=x["id"], related=x["verifications"]))
     for d in res.get("preload") or []:   # task-0064: form unchecked, or findings, on a document behind the keys
-        what = _preload_what(d)
+        what, tool, why = _preload_words(d)
         out.append(_finding("info", "preload", f"{d['artefact']} {d['version']}, behind {len(d['keys'])} required key(s): {what}"
-                            + (f" ({d['tool']})" if d.get("tool") else "") + (f"; {d['why']}" if d.get("why") else ""),
+                            + (f" ({tool})" if tool else "") + (f"; {why}" if why else ""),
                             ref=f"{d['artefact']}@{d['version']}", related=d["keys"]))
     out += [act_finding(a) for a in res.get("acts") or []]
     out += attestation_findings(res.get("attestation") or [], owners, route, _below_verified(res))
@@ -563,13 +563,18 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
     return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), kinds.index(f["kind"]), f["key"] or "", f["ref"] or ""))
 
 
-def _preload_what(d: dict) -> str:
-    """The gate's words for a document the pre-load check left unchecked, found in findings or held (task-0064); a row a
-    step-4 check judged alone says so (task-0312 R1)."""
-    if d["state"] == "unchecked" and d.get("tool") and f"judged by {d['tool']} alone" in (d.get("why") or ""):
-        return f"judged by {d['tool']} alone, its linter never ran"
-    return {"unchecked": "its form was not checked before the load", "findings": "the pre-load check found findings in it",
+def _preload_words(d: dict) -> tuple[str, str | None, str]:
+    """The gate's words for a document the pre-load check left unchecked, found in findings or held (task-0064): what, the
+    tool to name after it, and the report's why. A row a step-4 check judged alone says so once, with the check's own
+    "(judged by X alone; <why the linter never ran>)" taken out of the why and put after it (task-0312 R1, L3)."""
+    tool, why = d.get("tool"), d.get("why") or ""
+    if d["state"] == "unchecked" and tool and f"(judged by {tool} alone; " in why:
+        head, _, rest = why.partition(f"(judged by {tool} alone; ")
+        rest = rest[:-1] if rest.endswith(")") else rest   # the one parenthesis the row's why closed
+        return f"judged by {tool} alone, its linter never ran", None, "; ".join(x for x in (rest, head.strip()) if x)
+    what = {"unchecked": "its form was not checked before the load", "findings": "the pre-load check found findings in it",
             "held": "the pre-load check holds findings in it against a baseline"}[d["state"]]
+    return what, tool, why
 
 
 def owner_route(keys: list[str], owners: dict[str, dict], route) -> tuple[str | None, str | None]:
