@@ -326,3 +326,30 @@ def test_stale_persists_until_the_id_returns():
     assert [n["id"] for n in again["stale_nodes"]] == ["PROC-0005"]
     back = connector.land(d, "aris", [FIX / "first"], exported_on="2026-12-16")
     assert back["stale_nodes"] == []
+
+
+def test_a_stale_node_whose_guid_returns_without_its_at_id_is_back():
+    """task-0313 R1: a node found stale by the register's GUID rule is cleared when its object returns, whether or
+    not the export still carries the AT_ID."""
+    d = _mini()
+    first = connector.read_aml((FIX / "first" / "cargo_quote.aml").read_bytes(), "AT_ID")["guids"]
+    for g, rid in first.items():
+        p = next((d / "register").glob(f"*/{rid}.toml"))
+        text = p.read_text(encoding="utf-8")
+        head, rest = text.split("[source]\n", 1)
+        tail = rest[rest.index("\n[") :] if "\n[" in rest else "\n"
+        p.write_text(f'{head}[source]\nsystem = "aris"\naris_guid = "{g}"\n{tail}', encoding="utf-8")
+    connector.land(d, "aris", [FIX / "first"])
+    b = connector.land(d, "aris", [FIX / "later"])
+    assert [n["id"] for n in b["stale_nodes"]] == ["PROC-0005"]
+    gone = {v: k for k, v in first.items()}["PROC-0005"]
+    text = (FIX / "first" / "cargo_quote.aml").read_text(encoding="utf-8")
+    i = text.index(f'<GUID>{gone}</GUID>')
+    j = text.index('<AttrDef AttrDef.Type="AT_ID">', i)
+    k = text.index("</AttrDef>", j) + len("</AttrDef>")
+    export = Path(tempfile.mkdtemp(prefix="kg-connector-export-"))
+    (export / "cargo_quote.aml").write_text(text[:j] + text[k:], encoding="utf-8")
+    c = connector.land(d, "aris", [export], exported_on="2026-12-02")
+    assert c["stale_nodes"] == [], c["stale_nodes"]
+    shutil.rmtree(d)
+    shutil.rmtree(export)

@@ -787,3 +787,21 @@ def test_comparator_and_page_pick_the_same_record_for_a_derived_registering_run(
         n, lines = compare_deterministic.compare(d.parent, RESULTS, ["S6"], record_for={"S6": rec}, ignore_keys=aside)
         rc = views.record_check("S6", d, "demo-runs/2026-11-01-1500")
         assert n == 0 and rc["differ"] == 0 and rc["against"].endswith("results/S6"), (lines, rc)
+
+
+@on_cargo_quote
+def test_record_for_one_scenario_keeps_the_asides_of_the_others():
+    """task-0313 L2: --record-for S1=... leaves S6's choice and asides as the rule makes them."""
+    import contextlib, io, tempfile
+    if "S6" not in compare_deterministic.DETERMINISTIC_RECORDS:   # the comparator's command line is the process subject's
+        return
+    with tempfile.TemporaryDirectory() as td:
+        d = _derived_registering_s6(Path(td), "2026-11-01-1600")
+        argv, out = sys.argv, io.StringIO()
+        try:
+            sys.argv = ["compare_deterministic.py", str(d.parent), "--scenarios", "S6", "--record-for", f"S1={RESULTS / 'S1'}"]
+            with contextlib.redirect_stdout(out):
+                compare_deterministic.main()
+        finally:
+            sys.argv = argv
+        assert "S6 against" in out.getvalue() and "0 differ" in out.getvalue(), out.getvalue()

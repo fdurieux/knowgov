@@ -1351,3 +1351,9 @@ def test_dependants_summary_counts_a_capability_group():
     w = register_view.impact("APP-0002")
     text = w["panel"]["sections"][0]["text"]
     assert "capabilit" in text and "reached" in text, text
+
+
+def test_dependants_summary_counts_applications_an_entity_reaches():
+    """task-0313 L1."""
+    w = register_view.impact("ENT-0002")
+    assert w["reached"]["applications"] == ["APP-0002"] and "1 application" in w["panel"]["sections"][0]["text"]
