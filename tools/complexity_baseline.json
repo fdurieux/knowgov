@@ -222,8 +222,8 @@
    "floor": 19
   },
   "harness/mcp_server.py::Server._tools": {
-   "value": 19,
-   "floor": 19
+   "value": 17,
+   "floor": 17
   },
   "harness/mcp_server.py::Tools.proposal_impact": {
    "value": 21,

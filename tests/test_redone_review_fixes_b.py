@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -492,3 +493,105 @@ def test_t5r3_the_yield_note_does_not_name_the_cause_a_second_time():
     rep2 = check_subject.Report(CQ)
     check_subject._note_unchecked(rep2, {"why": "the mappers need yaml"})
     assert len(rep2.notes) == 1
+
+
+# ---- train 7: the manifest's own line through MCP, check_subject on an unreadable document ----
+def _perm_site(tmp: str, target: Path) -> str:
+    """A sitecustomize that refuses to read ``target``, as an unreadable file does."""
+    site = Path(tmp) / "site"
+    site.mkdir(exist_ok=True)
+    (site / "sitecustomize.py").write_text(
+        "import builtins, io, os, pathlib\n"
+        "T = os.environ.get('PERM_PATH')\n"
+        "_o = builtins.open\n"
+        "def _open(f, *a, **k):\n"
+        "    if T and str(f) == T: raise PermissionError(13, 'Permission denied', str(f))\n"
+        "    return _o(f, *a, **k)\n"
+        "builtins.open = _open\n"
+        "io.open = _open\n"
+        "_rb, _rt = pathlib.Path.read_bytes, pathlib.Path.read_text\n"
+        "def rb(self):\n"
+        "    if T and str(self) == T: raise PermissionError(13, 'Permission denied', str(self))\n"
+        "    return _rb(self)\n"
+        "def rt(self, *a, **k):\n"
+        "    if T and str(self) == T: raise PermissionError(13, 'Permission denied', str(self))\n"
+        "    return _rt(self, *a, **k)\n"
+        "pathlib.Path.read_bytes, pathlib.Path.read_text = rb, rt\n", encoding="utf-8")
+    return str(site)
+
+
+def _unreadable_doc_env(tmp: str) -> tuple[Path, dict]:
+    """A copy of CargoQuote whose requirements.md cannot be read, and the environment that refuses it."""
+    sub = Path(tmp) / "subjects" / "cargo_quote"
+    shutil.copytree(CQ, sub)
+    doc = sub / "vendor" / "kg_experiment" / "kit" / "requirements.md"
+    assert doc.exists()
+    env = {**os.environ, "KG_SUBJECT": str(sub), "KG_STORE": "rdflib", "KG_REGISTER": str(ROOT / "demo" / "register"),
+           "KG_CLOCK": "pinned", "KG_TODAY": "2026-11-06", "PERM_PATH": str(doc),
+           "PYTHONPATH": _perm_site(tmp, doc) + os.pathsep + os.environ.get("PYTHONPATH", "")}
+    env.pop("KG_RDFLIB_FILE", None)
+    return sub, env
+
+
+def test_t7_an_mcp_tool_gives_the_manifests_own_line_for_an_unreadable_document_never_the_stores():
+    need_rdflib()
+    with tempfile.TemporaryDirectory() as tmp:
+        _sub, env = _unreadable_doc_env(tmp)
+        env["KG_RDFLIB_FILE"] = str(Path(tmp) / "held.ttl")
+        load = {k: v for k, v in env.items() if k != "PERM_PATH"}   # the load reads the document, then it is refused
+        p = subprocess.run([sys.executable, str(ROOT / "harness" / "gate_cli.py"), "--as-of", "record", "--scenario", "S1", "--publish"],
+                           capture_output=True, text=True, env=load, cwd=ROOT / "harness")
+        assert p.returncode in (0, 1), p.stderr[-400:]
+        code = "\n".join([
+            "import json, sys",
+            "sys.path.insert(0, '.')",
+            "import mcp_server",
+            "srv = mcp_server.Server(mcp_server.Tools())",
+            "for tool in ('evidence_bundle', 'gate_verdict'):",
+            "    r = srv.handle({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',",
+            "                    'params': {'name': tool, 'arguments': {}}})",
+            "    res = r.get('result', {})",
+            "    print(json.dumps({'tool': tool, 'isError': bool(res.get('isError')),",
+            "                      'text': (res.get('content') or [{}])[0].get('text', '')[:300]}))"])
+        p = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, cwd=ROOT / "harness")
+        assert p.returncode == 0, p.stderr[-400:]
+        rows = {json.loads(line)["tool"]: json.loads(line) for line in p.stdout.strip().splitlines()}
+        unreadable = [r for r in rows.values() if r["isError"]]
+        assert unreadable, rows   # at least one tool reads the documents
+        for row in unreadable:
+            assert "cannot be read (permission denied)" in row["text"], row["text"]
+            assert "the store did not answer" not in row["text"] and "Errno 13" not in row["text"], row["text"]
+
+
+def test_t7_check_subject_reports_an_unreadable_document_and_still_writes_its_json():
+    import check_subject
+    import schema_check
+    with tempfile.TemporaryDirectory() as tmp:
+        sub, env = _unreadable_doc_env(tmp)
+        code = "\n".join([
+            "import json, sys",
+            "sys.path[:0] = ['tools', 'harness']",
+            "import check_subject",
+            "from pathlib import Path",
+            f"print(json.dumps(check_subject.check(Path({str(sub)!r}), register=Path({str(ROOT / 'demo' / 'register')!r}),",
+            "                                      run_yield=False)))"])
+        p = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, cwd=ROOT)
+        assert p.returncode == 0 and "Traceback" not in p.stderr, p.stderr[-400:]
+        rep = json.loads(p.stdout.strip().splitlines()[-1])
+        assert not schema_check.validate(rep, schema_check.load("subject-check")), "the report validates"
+        errs = [f for f in rep["findings"] if f["level"] == "error" and "cannot be read" in f["message"]]
+        assert rep["exit_code"] == 1 and errs and errs[0]["rule"] == "path", rep["findings"][:2]
+        assert "requirements.md" in errs[0]["message"] and "permission denied" in errs[0]["message"]
+    assert check_subject._said_once({"where": "[reference] code", "message": "[reference] code x.py cannot be read"}) == "x.py cannot be read"
+
+
+def test_t7_the_text_summary_leaves_the_yield_note_out_when_the_cause_is_an_error():
+    import check_subject
+    rep = {"subject": "s", "root": "r", "yield": {"state": "unchecked", "why": "the mappers could not run here: CodeUnreadable: ...",
+                                                  "keys": 0, "artefacts": {}},
+           "findings": [{"level": "error", "where": "[reference] code", "message": "[reference] code a.py cannot be read (permission denied)",
+                         "fix": "make it readable"}], "notes": []}
+    text = check_subject.render(rep)
+    assert "yield: unchecked" not in text and text.count("[reference] code") == 1, text
+    rep["findings"] = []
+    assert "yield: unchecked" in check_subject.render(rep)

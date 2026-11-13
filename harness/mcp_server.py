@@ -485,6 +485,32 @@ for _t in TOOLS:
     _t["description"] += output_note(OUTPUT_SCHEMAS[_t["name"]])
 
 
+def manifest_file_error(e: BaseException) -> bool:
+    """task-0329: a file the manifest names that cannot be read (``subject.FileUnreadable`` or a subclass) says so itself, never
+    as the store's. By class name, so this module imports no subject at load: a subject that does not load exits 2 first."""
+    return any(c.__name__ == "FileUnreadable" for c in type(e).__mro__)
+
+
+def store_failure(e: Exception) -> str:
+    """What a failed read says: the store did not answer, except a file the manifest names that cannot be read, which
+    says so itself (task-0329)."""
+    return str(e) if manifest_file_error(e) else f"the store did not answer: {type(e).__name__}: {e}"
+
+
+def _failure_result(id_, name: str, e: Exception, stamp: dict) -> dict:
+    """A tool that cannot answer is an error result, never a dropped connection. A file the manifest names that cannot be
+    read says so itself (task-0329); a task policy the gate cannot apply names its class and field (task-0242), as
+    gate_cli's exit 2 does."""
+    import task_policy
+    if manifest_file_error(e):
+        text = str(e)
+    elif isinstance(e, task_policy.TaskPolicyError):
+        text = f"{name}: the subject's task policy: {e}"
+    else:
+        text = f"{name} could not answer: {type(e).__name__}: {e}"
+    return _result(id_, {"content": [{"type": "text", "text": text}], "isError": True, **stamp})
+
+
 class ToolError(Exception):
     """A tool could not answer: returned to the client as a result with isError, never a crash."""
 
@@ -673,7 +699,7 @@ class Tools:
             except (ToolError, PermissionError):
                 raise
             except Exception as e:  # noqa: BLE001
-                raise ToolError(f"the store did not answer: {type(e).__name__}: {e}") from e
+                raise ToolError(store_failure(e)) from e
             finally:
                 try:
                     st.release()
@@ -1344,11 +1370,7 @@ class Server:
         except (ToolError, PermissionError) as e:
             return _result(id_, {"content": [{"type": "text", "text": str(e)}], "isError": True, **stamp})
         except Exception as e:  # noqa: BLE001 - a tool that cannot answer is an error result, never a dropped connection
-            import task_policy   # task-0242: a policy the gate cannot apply names its class and field, as gate_cli's exit 2
-            if isinstance(e, task_policy.TaskPolicyError):
-                return _result(id_, {"content": [{"type": "text", "text": f"{name}: the subject's task policy: {e}"}], "isError": True, **stamp})
-            return _result(id_, {"content": [{"type": "text", "text": f"{name} could not answer: {type(e).__name__}: {e}"}],
-                                 "isError": True, **stamp})
+            return _failure_result(id_, name, e, stamp)
         return _result(id_, {**self._capped(name, {"content": [{"type": "text", "text": json.dumps(data, indent=1, ensure_ascii=False, default=str)}],
                                                    "structuredContent": data, "isError": False}), **stamp})
 
