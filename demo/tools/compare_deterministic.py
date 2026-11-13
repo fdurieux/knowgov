@@ -175,14 +175,14 @@ def main() -> int:
     ap.add_argument("record_dir", type=Path, nargs="?", default=RECORD)
     ap.add_argument("--scenarios", nargs="*", default=SCENARIOS)
     ap.add_argument("--record-for", action="append", default=[], metavar="SCENARIO=DIR",
-                    help="read this scenario's record from DIR (default for " + ", ".join(f"{k}: <record_dir>/{v}" for k, v in DETERMINISTIC_RECORDS.items()) + ")")
+                    help="read this scenario's record from DIR, every leaf (default for " + "; ".join(f"{k}: <record_dir>/{v} for a run that registered no Derived output, <record_dir>/{k} with the manifest's scored_record_volatile leaves set aside for one that did" for k, v in DETERMINISTIC_RECORDS.items()) + ")")
     args = ap.parse_args()
     record_for, aside = {}, set()
+    named = {item.partition("=")[0] for item in args.record_for}
     for sc in DETERMINISTIC_RECORDS:
         record_for[sc], keys = record_for_run(args.run_dir, sc, args.record_dir)
-        aside |= set(keys)
-    if args.record_for:   # a record named by hand is read leaf for leaf: nothing set aside
-        aside = set()
+        if sc not in named:   # a record named by hand is read leaf for leaf; the others keep the rule's asides
+            aside |= set(keys)
     for item in args.record_for:
         sc, _, d = item.partition("=")
         record_for[sc] = Path(d)

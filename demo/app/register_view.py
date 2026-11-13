@@ -167,7 +167,8 @@ WALK_INTRO = {   # what each walk follows, by the node's kind, in the panel's co
                "A capability or information entity leads nowhere, so the walk never turns back toward the product."),
 }
 WALK_REACH = {"dependants": (("PROC", "process", "processes"), ("PRD", "product", "products"),
-                           ("CAP", "capability", "capabilities"), ("JRN", "journey element", "journey elements")),
+                           ("CAP", "capability", "capabilities"), ("APP", "application", "applications"),
+                           ("JRN", "journey element", "journey elements")),
               "realisers": (("PROC", "process", "processes"), ("APP", "application", "applications")),
               "thread": (("PROC", "process", "processes"), ("CAP", "capability", "capabilities"), ("APP", "application", "applications"),
                          ("ENT", "information entity", "information entities"))}

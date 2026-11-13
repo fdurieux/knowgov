@@ -342,7 +342,7 @@ A folder landed by an earlier version keeps its bytes. The first export landed a
 reads every object as added and every earlier id as deleted in `ids`. Its `stale_nodes` and
 `unknown_ids` read the register ids of both folders, so they are not affected.
 
-A stale node is a finding for its owner. The connector never deletes or edits a node. It never
+A stale node is a finding for its owner, and it stays stale in each later landing until its id returns in an export. The connector never deletes or edits a node. It never
 lands an export over an existing folder, or with a date before the newest one; it refuses (exit 1)
 instead. Exit 0 when the export landed, 2 when it cannot run (for example, no `connectors.toml`).
 Commit the new folder to your register like any other change. `tools/check_instance.py` checks

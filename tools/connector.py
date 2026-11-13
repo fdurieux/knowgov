@@ -293,9 +293,10 @@ def carried_register_ids(man: dict) -> set[str]:
     return set(man.get("register_ids", {}).values()) | set(man.get("bpmn_ids", {}))
 
 
-def _carried_stale(reg_root: Path, previous: str, reg: dict, now: set[str], found: dict) -> dict:
+def _carried_stale(reg_root: Path, previous: str, reg: dict, now: set[str], found: dict, ids=()) -> dict:
     """Stale persists until the id returns (task-0313, C5-1): what the previous landing found stale stays
-    so while this export still lacks its register id, whichever rule found it."""
+    so while this export still lacks its register id, whichever rule found it; a node is back too when its
+    own ``[source]`` id (the register's GUID rule) is among the export's ``ids``."""
     path = reg_root / previous / "RECONCILE.json"
     try:
         carried = json.loads(path.read_text(encoding="utf-8")).get("stale_nodes", [])
@@ -304,7 +305,10 @@ def _carried_stale(reg_root: Path, previous: str, reg: dict, now: set[str], foun
     out = {}
     for n in carried:
         nid = n.get("id") if isinstance(n, dict) else None
-        if nid and nid in reg["nodes"] and nid not in now and nid not in found:
+        if not (nid and nid in reg["nodes"] and nid not in now and nid not in found):
+            continue
+        own = {str(v) for v in (reg["nodes"][nid].get("source") or {}).values()} | {str(v) for k, v in n.items() if k not in ("id", "previous")}
+        if not own & set(ids):
             out[nid] = {**n, "previous": n.get("previous", previous)}
     return out
 
@@ -324,7 +328,7 @@ def reconcile(reg_root: Path, landing: Path, folder: str, man: dict) -> dict:
         for nid in sorted(before - now):   # carried last time, by the register id itself, and gone now
             if nid in reg["nodes"] and nid not in stale:
                 stale[nid] = {"id": nid, "previous": out["previous"]}
-        stale.update(_carried_stale(reg_root, out["previous"], reg, now, stale))
+        stale.update(_carried_stale(reg_root, out["previous"], reg, now, stale, man.get("ids", {})))
     out["stale_nodes"] = [stale[k] for k in sorted(stale)]
     out["unknown_ids"] = sorted(k for k in now if k not in reg["nodes"])
     return out
