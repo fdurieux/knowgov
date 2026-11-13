@@ -1064,8 +1064,8 @@ buttons stay greyed with the reason. A script sends it as a header:
 `curl -X POST -H "Authorization: Bearer $KG_PAGE_TOKEN" -H 'Content-Type: application/json' -d '{"scenario":"S1","mode":"deterministic"}' http://<host>:8080/api/run`.
 Without a token on a wider bind, those requests answer `403` and say to set `KG_PAGE_TOKEN`. A script reads whether
 an Arms run may start from `GET /api/scenarios`: `"arms_enabled"` says a model row has its key, and
-`"execution": {"ok": true|false, "why": null|"<the reason>"}` says whether model output may run now (no
-organisation's instance mounted beside the app, and the worker running and confined); an Arms run
+`"execution": {"ok": true|false, "why": null|"<the reason>"}` says whether model output may run now (the
+worker running and confined and shipping the loaded subject; without a worker, no organisation's instance mounted beside the app); an Arms run
 starts only when both hold, and `why` is the refusal that run would get. Each of `"model_rows"`
 carries `"key_check"`: `"state"` (`accepted`, `refused`, `unreachable` or `unchecked`), the HTTP
 `"status"`, `"checked_at"`, `"scope"` (`gateway` when the listing proves a gateway's own key only) and

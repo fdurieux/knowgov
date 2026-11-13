@@ -134,7 +134,7 @@ def test_the_reviewer_sees_each_ruled_answers_note_before_ruling():
     assert "reject" not in capture.show_rulings({"ruling": doc["ruling"][1:]}, caps), "no note, no prompt"
     bound = {"ruling": [{"assertion": "A:doc:1", "key": "K", "value": "v", "sha256": "ab", "outcome": "approved"}]}
     shown = capture.show_rulings(bound, caps)   # task-0315 N3: a document statement shows what it was bound to
-    assert "not a captured answer" in shown and "key 'K'" in shown and "value 'v'" in shown and "sha256 'ab'" in shown, shown
+    assert "not a captured answer" in shown and "unchecked" in shown and "key 'K'" in shown and "value 'v'" in shown and "sha256 'ab'" in shown, shown
 
 
 def test_ingest_refuses_a_handle_the_register_has_not_issued_by_the_answers_date():
@@ -282,3 +282,20 @@ def test_ingest_refuses_a_handle_of_another_unit_in_a_questionnaire_it_does_not_
     errs, _ = capture.check_answers(_answered(handle="employee-3"), pattern, keys, TODAY, handles)
     assert any("ORG-0001" in e and "ORG-0002" in e for e in errs), errs
     assert capture.check_answers(_answered(handle="employee-1"), pattern, keys, TODAY, handles)[0] == []
+
+
+def test_a_review_due_questionnaire_is_answered_by_the_handle_it_is_addressed_to():
+    """task-0315 L5: `to` is the handle, or the owner unit once the handle is withdrawn."""
+    import review
+    keys = set(CARGO_QUOTE.tasks["codegen"]["keys"])
+    reg = ROOT / "demo" / "register"
+    pattern, handles = capture.handle_pattern(reg), review.issued_handles(reg)
+    doc = _answered(handle="employee-1")
+    doc["questionnaire"].update(route="review-due", to="employee-1")
+    assert capture.check_answers(doc, pattern, keys, TODAY, handles)[0] == []
+    doc["questionnaire"]["to"] = "employee-2"
+    assert any("addressed to" in e for e in capture.check_answers(doc, pattern, keys, TODAY, handles)[0])
+    doc["questionnaire"]["to"] = "ORG-0002"   # the owner unit, the handle's own
+    assert capture.check_answers(doc, pattern, keys, TODAY, handles)[0] == []
+    doc["questionnaire"]["to"] = "ORG-0001"
+    assert any("addressed to" in e for e in capture.check_answers(doc, pattern, keys, TODAY, handles)[0])

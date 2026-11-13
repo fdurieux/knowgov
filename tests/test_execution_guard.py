@@ -144,3 +144,25 @@ def test_a_configured_worker_is_admitted_on_an_instances_own_corpus_and_the_host
     why = _refused(lambda: execution.check(MOUNTED))   # no worker: the host guard refuses first, as before
     assert "X1" in why and eg.OPT_IN in why and "KG_WORKER_JOBS" in why, why
     assert execution.check(dict(MOUNTED, **{eg.OPT_IN: "1"})) == "host"
+
+
+def test_a_worker_is_refused_for_a_subject_its_image_does_not_ship():
+    """task-0315 R1: refused before any model call, by id and by root (a colliding id is not the shipped subject)."""
+    import types
+    import execution
+    jobs = {execution.JOBS_VAR: "/jobs"}
+    shipped = types.SimpleNamespace(id="cargo_quote", root=ROOT / "subjects" / "cargo_quote")
+    assert execution.not_shipped(shipped) is None
+    for sub in (types.SimpleNamespace(id="not_shipped", root="/instance/subjects/not_shipped"),
+                types.SimpleNamespace(id="cargo_quote", root="/instance/subjects/cargo_quote")):
+        why = execution.not_shipped(sub)
+        assert why and "ships" in why and sub.id in why, why
+    from subject import SUBJECT
+    assert SUBJECT.root == ROOT / "subjects" / SUBJECT.id and execution.check(dict(PUBLIC, **jobs)) == "worker"
+    keep = execution.not_shipped
+    execution.not_shipped = lambda subject=None: keep(types.SimpleNamespace(id="x", root="/instance/x"))
+    try:
+        _refused(lambda: execution.check(dict(PUBLIC, **jobs)))
+        assert execution.refusal(dict(PUBLIC, **jobs)) and "ships" in execution.refusal(dict(PUBLIC, **jobs))
+    finally:
+        execution.not_shipped = keep

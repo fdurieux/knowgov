@@ -926,7 +926,7 @@ python harness/capture.py questionnaire --scenario S2 --out questionnaires/
 ```
 
 In plain English: this loads the scenario into a private copy in memory, asks the gate which keys
-are missing or weak, and writes one questionnaire per *owner*: the organisation unit your register names as owner of the
+are missing or weak, and writes one questionnaire per *owner* with something open (an owner with nothing to answer gets no file): the organisation unit your register names as owner of the
 building blocks each key concerns. When several units own those building blocks, give the key's
 row in `register_map.toml` an `owner`, one of them, and only that unit is asked; otherwise each
 of them is, and two people may answer the same key. Each questionnaire says how many keys the owner has and how
@@ -960,7 +960,7 @@ python harness/capture.py ingest questionnaires/questionnaire-cargo_quote-S2-ORG
 In plain English: this checks the answers and refuses a name in place of a handle, a handle the
 register has not issued (or issued only after the answer's date, or withdrawn by then), a handle
 issued without the role `gives` (one that may only approve or close cannot answer), a date in the
-future, or an item that has both an answer and "nobody knows". It then saves them in the
+future, an item that has both an answer and "nobody knows", or a handle that belongs to another unit than the questionnaire's `owner` (a review-due questionnaire is addressed to its `to`: the handle, or the owner unit when the handle is withdrawn). The unit rule reads the questionnaire's own `owner` and `route` fields, which the answerer can edit, and handles are self-asserted (a known limit): it stops a slip, not a forgery. It then saves them in the
 subject's `captures/` folder, which you commit like any other change. From then on, every
 load reads that folder. An answer becomes a statement *proposed* by that person on that date,
 and a "nobody knows" becomes a declared gap with their handle and the date. Neither goes further
