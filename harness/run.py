@@ -60,7 +60,7 @@ def gate_summary(g: dict) -> dict:
     """The gate's result as the record holds it: without its keys and without the as-of date, which
     the run records once, at its top (decision-0005), and without how each attestation was read (decision-0019,
     task-0221), whose effect the record holds in its levels and verdict."""
-    return {k: v for k, v in g.items() if k not in ("keys", "as_of", "attestation")}
+    return {k: v for k, v in g.items() if k not in ("keys", "as_of", "attestation", "register_staled")}
 
 
 def d5(s) -> dict:

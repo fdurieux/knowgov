@@ -728,7 +728,8 @@ def register_routes(fs: list[dict], res: dict) -> list[dict]:
     """R3 (B-N2), L2: a key, or a stale statement of it, that a register update staled names the remedy as its route, not the
     owner's questionnaire, which can never restore it while ``--register-previous`` is passed. Read from the statements'
     own recorded reason (``invalidated_by`` names the register), so a load, a ``--no-load`` read and the MCP server agree."""
-    stale = [x for x in res.get("stale") or [] if x.get("by_register")]
+    staled = set(res.get("register_staled") or [])
+    stale = [x for x in res.get("stale") or [] if x["id"] in staled]
     keys, gone = {x["key"] for x in stale}, {x["id"] for x in stale}
     for f in fs:
         if f["kind"] in ("key", "stale") and f["key"] in keys and (f["kind"] == "key" or f["ref"] in gone) and f.get("route"):

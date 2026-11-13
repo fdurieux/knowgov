@@ -44,7 +44,8 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
     # one successor set (task-0201, doc-0030 G3): an invalidated statement is superseded only by its own
     # verified or approved successor (superseded_by over stale_on_keys), the reading the stale finding,
     # superseded_by and the bundle make, so the gate's level never drops what they still call unreplaced
-    stale = _mark_register(s, s.stale_on_keys(spec["keys"]))
+    stale = s.stale_on_keys(spec["keys"])
+    register_staled = _register_staled(s, stale)
     superseded = {x["id"] for x in stale if superseded_by(x)}
     for key in spec["keys"]:
         rows, pending = s.key_evidence(key, LIVE), []
@@ -109,7 +110,8 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
     # ``stale`` is read above, once, so the level and the finding read one successor set
     out = {"task": task, "verdict": verdict, "why": why, "keys": keys, "conflicts": conflicts,
            "blocked_keys": blocked_keys, "below_verified": below, "flagged": flagged,
-           "stale": stale, "suspect_derived": suspect, "lapsed": lapsed, "as_of": on.isoformat()}
+           "stale": stale, "suspect_derived": suspect, "lapsed": lapsed, "as_of": on.isoformat(),
+           "register_staled": register_staled}
     if intended:   # task-0215: only when the class declares the bar, so every other class and the record read as before
         out["unintended"] = unintended
     lint = lint_behind(s, keys)
@@ -235,15 +237,13 @@ def superseded_map(res: dict) -> dict[str, list[str]]:
     return {x["id"]: ids for x in res.get("stale") or [] if (ids := superseded_by(x))}
 
 
-def _mark_register(s, rows: list[dict]) -> list[dict]:
-    """L-e: a statement a register update staled, as ``register_change`` wrote it ("the register ..."), is told from one a
-    source change staled by the reason not being a Version tag of the store: a stage-2 ``version`` is free text and
-    could read the same, but it is always the tag of a Version the store holds."""
+def _register_staled(s, rows: list[dict]) -> list[str]:
+    """L-e: the ids of the statements a register update staled, as ``register_change`` wrote the reason ("the register ..."),
+    told from a source change's by the reason not being a Version tag the store holds: a stage-2 ``version`` is free text
+    and could read the same, but it is always the tag of a Version the store holds."""
     tags = {v["version"] for v in s.version_digests()} if rows and hasattr(s, "version_digests") else set()
-    for x in rows:
-        why = str(x.get("invalidated_by") or "")
-        x["by_register"] = why.startswith("the register") and why not in tags
-    return rows
+    return sorted(x["id"] for x in rows if str(x.get("invalidated_by") or "").startswith("the register")
+                  and str(x.get("invalidated_by")) not in tags)
 
 
 def invalidated_on_key(s, key: str) -> list[dict]:

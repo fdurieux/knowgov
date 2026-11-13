@@ -67,8 +67,9 @@ def test_r2_the_hooks_summary_says_no_single_unit_for_an_ownerless_attestation_f
 
 
 def test_r3_a_register_staled_finding_names_the_remedy_not_the_questionnaire():
-    rc = {"stale": [{"id": "A:s:k|a@v1", "key": "k|a", "invalidated_by": "the register at v1: decisions/0099.md", "by_register": True},
-                    {"id": "A:s:k|b@v1", "key": "k|b", "invalidated_by": "version v2 of requirements.md", "by_register": False}]}
+    rc = {"stale": [{"id": "A:s:k|a@v1", "key": "k|a", "invalidated_by": "the register at v1: decisions/0099.md"},
+                    {"id": "A:s:k|b@v1", "key": "k|b", "invalidated_by": "version v2 of requirements.md"}],
+          "register_staled": ["A:s:k|a@v1"]}
     fs = [{"kind": "key", "key": "k|a", "ref": None, "route": "python harness/capture.py questionnaire ..."},
           {"kind": "stale", "key": "k|a", "ref": "A:s:k|a@v1", "route": "python harness/capture.py questionnaire ..."},
           {"kind": "stale", "key": "k|b", "ref": "A:s:k|b@v1", "route": "q"},
@@ -391,17 +392,17 @@ def test_ld_check_subject_refuses_a_link_out_of_the_code_directory_with_no_execu
 
 
 def test_le_a_spoofed_stage_two_version_does_not_read_as_a_register_update():
-    from gate import _mark_register
+    from gate import _register_staled
 
     class S:
         def version_digests(self):
             return [{"artefact": "a", "version": "the register v2", "sha256": "x"}, {"artefact": "a", "version": "v1", "sha256": "y"}]
-    rows = [{"id": "1", "invalidated_by": "the register v2"}, {"id": "2", "invalidated_by": "the register at v0.2.13: decisions/0099.md"},
-            {"id": "3", "invalidated_by": "v2"}]
-    got = {x["id"]: x["by_register"] for x in _mark_register(S(), rows)}
-    assert got == {"1": False, "2": True, "3": False}
+    rows = [{"id": "1", "key": "k", "invalidated_by": "the register v2"},
+            {"id": "2", "key": "k", "invalidated_by": "the register at v0.2.13: decisions/0099.md"},
+            {"id": "3", "key": "k", "invalidated_by": "v2"}]
+    assert _register_staled(S(), rows) == ["2"]
     fs = [{"kind": "stale", "key": "k", "ref": "1", "route": "q"}, {"kind": "stale", "key": "k", "ref": "2", "route": "q"}]
-    out = gate_cli.register_routes(fs, {"stale": [{**r, "key": "k"} for r in _mark_register(S(), rows)]})
+    out = gate_cli.register_routes(fs, {"stale": rows, "register_staled": ["2"]})
     assert [f["route"] == gate_cli.REGISTER_ROUTE for f in out] == [False, True]
 
 
