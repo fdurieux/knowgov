@@ -1344,3 +1344,10 @@ def test_the_register_views_coverage_reader_follows_the_checkers_rules():
         register_view._load_tools = real
     assert [x.split(":")[0] for x in lines] == ["C1", "C2", "C3", "C4", "C5"]
     assert lines[4] == "C5: 1/2 covered, 0 excepted, 1 uncovered (PROC-0099)"
+
+
+def test_dependants_summary_counts_a_capability_group():
+    """task-0313, B-X5: the summary names capabilities when the walk reaches one."""
+    w = register_view.impact("APP-0002")
+    text = w["panel"]["sections"][0]["text"]
+    assert "capabilit" in text and "reached" in text, text
