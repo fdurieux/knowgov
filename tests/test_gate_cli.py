@@ -385,12 +385,13 @@ def test_task_0311_routes_pending_answers_and_the_bar():
     r = capture.questionnaire_route("s", "S1", "codegen", "ORG-1")
     assert "KG_SUBJECT=" in r and "KG_REGISTER=" in r and '"$KG_HOME"' in r
     assert "KG_SUBJECT=" in capture.FROM_INSTANCE and "KG_REGISTER=" in capture.FROM_INSTANCE
-    lap = gate_cli._lapse_route({"kind": "lapsed", "route": "to U", "ref": "a2"}, {"lapsed": [{"id": "a2"}]})
-    assert "`closes`" in lap and "on or before the as-of date" in lap and "KG_REGISTER=" in lap and lap.endswith("; or to U")
+    lap = gate_cli._lapse_route({"kind": "lapsed", "route": "to U", "ref": "a2"}, {"lapsed": [{"id": "a2", "months": 12}], "as_of": "2026-11-13"})
+    assert "`closes`" in lap and "KG_REGISTER=" in lap and lap.endswith("; or to U")
+    assert "within 12 months before the as-of date 2026-11-13 (from 2025-11-13" in lap and "register nodes the key rests on" in lap   # L2, L5
     assert gate_cli._lapse_route({"kind": "lapsed", "route": "to U", "ref": "a2"}, {"lapsed": [{"id": "a2", "kind": "elicited"}]}) == "to U"
     assert gate_cli._awaiting({"pending_review": ["b", "a"]}) == " (awaiting a reviewer's ruling: a, b)" and gate_cli._awaiting({}) == ""
     bar = gate_cli._bar_finding({"why": "w"})
-    assert bar["kind"] == "task" and "after this one" in bar["route"] and "above" not in bar["route"]
+    assert bar["kind"] == "task" and "gate_cli -f json" in bar["route"] and "above" not in bar["route"] and "after this one" not in bar["route"]   # L3
     res = {"verdict": "PROCEED", "why": "w", "blocked_keys": [], "stale": [], "lapsed": [], "suspect_derived": [], "as_of": "2026-11-13",
            "keys": {"k|v": {"level": "verified", "flags": [], "pending_review": ["A-9"]},
                     "k|f": {"level": "verified", "flags": ["inferred"], "pending_review": ["A-8"]},
@@ -398,3 +399,19 @@ def test_task_0311_routes_pending_answers_and_the_bar():
     by = {f["key"]: f for f in gate_cli.findings(res, BLOCK)}
     assert by["k|v"]["severity"] == "info" and "A-9" in by["k|v"]["message"]
     assert by["k|f"]["severity"] == "minor" and "A-8" in by["k|f"]["message"] and "k|q" not in by
+
+
+def test_task_0311_a_pending_answer_on_a_verified_or_flagged_key_routes_to_a_review():
+    """Task-0311 L4: the remedy is a reviewer's ruling on the named assertion, in the instance form; a flagged key without one keeps its route."""
+    res = {"verdict": "PROCEED", "why": "w", "blocked_keys": [], "stale": [], "lapsed": [], "suspect_derived": [], "as_of": "2026-11-13",
+           "keys": {"k|v": {"level": "verified", "flags": [], "pending_review": ["A-9"]},
+                    "k|f": {"level": "verified", "flags": ["inferred"], "pending_review": ["A-8"]},
+                    "k|g": {"level": "verified", "flags": ["inferred"], "pending_review": []}}}
+    owners = {k: {"unit": "U-1", "name": ""} for k in res["keys"]}
+    by = {f["key"]: f for f in gate_cli.findings(res, BLOCK, owners, lambda u, k: "questionnaire")}
+    assert by["k|v"]["route"].startswith("a reviewer who is not the author rules on A-9") and "capture.py review FILE" in by["k|v"]["route"]
+    assert "KG_SUBJECT=" in by["k|v"]["route"] and by["k|f"]["route"].startswith("a reviewer") and by["k|g"]["route"] == "questionnaire"
+    import capture
+    assert "<" not in capture.from_instance("s") and "subjects/s " in capture.from_instance("s")
+    opposed = gate_cli._act_route({"kind": "act", "act": {"why": "ambiguous", "act": "ruling", "reasons": ["opposed by a"]}}, "q")
+    assert opposed is not None and "(python harness/capture.py review" not in opposed   # L6: not nested in the instance-form parenthetical

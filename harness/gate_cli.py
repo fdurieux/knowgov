@@ -20,7 +20,9 @@ in this process's memory, decision-0017), runs the rules, resolves the task's re
               required key that no verified or approved successor replaces (task-0048); a statement
               whose review has lapsed (``lapsed``, decision-0005): it reads validated until a new review
     minor     a verified or approved key carrying a flag (ambiguous, inferred, assumed)
-    info      a stale statement on a required key that a verified or approved successor
+    info      a verified or approved key with an answer awaiting a reviewer's ruling, which the level does
+              not count (task-0311; ``--fail-on info`` exits 1 on it, and an annotation is a notice);
+              a stale statement on a required key that a verified or approved successor
               replaces: the record of the change, and the verifications it ended (task-0048)
 
 A review falls due (decision-0005, harness/cadence.py): a verification of method review is current
@@ -312,7 +314,7 @@ def _act_route(f: dict, route):
         import review
         if review.is_opposed(reasons):
             return (f"nothing to do: {reasons[-1]}" if len(reasons) > 1 else
-                    "the owners rule again in one review, on a later day (python harness/capture.py review <file>" + _from_instance() + ")")
+                    "the owners rule again in one review, on a later day: python harness/capture.py review <file>" + _from_instance())
         if reasons[0].startswith(review.SETTLED):
             return f"nothing to do: {reasons[0]}"
     return route
@@ -420,8 +422,13 @@ def suspect_finding(d: dict, scope: dict | None) -> dict:
 
 
 def _from_instance() -> str:
-    from capture import FROM_INSTANCE
-    return FROM_INSTANCE
+    """The instance-root form of a route's command (capture.from_instance, one source), with the subject's id where it is loaded."""
+    from capture import from_instance
+    try:
+        from subject import SUBJECT
+        return from_instance(SUBJECT.id)
+    except Exception:   # noqa: BLE001 - no subject root named: the placeholder
+        return from_instance()
 
 
 def _awaiting(v: dict) -> str:
@@ -433,7 +440,7 @@ def _awaiting(v: dict) -> str:
 def _bar_finding(res: dict) -> dict:
     """A-F4 (task-0311): the bar's blocker names a next step, the keys below the bar and their routes."""
     f = _finding("blocker", "task", res["why"])
-    f["route"] = ("raise the keys below the bar: the key findings after this one each name their owner and the route to approval; "
+    f["route"] = ("raise the keys below the bar: the gate's key findings (gate_cli -f json lists them) each name their owner and the route to approval; "
                   "the share falls under the bar when enough of them are verified or approved")
     return f
 
@@ -443,8 +450,35 @@ def _lapse_route(f: dict, res: dict) -> str | None:
     lapsed_by_id = {x["id"]: x for x in res.get("lapsed") or []}
     if f["kind"] != "lapsed" or not f["route"] or lapsed_by_id.get(f["ref"], {}).get("kind") == "elicited":
         return f["route"]
-    return ("a reviewer who is not the author, under a handle whose unit owns the key and holds the role `closes`, renews it: "
-            "python harness/capture.py review FILE" + _from_instance() + ", the review dated on or before the as-of date; or " + f["route"])
+    return ("a reviewer who is not the author, under a handle whose unit owns one of the register nodes the key rests on and that holds "
+            "the role `closes`, renews it: python harness/capture.py review FILE" + _from_instance() + _lapse_dates(lapsed_by_id.get(f["ref"], {}), res)
+            + "; or " + f["route"])
+
+
+def _lapse_dates(x: dict, res: dict) -> str:
+    """L2 (task-0311): cadence renews only a review dated within the key's review months before the as-of date; for a later
+    as-of date that can be followed only from the as-of date minus those months."""
+    import cadence
+    on, months = cadence._date(res.get("as_of")), x.get("months")
+    if not on or not months:
+        return ", the review dated within the key's review months before the as-of date"
+    return (f", the review dated within {months} months before the as-of date {on.isoformat()} (from {cadence.add_months(on, -months).isoformat()} "
+            "to it; a review dated later than today is refused, so a future as-of date can be followed only from that first day)")
+
+
+def _refined_route(f: dict, res: dict) -> str | None:
+    """The route a lapsed or pending-answer finding takes in place of the owner's questionnaire; any other keeps its own."""
+    return _pending_route(f, res) or _lapse_route(f, res)
+
+
+def _pending_route(f: dict, res: dict) -> str | None:
+    """L4 (task-0311): an answer awaiting a ruling on a key that reads verified or approved (an info or a minor key finding) is settled by
+    a reviewer's ruling on the named assertion, not by a questionnaire; None for any other finding."""
+    v = (res.get("keys") or {}).get(f["key"]) or {}
+    if f["kind"] != "key" or f["severity"] not in ("info", "minor") or not v.get("pending_review"):
+        return None
+    return (f"a reviewer who is not the author rules on {', '.join(sorted(v['pending_review']))} in a review file: "
+            "python harness/capture.py review FILE" + _from_instance())
 
 
 def _key_finding(key: str, v: dict, block_levels: set[str], rel: list[str]) -> dict | None:
@@ -518,7 +552,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                 unit = (owners.get(f["key"]) or {}).get("unit")
                 f["owner"] = unit
                 f["route"] = _act_route(f, route(unit, f["key"]) if route else None)
-                f["route"] = _lapse_route(f, res)
+                f["route"] = _refined_route(f, res)
                 c = (closers or {}).get(f["key"])
                 if f["kind"] == "key" and f["level"] == "declared_gap" and c is not None:
                     from capture import closing_route

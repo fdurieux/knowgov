@@ -140,10 +140,13 @@ def test_r8_the_same_root_twice_is_one_root_and_a_dropped_root_is_named_with_the
 
 def test_r9_a_review_lapse_gets_the_renew_step_with_the_kg_home_form_and_an_elicited_one_keeps_its_route():
     att = {"severity": "major", "kind": "attestation", "message": "a", "route": "r"}
-    review = {"severity": "major", "kind": "lapsed", "message": "l", "route": "a reviewer who is not the author and holds the role renews it: ..."}
+    step = "a reviewer who is not the author, under a handle that holds the role `closes`, renews it: KG_SUBJECT=subjects/s KG_REGISTER=register python \"$KG_HOME\"/harness/capture.py review FILE, the review dated within 12 months before the as-of date"
+    review = {"severity": "major", "kind": "lapsed", "message": "l", "route": step + "; or python harness/capture.py questionnaire ..."}
     elicited = {"severity": "major", "kind": "lapsed", "message": "l", "route": "python harness/capture.py questionnaire ..."}
     rep = {"findings": [{"severity": "blocker", "kind": "task", "message": "bar"}, att, review]}
-    assert knowgov_hook._route_for(rep).endswith(knowgov_hook.LAPSE_STEP) and '"$KG_HOME"/harness/capture.py' in knowgov_hook.LAPSE_STEP
+    got = knowgov_hook._route_for(rep)   # L1: the hook's lapse line is the finding's own wording, with the instance form, the role and the date rule
+    assert got.startswith(knowgov_hook.ATTESTATION_ROUTE) and step in got and "questionnaire" not in got
+    assert "KG_SUBJECT=" in got and "KG_REGISTER=" in got and "`closes`" in got and "before the as-of date" in got
     rep["findings"][2] = elicited
     assert knowgov_hook._route_for(rep) == knowgov_hook.ATTESTATION_ROUTE
 
