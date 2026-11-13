@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/held-keys.schema.json",
  "title": "knowgov held keys report",
- "description": "What the MCP tool held_keys returns (task-0144, doc-0020 C3): every key a statement of the held scenario names, by key, with its statement count by status, its level as gate_verdict reads that key set under task on as_of (null only when the store holds no key), the task classes requiring it (required_by, empty for a key no class asks for, listed again under unrequired) and whether the subject's register map places it; and the required keys the store holds no statement on. Read through one read handle; nothing written. Version 1; a change is additive or a new version.",
+ "description": "What the MCP tool held_keys returns (task-0144, doc-0020 C3): every key a statement of the held scenario names, by key, with its statement count by stored status (as stored, not as of the date), its level as gate_verdict reads that key set under task on as_of (null only when the store holds no key), the task classes requiring it (required_by, empty for a key no class asks for, listed again under unrequired) and whether the subject's register map places it; and the required keys the store holds no statement on. Read through one read handle; nothing written. Version 1; a change is additive or a new version.",
  "type": "object",
  "additionalProperties": false,
  "required": [

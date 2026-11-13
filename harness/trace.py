@@ -168,7 +168,8 @@ def _key_ids(st, keys: list[str], known: set[str] | None) -> list[str]:
     """The current statements on the keys, in key order; CannotRun on an unknown key or one with none."""
     unknown = [k for k in keys if known is not None and k not in known]
     if unknown:
-        raise CannotRun(f"unknown key(s) {', '.join(unknown)}: neither the subject's register map nor any task names them")
+        raise CannotRun(f"unknown key(s) {', '.join(unknown)}: neither the subject's register map nor any task names them"
+                        + "".join(__import__("key_rule").did_you_mean(k, known) for k in unknown))
     ids: list[str] = []
     for k in keys:
         cur = sorted(a["id"] for a in st.assertions_on_key(k, CURRENT))
