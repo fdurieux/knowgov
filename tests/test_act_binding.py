@@ -524,3 +524,48 @@ def test_a_legacy_ambiguous_act_opposes_the_same_days_ruling_and_the_same_review
     assert review.settling(fa, at, [second], HANDLES) == "settled by 2026-11-06-employee-2-2.toml"
     nxt = _bound("r-next.toml", sid, "ops-2", "rejected", at=("2026-11-08", "carol", 0, "c"), by="carol")
     assert review.settling(fa, at, [zzz, nxt], HANDLES) == "settled by r-next.toml"
+
+
+def test_an_equivalent_statements_opposing_ruling_the_same_day_is_opposed_not_settling_task_0323():
+    """R-A: boss approves the 11-03 re-answer (giver ops-2) the day employee-2's legacy review rejected the 11-02 answer
+    of the same content: ``settling`` names the pair; the same outcome settles; the one predicate is ``review.opposes``."""
+    old = "A:cap:2026-11-02-ORG-0002-ops-2:1@capture"
+    new = "A:cap:2026-11-03-ORG-0002-ops-2:1@capture"
+    at = ("2026-11-06", "employee-2", 0, "2026-11-06-employee-2.toml")
+    boss = _bound("2026-11-06-boss.toml", new, "ops-2", "approved", at=("2026-11-06", "boss", 0, "b"), by="boss")
+    why = review.settling(_pending(old), at, [boss], HANDLES)
+    assert why.startswith(review.OPPOSED) and "2026-11-06-boss.toml (approved)" in why and "2026-11-06-employee-2.toml (rejected)" in why, why
+    agree = _bound("2026-11-06-boss.toml", new, "ops-2", "rejected", at=("2026-11-06", "boss", 0, "b"), by="boss")
+    assert review.settling(_pending(old), at, [agree], HANDLES) == "settled by 2026-11-06-boss.toml"
+    nxt = _bound("r-next.toml", new, "ops-2", "approved", at=("2026-11-08", "carol", 0, "c"), by="carol")
+    assert review.settling(_pending(old), at, [boss, nxt], HANDLES) == "settled by r-next.toml"
+    assert review.opposes("approved", "rejected") and review.opposes("referred", "approved")
+    assert not review.opposes("referred", "rejected") and not review.opposes("approved", "approved")
+
+
+def test_load_opposed_pairs_a_legacy_ruling_with_an_equivalent_statements_one_task_0323():
+    """R-A end to end through ``load._opposed`` (review.check read from crafted files): the legacy review of the 11-02
+    answer and boss's ruling on the 11-03 answer of the same content cancel each other, found under both ids."""
+    import importlib.util
+    from _skip import skip
+    if importlib.util.find_spec("yaml") is None:
+        skip("yaml", "harness/load.py imports the mappers, which need PyYAML; the stdlib job has none")
+    import load
+    old, new = "A:cap:2026-11-02-ORG-0002-ops-2:1@capture", "A:cap:2026-11-03-ORG-0002-ops-2:1@capture"
+    sha, val = review.content_digest([]), "held_unscreened only"
+    docs = {"2026-11-06-employee-2.toml": {"review": {"by": "employee-2", "on": dt.date(2026, 11, 6)}, "tag": "legacy"},
+            "2026-11-06-boss.toml": {"review": {"by": "boss", "on": dt.date(2026, 11, 6)}, "tag": "boss"}}
+    rv = {"legacy": {"by": "employee-2", "on": dt.date(2026, 11, 6), "rulings": [],
+                     "skipped": [{"act": "ruling", "why": "ambiguous", "statement": old, "outcome": "rejected", "key": KEY, "value": val, "sha256": sha}]},
+          "boss": {"by": "boss", "on": dt.date(2026, 11, 6),
+                   "rulings": [{"statement": new, "outcome": "approved", "key": KEY, "value": val, "sha256": sha, "giver": "ops-2"}], "skipped": []}}
+    real = review.check
+    review.check = lambda doc, st, **kw: ([], rv[doc["tag"]])
+    try:
+        got = load._opposed([(Path(n), d) for n, d in docs.items()], "S2", None, handles=HANDLES)
+    finally:
+        review.check = real
+    pair = sorted([("2026-11-06-boss.toml", "approved"), ("2026-11-06-employee-2.toml", "rejected")])
+    day = "2026-11-06"
+    assert got[(old, day, "2026-11-06-employee-2.toml")] == pair and got[(new, day, "2026-11-06-boss.toml")] == pair, got
+    assert got[(old, day, "2026-11-06-boss.toml")] == pair, got   # the boss ruling is found under the legacy act's statement too
