@@ -277,7 +277,7 @@ def test_unavailable_takes_its_own_route_and_the_summary_names_the_owner():
                         {"severity": "blocker", "kind": "key", "key": "k|q", "message": "k|q is absent", "owner": None, "route": "r2"},
                         {"severity": "blocker", "kind": "suspect_derived", "key": None, "message": "d1 used a1"}]}
     text = hook._summary(rep)
-    assert "k|p is absent (owner ORG-0002)" in text and "k|q is absent (owner none in the register map)" in text
+    assert "k|p is absent (owner ORG-0002)" in text and "k|q is absent (owner no single unit in the register map)" in text
     assert "d1 used a1\n" in text + "\n" and "d1 used a1 (owner" not in text
     assert "  route: python harness/capture.py questionnaire ..." in text and "  route: r2" in text
     p = _hook(PLAN, "run", "--unavailable-route", "Route: mine.", "--", "sh", "-c", "exit 2")

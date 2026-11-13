@@ -73,6 +73,8 @@ ATTESTATION_ROUTE = ("Route to approval: an attestation is a person's act, not t
                      "route on each attestation finding above names who lists which Version; an execution is listed only "
                      "after the implementation and suite are brought in line with the Version where its values differ, and the suite run on it. An exception is granted by "
                      "whoever owns the managed settings, never by this session; do not retry around the gate.")
+LAPSE_STEP = (" A lapsed review is renewed by a reviewer who is not the author: python harness/capture.py review FILE (from an instance "
+              "repository, python \"$KG_HOME\"/harness/capture.py), dated on or after the as-of date.")
 UNAVAILABLE_ROUTE = ("Route: make the gate runnable (the store reachable, the subject and scenario set, the "
                      "knowgov checkout present), then repeat the step; an exception is granted by whoever owns "
                      "the managed settings, never by this session.")
@@ -453,8 +455,9 @@ def _route_for(rep: dict) -> str:
     attestation finding is shown, it is the attestation route."""
     shown = _shown(rep)
     blockers = {f.get("kind") for f in shown if f.get("severity") in ("blocker", "critical")} - {"task"}
-    if not blockers - {"attestation"} and any(f.get("kind") == "attestation" for f in shown) and any(f.get("kind") == "lapsed" for f in shown):
-        return ATTESTATION_ROUTE + " A lapsed review is renewed by its reviewer's new dated ruling (harness/capture.py review)."
+    review_lapse = any(f.get("kind") == "lapsed" and str(f.get("route") or "").startswith("a reviewer who is not the author") for f in shown)
+    if not blockers - {"attestation"} and any(f.get("kind") == "attestation" for f in shown) and review_lapse:   # R9: an elicited lapse keeps its questionnaire
+        return ATTESTATION_ROUTE + LAPSE_STEP
     return ATTESTATION_ROUTE if not blockers - {"attestation"} and any(f.get("kind") == "attestation" for f in shown) else ROUTE
 
 
@@ -463,7 +466,7 @@ def _summary(rep: dict) -> str:
             f"as of {rep.get('as_of')}, threshold {rep.get('threshold')}")
     worst = _shown(rep)
     lines = [f"  {f.get('severity')} {f.get('kind')}" + (f" {f['key']}" if f.get("key") else "") + f": {f.get('message')}"
-             + (f" (owner {f.get('owner') or 'none in the register map'}"
+             + (f" (owner {f.get('owner') or 'no single unit in the register map'}"
                 + (f"; closed by {f.get('closer') or 'no unit of the register'}" if "closer" in f else "") + ")"
                 if "owner" in f else "")
              for f in worst]

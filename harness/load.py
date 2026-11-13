@@ -362,6 +362,7 @@ def execution_code(decl: dict | None, keys: list[str]) -> list[dict]:
 def _code_row(which: str, decl: dict, keys: list[str]) -> dict | None:
     """The row for one of ``implementation`` and ``suite`` when ``decl`` does not attest it as it is, else None."""
     path, parts = SUBJECT.code_parts(which)
+    path = None if path is None else path or "(an empty path)"   # R7
     listed = decl.get(which)
     listed = listed if isinstance(listed, list) else []
     miss = sorted(d for d in parts.values() if d and d not in listed)

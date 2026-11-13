@@ -174,10 +174,10 @@ def test_s2_the_command_line_check_confines_code_and_script_as_the_load_does():
         assert not check_subject._outside(rep, {"reference": {"code": "src/x.py"}}, root, "reference", "code")
 
 
-def test_s3_the_owning_field_of_a_stale_digest_names_the_suite_files():
+def test_s3_the_owning_field_of_a_stale_digest_names_the_suite_files_beside_each_path():
     m = {"oracle": {"script": "s.py", "suite": ["t/e.py"]}}
-    assert check_subject._owner(m, "suite", "oracle", "script") == "[oracle] script or a file [oracle] suite lists"
-    assert check_subject._owner({"oracle": {"script": "s.py"}}, "suite", "oracle", "script") == "[oracle] script"
+    assert check_subject._owner(m, "suite", "oracle", "script", "s.py") == "[oracle] script s.py or a file [oracle] suite lists"
+    assert check_subject._owner({"oracle": {"script": "s.py"}}, "suite", "oracle", "script", "s.py") == "[oracle] script s.py"
 
 
 def test_task_0339_a_duplicate_subject_id_is_named_on_stderr_once():
@@ -199,4 +199,4 @@ def test_task_0339_a_duplicate_subject_id_is_named_on_stderr_once():
                 subject_ids.subjects()
         finally:
             os.environ.pop("KG_SUBJECTS") if old is None else os.environ.update(KG_SUBJECTS=old)
-        assert err.getvalue().count("'dup'") == 1 and "first root's is kept" in err.getvalue()
+        assert err.getvalue().count("'dup'") == 1 and "the root kept is " in err.getvalue()

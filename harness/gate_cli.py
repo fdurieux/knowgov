@@ -653,7 +653,7 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
     def route(unit, key):   # the files routing names, so the route points where the questionnaire is written (G8)
         files = ((owners or {}).get(key) or {}).get("files")
         return questionnaire_route(subject, scenario, rt, unit, files) if route_keys is None or key in route_keys else None
-    fs = findings(res, block_levels, owners, route, closers, suspect_scope)
+    fs = register_routes(findings(res, block_levels, owners, route, closers, suspect_scope), register_change)
     fail = baseline["regression"] if baseline is not None else bool(at_or_above(fs, threshold))
     if baseline is not None:
         mark_held(fs, baseline)
@@ -678,6 +678,22 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
             # task-0341, decision-0040 (a): the code and suite compared, the pre-load report applied; additive
             "code": inputs.get("code"), "preload": inputs.get("preload"),
             **({"register_change": register_change} if register_change is not None else {})}   # task-0122, additive
+
+
+REGISTER_ROUTE = ("the register update (--register-previous) stales these statements again on every run it is passed, so a "
+                  "questionnaire, ingest or review cannot restore them: re-map the key in register_map.toml, or advance the previous "
+                  "register to the new one once the owner confirms the update")
+
+
+def register_routes(fs: list[dict], rc: dict | None) -> list[dict]:
+    """R3 (B-N2): a key, or a stale statement of it, that a register update staled names the remedy as its route, not the
+    owner's questionnaire, which can never restore it while ``--register-previous`` is passed."""
+    keys = {k["key"] for k in (rc or {}).get("keys") or []}
+    gone = set((rc or {}).get("invalidated") or [])
+    for f in fs:
+        if f["kind"] in ("key", "stale") and f["key"] in keys and (f["kind"] == "key" or f["ref"] in gone) and f.get("route"):
+            f["route"] = REGISTER_ROUTE
+    return fs
 
 
 def suspect_scope(st, res: dict, spec: dict) -> dict[str, dict] | None:
@@ -999,7 +1015,7 @@ def run(args) -> dict:
         from tasks import TASKS
     except Exception as e:  # noqa: BLE001 — a subject that does not load is a cannot-run
         raise CannotRun(f"the subject does not load: {e}") from e
-    scenario = args.scenario or (SUBJECT.order[0] if SUBJECT.order else "")
+    scenario = _scenario_read(args, SUBJECT)
     if scenario not in SUBJECT.scenarios:
         raise CannotRun(f"{SUBJECT.id}: no scenario {scenario!r}; the subject declares {SUBJECT.order or 'none'}")
     if args.task not in TASKS:
@@ -1060,15 +1076,45 @@ def run(args) -> dict:
                 pass
 
 
+def _scenario_read(args, SUBJECT) -> str:
+    """The scenario named, else (R1) with ``--no-load`` the one the store holds, else the subject's first: resolved before
+    the baseline is checked against it."""
+    if args.scenario:
+        return args.scenario
+    first = SUBJECT.order[0] if SUBJECT.order else ""
+    return _peek_held(SUBJECT, first) if args.no_load else first
+
+
+def _peek_held(SUBJECT, default: str) -> str:
+    """The scenario the store holds for this subject, else ``default`` (the refusal then names why, in ``_gate_on``)."""
+    from store import open_store
+    try:
+        st = open_store(instance=SUBJECT.id, access="read")
+    except Exception:  # noqa: BLE001 — a store that cannot open is reported where it is opened for the read
+        return default
+    try:
+        h = st.held()
+        return h.get("scenario") if h and h.get("scenario") in SUBJECT.scenarios and h.get("subject", SUBJECT.id) == SUBJECT.id else default
+    except Exception:  # noqa: BLE001
+        return default
+    finally:
+        try:
+            st.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def _held_scenario(h: dict, default: str) -> str:
     return h.get("scenario") or default
 
 
 def _own_cause(e: Exception) -> str | None:
-    """S1: the manifest is the cause, said as itself; so is a ``KG_PRELOAD_REPORT`` that names no file (task-0312 R2).
-    None leaves it to the store's line."""
-    from subject import CodePathOutside
-    return str(e) if isinstance(e, CodePathOutside) or (isinstance(e, FileNotFoundError) and "KG_PRELOAD_REPORT names" in str(e)) else None
+    """S1: the manifest is the cause, said as itself (task-0329 R6: a code file outside, unreadable or not a path); so is a
+    ``KG_PRELOAD_REPORT`` that names no file (task-0312 R2). None leaves it to the store's line."""
+    from subject import CodePathOutside, CodeUnreadable
+    if isinstance(e, (CodePathOutside, CodeUnreadable)):
+        return str(e)
+    return str(e) if isinstance(e, FileNotFoundError) and "KG_PRELOAD_REPORT names" in str(e) else None
 
 
 def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
@@ -1281,7 +1327,7 @@ def deliver(rep: dict, args) -> None:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="gate_cli.py", description="Resolve a task's required knowledge and exit 0, 1 or 2.")
     ap.add_argument("--subject", help="the subject root (default: KG_SUBJECT, else subjects/cargo_quote)")
-    ap.add_argument("--scenario", help="the scenario to load (default: the subject's first)")
+    ap.add_argument("--scenario", help="the scenario to load (default: the subject's first; with --no-load, the one the store holds)")
     ap.add_argument("--task", default="codegen", help="the task class (default: codegen)")
     ap.add_argument("--fail-on", choices=SEVERITIES, default="blocker", help="the severity at or above which the gate exits 1 (default: blocker)")
     ap.add_argument("--baseline", default="none", help="none (default), record (stage 1 only), or the path of an earlier report or deterministic.json: exit 1 only on a regression")

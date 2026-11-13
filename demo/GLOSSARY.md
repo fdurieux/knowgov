@@ -160,7 +160,7 @@ vocabulary: whether a fact holds, whether it is contested, and why a key is empt
 | status `proposed` | loaded, not yet corroborated, verified or approved | no counterpart: PROV-O records how a thing came to be, not whether it holds | proposed |
 | status `validated` | corroborated: another assertion of the same key agrees | no counterpart | unverified (closest) |
 | status `verified` | a verification passed: execution (the subject's attested suite result, on the Versions it lists), or a review | the verification is a `prov:Activity` that `prov:used` the assertion; the status has no counterpart | verified |
-| status `approved` | a person approved a verified assertion, with who, when and which record | the approval is a `prov:Activity` `prov:wasAssociatedWith` the approver; the status has no counterpart | verified, with the approver |
+| status `approved` | a person approved the assertion, with who, when and which record: an approval of a verified assertion, or a ruling on a document's statement, which approves it directly with no verification | the approval is a `prov:Activity` `prov:wasAssociatedWith` the approver; the status has no counterpart | verified, with the approver |
 | status `disputed` | two assertions of one key conflict and nobody has ruled | no counterpart | no counterpart |
 | status `invalidated` | a source change ended it and its verifications | `prov:wasInvalidatedBy` the re-ingestion `prov:Activity`, at `prov:invalidatedAtTime` | superseded, once a verified or approved successor exists (`prov:wasRevisionOf` from the successor); else no counterpart |
 | status `rejected` | a ruling took it out of the live set; it keeps its history | no counterpart | rejected |

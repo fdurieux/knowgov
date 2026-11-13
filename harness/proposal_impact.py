@@ -810,7 +810,7 @@ def candidates(T, root: Path, base: dict, read: dict, ov: Overlay) -> list[dict]
     for r in ov.reused:
         if r["declared"] and r["id"] not in on_links:
             out.append({"rule": "D1", "basis": "authored", "kind": "reuse", "element": r["id"], "link": None, "same_as": r["id"],
-                        "pool": None, "stated": True, "status": "proposed", "reason": f"the proposal reuses {r['id']} {r['mode']}"})
+                        "pool": None, "stated": True, "status": "proposed", "reason": _reuse_reason(r)})
     # D2: an external id matched through a register node's [source], else the newest landed export
     fields = _id_fields(base)
     for n in ov.nodes:
@@ -1096,8 +1096,24 @@ def _node_file(checkout: Path, mb: str, head: str, st: str, path: str, nodes: li
             not_read.append({"path": path, "status": st, "why": gone})
         else:
             reused.append({"id": n.get("id", Path(path).stem), "mode": "changed"})
+            what = _what_changed(_toml_at(checkout, mb, path), n)
+            if what:
+                _WHAT[n.get("id", Path(path).stem)] = what
     else:
         not_read.append({"path": path, "status": st, "why": "a node file deleted: retiring is register_impact's question"})
+
+
+def _reuse_reason(r: dict) -> str:
+    return f"the proposal reuses {r['id']} {r['mode']}" + (f" ({_WHAT[r['id']]})" if r["id"] in _WHAT else "")
+
+
+_WHAT: dict[str, str] = {}   # branch mode: what a reused node's change was, by id, for D1's reason; cleared per evaluation
+
+
+def _what_changed(old: dict, new: dict) -> str:
+    """What differs between a node file's two versions, e.g. ``parent CAP-0001 -> CAP-0006`` (state comments ignored)."""
+    return "; ".join(f"{k} {old.get(k)} -> {new.get(k)}" for k in sorted(set(old) | set(new))
+                     if k != "_taxonomy" and old.get(k) != new.get(k))
 
 
 def _link_in_place(old: dict, new: dict) -> str:
@@ -1137,7 +1153,7 @@ def branch_overlay(checkout: Path, base: str, taxonomies: tuple[str, ...]) -> tu
                     not_read.append({"path": f"{path} [{ln.get('id')}]", "status": "M", "why": _link_in_place(before[ln.get("id")], ln)})
             after = {ln.get("id") for ln in new.get("link", [])}
             for lid in sorted(set(before) - after):
-                not_read.append({"path": f"{path} [{lid}]", "status": "D", "why": "a link removed is not an addition"})
+                not_read.append({"path": f"{path} [{lid}]", "status": "D", "why": "a link removed is not an addition; gate_cli --register-previous reads a link withdrawn and stales the keys it touches"})
         elif top == "exceptions" and path.count("/") == 1 and st == "A":
             e = _toml_at(checkout, head, path)
             excs.append({k: e[k] for k in ("id", "rule", "scope", "expires", "rationale") if k in e})
@@ -1164,6 +1180,7 @@ def evaluate_branch(checkout: Path, base: str, today: dt.date | None = None, chi
         raise ProposalError(f"{checkout}: not a register checkout (no metamodel/types.toml)")
     T = ri.load_tools(checkout)
     taxonomies = tuple(T["register"].TAXONOMIES)
+    _WHAT.clear()
     proposal, info = branch_overlay(checkout, base, taxonomies)
     tmp = Path(tempfile.mkdtemp(prefix="kg-proposal-base-"))
     try:
@@ -1175,6 +1192,7 @@ def evaluate_branch(checkout: Path, base: str, today: dt.date | None = None, chi
         report = evaluate(proposal, root=tmp, today=today, children=children, register_map=register_map, scope=scope,
                           task=task, tasks=tasks, empty=True)
     finally:
+        _WHAT.clear()
         shutil.rmtree(tmp, ignore_errors=True)
         _checks.pop(str(tmp.resolve()), None)
         ri._tools.pop(str(tmp.resolve()), None)
@@ -1203,6 +1221,15 @@ def read_proposal(path: Path) -> dict:
     return doc
 
 
+def _reason_suffix(c: dict) -> str:
+    return f" ({c['reason']})" if c["kind"] == "reuse" else ""
+
+
+def _not_read_lines(b: dict) -> list[str]:
+    """R9: what the branch changed that is not an addition, with its pointer, visible in the text."""
+    return [f"    not read {x['path']} ({x['status']}): {x['why']}" for x in b["not_read"]]
+
+
 def render_text(r: dict) -> str:
     sc = r["slices"].get("scope")
     lines = [f"scope {sc['id']} ({sc['kind']}, {sc['name']})"] if sc else []
@@ -1216,6 +1243,7 @@ def render_text(r: dict) -> str:
         b = r["branch"]
         lines.append(f"  branch {b['head'][:12]} against {b['base']} (merge base {b['merge_base'][:12]}); not read: "
                      f"{[x['path'] for x in b['not_read']] or 'nothing'}")
+        lines += _not_read_lines(b)
     for c in r["coverage"]["after"]:   # every rule the register's checker defines, in its order (task-0241)
         b, a = r["coverage"]["before"][c], r["coverage"]["after"][c]
         lines.append(f"  {c}: {b['covered']}/{b['denominator']} -> {a['covered']}/{a['denominator']} covered; "
@@ -1225,7 +1253,8 @@ def render_text(r: dict) -> str:
     for c in r["candidates"]:
         what = c["link"] and f"{c['link']['source']} {c['link']['type']} {c['link']['target']}" or (
             c["pool"] is not None and f"pool {c['pool'] or 'empty'}, none chosen") or f"same as {c['same_as']}"
-        lines.append(f"  candidate {c['rule']} {c['basis']}{' stated' if c['stated'] else ''}: {c['element']}: {what}")
+        lines.append(f"  candidate {c['rule']} {c['basis']}{' stated' if c['stated'] else ''}: {c['element']}: {what}"
+                     + _reason_suffix(c))
     for x in r["reach"]:
         lines.append(f"  reach from {x['node']}{' (changed)' if x['changed'] else ''}: +{[a['id'] for a in x['added']] or 'nothing'}")
     for x in r["rests_on"]:
