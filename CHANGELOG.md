@@ -10,6 +10,7 @@ names that section with the version.
 
 ## Unreleased
 
+- A decided ruling of the same day by another reviewer settles a legacy ambiguous review act only when its outcome is the act's; an opposing one leaves the act major, naming both files, until a later day rules. The reviewer is read from the ruling's recorded `by`, never the file name (task-0323).
 - The published compose file runs the v0.9.0 release: `app` and `worker` pin `ghcr.io/fdurieux/knowgov:v0.9.0` by its index digest (`sha256:1785793d…`), where they ran v0.8.0.
 - An ambiguous review act is settled only by a later decided ruling (approved or rejected) of its statement, never by a referral, and another reviewer's decided ruling the same day settles it too; the review walkthrough names `--publish` / `KG_PUBLISH=1` for checking the act path on Neo4j (task-0323).
 - The pre-load check's Spectral pin moves to 6.17.1, the same in `instance/ci/package.json`, `instance/ci/preload-check.yml` and the harness workflow (Dependabot #471, which moved only the first).

@@ -635,7 +635,7 @@ def _apply_rulings(st, rv: dict, ctx: tuple, caps, opposed: dict, bound: list, c
             settled.add(b["key"])   # the review settled the dispute whole (review.check), lapse or not
         st.apply_ruling(b["id"], outcome, rid, person, on, rv["record"], until.isoformat() if until else "")
         bound.append({"at": review.order_key(p, doc), "rel": rel, "id": b["id"], "key": b["key"], "value": str(ru["value"]),
-                      "sha256": ru["sha256"], "giver": ru.get("giver"), "outcome": outcome})
+                      "sha256": ru["sha256"], "giver": ru.get("giver"), "outcome": outcome, "by": rv["by"]})
         counts[outcome] += 1
         if ru["unbound"]:   # the read rule: a file from before 0.9.0 binds by id, and the gate says so
             st.record_act_finding(_act(f"actf:{rid}:ruling:{ru['n']}", head, "ruling", ru["n"], b["id"], outcome, b["key"],
