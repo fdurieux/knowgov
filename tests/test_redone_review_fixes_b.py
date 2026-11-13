@@ -409,3 +409,86 @@ def test_le_a_spoofed_stage_two_version_does_not_read_as_a_register_update():
 def test_lb_trace_check_routes_a_register_staled_finding_as_the_gate_does():
     src = (ROOT / "harness" / "trace.py").read_text(encoding="utf-8")
     assert "gate_cli.register_routes(gate_cli.findings(" in src
+
+
+# ---- train 5 (R1 document side, R3) ----
+def test_t5r1_an_unreadable_document_is_the_manifests_cause_and_a_store_permission_error_stays_the_stores():
+    need_rdflib()
+    with tempfile.TemporaryDirectory() as tmp:
+        sub = Path(tmp) / "subjects" / "cargo_quote"
+        shutil.copytree(CQ, sub)
+        doc = sub / "vendor" / "kg_experiment" / "kit" / "requirements.md"
+        assert doc.exists()
+        site = Path(tmp) / "site"
+        site.mkdir()
+        (site / "sitecustomize.py").write_text(
+            "import builtins, io, os\n"
+            "_o = builtins.open\n"
+            "def _open(f, *a, **k):\n"
+            f"    if str(f).endswith({str(doc)!r}):\n"
+            "        raise PermissionError(13, 'Permission denied', str(f))\n"
+            "    return _o(f, *a, **k)\n"
+            "builtins.open = _open\n"
+            "io.open = _open\n"
+            "_p = __import__('pathlib').Path\n"
+            "_rb, _rt = _p.read_bytes, _p.read_text\n"
+            "def rb(self):\n"
+            f"    if str(self) == {str(doc)!r}: raise PermissionError(13, 'Permission denied', str(self))\n"
+            "    return _rb(self)\n"
+            "def rt(self, *a, **k):\n"
+            f"    if str(self) == {str(doc)!r}: raise PermissionError(13, 'Permission denied', str(self))\n"
+            "    return _rt(self, *a, **k)\n"
+            "_p.read_bytes, _p.read_text = rb, rt\n", encoding="utf-8")
+        env = {**os.environ, "KG_SUBJECT": str(sub), "KG_STORE": "rdflib", "KG_REGISTER": str(ROOT / "demo" / "register"),
+               "KG_CLOCK": "pinned", "PYTHONPATH": str(site) + os.pathsep + os.environ.get("PYTHONPATH", "")}
+        env.pop("KG_RDFLIB_FILE", None)
+        p = subprocess.run([sys.executable, str(ROOT / "harness" / "gate_cli.py"), "--as-of", "record", "--scenario", "S3"],
+                           capture_output=True, text=True, env=env, cwd=ROOT / "harness")
+        assert p.returncode == 2 and "store did not answer" not in p.stderr, p.stderr[-400:]
+        assert "document" in p.stderr and "requirements.md" in p.stderr and "permission denied" in p.stderr, p.stderr[-400:]
+
+
+def test_t5r3_every_unreadable_code_script_or_suite_file_reads_the_same_way_with_its_own_field():
+    need_rdflib()
+    for which, field in (("implementation", "[reference] code"), ("suite", "[oracle] script")):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "a" / "b" / "sub"
+            root.mkdir(parents=True)
+            f = root / "s.py"
+            f.write_text("x", encoding="utf-8")
+            real = Path.read_bytes
+            Path.read_bytes = lambda self, f=f: (_ for _ in ()).throw(PermissionError(13, "Permission denied", str(self))) if self == f else real(self)
+            try:
+                subject_mod.code_files(root, {"code": "s.py"}, {"script": "s.py"}, which)
+            except subject_mod.CodeUnreadable as e:
+                assert str(e) == f"{field} s.py cannot be read (permission denied)" and e.where == field, str(e)
+            else:
+                raise AssertionError("no refusal")
+            finally:
+                Path.read_bytes = real
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "a" / "b" / "sub"
+        (root / "t").mkdir(parents=True)
+        (root / "s.py").write_text("x", encoding="utf-8")
+        suite = root / "t" / "e.py"
+        suite.write_text("y", encoding="utf-8")
+        real = Path.read_bytes
+        Path.read_bytes = lambda self: (_ for _ in ()).throw(PermissionError(13, "Permission denied", str(self))) if self == suite else real(self)
+        try:
+            import check_subject
+            rep = check_subject.Report(root)
+            check_subject._unreadable(rep, {"oracle": {"script": "s.py", "suite": ["t/e.py"]}}, root)
+        finally:
+            Path.read_bytes = real
+        assert [f["where"] for f in rep.findings] == ["[oracle] suite"] and "[oracle] suite t/e.py cannot be read" in rep.findings[0]["message"]
+
+
+def test_t5r3_the_yield_note_does_not_name_the_cause_a_second_time():
+    import check_subject
+    rep = check_subject.Report(CQ)
+    rep.error("path", "[reference] code", "x cannot be read (permission denied)", "fix")
+    check_subject._note_unchecked(rep, {"why": "the mappers could not run here: CodeUnreadable"})
+    assert rep.notes == []
+    rep2 = check_subject.Report(CQ)
+    check_subject._note_unchecked(rep2, {"why": "the mappers need yaml"})
+    assert len(rep2.notes) == 1

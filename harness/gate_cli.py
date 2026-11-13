@@ -1152,8 +1152,8 @@ def _held_scenario(h: dict, default: str) -> str:
 def _own_cause(e: Exception) -> str | None:
     """S1: the manifest is the cause, said as itself (task-0329 R6: a code file outside, unreadable or not a path); so is a
     ``KG_PRELOAD_REPORT`` that names no file (task-0312 R2). None leaves it to the store's line."""
-    from subject import CodePathOutside, CodeUnreadable
-    if isinstance(e, (CodePathOutside, CodeUnreadable)):
+    from subject import CodePathOutside, FileUnreadable
+    if isinstance(e, (CodePathOutside, FileUnreadable)):
         return str(e)
     return str(e) if isinstance(e, FileNotFoundError) and "KG_PRELOAD_REPORT names" in str(e) else None
 

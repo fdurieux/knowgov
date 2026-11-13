@@ -18,6 +18,7 @@ names a subject, a document or a scenario: all of it comes from here.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import os
 import re
@@ -73,8 +74,17 @@ def bundle_files(root: Path, include: list[str] | None = None) -> list[tuple[str
 REFERENCE_INCLUDE = ["*.py", "**/*.py"]   # the files of a reference implementation directory the load bundles and digests
 
 
-class CodeUnreadable(Exception):
-    """R6: ``[reference] code`` is not text (not UTF-8), said as the manifest's cause."""
+class FileUnreadable(Exception):
+    """A file the manifest names that this user cannot read, said as the manifest's cause, never the store's (L-a, R1);
+    ``where`` names the field or document it is."""
+
+    def __init__(self, message: str, where: str = ""):
+        super().__init__(message)
+        self.where = where
+
+
+class CodeUnreadable(FileUnreadable):
+    """R6: ``[reference] code`` is not text (not UTF-8), or a code, script or suite file cannot be read."""
 
 
 class CodePathOutside(Exception):
@@ -131,11 +141,21 @@ def code_files(root: Path, reference, oracle, which: str) -> tuple[str | None, d
         return "", {}, {}
     if not isinstance(rel, str):
         return None, {}, {}
-    parts = _file_digests(root / rel, REFERENCE_INCLUDE if which == "implementation" else None, "")
+    where = "[reference] code" if which == "implementation" else "[oracle] script"
+    parts = _digests_of(root / rel, REFERENCE_INCLUDE if which == "implementation" else None, "", where, rel)
     declared: dict[str, str] = {}
     for extra in [x for x in suite_files(oracle) if path_inside(root, x) and not escaping_file(root, x)] if which == "suite" else []:
-        declared.update(_file_digests(root / extra, None, extra) or {extra: ""})
+        declared.update(_digests_of(root / extra, None, extra, "[oracle] suite", extra) or {extra: ""})
     return rel, {**parts, **declared}, declared
+
+
+def _digests_of(p: Path, include, prefix: str, where: str, rel: str) -> dict[str, str]:
+    """``_file_digests`` with the field and the relative path in a refusal, so every unreadable code, script or suite file
+    reads the same way (R3)."""
+    try:
+        return _file_digests(p, include, prefix)
+    except CodeUnreadable as e:
+        raise CodeUnreadable(f"{where} {rel} cannot be read (permission denied)", where=where) from e
 
 
 def code_digests(root: Path, reference, oracle) -> dict[str, str]:
@@ -287,7 +307,8 @@ class Subject:
     def artefact_text(self, key: str) -> str:
         a = next(x for x in self.artefacts if x["key"] == key)
         p = self.root / a["path"]
-        return bundle(p, a.get("include")) if p.is_dir() else p.read_text(encoding="utf-8")
+        with self._document(a):
+            return bundle(p, a.get("include")) if p.is_dir() else p.read_text(encoding="utf-8")
 
     @property
     def order_keys(self) -> list[str]:
@@ -318,7 +339,8 @@ class Subject:
         p = self.root / a["path"]
         if not p.is_dir():
             return {}
-        return {rel: hashlib.sha256(f.read_bytes()).hexdigest() for rel, f in bundle_files(p, a.get("include"))}
+        with self._document(a):
+            return {rel: hashlib.sha256(f.read_bytes()).hexdigest() for rel, f in bundle_files(p, a.get("include"))}
 
     def version_digest(self, key: str, text: str) -> tuple[str, int]:
         """A Version's (SHA-256, bytes) for ``key`` as a scenario's kit holds it (``text``), task-0160: for a
@@ -329,7 +351,8 @@ class Subject:
         a = next((x for x in self.artefacts if x["key"] == key), None)
         p = self.root / a["path"] if a and a.get("path") else None
         if p is not None and p.is_file():
-            raw = p.read_bytes()
+            with self._document(a or {}):
+                raw = p.read_bytes()
             if raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n") == text:
                 return hashlib.sha256(raw).hexdigest(), len(raw)
         enc = text.encode("utf-8")
@@ -372,8 +395,26 @@ class Subject:
         ``[oracle] script``, the suite that judged it, with the files ``[oracle] suite`` lists (task-0338). Each digested
         as a directory artefact is (``bundle_files``, the load's own part selection; a file one entry named '');
         ``code_files``. (None, {}) when the subject declares none."""
-        rel, parts, _declared = code_files(self.root, self.reference, self.oracle, which)
+        with self._unreadable():
+            rel, parts, _declared = code_files(self.root, self.reference, self.oracle, which)
         return (None if rel is None else str(rel)), parts
+
+    @contextlib.contextmanager
+    def _document(self, a: dict):
+        """R1: a document the manifest names that this user cannot read is the manifest's cause, never the store's."""
+        try:
+            yield
+        except PermissionError as e:
+            raise FileUnreadable(f"{self.id}: document {a.get('path')} ({a.get('key')}) cannot be read (permission denied)",
+                                 where="document") from e
+
+    @contextlib.contextmanager
+    def _unreadable(self):
+        """A file the subject names that cannot be read, named with the subject (R1, R3)."""
+        try:
+            yield
+        except FileUnreadable as e:
+            raise type(e)(f"{self.id}: {e}", where=e.where) from e
 
     def _code_paths(self) -> list[tuple[str, str]]:
         """Each path the manifest names for code and suite, with where; a value that is not a path string is the
@@ -407,11 +448,13 @@ class Subject:
             self.require_code_inside()
         except CodePathOutside:
             return None
-        return code_digests(self.root, self.reference, self.oracle)
+        with self._unreadable():
+            return code_digests(self.root, self.reference, self.oracle)
 
     def suite_declared(self) -> dict[str, str]:
         """The files ``[oracle] suite`` lists, each with its raw-byte SHA-256 ('' when it holds no file), by path."""
-        return code_files(self.root, self.reference, self.oracle, "suite")[2]
+        with self._unreadable():
+            return code_files(self.root, self.reference, self.oracle, "suite")[2]
 
     def oracle_script(self) -> Path | None:
         rel = self.oracle.get("script")
