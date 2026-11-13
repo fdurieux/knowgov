@@ -30,7 +30,7 @@ def _s2() -> dict:
 def test_one_questionnaire_per_owner_with_its_open_keys_and_the_denominator():
     nodes = capture.register_nodes(ROOT / "demo" / "register")
     qs = capture.questionnaires(_s2(), CARGO_QUOTE, "S2", "codegen", nodes, TODAY)
-    assert sorted(qs) == ["ORG-0001", "ORG-0002"], sorted(qs)
+    assert sorted(qs) == ["ORG-0002"], sorted(qs)   # task-0315 C2-5: ORG-0001 has nothing open, so no file
     doc = tomllib.loads(qs["ORG-0002"])
     q = doc["questionnaire"]
     assert (q["owner"], q["keys_owned"], q["open"]) == ("ORG-0002", 7, 3)
@@ -54,7 +54,7 @@ def test_each_key_has_one_answering_owner_so_the_questionnaires_do_not_overlap()
     qs = capture.questionnaires(_s2(), CARGO_QUOTE, "S2", "codegen", nodes, TODAY)
     owned = {o: tomllib.loads(t)["questionnaire"]["keys_owned"] for o, t in qs.items()}
     asked = {o: [i["key"] for i in tomllib.loads(t).get("item", [])] for o, t in qs.items()}
-    assert owned == {"ORG-0001": 29, "ORG-0002": 7}, owned
+    assert owned == {"ORG-0002": 7}, owned   # ORG-0001 has nothing open: no file (task-0315 C2-5)
     flat = [k for ks in asked.values() for k in ks]
     assert len(flat) == len(set(flat)) == 3, asked
 
@@ -132,6 +132,9 @@ def test_the_reviewer_sees_each_ruled_answers_note_before_ruling():
     assert "note: 'as the author of the 2025 memo'" in out and "note: none" in out
     assert "ruling 3 (A:doc:1): not a captured answer" in out and "reject the statement if it does" in out
     assert "reject" not in capture.show_rulings({"ruling": doc["ruling"][1:]}, caps), "no note, no prompt"
+    bound = {"ruling": [{"assertion": "A:doc:1", "key": "K", "value": "v", "sha256": "ab", "outcome": "approved"}]}
+    shown = capture.show_rulings(bound, caps)   # task-0315 N3: a document statement shows what it was bound to
+    assert "not a captured answer" in shown and "key 'K'" in shown and "value 'v'" in shown and "sha256 'ab'" in shown, shown
 
 
 def test_ingest_refuses_a_handle_the_register_has_not_issued_by_the_answers_date():
@@ -233,7 +236,7 @@ def test_s2s_questionnaire_for_org_0002_names_org_0004_as_closing_od_1():
     want = capture.gap_closers(CARGO_QUOTE, {"QuoteAPI|on_screening_outage": _s2_with_od1()["keys"]["QuoteAPI|on_screening_outage"]["declared_gaps"]})
     assert item["closed_by"] == want["QuoteAPI|on_screening_outage"]["unit"]
     before = capture.questionnaires(_s2(), CARGO_QUOTE, "S2", "codegen", nodes, TODAY)
-    assert qs["ORG-0001"] == before["ORG-0001"] and "closed_by" not in before["ORG-0002"]
+    assert sorted(qs) == sorted(before) and "closed_by" not in before["ORG-0002"]
 
 
 def test_ingest_is_unchanged_and_a_questionnaire_from_before_still_ingests():
@@ -258,3 +261,24 @@ def test_ingest_is_unchanged_and_a_questionnaire_from_before_still_ingests():
         caps.append(capture.capture_toml(cap, "captures/2026-11-02-ORG-0002-employee-1.toml"))
     assert caps[0] == caps[1]
     assert tomllib.loads(caps[0])["unknown"] == [{"key": "QuoteAPI|on_screening_outage", "note": "compliance has not decided"}]
+
+
+def test_no_questionnaire_is_written_for_an_owner_with_nothing_open():
+    """task-0315 C2-5."""
+    res = _s2()
+    for v in res["keys"].values():
+        v["level"] = "held"   # not one of OPEN_LEVELS
+    qs = capture.questionnaires(res, CARGO_QUOTE, "S2", "codegen", capture.register_nodes(ROOT / "demo" / "register"), TODAY)
+    assert qs == {}, sorted(qs)
+
+
+def test_ingest_refuses_a_handle_of_another_unit_in_a_questionnaire_it_does_not_own():
+    """task-0315 C2-6: employee-3 belongs to ORG-0001; the questionnaire is ORG-0002's."""
+    import review
+    keys = set(CARGO_QUOTE.tasks["codegen"]["keys"])
+    reg = ROOT / "demo" / "register"
+    pattern, handles = capture.handle_pattern(reg), review.issued_handles(reg)
+    assert handles["employee-3"]["unit"] == "ORG-0001", handles["employee-3"]
+    errs, _ = capture.check_answers(_answered(handle="employee-3"), pattern, keys, TODAY, handles)
+    assert any("ORG-0001" in e and "ORG-0002" in e for e in errs), errs
+    assert capture.check_answers(_answered(handle="employee-1"), pattern, keys, TODAY, handles)[0] == []

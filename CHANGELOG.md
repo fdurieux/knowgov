@@ -20,6 +20,10 @@ names that section with the version.
 - Routes and next steps (task-0311, doc-0037 §5): capture routes say how to run `capture.py` from an instance repository; a review's lapse route names `capture.py review` and its role; the bar's blocker names a next step; a key awaiting a reviewer names the assertion; questionnaires say which task and finding asked; the hook tells the assistant when a QUALIFIED gate lets a step through; annotations end the message with a full stop before `Owner:`.
 - 0.9.x walks and tools (task-0314): `upward`, `register_nodes` and `proposal_impact` exit 2 with one line on an unloadable subject or a refused task policy; a sub-gate's `why` counts "the N keys reached"; `key_nodes` answers `mapped: false` for a held, unmapped key; a gate key finding's `related` carries its conflict ids; an unknown key gets a did-you-mean; the check tools no longer read `--help` as an output directory; the page's thread walk lists capabilities and entities reached; `code_path`'s suspect block names the scenario it was read against; `held_keys` says it counts stored statuses.
 - Onboarding and pre-load messages (task-0312): `check_subject` notes a missing `register_map.toml`; a document judged only by a step-4 check, its kind's linter never having run, stays `unchecked` in the pre-load report (it was `clean`), and a `KG_PRELOAD_REPORT` that names no file is said so, not blamed on the store.
+- With an organisation's instance mounted, a configured contained worker (`KG_WORKER_JOBS`) is admitted for arms runs; the host guard still refuses without `KG_ALLOW_UNCONTAINED_EXECUTION=1`, and its message now names the worker as the way forward (task-0315, C-F7-1).
+- `capture.py questionnaire` writes no file for an owner with no open item, and `ingest` refuses a handle of another unit in a questionnaire it does not own (task-0315, C2-5, C2-6).
+- `check_subject`'s "matches no current Version" error names which listed digests do match a file (message text only; task-0315, C2-7).
+- `capture.py review --show` shows a document statement's recorded key, value and digest instead of only "not a captured answer" (task-0315).
 
 ## 0.9.0 — 2026-11-12
 
