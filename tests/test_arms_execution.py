@@ -234,3 +234,22 @@ def test_the_worker_chip_names_where_model_output_runs_as_the_worker_attested_it
     assert "<b>" not in chip and "&lt;b&gt;" in chip, chip
     page = PAGE.read_text(encoding="utf-8")
     assert "armsChip() + workerChip() +" in page
+
+
+def test_the_pages_execution_chip_answers_for_the_subject_of_the_request():
+    """task-0315 L1: with a fresh attestation, a copy of cargo_quote outside the checkout (a colliding id, another root)
+    is not ok, whatever KG_SUBJECT names, and the shipped one is."""
+    import shutil
+    import server
+    import page_subject
+    from subject import Subject
+    with tempfile.TemporaryDirectory() as td:
+        (Path(td) / execution.ATTEST).write_text(json.dumps({**FRESH, "heartbeat": time.time()}), encoding="utf-8")
+        copy = Path(td) / "subjects" / "cargo_quote"
+        shutil.copytree(ROOT / "subjects" / "cargo_quote", copy, symlinks=True)
+        with _env(**PUBLIC, KG_WORKER_JOBS=td):
+            with page_subject.using(Subject(ROOT / "subjects" / "cargo_quote")):
+                assert server.execution_view() == {"ok": True, "why": None}
+            with page_subject.using(Subject(copy)):
+                got = server.execution_view()
+        assert got["ok"] is False and "ships" in got["why"], got

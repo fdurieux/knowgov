@@ -124,8 +124,9 @@ def verdicts(subject, kit: dict[str, str], keys, report: dict, name: str) -> dic
 def lint_gaps(artefact: str, version: str, v: dict) -> list[dict]:
     """Each finding the report gave a version's exact bytes, as the store keeps it (task-0216, decision-0018
     point 5): one gap per finding, its id stable across stores and loads (the document, its version, the tool,
-    rule, line and message, never the store's order), ``held`` when the baseline holds it. A version left
-    unchecked, or whose bytes differ from those judged, holds none: there is no finding of its bytes."""
+    rule, line and message, never the store's order), ``held`` when the baseline holds it. A version whose bytes
+    differ from those judged holds none: there is no finding of its bytes. One a step-4 check judged alone is
+    unchecked and holds the check's findings (``verdicts``, task-0312 R1)."""
     out = []
     for f in v.get("findings") or []:
         tool = f.get("tool") or v.get("tool")   # a step-4 check's finding names its check (task-0217); the linter's, the row's

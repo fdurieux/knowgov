@@ -49,7 +49,7 @@ def test_b_x3_r1_a_sub_gate_words_proceed_blocked_and_qualified_and_gate_verdict
     proceed = _sub(st, SUBJECT, "S4", ok, sub_gate=True)
     assert proceed["verdict"] == "PROCEED" and proceed["why"] == "all of the 2 keys reached verified or approved, none flagged", proceed["why"]
     blocked = _sub(st, SUBJECT, "S4", ok + [bad], sub_gate=True)
-    assert blocked["verdict"] == "BLOCKED" and blocked["why"].startswith("1 of the keys reached at a blocking level: " + bad), blocked["why"]
+    assert blocked["verdict"] == "BLOCKED" and blocked["why"].startswith("1 of the 3 keys reached at a blocking level: " + bad), blocked["why"]
     assert "(s)" not in blocked["why"] and "reached(" not in blocked["why"], blocked["why"]
     # the share form (BLOCKED by the bar) and QUALIFIED, on a class that does not block the disputed key
     import gate_cli
@@ -145,7 +145,7 @@ MAIN_SCRIPTS_THAT_READ_STDIN = {"instance/ci/claude/attestation_paths.py", ".cla
 
 def test_b_x7_r5_help_exits_0_prints_and_creates_nothing_in_every_main_script():
     import tempfile
-    scripts = [p for d in ("tools", "harness", "demo/app", "demo/tools", "instance/ci", "instance/ci/claude", ".claude/hooks")
+    scripts = [p for d in ("tools", "tools/quality", "harness", "demo/app", "demo/tools", "instance/ci", "instance/ci/claude", ".claude/hooks")
                for p in sorted((ROOT / d).glob("*.py")) if '__main__' in p.read_text(encoding="utf-8")]
     scripts = [p for p in scripts if str(p.relative_to(ROOT)) not in MAIN_SCRIPTS_THAT_READ_STDIN]
     assert len(scripts) > 60, len(scripts)   # able to fail: the scan found the scripts
@@ -179,3 +179,37 @@ def test_r_t2_the_pages_thread_walk_has_capability_and_entity_buckets():
     w = register_view.impact("PROC-0001", "thread")
     assert "capabilities" in w["reached"] and "entities" in w["reached"], list(w["reached"])
     assert "capabilities" not in register_view.impact("PROC-0001", "dependants")["reached"]
+
+
+def test_l1_a_key_with_a_tilde_keeps_its_conflict_ids_and_a_report_without_keys_is_read():
+    import gate_cli
+    key = "Quote~v|status"
+    a, b, c = f"A:bpmn:{key}@v1", f"A:dt:{key}@v1", f"A:seq:{key}@v1"
+    cid = f"gap:conflict:{key}:{a}~{b}"
+    res = {"conflicts": [{"id": cid}, {"id": f"gap:conflict:{key}:{b}~{c}"}, {"id": f"gap:conflict:{key}:{a}~Z:other"}],
+           "keys": {key: {"assertions": [{"id": a}, {"id": b}, {"id": c}]}}}
+    assert gate_cli.conflict_ids(res, key) == sorted([cid, f"gap:conflict:{key}:{b}~{c}"])
+    assert gate_cli.conflict_ids({"conflicts": [{"id": cid}]}, key) == []   # no keys in the report: nothing to match, no KeyError
+
+
+def test_l3_l6_the_sub_gate_words_a_singular_the_blocking_total_and_the_set_it_is_over():
+    import gate_cli
+    why = "1 required key(s) at a blocking level: a|b (disputed)"
+    assert gate_cli.sub_gate_why(True, why, 2) == "1 of the 2 keys reached at a blocking level: a|b (disputed)"
+    assert gate_cli.sub_gate_why(True, "all 1 required keys verified or approved, none flagged", 1) == \
+        "all of the 1 key reached verified or approved, none flagged"
+    assert gate_cli.sub_gate_why("keys no slice reaches", "all 14 required keys verified or approved, none flagged", 14) == \
+        "all of the 14 keys no slice reaches verified or approved, none flagged"
+    assert gate_cli.sub_gate_why(False, why, 2) == why
+
+
+def test_l4_the_page_says_no_link_by_the_nodes_kind_with_the_right_article():
+    sys.path.insert(0, str(ROOT / "demo" / "app"))
+    import register_view
+    said = lambda nid, walk: [s for s in register_view.impact(nid, walk)["panel"]["intro"].split(". ") if "follows no link from" in s]   # noqa: E731
+    assert said("JRN-0002", "thread") == [], "a journey step is a thread's start"
+    assert said("JRN-0001", "thread") and "a journey:" in said("JRN-0001", "thread")[0]
+    assert "a touchpoint:" in said("JRN-0004", "thread")[0]
+    assert "a module:" in said("APP-0002", "realisers")[0] and "an application" not in said("APP-0002", "realisers")[0]
+    assert "a step:" in said("JRN-0002", "realisers")[0]
+    assert register_view._no_step({"kind": "information_domain", "_taxonomy": "information"}, {}, "ENT-1", "realisers")[0].count(" an information domain") == 1

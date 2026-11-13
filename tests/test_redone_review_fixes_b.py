@@ -67,14 +67,15 @@ def test_r2_the_hooks_summary_says_no_single_unit_for_an_ownerless_attestation_f
 
 
 def test_r3_a_register_staled_finding_names_the_remedy_not_the_questionnaire():
-    rc = {"keys": [{"key": "k|a"}], "invalidated": ["A:s:k|a@v1"]}
+    rc = {"stale": [{"id": "A:s:k|a@v1", "key": "k|a", "invalidated_by": "the register at v1: decisions/0099.md"},
+                    {"id": "A:s:k|b@v1", "key": "k|b", "invalidated_by": "version v2 of requirements.md"}]}
     fs = [{"kind": "key", "key": "k|a", "ref": None, "route": "python harness/capture.py questionnaire ..."},
           {"kind": "stale", "key": "k|a", "ref": "A:s:k|a@v1", "route": "python harness/capture.py questionnaire ..."},
           {"kind": "stale", "key": "k|b", "ref": "A:s:k|b@v1", "route": "q"},
           {"kind": "key", "key": "k|b", "ref": None, "route": "q"}]
     out = gate_cli.register_routes(fs, rc)
     assert [f["route"] == gate_cli.REGISTER_ROUTE for f in out] == [True, True, False, False]
-    assert "re-map the key" in gate_cli.REGISTER_ROUTE and gate_cli.register_routes(fs[2:], None)[0]["route"] == "q"
+    assert "re-map the key" in gate_cli.REGISTER_ROUTE and gate_cli.register_routes(fs[2:], {})[0]["route"] == "q"
 
 
 def test_r4_a_suite_path_outside_the_instance_is_never_digested():
@@ -140,10 +141,13 @@ def test_r8_the_same_root_twice_is_one_root_and_a_dropped_root_is_named_with_the
 
 def test_r9_a_review_lapse_gets_the_renew_step_with_the_kg_home_form_and_an_elicited_one_keeps_its_route():
     att = {"severity": "major", "kind": "attestation", "message": "a", "route": "r"}
-    review = {"severity": "major", "kind": "lapsed", "message": "l", "route": "a reviewer who is not the author and holds the role renews it: ..."}
+    step = "a reviewer who is not the author, under a handle that holds the role `closes`, renews it: KG_SUBJECT=subjects/s KG_REGISTER=register python \"$KG_HOME\"/harness/capture.py review FILE, the review dated within 12 months before the as-of date"
+    review = {"severity": "major", "kind": "lapsed", "message": "l", "route": step + "; or python harness/capture.py questionnaire ..."}
     elicited = {"severity": "major", "kind": "lapsed", "message": "l", "route": "python harness/capture.py questionnaire ..."}
     rep = {"findings": [{"severity": "blocker", "kind": "task", "message": "bar"}, att, review]}
-    assert knowgov_hook._route_for(rep).endswith(knowgov_hook.LAPSE_STEP) and '"$KG_HOME"/harness/capture.py' in knowgov_hook.LAPSE_STEP
+    got = knowgov_hook._route_for(rep)   # L1: the hook's lapse line is the finding's own wording, with the instance form, the role and the date rule
+    assert got.startswith(knowgov_hook.ATTESTATION_ROUTE) and step in got and "questionnaire" not in got
+    assert "KG_SUBJECT=" in got and "KG_REGISTER=" in got and "`closes`" in got and "before the as-of date" in got
     rep["findings"][2] = elicited
     assert knowgov_hook._route_for(rep) == knowgov_hook.ATTESTATION_ROUTE
 
@@ -167,3 +171,150 @@ def test_old_r3_a_reused_node_says_what_changed():
 def test_n4_the_glossary_row_for_approved_says_a_ruling_approves_directly():
     row = next(ln for ln in (ROOT / "docs" / "guide.md").read_text(encoding="utf-8").splitlines() if ln.startswith("| status `approved`"))
     assert "approves it directly with no verification" in row
+
+
+# ---- round three (L2-L8) ----
+def test_l2_the_remedy_route_reads_the_same_on_a_load_a_no_load_read_and_the_mcp_gate_verdict():
+    need_rdflib()
+    import json as _json
+    import register_fixture
+    import mcp_server
+    from store import open_store
+    from subject import SUBJECT
+    with tempfile.TemporaryDirectory() as tmp:
+        changed = register_fixture.changed(Path(tmp) / "reg")
+        f = str(Path(tmp) / "held.ttl")
+        env = {**os.environ, "KG_SUBJECT": str(CQ), "KG_STORE": "rdflib", "KG_REGISTER": str(changed), "KG_CLOCK": "pinned", "KG_RDFLIB_FILE": f}
+        gate = [sys.executable, str(ROOT / "harness" / "gate_cli.py"), "--as-of", "record"]
+        load = Path(tmp) / "load.json"
+        p = subprocess.run([*gate, "--scenario", "S1", "--register-previous", str(ROOT / "demo" / "register"), "--publish", "-f", "json",
+                            "-o", str(load)], capture_output=True, text=True, env=env, cwd=ROOT / "harness")
+        assert p.returncode in (0, 1), p.stderr[-300:]
+        read = Path(tmp) / "read.json"
+        p = subprocess.run([*gate, "--no-load", "-f", "json", "-o", str(read)], capture_output=True, text=True, env=env, cwd=ROOT / "harness")
+        assert p.returncode in (0, 1), p.stderr[-300:]
+        routes = lambda path: sorted((f_["kind"], str(f_["key"]), str(f_["ref"]), str(f_.get("route"))) for f_ in _json.loads(path.read_text())["findings"])  # noqa: E731
+        assert routes(load) == routes(read) and any(r[3] == gate_cli.REGISTER_ROUTE for r in routes(read))
+        old = {k: os.environ.get(k) for k in ("KG_STORE", "KG_RDFLIB_FILE", "KG_REGISTER", "KG_TODAY")}
+        os.environ.update(KG_STORE="rdflib", KG_RDFLIB_FILE=f, KG_REGISTER=str(changed), KG_TODAY="2026-11-06")
+        try:
+            srv = mcp_server.Server(mcp_server.Tools(opener=lambda: mcp_server.ReadOnlyStore(open_store(instance=SUBJECT.id, access="read"))))
+            r = srv.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "gate_verdict", "arguments": {}}})
+            fs = r["result"]["structuredContent"]["findings"]
+        finally:
+            for k, v in old.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+        assert any(x.get("route") == gate_cli.REGISTER_ROUTE for x in fs if x["kind"] == "stale")
+
+
+def test_l3_an_unreadable_code_file_is_the_manifests_cause_not_the_stores():
+    import types
+    err = PermissionError(13, "Permission denied", "/x/reference_impl.py")
+    assert "cannot be read" in gate_cli._own_cause(err) and "/x/reference_impl.py" in gate_cli._own_cause(err)
+    sub = types.SimpleNamespace(id="s", reference={"code": "ref.py"}, path=lambda rel: _Unreadable())
+    try:
+        subject_mod.Subject.reference_code(sub)
+    except subject_mod.CodeUnreadable as e:
+        assert "permission denied" in str(e)
+    else:
+        raise AssertionError("no refusal")
+
+
+class _Unreadable:
+    """A path that exists and is a file but cannot be read (root ignores chmod, so it is simulated)."""
+    def exists(self):
+        return True
+
+    def is_dir(self):
+        return False
+
+    def read_text(self, encoding=None):
+        raise PermissionError(13, "Permission denied")
+
+
+def test_l4_check_subject_gives_a_path_error_for_a_non_string_code_or_script():
+    import check_subject
+    for m in ({"reference": {"code": 5}}, {"reference": {"code": []}}, {"oracle": {"script": 5}}):
+        rep = check_subject.Report(CQ)
+        check_subject.check_code_paths(rep, m)
+        assert [f["rule"] for f in rep.findings] == ["path"] and "not a path" in rep.findings[0]["message"], m
+    rep = check_subject.Report(CQ)
+    check_subject.check_code_paths(rep, {"reference": {"code": "a.py"}, "oracle": {}})
+    assert rep.findings == []
+
+
+def test_l5_a_suite_entry_that_is_not_a_path_is_named():
+    import check_subject
+    assert "entry 0 (5)" in check_subject._suite_refusal([5]) and "entry 1 ('')" in check_subject._suite_refusal(["a.py", ""])
+    assert "write suite = ['a.py']" in check_subject._suite_refusal("a.py") and check_subject._suite_refusal("a.py").startswith("is not a list of paths")
+
+
+def test_l6_only_the_root_actually_kept_is_named():
+    with tempfile.TemporaryDirectory() as tmp:
+        repo, inst = Path(tmp) / "repo", Path(tmp) / "inst"
+        for base in (repo, inst):
+            (base / "subjects" / "cq").mkdir(parents=True)
+            (base / "subjects" / "cq" / "subject.toml").write_text('[subject]\nid = "cargo_quote"\nname = "c"\n', encoding="utf-8")
+        own = inst / "subjects" / "cq"
+        old = {k: os.environ.get(k) for k in ("KG_SUBJECTS", "KG_SUBJECT")}
+        os.environ["KG_SUBJECTS"] = os.pathsep.join([str(repo / "subjects"), str(inst / "subjects")])
+        os.environ["KG_SUBJECT"] = str(own)
+        subject_ids._SAID.clear()
+        err = io.StringIO()
+        saved = subject_mod.SUBJECT
+        try:
+            subject_mod.SUBJECT = types_ns = type("S", (), {"root": own, "id": "cargo_quote", "name": "c", "order": []})()
+            with contextlib.redirect_stderr(err):
+                got = subject_ids.subjects()
+        finally:
+            subject_mod.SUBJECT = saved
+            for k, v in old.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+        del types_ns
+        text = err.getvalue()
+        assert [x["root"] for x in got if x["id"] == "cargo_quote"] == [own.resolve()]
+        assert text.count("the root kept is") == 1 and f"the root kept is {own.resolve()}" in text, text
+
+
+def test_l7_an_empty_or_blank_code_path_is_said_as_an_empty_path():
+    for blank in ("", "  "):
+        rel, parts, declared = subject_mod.code_files(CQ, {"code": blank}, {}, "implementation")
+        assert (rel, parts, declared) == ("", {}, {}), blank
+    import check_subject
+    with tempfile.TemporaryDirectory() as tmp:
+        rep = check_subject.Report(Path(tmp))
+        check_subject._execution_listing(rep, {"reference": {"code": "  "}}, Path(tmp), {"versions": [], "implementation": ["a" * 64]},
+                                         "implementation", "reference", "code")
+        assert rep.findings and all("(an empty path)" in f["message"] for f in rep.findings), rep.findings
+
+
+def test_l8_a_symlink_out_of_a_code_directory_is_refused_by_the_load_and_the_checker_and_never_digested():
+    import check_subject
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "a" / "b" / "sub"
+        (root / "src").mkdir(parents=True)
+        (root / "src" / "ok.py").write_text("x", encoding="utf-8")
+        outside = Path(tmp) / "elsewhere.py"
+        outside.write_text("secret", encoding="utf-8")
+        (root / "src" / "escape.py").symlink_to(outside)
+        assert subject_mod.escaping_file(root, "src") == "escape.py"
+        rep = check_subject.Report(root)
+        assert check_subject._outside(rep, {"reference": {"code": "src"}}, root, "reference", "code")
+        assert "escape.py" in rep.findings[0]["message"]
+        _rel, _parts, declared = subject_mod.code_files(root, {}, {"script": "src/ok.py", "suite": ["src"]}, "suite")
+        assert declared == {}, declared
+        fake = type("S", (), {"id": "s", "root": root, "reference": {"code": "src"}, "oracle": {}})()
+        fake._code_paths = lambda: subject_mod.Subject._code_paths(fake)
+        try:
+            subject_mod.Subject.require_code_inside(fake)
+        except subject_mod.CodePathOutside as e:
+            assert "escape.py" in str(e)
+        else:
+            raise AssertionError("no refusal")
+
+
+def test_l2_the_gate_report_schema_describes_the_remedy_and_review_routes():
+    import json as _json
+    d = _json.loads((ROOT / "harness" / "schemas" / "gate-report.schema.json").read_text(encoding="utf-8"))
+    desc = d["$defs"]["finding"]["properties"]["route"]["description"]
+    assert "usually the owner's questionnaire" in desc and "--register-previous" in desc and "lapsed review" in desc

@@ -168,8 +168,13 @@ def gap_closers(subject, gaps: dict[str, list[dict]], root: Path | None = None) 
 
 # C3-1, R1 (task-0311): the routes name the tool by its path in a knowgov checkout and the instance's own subject and register;
 # run from an instance root with only KG_HOME set, capture.py would read knowgov's own subject and write its captures there
-FROM_INSTANCE = (" (from an instance root: KG_SUBJECT=subjects/<subject> KG_REGISTER=register "
-                 "python \"$KG_HOME\"/harness/capture.py ..., the same arguments)")
+def from_instance(subject_id: str | None = None) -> str:
+    """The instance-root form of a route's command, one source (L1, L6): the subject's id where it is known."""
+    return (f" (from an instance root: KG_SUBJECT=subjects/{subject_id or 'SUBJECT_ID'} KG_REGISTER=register "
+            "python \"$KG_HOME\"/harness/capture.py ..., the same arguments)")
+
+
+FROM_INSTANCE = from_instance()
 
 
 def closing_route(gap: str, unit: str | None) -> str:
@@ -188,7 +193,7 @@ def questionnaire_route(subject_id: str, scenario: str, task: str, unit: str | N
     where = " or ".join(f"DIR/questionnaire-{subject_id}-{scenario}-{f}.toml" for f in files)
     return (f"python harness/capture.py questionnaire --scenario {scenario} --task {task} --out DIR; "
             f"{who} answers {where}, "
-            "then python harness/capture.py ingest it and a reviewer who is not the author rules on it" + FROM_INSTANCE)
+            "then python harness/capture.py ingest it and a reviewer who is not the author rules on it" + from_instance(subject_id))
 
 
 def question_for(key: str) -> str:
@@ -226,7 +231,7 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
             "# A note must not identify you: no name, no role only you hold, no \"as the author of ...\". It is copied",
             "# beside your answer wherever the answer goes; nothing checks it but the person who reviews it.",
             "# Then: python harness/capture.py ingest <this file>",
-            '#   (from an instance root: KG_SUBJECT=subjects/<subject> KG_REGISTER=register python "$KG_HOME"/harness/capture.py ingest <this file>)',
+            f'#   (from an instance root: KG_SUBJECT=subjects/{subject.id} KG_REGISTER=register python "$KG_HOME"/harness/capture.py ingest <this file>)',
             "",
             "[questionnaire]",
             f"subject = {_q(subject.id)}",
@@ -269,12 +274,17 @@ def _date(v) -> dt.date | None:
     return dates.parse(v) if dates.is_date(v) else None   # task-0262
 
 
+def stale_questionnaires(out: Path, subject_id: str, scenario: str, written: set[str]) -> list[str]:
+    """task-0315 L6: the earlier questionnaire files of this subject and scenario left in ``out`` that this run did not write."""
+    return sorted(p.name for p in out.glob(f"questionnaire-{subject_id}-{scenario}-*.toml") if p.name not in written)
+
+
 def _foreign_unit(q: dict, handle, h: dict | None, handles: dict | None = None) -> list[str]:
     """task-0315 C2-6: a handle answers a questionnaire of its own unit only; a review-due one is addressed to its ``to``,
     the handle, or the owner unit when the handle is withdrawn (L5: the file's fields are the answerer's own to edit)."""
     owner = str(q.get("owner") or "")
-    if h is not None and q.get("route") == "review-due":
-        to = str(q.get("to") or "")
+    to = str(q.get("to") or "")
+    if h is not None and q.get("route") == "review-due" and to != UNASSIGNED:   # an unassigned one is the ordinary rule's
         mine = to in (handles or {}) and to != str(handle) or to not in (handles or {}) and to and h.get("unit") != to
         return [f"answered.from {handle} is not who this review-due questionnaire is addressed to ({to})"] if mine else []
     if h is None or not h.get("unit") or not owner or owner == UNASSIGNED or h["unit"] == owner:
@@ -415,7 +425,7 @@ def due_questionnaires(items: list[dict], handles: dict | None, on: dt.date) -> 
             "# A confirmation is a new capture on the date you give; the earlier capture is never edited.",
             "# A note must not identify you: no name, no role only you hold. Fill [answered] with your handle and the date.",
             "# Then: python harness/capture.py ingest <this file>",
-            '#   (from an instance root: KG_SUBJECT=subjects/<subject> KG_REGISTER=register python "$KG_HOME"/harness/capture.py ingest <this file>)',
+            f'#   (from an instance root: KG_SUBJECT=subjects/{subject} KG_REGISTER=register python "$KG_HOME"/harness/capture.py ingest <this file>)',
             "", "[questionnaire]", f"subject = {_q(subject)}", f"scenario = {_q(xs[0]['scenario'])}", f"task = {_q(task)}",
             f"owner = {_q(xs[0]['owner'])}", f"to = {_q(to)}", 'route = "review-due"', f"generated_on = {on.isoformat()}",
             "", "[answered]", 'from = ""', 'on = ""']
@@ -505,6 +515,9 @@ def _questionnaire(args) -> int:
         (args.out / f"questionnaire-{SUBJECT.id}-{scenario}-{owner}.toml").write_text(text, encoding="utf-8")
         head = text.splitlines()[0].lstrip("# ")
         print(head)
+    left = stale_questionnaires(args.out, SUBJECT.id, scenario, {f"questionnaire-{SUBJECT.id}-{scenario}-{o}.toml" for o in qs})
+    if left:   # task-0315 L6: another owner's earlier file is not removed, and may no longer be asked
+        print(f"note: earlier questionnaire(s) left in {args.out} are not removed: {', '.join(left)}", file=sys.stderr)
     return 0
 
 

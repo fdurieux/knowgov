@@ -193,11 +193,14 @@ def followed(e: dict) -> str:
     return "yes, back to the start, not counted" if e.get("to_start") else "yes"
 
 
-def _no_step(start_node: dict, rows_of: dict, start: str) -> list[str]:
-    """task-0314 B-X2, R-T1: the sentence saying a walk has no step from the start's kind (a list: none when it has one)."""
-    if start_node.get("_taxonomy") in rows_of:
+def _no_step(start_node: dict, rows_of: dict, start: str, walk: str) -> list[str]:
+    """task-0314 B-X2, R-T1, L4: the sentence saying a walk follows no link from the start's kind (a list: none when it does),
+    decided by kind: the thread walk starts from a journey's step, not from the journey or a touchpoint."""
+    kind = start_node.get("kind", "").replace("_", " ")
+    tax = start_node.get("_taxonomy")
+    if tax in rows_of and not (walk == "thread" and tax == "journeys" and kind != "step"):
         return []
-    return [f"This walk has no step from a {start_node.get('kind', '').replace('_', ' ')}, so it follows no link from {start}."]
+    return [f"This walk follows no link from {start}, {'an' if kind[:1] and kind[0] in 'aeiou' else 'a'} {kind}: it starts from other kinds."]
 
 
 def _thread_buckets(walk: str, by_prefix) -> dict:
@@ -243,7 +246,7 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
     start_node = reg["nodes"][start]
     intro = C(f"The walk starts at {start}, a {start_node.get('kind', '').replace('_', ' ')} in state {start_node.get('state')}.")
     intro += " " + C(*WALK_INTRO[walk])
-    intro += "".join(" " + C(x) for x in _no_step(start_node, rows_of, start))
+    intro += "".join(" " + C(x) for x in _no_step(start_node, rows_of, start, walk))
     intro += " " + C("It stops at a deprecated or retired node.", "An edge that is not approved is listed with its state and not followed.",
                      "Its link is not approved, or its far node is deprecated or retired.")
     intro += " " + C("An edge back to the start is listed and not counted: the start is never among what it reaches.")

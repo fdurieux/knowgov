@@ -20,7 +20,9 @@ in this process's memory, decision-0017), runs the rules, resolves the task's re
               required key that no verified or approved successor replaces (task-0048); a statement
               whose review has lapsed (``lapsed``, decision-0005): it reads validated until a new review
     minor     a verified or approved key carrying a flag (ambiguous, inferred, assumed)
-    info      a stale statement on a required key that a verified or approved successor
+    info      a verified or approved key with an answer awaiting a reviewer's ruling, which the level does
+              not count (task-0311; ``--fail-on info`` exits 1 on it, and an annotation is a notice);
+              a stale statement on a required key that a verified or approved successor
               replaces: the record of the change, and the verifications it ended (task-0048)
 
 A review falls due (decision-0005, harness/cadence.py): a verification of method review is current
@@ -312,7 +314,7 @@ def _act_route(f: dict, route):
         import review
         if review.is_opposed(reasons):
             return (f"nothing to do: {reasons[-1]}" if len(reasons) > 1 else
-                    "the owners rule again in one review, on a later day (python harness/capture.py review <file>" + _from_instance() + ")")
+                    "the owners rule again in one review, on a later day: python harness/capture.py review <file>" + _from_instance())
         if reasons[0].startswith(review.SETTLED):
             return f"nothing to do: {reasons[0]}"
     return route
@@ -420,8 +422,13 @@ def suspect_finding(d: dict, scope: dict | None) -> dict:
 
 
 def _from_instance() -> str:
-    from capture import FROM_INSTANCE
-    return FROM_INSTANCE
+    """The instance-root form of a route's command (capture.from_instance, one source), with the subject's id where it is loaded."""
+    from capture import from_instance
+    try:
+        from subject import SUBJECT
+        return from_instance(SUBJECT.id)
+    except Exception:   # noqa: BLE001 - no subject root named: the placeholder
+        return from_instance()
 
 
 def _awaiting(v: dict) -> str:
@@ -433,7 +440,7 @@ def _awaiting(v: dict) -> str:
 def _bar_finding(res: dict) -> dict:
     """A-F4 (task-0311): the bar's blocker names a next step, the keys below the bar and their routes."""
     f = _finding("blocker", "task", res["why"])
-    f["route"] = ("raise the keys below the bar: the key findings after this one each name their owner and the route to approval; "
+    f["route"] = ("raise the keys below the bar: the gate's key findings (gate_cli -f json lists them) each name their owner and the route to approval; "
                   "the share falls under the bar when enough of them are verified or approved")
     return f
 
@@ -443,8 +450,35 @@ def _lapse_route(f: dict, res: dict) -> str | None:
     lapsed_by_id = {x["id"]: x for x in res.get("lapsed") or []}
     if f["kind"] != "lapsed" or not f["route"] or lapsed_by_id.get(f["ref"], {}).get("kind") == "elicited":
         return f["route"]
-    return ("a reviewer who is not the author, under a handle whose unit owns the key and holds the role `closes`, renews it: "
-            "python harness/capture.py review FILE" + _from_instance() + ", the review dated on or before the as-of date; or " + f["route"])
+    return ("a reviewer who is not the author, under a handle whose unit owns one of the register nodes the key rests on and that holds "
+            "the role `closes`, renews it: python harness/capture.py review FILE" + _from_instance() + _lapse_dates(lapsed_by_id.get(f["ref"], {}), res)
+            + "; or " + f["route"])
+
+
+def _lapse_dates(x: dict, res: dict) -> str:
+    """L2 (task-0311): cadence renews only a review dated within the key's review months before the as-of date; for a later
+    as-of date that can be followed only from the as-of date minus those months."""
+    import cadence
+    on, months = cadence._date(res.get("as_of")), x.get("months")
+    if not on or not months:
+        return ", the review dated within the key's review months before the as-of date"
+    return (f", the review dated within {months} months before the as-of date {on.isoformat()} (from {cadence.add_months(on, -months).isoformat()} "
+            "to it; a review dated later than today is refused, so a future as-of date can be followed only from that first day)")
+
+
+def _refined_route(f: dict, res: dict) -> str | None:
+    """The route a lapsed or pending-answer finding takes in place of the owner's questionnaire; any other keeps its own."""
+    return _pending_route(f, res) or _lapse_route(f, res)
+
+
+def _pending_route(f: dict, res: dict) -> str | None:
+    """L4 (task-0311): an answer awaiting a ruling on a key that reads verified or approved (an info or a minor key finding) is settled by
+    a reviewer's ruling on the named assertion, not by a questionnaire; None for any other finding."""
+    v = (res.get("keys") or {}).get(f["key"]) or {}
+    if f["kind"] != "key" or f["severity"] not in ("info", "minor") or not v.get("pending_review"):
+        return None
+    return (f"a reviewer who is not the author rules on {', '.join(sorted(v['pending_review']))} in a review file: "
+            "python harness/capture.py review FILE" + _from_instance())
 
 
 def _key_finding(key: str, v: dict, block_levels: set[str], rel: list[str]) -> dict | None:
@@ -502,9 +536,9 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
         out.append(_finding("major", "lapsed", f"{x['id']} on {x['key']} {cadence.describe(x, res.get('as_of'))}",
                             key=x["key"], level=x.get("to", "validated"), ref=x["id"], related=x["verifications"]))
     for d in res.get("preload") or []:   # task-0064: form unchecked, or findings, on a document behind the keys
-        what = _preload_what(d)
+        what, tool, why = _preload_words(d)
         out.append(_finding("info", "preload", f"{d['artefact']} {d['version']}, behind {len(d['keys'])} required key(s): {what}"
-                            + (f" ({d['tool']})" if d.get("tool") else "") + (f"; {d['why']}" if d.get("why") else ""),
+                            + (f" ({tool})" if tool else "") + (f"; {why}" if why else ""),
                             ref=f"{d['artefact']}@{d['version']}", related=d["keys"]))
     out += [act_finding(a) for a in res.get("acts") or []]
     out += attestation_findings(res.get("attestation") or [], owners, route, _below_verified(res))
@@ -518,7 +552,7 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
                 unit = (owners.get(f["key"]) or {}).get("unit")
                 f["owner"] = unit
                 f["route"] = _act_route(f, route(unit, f["key"]) if route else None)
-                f["route"] = _lapse_route(f, res)
+                f["route"] = _refined_route(f, res)
                 c = (closers or {}).get(f["key"])
                 if f["kind"] == "key" and f["level"] == "declared_gap" and c is not None:
                     from capture import closing_route
@@ -529,13 +563,18 @@ def findings(res: dict, block_levels: set[str], owners: dict[str, dict] | None =
     return sorted(out, key=lambda f: (SEVERITIES.index(f["severity"]), kinds.index(f["kind"]), f["key"] or "", f["ref"] or ""))
 
 
-def _preload_what(d: dict) -> str:
-    """The gate's words for a document the pre-load check left unchecked, found in findings or held (task-0064); a row a
-    step-4 check judged alone says so (task-0312 R1)."""
-    if d["state"] == "unchecked" and d.get("tool") and f"judged by {d['tool']} alone" in (d.get("why") or ""):
-        return f"judged by {d['tool']} alone, its linter never ran"
-    return {"unchecked": "its form was not checked before the load", "findings": "the pre-load check found findings in it",
+def _preload_words(d: dict) -> tuple[str, str | None, str]:
+    """The gate's words for a document the pre-load check left unchecked, found in findings or held (task-0064): what, the
+    tool to name after it, and the report's why. A row a step-4 check judged alone says so once, with the check's own
+    "(judged by X alone; <why the linter never ran>)" taken out of the why and put after it (task-0312 R1, L3)."""
+    tool, why = d.get("tool"), d.get("why") or ""
+    if d["state"] == "unchecked" and tool and f"(judged by {tool} alone; " in why:
+        head, _, rest = why.partition(f"(judged by {tool} alone; ")
+        rest = rest[:-1] if rest.endswith(")") else rest   # the one parenthesis the row's why closed
+        return f"judged by {tool} alone, its linter never ran", None, "; ".join(x for x in (rest, head.strip()) if x)
+    what = {"unchecked": "its form was not checked before the load", "findings": "the pre-load check found findings in it",
             "held": "the pre-load check holds findings in it against a baseline"}[d["state"]]
+    return what, tool, why
 
 
 def owner_route(keys: list[str], owners: dict[str, dict], route) -> tuple[str | None, str | None]:
@@ -653,7 +692,7 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
     def route(unit, key):   # the files routing names, so the route points where the questionnaire is written (G8)
         files = ((owners or {}).get(key) or {}).get("files")
         return questionnaire_route(subject, scenario, rt, unit, files) if route_keys is None or key in route_keys else None
-    fs = register_routes(findings(res, block_levels, owners, route, closers, suspect_scope), register_change)
+    fs = register_routes(findings(res, block_levels, owners, route, closers, suspect_scope), res)
     fail = baseline["regression"] if baseline is not None else bool(at_or_above(fs, threshold))
     if baseline is not None:
         mark_held(fs, baseline)
@@ -685,11 +724,12 @@ REGISTER_ROUTE = ("the register update (--register-previous) stales these statem
                   "register to the new one once the owner confirms the update")
 
 
-def register_routes(fs: list[dict], rc: dict | None) -> list[dict]:
-    """R3 (B-N2): a key, or a stale statement of it, that a register update staled names the remedy as its route, not the
-    owner's questionnaire, which can never restore it while ``--register-previous`` is passed."""
-    keys = {k["key"] for k in (rc or {}).get("keys") or []}
-    gone = set((rc or {}).get("invalidated") or [])
+def register_routes(fs: list[dict], res: dict) -> list[dict]:
+    """R3 (B-N2), L2: a key, or a stale statement of it, that a register update staled names the remedy as its route, not the
+    owner's questionnaire, which can never restore it while ``--register-previous`` is passed. Read from the statements'
+    own recorded reason (``invalidated_by`` names the register), so a load, a ``--no-load`` read and the MCP server agree."""
+    stale = [x for x in res.get("stale") or [] if str(x.get("invalidated_by") or "").startswith("the register")]
+    keys, gone = {x["key"] for x in stale}, {x["id"] for x in stale}
     for f in fs:
         if f["kind"] in ("key", "stale") and f["key"] in keys and (f["kind"] == "key" or f["ref"] in gone) and f.get("route"):
             f["route"] = REGISTER_ROUTE
@@ -1112,6 +1152,8 @@ def _own_cause(e: Exception) -> str | None:
     """S1: the manifest is the cause, said as itself (task-0329 R6: a code file outside, unreadable or not a path); so is a
     ``KG_PRELOAD_REPORT`` that names no file (task-0312 R2). None leaves it to the store's line."""
     from subject import CodePathOutside, CodeUnreadable
+    if isinstance(e, PermissionError):   # L3: a file the manifest names that this user cannot read
+        return f"a file the manifest names cannot be read: {e.filename or e} (permission denied)"
     if isinstance(e, (CodePathOutside, CodeUnreadable)):
         return str(e)
     return str(e) if isinstance(e, FileNotFoundError) and "KG_PRELOAD_REPORT names" in str(e) else None
@@ -1162,36 +1204,36 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
         raise CannotRun(_own_cause(e) or f"the store did not answer: {type(e).__name__}: {e}") from e
 
 
-SUB_GATE_WHY = (   # the gate's three forms (gate.py) and the sub-gate's words for each, most specific first (task-0314 B-X3, R1)
-    (r"\b(\d+) required key\(s\) at\b", r"\1 of the keys reached at"),
-    (r"\ball (\d+) required keys\b", r"all of the \1 keys reached"),
-    (r"\bof (\d+) required keys\b", r"of the \1 keys reached"),
-    (r"\b(\d+) required keys?\b", r"the \1 keys reached"))
-
-
-def sub_gate_why(sub_gate: bool, why):
-    """task-0314 B-X3, R-T4, R1: a sub-gate over the keys a walk reached (``register_impact``, ``proposal_impact``) counts
-    "the N keys reached", not the class's required keys; any other evaluation, ``gate_verdict`` on keys the caller named
-    included, keeps the gate's own words."""
+def sub_gate_why(sub_gate, why, total=None):
+    """task-0314 B-X3, R-T4, R1, L3, L6: a sub-gate over the keys a walk reached (``register_impact``, ``proposal_impact``)
+    counts "the N keys reached", not the class's required keys; ``sub_gate`` a string names the set otherwise ("keys no slice
+    reaches"). ``total``, the keys evaluated, completes the blocking form ("1 of the 2 keys reached at a blocking level").
+    Any other evaluation, ``gate_verdict`` on keys the caller named included, keeps the gate's own words."""
     if not sub_gate or not isinstance(why, str):
         return why
-    for pattern, words in SUB_GATE_WHY:
+    noun = "keys reached" if sub_gate is True else str(sub_gate)
+
+    def n_noun(n: str) -> str:
+        return noun if int(n) != 1 else noun.replace("keys", "key", 1)
+    forms = (   # the gate's three forms (gate.py), most specific first
+        (r"\b(\d+) required key\(s\) at\b", lambda m: f"{m.group(1)} of the {total} {n_noun(str(total))} at" if total else f"{m.group(1)} of the {noun} at"),
+        (r"\ball (\d+) required keys\b", lambda m: f"all of the {m.group(1)} {n_noun(m.group(1))}"),
+        (r"\bof (\d+) required keys\b", lambda m: f"of the {m.group(1)} {n_noun(m.group(1))}"),
+        (r"\b(\d+) required keys?\b", lambda m: f"the {m.group(1)} {n_noun(m.group(1))}"))
+    for pattern, words in forms:
         why = re.sub(pattern, words, why)
     return why
 
 
 def conflict_ids(res: dict, key: str) -> list[str]:
-    """task-0314 A-F6, R3: the conflicts on ``key`` (``gap:conflict:<key>:<a>~<b>``, decision-0020) whose two ends are
-    assertion ids of this key, by id: a key may contain ':' and be the start of another's, so the prefix alone is not a match."""
-    mine = {a["id"] for a in res["keys"].get(key, {}).get("assertions") or []}
+    """task-0314 A-F6, R3, L1: the conflicts on ``key`` (``gap:conflict:<key>:<a>~<b>``, decision-0020) whose two ends are
+    assertion ids of this key, by id. Matched whole against each sorted pair of the key's own assertion ids, so neither a
+    longer key that starts with this one nor a '~' inside a key or an id (both are allowed) misreads the id."""
+    import itertools
+    mine = sorted(a["id"] for a in (res.get("keys") or {}).get(key, {}).get("assertions") or [])
+    held = {str(c.get("id", "")) for c in res.get("conflicts") or []}
     head = f"gap:conflict:{key}:"
-    out = []
-    for c in res.get("conflicts") or []:
-        cid = str(c.get("id", ""))
-        ends = cid[len(head):].split("~") if cid.startswith(head) else []
-        if len(ends) == 2 and set(ends) <= mine:
-            out.append(cid)
-    return sorted(out)
+    return sorted(cid for x, y in itertools.combinations(mine, 2) for cid in (f"{head}{x}~{y}", f"{head}{y}~{x}") if cid in held)
 
 
 def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshold: str,
@@ -1208,7 +1250,7 @@ def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshol
     from gate import resolve_spec
     from store import corpus_digest
     res = resolve_spec(st, task, spec, as_of)
-    res["why"] = sub_gate_why(sub_gate, res["why"])
+    res["why"] = sub_gate_why(sub_gate, res["why"], len(res["keys"]))
     from subject import SUBJECT
     scope = suspect_scope(st, res, spec)   # task-0282: which suspect outputs rest on this task's keys
     table = None   # task-0237: the subject's [tasks.<class>] as read, the keys asked for in place of its own

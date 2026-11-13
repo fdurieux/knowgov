@@ -588,7 +588,7 @@ def load_reviews(st, scenario: str, now: dt.date | None = None, again: bool = Fa
             counts["refused"].append(rel)
             st.record_act_finding(_act(f"actf:{rid}", head, "review", 0, "", "", "", "refused", reasons=errs))
             continue
-        counts["skipped"] += _record_skipped(st, rv["skipped"], rid, head, rel, pending, review.order_key(p, doc))
+        counts["skipped"] += _record_skipped(st, rv["skipped"], rid, head, rel, pending, review.order_key(p, doc), opposed)
         person, on = f"person:{rv['by']}", rv["on"].isoformat()
         st.ensure_person(person, rv["by"])
         try:
@@ -655,7 +655,12 @@ def _opposed(files: list, scenario: str, st, **kw) -> dict:
             continue
         errs, rv = review.check(doc, st, where=p.as_posix(), **kw)
         rel = str(p.relative_to(SUBJECT.root)) if p.is_relative_to(SUBJECT.root) else str(p)
-        rows += [] if errs else [(ru["statement"], rv["on"].isoformat(), rv["by"], ru["outcome"], rel) for ru in rv["rulings"]]
+        if errs:
+            continue
+        rows += [(ru["statement"], rv["on"].isoformat(), rv["by"], ru["outcome"], rel) for ru in rv["rulings"]]
+        # task-0323 R1 (doc-0038 P5): a legacy ambiguous ruling is not applied, but it is a ruling of the day all the same
+        rows += [(x["statement"], rv["on"].isoformat(), rv["by"], x["outcome"], rel)
+                 for x in rv["skipped"] if x["act"] == "ruling" and x["why"] == "ambiguous"]
     return review.opposed_rulings(rows)
 
 
@@ -681,7 +686,7 @@ def _ordered_reviews(rdir: Path) -> list:
     return sorted(out, key=lambda x: review.order_key(*x))
 
 
-def _record_skipped(st, skipped: list, rid: str, head: dict, rel: str, pending: list, at: tuple) -> int:
+def _record_skipped(st, skipped: list, rid: str, head: dict, rel: str, pending: list, at: tuple, opposed: dict) -> int:
     """Record the acts a review's load set aside (doc-0032 §6 item 7), an ambiguous ruling held back for
     ``_record_pending``; returns how many."""
     import sys
@@ -690,7 +695,9 @@ def _record_skipped(st, skipped: list, rid: str, head: dict, rel: str, pending: 
         fa = _act(f"actf:{rid}:{x['act']}:{x['n']}", head, x["act"], x["n"], x["statement"], x["outcome"],
                   x["key"], x["why"], value=x["value"], sha=x["sha256"], to=x["to"], reasons=x.get("reasons", ()))
         if x["why"] == "ambiguous" and x["act"] == "ruling":
-            pending.append((fa, at))   # task-0321 H2: recorded once a later ruling is known to settle it, or not
+            import review
+            group = opposed.get((x["statement"], head["on"], rel))   # task-0323 R1: opposed the same day, its own reason
+            pending.append(({**fa, "reasons": json.dumps([review.opposed_reason(group)], ensure_ascii=False)} if group else fa, at))   # task-0321 H2: recorded once a later ruling is known to settle it, or not
         else:
             st.record_act_finding(fa)
     return len(skipped)

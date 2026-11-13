@@ -120,7 +120,7 @@ def test_a_refused_row_is_unavailable_and_a_run_on_it_refused_before_anything_ru
     keep_checker, keep_refusal = key_check.CHECKER, execution.refusal
     key_check.CHECKER = key_check.Checker(stand)
     key_check.CHECKER.enabled = True
-    execution.refusal = lambda: None   # a contained worker, as the stack has it: the key is what refuses here
+    execution.refusal = lambda *a, **kw: None   # a contained worker, as the stack has it: the key is what refuses here
     try:
         import page_subject
         from subject import Subject
