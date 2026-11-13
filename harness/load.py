@@ -646,9 +646,12 @@ def _apply_rulings(st, rv: dict, ctx: tuple, caps, opposed: dict, bound: list, c
 
 def _opposed(files: list, scenario: str, st, **kw) -> dict:
     """task-0328: the rulings that oppose another reviewer's the same day (``review.opposed_rulings``), read from every
-    file's check before any is applied, so the outcome does not depend on which file is read first."""
+    file's check before any is applied, so the outcome does not depend on which file is read first. A legacy ambiguous
+    ruling counts too (task-0323 R1), and a ruling on an equivalent statement (the same key, value and digest, by a giver
+    its stem reads as, as ``review.settling`` reads it) is one statement with it (R-A); each ruling is found under the
+    statement it names as well as the one it is read as."""
     import review
-    rows = []
+    rows, legacy, ruled = [], [], []
     for p, doc in files:
         sc = str(doc.get("review", {}).get("scenario", ""))
         if sc and sc != scenario:
@@ -657,11 +660,20 @@ def _opposed(files: list, scenario: str, st, **kw) -> dict:
         rel = str(p.relative_to(SUBJECT.root)) if p.is_relative_to(SUBJECT.root) else str(p)
         if errs:
             continue
-        rows += [(ru["statement"], rv["on"].isoformat(), rv["by"], ru["outcome"], rel) for ru in rv["rulings"]]
-        # task-0323 R1 (doc-0038 P5): a legacy ambiguous ruling is not applied, but it is a ruling of the day all the same
-        rows += [(x["statement"], rv["on"].isoformat(), rv["by"], x["outcome"], rel)
-                 for x in rv["skipped"] if x["act"] == "ruling" and x["why"] == "ambiguous"]
-    return review.opposed_rulings(rows)
+        on, by = rv["on"].isoformat(), rv["by"]
+        ruled += [(ru["statement"], (ru.get("key"), str(ru.get("value")), ru.get("sha256")), ru.get("giver"), on, by, ru["outcome"], rel)
+                  for ru in rv["rulings"]]
+        # a legacy ambiguous ruling is not applied, but it is a ruling of the day all the same
+        legacy += [(x["statement"], (x["key"], str(x["value"]), x["sha256"]), None, on, by, x["outcome"], rel)
+                   for x in rv["skipped"] if x["act"] == "ruling" and x["why"] == "ambiguous"]
+    handles, canon = kw.get("handles"), {}
+    for stmt, same, giver, on, by, oc, rel in ruled + legacy:
+        as_read = next((ls for ls, lsame, _g, lon, _b, _o, _r in legacy if lon == on and lsame == same
+                        and (stmt == ls or (giver is not None and giver in review._readings(ls, handles)))), stmt)
+        canon[(stmt, on, rel)] = as_read
+        rows.append((as_read, on, by, oc, rel))
+    found = review.opposed_rulings(rows)
+    return {**found, **{(stmt, on, rel): found[(c, on, rel)] for (stmt, on, rel), c in canon.items() if (c, on, rel) in found}}
 
 
 def _set_aside(st, rid: str, head: dict, rel: str, ru: dict, b: dict, group: list, pending: list, at: tuple) -> None:

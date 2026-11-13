@@ -216,9 +216,10 @@ def same_day_cases(out: Path) -> list[str]:
     return errs
 
 
-def _legacy_opposed_run(out: Path, name: str, legacy: str, boss: str, later: str | None) -> tuple[str, dict, list]:
+def _legacy_opposed_run(out: Path, name: str, legacy: str, boss: str, later: str | None, equiv: bool = False) -> tuple[str, dict, list]:
     """One legacy-versus-boss pair on a fresh instance (employee-2's review from before the giver, then boss's the same
-    day, then ``later`` by employee-3 on 8 November): (the ruled statement, the live approvals, the acts naming it)."""
+    day, then ``later`` by employee-3 on 8 November): (the ruled statement, the live approvals, the acts naming it).
+    With ``equiv``, boss rules on ops-2's re-answer of 3 November, an equivalent statement of the same content."""
     hold = "response|hold_presence"
     want = {hold: "held_unscreened only"}
     env = fresh(out, f"legacy-opposed-{name}", decided=True)
@@ -239,14 +240,18 @@ def _legacy_opposed_run(out: Path, name: str, legacy: str, boss: str, later: str
     for f in capdir.glob("*-ops*.toml"):
         f.unlink()
     w.answer(env, d, handle="ops-2", want=want)
-    w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r2.toml", "boss", "S2", [(ruled, boss)])))
+    named = ruled
+    if equiv:
+        w.answer(env, d, handle="ops-2", on="2026-11-03", want=want)
+        named = f"A:cap:{next(capdir.glob('2026-11-03-*-ops-2.toml')).stem}:{n}@capture"
+    w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r2.toml", "boss", "S2", [(named, boss)])))
     if later:
         ruling = tomllib.loads(next((capdir / "reviews").glob("*-boss.toml")).read_text(encoding="utf-8"))["ruling"][0]
         (capdir / "reviews" / "2026-11-08-employee-3.toml").write_text(review.review_toml(
             {"by": "employee-3", "on": dt.date(2026, 11, 8), "record": "minutes/2026-11-03-outage-rule.md", "scenario": "S2", "closes": [],
              "rulings": [{**ruling, "outcome": later}]}), encoding="utf-8")
     held = {k: v for k, v in approvals(env, "S2", hold).items() if v}
-    return ruled, held, [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
+    return ruled, held, [f for f in acts(gate(env, "S2")) if f["ref"] in (ruled, named) and f["act"]["why"] == "ambiguous"]
 
 
 def legacy_opposed_cases(out: Path) -> list[str]:
@@ -259,11 +264,14 @@ def legacy_opposed_cases(out: Path) -> list[str]:
     files = [f"{ON}-employee-2", f"{ON}-boss"]
     for name, legacy, boss, clash, later in (("reject-approve", "rejected", "approved", True, None), ("refer-approve", "referred", "approved", True, None),
                                               ("approve-reject", "approved", "rejected", True, None), ("refer-reject", "referred", "rejected", False, None),
-                                              ("reject-approve-later", "rejected", "approved", True, "rejected")):
-        _ruled, held, mine = _legacy_opposed_run(out, name, legacy, boss, later)
+                                              ("reject-approve-later", "rejected", "approved", True, "rejected"),
+                                              ("reject-approve-later-approved", "rejected", "approved", True, "approved"),
+                                              ("equiv-reject-approve", "rejected", "approved", True, None),
+                                              ("equiv-refer-approve", "referred", "approved", True, None)):
+        _ruled, held, mine = _legacy_opposed_run(out, name, legacy, boss, later, name.startswith("equiv"))
         sev = {f["severity"] for f in mine}
         named = all(all(x in f["message"] for x in files) and "capture.py review" in f.get("route", "") for f in mine)
-        ok = (sev == {"info"} and not held) if later else (not held and sev == {"major"} and named) if clash else not any("opposed" in f["message"] for f in mine)
+        ok = (sev == {"info"} and bool(held) == (later == "approved")) if later else (not held and sev == {"major"} and named) if clash else not any("opposed" in f["message"] for f in mine)
         print(f"    {name}: approved on {sorted(held) or 'nothing'}; {[f['severity'] + ': ' + f['message'][-90:] for f in mine] or 'no act'}")
         if not ok:
             errs.append(f"task-0323 R1 {name}: acts {mine}, approved {held}")
