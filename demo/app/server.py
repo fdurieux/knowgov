@@ -44,6 +44,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 if __name__ == "__main__":   # task-0295: a subject that does not load (a bad scenario id) stops the page, exit 2, its cause named
+    if {"-h", "--help"} & set(__import__("sys").argv[1:]):   # task-0314 R5
+        print(__doc__ or "usage: python " + __import__("sys").argv[0])
+        raise SystemExit(0)
     sys.path.insert(0, str(HERE.parent.parent / "harness"))
     import cli_exit  # noqa: E402
     cli_exit.guard("kg demo")

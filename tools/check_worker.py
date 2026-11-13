@@ -296,4 +296,6 @@ def exec_14(check, rounds: int = 5) -> None:
           f"pids, and no process carries the chain's mark (allocated, allocated, marked, init): {[q for _, q in seen]}")
 
 if __name__ == "__main__":
+    import _outcomes   # task-0314 R5
+    _outcomes.help_exit(__doc__)
     sys.exit(_outcomes.run(main))

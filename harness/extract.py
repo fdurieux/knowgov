@@ -930,6 +930,8 @@ def extract_all(kit: dict[str, str], code_text: str) -> list[Bag]:
 
 
 if __name__ == "__main__":
+    import cli_exit   # task-0314 R5
+    cli_exit.help_exit(__doc__)
     import sys
     from kitio import kit_for
     code = SUBJECT.reference_code()

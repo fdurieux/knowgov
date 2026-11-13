@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/fdurieux/knowgov/harness/schemas/key-nodes.schema.json",
  "title": "knowgov key nodes report",
- "description": "What `python harness/upward.py key KEY` prints and the MCP tool key_nodes returns (task-0143, doc-0020 C2): the rows of the subject's register_map.toml whose key is KEY, each with the register nodes it names as the register holds them (missing true for an id it does not hold), the row's owner, anchor and note; mapped false for a key the subject knows with no row. Read from files; no store, no walk. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "description": "What `python harness/upward.py key KEY` prints and the MCP tool key_nodes returns (task-0143, doc-0020 C2): the rows of the subject's register_map.toml whose key is KEY, each with the register nodes it names as the register holds them (missing true for an id it does not hold), the row's owner, anchor and note; mapped false for a key the subject knows with no row. Read from files, no walk; the MCP tool also counts a key the held store names as known (task-0314), the CLI opens no store. Version 1; a change is additive or a new version. Exit 2 prints no report.",
  "type": "object",
  "additionalProperties": false,
  "required": ["schema_version", "tool", "subject", "key", "register", "mapped", "rows", "nodes"],

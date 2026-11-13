@@ -1162,33 +1162,53 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
         raise CannotRun(_own_cause(e) or f"the store did not answer: {type(e).__name__}: {e}") from e
 
 
-def sub_gate_why(task: str, why):
-    """task-0314 B-X3, R-T4: a sub-gate (task ``keys``) counts the keys reached, not the class's required keys."""
-    if task != "keys" or not isinstance(why, str):
+SUB_GATE_WHY = (   # the gate's three forms (gate.py) and the sub-gate's words for each, most specific first (task-0314 B-X3, R1)
+    (r"\b(\d+) required key\(s\) at\b", r"\1 of the keys reached at"),
+    (r"\ball (\d+) required keys\b", r"all of the \1 keys reached"),
+    (r"\bof (\d+) required keys\b", r"of the \1 keys reached"),
+    (r"\b(\d+) required keys?\b", r"the \1 keys reached"))
+
+
+def sub_gate_why(sub_gate: bool, why):
+    """task-0314 B-X3, R-T4, R1: a sub-gate over the keys a walk reached (``register_impact``, ``proposal_impact``) counts
+    "the N keys reached", not the class's required keys; any other evaluation, ``gate_verdict`` on keys the caller named
+    included, keeps the gate's own words."""
+    if not sub_gate or not isinstance(why, str):
         return why
-    why = re.sub(r"\b(\d+) required keys?\b", lambda m: f"the {m.group(1)} keys reached", why)
-    return re.sub(r"\b(\d+) required key\(s\) at", r"\1 of the keys reached at", why)
+    for pattern, words in SUB_GATE_WHY:
+        why = re.sub(pattern, words, why)
+    return why
 
 
 def conflict_ids(res: dict, key: str) -> list[str]:
-    """task-0314 A-F6: the conflicts on ``key`` (gap:conflict:<key>:<a>~<b>, decision-0020), by id."""
-    return sorted(c["id"] for c in res.get("conflicts") or [] if str(c.get("id", "")).startswith(f"gap:conflict:{key}:"))
+    """task-0314 A-F6, R3: the conflicts on ``key`` (``gap:conflict:<key>:<a>~<b>``, decision-0020) whose two ends are
+    assertion ids of this key, by id: a key may contain ':' and be the start of another's, so the prefix alone is not a match."""
+    mine = {a["id"] for a in res["keys"].get(key, {}).get("assertions") or []}
+    head = f"gap:conflict:{key}:"
+    out = []
+    for c in res.get("conflicts") or []:
+        cid = str(c.get("id", ""))
+        ends = cid[len(head):].split("~") if cid.startswith(head) else []
+        if len(ends) == 2 and set(ends) <= mine:
+            out.append(cid)
+    return sorted(out)
 
 
 def evaluate(st, *, subject: str, scenario: str, task: str, spec: dict, threshold: str,
              baseline: tuple[dict, str] | None, loaded: bool, version: str | None = None,
              change: dict | None = None, as_of="today", owners: dict[str, dict] | None = None,
              route_task: str | None = None, closers: dict[str, dict] | None = None,
-             register_change: dict | None = None) -> dict:
+             register_change: dict | None = None, sub_gate: bool = False) -> dict:
     """Resolve ``spec`` on the store as it stands, as of ``as_of`` (today by default; harness/cadence.py), and build the report. The command calls this
     after its load (and stage 2's change, if any); the MCP server (harness/mcp_server.py) calls it
     on a store it only reads, so one input gives one report whichever way it was asked. ``owners``
     defaults to the loaded subject's (``capture.finding_owners``) when ``subject`` is its id;
-    ``route_task``, the class an agent-chosen key set was resolved under, names its questionnaire."""
+    ``route_task``, the class an agent-chosen key set was resolved under, names its questionnaire; ``sub_gate``, a gate over
+    the keys a walk reached, words its ``why`` as "the N keys reached" (task-0314)."""
     from gate import resolve_spec
     from store import corpus_digest
     res = resolve_spec(st, task, spec, as_of)
-    res["why"] = sub_gate_why(task, res["why"])
+    res["why"] = sub_gate_why(sub_gate, res["why"])
     from subject import SUBJECT
     scope = suspect_scope(st, res, spec)   # task-0282: which suspect outputs rest on this task's keys
     table = None   # task-0237: the subject's [tasks.<class>] as read, the keys asked for in place of its own

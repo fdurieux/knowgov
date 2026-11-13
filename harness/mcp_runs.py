@@ -310,4 +310,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    import cli_exit   # task-0314 R5
+    cli_exit.help_exit(__doc__)
     sys.exit(main(sys.argv[1:]))

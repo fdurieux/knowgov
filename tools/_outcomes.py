@@ -36,6 +36,14 @@ def _meaning(code) -> str:
     return "cannot run" if code == 2 else "fail"
 
 
+def help_exit(doc) -> None:
+    """task-0314 R5: ``-h`` or ``--help`` among the arguments prints the script's docstring and exits 0, before the script reads
+    an argument as an input or an output folder."""
+    if any(a in ("-h", "--help") for a in sys.argv[1:]):
+        print(doc or f"usage: {sys.argv[0]}")
+        sys.exit(0)
+
+
 def one_dir_arg() -> bool:
     """task-0314 B-X7: the command was given exactly one argument and it is not an option (``--help`` is no output directory)."""
     return len(sys.argv) == 2 and not sys.argv[1].startswith("-")

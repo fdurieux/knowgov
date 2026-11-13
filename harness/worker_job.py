@@ -61,4 +61,6 @@ def main(jobdir: str, workdir: str) -> int:
 
 
 if __name__ == "__main__":
+    import cli_exit   # task-0314 R5
+    cli_exit.help_exit(__doc__)
     sys.exit(main(sys.argv[1], sys.argv[2]))
