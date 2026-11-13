@@ -318,7 +318,10 @@ def test_stale_and_lapsed_findings_name_the_owner_too():
     fs = gate_cli.findings(res, BLOCK, {"k|p": {"unit": "U-1", "name": ""}, "k|q": {"unit": None, "name": ""}}, lambda u, k: f"to {u}")
     by = {f["kind"]: f for f in fs}
     assert by["stale"]["owner"] == "U-1" and by["stale"]["route"] == "to U-1"
-    assert by["lapsed"]["owner"] is None and by["lapsed"]["route"] == "to None"
+    assert by["lapsed"]["owner"] is None
+    # task-0311 A-F4: a review's lapse is renewed by a review under the role, then the owner's route
+    assert by["lapsed"]["route"].startswith("a reviewer who is not the author") and "capture.py review" in by["lapsed"]["route"]
+    assert by["lapsed"]["route"].endswith("; or to None")
     assert "owner" not in by["suspect_derived"] and "route" not in by["suspect_derived"]
 
 

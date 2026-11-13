@@ -176,7 +176,7 @@ def trace(out: Path, made: dict[str, Path]) -> dict[str, dict]:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 2 or sys.argv[1].startswith("-"):   # task-0314 B-X7: --help is not an output directory
         sys.exit(__doc__)
     out = Path(sys.argv[1]).resolve()
     if out.exists() and any(out.iterdir()):

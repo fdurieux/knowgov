@@ -91,8 +91,13 @@ def findings(rep: dict, instance: Path | None = None, subject: Path | None = Non
         held = bool(f.get("held"))   # task-0207, R8: under --baseline, a finding the baseline held did not fail the gate
         title = f"knowgov {tool} {f['kind']}" + (f" {subject_of}" if subject_of else "") + (" (held by the baseline)" if held else "")
         out.append({"severity": f["severity"], "kind": f["kind"], "id": ident, "path": path or fallback,
-                    "line": 1, "title": title, "message": f["message"] + _answers(f), "held": held})
+                    "line": 1, "title": title, "message": _stop(f["message"], _answers(f)) + _answers(f), "held": held})
     return out
+
+
+def _stop(message: str, answers: str) -> str:
+    """N3 (task-0311): a message the owner and route follow ends with a full stop first."""
+    return message + "." if answers and not message.rstrip().endswith((".", "!", "?")) else message
 
 
 def _answers(f: dict) -> str:
@@ -101,7 +106,7 @@ def _answers(f: dict) -> str:
     if "owner" not in f and "route" not in f:
         return ""
     owner = f.get("owner") or "no single unit (several, or none in the register map)"
-    return f" Owner: {owner}." + (f" Route: {f['route']}" if f.get("route") else "")
+    return (f" Owner: {owner}." if "owner" in f else "") + (f" Route: {f['route']}" if f.get("route") else "")
 
 
 def level(severity: str, threshold: str | None, held: bool = False) -> str:

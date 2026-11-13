@@ -36,7 +36,7 @@ class ReadError(ValueError):
 
 
 def held_keys(st, *, subject: str, scenario: str, task: str, as_of: str) -> dict:
-    """Every held key with its count by status, its gate level under ``task`` and the classes requiring it."""
+    """Every held key with its count by stored status (not as of the date), its gate level under ``task`` and the classes requiring it."""
     import gate_cli
     from subject import SUBJECT
     from tasks import TASKS

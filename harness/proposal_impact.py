@@ -1100,6 +1100,13 @@ def _node_file(checkout: Path, mb: str, head: str, st: str, path: str, nodes: li
         not_read.append({"path": path, "status": st, "why": "a node file deleted: retiring is register_impact's question"})
 
 
+def _link_in_place(old: dict, new: dict) -> str:
+    """R1: a link changed in place is not an addition; one withdrawn is read by --register-previous."""
+    gone = new.get("state") in ("retired", "deprecated") and old.get("state") != new.get("state")
+    return "a link changed in place is not an addition" + (
+        f"; one moved to {new['state']} is read by gate_cli --register-previous, which stales the keys it touches" if gone else "")
+
+
 def branch_overlay(checkout: Path, base: str, taxonomies: tuple[str, ...]) -> tuple[dict, dict]:
     """The proposal a register branch makes against ``base``, and what the report says of the branch.
     Reads git only: the diff between the merge base and HEAD (committed work, never the working tree)."""
@@ -1127,7 +1134,7 @@ def branch_overlay(checkout: Path, base: str, taxonomies: tuple[str, ...]) -> tu
                     links.append({"id": ln.get("id"), "type": typ,
                                   **{k: ln[k] for k in ("source", "target", "rationale", "owner") if k in ln}})
                 elif ln != before[ln.get("id")]:
-                    not_read.append({"path": f"{path} [{ln.get('id')}]", "status": "M", "why": "a link changed in place is not an addition"})
+                    not_read.append({"path": f"{path} [{ln.get('id')}]", "status": "M", "why": _link_in_place(before[ln.get("id")], ln)})
             after = {ln.get("id") for ln in new.get("link", [])}
             for lid in sorted(set(before) - after):
                 not_read.append({"path": f"{path} [{lid}]", "status": "D", "why": "a link removed is not an addition"})
@@ -1248,7 +1255,7 @@ def render_text(r: dict) -> str:
     if tk is not None:
         lines.append(f"  task keys{' (' + tk['task'] + ')' if tk['task'] else ''}: {tk['in_slices']} in slices, {tk['on_no_slice']} "
                      f"on no slice, of {tk['denominator']}" + (f": {[k['key'] for k in tk['keys']]}" if tk["keys"] else "")
-                     + (f"; gate {tk['gate']['verdict']}" if tk.get("gate") else ""))
+                     + (f"; gate {tk['gate']['verdict']} (the held scenario's, read as it is: not a verdict on this proposal)" if tk.get("gate") else ""))
     e = sl["elements"]
     lines.append(f"  slices: {e['in_slices']} in slices, {e['in_remainder']} in the remainder, of {e['denominator']} overlay element(s)")
     for k in r["keys"]["by_node"]:
@@ -1334,4 +1341,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import cli_exit   # task-0314 B-X1, P1: an unloadable subject or a refused task policy is exit 2, one line, never a traceback
+    sys.exit(cli_exit.run(main, "proposal_impact"))

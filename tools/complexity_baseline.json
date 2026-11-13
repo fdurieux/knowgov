@@ -398,8 +398,8 @@
    "floor": 30
   },
   "harness/trace.py::check": {
-   "value": 93,
-   "floor": 93
+   "value": 90,
+   "floor": 90
   },
   "harness/trace.py::main": {
    "value": 18,
@@ -587,8 +587,8 @@
    "floor": 37
   },
   "tools/check_subject.py::subject_versions": {
-   "value": 40,
-   "floor": 40
+   "value": 20,
+   "floor": 20
   },
   "tools/check_subject.py::yield_only": {
    "value": 19,

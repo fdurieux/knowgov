@@ -166,6 +166,10 @@ def gap_closers(subject, gaps: dict[str, list[dict]], root: Path | None = None) 
     return out
 
 
+# C3-1 (task-0311): the routes name the tool by its path in a knowgov checkout; an instance repository holds none, so say so once
+FROM_INSTANCE = " (from an instance repository, run it as python \"$KG_HOME\"/harness/capture.py)"
+
+
 def closing_route(gap: str, unit: str | None) -> str:
     """The route's closing half for a declared gap (task-0110): the unit its declaration names closes it
     by a review whose handle holds the role closes (decision-0002 point 3, task-0054)."""
@@ -182,7 +186,7 @@ def questionnaire_route(subject_id: str, scenario: str, task: str, unit: str | N
     where = " or ".join(f"DIR/questionnaire-{subject_id}-{scenario}-{f}.toml" for f in files)
     return (f"python harness/capture.py questionnaire --scenario {scenario} --task {task} --out DIR; "
             f"{who} answers {where}, "
-            "then python harness/capture.py ingest it and a reviewer who is not the author rules on it")
+            "then python harness/capture.py ingest it and a reviewer who is not the author rules on it" + FROM_INSTANCE)
 
 
 def question_for(key: str) -> str:
@@ -195,6 +199,11 @@ def _q(s: str) -> str:
     return json.dumps(s, ensure_ascii=False)
 
 
+def _with_open(by_owner: dict[str, list[str]], res: dict) -> dict[str, list[str]]:
+    """task-0315 C2-5: the owners with at least one open key; a questionnaire with nothing to answer is not written."""
+    return {o: ks for o, ks in by_owner.items() if any(res["keys"][k]["level"] in OPEN_LEVELS for k in ks)}
+
+
 def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, today: dt.date) -> dict[str, str]:
     """owner -> the questionnaire's TOML text; a key goes to its answering owner only."""
     route = routing(subject.register_map(), nodes)   # task-0201: where questionnaire_route says the key is
@@ -204,7 +213,7 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
         for o in (route.get(key) or {}).get("files") or [UNASSIGNED]:
             by_owner.setdefault(o, []).append(key)
     out = {}
-    for owner, keys in sorted(by_owner.items()):
+    for owner, keys in sorted(_with_open(by_owner, res).items()):
         open_keys = [k for k in keys if res["keys"][k]["level"] in OPEN_LEVELS]
         name = nodes.get(owner, {}).get("name", "no owner in the register map")
         lines = [
@@ -239,6 +248,8 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
             if c:   # task-0113: who closes the declared gap, as the gate's finding names it (task-0110)
                 lines.append(f"# {c['gap']} is closed by {c['unit'] + ' ' + c['name'] if c['unit'] else 'the owner its declaration names'}, "
                              "by a review under a handle with the role closes; an answer here does not close it.")
+            lines += [f"# Asked by task {task}: the gate's finding on {k} ({v['level'].replace('_', ' ')}). If the documents changed since "
+                      "an earlier answer, the route may be re-attesting the new Version instead (the finding's route names it)."]
             lines += ["[[item]]", f"key = {_q(k)}", f"level = {_q(v['level'])}",
                       "known = [" + ", ".join(_q(x) for x in known) + "]",
                       "declared_gaps = [" + ", ".join(_q(x) for x in gaps) + "]"]
@@ -253,6 +264,14 @@ def _date(v) -> dt.date | None:
     if isinstance(v, dt.date) and not isinstance(v, dt.datetime):
         return v
     return dates.parse(v) if dates.is_date(v) else None   # task-0262
+
+
+def _foreign_unit(q: dict, handle, h: dict | None) -> list[str]:
+    """task-0315 C2-6: a handle answers a questionnaire of its own unit only (a review-due one is addressed to the handle)."""
+    owner = str(q.get("owner") or "")
+    if h is None or q.get("route") == "review-due" or not h.get("unit") or not owner or owner == UNASSIGNED or h["unit"] == owner:
+        return []
+    return [f"answered.from {handle} belongs to {h['unit']}, not to {owner}, whose questionnaire this is"]
 
 
 def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
@@ -279,6 +298,7 @@ def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
             errs.append(f"answered.from {handle!r} is not an issued handle (decision 0009): the register's issued list does not name it")
         elif "gives" not in h.get("roles", set()):
             errs.append(f"answered.from {handle} lacks the role gives, which an answer needs (decision 0009)")
+        errs += _foreign_unit(q, handle, h)
         if h is not None and on is not None:
             if h.get("issued") and h["issued"] > on:
                 errs.append(f"answered.from {handle} was issued on {h['issued']}, after the answer's date {on} (decision 0009)")
@@ -407,7 +427,11 @@ def show_rulings(doc: dict, captures: dict[str, dict]) -> str:
         aid = str(ru.get("assertion", ""))
         c = captures.get(aid)
         if c is None:
-            out.append(f"ruling {i} ({aid}): not a captured answer")
+            # a document statement: no capture holds it, so show what the ruling itself recorded of it (its id
+            # names the document and Version; key, value and digest are what it was bound to)
+            held = [f"{n} {ru[n]!r}" for n in ("key", "value", "sha256") if ru.get(n) is not None]
+            out.append(f"ruling {i} ({aid}): not a captured answer"
+                       + (f"; a document statement, as the ruling bound it: {', '.join(held)}" if held else ""))
             continue
         out.append(f"ruling {i} ({aid}): {c['from']} on {c['on']}: {c['value']!r}")
         out.append(f"  note: {c['note']!r}" if c["note"] else "  note: none")
@@ -543,7 +567,7 @@ def _opposes(review, into: Path, dest: Path, rv: dict) -> list[str]:
                  if str(r.get("on")) == on]
     rows += [(ru["statement"], on, rv["by"], ru["outcome"], dest.name) for ru in rv["rulings"]]
     return [f"warning: {dest.name} ruling {st} ({oc}) is cancelled with {', '.join(f'{f} ({o})' for f, o in g if f != dest.name)}, "
-            "a ruling of another reviewer the same day: none applies and the gate reports it; the owners rule again in one "
+            f"{'rulings' if len([1 for f, _ in g if f != dest.name]) > 1 else 'a ruling'} of {'other reviewers' if len([1 for f, _ in g if f != dest.name]) > 1 else 'another reviewer'} the same day: none applies and the gate reports it; the owners rule again in one "
             "review on a later day (written all the same)"
             for (st, _on, rel), g in sorted(review.opposed_rulings(rows).items()) if rel == dest.name
             for oc in [next(o for f, o in g if f == dest.name)]]

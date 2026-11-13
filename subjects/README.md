@@ -98,6 +98,9 @@ execution = { versions = ["<sha256>"] }        # the Versions the suite's result
                               # implementation = [...] and suite = [...] list the raw-byte digest of each file of
                               # [reference] code and of [oracle] script with each file [oracle] suite lists (decision-0038,
                               # task-0338); one not listed as it is verifies nothing by execution
+                              # A subject whose scenarios plant text (CargoQuote's plants.toml) also lists the digests of the planted
+                              # texts as versions; check_subject's note on unchanged code and its errors fire on those too until
+                              # they are re-derived from the document they come from (it reads plant-derived digests like any other)
 review = { at = "2026-08-06", scope = "..." }       # the dated human review; it lapses after its keys' review months (decision-0005)
 authored = { at = "2026-10-30", scope = "..." }     # authored statements: reviewed by construction, only when declared
 approval = { at = "2026-08-06", record = "..." }    # the owner's approval of every verified assertion, only when declared

@@ -36,6 +36,11 @@ def _meaning(code) -> str:
     return "cannot run" if code == 2 else "fail"
 
 
+def one_dir_arg() -> bool:
+    """task-0314 B-X7: the command was given exactly one argument and it is not an option (``--help`` is no output directory)."""
+    return len(sys.argv) == 2 and not sys.argv[1].startswith("-")
+
+
 def run(main) -> int:
     """``main()``'s exit code, recorded; an exception propagates after its record is written."""
     t0 = time.monotonic()

@@ -11,8 +11,9 @@ refuses the job unless every check holds and the heartbeat is fresh.
 
 Without a worker the code runs nowhere: ``ExecutionRefused``, never a silent fall back to the host.
 task-0141.07's opt-in (``KG_ALLOW_UNCONTAINED_EXECUTION=1``) is the only escape: with it and no worker,
-the code runs on the host, uncontained, as before X1. An organisation's instance mounted stays refused
-first (execution_guard), whatever the backend: the worker sees only what ships in the image."""
+the code runs on the host, uncontained, as before X1. With an organisation's instance mounted, a
+configured worker is admitted (it sees only what ships in the image); the host stays refused by
+execution_guard unless the opt-in is set."""
 from __future__ import annotations
 
 import json
@@ -64,7 +65,12 @@ def refusal(env=None) -> str | None:
 
 
 def check(env=None) -> str:
-    """Refused unless something may run model output now: the instance guard, then a backend."""
+    """Refused unless something may run model output now: a backend (a configured worker, which sees only what
+    ships in its image, so an instance's own corpus is no reason to refuse it), and on the host the instance
+    guard, which refuses first unless the opt-in is set."""
+    env = os.environ if env is None else env
+    if (env.get(JOBS_VAR) or "").strip():
+        return "worker"
     execution_guard.check(env)
     return backend(env)
 

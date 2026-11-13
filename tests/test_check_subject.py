@@ -215,3 +215,14 @@ def test_a_yielded_key_is_offered_once_and_another_entitys_key_is_no_typo():
     assert "yield" not in _rules(rep, "warning"), rep["findings"]
     [n] = [n for n in rep["notes"] if n["rule"] == "unyielded"]
     assert "REQ-03|text, is another entity's" in n["message"] and "not a misspelling" in n["message"], n
+
+
+def test_a_missing_register_map_is_named():   # task-0312 C1-1
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "p"
+        import shutil
+        shutil.copytree(PROBE, root)
+        (root / "register_map.toml").unlink()
+        rep = check_subject.check(root, REGISTER)
+        assert any(n["rule"] == "map" and n["where"] == "register_map.toml" and "not there" in n["message"] for n in rep["notes"]), rep["notes"]
+        assert schema_check.validate(rep, schema_check.load("subject-check")) == []

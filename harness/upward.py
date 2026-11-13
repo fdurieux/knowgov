@@ -88,15 +88,16 @@ def _node(reg: dict, nid: str) -> dict:
             "state": n.get("state", ""), "owner": n.get("owner")}
 
 
-def key_nodes(key, root: Path | None = None) -> dict:
-    """The map rows on ``key`` with their register nodes; UpwardError on a key the subject does not know."""
+def key_nodes(key, root: Path | None = None, held=()) -> dict:
+    """The map rows on ``key`` with their register nodes; UpwardError on a key the subject does not know. ``held``,
+    the keys a store holds (the MCP reader's, task-0314 B-X6), makes a held key with no row ``mapped: false``."""
     from subject import SUBJECT
     import key_rule
     key = key_rule.normalise(key)   # task-0301: the NFC form the register map's rows hold
     if not isinstance(key, str) or "|" not in key:
         raise UpwardError(f"key {key!r}: an entity|attribute key, as store_status and register_impact name them")
-    if key not in _known():
-        raise UpwardError(f"{key}: no key of {SUBJECT.id} (its register map's rows and its tasks' keys)")
+    if key not in _known() and key not in held:
+        raise UpwardError(f"{key}: no key of {SUBJECT.id} (its register map's rows and its tasks' keys)" + key_rule.did_you_mean(key, _known()))
     root = (root or ri.register_root()).resolve()
     reg = ri.load_tools(root)["register"].load_register(root)
     rows = [{"nodes": [_node(reg, x) for x in (r.get("nodes") or [])], "owner": r.get("owner"),
@@ -298,4 +299,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import cli_exit   # task-0314 B-X1, P1: an unloadable subject or a refused task policy is exit 2, one line, never a traceback
+    sys.exit(cli_exit.run(main, "upward"))

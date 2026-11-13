@@ -115,12 +115,12 @@ def written(out: str) -> dict:
 
 
 def giver_cases(out: Path) -> list[str]:
-    """task-0302 (decision-0032 C2-1): employee-2 approves employee-1's answer, its capture is deleted, and the same
-    value is given again by employee-3 (the approval must not follow) or by employee-1 (it must)."""
+    """task-0302 (decision-0032 C2-1): employee-3 approves employee-1's answer, its capture is deleted, and the same
+    value is given again by employee-2 (the approval must not follow) or by employee-1 (it must)."""
     errs: list[str] = []
     print("== task-0302: an approved answer's capture deleted, then another person's identical answer (S2')")
     hold = "response|hold_presence"
-    for who, on, repairs in (("employee-3", ON, False), ("employee-1", ON, True)):
+    for who, on, repairs in (("employee-2", ON, False), ("employee-1", ON, True)):
         env = fresh(out, f"giver-{who}", decided=True)
         d = out / f"giver-{who}"
         cap = w.answer(env, d)
@@ -128,7 +128,7 @@ def giver_cases(out: Path) -> list[str]:
         capfile = next(capdir.glob("*.toml"))
         n = 1 + [a["key"] for a in tomllib.loads(capfile.read_text(encoding="utf-8"))["answer"]].index(hold)
         ruled = f"{cap}:{n}@capture"
-        w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
+        w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-3", "S2", [(ruled, "approved")])))
         capfile.unlink()   # the approved answer's capture gone; an identical answer given again, by another person or the same
         again = w.answer(env, d, handle=who, on=on, want={hold: "held_unscreened only"})
         got = {k: v for k, v in approvals(env, "S2", hold).items() if v}
@@ -143,8 +143,8 @@ def giver_cases(out: Path) -> list[str]:
 
 
 def forged_cases(out: Path) -> list[str]:
-    """task-0321 H1: the recorded giver is checked at the load. employee-2's approval of employee-1's answer records
-    ``employee-1``; the capture deleted and employee-3 giving the same value, the file edited to name employee-3 as
+    """task-0321 H1: the recorded giver is checked at the load. employee-3's approval of employee-1's answer records
+    ``employee-1``; the capture deleted and employee-2 giving the same value, the file edited to name employee-2 as
     giver is an act finding (the key not approved), where the honest file is the ``gone`` act."""
     errs: list[str] = []
     print("== task-0321: a review's recorded giver edited to the person whose identical answer remains (S2')")
@@ -156,16 +156,16 @@ def forged_cases(out: Path) -> list[str]:
     capfile = next(capdir.glob("*.toml"))
     n = 1 + [a["key"] for a in tomllib.loads(capfile.read_text(encoding="utf-8"))["answer"]].index(hold)
     ruled = f"{cap}:{n}@capture"
-    got = w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, "approved")])))
+    got = w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-3", "S2", [(ruled, "approved")])))
     saved = Path(re.search(r"into (\S+\.toml)", got).group(1))
     capfile.unlink()
-    w.answer(env, d, handle="employee-3", want={hold: "held_unscreened only"})
+    w.answer(env, d, handle="employee-2", want={hold: "held_unscreened only"})
     honest = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled]
-    saved.write_text(saved.read_text(encoding="utf-8").replace('giver = "employee-1"', 'giver = "employee-3"'), encoding="utf-8")
+    saved.write_text(saved.read_text(encoding="utf-8").replace('giver = "employee-1"', 'giver = "employee-2"'), encoding="utf-8")
     held = {k: v for k, v in approvals(env, "S2", hold).items() if v}
     forged = [f for f in acts(gate(env, "S2")) if f["ref"] == ruled]
     if held or len(honest) != 1 or len(forged) != 1 or forged[0]["severity"] != "major" or not all(
-            g in forged[0]["message"] for g in ("employee-3", "employee-1")):
+            g in forged[0]["message"] for g in ("employee-2", "employee-1")):
         errs.append(f"task-0321: a forged giver should be a major act naming both givers and approve nothing: approved {held}, honest {honest}, forged {forged}")
     print(f"    approved on {sorted(held) or 'nothing'}; {forged[0]['severity'] + ' act: ' + forged[0]['message'] if forged else 'no act'}")
     return errs

@@ -1,6 +1,7 @@
-"""A stopgap (task-0141.07), not containment: code a model wrote runs on this machine, inside the
-process's own environment, with what it can read and reach (task-0141.05, X1, is the containment).
-Until X1 lands, every path that executes model output refuses when an organisation's instance is
+"""The host-side guard (task-0141.07): code a model wrote on the host runs inside the process's own
+environment, with what it can read and reach; the contained worker (task-0141.05, X1) is the containment and
+admits a configured worker whatever is mounted (``execution.check``). On the host, every path that executes
+model output refuses when an organisation's instance is
 mounted, that is when KG_SUBJECT, KG_SUBJECTS or KG_REGISTER names a folder outside this checkout
 (demo/docker-compose.instance.yml mounts one at /instance), unless the operator sets
 KG_ALLOW_UNCONTAINED_EXECUTION=1 and so accepts that the code runs uncontained beside that data.
@@ -56,8 +57,8 @@ def refusal(env=None) -> str | None:
         return None
     named = ", ".join(f"{k}={v}" for k, v in found.items())
     return (f"refused: an organisation's instance is mounted ({named}) and code a model wrote would run "
-            f"uncontained beside it, with this process's environment and files; containment is task-0141.05 (X1), "
-            f"not yet built. {OPT_IN}=1 accepts that risk and lifts this refusal")
+            f"uncontained beside it, with this process's environment and files; start the stack's contained worker "
+            f"(KG_WORKER_JOBS; task-0141.05 (X1), which admits it), or set {OPT_IN}=1 to accept that risk and lift this refusal")
 
 
 def check(env=None) -> None:

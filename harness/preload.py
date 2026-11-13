@@ -40,6 +40,13 @@ def report_path(subject) -> Path | None:
     return p if p and p.is_file() else None
 
 
+def _must_exist(path: Path) -> None:
+    """task-0312 C4-6: a report named by KG_PRELOAD_REPORT that is not a file is said so, not blamed on the store."""
+    if not path.is_file():
+        raise FileNotFoundError(f"KG_PRELOAD_REPORT names {path}, which is not a file: unset it, or point it at the pre-load report"
+                                if os.environ.get("KG_PRELOAD_REPORT") else f"the pre-load report {path} is not a file")
+
+
 NONE_SET = "KG_PRELOAD_REPORT is not set and "
 
 
@@ -54,12 +61,14 @@ def identity(subject) -> dict:
                           else "the subject is not in an instance")
         return {"path": None, "sha256": None, "why": why}
     shown = os.environ.get("KG_PRELOAD_REPORT") or DEFAULT_NAME
+    _must_exist(path)
     return {"path": shown, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "why": None}
 
 
 def read_report(path: Path) -> dict:
     """The report, held to harness/schemas/preload-report.schema.json; raises ValueError otherwise."""
     import schema_check
+    _must_exist(path)
     rep = json.loads(path.read_text(encoding="utf-8"))
     errors = schema_check.validate(rep, schema_check.load("preload-report"))
     if errors:

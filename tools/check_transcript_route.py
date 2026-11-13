@@ -139,6 +139,6 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["--inside"]:
         print(json.dumps(inside(Path(sys.argv[2]), Path(sys.argv[3])), default=str))
         sys.exit(0)
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 2 or sys.argv[1].startswith("-"):   # task-0314 B-X7: --help is not an output directory
         sys.exit(__doc__)
     sys.exit(_outcomes.run(lambda: main(Path(sys.argv[1]).resolve())))
