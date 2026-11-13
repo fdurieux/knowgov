@@ -293,22 +293,31 @@ def carried_register_ids(man: dict) -> set[str]:
     return set(man.get("register_ids", {}).values()) | set(man.get("bpmn_ids", {}))
 
 
-def _carried_stale(reg_root: Path, previous: str, reg: dict, now: set[str], found: dict, ids=()) -> dict:
+def _returned(node: dict, entry: dict, sysname, id_field, ids: set) -> bool:
+    """Whether a carried stale node's own id for this system is in the export's ids: the entry's id field,
+    or the node's ``[source]`` id field when its source system is this one (before '#'); nothing else."""
+    own = {str(entry[id_field])} if id_field and entry.get(id_field) else set()
+    src = node.get("source") or {}
+    if id_field and src.get("system") == sysname and src.get(id_field):
+        own.add(str(src[id_field]).split("#")[0])
+    return bool(own & ids)
+
+
+def _carried_stale(reg_root: Path, previous: str, reg: dict, now: set[str], found: dict, man: dict) -> dict:
     """Stale persists until the id returns (task-0313, C5-1): what the previous landing found stale stays
     so while this export still lacks its register id, whichever rule found it; a node is back too when its
-    own ``[source]`` id (the register's GUID rule) is among the export's ``ids``."""
-    path = reg_root / previous / "RECONCILE.json"
+    own id for this system (the register's GUID rule) is among the export's ``ids``."""
+    sysname = man.get("source")
+    id_field = reg["sources"]["system"].get(sysname, {}).get("id_field")
+    ids = set(man.get("ids", {}))
     try:
-        carried = json.loads(path.read_text(encoding="utf-8")).get("stale_nodes", [])
+        carried = json.loads((reg_root / previous / "RECONCILE.json").read_text(encoding="utf-8")).get("stale_nodes", [])
     except (OSError, ValueError):
         return {}
     out = {}
     for n in carried:
         nid = n.get("id") if isinstance(n, dict) else None
-        if not (nid and nid in reg["nodes"] and nid not in now and nid not in found):
-            continue
-        own = {str(v) for v in (reg["nodes"][nid].get("source") or {}).values()} | {str(v) for k, v in n.items() if k not in ("id", "previous")}
-        if not own & set(ids):
+        if nid and nid in reg["nodes"] and nid not in now and nid not in found and not _returned(reg["nodes"][nid], n, sysname, id_field, ids):
             out[nid] = {**n, "previous": n.get("previous", previous)}
     return out
 
@@ -328,7 +337,7 @@ def reconcile(reg_root: Path, landing: Path, folder: str, man: dict) -> dict:
         for nid in sorted(before - now):   # carried last time, by the register id itself, and gone now
             if nid in reg["nodes"] and nid not in stale:
                 stale[nid] = {"id": nid, "previous": out["previous"]}
-        stale.update(_carried_stale(reg_root, out["previous"], reg, now, stale, man.get("ids", {})))
+        stale.update(_carried_stale(reg_root, out["previous"], reg, now, stale, man))
     out["stale_nodes"] = [stale[k] for k in sorted(stale)]
     out["unknown_ids"] = sorted(k for k in now if k not in reg["nodes"])
     return out

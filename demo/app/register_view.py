@@ -176,9 +176,11 @@ WALK_REACH = {"dependants": (("PROC", "process", "processes"), ("PRD", "product"
 
 def _walk_summary(walk: str, edges: int, not_followed: int, by_prefix) -> str:
     """The Edges walked section's first sentence: the edges, those not followed, and what was reached by the kinds the walk reaches."""
-    parts = [views._plural(len(by_prefix(p)), one, many) for p, one, many in WALK_REACH[walk]]
-    return (f"{views._plural(edges, 'edge')} walked, {not_followed} not followed; "
-            f"{', '.join(parts[:-1])} and {parts[-1]} reached.")
+    parts = [views._plural(len(by_prefix(p)), one, many) for p, one, many in WALK_REACH[walk] if by_prefix(p)]
+    if not parts:   # a kind not reached is not named (task-0313); nothing reached says so
+        return f"{views._plural(edges, 'edge')} walked, {not_followed} not followed; nothing reached."
+    named = parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} and {parts[-1]}"
+    return f"{views._plural(edges, 'edge')} walked, {not_followed} not followed; {named} reached."
 
 
 def followed(e: dict) -> str:
