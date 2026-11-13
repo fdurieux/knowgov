@@ -388,6 +388,7 @@ def check_bindings(rep: Report, m: dict, root: Path) -> None:
         if isinstance(a, dict):
             _check_versions(rep, m, root, name, a.get("versions"), known)
     check_oracle_suite(rep, m, root)
+    check_code_paths(rep, m)
     check_execution_code(rep, m, root, ver.get("execution"))
 
 
@@ -411,6 +412,14 @@ def _script_in_suite(rep: Report, o: dict, v: list) -> None:
         rep.note("attestation", "[oracle] suite", f"also lists the script {s}, which the suite digest binds already; list the files the script reads beside it")
 
 
+def _suite_refusal(v) -> str:
+    """L5: why ``[oracle] suite`` is not a list of paths, naming the entry that is not one."""
+    if not isinstance(v, list):
+        return "is not a list of paths" + (f" (it is the string {v!r}): write suite = [{v!r}]" if isinstance(v, str) else f" (it is {v!r})")
+    bad = next((i, x) for i, x in enumerate(v) if not (isinstance(x, str) and x))
+    return f"is not a list of paths (strings, relative to the subject root): entry {bad[0]} ({bad[1]!r}) is not a path"
+
+
 def check_oracle_suite(rep: Report, m: dict, root: Path) -> None:
     """task-0338 (decision-0039 §3.5): ``[oracle] suite``, optional, lists the files the suite reads beside its script
     (its expectations), each digested into ``[verification] execution``'s ``suite``; each a relative path inside the
@@ -420,7 +429,7 @@ def check_oracle_suite(rep: Report, m: dict, root: Path) -> None:
         return
     v, where = o["suite"], "[oracle] suite"
     if not isinstance(v, list) or not all(isinstance(x, str) and x for x in v):
-        rep.error("path", where, "is not a list of paths (strings, relative to the subject root)",
+        rep.error("path", where, _suite_refusal(v),   # L5: the entry named
                   'list the files the suite reads beside its script, e.g. suite = ["tests/expectations.py"]')
         return
     _script_in_suite(rep, o, v)
@@ -432,6 +441,19 @@ def check_oracle_suite(rep: Report, m: dict, root: Path) -> None:
                       "name it relative to the subject root, at most ../../ up")
         elif not (root / p).exists():
             rep.error("path", where, f"{x} does not exist", "fix the path; it is relative to the subject root")
+        elif (out := _escaping(root, x)):   # L8
+            rep.error("path", where, f"{x} holds {out}, which resolves outside the subject's instance",
+                      "remove the link, or copy the file into the instance")
+
+
+def check_code_paths(rep: Report, m: dict) -> None:
+    """L4: ``[reference] code`` and ``[oracle] script`` are a path string or absent; the load refuses anything else (exit 2)."""
+    for table, field in (("reference", "code"), ("oracle", "script")):
+        sec = m.get(table) if isinstance(m.get(table), dict) else {}
+        v = sec.get(field)
+        if v is not None and not isinstance(v, str):
+            rep.error("path", f"[{table}] {field}", f"is {v!r}, not a path (a string relative to the subject root)",
+                      "name it relative to the subject root")
 
 
 def check_execution_code(rep: Report, m: dict, root: Path, ex) -> None:
@@ -451,13 +473,23 @@ def _owner(m: dict, which: str, table: str, field: str, rel: str) -> str:
     return f"[{table}] {field} {rel}" + (" or a file [oracle] suite lists" if which == "suite" and suite_files(m.get("oracle")) else "")
 
 
+def _escaping(root: Path, named) -> str | None:
+    from subject import escaping_file
+    return escaping_file(root, named) if isinstance(named, str) and named else None
+
+
 def _outside(rep: Report, m: dict, root: Path, table: str, field: str) -> bool:
     """S2: a path outside the instance is refused as the load refuses it (``require_code_inside``); True when it was."""
     sec = m.get(table) if isinstance(m.get(table), dict) else {}
     named = sec.get(field)
     if not (isinstance(named, str) and named and (Path(named).is_absolute() or "\\" in named
                                                   or not (root / named).resolve().is_relative_to(root.resolve().parent.parent))):
-        return False
+        out = _escaping(root, named)   # L8
+        if not out:
+            return False
+        rep.error("path", f"[{table}] {field}", f"{named} holds {out}, which resolves outside the subject's instance",
+                  "remove the link, or copy the file into the instance")
+        return True
     rep.error("path", f"[{table}] {field}", f"{named} is not a relative path inside the subject's instance",
               "name it relative to the subject root, at most ../../ up")
     return True
@@ -470,6 +502,7 @@ def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, t
     rel, files = code_digests(m, root, which)
     if rel is None:
         return
+    rel = rel or "(an empty path)"   # L7
     listed = ex.get(which)
     now = sorted(set(files.values()) - {""})
     if listed is None:

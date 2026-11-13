@@ -104,6 +104,16 @@ def path_inside(root: Path, x: str) -> bool:
     return not (Path(x).is_absolute() or "\\" in x) and (root / x).resolve().is_relative_to(root.resolve().parent.parent)
 
 
+def escaping_file(root: Path, x: str) -> str | None:
+    """L8: the first file under the directory ``x`` names whose real path lies outside the instance (a symlink out of it), as
+    its path under ``x``; None when ``x`` is no directory or holds none. ``path_inside`` checks only the top-level path."""
+    p = root / x
+    top = root.resolve().parent.parent
+    if not p.is_dir():
+        return None
+    return next((f.relative_to(p).as_posix() for f in sorted(p.rglob("*")) if f.is_file() and not f.resolve().is_relative_to(top)), None)
+
+
 def code_files(root: Path, reference, oracle, which: str) -> tuple[str | None, dict[str, str], dict[str, str]]:
     """(the path, each file's raw-byte SHA-256 by relative path, the declared suite files' share of them) of what an
     execution verification ran (task-0320, decision-0038 N-b), from a manifest's ``[reference]`` and ``[oracle]``
@@ -114,13 +124,13 @@ def code_files(root: Path, reference, oracle, which: str) -> tuple[str | None, d
     is the script alone, as before. One reading for the load (``Subject.code_parts``) and ``check_subject``."""
     table = reference if which == "implementation" else oracle
     rel = table.get("code" if which == "implementation" else "script") if isinstance(table, dict) else None
-    if rel == "":   # R7: a declared, empty path is a missing file (the attestation finding), not no binding
+    if isinstance(rel, str) and not rel.strip():   # R7, L7: a declared, empty path is a missing file (the attestation finding), not no binding
         return "", {}, {}
     if not isinstance(rel, str):
         return None, {}, {}
     parts = _file_digests(root / rel, REFERENCE_INCLUDE if which == "implementation" else None, "")
     declared: dict[str, str] = {}
-    for extra in [x for x in suite_files(oracle) if path_inside(root, x)] if which == "suite" else []:
+    for extra in [x for x in suite_files(oracle) if path_inside(root, x) and not escaping_file(root, x)] if which == "suite" else []:
         declared.update(_file_digests(root / extra, None, extra) or {extra: ""})
     return rel, {**parts, **declared}, declared
 
@@ -348,6 +358,8 @@ class Subject:
             return ""
         try:
             return bundle(p, REFERENCE_INCLUDE) if p.is_dir() else p.read_text(encoding="utf-8")
+        except PermissionError as e:   # L3
+            raise CodeUnreadable(f"{self.id}: [reference] code {rel} cannot be read (permission denied)") from e
         except UnicodeDecodeError as e:
             raise CodeUnreadable(f"{self.id}: [reference] code {rel} is not UTF-8 text ({e.reason} at byte {e.start})") from e
 
@@ -379,6 +391,9 @@ class Subject:
             if not path_inside(self.root, x):
                 raise CodePathOutside(f"{self.id}: {where} names {x}, which is not a relative path inside the subject's "
                                       "instance; the load digests no file outside it (decision-0039 §3.5)")
+            if (out := escaping_file(self.root, x)):   # L8
+                raise CodePathOutside(f"{self.id}: {where} {x} holds {out}, which resolves outside the subject's instance; "
+                                      "the load digests no file outside it (decision-0039 §3.5)")
 
     def code(self) -> dict[str, str] | None:
         """The code and suite an execution verification is compared against, as the load reads them now (task-0341,
