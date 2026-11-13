@@ -561,6 +561,14 @@ def _listed_files(m: dict, root: Path, listed: list) -> str:
     return ", ".join(f"{d} is {files[d]}" for d in listed if d in files)
 
 
+def _stale_errors(rep: Report, where: str, name: str, stale: list, held: str) -> None:
+    """One error per stale digest; the listed digests that do match a file are named once per declaration (L6)."""
+    for i, d in enumerate(stale):
+        rep.error("attestation", where, f"versions lists {d}, which matches no current Version of the subject's artefacts"
+                  + (f" (the listed digests that do match a file: {held})" if held and i == 0 else "")
+                  + ": it attests nothing the load reads", _relist_fix(name))
+
+
 def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: list) -> None:
     where = f"[verification] {name}"
     if listed is None or (name in BOUND and listed == []):   # task-0318: an empty list verifies nothing either
@@ -582,11 +590,7 @@ def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: 
     stale = sorted(set(listed) - known[0])
     if _edited(rep, m, root, name, listed, stale):   # task-0318, task-0319: the edit, by artefact and file
         return
-    held = _listed_files(m, root, listed)
-    for d in stale:
-        rep.error("attestation", where, f"versions lists {d}, which matches no current Version of the subject's artefacts"
-                  + (f" (the listed digests that do match a file: {held})" if held else "")
-                  + ": it attests nothing the load reads", _relist_fix(name))
+    _stale_errors(rep, where, name, stale, _listed_files(m, root, listed))
     _unlisted_plants(rep, m, root, where, listed, name)
 
 

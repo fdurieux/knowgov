@@ -269,10 +269,15 @@ def _date(v) -> dt.date | None:
     return dates.parse(v) if dates.is_date(v) else None   # task-0262
 
 
-def _foreign_unit(q: dict, handle, h: dict | None) -> list[str]:
-    """task-0315 C2-6: a handle answers a questionnaire of its own unit only (a review-due one is addressed to the handle)."""
+def _foreign_unit(q: dict, handle, h: dict | None, handles: dict | None = None) -> list[str]:
+    """task-0315 C2-6: a handle answers a questionnaire of its own unit only; a review-due one is addressed to its ``to``,
+    the handle, or the owner unit when the handle is withdrawn (L5: the file's fields are the answerer's own to edit)."""
     owner = str(q.get("owner") or "")
-    if h is None or q.get("route") == "review-due" or not h.get("unit") or not owner or owner == UNASSIGNED or h["unit"] == owner:
+    if h is not None and q.get("route") == "review-due":
+        to = str(q.get("to") or "")
+        mine = to in (handles or {}) and to != str(handle) or to not in (handles or {}) and to and h.get("unit") != to
+        return [f"answered.from {handle} is not who this review-due questionnaire is addressed to ({to})"] if mine else []
+    if h is None or not h.get("unit") or not owner or owner == UNASSIGNED or h["unit"] == owner:
         return []
     return [f"answered.from {handle} belongs to {h['unit']}, not to {owner}, whose questionnaire this is"]
 
@@ -301,7 +306,7 @@ def check_answers(doc: dict, pattern: str, keys: set[str], today: dt.date,
             errs.append(f"answered.from {handle!r} is not an issued handle (decision 0009): the register's issued list does not name it")
         elif "gives" not in h.get("roles", set()):
             errs.append(f"answered.from {handle} lacks the role gives, which an answer needs (decision 0009)")
-        errs += _foreign_unit(q, handle, h)
+        errs += _foreign_unit(q, handle, h, handles)
         if h is not None and on is not None:
             if h.get("issued") and h["issued"] > on:
                 errs.append(f"answered.from {handle} was issued on {h['issued']}, after the answer's date {on} (decision 0009)")
@@ -435,7 +440,7 @@ def show_rulings(doc: dict, captures: dict[str, dict]) -> str:
             # names the document and Version; key, value and digest are what it was bound to)
             held = [f"{n} {ru[n]!r}" for n in ("key", "value", "sha256") if ru.get(n) is not None]
             out.append(f"ruling {i} ({aid}): not a captured answer"
-                       + (f"; a document statement, as the ruling bound it: {', '.join(held)}" if held else ""))
+                       + (f"; a document statement; the ruling's own recorded fields, not read from the store and unchecked: {', '.join(held)}" if held else ""))
             continue
         out.append(f"ruling {i} ({aid}): {c['from']} on {c['on']}: {c['value']!r}")
         out.append(f"  note: {c['note']!r}" if c["note"] else "  note: none")
@@ -494,6 +499,8 @@ def _questionnaire(args) -> int:
     nodes = register_nodes(register_root())
     qs = questionnaires(res, SUBJECT, scenario, args.task, nodes, review.today())
     args.out.mkdir(parents=True, exist_ok=True)
+    if not qs:   # task-0315 L4: no file is written for an owner with nothing open, and the exit is unchanged
+        print(f"nothing is open for any owner: no questionnaire written (an earlier one left in {args.out} is not removed)")
     for owner, text in qs.items():
         (args.out / f"questionnaire-{SUBJECT.id}-{scenario}-{owner}.toml").write_text(text, encoding="utf-8")
         head = text.splitlines()[0].lstrip("# ")

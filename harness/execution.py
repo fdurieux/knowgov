@@ -70,9 +70,26 @@ def check(env=None) -> str:
     guard, which refuses first unless the opt-in is set."""
     env = os.environ if env is None else env
     if (env.get(JOBS_VAR) or "").strip():
+        unshipped = not_shipped()
+        if unshipped:
+            raise ExecutionRefused(unshipped)
         return "worker"
     execution_guard.check(env)
     return backend(env)
+
+
+def not_shipped(subject=None) -> str | None:
+    """None when the worker's image ships the loaded subject (the same id, the same resolved root under this
+    checkout's ``subjects/``, which is what ``worker._subject_root`` answers), else why it cannot grade it: refused
+    before any model call, never after paying for one (a colliding id would otherwise grade the public oracle's)."""
+    if subject is None:
+        from subject import SUBJECT as subject
+    shipped = (execution_guard.ROOT / "subjects" / str(subject.id)).resolve()
+    if Path(subject.root).resolve() == shipped:
+        return None
+    return (f"refused: the worker grades only the subjects its image ships (subjects/<id> of this checkout), and the "
+            f"subject loaded, {subject.id} at {Path(subject.root).resolve()}, is not one; arms runs on an instance's own "
+            f"subject need a worker image that ships it, or no worker and {execution_guard.OPT_IN}=1 to run it here uncontained")
 
 
 def attested(jobs: Path, now: float | None = None) -> dict:
