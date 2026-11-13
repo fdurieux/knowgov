@@ -216,10 +216,11 @@ def same_day_cases(out: Path) -> list[str]:
     return errs
 
 
-def _legacy_opposed_run(out: Path, name: str, legacy: str, boss: str, later: str | None, equiv: bool = False) -> tuple[str, dict, list]:
+def _legacy_opposed_run(out: Path, name: str, legacy: str, boss: str, later: str | None, equiv: bool = False, legacy_review: bool = True) -> tuple[str, dict, list]:
     """One legacy-versus-boss pair on a fresh instance (employee-2's review from before the giver, then boss's the same
     day, then ``later`` by employee-3 on 8 November): (the ruled statement, the live approvals, the acts naming it).
-    With ``equiv``, boss rules on ops-2's re-answer of 3 November, an equivalent statement of the same content."""
+    With ``equiv``, boss rules on ops-2's re-answer of 3 November, an equivalent statement of the same content; without
+    ``legacy_review``, employee-2's review keeps its giver and the captures stay, so both rulings are applied ones (task-0323 R2)."""
     hold = "response|hold_presence"
     want = {hold: "held_unscreened only"}
     env = fresh(out, f"legacy-opposed-{name}", decided=True)
@@ -236,10 +237,11 @@ def _legacy_opposed_run(out: Path, name: str, legacy: str, boss: str, later: str
     ruled = f"A:cap:{second.stem}:{n}@capture"
     got = w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, legacy)])))
     saved = Path(re.search(r"into (\S+\.toml)", got).group(1))
-    saved.write_text(re.sub(r'(?m)^giver = .*\n', "", saved.read_text(encoding="utf-8")), encoding="utf-8")   # a review from before the giver
-    for f in capdir.glob("*-ops*.toml"):
-        f.unlink()
-    w.answer(env, d, handle="ops-2", want=want)
+    if legacy_review:
+        saved.write_text(re.sub(r'(?m)^giver = .*\n', "", saved.read_text(encoding="utf-8")), encoding="utf-8")   # a review from before the giver
+        for f in capdir.glob("*-ops*.toml"):
+            f.unlink()
+        w.answer(env, d, handle="ops-2", want=want)
     named = ruled
     if equiv:
         w.answer(env, d, handle="ops-2", on="2026-11-03", want=want)
@@ -267,8 +269,12 @@ def legacy_opposed_cases(out: Path) -> list[str]:
                                               ("reject-approve-later", "rejected", "approved", True, "rejected"),
                                               ("reject-approve-later-approved", "rejected", "approved", True, "approved"),
                                               ("equiv-reject-approve", "rejected", "approved", True, None),
-                                              ("equiv-refer-approve", "referred", "approved", True, None)):
-        _ruled, held, mine = _legacy_opposed_run(out, name, legacy, boss, later, name.startswith("equiv"))
+                                              ("equiv-refer-approve", "referred", "approved", True, None),
+                                              ("equiv-reject-approve-later", "rejected", "approved", True, "approved"),
+                                              ("applied-equiv-reject-approve", "rejected", "approved", True, None),
+                                              ("applied-equiv-reject-approve-later", "rejected", "approved", True, "approved"),
+                                              ("applied-equiv-reject-reject", "rejected", "rejected", False, None)):
+        _ruled, held, mine = _legacy_opposed_run(out, name, legacy, boss, later, "equiv" in name, not name.startswith("applied"))
         sev = {f["severity"] for f in mine}
         named = all(all(x in f["message"] for x in files) and "capture.py review" in f.get("route", "") for f in mine)
         ok = (sev == {"info"} and bool(held) == (later == "approved")) if later else (not held and sev == {"major"} and named) if clash else not any("opposed" in f["message"] for f in mine)

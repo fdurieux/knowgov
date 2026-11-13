@@ -667,9 +667,9 @@ def _opposed(files: list, scenario: str, st, **kw) -> dict:
         legacy += [(x["statement"], (x["key"], str(x["value"]), x["sha256"]), None, on, by, x["outcome"], rel)
                    for x in rv["skipped"] if x["act"] == "ruling" and x["why"] == "ambiguous"]
     handles, canon = kw.get("handles"), {}
+    day = [(stmt, same, giver, on) for stmt, same, giver, on, _b, _o, _r in ruled + legacy]
     for stmt, same, giver, on, by, oc, rel in ruled + legacy:
-        as_read = next((ls for ls, lsame, _g, lon, _b, _o, _r in legacy if lon == on and lsame == same
-                        and (stmt == ls or (giver is not None and giver in review._readings(ls, handles)))), stmt)
+        as_read = review.read_as((stmt, same, giver, on), day, handles)
         canon[(stmt, on, rel)] = as_read
         rows.append((as_read, on, by, oc, rel))
     found = review.opposed_rulings(rows)
@@ -722,7 +722,7 @@ def _record_pending(st, pending: list, bound: list, handles: dict) -> None:
     for fa, at in pending:
         reasons = json.loads(fa["reasons"])
         if review.is_opposed(reasons):   # task-0331: its own reason stays first, the settling one follows
-            why = review.opposed_settling(fa, at, bound)
+            why = review.opposed_settling(fa, at, bound, handles)
             st.record_act_finding({**fa, "reasons": json.dumps([*reasons, why], ensure_ascii=False)} if why else fa)
             continue
         why = review.settling(fa, at, bound, handles)

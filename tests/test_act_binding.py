@@ -569,3 +569,50 @@ def test_load_opposed_pairs_a_legacy_ruling_with_an_equivalent_statements_one_ta
     day = "2026-11-06"
     assert got[(old, day, "2026-11-06-employee-2.toml")] == pair and got[(new, day, "2026-11-06-boss.toml")] == pair, got
     assert got[(old, day, "2026-11-06-boss.toml")] == pair, got   # the boss ruling is found under the legacy act's statement too
+
+
+def test_a_later_day_settles_an_opposed_act_on_an_equivalent_statement_task_0323():
+    """R1: carol approves the new id on 11-08; employee-2's legacy act on the old id is settled by it, whichever of the stem's
+    two readings the giver is, and a referral decides nothing. ``opposed_settling`` reads equivalence as ``settling`` does."""
+    old = "A:cap:2026-11-02-ORG-0002-ops-2:1@capture"
+    new = "A:cap:2026-11-03-ORG-0002-ops-2:1@capture"
+    fa = {**_pending(old), "outcome": "rejected"}
+    at = ("2026-11-06", "employee-2", 0, "2026-11-06-employee-2.toml")
+    for giver in ("ops-2", "ops"):
+        carol = _bound("2026-11-08-carol.toml", new, giver, "approved", at=("2026-11-08", "carol", 0, "c"), by="carol")
+        assert review.opposed_settling(fa, at, [carol], HANDLES) == "settled by 2026-11-08-carol.toml", giver
+    ref = _bound("r-ref.toml", new, "ops-2", "referred", at=("2026-11-08", "carol", 0, "c"), by="carol")
+    assert review.opposed_settling(fa, at, [ref], HANDLES) is None
+    other = _bound("r-other.toml", "A:cap:2026-11-03-ORG-0002-employee-1:1@capture", "employee-1", "approved", at=("2026-11-08", "carol", 0, "c"), by="carol")
+    assert review.opposed_settling(fa, at, [other], HANDLES) is None   # another giver's answer is no equivalent
+    assert review.opposed_settling(fa, at, [_bound("r-same.toml", old, None, "approved", at=("2026-11-08", "carol", 0, "c"), by="carol")], HANDLES) == "settled by r-same.toml"
+
+
+def test_load_opposed_pairs_two_applied_rulings_on_equivalent_statements_task_0323():
+    """R2 through ``load._opposed``: employee-2 rejects the old id (giver ops-2), boss approves the new id (giver ops-2) the same
+    day: both are cancelled, each found under the id it names; two rejections, or another day, are not."""
+    import importlib.util
+    from _skip import skip
+    if importlib.util.find_spec("yaml") is None:
+        skip("yaml", "harness/load.py imports the mappers, which need PyYAML; the stdlib job has none")
+    import load
+    old, new = "A:cap:2026-11-02-ORG-0002-ops-2:1@capture", "A:cap:2026-11-03-ORG-0002-ops-2:1@capture"
+    sha, val = review.content_digest([]), "held_unscreened only"
+
+    def run(first, second, day2="2026-11-06"):
+        docs = {"2026-11-06-employee-2.toml": {"review": {"by": "employee-2"}, "tag": "e"}, "2026-11-06-boss.toml": {"review": {"by": "boss"}, "tag": "b"}}
+        rv = {"e": {"by": "employee-2", "on": dt.date(2026, 11, 6), "skipped": [],
+                    "rulings": [{"statement": old, "outcome": first, "key": KEY, "value": val, "sha256": sha, "giver": "ops-2"}]},
+              "b": {"by": "boss", "on": dt.date.fromisoformat(day2), "skipped": [],
+                    "rulings": [{"statement": new, "outcome": second, "key": KEY, "value": val, "sha256": sha, "giver": "ops-2"}]}}
+        real = review.check
+        review.check = lambda doc, st, **kw: ([], rv[doc["tag"]])
+        try:
+            return load._opposed([(Path(n), d) for n, d in docs.items()], "S2", None, handles=HANDLES)
+        finally:
+            review.check = real
+    pair = sorted([("2026-11-06-boss.toml", "approved"), ("2026-11-06-employee-2.toml", "rejected")])
+    got = run("rejected", "approved")
+    day = "2026-11-06"
+    assert got[(old, day, "2026-11-06-employee-2.toml")] == pair and got[(new, day, "2026-11-06-boss.toml")] == pair, got   # each under its own id
+    assert run("rejected", "rejected") == {} and run("rejected", "approved", "2026-11-07") == {}
