@@ -80,6 +80,6 @@ def did_you_mean(key, known) -> str:
 
 
 def did_you_mean_each(keys, known) -> str:
-    """task-0314 R4: ``; did you mean X for A? did you mean Y for B?`` for the keys that have a near one, each naming its key."""
+    """task-0314 R4: ``; did you mean X for A?; did you mean Y for B?`` for the keys that have a near one, each naming its key."""
     found = [(k, did_you_mean(k, known)[len(" (did you mean "):-2]) for k in keys]
     return "".join(f"; did you mean {n} for {k}?" for k, n in found if n)

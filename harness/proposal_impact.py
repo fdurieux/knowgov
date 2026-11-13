@@ -1042,7 +1042,7 @@ def with_levels(report: dict, st, *, task: str, as_of: str, scenario: str | None
     if rest and rest["keys"]:   # task-0252: the class's keys on no slice, read as the slices' are
         spec = dict(TASKS[task], keys=[r["key"] for r in rest["keys"]])
         rep = gate_cli.evaluate(st, subject=SUBJECT.id, scenario=held, task="keys", spec=spec, threshold="blocker",
-                                baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=as_of, route_task=task, sub_gate=True)
+                                baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=as_of, route_task=task, sub_gate="keys no slice reaches")   # task-0314 L3: not reached
         rest["keys"] = ri.with_levels(rest["keys"], rep, key_of)
         rest["gate"] = {"task": task, "verdict": rep["verdict"], "why": rep["why"], "exit_code": rep["exit_code"]}
         rest["cells"] = cells(rest["keys"], read=True)

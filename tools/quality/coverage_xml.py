@@ -55,4 +55,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    if {"-h", "--help"} & set(sys.argv[1:]):   # task-0314 L2
+        print(__doc__)
+        sys.exit(0)
     sys.exit(main())
