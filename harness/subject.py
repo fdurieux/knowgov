@@ -73,6 +73,10 @@ def bundle_files(root: Path, include: list[str] | None = None) -> list[tuple[str
 REFERENCE_INCLUDE = ["*.py", "**/*.py"]   # the files of a reference implementation directory the load bundles and digests
 
 
+class CodeUnreadable(Exception):
+    """R6: ``[reference] code`` is not text (not UTF-8), said as the manifest's cause."""
+
+
 class CodePathOutside(Exception):
     """A code or suite path leaving the instance (task-0340 R2); exits 2 under cli_exit, the message the cause."""
 
@@ -94,6 +98,12 @@ def _file_digests(p: Path, include: list[str] | None, prefix: str) -> dict[str, 
     return {(f"{prefix.rstrip('/')}/{r}" if prefix else r): hashlib.sha256(f.read_bytes()).hexdigest() for r, f in fs}
 
 
+def path_inside(root: Path, x: str) -> bool:
+    """Whether ``x`` is a relative path inside the subject's instance (at most ../../ up): the one rule of the load's
+    ``require_code_inside`` and of ``check_subject``, so a path outside is never digested (R4)."""
+    return not (Path(x).is_absolute() or "\\" in x) and (root / x).resolve().is_relative_to(root.resolve().parent.parent)
+
+
 def code_files(root: Path, reference, oracle, which: str) -> tuple[str | None, dict[str, str], dict[str, str]]:
     """(the path, each file's raw-byte SHA-256 by relative path, the declared suite files' share of them) of what an
     execution verification ran (task-0320, decision-0038 N-b), from a manifest's ``[reference]`` and ``[oracle]``
@@ -104,11 +114,13 @@ def code_files(root: Path, reference, oracle, which: str) -> tuple[str | None, d
     is the script alone, as before. One reading for the load (``Subject.code_parts``) and ``check_subject``."""
     table = reference if which == "implementation" else oracle
     rel = table.get("code" if which == "implementation" else "script") if isinstance(table, dict) else None
-    if not isinstance(rel, str) or not rel:
+    if rel == "":   # R7: a declared, empty path is a missing file (the attestation finding), not no binding
+        return "", {}, {}
+    if not isinstance(rel, str):
         return None, {}, {}
     parts = _file_digests(root / rel, REFERENCE_INCLUDE if which == "implementation" else None, "")
     declared: dict[str, str] = {}
-    for extra in suite_files(oracle) if which == "suite" else []:
+    for extra in [x for x in suite_files(oracle) if path_inside(root, x)] if which == "suite" else []:
         declared.update(_file_digests(root / extra, None, extra) or {extra: ""})
     return rel, {**parts, **declared}, declared
 
@@ -327,12 +339,17 @@ class Subject:
     def reference_code(self) -> str:
         """The code the oracle verified: one file, or a directory bundled as its ``*.py`` files."""
         rel = self.reference.get("code")
+        if rel is not None and not isinstance(rel, str):
+            raise CodePathOutside(f"{self.id}: [reference] code is {rel!r}, not a path (a string relative to the subject root)")
         if not rel:
             return ""
         p = self.path(rel)
         if not p.exists():   # S1: a deleted file reads as the attestation finding (the code row), never a crash
             return ""
-        return bundle(p, REFERENCE_INCLUDE) if p.is_dir() else p.read_text(encoding="utf-8")
+        try:
+            return bundle(p, REFERENCE_INCLUDE) if p.is_dir() else p.read_text(encoding="utf-8")
+        except UnicodeDecodeError as e:
+            raise CodeUnreadable(f"{self.id}: [reference] code {rel} is not UTF-8 text ({e.reason} at byte {e.start})") from e
 
     def code_parts(self, which: str) -> tuple[str | None, dict[str, str]]:
         """(the path, each file's raw-byte SHA-256 by relative path) of what an execution verification ran (task-0320,
@@ -343,18 +360,25 @@ class Subject:
         rel, parts, _declared = code_files(self.root, self.reference, self.oracle, which)
         return (None if rel is None else str(rel)), parts
 
+    def _code_paths(self) -> list[tuple[str, str]]:
+        """Each path the manifest names for code and suite, with where; a value that is not a path string is the
+        manifest's fault (R6), said as ``CodePathOutside``."""
+        paths = []
+        for name, table, field in (("[reference] code", self.reference, "code"), ("[oracle] script", self.oracle, "script")):
+            v = table.get(field) if isinstance(table, dict) else None
+            if v is not None and not isinstance(v, str):
+                raise CodePathOutside(f"{self.id}: {name} is {v!r}, not a path (a string relative to the subject root)")
+            paths += [(name, v)] if v else []
+            paths += [("[oracle] suite", x) for x in suite_files(self.oracle)] if field == "script" else []
+        return paths
+
     def require_code_inside(self) -> None:
         """task-0340 R2 (decision-0039 §3.5): ``[reference] code``, ``[oracle] script`` and each ``[oracle] suite`` path
         lie inside the instance (relative, at most ../../ up), as ``check_subject`` requires; else ``CodePathOutside``."""
-        top = self.root.resolve().parent.parent
-        for name, table, field in (("[reference] code", self.reference, "code"), ("[oracle] script", self.oracle, "script")):
-            v = table.get(field) if isinstance(table, dict) else None
-            paths = [(name, v)] if isinstance(v, str) and v else []
-            paths += [("[oracle] suite", x) for x in suite_files(self.oracle)] if field == "script" else []
-            for where, x in paths:
-                if Path(x).is_absolute() or "\\" in x or not (self.root / x).resolve().is_relative_to(top):
-                    raise CodePathOutside(f"{self.id}: {where} names {x}, which is not a relative path inside the subject's "
-                                          "instance; the load digests no file outside it (decision-0039 §3.5)")
+        for where, x in self._code_paths():
+            if not path_inside(self.root, x):
+                raise CodePathOutside(f"{self.id}: {where} names {x}, which is not a relative path inside the subject's "
+                                      "instance; the load digests no file outside it (decision-0039 §3.5)")
 
     def code(self) -> dict[str, str] | None:
         """The code and suite an execution verification is compared against, as the load reads them now (task-0341,

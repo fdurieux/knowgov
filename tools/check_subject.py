@@ -445,10 +445,10 @@ def check_execution_code(rep: Report, m: dict, root: Path, ex) -> None:
         _execution_listing(rep, m, root, ex, which, table, field)
 
 
-def _owner(m: dict, which: str, table: str, field: str) -> str:
+def _owner(m: dict, which: str, table: str, field: str, rel: str) -> str:
     """S3: the field that owns a listed digest, the suite's with each file ``[oracle] suite`` lists (task-0338)."""
     from subject import suite_files
-    return f"[{table}] {field}" + (" or a file [oracle] suite lists" if which == "suite" and suite_files(m.get("oracle")) else "")
+    return f"[{table}] {field} {rel}" + (" or a file [oracle] suite lists" if which == "suite" and suite_files(m.get("oracle")) else "")
 
 
 def _outside(rep: Report, m: dict, root: Path, table: str, field: str) -> bool:
@@ -483,13 +483,12 @@ def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, t
         return
     miss = {r: d for r, d in sorted(files.items()) if not d or d not in listed}
     stale = sorted(d for d in listed if d not in set(files.values()))   # task-0340 R1, as a document's "matches no current Version"
-    owner = _owner(m, which, table, field)
+    owner = _owner(m, which, table, field, rel)
     if len(stale) > len(miss):   # more listed digests gone than files changed: a deletion
-        rep.error("attestation", where, f"{which} lists {', '.join(stale)}, which matches no current file of {owner} "
-                  f"{rel}: a file was deleted or changed, so the load verifies nothing by execution (decision-0038)",
+        rep.error("attestation", where, f"{which} lists {', '.join(stale)}, which matches no current file of {owner}: a file was deleted or changed, so the load verifies nothing by execution (decision-0038)",
                   "run the suite again and list the digests of the files as they are, or restore the file")
     if miss or (not files and not stale):
-        also = owner[len(f"[{table}] {field}"):]   # task-0338
+        also = owner[len(f"[{table}] {field} {rel}"):]   # task-0338
         gone = f"; {which} still lists {', '.join(stale)}, which matches no current file" if stale and len(stale) <= len(miss) else ""   # S3
         rep.error("attestation", where, f"[{table}] {field} {rel}{also} changed since the execution was attested: "
                   f"{_unlisted(miss)} is not listed under {which}{gone}, so the load verifies nothing by execution (decision-0038)",
