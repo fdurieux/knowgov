@@ -771,3 +771,19 @@ def test_no_env_file_reaches_the_image():
     assert "a .env file beside this compose file" in compose and "it never reaches the image" in compose
     security = (ROOT / "docs" / "security.md").read_text(encoding="utf-8")
     assert "never reaches the image" in security and "`tests/test_demo.py::test_no_env_file_reaches_the_image`" in security
+
+
+@on_cargo_quote
+def test_comparator_and_page_pick_the_same_record_for_a_derived_registering_run():
+    """task-0313, C-C6-2: the comparator's rule (``record_for_run``, which its command line applies with no
+    --record-for) reads a page-started S6 run against the scored record with valid_until aside, as the page's
+    record check does."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        d = _derived_registering_s6(Path(td), "2026-11-01-1500")
+        cfg = CARGO_QUOTE.scenarios["S6"]
+        rec, aside = compare_deterministic.record_for_run(d.parent, "S6", RESULTS, cfg)
+        assert rec == RESULTS / "S6" and aside == ["valid_until"]
+        n, lines = compare_deterministic.compare(d.parent, RESULTS, ["S6"], record_for={"S6": rec}, ignore_keys=aside)
+        rc = views.record_check("S6", d, "demo-runs/2026-11-01-1500")
+        assert n == 0 and rc["differ"] == 0 and rc["against"].endswith("results/S6"), (lines, rc)

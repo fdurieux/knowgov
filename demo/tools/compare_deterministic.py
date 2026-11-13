@@ -36,8 +36,8 @@ Standard library only, so the CI job and a laptop can run it with no
 install. The record is the subject's vendored one by default.
 
 ``compare()`` takes ``ignore_keys``, leaf names set aside for that one
-comparison as the volatile keys are. The command line passes none: the
-page passes a scenario's ``scored_record_volatile`` (its subject manifest)
+comparison as the volatile keys are. The command line and the page pass, by
+``record_for_run`` (one rule, task-0313), a scenario's ``scored_record_volatile`` (its subject manifest)
 when it reads a derived-registering run against the scored record, a leaf
 that record wrote with a harness defect fixed afterwards and that its
 deterministic-mode re-establishment, which has no Derived node, corrected.
@@ -110,6 +110,22 @@ def _strip(obj, ignore: frozenset = frozenset(VOLATILE_KEYS)):
     return obj
 
 
+def record_for_run(run_dir: Path, sc: str, record_dir: Path, cfg: dict | None = None) -> tuple[Path, list[str]]:
+    """The record folder a run of ``sc`` is read against, and the leaves set aside, one rule for the
+    command line and the page (task-0313, C-C6-2): a scenario with a ``deterministic_record`` is read
+    against that when the run registered no Derived artefact, against its scored record (with the
+    manifest's ``scored_record_volatile`` set aside) when it did."""
+    cfg = SUBJECT.scenarios.get(sc, {}) if cfg is None else cfg
+    det_rec = cfg.get("deterministic_record")
+    try:
+        det = json.loads((run_dir / sc / "deterministic.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        det = {}
+    scored = bool((det.get("stage2") or {}).get("suspect_derived")) or not det_rec
+    aside = [str(k) for k in cfg.get("scored_record_volatile", [])] if scored else []
+    return record_dir / (sc if scored else det_rec), aside
+
+
 def compare(run_dir: Path, record_dir: Path, scenarios: list[str], record_for: dict[str, Path] | None = None,
             ignore_keys=()) -> tuple[int, list[str]]:
     """``record_for`` names the record folder to read for a scenario instead of ``<record_dir>/<scenario>``;
@@ -161,11 +177,16 @@ def main() -> int:
     ap.add_argument("--record-for", action="append", default=[], metavar="SCENARIO=DIR",
                     help="read this scenario's record from DIR (default for " + ", ".join(f"{k}: <record_dir>/{v}" for k, v in DETERMINISTIC_RECORDS.items()) + ")")
     args = ap.parse_args()
-    record_for = {sc: args.record_dir / rel for sc, rel in DETERMINISTIC_RECORDS.items()}
+    record_for, aside = {}, set()
+    for sc in DETERMINISTIC_RECORDS:
+        record_for[sc], keys = record_for_run(args.run_dir, sc, args.record_dir)
+        aside |= set(keys)
+    if args.record_for:   # a record named by hand is read leaf for leaf: nothing set aside
+        aside = set()
     for item in args.record_for:
         sc, _, d = item.partition("=")
         record_for[sc] = Path(d)
-    n, lines = compare(args.run_dir, args.record_dir, args.scenarios, record_for=record_for)
+    n, lines = compare(args.run_dir, args.record_dir, args.scenarios, record_for=record_for, ignore_keys=aside)
     print("\n".join(lines))
     compared = [ln for ln in lines if "leaves compared" in ln]
     if not compared:
