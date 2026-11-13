@@ -543,7 +543,7 @@ def _unchanged_code_note(rep: Report, m: dict, root: Path) -> None:
 def _edited(rep: Report, m: dict, root: Path, name: str, listed: list, stale: list) -> bool:
     """True when an artefact changed since it was attested (``_changed_artefacts``); under execution an edit seen, as a stale
     listed digest or a changed artefact, adds task-0330's note on unchanged code."""
-    named = _changed_artefacts(rep, m, root, f"[verification] {name}", listed, bool(stale))
+    named = _changed_artefacts(rep, m, root, f"[verification] {name}", listed, len(stale))
     if name == "execution" and (stale or named):
         _unchanged_code_note(rep, m, root)
     return named
@@ -561,11 +561,12 @@ def _listed_files(m: dict, root: Path, listed: list) -> str:
     return ", ".join(f"{d} is {files[d]}" for d in listed if d in files)
 
 
-def _stale_errors(rep: Report, where: str, name: str, stale: list, held: str) -> None:
-    """One error per stale digest; the listed digests that do match a file are named once per declaration (L6)."""
+def _stale_errors(rep: Report, where: str, name: str, stale: list, held: str, plants: str = "") -> None:
+    """One error per stale digest; the listed digests that do match a file are named once per declaration (L6), and
+    each says it may have been a scenario plant's Version, with the Version that plant makes now (task-0312 R6)."""
     for i, d in enumerate(stale):
         rep.error("attestation", where, f"versions lists {d}, which matches no current Version of the subject's artefacts"
-                  + (f" (the listed digests that do match a file: {held})" if held and i == 0 else "")
+                  + (f" (the listed digests that do match a file: {held})" if held and i == 0 else "") + plants
                   + ": it attests nothing the load reads", _relist_fix(name))
 
 
@@ -590,36 +591,54 @@ def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: 
     stale = sorted(set(listed) - known[0])
     if _edited(rep, m, root, name, listed, stale):   # task-0318, task-0319: the edit, by artefact and file
         return
-    _stale_errors(rep, where, name, stale, _listed_files(m, root, listed))
+    _stale_errors(rep, where, name, stale, _listed_files(m, root, listed), _plant_hint(m, root, listed, stale))
     _unlisted_plants(rep, m, root, where, listed, name)
+
+
+def _plant_gaps(m: dict, root: Path, listed: list) -> list[tuple[str, str]]:
+    """task-0312 F2, R3: (artefact, digest) of each Version a scenario's plant makes of an artefact whose own Versions the
+    declaration lists but whose plant's it does not. The plant's artefact is the exact key, else the longest key it
+    extends (a directory's part is named "<key><path>")."""
+    planted: dict[str, str] = {}
+    subject_versions(m, root, planted)
+    own = artefact_digests(m, root)
+    out = []
+    for d, k in sorted(planted.items(), key=lambda kv: kv[1]):
+        art = k if k in own else max((a for a in own if k.startswith(a)), key=len, default=None)
+        if d not in listed and art is not None and all(x in listed for x in own[art].values()):
+            out.append((art, d))
+    return out
+
+
+def _plant_hint(m: dict, root: Path, listed: list, stale: list) -> str:
+    """task-0312 R6: for a stale digest, that it may have been a scenario plant's Version of an edited document, and the
+    Version that plant makes now."""
+    gaps = _plant_gaps(m, root, listed) if stale else []
+    return ("; if it was a scenario plant's Version of " + ", ".join(sorted({a for a, _ in gaps})) + ", that plant now makes "
+            + ", ".join(sorted(d for _, d in gaps))) if gaps else ""
 
 
 def _unlisted_plants(rep: Report, m: dict, root: Path, where: str, listed: list, name: str) -> None:
     """task-0312 F2: an artefact whose own Versions the declaration lists, but not the Version a scenario's plant makes of
     it, attests the pristine document and fails the scenario at the load: name each, with the digest to list."""
-    planted: dict[str, str] = {}
-    subject_versions(m, root, planted)
-    own = artefact_digests(m, root)
-    for d, k in sorted(planted.items(), key=lambda kv: kv[1]):
-        if d in listed:
-            continue
-        art = next((a for a in own if k == a or k.startswith(a)), None)
-        if art is not None and all(x in listed for x in own[art].values()):
-            rep.error("attestation", where, f"a scenario plant of {art} makes the Version {d}, which is not listed under {where}: "
-                      "the scenario loads it unattested",
-                      f"list {d} under {where} (the plant's text, as the load digests it)")
+    for art, d in _plant_gaps(m, root, listed):
+        rep.error("attestation", where, f"a scenario plant of {art} makes the Version {d}, which is not listed under {where}: "
+                  "the scenario loads it unattested", f"list {d} under {where} (the plant's text, as the load digests it)")
 
 
-def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: list, stale: bool) -> bool:
+def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: list, stale: int) -> bool:
     """One error per artefact whose Version this declaration lists in part or, once it lists a digest no Version has any
     more, does not list as it is now (task-0318, task-0319): the artefact changed since it was attested. A directory
     artefact listed in part has a file added or changed, and the error names it; a file or directory listed not at all is
-    flagged only after a stale digest, since it may never have been attested. True when it named at least one."""
+    flagged only while the digests the declaration lists that no Version has any more (``stale``, a count) still account for
+    its files, since it may never have been attested (task-0312 F1, R4). True when it named at least one."""
     named = False
     for art, files in sorted(artefact_digests(m, root).items()):
         miss = {rel: d for rel, d in files.items() if d not in listed}
-        if not miss or (len(miss) == len(files) and not stale):   # task-0312 F1: a directory fully changed is named as a file is
+        whole = len(miss) == len(files)
+        if not miss or (whole and stale < len(files)):   # task-0312 F1: a directory fully changed is named as a file is
             continue
+        stale -= len(files) if whole else 0
         what = ", ".join(f"{rel} ({d})" if rel else f"its Version {d}" for rel, d in sorted(miss.items()))
         rep.error("attestation", where, f"{art} changed since it was attested: {what} is not listed under {where}"
                   + ("" if "" in files else " (a file added or changed)"),

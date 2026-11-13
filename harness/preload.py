@@ -76,14 +76,26 @@ def read_report(path: Path) -> dict:
     return rep
 
 
+def _check_only(row: dict, checks: set) -> bool:
+    """task-0312 R1: a row its kind's linter never ran on and a step-4 check judged alone (``tool`` names the check): it
+    stays unchecked, but the check's findings are of the bytes it read, so they load as lint gaps, as a linter's do."""
+    return row["state"] == "unchecked" and row.get("tool") in checks and bool(row.get("sha256"))
+
+
+def _judged(row: dict, checks: set) -> bool:
+    return row["state"] in JUDGED or _check_only(row, checks)
+
+
 def verdicts(subject, kit: dict[str, str], keys, report: dict, name: str) -> dict[str, dict]:
     """artefact key -> its verdict, for each of ``keys`` the kit holds. The report's rows are matched
     by the document's path relative to the instance (the subject's own instance, else the one the
-    report names); a directory artefact is never one file the linter judged, so it stays unchecked."""
+    report names); a directory artefact is never one file the linter judged, so it stays unchecked. A row a check judged
+    alone stays unchecked and carries the check's findings (task-0312 R1)."""
     inst = instance_root(subject) or Path(report.get("instance", "/"))
     rows = {r["file"]: r for r in report.get("files", [])}
     tools = {lt["tool"]: lt.get("version") for lt in report.get("linters", [])}
     tools.update({c["check"]: c.get("version") for c in report.get("checks", [])})   # step 4's checks (task-0217)
+    checks = {c["check"] for c in report.get("checks", [])}
     paths = {a["key"]: (Path(subject.root) / a["path"]).resolve() for a in subject.artefacts if a.get("path")}
     out = {}
     for key in keys:
@@ -95,7 +107,7 @@ def verdicts(subject, kit: dict[str, str], keys, report: dict, name: str) -> dic
         v = {"state": "unchecked", "tool": None, "tool_version": None, "digest": None, "report": name, "file": rel}
         if row is None:
             v["why"] = "the report does not cover this document" if rel else "the document is not in the instance the report covers"
-        elif row["state"] not in JUDGED:
+        elif not _judged(row, checks):
             v.update(tool=row.get("tool"), why=f"the report left it {row['state'].replace('_', ' ')}: {row.get('why', '')}".rstrip(": "))
         elif not row.get("sha256"):
             v.update(tool=row.get("tool"), why="the report holds no digest of the bytes it judged")

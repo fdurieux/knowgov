@@ -141,9 +141,27 @@ def test_a_document_only_a_check_judged_is_judged_by_it_and_its_findings_are_lin
     assert [(f["rule"], f["tool"]) for f in t["findings"]] == [("DMN-GAP", "dmn gaps")] * 2
     assert rows["artefacts/decision-tables/t.md"]["state"] == "unchecked"   # not DMN: no check read it
     assert {c["check"]: c["state"] for c in rep["checks"]} == {"pumllint trace": "unchecked", "glossary": "unchecked", "dmn gaps": "ran"}
-    v = {**t, "tool_version": None, "digest": t["sha256"], "findings": [{**f, "tool_version": None} for f in t["findings"]]}
+    # task-0312 R1: through the load's own reader, the row stays unchecked and its findings still load as lint gaps
+    import hashlib
+    (inst / "subjects" / "s").mkdir(parents=True)
+
+    class Sub:
+        root = inst / "subjects" / "s"
+        artefacts = [{"key": "contract/t.dmn", "path": "../../artefacts/decision-tables/t.dmn"}]
+
+        def version_digest(self, key, text):
+            return (hashlib.sha256(text.encode("utf-8")).hexdigest(),)
+
+    kit = {"contract/t.dmn": (inst / "artefacts/decision-tables/t.dmn").read_text(encoding="utf-8")}
+    v = preload.verdicts(Sub(), kit, ["contract/t.dmn"], rep, "preload-report.json")["contract/t.dmn"]
+    assert v["state"] == "unchecked" and v["tool"] == "dmn gaps" and v["digest"] == t["sha256"], v
     gaps = preload.lint_gaps("contract/t.dmn", "v1", v)
     assert [g["tool"] for g in gaps] == ["dmn gaps"] * 2 and gaps[0]["text"].startswith("dmn gaps DMN-GAP (minor)")
+    import gate_cli
+    [info] = [f for f in gate_cli.findings({"keys": {}, "verdict": "PROCEED", "preload": [{"artefact": "contract/t.dmn", "version": "v1", "keys": ["K|x"], "state": "unchecked",
+                                                                  "tool": "dmn gaps", "why": v["why"]}]}, set())
+              if f["kind"] == "preload"]
+    assert "judged by dmn gaps alone, its linter never ran" in info["message"] and "form was not checked" not in info["message"], info
 
 
 def test_the_changelog_names_it_and_the_trace_runs_on_the_pinned_pumllint():
@@ -151,3 +169,24 @@ def test_the_changelog_names_it_and_the_trace_runs_on_the_pinned_pumllint():
     assert "task-0217" in log
     for f in ("tools/step4_checks.py", "tools/check_preload_linters.py", "instance/README.md"):
         assert "KG_PUMLLINT_TRACE" not in (ROOT / f).read_text(encoding="utf-8"), f   # no side install: the pin is the trace's
+
+
+def test_a_row_two_checks_read_keeps_the_first_as_its_tool_task_0312_r5():
+    dmn_file = "artefacts/decision-tables/t.dmn"
+    inst = instance({"decision-tables/t.dmn": dmn([("<= 41", ['"a"']), ("[42..66]", ['"b"']), (">= 67", ['"c"'])])})
+    one = lambda name: (("decision-tables",), lambda i: {"state": "ran", "why": "", "version": None, "files": 1, "findings": [], "read": [dmn_file]})  # noqa: E731
+    saved, real = dict(s4.CHECKS), preload_check.pumllint_cmd
+    path = os.environ.get("PATH", "")
+    s4.CHECKS.clear()
+    s4.CHECKS.update({"first": one("first"), "second": one("second")})
+    preload_check.pumllint_cmd = lambda: None
+    os.environ["PATH"] = ""
+    try:
+        rep = preload_check.check(inst)
+    finally:
+        os.environ["PATH"] = path
+        preload_check.pumllint_cmd = real
+        s4.CHECKS.clear()
+        s4.CHECKS.update(saved)
+    [t] = [r for r in rep["files"] if r["file"] == dmn_file]
+    assert t["tool"] == "first" and t["state"] == "unchecked" and "judged by first alone" in t["why"], t

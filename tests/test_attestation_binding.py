@@ -120,3 +120,55 @@ def test_a_directory_whose_every_file_changed_and_a_plant_of_a_re_attested_docum
         rep = check_subject.Report(root)
         check_subject._unlisted_plants(rep, m, root, "[verification] approval", [h("a2\n"), h("one\n"), h("two\n")], "approval")
         assert rep.findings == []
+
+
+def test_the_plants_artefact_is_the_exact_key_then_the_longest_prefix_task_0312_r3():
+    import hashlib
+    import check_subject
+    h = lambda t: hashlib.sha256(t.encode()).hexdigest()  # noqa: E731
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "doc.md").write_text("one\n", encoding="utf-8")
+        (root / "doc2.md").write_text("uno\n", encoding="utf-8")
+        (root / "plants.toml").write_text('[[plant.S2]]\npath = "doc2"\nop = "replace"\nold = "uno"\nnew = "dos"\n', encoding="utf-8")
+        m = {"artefact": [{"key": "doc", "path": "doc.md"}, {"key": "doc2", "path": "doc2.md"}]}
+        # doc is listed, doc2 is too: the plant of doc2 is the gap, and it is doc2's, not doc's
+        assert check_subject._plant_gaps(m, root, [h("one\n"), h("uno\n")]) == [("doc2", h("dos\n"))]
+        # nested keys: contracts/ and contracts/dmn/ (directories), the plant on the deeper one
+        (root / "c" / "dmn").mkdir(parents=True)
+        (root / "c" / "a.md").write_text("a\n", encoding="utf-8")
+        (root / "c" / "dmn" / "b.md").write_text("b\n", encoding="utf-8")
+        (root / "plants.toml").write_text('[[plant.S2]]\npath = "c/dmn/"\nwithin = "b.md"\nop = "replace"\nold = "b"\nnew = "x"\n', encoding="utf-8")
+        m = {"artefact": [{"key": "c/", "path": "c", "include": ["a.md"]}, {"key": "c/dmn/", "path": "c/dmn"}]}
+        got = check_subject._plant_gaps(m, root, [h("a\n"), h("b\n")])
+        assert [a for a, _ in got] == ["c/dmn/"], got
+
+
+def test_a_whole_artefact_is_named_only_while_stale_digests_account_for_it_task_0312_r4():
+    import hashlib
+    import check_subject
+    h = lambda t: hashlib.sha256(t.encode()).hexdigest()  # noqa: E731
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "doc.md").write_text("new\n", encoding="utf-8")
+        (root / "other.md").write_text("never attested\n", encoding="utf-8")
+        m = {"artefact": [{"key": "doc", "path": "doc.md"}, {"key": "other", "path": "other.md"}]}
+        rep = check_subject.Report(root)
+        assert check_subject._changed_artefacts(rep, m, root, "[verification] approval", [h("old\n")], 1)
+        assert [f["message"].split(" ")[0] for f in rep.findings] == ["doc"], rep.findings   # one stale digest, one file named
+        rep = check_subject.Report(root)
+        assert not check_subject._changed_artefacts(rep, m, root, "[verification] approval", [h("new\n"), h("never attested\n")], 0)
+
+
+def test_a_stale_digest_says_it_may_have_been_a_plants_version_task_0312_r6():
+    import hashlib
+    import check_subject
+    h = lambda t: hashlib.sha256(t.encode()).hexdigest()  # noqa: E731
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "doc.md").write_text("one\n", encoding="utf-8")
+        (root / "plants.toml").write_text('[[plant.S2]]\npath = "doc"\nop = "replace"\nold = "one"\nnew = "two"\n', encoding="utf-8")
+        m = {"artefact": [{"key": "doc", "path": "doc.md"}]}
+        hint = check_subject._plant_hint(m, root, [h("one\n"), h("old plant\n")], ["x"])
+        assert "scenario plant's Version of doc" in hint and h("two\n") in hint
+        assert check_subject._plant_hint(m, root, [h("one\n"), h("two\n")], ["x"]) == "" and check_subject._plant_hint(m, root, [h("one\n")], []) == ""
