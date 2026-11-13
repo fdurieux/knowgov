@@ -444,7 +444,7 @@ def check(st, *, instance: Path, ledger: Path, changed: list[str] | None = None,
         if res.get("as_of"):
             gate["as_of"] = res["as_of"]
         apps = sorted(scope_apps) if scope_apps is not None else sorted({e["app"] for e in led["entries"]})
-        for g in gate_cli.findings(res, block_levels or set(), owners, route):   # task-0304: the gate's owner and route
+        for g in gate_cli.register_routes(gate_cli.findings(res, block_levels or set(), owners, route), res):   # task-0304: the gate's owner and route; L-b: and the register's remedy
             if g["kind"] == "suspect_derived":
                 continue
             fs.append(_finding(g["severity"], f"gate:{g['kind']}", f"{task}: {g['message']}",

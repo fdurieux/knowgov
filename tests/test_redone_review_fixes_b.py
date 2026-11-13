@@ -68,7 +68,8 @@ def test_r2_the_hooks_summary_says_no_single_unit_for_an_ownerless_attestation_f
 
 def test_r3_a_register_staled_finding_names_the_remedy_not_the_questionnaire():
     rc = {"stale": [{"id": "A:s:k|a@v1", "key": "k|a", "invalidated_by": "the register at v1: decisions/0099.md"},
-                    {"id": "A:s:k|b@v1", "key": "k|b", "invalidated_by": "version v2 of requirements.md"}]}
+                    {"id": "A:s:k|b@v1", "key": "k|b", "invalidated_by": "version v2 of requirements.md"}],
+          "register_staled": ["A:s:k|a@v1"]}
     fs = [{"kind": "key", "key": "k|a", "ref": None, "route": "python harness/capture.py questionnaire ..."},
           {"kind": "stale", "key": "k|a", "ref": "A:s:k|a@v1", "route": "python harness/capture.py questionnaire ..."},
           {"kind": "stale", "key": "k|b", "ref": "A:s:k|b@v1", "route": "q"},
@@ -209,8 +210,6 @@ def test_l2_the_remedy_route_reads_the_same_on_a_load_a_no_load_read_and_the_mcp
 
 def test_l3_an_unreadable_code_file_is_the_manifests_cause_not_the_stores():
     import types
-    err = PermissionError(13, "Permission denied", "/x/reference_impl.py")
-    assert "cannot be read" in gate_cli._own_cause(err) and "/x/reference_impl.py" in gate_cli._own_cause(err)
     sub = types.SimpleNamespace(id="s", reference={"code": "ref.py"}, path=lambda rel: _Unreadable())
     try:
         subject_mod.Subject.reference_code(sub)
@@ -236,10 +235,10 @@ def test_l4_check_subject_gives_a_path_error_for_a_non_string_code_or_script():
     import check_subject
     for m in ({"reference": {"code": 5}}, {"reference": {"code": []}}, {"oracle": {"script": 5}}):
         rep = check_subject.Report(CQ)
-        check_subject.check_code_paths(rep, m)
+        check_subject.check_code_paths(rep, m, CQ)
         assert [f["rule"] for f in rep.findings] == ["path"] and "not a path" in rep.findings[0]["message"], m
     rep = check_subject.Report(CQ)
-    check_subject.check_code_paths(rep, {"reference": {"code": "a.py"}, "oracle": {}})
+    check_subject.check_code_paths(rep, {"reference": {"code": "a.py"}, "oracle": {}}, CQ)
     assert rep.findings == []
 
 
@@ -318,3 +317,95 @@ def test_l2_the_gate_report_schema_describes_the_remedy_and_review_routes():
     d = _json.loads((ROOT / "harness" / "schemas" / "gate-report.schema.json").read_text(encoding="utf-8"))
     desc = d["$defs"]["finding"]["properties"]["route"]["description"]
     assert "usually the owner's questionnaire" in desc and "--register-previous" in desc and "lapsed review" in desc
+
+
+# ---- train 4 (L-a to L-e) ----
+def test_la_an_unreadable_code_script_or_suite_file_is_the_manifests_cause_and_a_store_permission_error_stays_the_stores():
+    need_rdflib()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "a" / "b" / "sub"
+        root.mkdir(parents=True)
+        f = root / "s.py"
+        f.write_text("x", encoding="utf-8")
+        real = Path.read_bytes
+        Path.read_bytes = lambda self: (_ for _ in ()).throw(PermissionError(13, "Permission denied", str(self))) if self == f else real(self)
+        try:
+            for call in (lambda: subject_mod.code_files(root, {}, {"script": "s.py"}, "suite"),
+                         lambda: subject_mod.code_files(root, {"code": "s.py"}, {}, "implementation")):
+                try:
+                    call()
+                except subject_mod.CodeUnreadable as e:
+                    assert "permission denied" in str(e)
+                else:
+                    raise AssertionError("no refusal")
+        finally:
+            Path.read_bytes = real
+    assert gate_cli._own_cause(PermissionError(13, "Permission denied", "/x/.kg-publish-1")) is None
+    assert gate_cli._own_cause(subject_mod.CodeUnreadable("f cannot be read")) == "f cannot be read"
+
+
+def test_la_a_store_permission_error_on_publish_still_says_the_store_did_not_answer():
+    need_rdflib()
+    with tempfile.TemporaryDirectory() as tmp:
+        f = Path(tmp) / "held.ttl"
+        code = "\n".join(["import os, sys, runpy",
+                          "def boom(a, b):",
+                          "    raise PermissionError(13, 'Permission denied', a)",
+                          "os.replace = boom",
+                          "sys.argv = ['gate_cli.py', '--as-of', 'record', '--scenario', 'S3', '--publish']",
+                          "runpy.run_path('gate_cli.py', run_name='__main__')"])
+        env = {**os.environ, "KG_SUBJECT": str(CQ), "KG_STORE": "rdflib", "KG_REGISTER": str(ROOT / "demo" / "register"),
+               "KG_CLOCK": "pinned", "KG_RDFLIB_FILE": str(f)}
+        p = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, cwd=ROOT / "harness")
+        assert p.returncode == 2 and "store did not answer" in p.stderr and "manifest" not in p.stderr, p.stderr[-300:]
+
+
+def test_lc_check_subject_gives_a_path_error_for_an_unreadable_code_file_not_a_crash():
+    import check_subject
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "a" / "b" / "sub"
+        root.mkdir(parents=True)
+        f = root / "s.py"
+        f.write_text("x", encoding="utf-8")
+        real = Path.read_bytes
+        Path.read_bytes = lambda self: (_ for _ in ()).throw(PermissionError(13, "Permission denied", str(self))) if self == f else real(self)
+        try:
+            rep = check_subject.Report(root)
+            check_subject.check_code_paths(rep, {"oracle": {"script": "s.py"}}, root)
+            check_subject._execution_listing(rep, {"oracle": {"script": "s.py"}}, root, {"versions": [], "suite": ["a" * 64]}, "suite", "oracle", "script")
+        finally:
+            Path.read_bytes = real
+        assert [x["rule"] for x in rep.findings] == ["path"] and "permission denied" in rep.findings[0]["message"], rep.findings
+
+
+def test_ld_check_subject_refuses_a_link_out_of_the_code_directory_with_no_execution_declared():
+    import check_subject
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "a" / "b" / "sub"
+        (root / "src").mkdir(parents=True)
+        outside = Path(tmp) / "elsewhere.py"
+        outside.write_text("x", encoding="utf-8")
+        (root / "src" / "escape.py").symlink_to(outside)
+        rep = check_subject.Report(root)
+        check_subject.check_code_paths(rep, {"reference": {"code": "src"}}, root)
+        assert [x["rule"] for x in rep.findings] == ["path"] and "escape.py" in rep.findings[0]["message"]
+
+
+def test_le_a_spoofed_stage_two_version_does_not_read_as_a_register_update():
+    from gate import _register_staled
+
+    class S:
+        def version_digests(self):
+            return [{"artefact": "a", "version": "the register v2", "sha256": "x"}, {"artefact": "a", "version": "v1", "sha256": "y"}]
+    rows = [{"id": "1", "key": "k", "invalidated_by": "the register v2"},
+            {"id": "2", "key": "k", "invalidated_by": "the register at v0.2.13: decisions/0099.md"},
+            {"id": "3", "key": "k", "invalidated_by": "v2"}]
+    assert _register_staled(S(), rows) == ["2"]
+    fs = [{"kind": "stale", "key": "k", "ref": "1", "route": "q"}, {"kind": "stale", "key": "k", "ref": "2", "route": "q"}]
+    out = gate_cli.register_routes(fs, {"stale": rows, "register_staled": ["2"]})
+    assert [f["route"] == gate_cli.REGISTER_ROUTE for f in out] == [False, True]
+
+
+def test_lb_trace_check_routes_a_register_staled_finding_as_the_gate_does():
+    src = (ROOT / "harness" / "trace.py").read_text(encoding="utf-8")
+    assert "gate_cli.register_routes(gate_cli.findings(" in src

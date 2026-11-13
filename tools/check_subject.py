@@ -388,7 +388,7 @@ def check_bindings(rep: Report, m: dict, root: Path) -> None:
         if isinstance(a, dict):
             _check_versions(rep, m, root, name, a.get("versions"), known)
     check_oracle_suite(rep, m, root)
-    check_code_paths(rep, m)
+    check_code_paths(rep, m, root)
     check_execution_code(rep, m, root, ver.get("execution"))
 
 
@@ -400,8 +400,11 @@ def code_digests(m: dict, root: Path, which: str) -> tuple[str | None, dict[str,
     (``subject.code_files``, ``Subject.code_parts``'s own reading: ``[reference] code`` with the files ``reference_code``
     bundles, ``[oracle] script`` whole with each file ``[oracle] suite`` lists, task-0338; a file one entry named '',
     a listed suite file holding none the digest ''). (None, {}) when the manifest names none."""
-    from subject import code_files
-    rel, files, _declared = code_files(root, m.get("reference"), m.get("oracle"), which)
+    from subject import CodeUnreadable, code_files
+    try:
+        rel, files, _declared = code_files(root, m.get("reference"), m.get("oracle"), which)
+    except CodeUnreadable:   # L-c: said once by ``check_code_paths``; nothing more to say of a file that cannot be read
+        return None, {}
     return rel, files
 
 
@@ -446,14 +449,29 @@ def check_oracle_suite(rep: Report, m: dict, root: Path) -> None:
                       "remove the link, or copy the file into the instance")
 
 
-def check_code_paths(rep: Report, m: dict) -> None:
-    """L4: ``[reference] code`` and ``[oracle] script`` are a path string or absent; the load refuses anything else (exit 2)."""
+def check_code_paths(rep: Report, m: dict, root: Path) -> None:
+    """L4: ``[reference] code`` and ``[oracle] script`` are a path string or absent; the load refuses anything else (exit 2).
+    L-d: and each lies inside the instance with no link out of it, whether or not an execution is declared, as the load
+    requires; L-c: a file of either, or of ``[oracle] suite``, that cannot be read is a path error, never a crash."""
     for table, field in (("reference", "code"), ("oracle", "script")):
         sec = m.get(table) if isinstance(m.get(table), dict) else {}
         v = sec.get(field)
         if v is not None and not isinstance(v, str):
             rep.error("path", f"[{table}] {field}", f"is {v!r}, not a path (a string relative to the subject root)",
                       "name it relative to the subject root")
+        else:
+            _outside(rep, m, root, table, field)
+    _unreadable(rep, m, root)
+
+
+def _unreadable(rep: Report, m: dict, root: Path) -> None:
+    from subject import CodeUnreadable, code_files
+    for which in ("implementation", "suite"):
+        try:
+            code_files(root, m.get("reference"), m.get("oracle"), which)
+        except CodeUnreadable as e:
+            rep.error("path", "[reference] code" if which == "implementation" else "[oracle] script", str(e),
+                      "make the file readable by the account that loads the subject, or name another")
 
 
 def check_execution_code(rep: Report, m: dict, root: Path, ex) -> None:
@@ -497,7 +515,7 @@ def _outside(rep: Report, m: dict, root: Path, table: str, field: str) -> bool:
 
 def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, table: str, field: str) -> None:
     where = "[verification] execution"
-    if _outside(rep, m, root, table, field):
+    if _outside(Report(root), m, root, table, field):   # said once, by ``check_code_paths``
         return
     rel, files = code_digests(m, root, which)
     if rel is None:

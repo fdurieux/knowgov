@@ -92,10 +92,13 @@ def suite_files(oracle) -> list[str]:
 def _file_digests(p: Path, include: list[str] | None, prefix: str) -> dict[str, str]:
     """Each file of ``p`` by its path (``prefix`` for a file, ``prefix/<relative>`` for a directory's, the relative
     path alone with no prefix), with the SHA-256 of its raw bytes; {} when ``p`` is neither."""
-    if p.is_file():
-        return {prefix: hashlib.sha256(p.read_bytes()).hexdigest()}
-    fs = bundle_files(p, include) if p.is_dir() else []
-    return {(f"{prefix.rstrip('/')}/{r}" if prefix else r): hashlib.sha256(f.read_bytes()).hexdigest() for r, f in fs}
+    try:
+        if p.is_file():
+            return {prefix: hashlib.sha256(p.read_bytes()).hexdigest()}
+        fs = bundle_files(p, include) if p.is_dir() else []
+        return {(f"{prefix.rstrip('/')}/{r}" if prefix else r): hashlib.sha256(f.read_bytes()).hexdigest() for r, f in fs}
+    except PermissionError as e:   # L-a: a code, script or suite file this user cannot read: the manifest's cause, never the store's
+        raise CodeUnreadable(f"{e.filename or p} cannot be read (permission denied)") from e
 
 
 def path_inside(root: Path, x: str) -> bool:
