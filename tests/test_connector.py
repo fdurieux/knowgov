@@ -313,3 +313,16 @@ def test_two_inputs_that_map_to_one_relative_path_are_refused():
         assert list(connector.read_export([twin_a, twin_a], "AT_ID")["files"]) == [first.name]
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_stale_persists_until_the_id_returns():
+    """task-0313, C5-1: a node found stale stays so in the next landing while its id is still absent,
+    and is cleared once an export carries it again."""
+    s = _landed()
+    d = Path(tempfile.mkdtemp(prefix="kg-connector-stale-")) / "instance"
+    atexit.register(shutil.rmtree, d.parent, True)
+    shutil.copytree(s["dir"], d)
+    again = connector.land(d, "aris", [FIX / "later"], exported_on="2026-12-02")
+    assert [n["id"] for n in again["stale_nodes"]] == ["PROC-0005"]
+    back = connector.land(d, "aris", [FIX / "first"], exported_on="2026-12-16")
+    assert back["stale_nodes"] == []

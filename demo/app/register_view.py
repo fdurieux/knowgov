@@ -166,7 +166,8 @@ WALK_INTRO = {   # what each walk follows, by the node's kind, in the panel's co
                "An application leads to the information it manages.",
                "A capability or information entity leads nowhere, so the walk never turns back toward the product."),
 }
-WALK_REACH = {"dependants": (("PROC", "process", "processes"), ("PRD", "product", "products"), ("JRN", "journey element", "journey elements")),
+WALK_REACH = {"dependants": (("PROC", "process", "processes"), ("PRD", "product", "products"),
+                           ("CAP", "capability", "capabilities"), ("JRN", "journey element", "journey elements")),
               "realisers": (("PROC", "process", "processes"), ("APP", "application", "applications")),
               "thread": (("PROC", "process", "processes"), ("CAP", "capability", "capabilities"), ("APP", "application", "applications"),
                          ("ENT", "information entity", "information entities"))}
@@ -337,7 +338,9 @@ def with_statements(walk: dict, read: dict, needs_text: str) -> dict:
     walk["statements"] = {"rows": rows, "missing": read.get("missing"), "needs": "register+scenario", "needs_text": needs_text}
     text = C(f"These assertions are those the approved links of {walk['from']} cite, at the grain of the cited anchor.",
              "An anchor such as #DT-P names only the fragments under it; a citation without one names the whole document.",
-             "Every version is read, so an invalidated assertion still shows the derived code that used it.")
+             "Every version is read, so an invalidated assertion still shows the derived code that used it.",
+             "The join is the start's own cited anchors.",
+             "It does not use the register map, as the MCP server's register_impact does.")
     missing = {"driver": C("The store driver is not installed here, so no assertion is shown."),
                "store": C("The store is not reachable, so no assertion is shown."),
                "register": C("The register is not projected in the store, so no assertion is shown."),

@@ -10,8 +10,13 @@ names that section with the version.
 
 ## Unreleased
 
-- 0.9.x walks and tools (task-0314): `upward`, `register_nodes` and `proposal_impact` exit 2 with one line on an unloadable subject or a refused task policy; a sub-gate's `why` counts "the N keys reached"; `key_nodes` answers `mapped: false` for a held, unmapped key; a gate key finding's `related` carries its conflict ids; an unknown key gets a did-you-mean; the check tools no longer read `--help` as an output directory; the page's thread walk lists capabilities and entities reached; `code_path`'s suspect block names the scenario it was read against; `held_keys` says it counts stored statuses.
+- The published compose file runs the v0.9.0 release: `app` and `worker` pin `ghcr.io/fdurieux/knowgov:v0.9.0` by its index digest (`sha256:1785793d…`), where they ran v0.8.0.
 - The pre-load check's Spectral pin moves to 6.17.1, the same in `instance/ci/package.json`, `instance/ci/preload-check.yml` and the harness workflow (Dependabot #471, which moved only the first).
+- A node found stale by one landing of an export stays stale in the next while its id is still absent, until an export carries it again (`tools/connector.py`).
+- The page's register impact panel counts capabilities among what the dependants walk reaches, and its statements view names its join (the start's cited anchors, not the register map `register_impact` uses).
+- The comparator reads a run that registered the Derived output against the scored record with `valid_until` set aside, as the page's record check does; it no longer disagrees on a page-started S6 run. `--record-for` still reads every leaf.
+- The page leaves out and logs a subject whose task policy the gate refuses, instead of serving it to a run that exits 2.
+- 0.9.x walks and tools (task-0314): `upward`, `register_nodes` and `proposal_impact` exit 2 with one line on an unloadable subject or a refused task policy; a sub-gate's `why` counts "the N keys reached"; `key_nodes` answers `mapped: false` for a held, unmapped key; a gate key finding's `related` carries its conflict ids; an unknown key gets a did-you-mean; the check tools no longer read `--help` as an output directory; the page's thread walk lists capabilities and entities reached; `code_path`'s suspect block names the scenario it was read against; `held_keys` says it counts stored statuses.
 
 ## 0.9.0 — 2026-11-12
 

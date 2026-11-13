@@ -338,3 +338,19 @@ def test_kg_subjects_with_nothing_loadable_serves_no_public_subject():
         _restore(saved)
         server.refresh_subjects()
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_a_subject_whose_task_policy_is_refused_is_left_out():
+    """task-0313: the page does not serve a subject whose run would exit 2 on its task policy."""
+    import shutil
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "s"
+        shutil.copytree(ROOT / "subjects" / "jef_data_load", root, ignore=shutil.ignore_patterns("vendor", "runs", "__pycache__"))
+        p = root / "subject.toml"
+        p.write_text(p.read_text(encoding="utf-8") + '\n[tasks.broken]\nblock_levels = "absent"\nkeys = ["a|x"]\n', encoding="utf-8")
+        try:
+            page_subject.of(Subject(root))
+        except Exception as e:  # noqa: BLE001
+            assert "block_levels" in str(e), e
+        else:
+            raise AssertionError("a refused task policy was served")

@@ -68,6 +68,9 @@ class PageSubject:
         self.families: list = [(a["key"], a.get("label", a["family"]), a.get("format_label", a["format"]))
                                for a in s.artefacts if a.get("store", True)]   # the documents the store reads
         self.mappers: int = len(s.mappers)
+        import task_policy   # task-0313: a task policy the gate refuses is left out and logged, never served to a run that exits 2
+        for task_name, spec in s.tasks.items():
+            task_policy.build(task_name, spec)
         self.key_count: int = len(s.tasks.get("codegen", {}).get("keys", []))
         # the register: how its links cite this subject's requirements
         self.req_anchor: str = s.register.get("requirement_anchor", "")
