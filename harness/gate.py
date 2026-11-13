@@ -25,6 +25,11 @@ def inference_flags(rows: list[dict]) -> set[str]:
     return {r["basis"] for r in rows} if rows and all(r["basis"] in INFERENCE for r in rows) else set()
 
 
+def _suspect_note(suspect: list, verdict: str) -> str:
+    """A-N4: the verdict does not weigh a suspect output, and the CLI exits 1 on it."""
+    return f"; {len(suspect)} derived output(s) suspect (listed as findings, which can fail the run)" if suspect and verdict == "PROCEED" else ""
+
+
 def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
     """The gate over any key set: ``spec`` is a task's shape (keys, block_levels,
     max_unverified_share); ``task`` only names it in the result. The MCP server resolves an
@@ -96,11 +101,12 @@ def resolve_spec(s, task: str, spec: dict, as_of=None) -> dict:
         verdict, why = "PROCEED", (f"all {n} required keys approved, none flagged" if intended
                                    else f"all {n} required keys verified or approved, none flagged")
     conflicts = s.conflict_gaps()
+    suspect = s.suspect_derived()
+    why += _suspect_note(suspect, verdict)
     # staleness: invalidated assertions on required keys (superseded or not), the verifications
     # their invalidation ended, and the derived outputs that used them (S6; added after the first
     # scored run, whose S6 bundle carried none of this - see the pre-registration's run notes);
     # ``stale`` is read above, once, so the level and the finding read one successor set
-    suspect = s.suspect_derived()
     out = {"task": task, "verdict": verdict, "why": why, "keys": keys, "conflicts": conflicts,
            "blocked_keys": blocked_keys, "below_verified": below, "flagged": flagged,
            "stale": stale, "suspect_derived": suspect, "lapsed": lapsed, "as_of": on.isoformat()}

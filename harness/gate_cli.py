@@ -212,7 +212,7 @@ def unlisted_finding(r: dict, below: set | None = None) -> dict:
         f = _finding("major", "attestation", f"[verification] {n} lists no Version: it verifies nothing, since an execution or a review "
                      f"verification holds only for the Versions it lists (decision-0036), so {lost} and the keys behind it fall "
                      f"below verified, behind {len(keys)} required key(s)"
-                     + (f", of which {len(set(keys) & below)} now read below verified" if below is not None else ""),
+                     + (f", of which {len(set(keys) & below)} now read below verified, from any cause, not this declaration alone" if below is not None else ""),
                      ref=f"attest:{n}", related=keys)
         f["route"] = "; ".join(f"{u['artefact']}: " + attestation_route([n], u["sha256"], r["attester"])
                                for u in un if u.get("keys")) or attestation_route([n], "<digest of each document>", r["attester"])
@@ -278,7 +278,7 @@ def code_finding(u: dict, r: dict, owners: dict | None, route) -> dict:
     task's keys, info when none of them rests on it; the route is the attester's listing."""
     files = u.get("files") or []   # task-0338 (decision-0039 §3.5): the [oracle] suite files it misses, by path
     what = {"implementation": "the reference implementation ([reference] code)",
-            "suite": "the suite that judged it ([oracle] script" + (" and suite" if files else "") + ")"}[u["code"]]
+            "suite": "the suite that judged it ([oracle] script" + (" and suite" if files or u.get("suite_listed") else "") + ")"}[u["code"]]
     listed = _code_listed(u, files)
     f = _finding("major" if u["keys"] else "info", "attestation",
                  f"{u['artefact']}, {what}, is not the one the execution verification attests: [verification] execution {listed}, "
@@ -411,7 +411,7 @@ def suspect_finding(d: dict, scope: dict | None) -> dict:
     used, changed = sorted(d.get("used_invalidated") or []), sorted(d.get("used_changed") or [])
     why = f"used {len(used)} statement(s) now invalidated ({', '.join(used)})" if used else ""
     if changed:   # task-0199: a statement changed under its id since trace registered the output
-        why += ("; and " if why else "used ") + f"{len(changed)} statement(s) whose value or digest changed since it was built ({', '.join(changed)})"
+        why += ("; and " if why else "used ") + f"{len(changed)} statement(s) changed since it was built (its value, or the source it was read from) ({', '.join(changed)})"
     what = f"{d['id']} ({d.get('kind') or 'derived output'}) {why}"
     if scope is not None and not scope["on_task"]:
         return _finding("info", "suspect_derived", f"{what}; they sit on {', '.join(scope['keys']) or 'no key held'}, none of this "
@@ -731,6 +731,8 @@ def _moved(was, now, whole: bool = False) -> bool:
     ``whole`` (``WHOLE``, task-0335): an object whose absent member is known, not unknown, the configuration's file
     the load did not read, so both known and unequal, the map whole; ``code`` and ``preload`` likewise (task-0341)."""
     if whole:
+        if isinstance(was, dict) and isinstance(now, dict) and "sha256" in was and "sha256" in now:   # P1: the preload report by its bytes and why, not the path it sits at
+            was, now = {k: v for k, v in was.items() if k != "path"}, {k: v for k, v in now.items() if k != "path"}
         return was is not None and now is not None and was != now
     if isinstance(was, dict) and isinstance(now, dict):
         return any(was[k] != now[k] for k in sorted(set(was) & set(now)) if k != "why" and was[k] is not None and now[k] is not None)
@@ -752,9 +754,24 @@ def differs(identity: dict | None, rep: dict) -> list[str]:
     return [d["field"] for d in identity_drift(identity or {}, rep)]
 
 
+def _moved_paths(was, now) -> list[str]:
+    """Q2/P2: the files of a whole-compared map (``configuration``, ``code``) that moved, were added or dropped, sorted."""
+    return sorted(k for k in set(was) | set(now) if was.get(k) != now.get(k))
+
+
 def drift_lines(source: str, drift: list[dict]) -> list[str]:
-    return [f"gate: --baseline {source}: {d['field']} differs: the baseline's {_show(d['baseline'])}, this run's {_show(d['now'])}"
-            for d in drift]
+    out = []
+    for d in drift:
+        was, now = d["baseline"], d["now"]
+        if d["field"] in ("configuration", "code") and isinstance(was, dict) and isinstance(now, dict):
+            out.append(f"gate: --baseline {source}: {d['field']} differs: {', '.join(_moved_paths(was, now))} "
+                       "(the baseline's digests differ from this run's)")
+        elif d["field"] == "preload" and isinstance(was, dict) and isinstance(now, dict):
+            out.append(f"gate: --baseline {source}: preload differs: the report's sha256 was {was.get('sha256') or 'none'}, "
+                       f"now {now.get('sha256') or 'none'}" + (f" ({now['why']})" if now.get("why") else ""))
+        else:
+            out.append(f"gate: --baseline {source}: {d['field']} differs: the baseline's {_show(was)}, this run's {_show(now)}")
+    return out
 
 
 def name_drift(base: tuple[dict, str] | None, rep: dict) -> dict:
@@ -762,6 +779,12 @@ def name_drift(base: tuple[dict, str] | None, rep: dict) -> dict:
     for line in drift_lines(base[1], identity_drift(base[0].get("identity") or {}, rep)) if base else []:
         print(line, file=sys.stderr)
     return rep
+
+
+def _remedy(rc: dict) -> list[str]:
+    """B-N2: --register-previous re-applies on every run, so no ruling restores what it staled while it is passed."""
+    return ["  remedy   --register-previous stales these statements again on every run it is passed, so a questionnaire, ingest or review cannot "
+            "restore them: re-map the key in register_map.toml, or run without --register-previous once the owner confirms the update"] if rc["invalidated"] else []
 
 
 def render(rep: dict) -> str:
@@ -778,8 +801,9 @@ def render(rep: dict) -> str:
             [f"{n['id']} {n['to'] or 'gone'}" for n in rc["nodes"]] + [f"{ln['id']} {ln['to'] or 'gone'}" for ln in rc["links"]]) or "nothing withdrawn")
                    + f"; {len(rc['keys'])} key(s) resting on it, {len(rc['invalidated'])} statement(s) invalidated"
                    + (f"; derived {rc['derived']} registered" if rc["derived"] else ""))
+        out += _remedy(rc)
     for f in rep["findings"]:
-        out.append(f"  {f['severity']:8s} {f['message']}" + (f" [owner {f['owner'] or 'none in the register map'}"
+        out.append(f"  {f['severity']:8s} {f['message']}" + (f" [owner {f['owner'] or 'no single unit in the register map'}"
                                                          + (f"; closed by {f['closer'] or 'no unit of the register'}" if "closer" in f else "") + "]"
                                                          if "owner" in f else ""))
     c = rep["counts"]
@@ -1013,6 +1037,16 @@ def run(args) -> dict:
                 pass
 
 
+def _held_scenario(h: dict, default: str) -> str:
+    return h.get("scenario") or default
+
+
+def _own_cause(e: Exception) -> str | None:
+    """S1: the manifest is the cause (a missing file is task-0312's), said as itself; None leaves it to the store's line."""
+    from subject import CodePathOutside
+    return str(e) if isinstance(e, CodePathOutside) else None
+
+
 def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
     """The gate on one store handle: read as it is (``--no-load``), loaded into the scratch store, or
     loaded into the configured store and published (``--publish``)."""
@@ -1026,9 +1060,10 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
         if args.no_load:
             import held as held_state
             h = st.held()   # whose load and which scenario, as the load recorded them (task-0195)
-            why = held_state.refusal(h, SUBJECT.id, scenario)
+            why = held_state.refusal(h, SUBJECT.id, args.scenario)   # A-N5: unnamed, the scenario held, as the MCP server reads it
             if why:
                 raise CannotRun(f"{why}; load it, or drop --no-load")
+            scenario = _held_scenario(h, scenario)
             version = h["version"]
         else:
             _load(st, scenario)
@@ -1054,7 +1089,7 @@ def _gate_on(st, args, SUBJECT, scenario, cfg2, base, on, reg_change, previous):
     except DocumentUnreadable as e:   # doc-0030 I11: the document's fault, named, never the store's
         raise CannotRun(f"a document cannot be loaded: {e}") from e
     except Exception as e:  # noqa: BLE001 — an unreachable store fails here, on the first statement
-        raise CannotRun(f"the store did not answer: {type(e).__name__}: {e}") from e
+        raise CannotRun(_own_cause(e) or f"the store did not answer: {type(e).__name__}: {e}") from e
 
 
 def sub_gate_why(task: str, why):

@@ -331,6 +331,11 @@ S2, the gate says PROCEED once reviewers have ruled on the employee's answers, s
 and the documents disagree, and the compliance unit has closed the open decision.
 `tools/check_review_walkthrough.py` runs that path from start to finish.
 
+A review of a document's statements takes one ruling per statement (a decision table of thirty-one rows takes
+thirty-one), and a ruling on such a statement approves it directly: it records `approved` with no separate
+review verification, so the status means a person approved the statement named, not that a verified assertion
+was approved.
+
 Know three limits before you rely on it:
 
 - An answer reads *proposed* until a reviewer approves it. Until then the gate lists it as an

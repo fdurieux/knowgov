@@ -24,6 +24,7 @@ names that section with the version.
 - `capture.py questionnaire` writes no file for an owner with no open item, and `ingest` refuses a handle of another unit in a questionnaire it does not own (task-0315, C2-5, C2-6).
 - `check_subject`'s "matches no current Version" error names which listed digests do match a file (message text only; task-0315, C2-7).
 - `capture.py review --show` shows a document statement's recorded key, value and digest instead of only "not a captured answer" (task-0315).
+- Fixes from the redone review (task-0329): `gate_cli --no-load` without `--scenario` reads the scenario the store holds, as the MCP server does; a PROCEED with a suspect derived output says so in its why; the 'is not attested' findings no longer print `owner none in the register map`; a suspect output whose statement's source changed under an equal value says so; `check_gate_after_change` and `check_register_change` accept a relative `KG_SUBJECT`; the baseline's stderr lines name the configuration and code files that moved, and the pre-load report is compared by its bytes, not its path; a `CodePathOutside` exits 2 with its own cause; `check_subject` confines `[reference] code` and `[oracle] script` as the load does and names every stale digest with its field; the hook shows one attestation and one lapsed finding in its bar; register-update guidance (`--register-previous` re-applies on every run) in `instance/README.md` and the gate's text report
 
 ## 0.9.0 — 2026-11-12
 

@@ -26,6 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 HARNESS = ROOT / "harness"
 SCENARIO = "S6"
 sys.path.insert(0, str(HARNESS))
+if os.environ.get("KG_SUBJECT"):   # B-N8: the children run with cwd=harness, so a relative root is made absolute here
+    os.environ["KG_SUBJECT"] = str(Path(os.environ["KG_SUBJECT"]).resolve())
 import cadence  # noqa: E402
 import schema_check  # noqa: E402
 from subject import SUBJECT  # noqa: E402

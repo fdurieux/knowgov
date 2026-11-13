@@ -567,7 +567,7 @@ def _opposes(review, into: Path, dest: Path, rv: dict) -> list[str]:
                  if str(r.get("on")) == on]
     rows += [(ru["statement"], on, rv["by"], ru["outcome"], dest.name) for ru in rv["rulings"]]
     return [f"warning: {dest.name} ruling {st} ({oc}) is cancelled with {', '.join(f'{f} ({o})' for f, o in g if f != dest.name)}, "
-            "a ruling of another reviewer the same day: none applies and the gate reports it; the owners rule again in one "
+            f"{'rulings' if len([1 for f, _ in g if f != dest.name]) > 1 else 'a ruling'} of {'other reviewers' if len([1 for f, _ in g if f != dest.name]) > 1 else 'another reviewer'} the same day: none applies and the gate reports it; the owners rule again in one "
             "review on a later day (written all the same)"
             for (st, _on, rel), g in sorted(review.opposed_rulings(rows).items()) if rel == dest.name
             for oc in [next(o for f, o in g if f == dest.name)]]

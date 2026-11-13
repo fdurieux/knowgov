@@ -35,6 +35,8 @@ ROOT = Path(__file__).resolve().parents[1]
 HARNESS = ROOT / "harness"
 VENDORED = ROOT / "demo" / "register"
 sys.path[:0] = [str(HARNESS), str(ROOT / "tools")]
+if os.environ.get("KG_SUBJECT"):   # B-N8: the children run with cwd=harness or demo/app, so a relative root is made absolute here
+    os.environ["KG_SUBJECT"] = str(Path(os.environ["KG_SUBJECT"]).resolve())
 import cadence  # noqa: E402
 import register_fixture  # noqa: E402
 import register_impact  # noqa: E402  (task-0237: the register each report names)
