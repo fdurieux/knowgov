@@ -328,11 +328,12 @@ def test_a_second_review_the_same_day_orders_after_the_first_task_0322():
 
 
 def _pending(statement="A:cap:2026-11-05-ORG-0002-ops-2:1@capture"):
-    return {"statement": statement, "key": "response|hold_presence", "from_value": "held_unscreened only", "from_sha256": review.content_digest([])}
+    return {"statement": statement, "key": "response|hold_presence", "from_value": "held_unscreened only", "from_sha256": review.content_digest([]),
+            "review": "captures/reviews/2026-11-06-employee-2.toml", "by": "employee-2", "outcome": "rejected"}
 
 
-def _bound(rel, id_, giver, outcome="approved", at=("2026-11-06", "employee-3", 0, "x")):
-    return {"at": at, "rel": rel, "id": id_, "key": "response|hold_presence", "value": "held_unscreened only",
+def _bound(rel, id_, giver, outcome="approved", at=("2026-11-06", "employee-3", 0, "x"), by="employee-3"):
+    return {"at": at, "rel": rel, "id": id_, "by": by, "key": "response|hold_presence", "value": "held_unscreened only",
             "sha256": review.content_digest([]), "giver": giver, "outcome": outcome}
 
 
@@ -498,4 +499,20 @@ def test_only_a_decided_ruling_settles_and_a_same_day_other_reviewer_does_task_0
     assert review.settling(_pending(), at, [ref, app], HANDLES) == "settled by r-app.toml"
     same_day = ("2026-11-06", "employee-2", 0, "a")
     boss = _bound("r-boss.toml", sid, "ops-2", "approved", at=("2026-11-06", "boss", 0, "b"))
-    assert review.settling(_pending(), same_day, [boss], HANDLES) == "settled by r-boss.toml"
+    assert review.settling({**_pending(), "outcome": "approved"}, same_day, [boss], HANDLES) == "settled by r-boss.toml"
+
+
+def test_a_same_day_opposing_ruling_leaves_a_legacy_act_major_and_a_hand_named_file_is_the_same_reviewer_task_0323():
+    """R1: boss approving the day employee-2's legacy act rejected is opposed, not settled; a later day settles either way.
+    R2: a file by the same reviewer under another name is not 'another reviewer'."""
+    sid = "A:cap:2026-11-05-ORG-0002-ops-2:1@capture"
+    day = ("2026-11-06", "employee-2", 0, "2026-11-06-employee-2.toml")
+    boss = _bound("r-boss.toml", sid, "ops-2", "approved", at=("2026-11-06", "boss", 0, "b"), by="boss")
+    why = review.settling(_pending(), day, [boss], HANDLES)
+    assert why.startswith(review.OPPOSED) and "r-boss.toml (approved)" in why and "2026-11-06-employee-2.toml (rejected)" in why, why
+    agree = _bound("r-boss.toml", sid, "ops-2", "rejected", at=("2026-11-06", "boss", 0, "b"), by="boss")
+    assert review.settling(_pending(), day, [agree], HANDLES) == "settled by r-boss.toml"
+    next_day = _bound("r-next.toml", sid, "ops-2", "approved", at=("2026-11-08", "carol", 0, "c"), by="carol")
+    assert review.settling(_pending(), day, [boss, next_day], HANDLES) == "settled by r-next.toml"
+    own = _bound("aaa.toml", sid, "ops-2", "approved", at=("2026-11-06", "aaa", 0, "aaa.toml"), by="employee-2")
+    assert review.settling(_pending(), day, [own], HANDLES) is None
