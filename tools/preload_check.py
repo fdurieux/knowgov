@@ -503,12 +503,12 @@ def check(instance: Path, changed: list[str] | None = None, threshold: str = "ma
             for r in rows:   # a document the check read and its kind's linter left unchecked is judged by the check alone
                 if r["file"] in read and r["state"] == "unchecked":
                     only[r["file"]] = f"judged by {name} alone; {r['why']}"
-                    r.update(state="clean", tool=name)
+                    r.update(tool=name)   # task-0312 C4-1: its kind's linter never ran, so it stays unchecked unless a finding lands
                     settled.append(r["file"])
         landed = 0
         for f in res["findings"]:
             row = by_file.get(f["file"])
-            if row is None or row["state"] not in ("clean", "findings", "held"):
+            if row is None or not _takes_findings(row, only):
                 continue   # a document outside this run's scope (--changed, --since), or one no tool could read
             row["findings"].append({**{k: f[k] for k in ("rule", "severity", "line", "message")}, "tool": name})
             settled.append(f["file"])
@@ -557,6 +557,12 @@ def check(instance: Path, changed: list[str] | None = None, threshold: str = "ma
         out["baseline"] = {"file": baseline_name, "held": sum(1 for f in fs if f.get("held")),
                            "new": sum(1 for f in fs if not f.get("held"))}
     return out
+
+
+def _takes_findings(row: dict, only: dict) -> bool:
+    """A row a linter judged takes a check's findings; so does one its linter never ran on and a check judged alone
+    (task-0312 C4-1: it stays unchecked unless a finding lands)."""
+    return row["state"] in ("clean", "findings", "held") or (row["state"] == "unchecked" and row["file"] in only)
 
 
 def _where(inst: Path, text: str) -> str | None:

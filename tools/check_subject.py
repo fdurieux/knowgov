@@ -320,10 +320,34 @@ def artefact_digests(m: dict, root: Path) -> dict[str, dict[str, str]]:
     return out
 
 
-def subject_versions(m: dict, root: Path) -> set[str]:
+def _patched(texts: dict, patches) -> dict:
+    """``texts`` with one scenario's patches applied, as the load applies them."""
+    kit = dict(texts)
+    for x in patches if isinstance(patches, list) else []:
+        path = str(x.get("path")) + (str(x["within"]) if x.get("within") else "")   # a part a plant changes (task-0094)
+        if x.get("op") == "add":
+            kit[path] = str(x.get("new", ""))
+        elif x.get("op", "replace") == "replace" and path in kit:
+            kit[path] = kit[path].replace(str(x.get("old", "")), str(x.get("new", "")))
+    return kit
+
+
+def _planted_versions(plants: dict, texts: dict, h, out: set, planted: dict | None) -> None:
+    """The digests of the texts each scenario's patches make (``subject_versions``), added to ``out``."""
+    for stage in ("plant", "stage2"):
+        for patches in (plants.get(stage) or {}).values():
+            kit = _patched(texts, patches)
+            made = {h(t.encode("utf-8")): k for k, t in kit.items() if texts.get(k) != t}
+            out.update(made)
+            if planted is not None:
+                planted.update(made)
+
+
+def subject_versions(m: dict, root: Path, planted: dict | None = None) -> set[str]:
     """The digests an artefact Version of the subject can carry (decision-0019): each artefact file's raw bytes and,
     for a directory, each file's, as on disk, and each text a scenario's patches make of a file (plants.toml, stage 1
-    and 2), as the load digests a planted text. Read from the files alone, never a load."""
+    and 2), as the load digests a planted text. Read from the files alone, never a load. ``planted``, when given, receives
+    each planted digest's artefact key (task-0312 F2)."""
     import hashlib
     h = lambda b: hashlib.sha256(b).hexdigest()  # noqa: E731
     out: set[str] = set()
@@ -341,17 +365,7 @@ def subject_versions(m: dict, root: Path) -> set[str]:
                     out.add(h(f.read_bytes()))
                     t = f.read_text(encoding="utf-8", errors="replace")
                     texts[str(a.get("key")) + f.relative_to(p).as_posix()] = t if t.endswith("\n") else t + "\n"   # as bundled
-    plants = _toml(root / "plants.toml")
-    for stage in ("plant", "stage2"):
-        for patches in (plants.get(stage) or {}).values():
-            kit = dict(texts)
-            for x in patches if isinstance(patches, list) else []:
-                path = str(x.get("path")) + (str(x["within"]) if x.get("within") else "")   # a part a plant changes (task-0094)
-                if x.get("op") == "add":
-                    kit[path] = str(x.get("new", ""))
-                elif x.get("op", "replace") == "replace" and path in kit:
-                    kit[path] = kit[path].replace(str(x.get("old", "")), str(x.get("new", "")))
-            out |= {h(t.encode("utf-8")) for k, t in kit.items() if texts.get(k) != t}
+    _planted_versions(_toml(root / "plants.toml"), texts, h, out, planted)
     return out
 
 
@@ -544,6 +558,23 @@ def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: 
     for d in stale:
         rep.error("attestation", where, f"versions lists {d}, which matches no current Version of the subject's artefacts: "
                   "it attests nothing the load reads", _relist_fix(name))
+    _unlisted_plants(rep, m, root, where, listed, name)
+
+
+def _unlisted_plants(rep: Report, m: dict, root: Path, where: str, listed: list, name: str) -> None:
+    """task-0312 F2: an artefact whose own Versions the declaration lists, but not the Version a scenario's plant makes of
+    it, attests the pristine document and fails the scenario at the load: name each, with the digest to list."""
+    planted: dict[str, str] = {}
+    subject_versions(m, root, planted)
+    own = artefact_digests(m, root)
+    for d, k in sorted(planted.items(), key=lambda kv: kv[1]):
+        if d in listed:
+            continue
+        art = next((a for a in own if k == a or k.startswith(a)), None)
+        if art is not None and all(x in listed for x in own[art].values()):
+            rep.error("attestation", where, f"a scenario plant of {art} makes the Version {d}, which is not listed under {where}: "
+                      "the scenario loads it unattested",
+                      f"list {d} under {where} (the plant's text, as the load digests it)")
 
 
 def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: list, stale: bool) -> bool:
@@ -554,7 +585,7 @@ def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: lis
     named = False
     for art, files in sorted(artefact_digests(m, root).items()):
         miss = {rel: d for rel, d in files.items() if d not in listed}
-        if not miss or (len(miss) == len(files) and not (stale and "" in files)):
+        if not miss or (len(miss) == len(files) and not stale):   # task-0312 F1: a directory fully changed is named as a file is
             continue
         what = ", ".join(f"{rel} ({d})" if rel else f"its Version {d}" for rel, d in sorted(miss.items()))
         rep.error("attestation", where, f"{art} changed since it was attested: {what} is not listed under {where}"
@@ -567,7 +598,9 @@ def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: lis
 def check_map(rep: Report, m: dict, root: Path, register: Path | None) -> None:
     rel = (m.get("register") or {}).get("map", "register_map.toml") if isinstance(m.get("register"), dict) else "register_map.toml"
     p = root / rel
-    if not p.is_file():
+    if not p.is_file():   # task-0312 C1-1: a map nothing reads is a subject whose keys have no owner and no walk
+        rep.note("map", rel, f"{rel} is not there: no key of this subject maps to a register node, so no key has an owner and none walks the register "
+                 "(add it, or name its path under [register] map in subject.toml; a subject that reads no register may go without)")
         return
     rows = _toml(p).get("row", [])
     nodes = register_nodes(register) if register else None

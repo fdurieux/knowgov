@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "tools"), str(ROOT / "harness")]
 import check_instance  # noqa: E402
 import example_instance  # noqa: E402
+import os  # noqa: E402
+import preload  # noqa: E402
 import preload_check  # noqa: E402
 import schema_check  # noqa: E402
 
@@ -188,8 +190,8 @@ def test_the_clean_example_instance_exits_0_and_lists_every_unchecked_kind_by_it
         assert states["artefacts/decision-tables/decision_table.md"] == ("unchecked", "dmnlint (small rule set)")
         assert states["artefacts/textual-requirements/requirements.md"] == ("unchecked", "StrictDoc, Doorstop, Sphinx-Needs, OpenFastTrace")
         # dmnlint not installed: the screening table is judged by step 4's DMN check alone (task-0217), its two gaps minor
-        assert states["artefacts/decision-tables/screening_decision.dmn"] == ("clean", "dmn gaps")
-        assert rep["counts"] == {"clean": 4, "findings": 0, "held": 0, "unchecked": 6, "cannot_run": 0, "skipped": 0}, rep["counts"]
+        assert states["artefacts/decision-tables/screening_decision.dmn"] == ("unchecked", "dmn gaps")   # task-0312 C4-1: its linter never ran
+        assert rep["counts"] == {"clean": 3, "findings": 0, "held": 0, "unchecked": 7, "cannot_run": 0, "skipped": 0}, rep["counts"]
         lts = {lt["tool"]: (lt["version"], lt["files"], lt["exit"]) for lt in rep["linters"]}
         assert lts == {"pumllint": ("0.0-standin", 2, 0), "Spectral": ("6.0.0-standin", 1, 0), "markdownlint": (None, 1, 2),
                        "gplint": (None, 1, 2), "bpmnlint": (None, 1, 2), "dmnlint": (None, 1, 2)}, lts
@@ -510,3 +512,20 @@ def test_the_ci_script_takes_an_absolute_baseline_as_given():
             p = subprocess.run(["sh", str(ROOT / "instance" / "ci" / "preload-check.sh"), str(ROOT), str(out)], capture_output=True,
                                text=True, env={**os.environ, "KG_PRELOAD_BASELINE": given})
             assert p.returncode == 0, (given, p.returncode, p.stderr[-500:])
+
+
+def test_a_named_report_that_is_not_there_is_named_task_0312():   # C4-6
+    old = os.environ.get("KG_PRELOAD_REPORT")
+    os.environ["KG_PRELOAD_REPORT"] = "/nonexistent/preload-report.json"
+    try:
+        try:
+            preload.read_report(Path("/nonexistent/preload-report.json"))
+        except FileNotFoundError as e:
+            assert "KG_PRELOAD_REPORT names /nonexistent/preload-report.json" in str(e), e
+        else:
+            raise AssertionError("a missing KG_PRELOAD_REPORT was not refused")
+    finally:
+        if old is None:
+            os.environ.pop("KG_PRELOAD_REPORT")
+        else:
+            os.environ["KG_PRELOAD_REPORT"] = old
