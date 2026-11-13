@@ -162,6 +162,7 @@ def test_a_document_only_a_check_judged_is_judged_by_it_and_its_findings_are_lin
                                                                   "tool": "dmn gaps", "why": v["why"]}]}, set())
               if f["kind"] == "preload"]
     assert "judged by dmn gaps alone, its linter never ran" in info["message"] and "form was not checked" not in info["message"], info
+    assert info["message"].count("judged by") == 1 and "dmnlint is not installed here" in info["message"], info   # said once (L3)
 
 
 def test_the_changelog_names_it_and_the_trace_runs_on_the_pinned_pumllint():
