@@ -250,7 +250,7 @@ def execution_view() -> dict:
     """Whether model output may run now, as an arms run would find it: ``execution.refusal()``'s answer
     (the instance guard, the backend, the worker's attestation), never a copy of its logic. The page's
     Arms chip and button read it beside ``arms_enabled``, which counts keys only."""
-    why = execution.refusal()
+    why = execution.refusal(subject=_ps().subject)   # the request's subject, not the process's (task-0315 L1)
     return {"ok": why is None, "why": why}
 
 
@@ -612,7 +612,7 @@ class Runner:
         if mode == "arms":
             if ps.subject.oracle_script() is None:
                 raise ValueError("arms mode needs an oracle: this subject declares none")
-            why = execution.refusal()   # task-0141.07, task-0141.05: no mounted instance beside it, and a confined worker, or the opt-in
+            why = execution.refusal(subject=ps.subject)   # task-0141.07, task-0141.05: no mounted instance beside it, and a confined worker, or the opt-in
             if why:
                 raise ValueError(why)
             # the row and the effort are checked against the table: an unknown row, a row whose key

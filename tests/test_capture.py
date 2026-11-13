@@ -299,3 +299,21 @@ def test_a_review_due_questionnaire_is_answered_by_the_handle_it_is_addressed_to
     assert capture.check_answers(doc, pattern, keys, TODAY, handles)[0] == []
     doc["questionnaire"]["to"] = "ORG-0001"
     assert any("addressed to" in e for e in capture.check_answers(doc, pattern, keys, TODAY, handles)[0])
+
+
+def test_an_unassigned_review_due_questionnaire_is_still_answered_and_stale_files_are_named():
+    """task-0315 L2 (an `unassigned` review-due one is the ordinary unassigned rule's), L6."""
+    import review
+    import tempfile
+    keys = set(CARGO_QUOTE.tasks["codegen"]["keys"])
+    reg = ROOT / "demo" / "register"
+    pattern, handles = capture.handle_pattern(reg), review.issued_handles(reg)
+    for who in ("employee-1", "employee-2", "employee-3"):
+        doc = _answered(handle=who)
+        doc["questionnaire"].update(route="review-due", to=capture.UNASSIGNED, owner="")
+        assert capture.check_answers(doc, pattern, keys, TODAY, handles)[0] == [], who
+    with tempfile.TemporaryDirectory() as td:
+        for n in ("questionnaire-cargo_quote-S2-ORG-0001.toml", "questionnaire-cargo_quote-S2-ORG-0002.toml", "other.toml"):
+            (Path(td) / n).write_text("", encoding="utf-8")
+        assert capture.stale_questionnaires(Path(td), "cargo_quote", "S2", {"questionnaire-cargo_quote-S2-ORG-0002.toml"}) == \
+            ["questionnaire-cargo_quote-S2-ORG-0001.toml"]

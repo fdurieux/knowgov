@@ -274,12 +274,17 @@ def _date(v) -> dt.date | None:
     return dates.parse(v) if dates.is_date(v) else None   # task-0262
 
 
+def stale_questionnaires(out: Path, subject_id: str, scenario: str, written: set[str]) -> list[str]:
+    """task-0315 L6: the earlier questionnaire files of this subject and scenario left in ``out`` that this run did not write."""
+    return sorted(p.name for p in out.glob(f"questionnaire-{subject_id}-{scenario}-*.toml") if p.name not in written)
+
+
 def _foreign_unit(q: dict, handle, h: dict | None, handles: dict | None = None) -> list[str]:
     """task-0315 C2-6: a handle answers a questionnaire of its own unit only; a review-due one is addressed to its ``to``,
     the handle, or the owner unit when the handle is withdrawn (L5: the file's fields are the answerer's own to edit)."""
     owner = str(q.get("owner") or "")
-    if h is not None and q.get("route") == "review-due":
-        to = str(q.get("to") or "")
+    to = str(q.get("to") or "")
+    if h is not None and q.get("route") == "review-due" and to != UNASSIGNED:   # an unassigned one is the ordinary rule's
         mine = to in (handles or {}) and to != str(handle) or to not in (handles or {}) and to and h.get("unit") != to
         return [f"answered.from {handle} is not who this review-due questionnaire is addressed to ({to})"] if mine else []
     if h is None or not h.get("unit") or not owner or owner == UNASSIGNED or h["unit"] == owner:
@@ -510,6 +515,9 @@ def _questionnaire(args) -> int:
         (args.out / f"questionnaire-{SUBJECT.id}-{scenario}-{owner}.toml").write_text(text, encoding="utf-8")
         head = text.splitlines()[0].lstrip("# ")
         print(head)
+    left = stale_questionnaires(args.out, SUBJECT.id, scenario, {f"questionnaire-{SUBJECT.id}-{scenario}-{o}.toml" for o in qs})
+    if left:   # task-0315 L6: another owner's earlier file is not removed, and may no longer be asked
+        print(f"note: earlier questionnaire(s) left in {args.out} are not removed: {', '.join(left)}", file=sys.stderr)
     return 0
 
 
