@@ -168,8 +168,13 @@ def gap_closers(subject, gaps: dict[str, list[dict]], root: Path | None = None) 
 
 # C3-1, R1 (task-0311): the routes name the tool by its path in a knowgov checkout and the instance's own subject and register;
 # run from an instance root with only KG_HOME set, capture.py would read knowgov's own subject and write its captures there
-FROM_INSTANCE = (" (from an instance root: KG_SUBJECT=subjects/<subject> KG_REGISTER=register "
-                 "python \"$KG_HOME\"/harness/capture.py ..., the same arguments)")
+def from_instance(subject_id: str | None = None) -> str:
+    """The instance-root form of a route's command, one source (L1, L6): the subject's id where it is known."""
+    return (f" (from an instance root: KG_SUBJECT=subjects/{subject_id or 'SUBJECT_ID'} KG_REGISTER=register "
+            "python \"$KG_HOME\"/harness/capture.py ..., the same arguments)")
+
+
+FROM_INSTANCE = from_instance()
 
 
 def closing_route(gap: str, unit: str | None) -> str:
@@ -188,7 +193,7 @@ def questionnaire_route(subject_id: str, scenario: str, task: str, unit: str | N
     where = " or ".join(f"DIR/questionnaire-{subject_id}-{scenario}-{f}.toml" for f in files)
     return (f"python harness/capture.py questionnaire --scenario {scenario} --task {task} --out DIR; "
             f"{who} answers {where}, "
-            "then python harness/capture.py ingest it and a reviewer who is not the author rules on it" + FROM_INSTANCE)
+            "then python harness/capture.py ingest it and a reviewer who is not the author rules on it" + from_instance(subject_id))
 
 
 def question_for(key: str) -> str:
@@ -226,7 +231,7 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
             "# A note must not identify you: no name, no role only you hold, no \"as the author of ...\". It is copied",
             "# beside your answer wherever the answer goes; nothing checks it but the person who reviews it.",
             "# Then: python harness/capture.py ingest <this file>",
-            '#   (from an instance root: KG_SUBJECT=subjects/<subject> KG_REGISTER=register python "$KG_HOME"/harness/capture.py ingest <this file>)',
+            f'#   (from an instance root: KG_SUBJECT=subjects/{subject.id} KG_REGISTER=register python "$KG_HOME"/harness/capture.py ingest <this file>)',
             "",
             "[questionnaire]",
             f"subject = {_q(subject.id)}",
@@ -415,7 +420,7 @@ def due_questionnaires(items: list[dict], handles: dict | None, on: dt.date) -> 
             "# A confirmation is a new capture on the date you give; the earlier capture is never edited.",
             "# A note must not identify you: no name, no role only you hold. Fill [answered] with your handle and the date.",
             "# Then: python harness/capture.py ingest <this file>",
-            '#   (from an instance root: KG_SUBJECT=subjects/<subject> KG_REGISTER=register python "$KG_HOME"/harness/capture.py ingest <this file>)',
+            f'#   (from an instance root: KG_SUBJECT=subjects/{subject} KG_REGISTER=register python "$KG_HOME"/harness/capture.py ingest <this file>)',
             "", "[questionnaire]", f"subject = {_q(subject)}", f"scenario = {_q(xs[0]['scenario'])}", f"task = {_q(task)}",
             f"owner = {_q(xs[0]['owner'])}", f"to = {_q(to)}", 'route = "review-due"', f"generated_on = {on.isoformat()}",
             "", "[answered]", 'from = ""', 'on = ""']
