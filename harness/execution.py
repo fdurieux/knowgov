@@ -11,8 +11,8 @@ refuses the job unless every check holds and the heartbeat is fresh.
 
 Without a worker the code runs nowhere: ``ExecutionRefused``, never a silent fall back to the host.
 task-0141.07's opt-in (``KG_ALLOW_UNCONTAINED_EXECUTION=1``) is the only escape: with it and no worker,
-the code runs on the host, uncontained, as before X1. With an organisation's instance mounted, a
-configured worker is admitted (it sees only what ships in the image); the host stays refused by
+the code runs on the host, uncontained, as before X1. A configured worker grades only the
+subjects its image ships (``not_shipped``), whatever is mounted; the host stays refused by
 execution_guard unless the opt-in is set."""
 from __future__ import annotations
 
@@ -51,12 +51,13 @@ def backend(env=None) -> str:
         "to run it here uncontained")
 
 
-def refusal(env=None) -> str | None:
+def refusal(env=None, subject=None) -> str | None:
     """None when model output may run now (the instance guard passes and a backend is there), else why
     not; the worker's attestation is read too when it is the backend, so an arms run refuses before its
-    first model call rather than after paying for it."""
+    first model call rather than after paying for it. ``subject`` is the one the call is for (the page's request
+    names its own), else the process's."""
     try:
-        where = check(env)
+        where = check(env, subject)
         if where == "worker":
             attested(Path((os.environ if env is None else env)[JOBS_VAR]))
     except ExecutionRefused as e:
@@ -64,13 +65,13 @@ def refusal(env=None) -> str | None:
     return None
 
 
-def check(env=None) -> str:
-    """Refused unless something may run model output now: a backend (a configured worker, which sees only what
-    ships in its image, so an instance's own corpus is no reason to refuse it), and on the host the instance
-    guard, which refuses first unless the opt-in is set."""
+def check(env=None, subject=None) -> str:
+    """Refused unless something may run model output now: a backend (a configured worker, which grades only the
+    subjects its image ships, so a subject it does not ship is refused), and on the host the instance guard, which
+    refuses first unless the opt-in is set."""
     env = os.environ if env is None else env
     if (env.get(JOBS_VAR) or "").strip():
-        unshipped = not_shipped()
+        unshipped = not_shipped(subject)
         if unshipped:
             raise ExecutionRefused(unshipped)
         return "worker"
@@ -85,7 +86,8 @@ def not_shipped(subject=None) -> str | None:
     if subject is None:
         from subject import SUBJECT as subject
     shipped = (execution_guard.ROOT / "subjects" / str(subject.id)).resolve()
-    if Path(subject.root).resolve() == shipped:
+    inside = (execution_guard.ROOT / "subjects").resolve() in shipped.parents   # a link out of subjects/ ships nothing
+    if inside and Path(subject.root).resolve() == shipped:
         return None
     return (f"refused: the worker grades only the subjects its image ships (subjects/<id> of this checkout), and the "
             f"subject loaded, {subject.id} at {Path(subject.root).resolve()}, is not one; arms runs on an instance's own "

@@ -1,6 +1,6 @@
 """The host-side guard (task-0141.07): code a model wrote on the host runs inside the process's own
 environment, with what it can read and reach; the contained worker (task-0141.05, X1) is the containment and
-admits a configured worker whatever is mounted (``execution.check``). On the host, every path that executes
+grades only the subjects its image ships, whatever is mounted (``execution.check``, ``not_shipped``). On the host, every path that executes
 model output refuses when an organisation's instance is
 mounted, that is when KG_SUBJECT, KG_SUBJECTS or KG_REGISTER names a folder outside this checkout
 (demo/docker-compose.instance.yml mounts one at /instance), unless the operator sets

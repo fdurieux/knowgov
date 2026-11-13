@@ -166,3 +166,27 @@ def test_a_worker_is_refused_for_a_subject_its_image_does_not_ship():
         assert execution.refusal(dict(PUBLIC, **jobs)) and "ships" in execution.refusal(dict(PUBLIC, **jobs))
     finally:
         execution.not_shipped = keep
+
+
+def test_the_refusal_is_for_the_subject_asked_not_the_processs(tmp_path=None):
+    """task-0315 L1, L5: both directions, and a link out of subjects/ ships nothing."""
+    import types
+    import execution
+    jobs = {execution.JOBS_VAR: "/jobs", **PUBLIC}
+    mine = types.SimpleNamespace(id="acme", root="/instance/subjects/acme")
+    shipped = types.SimpleNamespace(id="cargo_quote", root=ROOT / "subjects" / "cargo_quote")
+    colliding = types.SimpleNamespace(id="cargo_quote", root="/instance/subjects/cargo_quote")
+    assert execution.check(jobs, shipped) == "worker"
+    for sub in (mine, colliding):
+        assert "ships" in _refused(lambda: execution.check(jobs, sub))
+        assert "ships" in (execution.refusal(jobs, sub) or "")
+    with tempfile.TemporaryDirectory() as td:   # a symlink inside subjects/ pointing outside is not shipped
+        out = Path(td) / "outside"
+        out.mkdir()
+        link = ROOT / "subjects" / "zz_link_probe"
+        link.symlink_to(out)
+        try:
+            why = execution.not_shipped(types.SimpleNamespace(id="zz_link_probe", root=out))
+        finally:
+            link.unlink()
+        assert why and "ships" in why, why
