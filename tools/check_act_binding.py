@@ -216,6 +216,60 @@ def same_day_cases(out: Path) -> list[str]:
     return errs
 
 
+def _legacy_opposed_run(out: Path, name: str, legacy: str, boss: str, later: str | None) -> tuple[str, dict, list]:
+    """One legacy-versus-boss pair on a fresh instance (employee-2's review from before the giver, then boss's the same
+    day, then ``later`` by employee-3 on 8 November): (the ruled statement, the live approvals, the acts naming it)."""
+    hold = "response|hold_presence"
+    want = {hold: "held_unscreened only"}
+    env = fresh(out, f"legacy-opposed-{name}", decided=True)
+    d = out / f"legacy-opposed-{name}"
+    _ops(d)
+    hp = d / "register" / "people" / "handles.toml"
+    hp.write_text(hp.read_text(encoding="utf-8") + '\n[[handle]]\nhandle = "boss"\nunit = "ORG-0002"\nroles = ["gives", "approves"]\nissued = 2026-11-02\n',
+                  encoding="utf-8")
+    w.answer(env, d, handle="ops", want=want)
+    w.answer(env, d, handle="ops", want=want)
+    capdir = d / "subjects" / "cargo_quote" / "captures"
+    second = next(capdir.glob("*-ops-2.toml"))
+    n = 1 + [a["key"] for a in tomllib.loads(second.read_text(encoding="utf-8"))["answer"]].index(hold)
+    ruled = f"A:cap:{second.stem}:{n}@capture"
+    got = w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r.toml", "employee-2", "S2", [(ruled, legacy)])))
+    saved = Path(re.search(r"into (\S+\.toml)", got).group(1))
+    saved.write_text(re.sub(r'(?m)^giver = .*\n', "", saved.read_text(encoding="utf-8")), encoding="utf-8")   # a review from before the giver
+    for f in capdir.glob("*-ops*.toml"):
+        f.unlink()
+    w.answer(env, d, handle="ops-2", want=want)
+    w.expect(env, 0, "1 ruling(s)", "capture.py", "review", str(w.write_review(d / "r2.toml", "boss", "S2", [(ruled, boss)])))
+    if later:
+        ruling = tomllib.loads(next((capdir / "reviews").glob("*-boss.toml")).read_text(encoding="utf-8"))["ruling"][0]
+        (capdir / "reviews" / "2026-11-08-employee-3.toml").write_text(review.review_toml(
+            {"by": "employee-3", "on": dt.date(2026, 11, 8), "record": "minutes/2026-11-03-outage-rule.md", "scenario": "S2", "closes": [],
+             "rulings": [{**ruling, "outcome": later}]}), encoding="utf-8")
+    held = {k: v for k, v in approvals(env, "S2", hold).items() if v}
+    return ruled, held, [f for f in acts(gate(env, "S2")) if f["ref"] == ruled and f["act"]["why"] == "ambiguous"]
+
+
+def legacy_opposed_cases(out: Path) -> list[str]:
+    """task-0323 R1 (doc-0038 P5): a legacy review (no giver, a stem of two givers) rules on an answer, and boss rules on
+    it the same day with the other outcome. The legacy ruling is no ruling the load applies, but it counts for the day:
+    neither side applies, the key reads its unruled level, and the gate names both files at major with the review route.
+    A later day's decided ruling settles it either way (info). Refer against reject opposes nothing."""
+    errs: list[str] = []
+    print("== task-0323: a legacy ambiguous ruling and another reviewer's opposing ruling the same day cancel each other")
+    files = [f"{ON}-employee-2", f"{ON}-boss"]
+    for name, legacy, boss, clash, later in (("reject-approve", "rejected", "approved", True, None), ("refer-approve", "referred", "approved", True, None),
+                                              ("approve-reject", "approved", "rejected", True, None), ("refer-reject", "referred", "rejected", False, None),
+                                              ("reject-approve-later", "rejected", "approved", True, "rejected")):
+        _ruled, held, mine = _legacy_opposed_run(out, name, legacy, boss, later)
+        sev = {f["severity"] for f in mine}
+        named = all(all(x in f["message"] for x in files) and "capture.py review" in f.get("route", "") for f in mine)
+        ok = (sev == {"info"} and not held) if later else (not held and sev == {"major"} and named) if clash else not any("opposed" in f["message"] for f in mine)
+        print(f"    {name}: approved on {sorted(held) or 'nothing'}; {[f['severity'] + ': ' + f['message'][-90:] for f in mine] or 'no act'}")
+        if not ok:
+            errs.append(f"task-0323 R1 {name}: acts {mine}, approved {held}")
+    return errs
+
+
 def x_n_cases(out: Path) -> list[str]:
     """task-0320 (decision-0038 G1, G2): with ``ops`` and ``ops-2`` both issued, ``ops-2``'s answers have the stem
     ``ops``'s second file of the day would have. The review records the giver from the capture's own content, so
@@ -453,6 +507,7 @@ def main(out: Path) -> int:
     errs += forged_cases(out)
     errs += stem_cases(out)
     errs += same_day_cases(out)
+    errs += legacy_opposed_cases(out)
     errs += x_n_cases(out)
     errs += opposed_cases(out)
 

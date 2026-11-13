@@ -502,17 +502,25 @@ def test_only_a_decided_ruling_settles_and_a_same_day_other_reviewer_does_task_0
     assert review.settling({**_pending(), "outcome": "approved"}, same_day, [boss], HANDLES) == "settled by r-boss.toml"
 
 
-def test_a_same_day_opposing_ruling_leaves_a_legacy_act_major_and_a_hand_named_file_is_the_same_reviewer_task_0323():
-    """R1: boss approving the day employee-2's legacy act rejected is opposed, not settled; a later day settles either way.
-    R2: a file by the same reviewer under another name is not 'another reviewer'."""
+def test_a_legacy_ambiguous_act_opposes_the_same_days_ruling_and_the_same_reviewer_is_read_by_number_task_0323():
+    """R1 (round 3): the legacy act is a row of ``opposed_rulings``, so approval against rejection or referral by another
+    reviewer cancels both; refer against reject opposes nothing. L2: the same reviewer's file under another name is ordered
+    by its ``-n`` number, never the stem; another reviewer's same-day ruling is later; a later day settles."""
     sid = "A:cap:2026-11-05-ORG-0002-ops-2:1@capture"
-    day = ("2026-11-06", "employee-2", 0, "2026-11-06-employee-2.toml")
-    boss = _bound("r-boss.toml", sid, "ops-2", "approved", at=("2026-11-06", "boss", 0, "b"), by="boss")
-    why = review.settling(_pending(), day, [boss], HANDLES)
-    assert why.startswith(review.OPPOSED) and "r-boss.toml (approved)" in why and "2026-11-06-employee-2.toml (rejected)" in why, why
-    agree = _bound("r-boss.toml", sid, "ops-2", "rejected", at=("2026-11-06", "boss", 0, "b"), by="boss")
-    assert review.settling(_pending(), day, [agree], HANDLES) == "settled by r-boss.toml"
-    next_day = _bound("r-next.toml", sid, "ops-2", "approved", at=("2026-11-08", "carol", 0, "c"), by="carol")
-    assert review.settling(_pending(), day, [boss, next_day], HANDLES) == "settled by r-next.toml"
-    own = _bound("aaa.toml", sid, "ops-2", "approved", at=("2026-11-06", "aaa", 0, "aaa.toml"), by="employee-2")
-    assert review.settling(_pending(), day, [own], HANDLES) is None
+    day = "2026-11-06"
+    leg = "captures/reviews/2026-11-06-employee-2.toml"
+    for legacy, ruling in (("rejected", "approved"), ("referred", "approved"), ("approved", "rejected"), ("approved", "referred")):
+        got = review.opposed_rulings([(sid, day, "employee-2", legacy, leg), (sid, day, "boss", ruling, "r-boss.toml")])
+        assert set(got) == {(sid, day, leg), (sid, day, "r-boss.toml")}, (legacy, ruling, got)
+        assert all(v == sorted([(leg, legacy), ("r-boss.toml", ruling)]) for v in got.values())
+    assert review.opposed_rulings([(sid, day, "employee-2", "referred", leg), (sid, day, "boss", "rejected", "r-boss.toml")]) == {}
+    fa = {**_pending(), "outcome": "approved"}
+    at = (day, "employee-2", 0, "2026-11-06-employee-2.toml")
+    boss = _bound("r-boss.toml", sid, "ops-2", "approved", at=(day, "boss", 0, "b"), by="boss")
+    assert review.settling(fa, at, [boss], HANDLES) == "settled by r-boss.toml"
+    zzz = _bound("zzz.toml", sid, "ops-2", "rejected", at=(day, "zzz", 0, "zzz.toml"), by="employee-2")
+    assert review.settling(fa, at, [zzz], HANDLES) is None
+    second = _bound("2026-11-06-employee-2-2.toml", sid, "ops-2", "rejected", at=(day, "employee-2", 2, "x"), by="employee-2")
+    assert review.settling(fa, at, [second], HANDLES) == "settled by 2026-11-06-employee-2-2.toml"
+    nxt = _bound("r-next.toml", sid, "ops-2", "rejected", at=("2026-11-08", "carol", 0, "c"), by="carol")
+    assert review.settling(fa, at, [zzz, nxt], HANDLES) == "settled by r-next.toml"

@@ -10,6 +10,7 @@ names that section with the version.
 
 ## Unreleased
 
+- A legacy ambiguous review ruling counts for its day: another reviewer's opposing ruling the same day (approval against rejection or referral) now cancels both, so the key reads its unruled level and the gate names both files at major with the review route, as for two applied rulings; the same reviewer's later file is ordered by its `-n` number, never its file name (task-0323).
 - A stale node returns only on its own system's id (`[source]` id field, compared before `#`), not on any other value of its source table; the dependants summary names only the kinds the walk reached.
 - A node found stale by the register's GUID rule is cleared once its object returns in an export, even without its AT_ID; the dependants summary counts applications; `compare_deterministic.py --record-for` for one scenario no longer clears the asides of the others, and its help says which record a derived-registering run is read against.
 - A decided ruling of the same day by another reviewer settles a legacy ambiguous review act only when its outcome is the act's; an opposing one leaves the act major, naming both files, until a later day rules. The reviewer is read from the ruling's recorded `by`, never the file name (task-0323).
