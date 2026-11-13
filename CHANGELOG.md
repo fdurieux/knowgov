@@ -40,6 +40,10 @@ names that section with the version.
 - A document the manifest names that the account cannot read is said as the manifest's cause (`<subject>: document <path> (<key>) cannot be read (permission denied)`, exit 2), not as "the store did not answer"; an unreadable code, script or suite file reads the same way with its field and relative path, and `check_subject` names the right field and says the cause once (task-0329)
 - An MCP tool whose read meets a file the manifest names that cannot be read answers with that line (`<subject>: document <path> (<key>) cannot be read (permission denied)`), not "the store did not answer"; `check_subject` reports an unreadable document as a path error and still writes its JSON, where it used to end in a traceback with none; and its text summary names the cause once (task-0329)
 
+### Known limits
+
+- A manifest that lists the digests of planted documents (a scenario's plants, not the files on disk) makes `check_subject` say the code is unchanged after an honest relist, because a planted Version is not a file it can compare. `check_subject` names each plant Version to list (task-0312 F2); the note itself stays (task-0329 N-3, decision-0041).
+
 ## 0.9.0 — 2026-11-12
 
 0.9.0 is the contract freeze (decision-0016). The contracts an instance relies on are fixed here: 0.9.x
