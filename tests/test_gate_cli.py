@@ -376,3 +376,25 @@ def test_a_declared_gaps_finding_names_the_unit_that_closes_it_from_its_declarat
     bad = json.loads(json.dumps(rep))
     next(x for x in bad["findings"] if "closer" in x)["closer"] = 4
     assert schema_check.validate(bad, SCHEMA), "a non-string closer passed"
+
+
+def test_task_0311_routes_pending_answers_and_the_bar():
+    """Task-0311 R1, R2, R3, R6: the routes name the instance's subject and register; the lapse route names the role and the
+    date rule; a pending answer is named on a flagged key and, as info, on a verified one; the bar route points at the findings after it."""
+    import capture
+    r = capture.questionnaire_route("s", "S1", "codegen", "ORG-1")
+    assert "KG_SUBJECT=" in r and "KG_REGISTER=" in r and '"$KG_HOME"' in r
+    assert "KG_SUBJECT=" in capture.FROM_INSTANCE and "KG_REGISTER=" in capture.FROM_INSTANCE
+    lap = gate_cli._lapse_route({"kind": "lapsed", "route": "to U", "ref": "a2"}, {"lapsed": [{"id": "a2"}]})
+    assert "`closes`" in lap and "on or before the as-of date" in lap and "KG_REGISTER=" in lap and lap.endswith("; or to U")
+    assert gate_cli._lapse_route({"kind": "lapsed", "route": "to U", "ref": "a2"}, {"lapsed": [{"id": "a2", "kind": "elicited"}]}) == "to U"
+    assert gate_cli._awaiting({"pending_review": ["b", "a"]}) == " (awaiting a reviewer's ruling: a, b)" and gate_cli._awaiting({}) == ""
+    bar = gate_cli._bar_finding({"why": "w"})
+    assert bar["kind"] == "task" and "after this one" in bar["route"] and "above" not in bar["route"]
+    res = {"verdict": "PROCEED", "why": "w", "blocked_keys": [], "stale": [], "lapsed": [], "suspect_derived": [], "as_of": "2026-11-13",
+           "keys": {"k|v": {"level": "verified", "flags": [], "pending_review": ["A-9"]},
+                    "k|f": {"level": "verified", "flags": ["inferred"], "pending_review": ["A-8"]},
+                    "k|q": {"level": "verified", "flags": [], "pending_review": []}}}
+    by = {f["key"]: f for f in gate_cli.findings(res, BLOCK)}
+    assert by["k|v"]["severity"] == "info" and "A-9" in by["k|v"]["message"]
+    assert by["k|f"]["severity"] == "minor" and "A-8" in by["k|f"]["message"] and "k|q" not in by

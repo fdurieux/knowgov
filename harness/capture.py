@@ -166,8 +166,10 @@ def gap_closers(subject, gaps: dict[str, list[dict]], root: Path | None = None) 
     return out
 
 
-# C3-1 (task-0311): the routes name the tool by its path in a knowgov checkout; an instance repository holds none, so say so once
-FROM_INSTANCE = " (from an instance repository, run it as python \"$KG_HOME\"/harness/capture.py)"
+# C3-1, R1 (task-0311): the routes name the tool by its path in a knowgov checkout and the instance's own subject and register;
+# run from an instance root with only KG_HOME set, capture.py would read knowgov's own subject and write its captures there
+FROM_INSTANCE = (" (from an instance root: KG_SUBJECT=subjects/<subject> KG_REGISTER=register "
+                 "python \"$KG_HOME\"/harness/capture.py ..., the same arguments)")
 
 
 def closing_route(gap: str, unit: str | None) -> str:
@@ -224,6 +226,7 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
             "# A note must not identify you: no name, no role only you hold, no \"as the author of ...\". It is copied",
             "# beside your answer wherever the answer goes; nothing checks it but the person who reviews it.",
             "# Then: python harness/capture.py ingest <this file>",
+            '#   (from an instance root: KG_SUBJECT=subjects/<subject> KG_REGISTER=register python "$KG_HOME"/harness/capture.py ingest <this file>)',
             "",
             "[questionnaire]",
             f"subject = {_q(subject.id)}",
@@ -249,7 +252,7 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
                 lines.append(f"# {c['gap']} is closed by {c['unit'] + ' ' + c['name'] if c['unit'] else 'the owner its declaration names'}, "
                              "by a review under a handle with the role closes; an answer here does not close it.")
             lines += [f"# Asked by task {task}: the gate's finding on {k} ({v['level'].replace('_', ' ')}). If the documents changed since "
-                      "an earlier answer, the route may be re-attesting the new Version instead (the finding's route names it)."]
+                      "an earlier answer, an attestation finding of the gate, where it raises one, names the re-attestation."]
             lines += ["[[item]]", f"key = {_q(k)}", f"level = {_q(v['level'])}",
                       "known = [" + ", ".join(_q(x) for x in known) + "]",
                       "declared_gaps = [" + ", ".join(_q(x) for x in gaps) + "]"]
@@ -407,6 +410,7 @@ def due_questionnaires(items: list[dict], handles: dict | None, on: dt.date) -> 
             "# A confirmation is a new capture on the date you give; the earlier capture is never edited.",
             "# A note must not identify you: no name, no role only you hold. Fill [answered] with your handle and the date.",
             "# Then: python harness/capture.py ingest <this file>",
+            '#   (from an instance root: KG_SUBJECT=subjects/<subject> KG_REGISTER=register python "$KG_HOME"/harness/capture.py ingest <this file>)',
             "", "[questionnaire]", f"subject = {_q(subject)}", f"scenario = {_q(xs[0]['scenario'])}", f"task = {_q(task)}",
             f"owner = {_q(xs[0]['owner'])}", f"to = {_q(to)}", 'route = "review-due"', f"generated_on = {on.isoformat()}",
             "", "[answered]", 'from = ""', 'on = ""']

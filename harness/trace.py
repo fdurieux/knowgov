@@ -282,7 +282,8 @@ def entry_keys(e: dict) -> list[str]:
 
 def _keys_of(e: dict, ids: list[str], briefs: list[dict] | None = None) -> list[str]:
     """The keys of the statements ``ids`` (by their briefs, else by the entry's own record of what it used), else the
-    entry's keys (task-0304)."""
+    entry's keys (task-0304). So a suspect or drifted file's owner and route come from the keys of the statements it used
+    that are now invalidated or changed, not from every key of the file (task-0311 N1)."""
     rows = briefs if briefs is not None else (e.get("used") if isinstance(e.get("used"), list) else [])
     return sorted({b["key"] for b in rows if isinstance(b, dict) and b.get("id") in ids and b.get("key")}) or entry_keys(e)
 
