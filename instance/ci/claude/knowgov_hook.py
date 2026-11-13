@@ -66,7 +66,8 @@ FREE_KEYS = "keys"                      # the task the MCP server names a report
 ROUTE = ("Route to approval: the owner of each blocking key answers it (harness/capture.py questionnaire, "
          "then ingest), and a reviewer who is not the author settles it in a review file (harness/capture.py "
          "review; decision-0002: a session may propose, never approve, its own knowledge). An exception is "
-         "granted by whoever owns the managed settings, never by this session; do not retry around the gate.")
+         "granted by whoever owns the managed settings, never by this session; do not retry around the gate. "
+         "From an instance repository, run the tool as python \"$KG_HOME\"/harness/capture.py.")
 ATTESTATION_ROUTE = ("Route to approval: an attestation is a person's act, not this session's (decision-0002, decision-0009). The "
                      "route on each attestation finding above names who lists which Version; an execution is listed only "
                      "after the implementation and suite are brought in line with the Version where its values differ, and the suite run on it. An exception is granted by "
@@ -437,7 +438,9 @@ def _shown(rep: dict) -> list[dict]:
     worst = [f for f in fs if f.get("severity") in ("blocker", "critical")]
     if not worst:
         return fs[:6]
-    bar = [f for f in fs if f.get("kind") in BAR_KINDS and f not in worst][:2]
+    bar = []   # H7: one slot per kind, attestation first, so lapses cannot crowd the attestation cause out
+    for kind in BAR_KINDS:
+        bar += [f for f in fs if f.get("kind") == kind and f not in worst][:1]
     return worst[:6 - len(bar)] + bar
 
 
@@ -447,6 +450,8 @@ def _route_for(rep: dict) -> str:
     attestation finding is shown, it is the attestation route."""
     shown = _shown(rep)
     blockers = {f.get("kind") for f in shown if f.get("severity") in ("blocker", "critical")} - {"task"}
+    if not blockers - {"attestation"} and any(f.get("kind") == "attestation" for f in shown) and any(f.get("kind") == "lapsed" for f in shown):
+        return ATTESTATION_ROUTE + " A lapsed review is renewed by its reviewer's new dated ruling (harness/capture.py review)."
     return ATTESTATION_ROUTE if not blockers - {"attestation"} and any(f.get("kind") == "attestation" for f in shown) else ROUTE
 
 
@@ -510,10 +515,20 @@ def run_gate(stage: str, task: str, kg: Path, inst: Path, *, advisory: bool, tim
             return refuse(check, f"the report is for task {rep.get('task')!r}, the hook requires {task!r}")
         if rep.get("exit_code") != p.returncode or (p.returncode == PASS and rep.get("verdict") == "BLOCKED"):
             return refuse(check, f"the report ({rep.get('verdict')}, exit_code {rep.get('exit_code')}) disagrees with exit {p.returncode}")
-        return decide(p.returncode, check=check, finding=_summary(rep), route=_route_for(rep), advisory=advisory)
+        d = decide(p.returncode, check=check, finding=_summary(rep), route=_route_for(rep), advisory=advisory)
+        return _qualified(d, rep, check, p.returncode)
     finally:
         if tmp:
             Path(tmp).unlink(missing_ok=True)
+
+
+def _qualified(d: Decision, rep: dict, check: str, rc: int) -> Decision:
+    """C3-3 (task-0311): a QUALIFIED gate lets the step through, and the assistant is told what it may rest on."""
+    if rc != PASS or rep.get("verdict") != "QUALIFIED" or d.blocks:
+        return d
+    msg = f"{check}: QUALIFIED, the action is allowed. Build only with every key below verified stated as an assumption.\n" + _summary(rep)
+    return Decision(HOOK_ALLOW, output={"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": msg},
+                                        "systemMessage": msg.splitlines()[0]})
 
 
 def _per_stage(task_for: list[str], advisory: bool) -> tuple[dict[str, str], Decision | None]:

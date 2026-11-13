@@ -242,7 +242,8 @@ def execution_named_then_reverted(inst: Path, root: Path, base: str) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
+    import _outcomes
+    if not _outcomes.one_dir_arg():   # task-0314 B-X7: --help is not an output directory
         sys.exit(__doc__)
     out = Path(sys.argv[1]).resolve()
     if out.exists() and any(out.iterdir()):

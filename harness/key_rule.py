@@ -69,3 +69,11 @@ def refusal(value) -> str | None:
         return None
     return (f"{value!r} is not a key: a key is <entity>|<predicate>, one '|', no space and no control or format "
             "character, none above U+FFFF, as written and in NFC (key_rule)")
+
+
+def did_you_mean(key, known) -> str:
+    """task-0314 A-F10: `` (did you mean X?)`` for the nearest known key, else empty, so an unmodelled key does not read as a
+    modelled absence."""
+    import difflib
+    near = difflib.get_close_matches(key if isinstance(key, str) else "", sorted(known), n=1, cutoff=0.8)
+    return f" (did you mean {near[0]}?)" if near else ""

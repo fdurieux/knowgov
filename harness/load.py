@@ -372,6 +372,8 @@ def _code_row(which: str, decl: dict, keys: list[str]) -> dict | None:
         return None
     row = {"artefact": path, "sha256": parts.get("", ""), "parts": miss, "code": which, "keys": keys,
            "missing": which not in decl, **({"stale": stale} if stale else {})}
+    if which == "suite" and not named and SUBJECT.suite_declared():   # S3: the finding names the suite files' field when the subject lists any
+        row["suite_listed"] = True
     return {**row, "files": named} if named else row
 
 

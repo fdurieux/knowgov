@@ -172,4 +172,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import cli_exit   # task-0314 B-X1, P1: an unloadable subject or a refused task policy is exit 2, one line, never a traceback
+    sys.exit(cli_exit.run(main, "register_nodes"))

@@ -137,7 +137,7 @@ def test_a_document_only_a_check_judged_is_judged_by_it_and_its_findings_are_lin
     assert schema_check.validate(rep, schema_check.load("preload-report")) == []
     rows = {r["file"]: r for r in rep["files"]}
     t = rows["artefacts/decision-tables/t.dmn"]
-    assert (t["state"], t["tool"]) == ("clean", "dmn gaps") and "judged by dmn gaps alone" in t["why"] and "dmnlint" in t["why"]
+    assert (t["state"], t["tool"]) == ("unchecked", "dmn gaps") and "judged by dmn gaps alone" in t["why"] and "dmnlint" in t["why"]
     assert [(f["rule"], f["tool"]) for f in t["findings"]] == [("DMN-GAP", "dmn gaps")] * 2
     assert rows["artefacts/decision-tables/t.md"]["state"] == "unchecked"   # not DMN: no check read it
     assert {c["check"]: c["state"] for c in rep["checks"]} == {"pumllint trace": "unchecked", "glossary": "unchecked", "dmn gaps": "ran"}

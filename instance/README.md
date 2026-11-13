@@ -509,6 +509,12 @@ the example instance, and runs the GitLab job's own script lines in a shell
 (`tools/check_ci_wrappers.py`). Both use S6: the change turns the registered code suspect, and the
 check fails naming `APP-0001`.
 
+**After a register update.** `gate_cli.py --register-previous DIR` reads what the update withdrew or retired against
+the checkout before it, and stales the statements of the keys resting on it. It does so again on every run it is
+passed, so an answer, an ingest or a review ruling cannot restore them while the option stays. The CI template does
+not pass it. Run it once when the update lands, then either re-map the key in `register_map.toml` to a live node, or,
+once the owner confirms the update, run the gate without it (advance your previous register to the new one).
+
 ## A register pull request read before approval
 
 A proposed product, capability or journey reaches your register as a pull request: new node files
@@ -1012,6 +1018,13 @@ rulings; every one names every file of the set. `capture.py review` says so on s
 writes such a ruling (it still writes it). To clear it, the owners rule again in one review, on a
 later day. When that ruling approves or rejects, the findings read `info`, "settled by" that file, and
 the key reads from it; a referral decides nothing and leaves them `major`.
+
+Another reviewer's decided ruling of the same statement the same day settles an earlier legacy
+ambiguous act, as a later day's does: the order across reviewers by handle is no order of writing.
+Only a decided ruling (approved or rejected) settles such an act; a referral never reads as settling it.
+
+To check the act path on Neo4j rather than the gate's private rdflib copy, run the gate with `--publish`
+(or `KG_PUBLISH=1` for the CI script), which loads into the store `KG_STORE` names (decision-0017).
 
 Before ruling, read what you rule on:
 
@@ -1821,7 +1834,7 @@ below has one row for every `KG_*` setting this guide or [`docs/security.md`](..
 since decision-0034 choice 1, for every one the code reads or a compose file under `demo/` passes, but for a
 short list of internal names, each with its reason, in `tests/test_settings_table.py`. **A setting is a
 contract when the table marks it so** (decision-0016 point 3, as amended by decision-0033 choice 1): the
-settings an instance's CI, compose file or hook sets in order to run, decision-0027's twenty among them. A row
+settings an instance's CI, compose file or hook sets in order to run, decision-0027's twenty and every one added since among them (the table's contract column decides). A row
 marked *no* is named so you can find it: the demo stack's own settings, tuning knobs, a debugging aid and one
 escape. It may change in any release, so do not build on it. A setting that neither file names is not a
 contract. Where a row says "see", the setting is described there; the worker's limits are in

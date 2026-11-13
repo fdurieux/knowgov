@@ -29,6 +29,14 @@ TABLE = "vendor/stack_experiment/cargo_quote/contract/decision_table.md"
 P2, P2_EDITED = "`weight_kg > 1244`", "`weight_kg > 1300`"
 
 
+def _need_s1():
+    """task-0314: these two ask for scenario S1; a subject whose scenarios are not CargoQuote's (J-F's) skips them."""
+    from subject import SUBJECT
+    from tests._skip import skip
+    if "S1" not in SUBJECT.order:
+        skip("scenario-S1", f"{SUBJECT.id} has no scenario S1 (its scenarios: {', '.join(SUBJECT.order)})")
+
+
 def test_the_corpus_is_one_line_per_version_sorted_whatever_the_adapters_order():
     rows = [{"artefact": "b.md", "version": "v1", "sha256": "2" * 64},
             {"artefact": "a.md", "version": "v2", "sha256": "3" * 64},
@@ -78,6 +86,7 @@ def _gate(*args, root: Path | None = None) -> subprocess.CompletedProcess:
 
 def test_f3_each_changed_field_is_named_and_the_exit_is_unchanged_f2_moves_the_corpus():
     need_rdflib()
+    _need_s1()
     with tempfile.TemporaryDirectory() as td:
         first = _gate("--as-of", "record")
         assert first.returncode in (0, 1) and not first.stderr.strip(), first.stderr[-400:]
@@ -124,6 +133,7 @@ def test_the_records_baseline_holds_its_as_of_and_nothing_else():
     """``--baseline record``: the deterministic.json names no identity; the record is as of the subject's
     ``[record] as_of``, so only a run on another date names a difference."""
     need_rdflib()
+    _need_s1()
     from subject import SUBJECT
     on = SUBJECT.record_as_of
     assert on, "the subject pins its record date"

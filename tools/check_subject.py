@@ -320,10 +320,34 @@ def artefact_digests(m: dict, root: Path) -> dict[str, dict[str, str]]:
     return out
 
 
-def subject_versions(m: dict, root: Path) -> set[str]:
+def _patched(texts: dict, patches) -> dict:
+    """``texts`` with one scenario's patches applied, as the load applies them."""
+    kit = dict(texts)
+    for x in patches if isinstance(patches, list) else []:
+        path = str(x.get("path")) + (str(x["within"]) if x.get("within") else "")   # a part a plant changes (task-0094)
+        if x.get("op") == "add":
+            kit[path] = str(x.get("new", ""))
+        elif x.get("op", "replace") == "replace" and path in kit:
+            kit[path] = kit[path].replace(str(x.get("old", "")), str(x.get("new", "")))
+    return kit
+
+
+def _planted_versions(plants: dict, texts: dict, h, out: set, planted: dict | None) -> None:
+    """The digests of the texts each scenario's patches make (``subject_versions``), added to ``out``."""
+    for stage in ("plant", "stage2"):
+        for patches in (plants.get(stage) or {}).values():
+            kit = _patched(texts, patches)
+            made = {h(t.encode("utf-8")): k for k, t in kit.items() if texts.get(k) != t}
+            out.update(made)
+            if planted is not None:
+                planted.update(made)
+
+
+def subject_versions(m: dict, root: Path, planted: dict | None = None) -> set[str]:
     """The digests an artefact Version of the subject can carry (decision-0019): each artefact file's raw bytes and,
     for a directory, each file's, as on disk, and each text a scenario's patches make of a file (plants.toml, stage 1
-    and 2), as the load digests a planted text. Read from the files alone, never a load."""
+    and 2), as the load digests a planted text. Read from the files alone, never a load. ``planted``, when given, receives
+    each planted digest's artefact key (task-0312 F2)."""
     import hashlib
     h = lambda b: hashlib.sha256(b).hexdigest()  # noqa: E731
     out: set[str] = set()
@@ -341,17 +365,7 @@ def subject_versions(m: dict, root: Path) -> set[str]:
                     out.add(h(f.read_bytes()))
                     t = f.read_text(encoding="utf-8", errors="replace")
                     texts[str(a.get("key")) + f.relative_to(p).as_posix()] = t if t.endswith("\n") else t + "\n"   # as bundled
-    plants = _toml(root / "plants.toml")
-    for stage in ("plant", "stage2"):
-        for patches in (plants.get(stage) or {}).values():
-            kit = dict(texts)
-            for x in patches if isinstance(patches, list) else []:
-                path = str(x.get("path")) + (str(x["within"]) if x.get("within") else "")   # a part a plant changes (task-0094)
-                if x.get("op") == "add":
-                    kit[path] = str(x.get("new", ""))
-                elif x.get("op", "replace") == "replace" and path in kit:
-                    kit[path] = kit[path].replace(str(x.get("old", "")), str(x.get("new", "")))
-            out |= {h(t.encode("utf-8")) for k, t in kit.items() if texts.get(k) != t}
+    _planted_versions(_toml(root / "plants.toml"), texts, h, out, planted)
     return out
 
 
@@ -431,8 +445,28 @@ def check_execution_code(rep: Report, m: dict, root: Path, ex) -> None:
         _execution_listing(rep, m, root, ex, which, table, field)
 
 
+def _owner(m: dict, which: str, table: str, field: str) -> str:
+    """S3: the field that owns a listed digest, the suite's with each file ``[oracle] suite`` lists (task-0338)."""
+    from subject import suite_files
+    return f"[{table}] {field}" + (" or a file [oracle] suite lists" if which == "suite" and suite_files(m.get("oracle")) else "")
+
+
+def _outside(rep: Report, m: dict, root: Path, table: str, field: str) -> bool:
+    """S2: a path outside the instance is refused as the load refuses it (``require_code_inside``); True when it was."""
+    sec = m.get(table) if isinstance(m.get(table), dict) else {}
+    named = sec.get(field)
+    if not (isinstance(named, str) and named and (Path(named).is_absolute() or "\\" in named
+                                                  or not (root / named).resolve().is_relative_to(root.resolve().parent.parent))):
+        return False
+    rep.error("path", f"[{table}] {field}", f"{named} is not a relative path inside the subject's instance",
+              "name it relative to the subject root, at most ../../ up")
+    return True
+
+
 def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, table: str, field: str) -> None:
     where = "[verification] execution"
+    if _outside(rep, m, root, table, field):
+        return
     rel, files = code_digests(m, root, which)
     if rel is None:
         return
@@ -449,15 +483,16 @@ def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, t
         return
     miss = {r: d for r, d in sorted(files.items()) if not d or d not in listed}
     stale = sorted(d for d in listed if d not in set(files.values()))   # task-0340 R1, as a document's "matches no current Version"
+    owner = _owner(m, which, table, field)
     if len(stale) > len(miss):   # more listed digests gone than files changed: a deletion
-        rep.error("attestation", where, f"{which} lists {', '.join(stale)}, which matches no current file of [{table}] {field} "
+        rep.error("attestation", where, f"{which} lists {', '.join(stale)}, which matches no current file of {owner} "
                   f"{rel}: a file was deleted or changed, so the load verifies nothing by execution (decision-0038)",
                   "run the suite again and list the digests of the files as they are, or restore the file")
     if miss or (not files and not stale):
-        from subject import suite_files
-        also = " or a file [oracle] suite lists" if which == "suite" and suite_files(m.get("oracle")) else ""   # task-0338
+        also = owner[len(f"[{table}] {field}"):]   # task-0338
+        gone = f"; {which} still lists {', '.join(stale)}, which matches no current file" if stale and len(stale) <= len(miss) else ""   # S3
         rep.error("attestation", where, f"[{table}] {field} {rel}{also} changed since the execution was attested: "
-                  f"{_unlisted(miss)} is not listed under {which}, so the load verifies nothing by execution (decision-0038)",
+                  f"{_unlisted(miss)} is not listed under {which}{gone}, so the load verifies nothing by execution (decision-0038)",
                   "run the suite on it again and list the new digest, or restore it")
 
 
@@ -499,10 +534,10 @@ def _unchanged_code_note(rep: Report, m: dict, root: Path) -> None:
         listed = ex.get(which)
         if rel is None or not files or not isinstance(listed, list) or any(d not in listed for d in files.values()):
             return
-    rep.note("attestation", "[verification] execution", "lists a document digest for an edited document while its implementation "
-             "and suite digests are the files as they are: knowgov cannot know whether the suite covers the change, so "
-             "re-listing asserts the old result for the new values unless the implementation and suite were changed and run "
-             "(decision-0038)")
+    rep.note("attestation", "[verification] execution", "a document was edited since it was attested (an old digest is still listed, or the "
+             "artefact changed) while the implementation and suite digests are the files as they are: knowgov cannot know "
+             "whether the suite covers the change, so listing the new digest would assert the old result for the new values "
+             "unless the implementation and suite were changed and run (decision-0038)")
 
 
 def _edited(rep: Report, m: dict, root: Path, name: str, listed: list, stale: list) -> bool:
@@ -518,6 +553,12 @@ def _no_version_note(rep: Report, where: str, name: str) -> None:
     rep.note("attestation", where, "lists no Version: it verifies nothing, since an execution or a review "
              "verification holds only for the Versions it lists (decision-0036); list the digest of each Version it verifies, "
              "each document's under versions" + (", with the implementation and suite digests" if name == "execution" else "") + ".")
+
+
+def _listed_files(m: dict, root: Path, listed: list) -> str:
+    """Which listed digests are which file (task-0315 C2-7: a bare digest names no file), as message text."""
+    files = {d: f"{art}/{rel}" if rel else art for art, fs in sorted(artefact_digests(m, root).items()) for rel, d in fs.items()}
+    return ", ".join(f"{d} is {files[d]}" for d in listed if d in files)
 
 
 def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: list) -> None:
@@ -541,9 +582,28 @@ def _check_versions(rep: Report, m: dict, root: Path, name: str, listed, known: 
     stale = sorted(set(listed) - known[0])
     if _edited(rep, m, root, name, listed, stale):   # task-0318, task-0319: the edit, by artefact and file
         return
+    held = _listed_files(m, root, listed)
     for d in stale:
-        rep.error("attestation", where, f"versions lists {d}, which matches no current Version of the subject's artefacts: "
-                  "it attests nothing the load reads", _relist_fix(name))
+        rep.error("attestation", where, f"versions lists {d}, which matches no current Version of the subject's artefacts"
+                  + (f" (the listed digests that do match a file: {held})" if held else "")
+                  + ": it attests nothing the load reads", _relist_fix(name))
+    _unlisted_plants(rep, m, root, where, listed, name)
+
+
+def _unlisted_plants(rep: Report, m: dict, root: Path, where: str, listed: list, name: str) -> None:
+    """task-0312 F2: an artefact whose own Versions the declaration lists, but not the Version a scenario's plant makes of
+    it, attests the pristine document and fails the scenario at the load: name each, with the digest to list."""
+    planted: dict[str, str] = {}
+    subject_versions(m, root, planted)
+    own = artefact_digests(m, root)
+    for d, k in sorted(planted.items(), key=lambda kv: kv[1]):
+        if d in listed:
+            continue
+        art = next((a for a in own if k == a or k.startswith(a)), None)
+        if art is not None and all(x in listed for x in own[art].values()):
+            rep.error("attestation", where, f"a scenario plant of {art} makes the Version {d}, which is not listed under {where}: "
+                      "the scenario loads it unattested",
+                      f"list {d} under {where} (the plant's text, as the load digests it)")
 
 
 def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: list, stale: bool) -> bool:
@@ -554,7 +614,7 @@ def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: lis
     named = False
     for art, files in sorted(artefact_digests(m, root).items()):
         miss = {rel: d for rel, d in files.items() if d not in listed}
-        if not miss or (len(miss) == len(files) and not (stale and "" in files)):
+        if not miss or (len(miss) == len(files) and not stale):   # task-0312 F1: a directory fully changed is named as a file is
             continue
         what = ", ".join(f"{rel} ({d})" if rel else f"its Version {d}" for rel, d in sorted(miss.items()))
         rep.error("attestation", where, f"{art} changed since it was attested: {what} is not listed under {where}"
@@ -567,7 +627,9 @@ def _changed_artefacts(rep: Report, m: dict, root: Path, where: str, listed: lis
 def check_map(rep: Report, m: dict, root: Path, register: Path | None) -> None:
     rel = (m.get("register") or {}).get("map", "register_map.toml") if isinstance(m.get("register"), dict) else "register_map.toml"
     p = root / rel
-    if not p.is_file():
+    if not p.is_file():   # task-0312 C1-1: a map nothing reads is a subject whose keys have no owner and no walk
+        rep.note("map", rel, f"{rel} is not there: no key of this subject maps to a register node, so no key has an owner and none walks the register "
+                 "(add it, or name its path under [register] map in subject.toml; a subject that reads no register may go without)")
         return
     rows = _toml(p).get("row", [])
     nodes = register_nodes(register) if register else None
