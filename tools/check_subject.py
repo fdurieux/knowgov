@@ -470,7 +470,7 @@ def _unreadable(rep: Report, m: dict, root: Path) -> None:
         try:
             code_files(root, m.get("reference"), m.get("oracle"), which)
         except CodeUnreadable as e:
-            rep.error("path", "[reference] code" if which == "implementation" else "[oracle] script", str(e),
+            rep.error("path", e.where or ("[reference] code" if which == "implementation" else "[oracle] script"), str(e),
                       "make the file readable by the account that loads the subject, or name another")
 
 
@@ -804,10 +804,16 @@ def _offers(wanted: list[str], yielded: set[str]) -> dict[str, str]:
     return out
 
 
+def _note_unchecked(rep: Report, y: dict) -> None:
+    """The yield note; R3: not when an unreadable file is already said as a path error, so the cause is said once."""
+    if not any(f["rule"] == "path" and "cannot be read" in f["message"] for f in rep.findings):
+        rep.note("yield", "documents", f"yield unchecked: {y.get('why')}")
+
+
 def check_yield(rep: Report, m: dict, root: Path) -> dict:
     y = _yield_child(root)
     if y.get("state") != "checked":
-        rep.note("yield", "documents", f"yield unchecked: {y.get('why')}")
+        _note_unchecked(rep, y)
         return {"state": "unchecked", "why": y.get("why"), "keys": 0, "artefacts": {}}
     arts: dict[str, list[str]] = y.get("artefacts", {})
     partial = bool(y.get("why"))
