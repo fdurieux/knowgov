@@ -49,6 +49,7 @@ import proposal_impact  # noqa: E402
 import subject_ids  # noqa: E402
 import trace  # noqa: E402
 from gate import _suspect_note  # noqa: E402
+from _skip import need_rdflib  # noqa: E402
 
 CQ = ROOT / "subjects" / "cargo_quote"
 
@@ -68,6 +69,7 @@ def _copy_cq(tmp: str) -> Path:
 
 
 def test_s1_a_deleted_single_file_code_or_script_reads_as_the_attestation_finding_not_a_crash():
+    need_rdflib()
     for rel in ("vendor/stack_experiment/cargo_quote/reference_impl.py", "vendor/stack_experiment/smoke_test.py"):
         with tempfile.TemporaryDirectory() as tmp:
             sub = _copy_cq(tmp)
@@ -78,6 +80,7 @@ def test_s1_a_deleted_single_file_code_or_script_reads_as_the_attestation_findin
 
 
 def test_a_n5_no_load_without_a_scenario_reads_the_one_the_store_holds():
+    need_rdflib()
     with tempfile.TemporaryDirectory() as tmp:
         f = str(Path(tmp) / "held.ttl")
         ex = {"KG_RDFLIB_FILE": f}
@@ -101,6 +104,7 @@ def test_b_n6_an_equal_value_under_a_changed_source_is_said_so():
 
 
 def test_b_n8_a_relative_kg_subject_is_made_absolute_by_the_two_check_tools():
+    need_rdflib()
     for tool in ("check_gate_after_change", "check_register_change"):
         code = f"import os,sys; sys.path.insert(0,'tools'); import {tool}; print(os.environ['KG_SUBJECT'])"
         p = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=ROOT,
