@@ -1023,7 +1023,7 @@ def with_levels(report: dict, st, *, task: str, as_of: str, scenario: str | None
             continue
         spec = dict(TASKS[task], keys=[k["key"] for k in entry["keys"]])
         rep = gate_cli.evaluate(st, subject=SUBJECT.id, scenario=held, task="keys", spec=spec, threshold="blocker",
-                                baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=as_of, route_task=task)
+                                baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=as_of, route_task=task, sub_gate=True)
         entry["keys"] = ri.with_levels(entry["keys"], rep, key_of)
         entry["gate"] = {"task": task, "verdict": rep["verdict"], "why": rep["why"], "exit_code": rep["exit_code"]}
         verdicts.append(rep["verdict"])
@@ -1033,7 +1033,7 @@ def with_levels(report: dict, st, *, task: str, as_of: str, scenario: str | None
             continue
         spec = dict(TASKS[task], keys=list(dict.fromkeys(r["key"] for r in k["rows"])))
         rep = gate_cli.evaluate(st, subject=SUBJECT.id, scenario=held, task="keys", spec=spec, threshold="blocker",
-                                baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=as_of, route_task=task)
+                                baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=as_of, route_task=task, sub_gate=True)
         k["rows"] = ri.with_levels(k["rows"], rep, key_of)
         k["gate"] = {"task": task, "verdict": rep["verdict"], "why": rep["why"], "exit_code": rep["exit_code"]}
         k["cells"] = cells(k["rows"], read=True)
@@ -1042,7 +1042,7 @@ def with_levels(report: dict, st, *, task: str, as_of: str, scenario: str | None
     if rest and rest["keys"]:   # task-0252: the class's keys on no slice, read as the slices' are
         spec = dict(TASKS[task], keys=[r["key"] for r in rest["keys"]])
         rep = gate_cli.evaluate(st, subject=SUBJECT.id, scenario=held, task="keys", spec=spec, threshold="blocker",
-                                baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=as_of, route_task=task)
+                                baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=as_of, route_task=task, sub_gate=True)
         rest["keys"] = ri.with_levels(rest["keys"], rep, key_of)
         rest["gate"] = {"task": task, "verdict": rep["verdict"], "why": rep["why"], "exit_code": rep["exit_code"]}
         rest["cells"] = cells(rest["keys"], read=True)

@@ -8,7 +8,7 @@ concerns, and a code path to its application, the keys its header cites and its 
 Two single hops, each read from files, never a walk and never the store (the one store read, code_path's ledger
 leg's suspect, is the MCP reader's, passed in as ``suspect``; task-0303):
 
-``key_nodes``  the rows of the subject's ``register_map.toml`` whose key is KEY, each with the register
+``key_nodes``  (the MCP tool also counts a key the held store names as known, task-0314; this command opens no store) the rows of the subject's ``register_map.toml`` whose key is KEY, each with the register
                nodes it names (taxonomy, kind, name, state, owner, from the register ``KG_REGISTER``
                holds), the row's owner, anchor and note. A key the subject knows (a map row or a task's
                key) with no row reads ``mapped: false``; a key it does not know is refused.

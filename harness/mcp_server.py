@@ -173,7 +173,8 @@ TOOLS = [
      "description": "The subject, the scenario the store holds (null when none is loaded, or when the one held is another "
                     "subject's: held_by_other_subject names it then, and every scenario-reading tool refuses), the store kind, the task "
                     "classes with their required keys (and the rationale a class states), the keys the subject asks the three-valued question of, and "
-                    "the date gate_verdict and evidence_bundle read on when a call names none (as_of, from as_of_from).",
+                    "the date gate_verdict and evidence_bundle read on when a call names none (as_of, from as_of_from). The scenario's stage "
+                    "(1, or 2 once its change is applied) is the gate report's version, as gate_verdict gives it.",
      "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
      "annotations": READ_ONLY},
     {"name": "gate_verdict", "title": "May I build on this?",
@@ -226,7 +227,7 @@ TOOLS.append(
     {"name": "register_impact", "title": "What does retiring this register node touch?",
      "description": "The register's own impact walk from one node of the organisation's register (approved links only; "
                     "a deprecated or retired node is not expanded; an edge not followed is listed with live false and its state, and not "
-                    "followed; a node's parent is never climbed): the register's tag and commit, the node (kind, name, "
+                    "followed (live false on an edge whose link is approved means its far node is deprecated or retired); a node's parent is never climbed): the register's tag and commit, the node (kind, name, "
                     "state, owner, parent), its children with their states (listed, not walked, unless children is true), "
                     "every edge, what the walk reached by id prefix with each node's owning unit, and the register-map keys "
                     "whose rows name the start, a walked descendant or a reached node (every mapped key the change reaches, "
@@ -236,7 +237,7 @@ TOOLS.append(
                     "that used them and its findings, as gate_verdict reports that key set for the task class on the same as_of.",
      "inputSchema": {"type": "object", "additionalProperties": False, "required": ["node"], "properties": {
          "node": {"type": "string", "pattern": r"^[A-Z]+-\d{4,}$", "description": "a register id, as the register's files name it"},
-         "walk": {"type": "string", "enum": ["dependants", "realisers", "thread"], "description": "dependants: what rests on the node (default); realisers: what implements a capability; thread: what a journey step or process uses, down to the data (the register's THREAD walk: the step's process, the capability it realises, the applications that support it, the information it reads or writes); each where the register offers that walk"},
+         "walk": {"type": "string", "enum": ["dependants", "realisers", "thread"], "description": "dependants: what rests on the node (default; starts from an application, process, journey, capability, information entity or product); realisers: what implements a capability (starts from a capability or a process); thread: what a journey step or process uses, down to the data (the register's THREAD walk: the step's process, the capability it realises, the applications that support it, the information it reads or writes; starts from a journey step, a process or an application, and from any other kind gives no edge and only the rows naming the start); each where the register offers that walk"},
          "children": {"type": "boolean", "description": "also walk from every descendant by parent, recursively, as the register's decision 0014 does: an approved one is walked by its own kind's row, any other is listed not_followed, with its state, and not walked from; what is reached excludes the start and its descendants; a key whose row names only a descendant not followed is listed last, flagged not_followed true, and walked no further (default: false, children listed and not walked)"},
          "task": {"type": "string", "description": "the task class whose block levels, bar and route each landed key is read under, as gate_verdict's task (default: codegen); a declared class, never keys"},
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another (default: whatever it holds; with none held, the keys carry no level)"},
@@ -336,10 +337,10 @@ TOOLS.append(
 
 TOOLS.append(
     {"name": "key_nodes", "title": "Which register nodes does this knowledge key concern?",
-     "description": "The rows of the subject's register_map.toml whose key is this one, read from files and never from the "
-                    "store: each with the register nodes it names (taxonomy, kind, name, state, owner), the row's owner, "
+     "description": "The rows of the subject's register_map.toml whose key is this one, read from files (the CLI) or from files and, "
+                    "for a key the subject has no row for, the held store's keys (this tool): each with the register nodes it names (taxonomy, kind, name, state, owner), the row's owner, "
                     "anchor and note, and every node named. A key the subject knows with no row reads mapped false; a key "
-                    "it does not know is refused. One hop, node to key read backwards: from the nodes, register_impact "
+                    "it does not know, in either, is refused with the nearest known key. One hop, node to key read backwards: from the nodes, register_impact "
                     "walk=dependants climbs to what rests on them.",
      "inputSchema": {"type": "object", "additionalProperties": False, "required": ["key"], "properties": {
          "key": {**KEY_ITEM, "description": "an entity|attribute key, as store_status, register_impact and code_path name them; "+key_rule.DESCRIPTION}}},
@@ -846,7 +847,7 @@ class Tools:
             self._not_mid_run()   # the levels are the store's: refused while a run loads it (task-0137)
             spec = dict(TASKS[task], keys=[k["key"] for k in keys])
             rep = gate_cli.evaluate(st, subject=SUBJECT.id, scenario=scenario, task="keys", spec=spec, threshold="blocker",
-                                    baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=on, route_task=task)
+                                    baseline=None, loaded=False, version=gate_cli.held_version(st), as_of=on, route_task=task, sub_gate=True)
             return {**head, **out, "keys": ri.with_levels(keys, rep, ri.statement_keys(st)),
                     "gate": {"task": task, "verdict": rep["verdict"], "why": rep["why"], "exit_code": rep["exit_code"]}}
         if args.get("scenario") is None:
@@ -909,11 +910,12 @@ class Tools:
         """task-0303: code_path's ledger entry read as suspect or not on the held store, by trace check's rule, through
         one read handle; when this server cannot read it (no store, another subject's scenario, a run loading), the leg
         is unchecked with the reason and the call still answers from the files."""
+        import gate_cli
         import trace
         import upward
         try:   # _with_store turns a store it cannot open or read into a ToolError, as it does for every store-backed tool
             return self._store_read({}, lambda st, sc: {**trace.ledger_suspicion(st, entry),   # task-0314 N2: the scenario it was read against
-                                                        "reason": f"read against the held scenario {sc}"})
+                                                        "reason": f"read against the held scenario {sc}, version {gate_cli.held_version(st)}"})
         except ToolError as e:
             return upward._unchecked(f"whether it is suspect is not read: {e}", suspect=None)
 

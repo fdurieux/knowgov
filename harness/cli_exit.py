@@ -74,6 +74,14 @@ def guard(tool: str) -> None:
     sys.excepthook = hook
 
 
+def help_exit(doc) -> None:
+    """task-0314 R5: ``-h`` or ``--help`` among the arguments prints the script's docstring and exits 0, before the script reads
+    an argument as an input or an output folder."""
+    if asks_help():
+        print(doc or f"usage: {sys.argv[0]}")
+        sys.exit(0)
+
+
 def asks_help(argv: list[str] | None = None) -> bool:
     """``-h`` or ``--help`` among the command's arguments (``sys.argv`` by default), before any ``--``."""
     args = sys.argv[1:] if argv is None else argv

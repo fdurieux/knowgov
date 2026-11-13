@@ -233,6 +233,8 @@ def impact(start: str, walk: str = "dependants", children: bool = False) -> dict
     start_node = reg["nodes"][start]
     intro = C(f"The walk starts at {start}, a {start_node.get('kind', '').replace('_', ' ')} in state {start_node.get('state')}.")
     intro += " " + C(*WALK_INTRO[walk])
+    if start_node.get("_taxonomy") not in rows_of:   # task-0314 B-X2, R-T1: said, not left as an empty answer
+        intro += " " + C(f"This walk has no step from a {start_node.get('kind', '').replace('_', ' ')}, so it follows no link from {start}.")
     intro += " " + C("It stops at a deprecated or retired node.", "An edge that is not approved is listed with its state and not followed.",
                      "Its link is not approved, or its far node is deprecated or retired.")
     intro += " " + C("An edge back to the start is listed and not counted: the start is never among what it reaches.")
