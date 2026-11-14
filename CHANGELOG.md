@@ -8,7 +8,28 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
-## Unreleased
+## 0.9.1 — 2026-11-14
+
+0.9.1 is the first patch release on the 0.9 contracts. It carries fixes only: no exit code, report schema,
+MCP tool, `KG_*` setting or instance-format change, so an instance on 0.9.0 upgrades without edits.
+
+The fixes come from the 0.9.0 release candidate's redone review, re-checked in seven rounds until none left
+a regression or anything at medium. They cover:
+- **Routes:** each route says what to run from an instance root, and a finding a register update staled names
+  the remedy, the same on a load, a `--no-load` read, the MCP server and `trace check`.
+- **Messages:** a file the manifest names that cannot be read is said as the manifest's cause, never as "the
+  store did not answer". `check_subject` reports it as a path error and still writes its JSON.
+- **Review rulings:** opposing same-day rulings by different reviewers cancel each other whichever statement
+  and whichever orientation, so neither alone approves.
+- **Containment:** a contained worker grades only the subjects its image ships, and an Arms run on another
+  is refused before any model call.
+- **The rest:** export landings, the walks' wording, and `check_subject`'s attestation errors.
+
+It is also the 0.9.x patch release that decision-0016 Amendment A1 asks for within the 30-day soak towards
+1.0.0. Contract-bearing improvements the review found are decided in decision-0041 and wait for 1.1.0,
+after 1.0.0.
+
+### Changes
 
 - A legacy ambiguous review act is settled only by a later decided ruling (approved or rejected) of its statement, never by a referral. A ruling of the same day by another reviewer on the statement or on an equivalent one (the same key, value and digest, by a giver the statement's stem reads as, either reading counting) settles it when its outcome is the act's; an opposing one (approval against rejection or referral) cancels both, so neither applies, the key reads its unruled level and the gate names both files at major with the review route, until a later day's decided ruling on either statement settles them. Known limit (fail-closed, task-0344): the pairing can also join the same content answered by two different givers whose ids' stems read alike, and a chain of such statements, so their same-day rulings cancel though the answers are not one; nothing is approved by it, and an act it leaves major after a later ruling on the other statement is cleared by a review of its own. The same holds for two applied rulings on equivalent statements, which were not paired before, whichever of them is the legacy one and whichever statement is older. The reviewer is read from the ruling's recorded `by`, and the same reviewer's later file is ordered by its `-n` number, never its file name. The review walkthrough names `--publish` / `KG_PUBLISH=1` for checking the act path on Neo4j (task-0323).
 - A stale node returns only on its own system's id (`[source]` id field, compared before `#`), not on any other value of its source table; the dependants summary names only the kinds the walk reached.
@@ -34,15 +55,31 @@ names that section with the version.
 - 0.9.x walks and tools, second round (task-0314): the sub-gate's `why` over the keys a walk reached reads "all of the N keys reached…", "X of the N keys reached…", "N of the keys reached at a blocking level…" and `gate_verdict` on its own keys keeps the gate's words; a key finding's `related` carries only the conflicts whose ends are that key's own assertions; `trace` names the key each did-you-mean is for; every script answers `--help` with exit 0 and reads no argument as an input or output folder; `code_path`'s suspect `reason` also names the held version; the descriptions of `register_impact` (the kinds each walk starts from, what `live: false` on an approved link means), `key_nodes`, `store_status` (the stage is the gate report's version) and the schemas say what they do.
 - 0.9.x walks and tools, third round (task-0314): a key containing `~` keeps its conflict ids on its gate findings; a sub-gate's `why` reads "1 of the 2 keys reached at a blocking level" and "the 1 key reached", and `proposal_impact`'s keys on no slice read "keys no slice reaches"; the page says a walk follows no link from a node by its kind, with the right article, and for a journey or touchpoint on the thread walk; `store_status` names the stage as v1 or v2; `tools/quality/coverage_xml.py --help` exits 0.
 - Third round of the redone review's fixes (task-0329): a finding a register update staled names the remedy as its route on a `--no-load` read and in MCP `gate_verdict` too, read from the statements' own recorded reason, so a load and a read agree; an unreadable `[reference] code` file, a non-string `code` or `script`, and a symlink out of the instance inside a code or suite directory are the manifest's cause (exit 2, no "the store did not answer"), and `check_subject` gives the outside, non-string and symlink cases a path error and never digests the file; a non-string `[oracle] suite` entry is named; an empty or blank code path reads "(an empty path)"; a duplicate subject id prints only the root actually kept; the gate-report schema's `route` description covers the remedy and review routes
-
 - Third round on the pre-load and attestation fixes (task-0312): `check_subject` no longer lets a never-attested artefact take the stale-digest count from an edited one, whatever the order of their keys (it names the wholly unlisted artefacts only when the stale digests cover them all, else leaves the per-digest errors); `knowgov-gate.sh` reads a relative `KG_PRELOAD_REPORT` from the instance, as it does `KG_PRELOAD_BASELINE`, instead of the harness's directory; the gate's info line for a document a step-4 check judged alone says so once.
 - Fourth round of the redone review's fixes (task-0329): a permission error reading a code, script or suite file is the manifest's cause (exit 2), while a permission error in the store, such as publishing the held file, keeps "the store did not answer"; `check_subject` reports an unreadable code, script or suite file, and a link out of the instance inside a code directory even with no execution declared, as a path error instead of a traceback or exit 0; `trace check` routes a finding a register update staled to the remedy, as the gate, `--no-load` and MCP do; a stage-2 `version` that reads like a register reason no longer gets the register route
 - A document the manifest names that the account cannot read is said as the manifest's cause (`<subject>: document <path> (<key>) cannot be read (permission denied)`, exit 2), not as "the store did not answer"; an unreadable code, script or suite file reads the same way with its field and relative path, and `check_subject` names the right field and says the cause once (task-0329)
 - An MCP tool whose read meets a file the manifest names that cannot be read answers with that line (`<subject>: document <path> (<key>) cannot be read (permission denied)`), not "the store did not answer"; `check_subject` reports an unreadable document as a path error and still writes its JSON, where it used to end in a traceback with none; and its text summary names the cause once (task-0329)
+- The compose file's model proxy, `litellm`, moves to `ghcr.io/berriai/litellm:v1.109.0`, pinned by its digest (Dependabot; v1.108.0 in 0.9.0).
+
+### What this release carries
+
+| what | version |
+|---|---|
+| pumllint (the sequence-diagram mapper's parser) | 0.35.0, from PyPI, as in 0.9.0 |
+| the IEAM register, vendored under `demo/register/` | ieam-register `v0.2.13`, as in 0.9.0 |
+| the record's pins | unchanged from 0.9.0 |
+| the compose file's model proxy | `litellm` v1.109.0 (v1.108.0 in 0.9.0) |
+| Python | 3.12 in the image |
+
+The image is `ghcr.io/fdurieux/knowgov:v0.9.1`. The compose file pins v0.9.0 by its index digest for `app`
+and `worker`, and moves to v0.9.1's digest in a follow-up once the Release has published it.
 
 ### Known limits
 
+0.9.0's Known limits stand. In addition:
+
 - A manifest that lists the digests of planted documents (a scenario's plants, not the files on disk) makes `check_subject` say the code is unchanged after an honest relist, because a planted Version is not a file it can compare. `check_subject` names each plant Version to list (task-0312 F2); the note itself stays (task-0329 N-3, decision-0041).
+- Two answers with the same content by different givers whose ids' stems read alike can be paired as one, so two reviewers' opposite same-day rulings on them cancel each other: nothing is approved by it, and an act it leaves major is cleared by a review of the other statement (task-0344).
 
 ## 0.9.0 — 2026-11-12
 
