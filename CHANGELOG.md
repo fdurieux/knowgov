@@ -8,6 +8,10 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
+## Unreleased
+
+- The published compose file runs the v0.9.1 release: `app` and `worker` pin `ghcr.io/fdurieux/knowgov:v0.9.1` by its index digest (`sha256:d5986416…`), where they ran v0.9.0.
+
 ## 0.9.1 — 2026-11-14
 
 0.9.1 is the first patch release on the 0.9 contracts. It carries fixes only: no exit code, report schema,
