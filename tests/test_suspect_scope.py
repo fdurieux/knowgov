@@ -54,7 +54,9 @@ def test_off_the_tasks_keys_it_is_listed_at_info_on_them_it_blocks():
 
 def test_the_coordinators_probe_design_passes_codegen_still_blocks():
     """The register change that invalidates codegen's keys: S1's codegen output is suspect. Under design, whose keys
-    it does not rest on, the gate exits 0 and lists it at info; under codegen it exits 1 on it, as before."""
+    it does not rest on, the gate lists it at info; under codegen it exits 1 on it, as before. Since decision-0044
+    design's own keys have map rows, so the three resting on the withdrawn REL-06001 go stale and block design by
+    themselves: the suspect output is never among design's blockers."""
     need_rdflib()
     import register_fixture
     with tempfile.TemporaryDirectory() as td:
@@ -62,12 +64,14 @@ def test_the_coordinators_probe_design_passes_codegen_still_blocks():
         env = {**os.environ, "KG_STORE": "rdflib", "KG_CLOCK": "pinned", "KG_REGISTER": str(reg),
                "KG_SUBJECT": str(ROOT / "subjects" / "cargo_quote"), "PYTHONDONTWRITEBYTECODE": "1"}
         env.pop("KG_RDFLIB_FILE", None)
-        got = {}
+        got, blocking = {}, {}
         for task in ("design", "codegen"):
             p = subprocess.run([sys.executable, str(HARNESS / "gate_cli.py"), "--scenario", "S1", "--task", task, "--as-of", "record",
                                 "--register-previous", str(ROOT / "demo" / "register"), "-f", "json"],
                                capture_output=True, text=True, env=env, timeout=600)
             rep = json.loads(p.stdout)
             got[task] = (p.returncode, [(f["severity"], f["ref"]) for f in rep["findings"] if f["kind"] == "suspect_derived"])
-    assert got["design"] == (0, [("info", SUS["id"])]), got
+            blocking[task] = {(f["kind"], f.get("key")) for f in rep["findings"] if f["severity"] == "blocker"}
+    assert got["design"] == (1, [("info", SUS["id"])]), got
+    assert blocking["design"] == {("key", k) for k in ("REQ-04|text", "REQ-04|implemented_by", "shipper|uses:quote_api")}, blocking
     assert got["codegen"] == (1, [("blocker", SUS["id"])]), got

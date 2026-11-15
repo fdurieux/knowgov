@@ -1,6 +1,7 @@
-# The demo's reading of the gate's 36 keys onto the IEAM register: which register nodes each
-# key concerns. Hand-authored, like views.SYSTEMIC is the demo's reading of the record's §6; the
-# register itself carries no such map, and the kit files are the evidence each row rests on.
+# The demo's reading of the gate's 57 keys (codegen's 36, and since decision-0044 design's 21
+# others) onto the IEAM register: which register nodes each key concerns. Hand-authored, like
+# views.SYSTEMIC is the demo's reading of the record's §6; the register itself carries no such
+# map, and the kit files are the evidence each row rests on.
 # A row names the register nodes a change to the key would touch, the kit anchor (the same
 # path#section the register's own source pointers and link evidence use), and a short note.
 # Nothing here is written back to the register; the box the page draws from it says "the
@@ -16,11 +17,11 @@
 [map]
 basis = "authored"
 author = "the demo session, drafted 2026-10-30"
-status = "approved"         # the maintainer read the rows as drafted and approved them; the page says so
+status = "approved"         # the maintainer read the rows as drafted and approved them, 2026-10-31; the design class's 21 rows approved 2026-11-15 by decision-0044 ("3. Yes, as proposed"); the page says so
 approved_by = "fdurieux"
-approved_on = 2026-10-31
+approved_on = 2026-11-15
 register_commit = "ef7fe0e114128ce0d76694fb2f95e0373ab18d2e"
-keys_expected = 36
+keys_expected = 57
 
 # ---- DT-V: request validation. The validation capability, its activity, the QuoteAPI module
 # (QuoteAPI._validate in kit/links.toml) and the request entity.
@@ -289,3 +290,157 @@ owner = "ORG-0002"
 nodes = ["APP-0002", "JRN-0004", "JRN-0003", "ENT-0003"]
 anchor = "contract/openapi.yaml"
 note = "every stored quote returns its id"
+
+# ---- The design class's requirements (decision-0044): what each requirement says, on the nodes
+# the codegen rows resting on the same requirement name, and the code unit kit/links.toml says
+# implements it, beside the process it supports (REL-06004, REL-06001 and REL-06003).
+
+[[row]]
+key = "REQ-01|text"
+owner = "ORG-0001"
+nodes = ["CAP-0003", "CAP-0002", "CAP-0005", "PROC-0001", "APP-0002", "ENT-0003", "JRN-0003"]
+anchor = "kit/requirements.md#REQ-01"
+note = "valid request, accept band: quoted, priced, stored, quote document sent"
+
+[[row]]
+key = "REQ-02|text"
+owner = "ORG-0001"
+nodes = ["CAP-0003", "PROC-0003", "PROC-0001", "APP-0002", "ENT-0003", "JRN-0003"]
+anchor = "kit/requirements.md#REQ-02"
+note = "valid request, review band: review_hold, stored, no price, no notification"
+
+[[row]]
+key = "REQ-03|text"
+owner = "ORG-0001"
+nodes = ["CAP-0003", "CAP-0005", "PROC-0003", "PROC-0001", "APP-0002", "ENT-0003", "JRN-0003"]
+anchor = "kit/requirements.md#REQ-03"
+note = "valid request, refuse band: refused_screening, stored, no price, refusal notice sent"
+
+[[row]]
+key = "REQ-04|text"
+owner = "ORG-0001"
+nodes = ["CAP-0004", "PROC-0002", "APP-0002", "JRN-0002"]
+anchor = "kit/requirements.md#REQ-04"
+note = "a DT-V violation rejects the request and nothing else runs"
+
+[[row]]
+key = "REQ-05|text"
+owner = "ORG-0001"
+nodes = ["APP-0002", "PROC-0001", "ENT-0003"]
+anchor = "kit/requirements.md#REQ-05"
+note = "storage failure: error store_unavailable, nothing else runs"
+
+[[row]]
+key = "REQ-06|text"
+owner = "ORG-0001"
+nodes = ["APP-0002", "APP-0004", "PROC-0003", "PROC-0001", "JRN-0003"]
+anchor = "kit/requirements.md#REQ-06"
+note = "screening outage: held_unscreened with price and hold, no notification"
+
+[[row]]
+key = "REQ-07|text"
+owner = "ORG-0001"
+nodes = ["APP-0002", "PROC-0005", "CAP-0005"]
+anchor = "kit/requirements.md#REQ-07"
+note = "a failed notification leaves outcome and response unchanged"
+
+[[row]]
+key = "REQ-08|text"
+owner = "ORG-0001"
+nodes = ["CAP-0002", "PROC-0004", "APP-0003", "ENT-0004"]
+anchor = "kit/requirements.md#REQ-08"
+note = "the long-haul multiplier, applied after P2"
+
+[[row]]
+key = "REQ-01|implemented_by"
+owner = "ORG-0001"
+nodes = ["APP-0002", "PROC-0001"]
+anchor = "kit/links.toml"
+note = "REQ-01 is implemented by QuoteAPI.handle"
+
+[[row]]
+key = "REQ-02|implemented_by"
+owner = "ORG-0001"
+nodes = ["APP-0002", "PROC-0001"]
+anchor = "kit/links.toml"
+note = "REQ-02 is implemented by QuoteAPI.handle"
+
+[[row]]
+key = "REQ-03|implemented_by"
+owner = "ORG-0001"
+nodes = ["APP-0002", "PROC-0001"]
+anchor = "kit/links.toml"
+note = "REQ-03 is implemented by QuoteAPI.handle"
+
+[[row]]
+key = "REQ-04|implemented_by"
+owner = "ORG-0001"
+nodes = ["APP-0002", "PROC-0002"]
+anchor = "kit/links.toml"
+note = "REQ-04 is implemented by QuoteAPI._validate"
+
+[[row]]
+key = "REQ-05|implemented_by"
+owner = "ORG-0001"
+nodes = ["APP-0002", "PROC-0001"]
+anchor = "kit/links.toml"
+note = "REQ-05 is implemented by QuoteAPI.handle"
+
+[[row]]
+key = "REQ-06|implemented_by"
+owner = "ORG-0001"
+nodes = ["APP-0002", "PROC-0001"]
+anchor = "kit/links.toml"
+note = "REQ-06 is implemented by QuoteAPI.handle"
+
+[[row]]
+key = "REQ-07|implemented_by"
+owner = "ORG-0001"
+nodes = ["APP-0002", "PROC-0001"]
+anchor = "kit/links.toml"
+note = "REQ-07 is implemented by QuoteAPI.handle"
+
+[[row]]
+key = "REQ-08|implemented_by"
+owner = "ORG-0001"
+nodes = ["APP-0003", "PROC-0004"]
+anchor = "kit/links.toml"
+note = "REQ-08 is implemented by TariffEngine.price"
+
+# ---- The design class's structure (decision-0044): the C4 containers' uses links. Architecture
+# stewardship answers for which containers call which, as for the API's behaviour.
+
+[[row]]
+key = "shipper|uses:quote_api"
+owner = "ORG-0002"
+nodes = ["JRN-0004", "JRN-0002", "APP-0002"]
+anchor = "structure/containers.puml"
+note = "the shipper calls the Quote API; the touchpoint and the submit step"
+
+[[row]]
+key = "quote_api|uses:screening_service"
+owner = "ORG-0002"
+nodes = ["APP-0002", "APP-0004", "PROC-0003"]
+anchor = "structure/containers.puml"
+note = "QuoteAPI calls ScreeningService"
+
+[[row]]
+key = "quote_api|uses:tariff_engine"
+owner = "ORG-0002"
+nodes = ["APP-0002", "APP-0003", "PROC-0004"]
+anchor = "structure/containers.puml"
+note = "QuoteAPI calls TariffEngine"
+
+[[row]]
+key = "quote_api|uses:quote_store"
+owner = "ORG-0002"
+nodes = ["APP-0002", "ENT-0003", "PROC-0001"]
+anchor = "structure/containers.puml"
+note = "QuoteAPI stores and updates quotes; the store has no register node, so the quote it holds (REL-08002)"
+
+[[row]]
+key = "quote_api|uses:notification_service"
+owner = "ORG-0002"
+nodes = ["APP-0002", "PROC-0005", "CAP-0005"]
+anchor = "structure/containers.puml"
+note = "QuoteAPI sends documents and notices; the external service has no register node, so the notify activity and capability"

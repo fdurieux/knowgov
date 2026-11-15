@@ -22,6 +22,9 @@ VENDORED = ROOT / "demo" / "register"
 REASON = f"the register at {fx.TAG}: {fx.DECISION}"
 DT_V = {"shipper_id|present", "weight_kg|min", "weight_kg|max", "distance_km|min", "distance_km|max",
         "declared_value|min", "declared_value|max", "invalid_request|behaviour"}
+# decision-0044: the design class's rows on REL-06001's ends, QuoteAPI and Validate the request, or on the submit
+# step its walk lands only through it
+DESIGN_ON_REL_06001 = {"REQ-04|text", "REQ-04|implemented_by", "shipper|uses:quote_api"}
 
 
 def _tmp() -> Path:
@@ -88,14 +91,15 @@ def test_the_keys_resting_on_the_change_follow_the_map_rows_and_the_registers_wa
     register, the start never counted (decision 0016), less every descendant the new register moved
     away from it, in any state, with its subtree (the maintainer, 2026-11-04: moved, not withdrawn).
     The fixture moves all four, CAP-0005 (proposed) too, so CAP-0001 lands nothing. REL-06001: the
-    rows naming both its ends and the rows its walk lands only through it: the eight DT-V rows."""
+    rows naming both its ends and the rows its walk lands only through it: the eight DT-V rows, and since
+    decision-0044 the three design rows on them."""
     SUBJECT = CARGO_QUOTE
     d = _tmp()
     try:
         cur = fx.changed(d / "reg")
         landed = rc.resting(rc.diff(VENDORED, cur), SUBJECT.register_map(), VENDORED, cur)
         keys = {k["key"]: k for k in landed}
-        assert set(keys) == DT_V, sorted(keys)
+        assert set(keys) == DT_V | DESIGN_ON_REL_06001, sorted(keys)
         assert all({c.get("link") for c in v["causes"]} == {"REL-06001"} for v in keys.values()), "CAP-0001 lands nothing"
         assert all(v["reasons"] == [REASON] and v["owner"] for v in keys.values())
         both = [c for c in keys["shipper_id|present"]["causes"] if c["walk"] is None]
@@ -108,7 +112,8 @@ def test_the_keys_resting_on_the_change_follow_the_map_rows_and_the_registers_wa
 
 def test_a_descendant_left_below_the_withdrawn_node_is_descended_and_a_moved_one_skipped():
     """The same deprecation with the children left under CAP-0001 descends as register_impact
-    --children does: 32 keys, the 32nd through the proposed CAP-0005, flagged (task-0120). Moving
+    --children does: 48 keys, the last three through the proposed CAP-0005, flagged (task-0120; 32 and one
+    before decision-0044's design rows). Moving
     CAP-0003 alone, with whatever lies below it, skips exactly the rows only it carried."""
     import register_impact as ri
     SUBJECT = CARGO_QUOTE
@@ -128,9 +133,10 @@ def test_a_descendant_left_below_the_withdrawn_node_is_descended_and_a_moved_one
         w = ri.walk("CAP-0001", "dependants", root=VENDORED, children=True)
         want = ri.landed_rows(SUBJECT.register_map(), "CAP-0001", w["reached_ids"], [x["id"] for x in w["children"] if x["walked"]],
                               [x["id"] for x in w["children"] if x["not_followed"]])
-        assert len(left) == 32 and set(left) == {r["key"] for r in want}, "register_impact's own landing"
+        assert len(left) == 48 and set(left) == {r["key"] for r in want}, "register_impact's own landing"
         flagged = [k for k, v in left.items() if any(c.get("not_followed") for c in v["causes"])]
-        assert flagged == ["QuoteAPI|on_notification_failure"] and left[flagged[0]]["causes"][0]["via"] == ["CAP-0005"]
+        assert flagged == ["QuoteAPI|on_notification_failure", "REQ-07|text", "quote_api|uses:notification_service"], flagged
+        assert all(left[k]["causes"][0]["via"] == ["CAP-0005"] for k in flagged)
         assert all(c["moved"] == [] for v in left.values() for c in v["causes"])
         parent("CAP-0003", "CAP-0006")
         part = {k["key"]: k for k in rc.resting(ch, SUBJECT.register_map(), VENDORED, cur)}

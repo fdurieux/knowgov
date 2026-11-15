@@ -154,7 +154,12 @@ def grid(dirs: list[Path], record: bool = False, scopes: list[str] | None = None
     rmap = SUBJECT.register_map()
     today = cadence.as_of(cols[0]["as_of"])   # the register's slices read no date but an exception's: the first column's
     used, rows = steps(scopes, rmap, today)
-    every = sorted({r["key"] for r in rmap.get("row", [])})
+    # the map's keys the steps' slices read: proposal_impact's default class (task-0252), whose gate the cells read;
+    # the whole map until decision-0044 mapped design's other keys too
+    import proposal_impact as pi
+    from tasks import TASKS
+    wanted = pi._task_keys(pi._task(pi.DEFAULT_TASK, TASKS), TASKS)
+    every = sorted({r["key"] for r in rmap.get("row", []) if wanted is None or r["key"] in wanted})
     on = {k for s in rows for k in s["keys"]}
     off = []
     for k in every:
