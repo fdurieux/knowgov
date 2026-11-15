@@ -200,7 +200,7 @@ def _accepts(fn, name: str) -> bool:
 
 
 class LateAnswer(TimeoutError):
-    """The run's deadline passed before a responder's answer was accepted (V-F4, task-0349)."""
+    """The run's deadline passed before a responder's answer was accepted (V-F4, task-0350)."""
 
 
 def _takes_deadline(fn) -> bool:
@@ -220,7 +220,7 @@ def _wait_for(done, deadline: float) -> bool:
 
 
 def supervised(responder, messages: list[dict], tools: list[dict], deadline: float) -> dict:
-    """One responder call bounded by the run's monotonic deadline (V-F4, task-0349), whatever the responder
+    """One responder call bounded by the run's monotonic deadline (V-F4, task-0350), whatever the responder
     does with the ``deadline`` it is given. The call runs in a daemon thread on copies of the conversation
     and the tools; this side waits until the deadline and no longer. At expiry it raises ``LateAnswer`` and
     the call is abandoned: its answer, if one ever comes, is never read. A thread cannot be killed, so an
@@ -328,7 +328,7 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
     was asked for, in order, the refusals included. ``responder`` takes ``deadline=`` (V-F4): one that
     cannot is a TypeError before any work, and every call is ``supervised``."""
     responder = responder or openai_responder()
-    if not _takes_deadline(responder):   # V-F4, task-0349: refused before any work, never run unbounded
+    if not _takes_deadline(responder):   # V-F4, task-0350: refused before any work, never run unbounded
         raise TypeError("agent.run: a responder takes the run's monotonic deadline as deadline=; "
                         "responder(messages, tools, deadline=None) is the contract")
     lim = {**ceiling(), **(limits or {})}

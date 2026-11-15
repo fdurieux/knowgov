@@ -291,7 +291,7 @@ def test_exec_08_a_stalled_or_trickling_stream_stops_at_the_monotonic_deadline()
 
 
 def test_exec_08_a_blocked_ignoring_late_or_deadline_less_responder_never_yields_a_generate():
-    """V-F4 (task-0349): every responder call is supervised against the run's monotonic deadline. A call
+    """V-F4 (task-0350): every responder call is supervised against the run's monotonic deadline. A call
     that blocks past it, or accepts ``deadline`` and ignores it, ends the run at the seconds ceiling when
     the deadline passes, its answer abandoned and never read; an answer returned at or past the deadline
     is the ceiling, never a finish; a responder that cannot take ``deadline=`` is refused before any work."""

@@ -1,13 +1,13 @@
 ---
-id: TASK-0349
+id: TASK-0350
 title: >-
   agent: a late or deadline-ignoring responder never yields a successful
   generate (V-F4)
 status: In Progress
 assignee:
   - '@claude'
-created_date: '2026-11-15T19:39:00Z'
-updated_date: '2026-11-15T19:39:00Z'
+created_date: '2026-11-15T19:51:00Z'
+updated_date: '2026-11-15T19:51:00Z'
 labels:
   - review
   - runs
@@ -38,3 +38,9 @@ The external validation of 0.9.1 (538618f), V-F4: `agent.run` called a responder
 <!-- SECTION:PLAN:BEGIN -->
 1. Regressions in EXEC-08 first (blocked, deadline-ignoring, late final, deadline-less). 2. agent.run refuses a responder that cannot take deadline= before any work. 3. Every call runs in a supervised thread on copies of messages and tools; the run returns at the deadline as the seconds ceiling, the abandoned answer never read. 4. An answer back at or past the deadline is the ceiling, never a finish. 5. Test helpers move to the three-argument form. 6. Suite pinned, rdflib deterministic run and comparator.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Re-minted from TASK-0349 (a sibling's id). Red before the fix: the blocked responder's run returned decision generate. Green after; the rdflib deterministic run against the record: 0 differing leaves over 7 scenarios.
+<!-- SECTION:NOTES:END -->
