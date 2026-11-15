@@ -327,7 +327,6 @@ def _snap_11_killed(s1: str, s2: str, g2: dict) -> None:
             f"c.load(st, {s2!r})\n"
             "st.commit()\n"
             "os._exit(3)   # it closed the gap: not the case this sets up\n")
-    t0 = time.monotonic()
     proc = subprocess.run([sys.executable, "-c", code], env={**os.environ, "KG_NEO4J_LEASE_SECONDS": f"{LEASE_08:g}"},
                           capture_output=True, text=True, timeout=600)
     before = _pub()
@@ -340,7 +339,7 @@ def _snap_11_killed(s1: str, s2: str, g2: dict) -> None:
         check(False, "SNAP-11 while the killed writer's lease is live a read is refused (StoreBusy)")
     except store.StoreBusy:
         check(True, "SNAP-11 while the killed writer's lease is live a read is refused (StoreBusy)")
-    time.sleep(max(0.0, LEASE_08 + 0.5 - (time.monotonic() - t0)))
+    _await_lease_end()
     after = read_now()
     p = _pub()
     check(after == g2 and p.get("begin") == p.get("end") == before.get("begin") and p.get("owner") is None,
@@ -419,7 +418,7 @@ def snap_03(s1: str, s2: str, g1: dict) -> None:
             check(False, "SNAP-03 a read while a publication is interrupted is refused (StoreBusy), never a mixed graph")
         except store.StoreBusy:
             check(True, "SNAP-03 a read while a publication is interrupted is refused (StoreBusy), never a mixed graph")
-        time.sleep(3.5)   # the dead writer's lease runs out
+        _await_lease_end()   # the dead writer's lease runs out, by the server's clock
         with opener("write"):   # the next writer recovers at acquisition, publishing nothing
             pass
         check(read_now() == g1, "SNAP-03 once the next writer has recovered, the previous generation is read")
@@ -465,6 +464,21 @@ def _unit(handle):
     return getattr(handle, "_inner", handle)._pub
 
 
+def _await_lease_end(limit: float = 60.0) -> None:
+    """Wait until the server itself says the publication node's lease has run out (its own ``datetime()``), polling
+    with the driver alone; never the client's clock against a lease constant, which a slow link makes wrong (task-0348)."""
+    import store_neo4j
+    from neo4j import GraphDatabase
+    end = time.monotonic() + limit
+    with GraphDatabase.driver(store_neo4j.URI, auth=store_neo4j.AUTH) as drv, drv.session() as sess:
+        while time.monotonic() < end:
+            r = sess.run(f"{store_neo4j.PUB_MATCH} RETURN coalesce(p.expires < datetime(), true) AS expired").single()
+            if r is None or r["expired"]:
+                return
+            time.sleep(0.2)
+    raise RuntimeError(f"the lease had not run out on the server after {limit:g} s")
+
+
 def _pub() -> dict:
     """The publication node as it stands (Neo4j), read with the driver alone: a read handle would pin,
     and pinning is what is under test."""
@@ -475,7 +489,6 @@ def _pub() -> dict:
 def snap_08(s1: str, s2: str, g1: dict) -> None:
     import store
     publish(s1)
-    t0 = time.monotonic()
     check(_abandon(s2) == 9, "SNAP-08 a writer died between raising the counter and committing")
     if kind() == "rdflib":   # the lock dies with the process and the replace never ran: nothing to clear
         check(read_now() == g1, "SNAP-08 on rdflib, a read with no new writer answers the last committed generation")
@@ -492,12 +505,13 @@ def snap_08(s1: str, s2: str, g1: dict) -> None:
         check(False, "SNAP-08 while the lease is live a read waits, then refuses (StoreBusy)")
     except store.StoreBusy as e:
         took = time.monotonic() - w0
-        live = time.monotonic() - t0 < LEASE_08
-        check(live and took >= wait * 0.9 and "live lease" in str(e),
+        # 'live' is the server's word (the refusal names the lease it found live, under the epoch the node held); the
+        # client's clock since the kill is no evidence over a slow link (task-0348)
+        check(took >= wait * 0.9 and f"epoch {before.get('epoch')}'s live lease" in str(e),
               f"SNAP-08 while the lease is live a read waits {took:.1f} s, then refuses (StoreBusy): {str(e)[:120]}")
     check(_pub().get("begin") != _pub().get("end"), "SNAP-08 the refused read cleared nothing while the lease was live")
     # AC 1: once the lease has run out, a read answers the last committed generation, no writer opened
-    time.sleep(max(0.0, LEASE_08 + 0.5 - (time.monotonic() - t0)))
+    _await_lease_end()
     with opener("read") as rd:
         cleared = _unit(rd).recovered
     after = _pub()
@@ -514,9 +528,8 @@ def snap_08(s1: str, s2: str, g1: dict) -> None:
 def _snap_08_orders(s1: str, s2: str, g1: dict) -> None:
     """AC 3: the reader's clearing and a writer taking the lease, in both orders and racing."""
     # a writer first: its acquisition closes the gap; a reader's clearing then finds nothing and the writer keeps its lease
-    t0 = time.monotonic()
     check(_abandon(s2) == 9, "SNAP-08 (writer first) another writer died mid-publication")
-    time.sleep(max(0.0, LEASE_08 + 0.5 - (time.monotonic() - t0)))
+    _await_lease_end()
     with opener("write") as w:
         token = w._pub.token
         with opener("read") as rd:
@@ -529,9 +542,8 @@ def _snap_08_orders(s1: str, s2: str, g1: dict) -> None:
         load(w, s1)
     check(read_now() == g1, "SNAP-08 (writer first) the writer publishes after the reader")
     # racing: readers pinning while a writer acquires, after an abandoned publication
-    t0 = time.monotonic()
     check(_abandon(s2) == 9, "SNAP-08 (race) another writer died mid-publication")
-    time.sleep(max(0.0, LEASE_08 + 0.5 - (time.monotonic() - t0)))
+    _await_lease_end()
     barrier = threading.Barrier(5)
     reads, cleared, errs, wrote = [], [], [], []
 
@@ -652,7 +664,7 @@ def snap_05(s1: str, s2: str, g1: dict, g2: dict) -> None:
         load(a, s2)
         a_epoch = a._pub.epoch
         check(a_epoch in _writer_epochs(a), "SNAP-05 the former writer's unit transaction is open on the server before the takeover")
-        time.sleep(2.5)
+        _await_lease_end()   # a is paused: the lease runs out by the server's clock
         b = opener("write", lock_timeout=30)   # recovers ownership
         check(a_epoch not in _writer_epochs(a),
               "SNAP-05 the takeover terminated the former writer's transaction on the server (TERMINATE TRANSACTIONS ran)")

@@ -15,6 +15,7 @@ names that section with the version.
 - `instance/README.md` gains "Running against a Neo4j outside the stack": the `KG_NEO4J_*` settings, the host address from the stack's containers, the memory and privilege caveats, and a runbook of existing checks, with how to read D1 apart, for a Neo4j such as Neo4j Desktop (decision-0042). The record, the compose image and CI stay on the 5.26 container; no setting, schema or exit changes.
 - CargoQuote's design task class routes every required key to an owner: `register_map.toml` gains rows for its 21 unmapped keys, the requirements' text and implementation to ORG-0001 and the C4 `uses:` links to ORG-0002 (decision-0044). The scored record is unchanged on both stores; a register change now stales the design keys resting on it too, and the step grid's denominator stays the default class's keys. No setting, schema or exit changes.
 - The published compose file runs the v0.9.1 release: `app` and `worker` pin `ghcr.io/fdurieux/knowgov:v0.9.1` by its index digest (`sha256:d5986416…`), where they ran v0.9.0.
+- `tools/check_snapshots.py` judges a lease live by the server's word, not the client's clock (task-0348): SNAP-08 requires the refusal to name the lease it found live under the abandoning writer's epoch, and every wait for a lease to run out polls the server's own `datetime()`, where SNAP-08 failed over a slow link (a tunnel to a Neo4j on another machine) although the store refused correctly. The checks' set, `KG_*` settings and exit codes are unchanged.
 
 ### Known limits
 
