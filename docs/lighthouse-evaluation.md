@@ -47,7 +47,7 @@ What it collects for each subject:
 | item | what it shows | how |
 |---|---|---|
 | walk | what a change to a register node reaches, and the statements behind it | the register's own impact walk from every node the subject's register map names; then, on the first scenario, the statements each node's cited anchor reaches in the store |
-| gate | whether a task may build on its knowledge | `harness/gate_cli.py` on every scenario, with each verdict next to the record's. The record's gate is the `codegen` class; every other class the subject declares (CargoQuote's `design`) runs on the same store and its verdict is recorded beside it, compared with nothing |
+| gate | whether a task may build on its knowledge | `harness/gate_cli.py` on every scenario, with each verdict next to the record's. The record's gate is the `codegen` class; every other class the subject declares (CargoQuote's `design` and `test`) runs on the same store and its verdict is recorded beside it, compared with nothing |
 | three-valued answer and evidence bundle over MCP | what an assistant sees when it asks | the read-only MCP server over stdio (or HTTP, `--transport http`), on the store each gate left. Its `gate_verdict` must equal `gate_cli.py --no-load`. Its `three_valued_answer` must carry provenance. Its `evidence_bundle`, as of the record, must carry the same verdict and date as its `gate_verdict`; the item records the bundle's size, digest, assertions and verbatim documents. The store's census must be unchanged |
 | invalidation | what a document change does | for a scenario with a later version (CargoQuote S6): `--stage 2`, then `--stage 2 --reverify`. It records what was invalidated, what supersedes it (`superseded_by`) and the code marked suspect |
 | export manifest | that the register's copy of the documents is the subject's | every file digest in the register's export manifest, checked against the subject's bytes, and the reconciliation record next to it |
@@ -253,8 +253,16 @@ both classes; its `design` class names 36 keys: each requirement's text and the 
 carries it, the screening bands and what each does, the failure behaviours, the flow's order, the
 response statuses and the containers' calls. The structure comes from the C4 diagram and is never
 verified, so a clean kit reads QUALIFIED for design where it reads PROCEED for codegen. J-F declares
-`codegen` only, and its hook uses that class at every stage. A `plan` or `review` class is added
-only if the pilot asks for one. The pilot writes its own classes' keys and rationale, and each
+`codegen` only, and its hook uses that class at every stage.
+
+CargoQuote also declares a `test` class (task-0210, doc-0031 §2): the 44 keys a session writing
+the test scenarios rests on, codegen's 36 and each requirement's text, with `proposed` among its
+blocking levels and no unverified share allowed, because a test over an unconfirmed value conceals
+the defect it should catch. Its output, each requirement's `verified_by`, and the acceptance
+scenarios G1-G7 it reads as context are not among its keys. No hook stage uses the class: the
+hook's stages are plan, spec and push, and none of them is the test-writing step. It is read by
+`gate_cli.py --task test` and by the MCP server's `gate_verdict`, and listed by `store_status`.
+A `plan` or `review` class is added only if the pilot asks for one. The pilot writes its own classes' keys and rationale, and each
 class's keys change only by pull request.
 
 ## The pilot checklist

@@ -181,3 +181,15 @@ def test_cargo_quote_declares_a_design_class_beside_the_frozen_codegen_one():
     # the build detail stays codegen's: field bounds, pricing arithmetic, field presence in a response
     assert not [k for k in d["keys"] if k.split("|")[0] in ("weight_kg", "distance_km", "declared_value", "P1", "P2", "P3", "P4")]
     assert not [k for k in d["keys"] if k.endswith("_presence") or k.endswith("|priced")]
+
+
+def test_cargo_quote_declares_a_test_class_stricter_than_codegen():
+    """task-0210 (doc-0031 §2): the keys a test-writing pass rests on are codegen's 36 and each
+    requirement's text; codegen's block levels plus proposed, no unverified share. The task's output (a
+    requirement's verified_by) and its context (the acceptance scenarios G1-G7) are never among them."""
+    t, c = CARGO.tasks["test"], CARGO.tasks["codegen"]
+    assert len(t["keys"]) == len(set(t["keys"])) == 44
+    assert set(t["keys"]) == set(c["keys"]) | {f"REQ-0{i}|text" for i in range(1, 9)}
+    assert not [k for k in t["keys"] if k.endswith("|verified_by") or re.match(r"G\d+\|", k)]
+    assert set(t["block_levels"]) == set(c["block_levels"]) | {"proposed"} and t["max_unverified_share"] == 0
+    assert "verified_by" in t["rationale"] and "G1-G7" in t["rationale"]

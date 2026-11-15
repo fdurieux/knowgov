@@ -10,6 +10,7 @@ names that section with the version.
 
 ## Unreleased
 
+- CargoQuote declares a `test` task class (task-0210, doc-0031 §2): the 44 keys a test-writing session rests on (codegen's 36 and `REQ-01|text` to `REQ-08|text`), codegen's block levels plus `proposed`, `max_unverified_share = 0`. A clean kit (S1, S6) reads PROCEED on 44 of 44; S3 reads BLOCKED on its four proposed band boundaries where codegen reads QUALIFIED; every other scenario as codegen. `store_status` lists it with its rationale; no hook stage uses it. Subject content only: codegen, the record and the comparator are unchanged.
 - `instance/README.md` gains "Running against a Neo4j outside the stack": the `KG_NEO4J_*` settings, the host address from the stack's containers, the memory and privilege caveats, and a runbook of existing checks, with how to read D1 apart, for a Neo4j such as Neo4j Desktop (decision-0042). The record, the compose image and CI stay on the 5.26 container; no setting, schema or exit changes.
 - The published compose file runs the v0.9.1 release: `app` and `worker` pin `ghcr.io/fdurieux/knowgov:v0.9.1` by its index digest (`sha256:d5986416…`), where they ran v0.9.0.
 
