@@ -266,6 +266,15 @@ can reach the page.
 | Anyone who reaches the page's port (this machine only, unless `KG_BIND` widens it) | yes (see Gaps) | no | no | no | no | no; starts a run or a projection on this machine, and beyond it only with `KG_PAGE_TOKEN` |
 <!-- permission matrix: end -->
 
+What the table's "never their own answer" does and does not stop. A handle is an issued string
+(`[capture] from`, `[review] by`), checked against the issued list, its roles, its unit and its
+dates. knowgov does not authenticate who ran the command: the organisation's directory and its pull
+request review are what bind a handle to a person (decision-0002). The refusal compares handles, so
+one person holding or claiming two handles is not stopped, and a capture file whose `from` is edited
+after ingest is not caught either. A document's statements are attested by the subject's
+`[provenance] human`, the same identity recorded as their author; the four eyes there are the pull
+request that adds the declaration (decision-0009 (a)), and no tool checks them.
+
 "Execute a business action: none." knowgov reads documents and answers. It has no connector to
 any operational system, and nothing in it acts on one. The agent arm's tools write files into the
 run's own folder and run the subject's test suite on a copy of them. That executes model-written

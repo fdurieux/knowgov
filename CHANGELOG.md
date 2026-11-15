@@ -14,6 +14,11 @@ names that section with the version.
 - `instance/README.md` gains "Running against a Neo4j outside the stack": the `KG_NEO4J_*` settings, the host address from the stack's containers, the memory and privilege caveats, and a runbook of existing checks, with how to read D1 apart, for a Neo4j such as Neo4j Desktop (decision-0042). The record, the compose image and CI stay on the 5.26 container; no setting, schema or exit changes.
 - The published compose file runs the v0.9.1 release: `app` and `worker` pin `ghcr.io/fdurieux/knowgov:v0.9.1` by its index digest (`sha256:d5986416…`), where they ran v0.9.0.
 
+### Known limits
+
+- Handles are issued strings, not authenticated: the self-review refusal (a ruling whose `by` equals the capture's `from`) compares handles, so one person claiming two handles at ingest, or editing a capture file's `from` after ingest (the load does not compare the file stem with `from` or re-check `from` against the issued list), is not stopped. The directory and the pull request review bind a handle to a person (decision-0002). Closing the edit-after-ingest route is a 1.1.0 candidate (task-0347).
+- A document's statements are attested by `[provenance] human`, the same identity recorded as their author (CargoQuote S1: 23 of 23 approved authored statements, author = reviewer = approver = `agent:maintainer`). The four eyes are the pull request that adds the declaration (decision-0009 (a)); no tool checks them. A separate drafter is a 1.1.0 candidate (task-0347).
+
 ## 0.9.1 — 2026-11-14
 
 0.9.1 is the first patch release on the 0.9 contracts. It carries fixes only: no exit code, report schema,
