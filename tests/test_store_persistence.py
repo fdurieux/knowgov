@@ -1,7 +1,7 @@
 """Task-0141.02 (S1): the file-backed store's lifecycle. A read handle never publishes; a writer takes its
 lock before it loads the snapshot it starts from and publishes atomically on commit, never on close; a
 failure publishes nothing and releases the lock; a corrupt file fails explicitly. ST-01 to ST-09 of the
-review's plan. A second writer runs as a child process driven line by line over its stdin and stdout,
+review's plan; ST-10 the directory sync's failures (V-F3). A second writer runs as a child process driven line by line over its stdin and stdout,
 so every interleaving is set by a message, never by a sleep, and every wait is bounded."""
 from __future__ import annotations
 
@@ -358,6 +358,94 @@ def test_st_06_a_failed_serialisation_sync_or_replacement_keeps_the_previous_fil
             assert not _temps(path), (step, _temps(path))
             assert _lock_free(path), f"{step}: the lock was kept"
         assert _ids(path) == {"ent:keep"}
+
+
+class _DirFault:
+    """Makes ``os.open`` or ``os.fsync`` fail with ``err`` for a directory only (V-F3): every file's call goes
+    through, so the publication reaches its directory step and only that step fails."""
+
+    def __init__(self, step: str, err: int):
+        self.step, self.err, self.hits = step, err, 0
+
+    def __enter__(self):
+        import errno as _errno
+        import stat as _stat
+        self.real_open, self.real_fsync = os.open, os.fsync
+
+        def fail():
+            self.hits += 1
+            raise OSError(self.err, f"injected {_errno.errorcode[self.err]}")
+
+        def dir_open(p, flags, *a, **k):
+            if self.step == "open" and os.path.isdir(p):
+                fail()
+            return self.real_open(p, flags, *a, **k)
+
+        def dir_fsync(fd):
+            if self.step == "fsync" and _stat.S_ISDIR(os.fstat(fd).st_mode):
+                fail()
+            return self.real_fsync(fd)
+        os.open, os.fsync = dir_open, dir_fsync
+        return self
+
+    def __exit__(self, *exc):
+        os.open, os.fsync = self.real_open, self.real_fsync
+
+
+def test_st_10_a_directory_sync_that_fails_is_surfaced_and_one_unsupported_is_not():
+    """V-F3: the directory's open and its fsync, each failing on its own. A genuine I/O failure (EIO) makes
+    commit() raise an OSError keeping its errno that says the new snapshot may already be visible and its
+    durability is indeterminate, never that the old file stands; the lock is released, and the next reader
+    and the next writer work on what was published. A directory sync the platform does not support (open:
+    EISDIR, ENOTSUP; fsync: EINVAL, ENOTSUP) is not an error: commit() returns."""
+    import errno
+    sr = need_rdflib()
+    with tempfile.TemporaryDirectory() as td:
+        path = Path(td) / "store.ttl"
+        _write(path, "ent:old")
+        for step in ("open", "fsync"):
+            with _DirFault(step, errno.EIO) as fault:
+                try:
+                    with sr.RdflibStore(path=str(path), access="write") as st:
+                        st.wipe()
+                        st.ensure_entity("ent:new", "Entity", "new")
+                except OSError as e:
+                    assert e.errno == errno.EIO, (step, e)
+                    text = str(e)
+                    assert str(path) in text and "may already be visible" in text and "indeterminate" in text, (step, text)
+                    assert "restored" not in text and "previous file" not in text, (step, text)
+                else:
+                    raise AssertionError(f"directory {step} EIO: the commit was reported durable")
+            assert fault.hits == 1, (step, fault.hits)
+            assert _lock_free(path), f"directory {step}: the lock was kept"
+            assert not _temps(path), (step, _temps(path))
+            assert _ids(path) == {"ent:new"}, f"directory {step}: the replacement is what a reader sees"
+            with sr.RdflibStore(path=str(path), access="write", lock_timeout=10) as st:   # the next writer
+                assert set(st._nodes) >= {"ent:new"}
+                st.wipe()
+                st.ensure_entity("ent:old", "Entity", "old")
+            assert _ids(path) == {"ent:old"}
+        # a command's failure to run: exit 2 with the cause in one line, never 1 (cli_exit, run.py and gate_cli)
+        import contextlib
+        import io
+        import cli_exit
+
+        def unit():
+            with sr.RdflibStore(path=str(path), access="write") as st:
+                st.ensure_entity("ent:cli", "Entity", "cli")
+        err_out = io.StringIO()
+        with _DirFault("fsync", errno.EIO), contextlib.redirect_stderr(err_out):
+            assert cli_exit.run(unit, "run") == 2
+        assert err_out.getvalue().startswith("run: cannot run: OSError: ") and "indeterminate" in err_out.getvalue()
+        assert _lock_free(path) and "ent:cli" in _ids(path)
+        for step, err in (("open", errno.EISDIR), ("open", errno.ENOTSUP), ("fsync", errno.EINVAL),
+                          ("fsync", errno.ENOTSUP)):
+            with _DirFault(step, err) as fault:
+                with sr.RdflibStore(path=str(path), access="write") as st:
+                    st.wipe()
+                    st.ensure_entity(f"ent:{step}{err}", "Entity", "u")
+            assert fault.hits == 1 and _lock_free(path), (step, err)
+            assert _ids(path) == {f"ent:{step}{err}"}, (step, err)
 
 
 def test_st_07_a_writer_that_raises_publishes_nothing():
