@@ -53,9 +53,9 @@ The question an agent asks is "may I build on this?". Sixteen tools answer it, a
                           their owners, as the Browser's register-cites joins them; files only (task-0143)
     held_keys             every key the held scenario holds, with its count by status, its gate level and the
                           task classes requiring it, the required keys it lacks (task-0144)
-    derived_outputs       the derived outputs built on a key, any state, or one output, with each statement it
-                          used read live, stale, superseded or rejected (task-0144)
-    document_statements   the statements a document yields, by version, and the outputs built on them (task-0144)
+    derived_outputs       the derived outputs registered against a key, any state, or one output, with each statement it
+                          is registered against, read live, stale, superseded or rejected (task-0144)
+    document_statements   the statements a document yields, by version, and the outputs registered against them (task-0144)
     subject_check         a proposed subject (subject.toml, register_map.toml, scenarios.toml, the documents'
                           text) checked by tools/check_subject.py's own functions against the served register,
                           in a temporary directory removed after the call: its subject-check report; nothing
@@ -160,7 +160,10 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "QUALIFIED means build only with every key below verified stated as an assumption, PROCEED means the "
                 "required keys are verified or approved. Call evidence_bundle for the knowledge itself, with its "
                 "evidence, as the governed arm reads it; both read review currency on the server's one date unless "
-                "you pass as_of, and store_status names it. Call three_valued_answer for one key: 'unknown' is not "
+                "you pass as_of, and store_status names it. Read provenance as declared, not observed: a verification by "
+                "execution is a suite result the subject declares (no suite runs at load), a derived output is registered "
+                "against its statements (not shown to have used them), and an approval or review is by an issued handle, a "
+                "string the directory resolves and knowgov does not authenticate. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
                 "(task, as gate_verdict's; codegen by default), those resting only on a descendant not followed flagged not_followed. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The prompts new_subject and add_artefact walk an assistant through scaffolding a subject on a branch; nothing is written through this server. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on, then derived_outputs key=... for what was built on a key. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. In the store: held_keys lists every key the held scenario holds with its level, including those no task class requires; document_statements names the statements a document yields and the outputs built on them; derived_outputs derived=... the statements behind one output. Intake, from a proposed initiative to the board a tracker holds: proposal_impact proposal=... on the overlay; its slices, one per journey step (per delivering process for a product no journey concerns), each overlay element in one slice or a named remainder, are the story map's backbone; each slice's keys are the task class's keys on its thread, and with a scenario held its keys.gate is gate_verdict keys=... on them; slices.task_keys names the class's keys on no slice (task-0252); all under one task class and one as_of. knowgov writes no work item and ranks nothing: no label, score or estimate; the tracker writes the items, each citing register ids. A check that a backlog covers the slices (K3) is parked to the pilot, not offered. key_nodes and document_links read files only, and code_path files, and the store for the ledger leg's suspect when it holds the subject; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it.  Every tool but list_subjects takes subject, the id of a subject under KG_SUBJECTS (list_subjects names them, never a path); none named is this server's own. A store-backed tool (its _meta io.knowgov/storeBacked true) answers only for the subject and scenario the store holds and otherwise names the start_run that would load it; a files-only tool answers for any subject. This server only reads.")
@@ -420,25 +423,25 @@ TOOLS.append(
 
 
 TOOLS.append(
-    {"name": "derived_outputs", "title": "What was built on this key, or behind this output?",
-     "description": "Derived outputs read from the store, any state. With key: every output that used a statement on "
-                    "the key; with derived: that one output. Each with its kind, digest, suspect flag, the keys behind it "
+    {"name": "derived_outputs", "title": "What is registered against this key, or behind this output?",
+     "description": "Derived outputs read from the store, any state. With key: every output registered against a statement on "
+                    "the key (a registered association, not a demonstrated use); with derived: that one output. Each with its kind, digest, suspect flag, the keys behind it "
                     "and every statement it used, each read live, stale (invalidated, nothing settled replaces it), "
                     "superseded (with the verified or approved successors superseded_by names) or rejected. Name "
                     "exactly one of key and derived.",
      "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
-         "key": {**KEY_ITEM, "description": "an entity|attribute key: the outputs built on it; "+key_rule.DESCRIPTION},
+         "key": {**KEY_ITEM, "description": "an entity|attribute key: the outputs registered against it; "+key_rule.DESCRIPTION},
          "derived": {"type": "string", "description": "a derived output id, as the gate's suspect findings and code_path's ledger entry name it"},
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another"}}},
      "annotations": READ_ONLY})
 
 
 TOOLS.append(
-    {"name": "document_statements", "title": "What does this document yield, and what was built on it?",
+    {"name": "document_statements", "title": "What does this document yield, and what is registered against it?",
      "description": "The statements a document yields in the held scenario, read from the store: those whose source "
                     "is the document or that rest on one of its fragments (a directory artefact's files by its path "
                     "ending in '/'), each with its key, value, status, basis, version and the document's fragments, "
-                    "and the derived outputs that used it; the versions held, and with version one of them only. A "
+                    "and the derived outputs registered against it; the versions held, and with version one of them only. A "
                     "document no statement comes from is refused.",
      "inputSchema": {"type": "object", "additionalProperties": False, "required": ["document"], "properties": {
          "document": {"type": "string", "description": "an artefact path, as a statement's source (artefact) names it"},

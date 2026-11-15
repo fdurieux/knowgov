@@ -84,8 +84,8 @@ whether it is contested, or why a key is empty.
 | basis `hypothesised` | a conjecture offered for a gap | no counterpart | abductive |
 | status `proposed` | loaded, not yet corroborated, verified or approved | no counterpart: PROV-O records how a thing came to be, not whether it holds | proposed |
 | status `validated` | corroborated: another assertion of the same key agrees | no counterpart | unverified (closest) |
-| status `verified` | a verification passed: execution (the subject's attested suite result, on the Versions it lists), or a review | the verification is a `prov:Activity` that `prov:used` the assertion; the status has no counterpart | verified |
-| status `approved` | a person approved the assertion, with who, when and which record: an approval of a verified assertion, or a ruling on a document's statement, which approves it directly with no verification | the approval is a `prov:Activity` `prov:wasAssociatedWith` the approver; the status has no counterpart | verified, with the approver |
+| status `verified` | a verification is declared: execution (a suite result the subject declares against the Versions it lists; no suite runs at load), or a review | the verification is a `prov:Activity` that `prov:used` the assertion; the status has no counterpart | verified |
+| status `approved` | a person approved the assertion, by an issued handle (a string the directory resolves, not authenticated), with when and which record: an approval of a verified assertion, or a ruling on a document's statement, which approves it directly with no verification | the approval is a `prov:Activity` `prov:wasAssociatedWith` the approver; the status has no counterpart | verified, with the approver |
 | status `disputed` | two assertions of one key conflict and nobody has ruled | no counterpart | no counterpart |
 | status `invalidated` | a source change ended it and its verifications | `prov:wasInvalidatedBy` the re-ingestion `prov:Activity`, at `prov:invalidatedAtTime` | superseded, once a verified or approved successor exists (`prov:wasRevisionOf` from the successor); else no counterpart |
 | status `rejected` | a ruling took it out of the live set; it keeps its history | no counterpart | rejected |
@@ -333,7 +333,7 @@ and the documents disagree, and the compliance unit has closed the open decision
 
 A review of a document's statements takes one ruling per statement (a decision table of thirty-one rows takes
 thirty-one), and a ruling on such a statement approves it directly: it records `approved` with no separate
-review verification, so the status means a person approved the statement named, not that a verified assertion
+review verification, so the status means a person, by an issued handle, approved the statement named, not that a verified assertion
 was approved.
 
 Know three limits before you rely on it:
@@ -588,8 +588,8 @@ register's links cite as evidence. The saved query *From APP-0002 to the store* 
 
 In plain English: start at the module, take each approved link it is part of, follow the link to
 the documents it cites, then to every assertion the current version of each document supports,
-and to any generated code that used them. With S6 loaded: two links cite `kit/links.toml`
-(15 assertions each); REL-08001 cites `contract/openapi.yaml` (10 assertions, used by the S1 code,
+and to any generated code registered as derived from them (a registered association, not proof the code used them). With S6 loaded: two links cite `kit/links.toml`
+(15 assertions each); REL-08001 cites `contract/openapi.yaml` (10 assertions, registered against the S1 code,
 listed as `derived:S1:G:run1 (suspect)`); REL-08002 cites `kit/requirements.md` (8). The query
 works at the grain of a whole document: a link that cites one requirement still reaches every
 assertion of the file. It needs the register projected and a scenario loaded.
@@ -599,7 +599,7 @@ of the document the link cites. A citation such as `kit:contract/decision_table.
 anchor, `DT-P`; the query keeps only the fragments whose locator has that anchor as one of its
 parts (`DT-P/row/P1`, `row/REQ-05`). A citation with no anchor still reaches the whole document.
 It reads every version of the document, so a statement a change has invalidated still shows the
-generated code that used it. One row per statement: its status, the links and anchors that reach
+generated code registered against it. One row per statement: its status, the links and anchors that reach
 it, its versions and fragments, and the derived code.
 
 In plain English, for ENT-0004 Tariff with S6 loaded and the S1 code registered as derived: two
@@ -610,7 +610,7 @@ the store port (`register_node_statements`), with the same 13 rows. An anchor na
 as the register cites one: 11 of CargoQuote's 21 citations carry an anchor.
 
 What a module change cannot reach today is a change to the code itself. The store records code
-only as a *derived output* that used certain assertions. It does not read code, so editing the
+only as a *derived output* registered against certain assertions. It does not read code, so editing the
 implementation invalidates nothing. The direction is always document, then assertion, then code.
 
 ### When a document changes: assertions invalidated, code marked suspect

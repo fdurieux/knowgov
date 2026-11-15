@@ -891,7 +891,7 @@ def stage_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
                       "intro": C("An assertion whose supporting fragment's digest changed or vanished is invalidated.",
                                  "Its verifications end: valid_until = v2.", "Every derived output that used it becomes suspect.",
                                  "Everything else of the same document keeps its status."),
-                      "sections": [{"heading": C("Invalidated"), "table": _table(["assertion", "key", "derived outputs that used it"], [(x["id"], x["key"], ", ".join(x["derived"]) or "") for x in s2["D3_stale"]["invalidated"]])},
+                      "sections": [{"heading": C("Invalidated"), "table": _table(["assertion", "key", "derived outputs registered against it"], [(x["id"], x["key"], ", ".join(x["derived"]) or "") for x in s2["D3_stale"]["invalidated"]])},
                                    {"heading": C(f"Kept at their status: {len(s2['D3_stale']['kept'])}"), "list": [f"{x['id']} ({x['status']})" for x in s2["D3_stale"]["kept"][:12]] + (["…"] if len(s2["D3_stale"]["kept"]) > 12 else [])},
                                    {"heading": C("Derived outputs"), "list": [f"{x['id']}: suspect={x['suspect']}" for x in s2["suspect_derived"]] or ["none registered in this source"]}]}
         gb = s2["gate_before_reverification"]
@@ -1113,8 +1113,8 @@ def systemic_details(view: dict, det: dict, runs: dict, reg: list) -> dict:
             if view.get("stage2"):
                 s2 = view["stage2"]
                 secs.append({"heading": C(f"Invalidated by the change: {len(s2['invalidated'])} assertions"),
-                             "text": C("Their verifications ended, and the derived output built on them is suspect."),
-                             "table": _table(["assertion", "key", "derived outputs that used it"], [(x["id"], x["key"], ", ".join(x.get("derived") or [])) for x in s2["invalidated"]])})
+                             "text": C("Their verifications ended, and the derived output registered against them is suspect."),
+                             "table": _table(["assertion", "key", "derived outputs registered against it"], [(x["id"], x["key"], ", ".join(x.get("derived") or [])) for x in s2["invalidated"]])})
                 susp = [x["id"] for x in s2["suspect_derived"] if x.get("suspect")]
                 secs.append({"heading": C("Derived outputs marked suspect"), "list": susp or ["none registered in this source"]})
             else:
