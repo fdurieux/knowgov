@@ -402,7 +402,7 @@ def _delivered(docs, turns_first, feedback=None):
     """The tool messages a stub model is handed on its second call, and the run's trace."""
     seen = []
 
-    def respond(messages, tools):
+    def respond(messages, tools, deadline=None):
         seen.append(list(messages))
         if len(seen) == 1:
             return _turn(turns_first)
