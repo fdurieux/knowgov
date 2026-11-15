@@ -290,6 +290,70 @@ def test_exec_08_a_stalled_or_trickling_stream_stops_at_the_monotonic_deadline()
     assert isinstance(seen["deadline"], float) and 45 < seen["deadline"] - time.monotonic() <= 50, seen
 
 
+def test_exec_08_a_blocked_ignoring_late_or_deadline_less_responder_never_yields_a_generate():
+    """V-F4 (task-0350): every responder call is supervised against the run's monotonic deadline. A call
+    that blocks past it, or accepts ``deadline`` and ignores it, ends the run at the seconds ceiling when
+    the deadline passes, its answer abandoned and never read; an answer returned at or past the deadline
+    is the ceiling, never a finish; a responder that cannot take ``deadline=`` is refused before any work."""
+    import agent
+    generate = {"content": json.dumps({"decision": "generate", "claims": ["late"]}), "tool_calls": [], "usage": {}}
+    finish = {"content": None, "tool_calls": [{"id": "c1", "name": "finish",
+                                               "arguments": json.dumps({"decision": "generate", "claims": ["late"]})}], "usage": {}}
+
+    def blocked(messages, tools, deadline=None):   # blocks well past the run's budget, then answers
+        time.sleep(1.5)
+        return dict(generate)
+
+    def ignoring(messages, tools, deadline=None):   # takes the deadline and sleeps through it
+        time.sleep(max(0.0, deadline - time.monotonic()) + 1.0)
+        return dict(finish)
+
+    def late(messages, tools, deadline=None):   # answers just after the deadline: a late final answer
+        time.sleep(max(0.0, deadline - time.monotonic()) + 0.01)
+        return dict(finish)
+    with tempfile.TemporaryDirectory() as td:
+        for name, responder, budget in (("blocked", blocked, 0.05), ("ignoring", ignoring, 0.3)):
+            t0 = time.monotonic()
+            r = agent.run("s", "u", sandbox=Path(td) / name, read_text=lambda p: "", feedback=lambda root, f: {}, tag="t",
+                          responder=responder, limits={"seconds": budget})
+            took = time.monotonic() - t0
+            assert not r["finished"] and r["parsed"]["decision"] == "abstain", (name, r["parsed"])
+            assert r["stopped_by"] == f"ceiling: {budget} seconds" and r["trace"][-1]["kind"] == "ceiling", (name, r["stopped_by"])
+            assert took < budget + 0.5, (name, took, "the run waited for the call instead of its deadline")
+        # the late answer: the supervisor's own wait is defeated by sleeping the deadline out inside the call
+        # and returning at once after; the expiry re-check refuses it all the same
+        keep = agent._wait_for
+        try:
+            agent._wait_for = lambda done, deadline: done.wait()   # as if the answer slipped in at the wire
+            r = agent.run("s", "u", sandbox=Path(td) / "late", read_text=lambda p: "", feedback=lambda root, f: {}, tag="t",
+                          responder=late, limits={"seconds": 0.2})
+        finally:
+            agent._wait_for = keep
+        assert not r["finished"] and r["stopped_by"] == "ceiling: 0.2 seconds", r["stopped_by"]
+        assert r["parsed"]["decision"] == "abstain" and "after the deadline" in r["trace"][-1]["text"], r["trace"][-1]
+        # the report's repro: no deadline parameter, 0.35 s of sleep, a 0.05 s budget, refused before any work
+        calls = []
+
+        def no_deadline(messages, tools):
+            calls.append(1)
+            time.sleep(0.35)
+            return dict(generate)
+        box = Path(td) / "refused"
+        try:
+            agent.run("s", "u", sandbox=box, read_text=lambda p: "", feedback=lambda root, f: {}, tag="t",
+                      responder=no_deadline, limits={"seconds": 0.05})
+        except TypeError as e:
+            assert "deadline" in str(e), e
+        else:
+            raise AssertionError("a responder that cannot take deadline= was run")
+        assert not calls and not box.exists(), "the refusal came after work"
+        # **kwargs takes the deadline by keyword, so it is admitted
+        r = agent.run("s", "u", sandbox=Path(td) / "kw", read_text=lambda p: "", feedback=lambda root, f: {}, tag="t",
+                      responder=lambda m, t, **kw: {"content": json.dumps({"decision": "abstain"}), "tool_calls": [], "usage": {}},
+                      limits={"seconds": 50})
+        assert r["finished"] and r["stopped_by"] is None, r["stopped_by"]
+
+
 def test_a_job_cannot_write_the_jobs_folder_so_it_cannot_forge_a_result_or_the_attestation():
     """Landlock (decision-0012's untrusted results): the job's child writes only beneath its own folder."""
     import worker

@@ -27,7 +27,7 @@ def _turn(calls=None, content=None, pt=1000, ct=100):
 def _scripted(turns):
     it = iter(turns)
 
-    def respond(messages, tools):
+    def respond(messages, tools, deadline=None):
         assert [t["function"]["name"] for t in tools] == ["read_document", "write_file", "run_suite", "finish"]
         return next(it)
     return respond
@@ -74,7 +74,7 @@ def test_tool_call_extra_content_goes_back_unchanged():
     first["extra_content"] = sig
     seen = []
 
-    def respond(messages, tools):
+    def respond(messages, tools, deadline=None):
         seen.append(messages)
         if len(seen) == 1:
             return _turn([first])
@@ -87,7 +87,7 @@ def test_tool_call_extra_content_goes_back_unchanged():
     plain = _turn([_call("read_document", path="b.md")])
     msgs = []
 
-    def respond2(messages, tools):
+    def respond2(messages, tools, deadline=None):
         msgs.append(messages)
         return plain if len(msgs) == 1 else _turn([_call("finish", decision="abstain", assumptions=[], questions=["q"], claims=[])])
     with tempfile.TemporaryDirectory() as td:
@@ -168,7 +168,7 @@ def test_a_json_reply_counts_as_a_finish_and_silence_is_nudged_then_stopped():
                        responder=_scripted([_turn(content="thinking...")] * 5))
         assert not r2["finished"] and r2["stopped_by"].startswith("no finish") and r2["totals"]["calls"] == agent.NUDGES + 1
         r3 = agent.run("s", "u", sandbox=Path(td) / "d", read_text=lambda p: "", feedback=lambda root, f: {}, tag="t",
-                       responder=lambda m, t: (_ for _ in ()).throw(RuntimeError("boom")))
+                       responder=lambda m, t, deadline=None: (_ for _ in ()).throw(RuntimeError("boom")))
         assert r3["stopped_by"].startswith("api error: boom") and r3["parsed"]["decision"] == "abstain"
 
 
@@ -236,7 +236,7 @@ def test_extra_readers_are_tools_and_every_read_is_logged_as_consulted():
              _turn([_call("finish", decision="abstain", questions=["q"])])]
     seen_tools = []
 
-    def respond(messages, tools):
+    def respond(messages, tools, deadline=None):
         seen_tools.append([t["function"]["name"] for t in tools])
         return turns.pop(0)
     kb = {"k1|v": "## k1|v level=proposed"}
