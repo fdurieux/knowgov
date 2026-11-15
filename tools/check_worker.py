@@ -7,6 +7,8 @@ Each check sends model-like code through the app's one execution path (harness/e
 reads what came back as untrusted data:
   EXEC-01  a secret-shaped variable set in the app, under a name no list knows, and the app's own
            store password, appear nowhere in the job's environment or output
+           (task-0349: only once the probe ran, exit 0, answered in shape and carried its witnesses,
+           the worker's PATH and the subject's KG_SUBJECT; the parent's environ read or refused by name)
   EXEC-02  a file only the app has is not visible; writes outside the job's folder fail; neither
            the app's runs nor an instance is mounted
   EXEC-03  a connection to the store and to the app fails: no network
@@ -59,6 +61,83 @@ def last_json(r: dict):
     return json.loads(lines[-1]) if lines else None
 
 
+# EXEC-01's probe (task-0349): the job's environment on its own line, flushed, before the worker parent's is
+# tried, so a refused /proc/1/environ can never suppress it; the parent's access is its own field, read or
+# refused with the error's name, never silent.
+EXEC01_PROBE = """import os, json, sys
+print(json.dumps({'env': dict(os.environ)}), flush=True)
+try:
+    parent = {'read': open('/proc/1/environ', 'rb').read().decode('latin-1')}
+except Exception as e:
+    parent = {'refused': type(e).__name__}
+print(json.dumps({'parent': parent}), flush=True)
+"""
+
+
+def _exec01_result(r) -> tuple[dict, str]:
+    """The probe's result as an object and its stdout as text, whatever came back."""
+    r = r if isinstance(r, dict) else {}
+    return r, r.get("stdout") if isinstance(r.get("stdout"), str) else ""
+
+
+def _exec01_lines(stdout: str) -> tuple:
+    """The probe's two lines as (env, parent), each None unless it is the one-key object expected."""
+    docs = []
+    for ln in (ln for ln in stdout.splitlines() if ln.strip()):
+        try:
+            docs.append(json.loads(ln))
+        except ValueError:
+            docs.append(None)
+    if len(docs) != 2:
+        return None, None
+    env, parent = ((d.get(k) if isinstance(d, dict) and set(d) == {k} else None) for d, k in zip(docs, ("env", "parent")))
+    return env, parent
+
+
+def _exec01_shaped(env, parent) -> tuple[bool, bool]:
+    """The job's environment a non-empty object of strings; the parent's access read, or refused by a name."""
+    env_ok = isinstance(env, dict) and bool(env) and all(isinstance(k, str) and isinstance(v, str) for k, v in env.items())
+    parent_ok = isinstance(parent, dict) and len(parent) == 1 and (
+        isinstance(parent.get("read"), str) or (isinstance(parent.get("refused"), str) and bool(parent["refused"])))
+    return env_ok, parent_ok
+
+
+def _exec01_witnessed(env: dict, path: str, subject_id: str) -> bool:
+    """The job's PATH the worker's, and its KG_SUBJECT the absolute root of the app's subject."""
+    subject = Path(env.get("KG_SUBJECT", ""))
+    return env.get("PATH") == path and subject.is_absolute() and subject.parts[-2:] == ("subjects", subject_id)
+
+
+def exec_01(r: dict, *, canaries: tuple[str, ...], store_pw: str, subject_id: str) -> list[tuple[bool, str]]:
+    """EXEC-01's verdict on the probe's result ``r`` (untrusted), pure (task-0349, V-F2). The probe must have
+    run: exit 0, its two lines, the job's environment a non-empty object of strings and the parent's access
+    read or refused by name. Positive witnesses next: the job's PATH the worker's and its KG_SUBJECT the
+    subject's root. Only then are the canaries' absence and the allowlist judged; each later check fails with
+    the first, so an empty or failed probe never prints ok."""
+    import worker
+    r, stdout = _exec01_result(r)
+    ran = r.get("exit") == 0 and r.get("stage") == "ok"
+    env, parent = _exec01_lines(stdout)
+    env_ok, parent_ok = _exec01_shaped(env, parent)
+    shaped = ran and env_ok and parent_ok
+    access = "read" if parent_ok and "read" in parent else parent
+    out = [(ran, f"EXEC-01 the probe ran: exit {r.get('exit')!r}, stage {r.get('stage')!r}"),
+           (shaped, f"EXEC-01 the probe's answer has its shape: the job's environment "
+                    f"({len(env) if env_ok else 'missing'} variables) and the worker parent's access ({access!r})")]
+    env = env if env_ok else {}
+    witnessed = shaped and _exec01_witnessed(env, worker.JOB_PATH, subject_id)
+    out.append((witnessed, f"EXEC-01 the job's environment carries its witnesses: PATH={env.get('PATH')!r} "
+                           f"(expected {worker.JOB_PATH!r}), KG_SUBJECT={env.get('KG_SUBJECT', '')!r} "
+                           f"(expected .../subjects/{subject_id})"))
+    blob = stdout + json.dumps(env) + (json.dumps(parent) if parent_ok else "")
+    leaked = [c for c in canaries if c and c in blob]
+    out.append((witnessed and not leaked, "EXEC-01 an unlisted secret-shaped variable of the app never reaches the job"
+                                          + (f": {len(leaked)} of its canaries leaked" if leaked else "")))
+    out.append((witnessed and not (store_pw and store_pw in blob),
+                "EXEC-01 the app's store password is in neither the job's nor the worker's environment"))
+    out.append((witnessed and set(env) <= set(worker.JOB_ENV), f"EXEC-01 the job's environment is the allowlist: {sorted(env)}"))
+    return out
+
 def main() -> int:
     import execution
     failures: list[str] = []
@@ -79,18 +158,15 @@ def main() -> int:
           and host.get("engine") == "docker" and set(a["checks"]) == set(execution.ATTEST_CHECKS),
           f"the worker attests its host, no check added: {host} (cloud reading: {place.get('cloud')})")
 
-    # EXEC-01
+    # EXEC-01 (task-0349, V-F2: a failed or empty probe proves nothing, so it fails)
+    from subject import SUBJECT
     name, value = "KG_UNLISTED_" + secrets.token_hex(4).upper(), "canary-" + secrets.token_hex(8)
     os.environ[name] = value
     store_pw = os.environ.get("KG_NEO4J_PASSWORD", "")
-    r = probe("import os, json\nprint(json.dumps({'env': dict(os.environ), 'pid1': open('/proc/1/environ','rb').read().decode('latin-1')}))")
+    r = probe(EXEC01_PROBE)
     os.environ.pop(name)
-    got = last_json(r) or {}
-    blob = json.dumps(got) + (r.get("stdout") or "")
-    check(name not in blob and value not in blob, "EXEC-01 an unlisted secret-shaped variable of the app never reaches the job")
-    check(not store_pw or store_pw not in blob, "EXEC-01 the app's store password is in neither the job's nor the worker's environment")
-    check(set(got.get("env", {})) <= {"PATH", "LANG", "HOME", "TMPDIR", "PYTHONDONTWRITEBYTECODE", "KG_SUBJECT", "KG_CLOCK"},
-          f"EXEC-01 the job's environment is the allowlist: {sorted(got.get('env', {}))}")
+    for cond, label in exec_01(r, canaries=(name, value), store_pw=store_pw, subject_id=SUBJECT.id):
+        check(cond, label)
 
     # EXEC-02
     canary = ROOT / "runs" / f"exec02-{secrets.token_hex(6)}"

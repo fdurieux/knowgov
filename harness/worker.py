@@ -38,6 +38,8 @@ OUTPUT_MAX = 1 << 20          # bytes of a job's stdout read
 JOB_MAX_SECONDS = 900.0       # the longest wall time a job may ask for, unless KG_WORKER_MAX_JOB_SECONDS says
 JOB_SPEC_MAX = 4 << 20        # bytes of job.json read (features text for the agent's feedback included)
 BEAT_S = 5.0
+JOB_PATH = "/usr/local/bin:/usr/bin:/bin"   # a job's PATH, EXEC-01's positive witness (task-0349)
+JOB_ENV = ("PATH", "LANG", "HOME", "TMPDIR", "PYTHONDONTWRITEBYTECODE", "KG_SUBJECT", "KG_CLOCK")
 
 
 # Landlock (Linux, unprivileged): the job's child may write only beneath its own folder, never the jobs
@@ -429,7 +431,7 @@ def run_job(jobdir: Path, workdir: Path, confine: bool = True) -> dict:
     before = _children()
     import tempfile
     workdir = Path(tempfile.mkdtemp(prefix="job-", dir=workdir))   # the job's own folder, the only place it may write
-    env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "LANG": "C.UTF-8", "HOME": str(workdir), "TMPDIR": str(workdir),
+    env = {"PATH": JOB_PATH, "LANG": "C.UTF-8", "HOME": str(workdir), "TMPDIR": str(workdir),
            "PYTHONDONTWRITEBYTECODE": "1", "KG_SUBJECT": str(sroot), "KG_CLOCK": "pinned"}
     proc = subprocess.Popen([sys.executable, "-I", str(HARNESS / "worker_job.py"), str(jobdir), str(workdir)],
                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
