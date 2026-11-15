@@ -118,7 +118,8 @@ owns them?*
     nothing until the attestation lists the new digests; the gate report names the code and suite it
     compared (decision-0040). What it does not prove is a fresh run: no oracle runs when the knowledge
     is loaded, so listing new digests asserts a result without running the suite again
-    (`docs/guide.md` §9, "When a review falls due"). The H7 probe, run on 2026-11-08 before this
+    (`docs/guide.md` §9, "When a review falls due"; one of 0.9.0's Known limits in `CHANGELOG.md`).
+    The H7 probe, run on 2026-11-08 before this
     binding, measured the earlier behaviour, a code change leaving the verification verified and the
     gate reading PROCEED; it stays the dated record of that code
     (`subjects/jef_data_load/probes/h7/RESULTS.md`). A verification by review does lapse, after its

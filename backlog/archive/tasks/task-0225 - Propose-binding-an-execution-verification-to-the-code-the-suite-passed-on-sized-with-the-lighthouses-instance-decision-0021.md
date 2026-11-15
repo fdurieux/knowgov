@@ -3,10 +3,10 @@ id: TASK-0225
 title: >-
   Propose binding an execution verification to the code the suite passed on,
   sized with the lighthouse's instance (decision-0021)
-status: Done
+status: To Do
 assignee: []
 created_date: '2026-11-08T16:22:00Z'
-updated_date: '2026-11-15T10:31:00Z'
+updated_date: '2026-11-15T10:43:00Z'
 labels:
   - gate
   - verification
@@ -42,10 +42,12 @@ This task drafts the decision, not the build: how the lighthouse's instance keep
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-11-15, superseded before it was drafted. decision-0038 N-b (reviewer A's re-check of task-0306: "Editing reference_impl.py keeps every execution verification and PROCEED, and nothing is named") chose option (a), "[verification] execution lists the digest of the code it ran on", and task-0320 built it before the 0.9.0 cut rather than at m-8: [verification] execution's implementation and suite, compared by load.execution_code, a mismatch or a missing list verifying nothing by execution, named by the gate's attestation finding. decision-0039 §3.5 (task-0338, task-0340) extended the suite digest to the files [oracle] suite declares; decision-0040 (task-0341) put the code and suite compared into the report's identity. What this task asked to decide (where the passed-on digest lives, what a mismatch reads) is therefore decided: in the subject's attestation, and a mismatch verifies nothing. docs/lighthouse-evaluation.md's Knowledge-quality gap was rewritten the same day to say so, with H7 kept as the dated record of the code it ran on (2026-11-08, before the binding landed on 2026-11-11). Remaining limit, not this task's: no oracle runs at load, so a listed digest asserts a result, never a fresh run (docs/guide.md §9).
+
+2026-11-15, later: archived rather than Done, because its acceptance criteria were superseded, not met. The binding it asked to propose is decided and built: decision-0038 N-b with task-0320 (the implementation and the suite by digest), decision-0039 §3.5 with task-0338 and task-0340 (the files [oracle] suite declares), decision-0040 with task-0341 (the code and suite compared, in the report's identity).
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Closed as superseded by decision-0038 N-b and task-0320, which bound an execution verification to the code and suite it ran on before the 0.9.0 cut; decision-0039 §3.5 and decision-0040 completed the binding and its report identity. No proposal was drafted and no acceptance criterion is checked: AC #1-#3 asked for a decision record, an H7 measurement and a 0.10.0 sizing for a binding that already exists, so none is met and none is needed. Nothing built here. Follow-up, not opened: a fresh-run receipt (a verification issued only by the run that passed) is a contract addition, 1.1.0 at the earliest (decision-0041), and sits with knowgov-bench's XR-05 if the maintainer wants it.
+Superseded, archived. decision-0038 N-b with task-0320, decision-0039 §3.5 with task-0338 and task-0340, and decision-0040 with task-0341 bound an execution verification to the code and suite it ran on, and named both in the report's identity, before the 0.9.0 cut. AC #1-#3 asked for a decision record, an H7 measurement and a 0.10.0 sizing for that binding; none is met and none is needed, so none is checked. Nothing built here. The remaining limit, that no oracle runs at load, is one of 0.9.0's Known limits. A fresh-run receipt would be a contract addition, 1.1.0 at the earliest (decision-0041); it is not opened here.
 <!-- SECTION:FINAL_SUMMARY:END -->
