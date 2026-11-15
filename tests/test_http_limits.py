@@ -429,7 +429,7 @@ def test_the_response_caps_are_bounded_settings_and_measured_defaults():
 
 
 def _numeric_cases(port: int):
-    """V-F1 (task-0349): the three long numeric inputs, nines and leading zeros, each as a raw request."""
+    """V-F1 (task-0350): the three long numeric inputs, nines and leading zeros, each as a raw request."""
     host = b"127.0.0.1:" + str(port).encode()
     for digits in ("9" * 5000, "0" * 5000, "0" * 4990 + "12345"):
         d = digits.encode()

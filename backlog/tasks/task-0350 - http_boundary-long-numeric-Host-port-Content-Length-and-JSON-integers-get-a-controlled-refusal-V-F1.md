@@ -1,16 +1,16 @@
 ---
-id: TASK-0349
+id: TASK-0350
 title: >-
   http_boundary: long numeric Host port, Content-Length and JSON integers get a
   controlled refusal (V-F1)
 status: To Do
 assignee: []
-created_date: '2026-11-15T19:38:00Z'
-updated_date: '2026-11-15T19:49:00Z'
+created_date: '2026-11-15T19:50:00Z'
+updated_date: '2026-11-15T19:50:00Z'
 labels:
   - bug
 dependencies: []
-ordinal: 341000
+ordinal: 342000
 ---
 
 ## Description
