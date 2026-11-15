@@ -21,6 +21,7 @@ names that section with the version.
 
 ### Known limits
 
+- knowgov's history is not tamper-evident against whoever administers its storage. An administrator who can write the store, the trace ledger and, once it exists, the journal and its trust policy can rewrite them together and recompute every digest. Detection needs an independently controlled witness, built only on demand (decision-0045 Q1, P5).
 - Handles are issued strings, not authenticated: the self-review refusal (a ruling whose `by` equals the capture's `from`) compares handles, so one person claiming two handles at ingest, or editing a capture file's `from` after ingest (the load does not compare the file stem with `from` or re-check `from` against the issued list), is not stopped. The directory and the pull request review bind a handle to a person (decision-0002). Closing the edit-after-ingest route is a 1.1.0 candidate (task-0347).
 - A document's statements are attested by `[provenance] human`, the same identity recorded as their author (CargoQuote S1: 23 of 23 approved authored statements, author = reviewer = approver = `agent:maintainer`). The four eyes are the pull request that adds the declaration (decision-0009 (a)); no tool checks them. A separate drafter is a 1.1.0 candidate (task-0347).
 
