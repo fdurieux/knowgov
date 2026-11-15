@@ -3,11 +3,11 @@ id: TASK-0348
 title: >-
   check_snapshots: SNAP-08 and SNAP-11 judge a lease live from the server, not
   the client clock
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-15T17:24:00Z'
-updated_date: '2026-11-15T18:52:00Z'
+updated_date: '2026-11-15T19:33:00Z'
 labels:
   - neo4j
   - probe
@@ -46,4 +46,6 @@ The maintainer ran tools/check_snapshots.py --disposable against Neo4j Desktop 2
 Audit: client-clock inference of 'live' existed only in SNAP-08's `live = monotonic() - t0 < LEASE_08`. The sleeps in SNAP-03 (3.5 s), SNAP-05 (2.5 s), SNAP-08 x3 and SNAP-11 (LEASE_08+0.5-elapsed) err long under latency, so were safe, but now all poll the server's own expiry. SNAP-03/SNAP-11 'a read is refused while the lease is live' read at once with KG_NEO4J_READ_WAIT=0 right after a kill; they assert StoreBusy only, no client timing, safe. Slow-link simulation (scratch only): _Unit.state's answer delayed 3.8 s after the server answered; the old check fails exactly the reported line, the new passes. Mutation A (pin answers instead of refusing) and B (refusal names the wrong epoch) each fail SNAP-08's live line; reverted.
 
 Full suite on this head: 1324/1325 with test_a_call_for_another_subject_runs_in_a_child_equal_to_a_reader_started_on_it failing only inside the full run (scenario_runs routed != direct); it passes alone on main and on this branch. Not touched by this diff (tools/check_snapshots.py, CHANGELOG); CI to confirm. Second head 277cd53 reads the server through a read handle's _Unit.state, since test_security forbids tools importing the neo4j driver.
+
+Merged as fdurieux/knowgov#559 (c427338), 2026-11-15, on the whole matrix with stack. The maintainer's Desktop run (task-0345) is the case it was written for.
 <!-- SECTION:NOTES:END -->
