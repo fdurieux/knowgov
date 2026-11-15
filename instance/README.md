@@ -1227,8 +1227,8 @@ export KG_NEO4J_URI=bolt://localhost:7687 KG_NEO4J_USER=neo4j KG_NEO4J_PASSWORD=
 Neo4j is not at `localhost` there. On Docker Desktop the host is `host.docker.internal`: set
 `KG_NEO4J_URI=bolt://host.docker.internal:7687` for the `app` and `worker` services, through a
 `docker-compose.override.yml` environment entry or your own compose file. The stack's own Neo4j
-publishes the same port (7687) on the host, so stop it, or set `KG_PORT_BOLT` to another port,
-before the Desktop DBMS takes 7687. Linux without Docker Desktop has no such name unless you add
+publishes the same port (7687) on the host, so stop it, or publish the stack's bolt port elsewhere
+(its compose file names the setting), before the Desktop DBMS takes 7687. Linux without Docker Desktop has no such name unless you add
 `extra_hosts: ["host.docker.internal:host-gateway"]` to the service. The simplest route is the next
 one.
 
