@@ -90,7 +90,8 @@ def test_the_cadence_is_the_registers_and_a_product_key_reviews_at_six_months():
     by_key, default = cadence.cadence(CARGO_QUOTE)
     assert default == 12 and set(by_key) == {r["key"] for r in CARGO_QUOTE.register_map()["row"]}
     six = {k for k, m in by_key.items() if m == 6}   # register decision 0013 (v0.2.7): a step or a touchpoint, six months
-    assert set(by_key.values()) == {6, 12} and len(six) == 12 and all(cadence.kind_for(k, CARGO_QUOTE) == "step" for k in six), six
+    # 12 of codegen's rows, and since decision-0044 six of design's: REQ-01, 02, 03, 04 and 06's text and shipper|uses:quote_api
+    assert set(by_key.values()) == {6, 12} and len(six) == 18 and all(cadence.kind_for(k, CARGO_QUOTE) == "step" for k in six), six
     jef, _ = cadence.cadence(JEF)
     product = [r["key"] for r in JEF.register_map()["row"] if any(n.startswith("PRD-") for n in r["nodes"])]
     assert len(product) == 21 and all(jef[k] == 6 for k in product), "decision-0005: 21 of J-F's keys concern a product"

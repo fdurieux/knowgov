@@ -9,8 +9,9 @@ REL-06001 withdrawn), then runs ``harness/gate_cli.py --scenario S1 --as-of reco
 
 1. the change: exit 1; the report's ``register_change`` names CAP-0001 and REL-06001, each with the
    fixture's decision record as reason. CAP-0001's children were moved, not withdrawn, so it lands
-   nothing; REL-06001 lands the eight DT-V keys and their 15 statements. Every one is a stale finding
-   naming that reason, and ``derived:S1:G:run1``, the record's S1 output, is a suspect blocker;
+   nothing; REL-06001 lands the eight DT-V keys and their 15 statements, and since decision-0044 the three
+   design keys on its ends and their three statements. Every statement on the task's keys, codegen's
+   DT-V ones, is a stale finding naming that reason, and ``derived:S1:G:run1``, the record's S1 output, is a suspect blocker;
 2. a register update with no state change: nothing withdrawn, nothing invalidated, and the report
    equal to the gate's without the flag, ``register_change`` aside: exit 0, the record's PROCEED.
 
@@ -46,10 +47,30 @@ SCENARIO = "S1"
 DERIVED = "derived:S1:G:run1"
 # The fixture moves every child of CAP-0001 under CAP-0006, so they were moved, not withdrawn, and the
 # deprecation lands nothing (the maintainer, 2026-11-04); REL-06001 lands the eight DT-V rows, and on
-# S1 their 15 statements, measured equal on Neo4j and rdflib.
+# S1 their 15 statements, measured equal on Neo4j and rdflib. Since decision-0044 the map has rows for the
+# design class's keys too, three of which rest on REL-06001 (QuoteAPI and Validate the request, or the submit
+# step): their statements are invalidated as well, and the gate, read under codegen, reports stale only its own.
 KEYS = {"shipper_id|present", "weight_kg|min", "weight_kg|max", "distance_km|min", "distance_km|max",
         "declared_value|min", "declared_value|max", "invalid_request|behaviour"}
+DESIGN_KEYS = {"REQ-04|text", "REQ-04|implemented_by", "shipper|uses:quote_api"}
 STATEMENTS = 15
+DESIGN_STATEMENTS = 3
+
+
+def statement_key(sid: str) -> str:
+    """``A:<artefact>:<key>@<version>``'s key."""
+    return sid.split(":", 2)[2].rsplit("@", 1)[0]
+
+
+def invalidated_failures(store: str, invalidated: list[str], stale: list[str]) -> list[str]:
+    """DT-V's 15 statements and design's three invalidated; the gate's stale ones exactly DT-V's, the task's."""
+    out = []
+    if len(invalidated) != STATEMENTS + DESIGN_STATEMENTS:
+        out.append(f"{store} changed: {len(invalidated)} statements invalidated; want {STATEMENTS + DESIGN_STATEMENTS}")
+    on_task = sorted(s for s in invalidated if statement_key(s) in KEYS)
+    if len(on_task) != STATEMENTS or on_task != sorted(stale) or {statement_key(s) for s in set(invalidated) - set(on_task)} != DESIGN_KEYS:
+        out.append(f"{store} changed: {len(invalidated)} invalidated, {len(stale)} stale on the task's keys; want {STATEMENTS} on DT-V's, the rest on design's")
+    return out
 
 
 def gate(out: Path, name: str, store: str, register: Path | None, *args: str) -> dict:
@@ -119,16 +140,13 @@ def main(argv: list[str] | None = None) -> int:
             failures.append(f"{store} changed: withdrew nodes {sorted(nodes)} and links {sorted(links)}; want CAP-0001 and REL-06001")
         if any(x["reason"] != reason for x in [*nodes.values(), *links.values()]):
             failures.append(f"{store} changed: a reason is not the fixture's decision record ({reason})")
-        if {k["key"] for k in rc.get("keys", [])} != KEYS or any(k["causes"] != ["REL-06001"] for k in rc.get("keys", [])):
-            failures.append(f"{store} changed: keys {sorted(k['key'] for k in rc.get('keys', []))}; want the DT-V rows, each through REL-06001 alone")
-        if len(rc.get("invalidated") or []) != STATEMENTS:
-            failures.append(f"{store} changed: {len(rc.get('invalidated') or [])} statements invalidated; want {STATEMENTS}")
-        if not rc.get("invalidated") or sorted(rc["invalidated"]) != sorted(ch["stale"]):
-            failures.append(f"{store} changed: {len(rc.get('invalidated') or [])} invalidated, {len(ch['stale'])} stale on the task's keys")
+        if {k["key"] for k in rc.get("keys", [])} != KEYS | DESIGN_KEYS or any(k["causes"] != ["REL-06001"] for k in rc.get("keys", [])):
+            failures.append(f"{store} changed: keys {sorted(k['key'] for k in rc.get('keys', []))}; want the DT-V rows and design's three, each through REL-06001 alone")
+        failures += invalidated_failures(store, rc.get("invalidated") or [], ch["stale"])
         if not stale or any(reason not in f["message"] or not f.get("owner") for f in stale):
             failures.append(f"{store} changed: every stale finding names the decision and its key's owner")
-        if {f["key"] for f in stale} != {k["key"] for k in rc.get("keys", [])}:
-            failures.append(f"{store} changed: the stale findings' keys are not the keys resting on the change")
+        if {f["key"] for f in stale} != {k["key"] for k in rc.get("keys", [])} - DESIGN_KEYS:
+            failures.append(f"{store} changed: the stale findings' keys are not the task's keys resting on the change")
         if rc.get("derived") != DERIVED or ch["suspect_derived"] != [DERIVED] or not any(
                 f["kind"] == "suspect_derived" and f["severity"] == "blocker" and f["ref"] == DERIVED for f in ch["findings"]):
             failures.append(f"{store} changed: {DERIVED} is not registered and reported suspect, a blocker")
