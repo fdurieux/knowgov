@@ -3,11 +3,11 @@ id: TASK-0210
 title: >-
   A test task class on CargoQuote, stricter than codegen, rehearsed (doc-0031
   step 1)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-07T08:46:00Z'
-updated_date: '2026-11-15T15:01:00Z'
+updated_date: '2026-11-15T16:54:00Z'
 labels:
   - gate
   - subjects
@@ -67,6 +67,8 @@ check_round_trip.py --chain rdflib,rdflib: every answer survives. check_mcp_serv
 Owner rows: REQ-01..08|text have none in register_map.toml; all eight are among the design class's 21 the sibling session adds (decision-0044 point 3). The other 36 are codegen's, all owned.
 
 Full suite KG_CLOCK=pinned python tests/run_tests.py: 1324/1325 passed, 1 skipped, 0 failed. Final status left to the coordinating session (CI pending).
+
+Merged as fdurieux/knowgov#555 (24ba636), 2026-11-15, on the whole matrix with stack, under decision-0044 point 2 (subject content in 0.9.x with the record untouched). The class's eight REQ-0n|text keys gained owner rows in #557 (decision-0044 point 3).
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
