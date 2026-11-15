@@ -72,7 +72,7 @@ exception before the replacement publishes nothing and releases the lock. After 
 synced: an I/O error opening or syncing the directory fails the commit (an `OSError` keeping its errno, so
 a command exits 2) and says the new snapshot may already be visible and its durability across a crash is
 indeterminate, never that the previous file stands; the lock is released and the next reader and writer
-open the new file (task-0351, V-F3). A directory sync the platform does not support (EISDIR, ENOTSUP or
+open the new file (task-0352, V-F3). A directory sync the platform does not support (EISDIR, ENOTSUP or
 Windows opening it, EINVAL or ENOTSUP syncing it) is not an error, and the entry's durability is then the
 filesystem's. A file that
 does not parse is reported and left as it is, never read as an empty store. Supported on POSIX

@@ -1,12 +1,12 @@
 ---
-id: TASK-0351
+id: TASK-0352
 title: >-
   rdflib store: a directory fsync failure is surfaced, the post-replacement
   outcome stated (V-F3)
 status: In Progress
 assignee: []
-created_date: '2026-11-15T19:56:00Z'
-updated_date: '2026-11-15T19:56:00Z'
+created_date: '2026-11-15T19:59:00Z'
+updated_date: '2026-11-15T19:59:00Z'
 labels: []
 dependencies: []
 priority: high
