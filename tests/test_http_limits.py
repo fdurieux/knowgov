@@ -426,3 +426,55 @@ def test_the_response_caps_are_bounded_settings_and_measured_defaults():
         p = subprocess.run([sys.executable, str(ROOT / "harness" / script)], input="", capture_output=True, text=True, timeout=60,
                            env={**os.environ, "KG_MCP_MAX_RESPONSE": "1"})
         assert p.returncode == 2 and "KG_MCP_MAX_RESPONSE" in p.stderr, (script, p.returncode, p.stderr[-300:])
+
+
+def _numeric_cases(port: int):
+    """V-F1 (task-0349): the three long numeric inputs, nines and leading zeros, each as a raw request."""
+    host = b"127.0.0.1:" + str(port).encode()
+    for digits in ("9" * 5000, "0" * 5000, "0" * 4990 + "12345"):
+        d = digits.encode()
+        yield ("content-length", digits[:3], b"POST /X HTTP/1.1\r\nHost: " + host + b"\r\nContent-Type: application/json\r\n"
+               b"Connection: close\r\nContent-Length: " + d + b"\r\n\r\n{}")
+        yield ("host-port", digits[:3], b"GET /X HTTP/1.1\r\nHost: localhost:" + d + b"\r\nConnection: close\r\n\r\n")
+    for body in (b'{"n": ' + b"9" * 5000 + b"}", b'{"n": -' + b"0" * 5000 + b"1}"):
+        yield ("json-integer", body[:12], _post(port, "/X", body))
+
+
+def test_limit_09_a_long_numeric_header_or_json_integer_is_a_controlled_refusal():
+    big = hb.Limits(max_body=16384, read_timeout=1.5, idle_timeout=1.0, max_connections=3)
+    with _page(big) as (httpd, calls, log):
+        port = httpd.server_address[1]
+        for kind, tag, raw in _numeric_cases(port):
+            got, data = _send(port, raw.replace(b"/X", b"/api/run"))
+            assert got in (400, 413) and b"Traceback" not in data, (kind, tag, got, data[:120])
+        assert calls["start"] == 0
+        assert _send(port, b"GET /api/subjects HTTP/1.1\r\nHost: 127.0.0.1:" + str(port).encode()
+                     + b"\r\nConnection: close\r\n\r\n")[0] == 200
+        assert not any("Traceback" in line for line in log)
+    with _mcp(big) as (httpd, calls):
+        port = httpd.server_address[1]
+        for kind, tag, raw in _numeric_cases(port):
+            got, data = _send(port, raw.replace(b"/X", b"/mcp"))
+            assert got in (400, 413) and b"Traceback" not in data, (kind, tag, got, data[:120])
+        body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}).encode()
+        assert _send(port, _post(port, "/mcp", body))[0] == 200
+        # a header refusal never reaches the handler; a JSON body does, and its parser (parse_json, as the real
+        # handle_http calls it) answers 400, which the loop above asserted
+        assert len(calls) == 3, len(calls)   # the two JSON bodies and the ordinary request
+
+
+def test_limit_09_parse_json_and_the_authority_refuse_a_long_integer_as_their_own_errors():
+    for text in ('{"n": ' + "9" * 5000 + "}", "[" + "0" * 5000 + "1]", b'{"n": ' + b"9" * 5000 + b"}"):
+        try:
+            hb.parse_json(text)
+        except hb.NotJson:
+            pass
+        else:
+            raise AssertionError("a long integer was parsed")
+    for port in ("9" * 5000, "0" * 5000):
+        try:
+            hb.parse_authority("localhost:" + port, 80)
+        except hb.BadAuthority:
+            pass
+        else:
+            raise AssertionError("a long port was accepted")
