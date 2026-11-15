@@ -3,10 +3,10 @@ id: TASK-0351
 title: >-
   http_boundary: long numeric Host port, Content-Length and JSON integers get a
   controlled refusal (V-F1)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-15T19:54:00Z'
-updated_date: '2026-11-15T19:55:00Z'
+updated_date: '2026-11-15T21:49:00Z'
 labels:
   - bug
 dependencies: []
@@ -33,3 +33,9 @@ External validation of 0.9.1 (V-F1): harness/http_boundary.py converts unbounded
 <!-- SECTION:NOTES:BEGIN -->
 Regressions test_limit_09_* in tests/test_http_limits.py failed before the fix (Content-Length: traceback, zero response bytes) and pass after; full suite 1223/1327 passed, 104 skipped, 0 failed. Fix: Host port length-checked before int(), Content-Length over 20 digits a 400, parse_json maps the integer-string ValueError to NotJson.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+A 5,000-digit Host port, Content-Length or JSON integer is a 400 on both servers, never a dropped connection; dispatch stays zero and the next request is served. Merged through train #569 (b2dcc5b), whole matrix green incl. stack.
+<!-- SECTION:FINAL_SUMMARY:END -->

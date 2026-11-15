@@ -3,10 +3,10 @@ id: TASK-0352
 title: >-
   rdflib store: a directory fsync failure is surfaced, the post-replacement
   outcome stated (V-F3)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-15T19:59:00Z'
-updated_date: '2026-11-15T19:59:00Z'
+updated_date: '2026-11-15T21:49:00Z'
 labels: []
 dependencies: []
 priority: high
@@ -44,3 +44,9 @@ External validation of 0.9.1 (538618f), finding V-F3: harness/store_rdflib.py _f
 <!-- SECTION:NOTES:BEGIN -->
 ST-10 (tests/test_store_persistence.py) failed before the fix (directory open EIO and directory fsync EIO each: commit returned) and passes after. Suite pinned 1324/1326, 2 skipped, 0 failed; KG_STORE=rdflib deterministic run + comparator 0 differing leaves over 7 scenarios; check_snapshots --disposable on rdflib: every check holds. Outcome: an OSError keeping its errno (no new exception name), exit 2 through cli_exit for run.py and gate_cli; the page's run is a run.py child (exit 2 -> failed), its projection route answers 503 with the message.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+store_rdflib._fsync_dir tells an unsupported directory sync from an I/O failure and surfaces the latter: commit() raises a documented store error saying the new snapshot may be visible and its durability indeterminate; lock released, next reader and writer work; exit 2 on the callers (ST-10). Merged through train #569 (b2dcc5b), whole matrix green incl. stack.
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -3,11 +3,11 @@ id: TASK-0350
 title: >-
   agent: a late or deadline-ignoring responder never yields a successful
   generate (V-F4)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-15T19:51:00Z'
-updated_date: '2026-11-15T20:20:00Z'
+updated_date: '2026-11-15T21:49:00Z'
 labels:
   - review
   - runs
@@ -50,5 +50,5 @@ Contract: responder(messages, tools, deadline=None), deadline by keyword (a name
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-agent.run supervises every responder call against the run's monotonic deadline. A blocked or deadline-ignoring call ends the run at the seconds ceiling when the deadline passes, a late answer is never a finish, and a responder that cannot take deadline= is refused before any work. EXEC-08 gains the four cases; red before the fix (the report's generate), green after. Residual risk: an injected responder's own work is abandoned, not cancelled.
+The responder contract is responder(messages, tools, deadline=None); one without deadline= is refused before any work. agent.supervised bounds each call at the run's deadline and refuses an answer at or past it (LateAnswer), never a successful generate. EXEC-08 covers a blocked, a deadline-ignoring and a late responder. Merged through train #569 (b2dcc5b), whole matrix green incl. stack; the train adapted task-0353's stub to the contract.
 <!-- SECTION:FINAL_SUMMARY:END -->
