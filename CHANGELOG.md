@@ -10,6 +10,7 @@ names that section with the version.
 
 ## Unreleased
 
+- `instance/README.md` gains "Running against a Neo4j outside the stack": the `KG_NEO4J_*` settings, the host address from the stack's containers, the memory and privilege caveats, and a runbook of existing checks, with how to read D1 apart, for a Neo4j such as Neo4j Desktop (decision-0042). The record, the compose image and CI stay on the 5.26 container; no setting, schema or exit changes.
 - The published compose file runs the v0.9.1 release: `app` and `worker` pin `ghcr.io/fdurieux/knowgov:v0.9.1` by its index digest (`sha256:d5986416…`), where they ran v0.9.0.
 
 ## 0.9.1 — 2026-11-14

@@ -1197,6 +1197,99 @@ heap, or the setting it names.
 - `KG_LOAD_MEMORY_MARGIN` (0 to 4, default 0.25) sets the margin.
 - The rdflib store has no transaction memory, and is never refused.
 
+## Running against a Neo4j outside the stack
+
+The stack starts its own Neo4j, a container on version 5.26 (Community Edition). You can point knowgov
+at a different Neo4j instead, for example one you run in Neo4j Desktop, the application that runs
+databases on your own computer. knowgov needs no code change for this: it reaches any Neo4j through
+three settings. The record (the scored results), the compose image and CI stay on the 5.26 container,
+so a run against anything else is an exploration, never a replacement for the record.
+
+A few words used below. A *DBMS* is one running Neo4j server; it holds one or more *databases*. The
+*home database* is the one a connection uses when it names none, `neo4j` unless your server says
+otherwise. *D1* is the constraint measurement the deterministic run records: it tries to create
+each constraint the platform would like and notes whether the server accepted it (see "Reading D1"
+below). *Enterprise* is the paid edition of Neo4j; Desktop runs it under a development licence.
+
+**The three settings.** Set them in the shell that runs the commands:
+
+| Setting | Set it to | In plain English |
+|---|---|---|
+| `KG_NEO4J_URI` | `bolt://localhost:7687` | the address of the server; the port is the DBMS's bolt port, shown in Desktop |
+| `KG_NEO4J_USER` | `neo4j` | the user name |
+| `KG_NEO4J_PASSWORD` | the password you gave the DBMS | the password |
+
+```bash
+export KG_NEO4J_URI=bolt://localhost:7687 KG_NEO4J_USER=neo4j KG_NEO4J_PASSWORD='the password'
+```
+
+**From the stack's containers.** A container's `localhost` is the container itself, so the host's
+Neo4j is not at `localhost` there. On Docker Desktop the host is `host.docker.internal`: set
+`KG_NEO4J_URI=bolt://host.docker.internal:7687` for the `app` and `worker` services, through a
+`docker-compose.override.yml` environment entry or your own compose file. The stack's own Neo4j
+publishes the same port (7687) on the host, so stop it, or publish the stack's bolt port elsewhere
+(its compose file names the setting), before the Desktop DBMS takes 7687. Linux without Docker Desktop has no such name unless you add
+`extra_hosts: ["host.docker.internal:host-gateway"]` to the service. The simplest route is the next
+one.
+
+**From a venv, with no containers.** In a Python virtual environment with the pins of
+`demo/Dockerfile` (`neo4j`, `rdflib`, `pyshacl`, `pyyaml`, `pumllint`; the J-F subject's oracle pins
+too, if you run it), run the commands below from your checkout. They need no stack.
+
+**What to know first.**
+
+- **Use an empty database, and one you can lose.** The load replaces everything in the database it
+  reaches, the home database of the DBMS and user you name. Make a new DBMS in Desktop for this and
+  do not point it at one that holds your own graphs.
+- **Memory.** A load is one transaction held in the server's memory (see "Sizing the Neo4j heap").
+  Desktop sets the heap per DBMS in its settings; the defaults of a new DBMS may be below what a
+  full run needs. A load the forecast says will not fit is refused, exit 2, before it writes.
+  `KG_LOAD_MEMORY_CHECK=off` loads it anyway, and the store keeps what it held if it then fails.
+- **Privilege.** A second writer that takes over from a dead one ends the dead writer's open
+  transaction with `TERMINATE TRANSACTIONS`. A user without that privilege is not refused: the
+  platform skips the termination and fences the dead writer by its epoch instead. The `neo4j` user
+  of a DBMS you created has it.
+- **A newer Neo4j or Enterprise features may change results.** The record was made on 5.26 Community.
+  A different version can change a message, an ordering or a limit; Enterprise accepts constraints
+  that Community refuses, which changes D1 (below). Report any difference; do not read it as a
+  regression until it is compared with a 5.26 Community run.
+
+**The runbook.** Run these in order from the checkout root, on an empty database, with the three
+settings set. Each proves one thing; none calls a model.
+
+1. **`python tools/check_snapshots.py --disposable`**: *this command wipes and reloads the database
+   many times.* It refuses without `--disposable`, which is your word that nothing in the database
+   matters. It proves the store's generations on this Neo4j (SNAP-01 to SNAP-11): a reader sees one
+   whole published load or is told to retry, a killed writer leaves the last published load in
+   place, two writers do not merge, and the round trip through the other adapter holds every answer.
+   It exits 0 when every check holds. It takes a few minutes.
+2. **`python harness/run.py --deterministic --out <dir>`**: loads each of the subject's seven
+   scenarios and writes what the platform decided: the gate's verdict, the rules' findings, the
+   counts. It proves the pipeline runs against this Neo4j end to end. It calls no model.
+3. **`python demo/tools/compare_deterministic.py <dir>`**: compares that run, leaf by leaf, with the
+   scored record. It proves your Neo4j gives the record's answers. It exits 0 when no leaf
+   differs (`OK: 0 differing leaf/leaves over 7 scenario(s)`).
+4. **`python demo/tools/check_saved_queries.py`**: runs every saved query the page offers through the
+   store. They are console text that nothing else executes, so this is what proves each one parses
+   and runs on this server. It prints `every saved query ran`.
+
+**Reading D1.** D1 is the one leaf the comparator holds apart: it compares D1 only between runs of
+the same store kind, because it measures the server's edition, not the platform. Each scenario's
+`<dir>/<scenario>/deterministic.json` carries it under `D1_constraints`, one entry per constraint
+with its `type`, its Cypher, `accepted` and the server's `message`. On 5.26 Community the six
+uniqueness constraints are accepted and three are refused, because Community does not offer
+them: `assertion_status` (existence), `fragment_key` (node key) and `version_sha` (property type).
+On Enterprise, which Desktop may run, some or all of the three may be accepted. That is a difference
+to report, not a failure: the comparator's other leaves must still show no difference.
+
+**What to send back.** Collect, and send together:
+
+- the Neo4j version and edition (`CALL dbms.components()` in Neo4j Browser, or Desktop's DBMS panel);
+- each command's result: its exit code and last line, and the comparator's line per scenario;
+- D1's accepted and refused constraints, from any one scenario's `deterministic.json`;
+- the heap setting, if you changed it, and any memory refusal's message;
+- any difference you noticed from the stack's 5.26 container.
+
 ## Starting the demo on your instance
 
 ```bash
