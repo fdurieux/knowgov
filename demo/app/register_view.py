@@ -352,7 +352,7 @@ def with_statements(walk: dict, read: dict, needs_text: str) -> dict:
     walk["statements"] = {"rows": rows, "missing": read.get("missing"), "needs": "register+scenario", "needs_text": needs_text}
     text = C(f"These assertions are those the approved links of {walk['from']} cite, at the grain of the cited anchor.",
              "An anchor such as #DT-P names only the fragments under it; a citation without one names the whole document.",
-             "Every version is read, so an invalidated assertion still shows the derived code that used it.",
+             "Every version is read, so an invalidated assertion still shows the derived code registered against it.",
              "The join is the start's own cited anchors.",
              "It does not use the register map, as the MCP server's register_impact does.")
     missing = {"driver": C("The store driver is not installed here, so no assertion is shown."),
@@ -451,7 +451,7 @@ def changed_artefact(scenario: str) -> str:
 
 REF_KINDS = ("node", "link", "req", "key", "doc")
 LEVEL_TIP = {
-    "approved": "Verified and approved by the owner; the gate may build on it.",
+    "approved": "Approved under an issued handle (not authenticated), by the owner; the gate may build on it.",
     "validated": "Two documents agree and nobody has verified it; the gate counts it below approved.",
     "proposed": "One document states it and nobody has verified it.",
     "declared_gap": "The documents themselves say this knowledge is not there yet.",

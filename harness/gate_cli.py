@@ -12,7 +12,7 @@ in this process's memory, decision-0017), runs the rules, resolves the task's re
 
     blocker   a required key at one of the task's block levels (absent, a declared gap, disputed,
               invalidated), or the task as a whole when too many keys are below verified;
-              a registered derived output (generated code) that used a statement now invalidated:
+              a derived output (generated code) registered against a statement now invalidated:
               it may not be reused as it is, whatever the verdict on the keys (task-0048)
     major     a required key below verified (proposed or validated); under a class that requires
               approved (``require_approved``, task-0215), a key verified but not approved (``intended``);
