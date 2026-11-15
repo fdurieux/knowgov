@@ -150,16 +150,15 @@ release commit when the owner publishes, the session pushes a throwaway `release
 as the Release's target. The only holds are a PR whose merge would decide what the maintainer has not
 (a decision to accepted, an approval) and an ordering a brief states.
 
-GitHub auto-merge is on (2026-11-03): the ruleset on `main` requires `tests` and `rdflib`, not
+GitHub auto-merge is on (2026-11-03): the ruleset on `main` requires `tests`, `rdflib` and `rdflib-readers` (the last added by the maintainer on 2026-11-15), not
 `stack` (path-filtered, so a required `stack` would leave a PR pending forever) and not an
 up-to-date branch. So: a PR whose diff touches `stack`'s paths (`demo/`, `harness/`, `subjects/`,
 `tools/`, `demo.yml`) gets auto-merge only once `stack` is green on its head, or is merged by hand
-then; any other PR gets auto-merge when it opens. Until `rdflib-readers` is a required check, auto-merge
-would not wait for it, so a PR gets auto-merge only once `rdflib-readers` is green too, or is merged by hand then. A PR that must wait (a proposed decision, an
+then; any other PR gets auto-merge when it opens. A PR that must wait (a proposed decision, an
 ordering) gets none. A `stack` red on `main` after a merge is fixed at once. `harness.yml` runs two
 jobs in parallel (task-0163): `rdflib`, the record and its round trip, and `rdflib-readers`, the
-readers; every step of the old `rdflib` runs in exactly one (`tests/test_rdflib_split.py`), and
-`rdflib-readers` gates once the maintainer adds it to the ruleset's required checks.
+readers; every step of the old `rdflib` runs in exactly one (`tests/test_rdflib_split.py`), and both
+are required checks.
 
 **Sub-sessions: model and effort fitted to the work** (maintainer, 2026-11-09). A coordinating session picks each sub-session's model and reasoning effort for what it will do, and names the choice in the brief and in its reply to the maintainer:
 - the most capable model at high effort for a build that crosses modules or moves a contract, and for every probe, re-probe and re-check;

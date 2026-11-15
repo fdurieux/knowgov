@@ -120,8 +120,7 @@ jobs:
 
   rdflib-readers:
     # task-0163: the readers (MCP server, lighthouse, the gate, the wrappers, review, capture, transcript, ...),
-    # in parallel with rdflib; nothing of either is dropped or subset. Gates once the maintainer adds it to
-    # the ruleset's required checks.
+    # in parallel with rdflib; nothing of either is dropped or subset. A required check on main (2026-11-15).
     runs-on: ubuntu-latest
     permissions:
       contents: read
