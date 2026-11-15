@@ -464,18 +464,19 @@ def _unit(handle):
     return getattr(handle, "_inner", handle)._pub
 
 
+_PROBE = None   # Neo4j: a read handle opened before any lease is live, its driver the one these checks ask the server with
+
+
 def _await_lease_end(limit: float = 60.0) -> None:
-    """Wait until the server itself says the publication node's lease has run out (its own ``datetime()``), polling
-    with the driver alone; never the client's clock against a lease constant, which a slow link makes wrong (task-0348)."""
-    import store_neo4j
-    from neo4j import GraphDatabase
+    """Wait until the server itself says the publication node's lease has run out (its own ``datetime()``, through
+    the adapter's ``state``), never the client's clock against a lease constant, which a slow link makes wrong
+    (task-0348). No module here imports the driver; the probe is a handle opened at the start."""
     end = time.monotonic() + limit
-    with GraphDatabase.driver(store_neo4j.URI, auth=store_neo4j.AUTH) as drv, drv.session() as sess:
-        while time.monotonic() < end:
-            r = sess.run(f"{store_neo4j.PUB_MATCH} RETURN coalesce(p.expires < datetime(), true) AS expired").single()
-            if r is None or r["expired"]:
-                return
-            time.sleep(0.2)
+    while time.monotonic() < end:
+        st = _unit(_PROBE).state()
+        if st is None or st["expired"] or st["owner"] is None:
+            return
+        time.sleep(0.2)
     raise RuntimeError(f"the lease had not run out on the server after {limit:g} s")
 
 
@@ -834,6 +835,8 @@ def main() -> int:
     s1, s2 = SUBJECT.order[0], SUBJECT.order[1]
     import register_project
     g1, g2 = publish(s1), publish(s2)
+    global _PROBE
+    _PROBE = opener("read") if kind() == "neo4j" else None
     g2r = publish(s2, project=True)
     g1r = publish(s1, project=True)
     g1 = publish(s1)
@@ -854,6 +857,8 @@ def main() -> int:
     snap_10()
     publish(s1)
     snap_11(s1, s2, g1, g2)
+    if _PROBE is not None:
+        _PROBE.close()
     print(f"snapshots ({kind()}): " + ("every check holds" if not FAILURES else f"{len(FAILURES)} failure(s)"))
     if tmp:
         tmp.cleanup()
