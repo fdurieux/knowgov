@@ -119,8 +119,10 @@ def test_register_footprint_per_scenario():
     NO_RUNS = ROOT / "nonexistent-demo-runs"
     fps = {sc: register_view.footprint(views.build(sc, views.default_source(sc), NO_RUNS)) for sc in views.ORDER}
     m = register_view.load_map()
-    assert m["map"]["status"] == "approved" and m["map"]["approved_by"] and len(m["row"]) == 36
-    assert {r["key"] for r in m["row"]} == set(json_keys())
+    assert m["map"]["status"] == "approved" and m["map"]["approved_by"] and len(m["row"]) == m["map"]["keys_expected"] == 57
+    # the record's 36 gate keys and, since decision-0044, the design class's 21 others: every key of either class has a row
+    tasks = CARGO_QUOTE_TASKS()
+    assert {r["key"] for r in m["row"]} == set(json_keys()) | set(tasks["design"]["keys"]) == set(tasks["codegen"]["keys"]) | set(tasks["design"]["keys"])
     assert fps["S1"]["keys_below"] == {} and fps["S1"]["uncited"] == 0 and fps["S1"]["box"]["colour"] == "ok"
     s2 = fps["S2"]
     assert "QuoteAPI|on_screening_outage" in s2["keys_below"] and "response|hold_presence" in s2["keys_below"]
@@ -195,8 +197,9 @@ def test_reference_panels():
     assert "doc:contract/decision_table.md" in _refs(ext["panel"])
     req = register_view.ref("req", "REQ-06", s2)
     heads = [sec["heading"] for sec in req["panel"]["sections"]]
-    assert "Rule hits in S2: 2" in heads and "Links citing it: 1" in heads and "Map rows anchored on it: 1" in heads
-    assert "link:REL-06002" in _refs(req["panel"])
+    # two rows anchored on it: codegen's QuoteAPI|on_screening_outage and, since decision-0044, design's REQ-06|text
+    assert "Rule hits in S2: 2" in heads and "Links citing it: 1" in heads and "Map rows anchored on it: 2" in heads
+    assert "link:REL-06002" in _refs(req["panel"]) and "key:REQ-06|text" in _refs(req["panel"])
     assert "REQ-06: screening outage" in req["panel"]["intro"] and "key:QuoteAPI|on_screening_outage" in _refs(req["panel"])
     req5 = register_view.ref("req", "REQ-05", s2)
     assert "link:REL-08002" in _refs(req5["panel"])
@@ -315,6 +318,11 @@ def test_runner_gives_s6_the_derived_output_in_both_modes():
     # and the harness reads that file in both modes: the deterministic branch used to pass none
     run_py = (ROOT / "harness" / "run.py").read_text(encoding="utf-8")
     assert "s6_stage2(d, None, [])" not in run_py and 'derived_ids = [a["id"] for v in gate["keys"].values() for a in v["assertions"]] if derived_code else []' in run_py
+
+
+def CARGO_QUOTE_TASKS():
+    import tomllib
+    return tomllib.loads((ROOT / "subjects" / "cargo_quote" / "subject.toml").read_text(encoding="utf-8"))["tasks"]
 
 
 def json_keys():
@@ -1064,7 +1072,7 @@ def test_impact_panel_reaches_what_register_impact_reaches_on_both_walks_both_op
     import page_subject
     import register_impact as ri
     reg = register_view._load_tools()["register"].load_register(register_view.REGISTER)
-    lands = {"cargo_quote": {("CAP-0001", "dependants"): 31, ("CAP-0001", "realisers"): 36},
+    lands = {"cargo_quote": {("CAP-0001", "dependants"): 45, ("CAP-0001", "realisers"): 57},   # 31 and 36 before decision-0044's rows
              "jef_data_load": {("CAP-0006", "dependants"): 30, ("CAP-0006", "realisers"): 80}}
     for s in _subjects():
         with page_subject.using(s):
@@ -1260,7 +1268,7 @@ def test_register_change_is_the_gates_block_from_register_change_itself():
         want = rc.block(change, rc.resting(change, register_view.load_map(), vendored, fx))
     assert got == {"configured": True, "previous": str(vendored), "error": None, **want}, got
     assert [n["id"] for n in got["nodes"]] == ["CAP-0001"] and [ln["id"] for ln in got["links"]] == ["REL-06001"]
-    assert len(got["keys"]) == 8 and all(k["causes"] == ["REL-06001"] for k in got["keys"])
+    assert len(got["keys"]) == 11 and all(k["causes"] == ["REL-06001"] for k in got["keys"])   # DT-V's eight, design's three (decision-0044)
     # the gate builds its block with the same function, so the two cannot drift (tools/check_register_change.py
     # compares the page with the gate's report on a real store)
     gate = (ROOT / "harness" / "gate_cli.py").read_text(encoding="utf-8")

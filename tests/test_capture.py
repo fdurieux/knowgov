@@ -49,7 +49,7 @@ def test_each_key_has_one_answering_owner_so_the_questionnaires_do_not_overlap()
     for r in rows:
         assert r.get("owner") in every[r["key"]], (r["key"], r.get("owner"), every[r["key"]])
     answering = capture.answering_owners(CARGO_QUOTE, nodes)
-    assert all(len(v) == 1 for v in answering.values()) and len(answering) == 36
+    assert all(len(v) == 1 for v in answering.values()) and len(answering) == 57, "codegen's 36 and design's 21 (decision-0044)"
     assert every["response|statuses"] == ["ORG-0001", "ORG-0002"], "a ruling may still come from either unit"
     qs = capture.questionnaires(_s2(), CARGO_QUOTE, "S2", "codegen", nodes, TODAY)
     owned = {o: tomllib.loads(t)["questionnaire"]["keys_owned"] for o, t in qs.items()}

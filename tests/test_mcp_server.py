@@ -655,7 +655,7 @@ def test_register_impact_reads_levels_as_gate_verdict_and_writes_nothing():
 
 # per subject: (start, walk) -> how many register-map keys land with children, of them how many flagged
 # withdrawn (task-0120: a row naming only a withdrawn descendant); none land without
-CHILDREN_LANDS = {"cargo_quote": {("CAP-0001", "dependants"): (32, 1), ("CAP-0001", "realisers"): (36, 0)},
+CHILDREN_LANDS = {"cargo_quote": {("CAP-0001", "dependants"): (48, 3), ("CAP-0001", "realisers"): (57, 0)},
                   "jef_data_load": {("CAP-0006", "dependants"): (30, 0), ("CAP-0006", "realisers"): (80, 0),
                                     ("ENT-0006", "dependants"): (154, 0)}}
 
@@ -709,18 +709,21 @@ def test_register_impact_children_reaches_what_cap_0001s_children_reach_and_skip
     assert not {"CAP-0001", "CAP-0002", "CAP-0003", "CAP-0004", "CAP-0005"} & {x["id"] for xs in on["reached"].values() for x in xs}
     live = [k for k in on["keys"] if not k.get("not_followed")]
     assert all("CAP-0005" not in k["via"] for k in live)   # a walked key never comes through the proposed one
-    if mcp_server_subject() == "cargo_quote":   # task-0120: the key resting only on CAP-0005, listed last, flagged
-        assert len(on["keys"]) == 32 and on["keys"][:31] == live
-        last = on["keys"][31]
-        assert (last["key"], last["via"], last["not_followed"], last["owner"]) == ("QuoteAPI|on_notification_failure", ["CAP-0005"], True, "ORG-0002")
-        assert last["level"]   # listed with its level, as the others are
+    if mcp_server_subject() == "cargo_quote":   # task-0120: the keys resting only on CAP-0005, listed last, flagged
+        # codegen's QuoteAPI|on_notification_failure, and since decision-0044 design's REQ-07|text and notification link
+        assert len(on["keys"]) == 48 and on["keys"][:45] == live
+        last = on["keys"][45:]
+        assert [(k["key"], k["via"], k["not_followed"], k["owner"]) for k in last] == [
+            ("QuoteAPI|on_notification_failure", ["CAP-0005"], True, "ORG-0002"), ("REQ-07|text", ["CAP-0005"], True, "ORG-0001"),
+            ("quote_api|uses:notification_service", ["CAP-0005"], True, "ORG-0002")]
+        assert all(k["level"] for k in last)   # listed with its level, as the others are
     for bad in ("yes", 1, None):
         assert _refused(s, "register_impact", {"node": "CAP-0001", "children": bad}), bad
 
 
 def test_register_impact_children_lands_the_subjects_keys_at_gate_verdicts_levels():
     """On the subject the runner holds: with children, the parents above its slice land the counts
-    CHILDREN_LANDS names (CargoQuote's realisers walk from CAP-0001 lands all 36 codegen keys), none
+    CHILDREN_LANDS names (CargoQuote's realisers walk from CAP-0001 lands all 57 mapped keys, codegen's 36 and design's 21 others), none
     without, each key at the level gate_verdict gives that key set; the store sees reads only."""
     from subject import SUBJECT
     want_counts = CHILDREN_LANDS[SUBJECT.id]
@@ -743,7 +746,7 @@ def test_register_impact_children_lands_the_subjects_keys_at_gate_verdicts_level
         assert {k["key"]: k["level"] for k in on["keys"]} == want["levels"] and on["gate"]["verdict"] == want["verdict"]
     if SUBJECT.id == "cargo_quote":
         on = _call(s, "register_impact", {"node": "CAP-0001", "walk": "realisers", "children": True})["result"]["structuredContent"]
-        assert sorted(k["key"] for k in on["keys"]) == sorted(TASKS["codegen"]["keys"])
+        assert sorted(k["key"] for k in on["keys"]) == sorted(set(TASKS["codegen"]["keys"]) | set(TASKS["design"]["keys"]))   # every mapped key (decision-0044)
     assert writes == []
 
 

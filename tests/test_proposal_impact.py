@@ -702,6 +702,8 @@ JF_MAP = __import__("tomllib").loads((ROOT / "subjects" / "jef_data_load" / "reg
 # CargoQuote's class table beside its map (task-0252): the slices read a class's keys from the same subject
 # as the map, so a test reading CARGO_MAP passes these, whichever subject KG_SUBJECT names for the process
 CARGO_TASKS = __import__("tomllib").loads((ROOT / "subjects" / "cargo_quote" / "subject.toml").read_text(encoding="utf-8"))["tasks"]
+# the map as it stood before decision-0044 gave design's other 21 keys rows: codegen's 36 alone
+CODEGEN_MAP = {**CARGO_MAP, "row": [r for r in CARGO_MAP["row"] if r["key"] in CARGO_TASKS["codegen"]["keys"]]}
 
 
 def _thread(start: str) -> dict:
@@ -753,12 +755,13 @@ def test_a_named_journey_or_product_with_no_overlay_gives_its_slices_on_the_appr
 def test_each_slice_lists_the_keys_register_impact_lands_on_its_nodes_with_the_denominator():
     """AC2 (rows), AC3: the rows are register_impact.landed_rows for the slice's start, walked descendants and
     reached nodes; JRN-0002 lands 22 of CargoQuote's 36 (doc-0024's measure), JRN-0003 the four rows on
-    PROC-0005 behind its proposed edge, one of them landed no other way."""
+    PROC-0005 behind its proposed edge, one of them landed no other way. The default class is codegen, so the
+    rows are landed_rows on codegen's rows of the map."""
     r = pi.evaluate(None, today=TODAY, scope="JRN-0001", register_map=CARGO_MAP, tasks=CARGO_TASKS)
     by = {s["start"]["id"]: s for s in r["slices"]["map"]}
     for sid, s in by.items():
         t = _thread(sid)
-        want = ri.landed_rows(CARGO_MAP, sid, sorted(t["reached"]), [d["id"] for d in t["descendants"] if d["live"]],
+        want = ri.landed_rows(CODEGEN_MAP, sid, sorted(t["reached"]), [d["id"] for d in t["descendants"] if d["live"]],
                               [d["id"] for d in t["descendants"] if not d["live"]])
         assert s["keys"]["rows"] == want, sid
         assert s["keys"]["of"] == 36 and s["keys"]["gate"] is None
@@ -832,10 +835,16 @@ def test_the_command_and_the_mcp_tool_take_the_scope_alone_and_agree():
 
 def test_under_a_task_class_each_slice_reads_only_its_keys_and_the_rest_are_on_no_slice():
     """AC1, AC2: under design, a slice's rows are the class's keys among the rows on its thread; every one of
-    the class's 36 keys is in a slice or in task_keys, never both; REQ-06|text, which no register-map row
-    names, is on no slice, mapped false. The denominator is the class's key count."""
+    the class's 36 keys is in a slice or in task_keys, never both; REQ-06|text, on a map no row of which names
+    it, is on no slice, mapped false. The denominator is the class's key count. Since decision-0044 the
+    subject's own map names every design key, so the unmapped case reads that map less REQ-06|text's row."""
     want = CARGO_TASKS["design"]["keys"]
-    r = pi.evaluate(None, today=TODAY, scope="JRN-0001", register_map=CARGO_MAP, tasks=CARGO_TASKS, task="design")
+    real = pi.evaluate(None, today=TODAY, scope="JRN-0001", register_map=CARGO_MAP, tasks=CARGO_TASKS, task="design")["slices"]
+    assert all(x["mapped"] for x in real["task_keys"]["keys"]), "every design key has a row (decision-0044)"
+    assert {s["start"]["id"]: s["keys"]["landed"] for s in real["map"]} == {"JRN-0002": 27, "JRN-0003": 18}
+    assert [x["key"] for x in real["task_keys"]["keys"]] == ["S-accept|max", "S-review|min", "S-review|max", "S-refuse|min"]
+    less = {**CARGO_MAP, "row": [r for r in CARGO_MAP["row"] if r["key"] != "REQ-06|text"]}
+    r = pi.evaluate(None, today=TODAY, scope="JRN-0001", register_map=less, tasks=CARGO_TASKS, task="design")
     _valid(r)
     on = set()
     for s in r["slices"]["map"]:
@@ -852,21 +861,20 @@ def test_under_a_task_class_each_slice_reads_only_its_keys_and_the_rest_are_on_n
     req6 = next(x for x in tk["keys"] if x["key"] == "REQ-06|text")
     assert req6["mapped"] is False and req6["owner"] is None and req6["nodes"] == [] and req6["via"] == []
     assert "response|hold_presence" not in on   # a codegen key design does not require is on no design slice
-    by = {s["start"]["id"]: s["keys"]["landed"] for s in r["slices"]["map"]}
-    assert by == {"JRN-0002": 8, "JRN-0003": 9}
 
 
 def test_under_codegen_the_slices_verdicts_and_counts_do_not_move():
-    """AC3: codegen's keys are CargoQuote's whole map, so the slices under codegen are the slices read with no
-    class but for the class named; task-0191's equality with register_impact's landed_rows holds."""
-    plain = pi.evaluate(None, today=TODAY, scope="JRN-0001", register_map=CARGO_MAP, tasks=CARGO_TASKS, task=None)["slices"]
+    """AC3: under codegen the slices over the whole map are the slices read with no class over codegen's rows of
+    it (until decision-0044, the whole map), but for the class named; task-0191's equality with register_impact's
+    landed_rows holds."""
+    plain = pi.evaluate(None, today=TODAY, scope="JRN-0001", register_map=CODEGEN_MAP, tasks=CARGO_TASKS, task=None)["slices"]
     cg = pi.evaluate(None, today=TODAY, scope="JRN-0001", register_map=CARGO_MAP, tasks=CARGO_TASKS, task="codegen")["slices"]
     assert plain["task_keys"]["task"] is None and cg["task_keys"]["task"] == "codegen"
     for a, b in zip(plain["map"], cg["map"], strict=True):
         assert a["keys"]["task"] is None and b["keys"]["task"] == "codegen"
         assert {**a["keys"], "task": "codegen"} == b["keys"] and {**a, "keys": None} == {**b, "keys": None}
         t = _thread(b["start"]["id"])
-        assert b["keys"]["rows"] == ri.landed_rows(CARGO_MAP, b["start"]["id"], sorted(t["reached"]),
+        assert b["keys"]["rows"] == ri.landed_rows(CODEGEN_MAP, b["start"]["id"], sorted(t["reached"]),
                                                    [d["id"] for d in t["descendants"] if d["live"]],
                                                    [d["id"] for d in t["descendants"] if not d["live"]])
     assert {s["start"]["id"]: (s["keys"]["landed"], s["keys"]["of"]) for s in cg["map"]} == {"JRN-0002": (22, 36), "JRN-0003": (22, 36)}
@@ -877,7 +885,8 @@ def test_under_codegen_the_slices_verdicts_and_counts_do_not_move():
 def test_with_a_scenario_held_a_design_slice_reads_the_design_gates_levels_and_its_rest_too():
     """AC1: over MCP with a scenario held, a design slice's rows and the keys on no slice are at the levels the
     subject's design gate reads them, each slice's verdict gate_verdict's on its keys; REQ-06|text, with no
-    statement in the store, reads absent on no slice. The server reads the process's subject, so this is
+    statement in the store, reads absent on the slices its row lands on (on no slice until decision-0044 gave
+    it a row). The server reads the process's subject, so this is
     CargoQuote's run only (the class, the keys and the scope are CargoQuote's)."""
     from subject import SUBJECT
     from tasks import TASKS
@@ -896,8 +905,10 @@ def test_with_a_scenario_held_a_design_slice_reads_the_design_gates_levels_and_i
         assert k["gate"]["verdict"] == one["verdict"] and k["gate"]["task"] == "design"
     tk = rep["slices"]["task_keys"]
     assert all(x["level"] == whole["levels"][x["key"]] for x in tk["keys"])
-    assert next(x for x in tk["keys"] if x["key"] == "REQ-06|text")["level"] == "absent"
-    assert tk["gate"]["task"] == "design" and tk["cells"]["read"] is True and "REQ-06|text" in tk["cells"]["unknown"]
+    on = [sl for sl in rep["slices"]["map"] if any(x["key"] == "REQ-06|text" for x in sl["keys"]["rows"])]
+    assert on and all(next(x for x in sl["keys"]["rows"] if x["key"] == "REQ-06|text")["level"] == "absent"
+                      and "REQ-06|text" in sl["keys"]["cells"]["unknown"] for sl in on)
+    assert "REQ-06|text" not in {x["key"] for x in tk["keys"]} and tk["gate"]["task"] == "design" and tk["cells"]["read"] is True
     assert len(TASKS["design"]["keys"]) == tk["denominator"]
     try:   # a report read under one class is never levelled under another
         pi.with_levels(pi.evaluate(None, today=TODAY, scope="JRN-0001", register_map=CARGO_MAP, tasks=CARGO_TASKS, task="design"),

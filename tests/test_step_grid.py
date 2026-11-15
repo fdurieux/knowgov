@@ -68,7 +68,10 @@ def test_the_grid_is_j1s_steps_by_the_folders_scenarios_with_each_steps_keys():
         sl = next(x for x in r["slices"]["map"] if x["start"]["id"] == s["id"])
         assert s["keys"] == sorted({x["key"] for x in sl["keys"]["rows"] if not x.get("not_followed")}) and s["of"] == g["denominator"]
     on = {k for s in g["steps"] for k in s["keys"]}
-    assert {o["key"] for o in g["off_steps"]} == {r["key"] for r in rmap["row"]} - on
+    # the map's keys the default class reads (decision-0044 mapped design's other keys too, which no cell reads)
+    from tasks import TASKS
+    read = {r["key"] for r in rmap["row"]} & set(TASKS["codegen"]["keys"])
+    assert {o["key"] for o in g["off_steps"]} == read - on and g["denominator"] == len(read)
     for c in g["cells"]:
         det = json.loads((RECORD / c["column"].split(":")[1] / "deterministic.json").read_text(encoding="utf-8"))
         keys = next(s["keys"] for s in g["steps"] if s["id"] == c["step"])
