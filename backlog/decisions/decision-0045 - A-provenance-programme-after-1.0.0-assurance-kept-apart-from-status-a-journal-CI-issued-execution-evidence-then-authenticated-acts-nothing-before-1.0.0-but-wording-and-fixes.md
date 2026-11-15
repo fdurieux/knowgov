@@ -5,9 +5,9 @@ title: >-
   journal, CI-issued execution evidence, then authenticated acts; nothing before
   1.0.0 but wording and fixes
 date: '2026-11-15T20:00:00Z'
-status: proposed
+status: accepted
 ---
-*Proposed. Drafted by a sub-session of the coordinating session (2026-11-15). The sequence under "Accepted already" is the maintainer's word; every other choice in this record is the drafter's recommendation, and approval is the maintainer's (ieam-register decision 0019's rule, which knowgov follows: a session drafts and never approves).*
+*Accepted. The maintainer, 2026-11-15, relayed by the coordinating session: "all as recommended", on the ten questions put with this record (approve it whole; Q1–Q8 as recommended; Q9's amendments each at its release; Q10 (i)). Drafted by a sub-session of the coordinating session; approval is the maintainer's word (ieam-register decision 0019's rule, which knowgov follows).*
 
 ## Context
 
@@ -74,7 +74,7 @@ For the programme as a whole:
 - **(c) P0 and P4 in 0.9.x now.** Every contract-bearing ID is a contract change, so this is a 0.10.0 that restarts the freeze and the soak. decision-0041 rejected the same trade for smaller items.
 - **(d) Wording only, no programme.** The Known limits stand indefinitely. decision-0043's audit-and-identity item has no design input.
 
-**The choice: proposed, the drafter's recommendation.** (a)'s sequence is the maintainer's word of 2026-11-15. The ten design questions below are the drafter's recommendations, each with the options considered. None is in force until the maintainer approves it.
+**The choice: (a), with the drafter's recommendations, accepted by the maintainer on 2026-11-15 ("all as recommended").** The sequence was already the maintainer's word; the ten design questions below are now in force as recommended.
 
 ## The design questions
 
