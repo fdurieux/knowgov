@@ -30,7 +30,8 @@ from subject import bundle
 
 DEFAULT_CEILING = {"calls": 30, "tokens": 1_500_000, "seconds": 1500}   # the record's rebuilds ran about 1,455 s each; tokens are prompt plus completion
 READ_LIMIT = 60_000       # characters a read_document result may carry
-RESULT_LIMIT = 6_000      # characters a run_suite result may carry
+RESULT_LIMIT = 6_000      # characters a run_suite result may carry (the JSON of any tool other than a read)
+ENVELOPE_LIMIT = 6 * READ_LIMIT + 1_000   # a read's JSON: its text is already cut at READ_LIMIT; this is the worst case of JSON escaping, a safety cap never reached by prose (task-0353)
 NUDGES = 2                # replies without a tool call or a finish before the run is stopped
 
 TOOLS = [
@@ -123,6 +124,15 @@ class Sandbox:
 
 def _clip(s: str, n: int) -> str:
     return s if len(s) <= n else s[:n] + f"\n... [{len(s) - n} more characters]"
+
+
+def _deliver(result, name: str, readers) -> tuple[str, bool]:
+    """A tool result's JSON as the model is handed it, each tool at its own limit, and whether anything was cut (task-0353, decision-0045 Q10 i)."""
+    is_read = name == "read_document" or name in readers
+    full = json.dumps(result, ensure_ascii=False)
+    text = _clip(full, ENVELOPE_LIMIT if is_read else RESULT_LIMIT)
+    cut = is_read and len(result.get("text", "")) > READ_LIMIT   # a read's text is READ_LIMIT plus its marker only when it was cut
+    return text, cut or text != full
 
 
 IDLE_SECONDS = 120.0   # the longest silence a stream may keep, unless KG_AGENT_IDLE_SECONDS says
@@ -387,12 +397,13 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
                         result = {"error": f"unknown tool {c['name']}"}
                 except Exception as e:  # noqa: BLE001 — a tool's refusal is the model's to read, never the run's end
                     result = {"error": str(e)[:300]}
-            text = _clip(json.dumps(result, ensure_ascii=False), RESULT_LIMIT)
+            text, was_clipped = _deliver(result, c["name"], readers)
             messages.append({"role": "tool", "tool_call_id": c["id"] or f"call_{i}", "content": text})
             summary = {k: (v if k != "text" else f"{len(v)} chars") for k, v in (result.items() if isinstance(result, dict) else [])}
             trace.append({"turn": len(trace) + 1, "kind": "tool", "tool": c["name"],
                           "args": {k: (v if k != "content" else f"{len(str(v))} chars") for k, v in args.items()},
-                          "result": _clip(json.dumps(summary, ensure_ascii=False), 400), "seconds": round(time.monotonic() - t1, 1), "at": round(time.monotonic() - t0, 1)})
+                          "result": _clip(json.dumps(summary, ensure_ascii=False), 400),
+                          "delivered": len(text), "clipped": was_clipped, "seconds": round(time.monotonic() - t1, 1), "at": round(time.monotonic() - t0, 1)})
             if final is not None:
                 break
     if final is None:

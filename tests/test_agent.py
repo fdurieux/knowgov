@@ -396,3 +396,41 @@ def test_the_seconds_ceiling_reached_mid_stream_is_the_ceiling_not_an_api_error(
     run_py = (ROOT / "harness" / "run.py").read_text(encoding="utf-8")
     assert 'if res["stopped_by"] and res["stopped_by"].startswith("api error"):' in run_py
     assert 'if "api_error" not in prev:\n                return prev' in run_py
+
+
+def _delivered(docs, turns_first, feedback=None):
+    """The tool messages a stub model is handed on its second call, and the run's trace."""
+    seen = []
+
+    def respond(messages, tools):
+        seen.append(list(messages))
+        if len(seen) == 1:
+            return _turn(turns_first)
+        return _turn([_call("finish", decision="abstain", assumptions=[], questions=["q"], claims=[])])
+    with tempfile.TemporaryDirectory() as td:
+        r = agent.run("s", "u", sandbox=Path(td) / "b", read_text=lambda p: docs[p], feedback=feedback or (lambda root, f: {}), tag="t", responder=respond)
+    return [m for m in seen[1] if m["role"] == "tool"], r["trace"]
+
+
+def test_a_read_reaches_the_model_at_read_limit_not_result_limit():
+    """Task-0353, decision-0045 Q10 (i): the JSON wrapper no longer cuts a read below READ_LIMIT."""
+    doc = "abcdefghij" * 10_000   # 100,000 characters
+    tool, trace = _delivered({"d.md": doc}, [_call("read_document", path="d.md")])
+    got = json.loads(tool[0]["content"])
+    assert got["text"] == doc[:agent.READ_LIMIT] + f"\n... [{len(doc) - agent.READ_LIMIT} more characters]"
+    row = next(t for t in trace if t["kind"] == "tool")
+    assert row["delivered"] == len(tool[0]["content"]) and row["clipped"] is True
+
+
+def test_a_suite_result_is_still_clipped_at_result_limit():
+    big = {"features": {"a": {"passed": 0, "total": 1, "failed": ["x" * 20_000]}}}
+    tool, trace = _delivered({}, [_call("run_suite", feature="a")], feedback=lambda root, f: big)
+    assert len(tool[0]["content"]) <= agent.RESULT_LIMIT + 60 and "more characters]" in tool[0]["content"]
+    row = next(t for t in trace if t["kind"] == "tool")
+    assert row["delivered"] == len(tool[0]["content"]) and row["clipped"] is True
+
+
+def test_a_short_result_is_delivered_whole_and_the_trace_says_so():
+    tool, trace = _delivered({"d.md": "short"}, [_call("read_document", path="d.md")])
+    row = next(t for t in trace if t["kind"] == "tool")
+    assert json.loads(tool[0]["content"])["text"] == "short" and row["delivered"] == len(tool[0]["content"]) and row["clipped"] is False
