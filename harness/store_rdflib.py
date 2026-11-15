@@ -26,19 +26,26 @@ process only. The file's lifecycle (task-0141.02):
   publication: no update is lost. It keeps the lock until it is closed.
 - ``commit()`` serialises the graph to a private temporary file in the store's directory, flushes
   and fsyncs it, replaces the store with it (``os.replace``, atomic on one filesystem) and fsyncs the
-  directory. A reader sees the whole old file or the whole new one. Any failure leaves the previous
-  file in place, removes the temporary file and propagates; nothing reports a commit that did not
-  happen. ``close()`` releases the lock and publishes nothing; a writer killed before it commits
+  directory. A reader sees the whole old file or the whole new one. Any failure before the replacement
+  leaves the previous file in place, removes the temporary file and propagates; nothing reports a commit
+  that did not happen. A failure after it, opening or syncing the directory with an I/O error (V-F3),
+  raises an OSError keeping its errno that says the new snapshot may already be visible and its
+  durability across a crash is indeterminate: the previous file is not restored, and a reader or the
+  next writer opens the new one. A directory sync the platform does not support (a directory that
+  cannot be opened: EISDIR, ENOTSUP, or Windows; an fsync refused: EINVAL, ENOTSUP) is not an error,
+  and the entry's durability is then the filesystem's. ``close()`` releases the lock and publishes nothing; a writer killed before it commits
   leaves the last publication, and its lock dies with it. A writer that changed nothing publishes
   nothing on ``commit()`` (doc-0030 S7): its readers keep the generation they hold. A publication keeps
   the store file's mode, so an operator's ``chmod 600`` stands (S3); a first publication is 0644.
 - Supported: POSIX filesystems with ``fcntl.flock`` (Linux, macOS), the store and its lock on a local
   disk. On a platform without ``fcntl`` a writer on a file refuses to open rather than run unlocked.
-  Crash durability: a commit that returned has its file and directory entry fsynced; a crash before
-  it returns leaves the previous publication.
+  Crash durability: a commit that returned has its file fsynced and its directory entry fsynced where
+  the platform supports it; a crash before the replacement leaves the previous publication, and one
+  after it, or a commit that raised from the directory step, leaves the previous one or the new one.
 """
 from __future__ import annotations
 
+import errno
 import json
 import os
 import stat
@@ -284,7 +291,7 @@ class RdflibStore(Store):
                 pass
             raise
         self.absent, self.dirty = False, False
-        _fsync_dir(directory)
+        _fsync_dir(directory, self.path)
 
     def abort(self) -> None:
         """Nothing was published; the next open reads the last publication."""
@@ -1293,18 +1300,37 @@ class RdflibStore(Store):
         return {"store": self.name, "uri": self.path or "memory", "browser": None}
 
 
-def _fsync_dir(directory: str) -> None:
-    """Make the replacement's directory entry durable where the platform allows opening a directory."""
+# A directory sync the platform does not offer (V-F3): a directory that cannot be opened as a file, or a
+# filesystem whose fsync refuses a directory as not supported. Anything else is an I/O failure and surfaced.
+_DIR_OPEN_UNSUPPORTED = frozenset({errno.EISDIR, errno.ENOTSUP, errno.EOPNOTSUPP})
+_DIR_FSYNC_UNSUPPORTED = frozenset({errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP})
+
+
+def _fsync_dir(directory: str, path: str) -> None:
+    """Make the replacement's directory entry durable. Called after ``os.replace``: the new snapshot is
+    already the one a reader opens, so a failure here cannot restore the old file. A sync the platform does
+    not support returns (the entry's durability is then the filesystem's); an I/O failure, opening or
+    syncing, raises an OSError with its errno that says so (V-F3)."""
     try:
         dfd = os.open(directory, os.O_RDONLY)
-    except OSError:
-        return
+    except OSError as e:
+        if os.name == "nt" or e.errno in _DIR_OPEN_UNSUPPORTED:
+            return
+        raise _indeterminate(path, "opening", directory, e) from e
     try:
         os.fsync(dfd)
-    except OSError:
-        pass
+    except OSError as e:
+        if e.errno not in _DIR_FSYNC_UNSUPPORTED:
+            raise _indeterminate(path, "syncing", directory, e) from e
     finally:
         os.close(dfd)
+
+
+def _indeterminate(path: str, step: str, directory: str, e: OSError) -> OSError:
+    return OSError(e.errno, f"{path}: published, but {step} its directory {directory} failed "
+                            f"({e.strerror or e}): the new snapshot may already be visible to readers and its "
+                            f"durability across a crash is indeterminate; do not assume the previous publication "
+                            f"stands, and check the disk")
 
 
 def _distinct(rows: list[dict]) -> list[dict]:

@@ -82,8 +82,8 @@
    "floor": 68
   },
   "harness/agent.py::run": {
-   "value": 96,
-   "floor": 96
+   "value": 95,
+   "floor": 95
   },
   "harness/annotate.py::findings": {
    "value": 47,

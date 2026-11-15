@@ -14,7 +14,9 @@ rebuilds were made. This loop gives the model four tools and a working directory
 
 A per-run ceiling in calls, tokens and seconds ends a run with decision ``abstain`` and the
 reason; every turn and tool call is traced with tokens and elapsed seconds (no price: task-0027). The responder
-(the model call) is injectable, so the loop is tested without a client; the default one streams
+(the model call) is injectable, so the loop is tested without a client, under one contract:
+``responder(messages, tools, deadline=None)``, the run's monotonic deadline by keyword, each call
+supervised by ``supervised`` and a late answer never accepted (V-F4); the default one streams
 the chat completions API with tool calling, as arms.call does without tools. Nothing here names
 a subject: the layout, the suite and the documents come from the manifest and the kit.
 """
@@ -30,7 +32,8 @@ from subject import bundle
 
 DEFAULT_CEILING = {"calls": 30, "tokens": 1_500_000, "seconds": 1500}   # the record's rebuilds ran about 1,455 s each; tokens are prompt plus completion
 READ_LIMIT = 60_000       # characters a read_document result may carry
-RESULT_LIMIT = 6_000      # characters a run_suite result may carry
+RESULT_LIMIT = 6_000      # characters a run_suite result may carry (the JSON of any tool other than a read)
+ENVELOPE_LIMIT = 6 * READ_LIMIT + 1_000   # a read's JSON: its text is already cut at READ_LIMIT; this is the worst case of JSON escaping, a safety cap never reached by prose (task-0353)
 NUDGES = 2                # replies without a tool call or a finish before the run is stopped
 
 TOOLS = [
@@ -125,6 +128,15 @@ def _clip(s: str, n: int) -> str:
     return s if len(s) <= n else s[:n] + f"\n... [{len(s) - n} more characters]"
 
 
+def _deliver(result, name: str, readers) -> tuple[str, bool]:
+    """A tool result's JSON as the model is handed it, each tool at its own limit, and whether anything was cut (task-0353, decision-0045 Q10 i)."""
+    is_read = name == "read_document" or name in readers
+    full = json.dumps(result, ensure_ascii=False)
+    text = _clip(full, ENVELOPE_LIMIT if is_read else RESULT_LIMIT)
+    cut = is_read and len(result.get("text", "")) > READ_LIMIT   # a read's text is READ_LIMIT plus its marker only when it was cut
+    return text, cut or text != full
+
+
 IDLE_SECONDS = 120.0   # the longest silence a stream may keep, unless KG_AGENT_IDLE_SECONDS says
 
 
@@ -195,6 +207,57 @@ def _accepts(fn, name: str) -> bool:
         return name in inspect.signature(fn).parameters
     except (TypeError, ValueError):
         return False
+
+
+class LateAnswer(TimeoutError):
+    """The run's deadline passed before a responder's answer was accepted (V-F4, task-0350)."""
+
+
+def _takes_deadline(fn) -> bool:
+    """Whether ``fn`` can be called with ``deadline=`` by keyword: a named parameter, or ``**kwargs``."""
+    import inspect
+    try:
+        params = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(p.kind is p.VAR_KEYWORD or (p.name == "deadline" and p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY))
+               for p in params)
+
+
+def _wait_for(done, deadline: float) -> bool:
+    """Wait for the call until the deadline; a seam the regressions replace to deliver a late answer."""
+    return done.wait(max(0.0, deadline - time.monotonic()))
+
+
+def supervised(responder, messages: list[dict], tools: list[dict], deadline: float) -> dict:
+    """One responder call bounded by the run's monotonic deadline (V-F4, task-0350), whatever the responder
+    does with the ``deadline`` it is given. The call runs in a daemon thread on copies of the conversation
+    and the tools; this side waits until the deadline and no longer. At expiry it raises ``LateAnswer`` and
+    the call is abandoned: its answer, if one ever comes, is never read. A thread cannot be killed, so an
+    injected responder that ignores its deadline keeps its own work running until it returns; only the
+    responder can end that work, as the default one does (``bounded`` closes its stream at the deadline).
+    An answer is accepted only if it is back before the deadline: one at or past it raises ``LateAnswer``."""
+    import copy
+    import threading
+    box: dict = {}
+    done = threading.Event()
+    sent_messages, sent_tools = copy.deepcopy(messages), copy.deepcopy(tools)
+
+    def call():
+        try:
+            box["answer"] = responder(sent_messages, sent_tools, deadline=deadline)
+        except BaseException as e:  # noqa: BLE001 — handed to the run
+            box["error"] = e
+        finally:
+            done.set()
+    threading.Thread(target=call, daemon=True, name="kg-responder").start()
+    if not _wait_for(done, deadline):
+        raise LateAnswer("the run's deadline passed while the model was answering; the call was abandoned")
+    if "error" in box:
+        raise box["error"]
+    if time.monotonic() >= deadline:
+        raise LateAnswer("the model's answer came back after the deadline; it is not accepted")
+    return box["answer"]
 
 
 def openai_responder(model: str | None = None):
@@ -272,8 +335,12 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
     run_suite and returns a JSON-able dict; ``readers`` adds read tools by name (EXTRA_TOOLS), each a
     callable of the tool's one argument. The result carries the final reply (or None), what stopped
     the run, the trace, the totals, the sandbox's files and the consulted set: what every read tool
-    was asked for, in order, the refusals included."""
+    was asked for, in order, the refusals included. ``responder`` takes ``deadline=`` (V-F4): one that
+    cannot is a TypeError before any work, and every call is ``supervised``."""
     responder = responder or openai_responder()
+    if not _takes_deadline(responder):   # V-F4, task-0350: refused before any work, never run unbounded
+        raise TypeError("agent.run: a responder takes the run's monotonic deadline as deadline=; "
+                        "responder(messages, tools, deadline=None) is the contract")
     lim = {**ceiling(), **(limits or {})}
     readers = dict(readers or {})
     tools = TOOLS + [EXTRA_TOOLS[name] for name in readers if name in EXTRA_TOOLS]
@@ -301,7 +368,7 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
         if stopped_by:
             break
         try:
-            r = responder(messages, tools, deadline=deadline) if _accepts(responder, "deadline") else responder(messages, tools)
+            r = supervised(responder, messages, tools, deadline)
         except Exception as e:  # noqa: BLE001 — a failed call ends the run as an api error, never silently
             if _deadline_passed(e, deadline):
                 # task-0207, doc-0030 R6: the run's own seconds ceiling cut the answer short; the ceiling,
@@ -387,12 +454,13 @@ def run(system: str, user: str, *, sandbox: Path, read_text, feedback, tag: str,
                         result = {"error": f"unknown tool {c['name']}"}
                 except Exception as e:  # noqa: BLE001 — a tool's refusal is the model's to read, never the run's end
                     result = {"error": str(e)[:300]}
-            text = _clip(json.dumps(result, ensure_ascii=False), RESULT_LIMIT)
+            text, was_clipped = _deliver(result, c["name"], readers)
             messages.append({"role": "tool", "tool_call_id": c["id"] or f"call_{i}", "content": text})
             summary = {k: (v if k != "text" else f"{len(v)} chars") for k, v in (result.items() if isinstance(result, dict) else [])}
             trace.append({"turn": len(trace) + 1, "kind": "tool", "tool": c["name"],
                           "args": {k: (v if k != "content" else f"{len(str(v))} chars") for k, v in args.items()},
-                          "result": _clip(json.dumps(summary, ensure_ascii=False), 400), "seconds": round(time.monotonic() - t1, 1), "at": round(time.monotonic() - t0, 1)})
+                          "result": _clip(json.dumps(summary, ensure_ascii=False), 400),
+                          "delivered": len(text), "clipped": was_clipped, "seconds": round(time.monotonic() - t1, 1), "at": round(time.monotonic() - t0, 1)})
             if final is not None:
                 break
     if final is None:
