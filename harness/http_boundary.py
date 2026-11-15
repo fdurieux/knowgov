@@ -74,7 +74,8 @@ def parse_authority(value: str, default_port: int) -> tuple[str, int]:
         port_text = port_text if ":" in value else None
     if port_text is None:
         port = default_port
-    elif port_text.isdigit() and port_text.isascii() and 0 < int(port_text) < 65536 and not port_text.startswith("0"):
+    elif (len(port_text) <= 5 and port_text.isdigit() and port_text.isascii() and not port_text.startswith("0")
+          and int(port_text) < 65536):   # the length first: a long digit string is never converted (task-0351)
         port = int(port_text)
     else:
         raise BadAuthority(f"not a port: {port_text!r}")
@@ -252,9 +253,9 @@ def read_body(handler, limits: Limits, *, required: bool = True) -> bytes:
             raise Refused(411, "a Content-Length is required")
         return b""
     raw = lengths[0].strip()
-    if len(lengths) != 1 or not raw.isascii() or not raw.isdigit():
+    if len(lengths) != 1 or not raw.isascii() or not raw.isdigit() or len(raw) > 20:   # 20 digits cover 2**64 (task-0351)
         raise Refused(400, "one Content-Length of digits is required")
-    n = int(raw)
+    n = int(raw)   # at most 20 digits, far under the interpreter's conversion limit
     if n > limits.max_body:
         raise Refused(413, f"the body exceeds {limits.max_body} bytes")
     data = handler.rfile.read(n) if n else b""
@@ -283,6 +284,8 @@ def parse_json(text: str | bytes):
         raise NotJson(str(e)) from None
     except RecursionError:
         raise NotJson("nested deeper than the parser reads") from None
+    except ValueError as e:   # the integer-string conversion limit (task-0351): a long integer is a parse error
+        raise NotJson(f"a number the parser cannot read: {e}") from None
 
 
 def bearer_matches(header: str | None, token: str) -> bool:
