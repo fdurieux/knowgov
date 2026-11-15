@@ -603,8 +603,8 @@
    "floor": 19
   },
   "tools/check_worker.py::main": {
-   "value": 44,
-   "floor": 44
+   "value": 41,
+   "floor": 41
   },
   "tools/claim_values.py::Code.__init__": {
    "value": 30,
