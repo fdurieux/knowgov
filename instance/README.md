@@ -1290,6 +1290,77 @@ to report, not a failure: the comparator's other leaves must still show no diffe
 - the heap setting, if you changed it, and any memory refusal's message;
 - any difference you noticed from the stack's 5.26 container.
 
+## Several teams or subjects on one deployment
+
+**The limit.** A store holds one subject's one scenario at a time. The stack's Neo4j is the Community
+edition, which serves one database, and nothing in knowgov assumes a second. A run from the page or from
+`knowgov-runs` replaces what the store holds. Two protections exist: the store's *generations* mean a reader
+sees one whole load or is told to retry, never half of one, and a call that names a scenario the store does
+not hold is refused. Neither lets two teams hold two scenarios in one store. So you give each team or
+subject its own store, in one of two ways.
+
+**One stack per team or subject.** A *compose project* is one named copy of the stack: its own containers
+and its own volumes. Start one per team with `-p`, and give each its own ports, so nothing clashes.
+Each stack is the whole set, a Neo4j, the page and, with the `arms` profile, its worker; two pages must not
+share one store, since a load would race the other's.
+
+```bash
+cd demo
+KG_SUBJECT=/repo/subjects/cargo_quote   KG_PORT_APP=8080 docker compose -p team-a up -d --build --wait
+KG_SUBJECT=/repo/subjects/jef_data_load KG_PORT_APP=8081 docker compose -p team-b up -d --build --wait
+```
+
+The second line alone would still clash with the first on the Neo4j Browser and bolt ports. The header of
+`demo/docker-compose.yml` lists all three port settings and gives the complete second command; copy it.
+
+- **Ports.** Each stack publishes three ports on the host: the page (`KG_PORT_APP`, default 8080), Neo4j
+  Browser (default 7474) and the store's bolt port (default 7687), the last two with the settings the
+  compose header names. `KG_BIND` (default `127.0.0.1`, this machine only) is the host address all three are
+  published on. Choose different ports for each stack, and set `KG_BROWSER_URL` to the Browser's new
+  address, `http://localhost:` and its port; the page's own address follows `KG_PORT_APP`.
+- **Volumes.** The stack's Neo4j data (`neo4j-data`), the page's re-runs (`demo-runs`) and the worker's
+  jobs (`worker-jobs`) are named volumes, which compose prefixes with the project name, so `team-a` and
+  `team-b` never share one. A stack you take down with `docker compose -p team-a down` keeps its data until you
+  add `-v`.
+- **Subject and register.** `KG_SUBJECT` is the subject the page opens on and `KG_SUBJECTS` the folder or
+  folders its drop-down lists (default `/repo/subjects`); set both per stack. `KG_REGISTER` is the register
+  the stack reads, one per organisation and shared by its subjects; every stack of the organisation
+  points at the same one. On your instance the register comes from your checkout, mounted read-only by
+  the instance file (see "Starting the demo on your instance"), so a stack reads it and cannot change it.
+  Pass the same `-f` files to every `docker compose` command of a project.
+- **The cost.** Each stack runs its own Neo4j, with its own heap and memory: by default 1 GiB of heap and
+  512 MiB of page cache, on top of the page. Three stacks hold three times that. Size the heap for the
+  largest load of that stack's subject (see "Sizing the Neo4j heap"), and do not give a small subject the
+  heap of a large one.
+
+**rdflib, one store per process.** Where a team needs only the gate or the readers, with no Neo4j, run
+each process on its own rdflib store: `KG_STORE=rdflib` and a `KG_RDFLIB_FILE` of its own, a Turtle file
+that process keeps its store in. Two processes that name the same file share it, and one load replaces the
+other's; two that name different files, or none (in memory, so each load is its own), do not meet. The
+rdflib store has no transaction memory to size and no server to run. What it does not give you is Neo4j's:
+Neo4j Browser and the page's saved queries are Cypher, and run only against Neo4j.
+
+**Habits on a deployment more than one person reads.**
+
+- **Name the scenario.** Pass `scenario` on every store-backed MCP call. A call that names a scenario the
+  store does not hold is refused, where without it you would read whatever a colleague loaded last.
+- **Read `store_status` first.** Its `scenario` and `loaded_at` say what the store holds and since when;
+  if it is not yours, or older than you expect, do not read on.
+- **`gate_cli` is private by default.** It loads the scenario into a store of its own and leaves the
+  configured one as it was (decision-0017); only `--publish` writes the configured store, so leave it out
+  on a store others read.
+- **Capture commands use a scratch store.** `harness/capture.py questionnaire` and `review` load
+  the scenario into a store of their own, never the one the page and the readers use, so they are safe to run beside others.
+
+**What this does not give.**
+
+- **Separation of access.** Neo4j Community has no per-user roles, and the HTTP reader takes one bearer
+  token, `KG_MCP_TOKEN`: whoever holds it reads everything the store holds. Separate stacks separate
+  what is loaded, not who may look; keep a team's stack on a bind or behind a firewall only that team reaches.
+- **Several organisations on one deployment.** One instance per organisation, by design: one register, one
+  set of subjects, one deployment. Keeping tenants apart inside one database is being measured, as a spike,
+  and is not promised.
+
 ## Starting the demo on your instance
 
 ```bash
