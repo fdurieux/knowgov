@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-16T04:37:00Z'
-updated_date: '2026-11-16T21:14:00Z'
+updated_date: '2026-11-16T21:33:00Z'
 labels:
   - finding
   - reverse-engineering
@@ -32,7 +32,6 @@ Placement: stating it in the guide and warning are fixes (0.9.x); inheriting dec
 - [ ] #1 subjects/README.md states that requirement citations are read from a rule's description
 - [ ] #2 check_subject.py warns on requirement ids cited in a decision's description that no rule cites
 - [ ] #3 A test holds the warning; the scored record is unchanged
-- [ ] #4 Reader extension (0.10.0): dmn_decisions loads requirement ids cited in a decision's description as that decision's citations, recorded in subjects/README.md and the CHANGELOG under contract changes
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -45,4 +44,6 @@ Placement: stating it in the guide and warning are fixes (0.9.x); inheriting dec
 
 <!-- SECTION:NOTES:BEGIN -->
 The maintainer, 2026-11-16: "Yes" to these joining 0.10.0 (decision-0047 point 4): the soak they waited for restarts with 0.10.0 anyway.
+
+Maintainer, 2026-11-16: "keep the JDL-088 warning; drop the reader extension". The reader-extension criterion (dmn_decisions loading a decision's own citations) is removed: built, it moved J-F's record (actions_gate cites JDL-088 in its description and in no rule; +1 assertion, +1 fragment per scenario, 60 leaves over 6 scenarios), so the mapper stays as it was. J-F's one citation warning is admitted by name in tests/test_check_subject.py and harness.yml's rdflib-readers J-F check, each still failing on any other finding.
 <!-- SECTION:NOTES:END -->
