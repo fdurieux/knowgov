@@ -31,7 +31,7 @@ Then ask ``key_nodes`` for every key of the subject's register map, and, on the 
 for the reference code and the climb to a capability's ancestors, and ``document_links`` for the first row's
 anchored document (task-0143). Once, store-free: the file-only tools listed and answering alike over stdio and
 HTTP, ``register_impact walk=thread`` from a capability and a process equal on both and to the register's THREAD
-walk (task-0336), and the shipped managed allowlist admitting the server by name (task-0142, task-0143).
+walk (task-0336), the capability's with a ``note`` that the walk takes no step from it and the process's without (task-0342), and the shipped managed allowlist admitting the server by name (task-0142, task-0143).
 Then ask ``held_keys``, ``derived_outputs`` and ``document_statements`` and require each equal to the port's
 read in-process through a read handle, the levels gate_verdict's for the held key set, and each used statement
 stale or superseded as the gate's stale statements read; at stage 2 too (task-0144).
@@ -39,7 +39,7 @@ Then ask ``scenario_runs`` and require the subject's scenarios in order, the hel
 ``store_status``'s ``loaded_at``, the record's D6 verdict for it, and no run in progress (task-0128);
 and ``scenario_result`` on the record with that verdict, read from files (task-0129).
 The same process also answers ``server/discover`` and a stateless (2026-07-28) ``gate_verdict``,
-which must equal the handshake's (task-0079).
+which must equal the handshake's (task-0079); ``store_status`` names stage 1, and 2 after the change (task-0342).
 Once, after the scenarios: ``subject_check`` listed over stdio and Streamable HTTP, and on doc-0018's probe
 (``tools/fixtures/subject_probe``) its report equal to ``tools/check_subject.py --json``'s, over stdio in both eras (task-0146); and the prompts
 ``new_subject`` and ``add_artefact`` listed and given over both transports (task-0148).
@@ -198,6 +198,13 @@ def settled(stale: list[dict]) -> dict[str, list[str]]:
     return {k: v for k, v in out.items() if v}
 
 
+def stage_named(sc: str, status: dict, gate: dict) -> list[str]:
+    """task-0342 (B-X8): store_status names the stage the gate report's version names, v1 as 1 and v2 as 2."""
+    want = {"v1": 1, "v2": 2}.get(gate.get("version"))
+    return [] if want is not None and status.get("stage") == want else \
+        [f"{sc}: store_status names stage {status.get('stage')}, the gate's version {gate.get('version')}"]
+
+
 def check_stage2(sc: str, subject, failures: list[str]) -> None:
     """S6 after its change and re-verification: the server and the command agree, and both name
     what supersedes each invalidated statement as the record does."""
@@ -223,6 +230,7 @@ def check_stage2(sc: str, subject, failures: list[str]) -> None:
         corpus_held(f"{sc} stage 2", got, expected, failures)
         if got.get("version") == "v1":
             failures.append(f"{sc} stage 2: the store holds v1, not the change")
+        failures += stage_named(f"{sc} stage 2", client.call("store_status", {}), got)   # task-0342 (B-X8): the change held
         if not want or got.get("superseded_by") != want:
             failures.append(f"{sc} stage 2: superseded_by {got.get('superseded_by')}, the record's successors {want}")
         by_key = {x["key"]: x["id"] for x in rec["gate_after_reverification"]["stale"]}
@@ -836,8 +844,12 @@ def check_thread(got: list[dict], starts: list[str], failures: list[str]) -> Non
         keys = [k["key"] for k in ri.landed_rows(SUBJECT.register_map(), node, reached)]
         if ans["walk"] != "thread" or ans["edges"] != edges or ids != reached or [k["key"] for k in ans["keys"]] != keys:
             failures.append(f"register_impact walk=thread from {node} is not the register's THREAD walk or its keys")
+        stepless = reg["nodes"][node].get("_taxonomy") not in T["impact"].WALKS["thread"]   # task-0342 (B-X2, R-T1)
+        if stepless != bool(ans.get("note")):
+            failures.append(f"register_impact walk=thread from {node} gives note {ans.get('note')!r}, the THREAD walk "
+                            f"{'has no' if stepless else 'has a'} row for its kind")
         print(f"thread: register_impact walk=thread from {node} reaches {len(ids)} node(s) and lands {len(keys)} key(s), "
-              "as tools/impact.py --walk thread, equal over stdio and HTTP")
+              "as tools/impact.py --walk thread, equal over stdio and HTTP" + (", with a note that it takes no step" if ans.get("note") else ""))
 
 
 SINGLE_KEY_TOOLS = ("three_valued_answer", "derived_outputs", "key_nodes")   # task-0320 (decision-0038 N7)
@@ -1048,6 +1060,7 @@ def main(argv: list[str] | None = None) -> int:
             status = client.call("store_status", {})
             if status["scenario"] != sc:
                 failures.append(f"{sc}: store_status says the store holds {status['scenario']}")
+            failures += stage_named(sc, status, expected)
             rel = SUBJECT.scenario(sc).get("deterministic_record") or sc
             rec_path = SUBJECT.record_dir / rel / "deterministic.json"
             d5 = json.loads(rec_path.read_text(encoding="utf-8")).get("D5_three_valued") if rec_path.exists() else None

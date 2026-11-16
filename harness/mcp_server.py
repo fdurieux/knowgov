@@ -176,8 +176,9 @@ TOOLS = [
      "description": "The subject, the scenario the store holds (null when none is loaded, or when the one held is another "
                     "subject's: held_by_other_subject names it then, and every scenario-reading tool refuses), the store kind, the task "
                     "classes with their required keys (and the rationale a class states), the keys the subject asks the three-valued question of, and "
-                    "the date gate_verdict and evidence_bundle read on when a call names none (as_of, from as_of_from). The scenario's stage "
-                    "(v1, or v2 once its change is applied) is the gate report's version, as gate_verdict gives it.",
+                    "the date gate_verdict and evidence_bundle read on when a call names none (as_of, from as_of_from). With a scenario held, "
+                    "stage names which version of it the store holds: 1, or 2 once its change is applied (the gate report's "
+                    "version, v1 or v2, names the same).",
      "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
      "annotations": READ_ONLY},
     {"name": "gate_verdict", "title": "May I build on this?",
@@ -237,7 +238,9 @@ TOOLS.append(
                     "whatever a task class requires: the reach; proposal_impact's slices keep to the class's keys, task-0252), each with its owner, anchor and the nodes it came through (via); "
                     "with children, then the keys resting only on a descendant not followed, flagged not_followed. With a "
                     "scenario held, each key carries its gate level, its stale statements, the suspect derived outputs "
-                    "that used them and its findings, as gate_verdict reports that key set for the task class on the same as_of.",
+                    "that used them and its findings, as gate_verdict reports that key set for the task class on the same as_of. "
+                    "When the walk takes no step from the start's kind (a capability on thread, an application on realisers, a unit "
+                    "on any walk), note says so: nothing is reached from the start itself, which is not nothing resting on it.",
      "inputSchema": {"type": "object", "additionalProperties": False, "required": ["node"], "properties": {
          "node": {"type": "string", "pattern": r"^[A-Z]+-\d{4,}$", "description": "a register id, as the register's files name it"},
          "walk": {"type": "string", "enum": ["dependants", "realisers", "thread"], "description": "dependants: what rests on the node (default; starts from an application, process, journey, capability, information entity or product); realisers: what implements a capability (starts from a capability or a process); thread: what a journey step or process uses, down to the data (the register's THREAD walk: the step's process, the capability it realises, the applications that support it, the information it reads or writes; starts from a journey step, a process or an application, and from any other kind gives no edge and only the rows naming the start); each where the register offers that walk"},
@@ -747,6 +750,7 @@ class Tools:
             held = self._held_detail(st)
             return {"subject": SUBJECT.id, "store": st.name, "scenario": _held(st),
                     "loaded_at": held["loaded_at"] if held else None,
+                    **({"stage": held["stage"]} if held else {}),   # task-0342 (B-X8): 1, or 2 once the change is applied
                     "held_by_other_subject": _foreign(st),
                     "as_of": on, "as_of_from": self.as_of_from,
                     "scenarios": list(SUBJECT.order),
