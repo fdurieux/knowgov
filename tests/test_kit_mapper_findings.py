@@ -16,7 +16,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT / "tools"), str(ROOT / "harness"), str(Path(__file__).resolve().parent)]
 from _skip import skip  # noqa: E402
-from test_claim import DMN, _extract, _part, _run  # noqa: E402
+from test_claim import DMN, _part, _run  # noqa: E402
+from test_claim import _extract as _claim_extract  # noqa: E402
+
+def _extract():
+    """The mappers' module; skipped naming rdflib where PyYAML is missing, including where another test left its
+    stand-in for ``extract`` in sys.modules (test_pairing, test_exact_numeric: only NONE, never the mappers)."""
+    x = _claim_extract()
+    if not hasattr(x, "EXTRACTORS"):
+        skip("rdflib", "extract.py could not be imported here (PyYAML missing); another test's stand-in is in its place")
+    return x
+
 
 PROBE = ROOT / "tools" / "fixtures" / "claim_probe"
 
