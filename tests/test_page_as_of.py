@@ -141,7 +141,7 @@ def test_a_run_through_the_app_passes_its_date_and_refuses_a_bad_one():
 
 def test_the_run_reads_its_date_and_the_stack_job_asserts_the_page_on_s1_after_the_lapse():
     run_py = (ROOT / "harness" / "run.py").read_text(encoding="utf-8")
-    assert 'ap.add_argument("--as-of", default="record"' in run_py and 'resolve(s, "codegen", as_of)' in run_py
+    assert 'ap.add_argument("--as-of", default="record"' in run_py and 'resolve(s, record_task(), as_of)' in run_py   # the subject's record task (task-0368)
     wf = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     step = wf.split("task-0076", 1)[1].split("- name:", 1)[0]
     assert '"as_of":"2027-09-01"' in step and 'x["lapsed_on"], x["months"]) == lapse(x["key"])' in step

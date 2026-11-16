@@ -3,9 +3,10 @@ id: TASK-0368
 title: >-
   A subject whose task class is not codegen runs; a register without a mapping
   matrix loads
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-16T21:25:00Z'
+updated_date: '2026-11-16T22:02:00Z'
 labels:
   - fix
   - run
@@ -30,8 +31,14 @@ The maintainer, 2026-11-16: the page's Deterministic button on a private instanc
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 run.py resolves the gate, stage 2 and the arms' default prompt on Subject.record_task (codegen where declared, else the first class); a subject with no class exits 2 naming it
-- [ ] #2 gate_cli's record baseline, _change and _register_change and the page's key count read the same record task
-- [ ] #3 register_view loads a register without mapping/matrix.toml and says it has no mapping matrix
-- [ ] #4 tests cover both; the record and the comparator are unchanged; CHANGELOG Unreleased
+- [x] #1 run.py resolves the gate, stage 2 and the arms' default prompt on Subject.record_task (codegen where declared, else the first class); a subject with no class exits 2 naming it
+- [x] #2 gate_cli's record baseline, _change and _register_change and the page's key count read the same record task
+- [x] #3 register_view loads a register without mapping/matrix.toml and says it has no mapping matrix
+- [x] #4 tests cover both; the record and the comparator are unchanged; CHANGELOG Unreleased
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Subject.record_task (codegen where declared, else the first class, else None) is the class run.py's gate, stage 2 and default arm prompt resolve, and gate_cli's record baseline, _change and _register_change and the page's key count read; a subject with none exits 2 naming it. register_view reads mapping/matrix.toml through _matrix, which says the register has no mapping matrix when the file is absent. Verified: a copy of subjects/minimal with its class renamed to training ran run.py --deterministic on rdflib (BLOCKED, task training) where main raised KeyError 'codegen'; tests/run_tests.py 1341/1342, 1 skipped. Both public subjects declare codegen, so the record and the comparator are unchanged; complexity baseline tightened (register_view.build 27 to 26).
+<!-- SECTION:FINAL_SUMMARY:END -->
