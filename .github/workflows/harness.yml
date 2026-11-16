@@ -151,9 +151,7 @@ jobs:
           if grep -E '^(ERROR|WARNING|NOTE)' runs/check-cargo.txt; then exit 1; fi   # task-0221: the subject lists its Versions, so a fall back to the read rule fails here
           python tools/check_subject.py subjects/jef_data_load | tee runs/check-jef.txt
           grep -Fx 'manifest holds' runs/check-jef.txt
-          # task-0357: the vendored actions_gate cites JDL-088 in its own description and in no rule, J-F's one citation warning, admitted by name
-          grep -Fq "WARNING [[artefact]] contracts/dmn/: actions_gate.dmn: decision actions_gate's own description cites JDL-088, which no rule of it cites" runs/check-jef.txt
-          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-jef.txt | grep -vF "actions_gate.dmn: decision actions_gate's own description cites JDL-088, which no rule of it cites"; then exit 1; fi   # task-0221: the subject lists its Versions, so a fall back to the read rule fails here
+          if grep -E '^(ERROR|WARNING|NOTE)' runs/check-jef.txt; then exit 1; fi   # task-0221: the subject lists its Versions, so a fall back to the read rule fails here
           rc=0; python tools/check_subject.py tools/fixtures/subject_probe > runs/check-probe.txt || rc=$?
           cat runs/check-probe.txt; test "$rc" -eq 1
           grep -F 'WARNING [tasks.codegen] keys: REQ-02|txt' runs/check-probe.txt | grep -F 'did you mean REQ-02|text?'

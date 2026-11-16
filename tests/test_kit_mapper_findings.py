@@ -1,9 +1,9 @@
 """Tasks 0355-0357: three bundle mappers a reverse-engineering run's kits wrote past. requirements_json refuses a top
 level it cannot read, by name and with the shape, and reads an object whose one list-valued key holds the items;
-plantuml_realises reads a ``' realises:`` comment line beside the footer; dmn_decisions is unchanged (reading a
-decision's own citations would move J-F's record). ``tools/check_subject.py`` refuses the shape (rule
-``mapper-failed``) and warns (rule ``citation``) on a realises line naming no id, a decision-level id no rule cites,
-and an id-shaped token the subject's pattern does not read. The mappers
+plantuml_realises reads a ``' realises:`` comment line beside the footer; dmn_decisions reads a decision's own
+citations that no rule of it makes (J-F's record re-recorded, maintainer 2026-11-16). ``tools/check_subject.py``
+refuses the shape (rule ``mapper-failed``) and warns (rule ``citation``) on a realises line naming no id and on an
+id-shaped token the subject's pattern does not read. The mappers
 need the pins (PyYAML, pumllint): skipped naming rdflib where they are absent, required in the rdflib job."""
 from __future__ import annotations
 
@@ -99,19 +99,20 @@ def test_plantuml_realises_reads_the_comment_form_beside_the_footer_each_id_once
     assert _keys(comment)["AB-005|realised_by"] == "gate", "the comment form alone links"
 
 
-def test_dmn_decisions_reads_a_rules_citations_and_not_a_decisions_own():
-    """task-0357: reading a decision's own citations would move the public J-F record (actions_gate's description
-    cites JDL-088, which no rule of it does), so the mapper is unchanged and check_subject warns instead."""
+def test_dmn_decisions_reads_a_decisions_own_citations_that_no_rule_makes():
     x = _extract()
-    plain = _keys(_run(x, "dmn_decisions", "dmn/", _part("g.dmn", DMN.format(dec="", r1=""))))
-    cited = _keys(_run(x, "dmn_decisions", "dmn/", _part("g.dmn", DMN.format(
-        dec="<description>Gate on AB-001 and AB-007.</description>", r1=""))))
-    assert cited == plain and plain["AB-001|decided_by"] == "gate/r1" and "AB-007|decided_by" not in cited
-    warns = x.convention_warnings("dmn_decisions", "dmn/", _part("g.dmn", DMN.format(
-        dec="<description>Gate on AB-001 and AB-007.</description>", r1="")))
-    assert warns == ["g.dmn: decision gate's own description cites AB-007, which no rule of it cites: dmn_decisions "
-                     "reads citations from a rule's description only, so it links nothing"], warns
-    assert x.convention_warnings("dmn_decisions", "dmn/", _part("g.dmn", DMN.format(dec="", r1=""))) == []
+    desc = "<description>Gate on AB-001 and AB-007. claim: inferred</description>"
+    plain = _run(x, "dmn_decisions", "dmn/", _part("g.dmn", DMN.format(dec="", r1="")))
+    cited = _run(x, "dmn_decisions", "dmn/", _part("g.dmn", DMN.format(dec=desc, r1="")))
+    p, c = _keys(plain), _keys(cited)
+    assert p["AB-001|decided_by"] == c["AB-001|decided_by"] == "gate/r1", "a rule's citation is the exact one; the decision's adds nothing"
+    assert c["AB-007|decided_by"] == "gate" and "AB-007|decided_by" not in p
+    assert {k: v for k, v in c.items() if k != "AB-007|decided_by"} == p, "nothing else moves"
+    [a] = [a for a in cited.assertions if a["entity"] == "AB-007"]
+    assert a["basis"] == "inferred", "the decision's claim is its own citations' claim"
+    assert [f["locator"] for f in cited.fragments if f["locator"] not in {g["locator"] for g in plain.fragments}] == ["g.dmn:decision/gate"]
+    assert x.convention_warnings("dmn_decisions", "dmn/", _part("g.dmn", DMN.format(dec=desc, r1=""))) == [], \
+        "a decision's own citation is read, so it is no warning"
 
 
 def _probe(td: str) -> Path:
@@ -146,7 +147,7 @@ def test_check_subject_refuses_the_shape_and_warns_on_a_malformed_citation_only(
                        encoding="utf-8")
         dmn = root / "kit" / "dmn" / "values.dmn"
         text = dmn.read_text(encoding="utf-8")
-        dmn.write_text(text.replace("<description>", "<description>See CLM-1234 and CLM-005. ", 1), encoding="utf-8")
+        dmn.write_text(text.replace("<description>", "<description>See CLM-1234 and CLM-005. ", 1), encoding="utf-8")   # CLM-005 read
         rep = check_subject.check(root, ROOT / "demo" / "register")
         [shape] = [f for f in _findings(rep, "mapper-failed") if f["where"] == "[[artefact]] requirements.json"]
         assert shape["level"] == "error" and shape["where"] == "[[artefact]] requirements.json" and \
@@ -156,16 +157,14 @@ def test_check_subject_refuses_the_shape_and_warns_on_a_malformed_citation_only(
         assert any("diagram inferred.puml: \"' realises: the gate\" names no requirement id" in m for m in msgs), msgs
         assert any("diagram inferred.puml" in m and "cites CLM-04," in m for m in msgs), msgs
         assert any("values.dmn" in m and "CLM-1234" in m for m in msgs), msgs
-        assert any("decision value_gate's own description cites CLM-005, which no rule of it cites" in m for m in msgs), msgs
+        assert not any("CLM-005" in m for m in msgs), "a decision's own citation is read, not warned on"
         assert rep["exit_code"] == 1 and schema_check.validate(rep, schema_check.load("subject-check")) == []
 
 
-def test_the_public_kit_holds_one_citation_warning_a_decision_level_one():
-    """J-F's actions_gate cites JDL-088 in its own description and in no rule: the one warning the public kits hold."""
+def test_the_public_kits_hold_no_citation_warning():
+    """J-F's actions_gate cites JDL-088 in its own description and in no rule: read since task-0357, so no warning."""
     import check_subject
     rep = check_subject.check(ROOT / "subjects" / "jef_data_load", ROOT / "demo" / "register")
     if rep["yield"]["state"] != "checked":
         skip("rdflib", f"the yield is unchecked here: {rep['yield'].get('why')}")
-    assert not _findings(rep, "mapper-failed"), rep["findings"]
-    assert [(f["where"], f["message"].split(":")[1].strip()) for f in _findings(rep, "citation")] == \
-        [("[[artefact]] contracts/dmn/", "decision actions_gate's own description cites JDL-088, which no rule of it cites")]
+    assert not _findings(rep, "citation") and not _findings(rep, "mapper-failed"), rep["findings"]

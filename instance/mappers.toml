@@ -20,7 +20,7 @@ reads = "Markdown with `## DT-V`, `## DT-S`, `## DT-P` sections in the CargoQuot
 reads = "A DMN 1.3 file in the CargoQuote kit's shape: rules with ids `<x>_<row>`, numeric conditions (`<= n`, `[a..b]`, `>= n`); yields `S-<row>|min`/`max` and outputs."
 
 [mapper.dmn_decisions]
-reads = "A folder of DMN 1.3 files; one `decision_table` entity per decision with its rule count, and `<req>|decided_by` for each requirement a rule's description cites (an id in a decision's own description is not read: write it on the rule). An optional `claim: observed|inferred|intended` in a decision's or a rule's description says what its rules are, the rule's winning."
+reads = "A folder of DMN 1.3 files; one `decision_table` entity per decision with its rule count, and `<req>|decided_by` for each requirement a rule's description cites, and the decision itself for an id its own description cites and no rule does. An optional `claim: observed|inferred|intended` in a decision's or a rule's description says what its rules are, the rule's winning."
 
 [mapper.gherkin]
 reads = "A `.feature` file whose scenarios are titled `Scenario: Gn - ...`; yields each scenario's expected response status."

@@ -309,7 +309,7 @@ Where each bundle mapper reads it:
 |---|---|---|
 | `requirements_json` | `"claim": "<value>"` on an item (its `basis` field is where the statement was read: code logic, prose or both, not a claim) | the item's statement |
 | `contracts_markdown` | a line `Claim: <value>` in a part | the part's citations |
-| `dmn_decisions` | `claim: <value>` in a decision's or a rule's `<description>` | the decision's rules, a rule's own winning |
+| `dmn_decisions` | `claim: <value>` in a decision's or a rule's `<description>` | the decision's rules and its own citations, a rule's own winning |
 | `gherkin_tagged` | a tag `@claim:<value>` on the Feature, a Rule or a Scenario | the scenarios under it, the nearest winning |
 | `plantuml_realises` | a comment line `' claim: <value>` | the diagram's statements |
 
@@ -324,13 +324,13 @@ every mapping, and `tools/check_claim_probe.py` holds it on the store `KG_STORE`
 ## Where the bundle mappers read citations
 
 A kit written to these conventions links its layers by requirement id, read by the subject's `[rules]
-requirement_id_pattern`. Each bundle mapper reads its ids from one place (tasks 0355 to 0357):
+requirement_id_pattern`. Each bundle mapper reads its ids from the places below and nowhere else (tasks 0355 to 0357):
 
 | mapper | input and where the ids are read |
 |---|---|
 | `requirements_json` | one JSON file: a top-level list of items, each an object with string `id` and `statement` (`kind`, `basis` and `claim` optional), or an object whose one list-valued key holds that list (`{"requirements": [...], "version": "1"}`; the object's other keys are not read). Any other top level, an object with no or two list-valued keys, or an item without a string `id` and `statement`, is refused by `tools/check_subject.py` (rule `mapper-failed`) and by the load, naming the file and this shape |
 | `contracts_markdown` | anywhere in a part: `Requirements: JDL-045, …`, ranges, inline citations |
-| `dmn_decisions` | a **rule's** `<description>`. An id in a decision's own `<description>` is not read as a citation: `check_subject.py` warns (rule `citation`) on one that no rule of the decision cites. Write the id on the rule(s) that decide it |
+| `dmn_decisions` | a rule's `<description>`, listed as `<decision>/<rule id>`; and a decision's own `<description>`, listed as `<decision>`, for an id none of its rules cites (task-0357). A decision's `claim:` is its own citations' claim |
 | `gherkin_tagged` | a scenario's `@<id>` tags |
 | `plantuml_realises` | the footer, or a comment line `' realises: <ids>`, or both (an id both name is cited once): |
 

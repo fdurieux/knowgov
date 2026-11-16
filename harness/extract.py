@@ -771,13 +771,28 @@ def extract_contracts_markdown(path: str, text: str) -> Bag:
     return b
 
 
+_DMN_NS = {"d": "https://www.omg.org/spec/DMN/20191111/MODEL/"}
+
+
+def _cite_decision(bag: Bag, cites: dict, where: tuple[str, str], dec, claim: str | None) -> None:
+    """task-0357: the requirements a decision's own description cites that none of its rules does, cited by the
+    decision, on one fragment holding the description (maintainer, 2026-11-16, option (b): J-F's record re-recorded)."""
+    dname = dec.get("name") or dec.get("id")
+    desc = (dec.findtext("d:description", default="", namespaces=_DMN_NS) or "").strip()
+    by_rules = {req for req, xs in cites.items() if any(n.startswith(f"{dname}/") for n, _f, _c in xs)}
+    if own := [req for req in _ids_in(desc) if req not in by_rules]:
+        f = bag.frag(f"{where[0] or where[1]}:decision/{dname}", f"{dname}: {desc}")
+        for req in own:
+            cites.setdefault(req, []).append((dname, f, claim))
+
+
 def extract_dmn_decisions(path: str, text: str) -> Bag:
     """A bundle of DMN 1.3 files: one ``decision_table`` entity per decision with its rule count
     (authored: the table's own structure), and ``<req>|decided_by`` for every requirement a rule's
-    description cites, listing ``<decision>/<rule id>``. A requirement id in the decision's own description is
-    not read as a citation (task-0357: reading it moves the public J-F record, so ``tools/check_subject.py``
-    warns on it instead). ``claim: <value>`` in a decision's own description is its rules' claim, in a rule's
-    description that rule's (task-0214)."""
+    description cites, listing ``<decision>/<rule id>``, and for every requirement the decision's own
+    description cites that none of its rules does, listing ``<decision>`` (task-0357; a requirement a rule
+    cites is already placed more exactly). ``claim: <value>`` in a decision's own description is its rules'
+    claim and its own citations', in a rule's description that rule's (task-0214)."""
     b = Bag(short(path))
     ns = {"d": "https://www.omg.org/spec/DMN/20191111/MODEL/"}
     cites: dict[str, list[tuple[str, str, str | None]]] = {}
@@ -803,6 +818,7 @@ def extract_dmn_decisions(path: str, text: str) -> Bag:
                 claims.append(claim)
                 for req in _ids_in(desc):
                     cites.setdefault(req, []).append((f"{dname}/{rid}", f, claim))
+            _cite_decision(b, cites, (rel, path), dec, dclaim)
             b.assertion(ent, "rules", str(len(rules)), f"{dname} has {len(rules)} rules", frags,
                         basis=_basis(claims or [dclaim], "authored"))
     _by_requirement(b, "decided_by", cites, lambda rid, names: f"{rid} is decided by {', '.join(names)}")
@@ -939,12 +955,11 @@ EXTRACTORS = {   # mapper name (the subject manifest's) -> the deterministic map
 }
 
 
-# Convention warnings (task-0356, task-0357): a citation the mapper reads past. plantuml_realises reads a realises
-# comment line beside the footer, so what is left there is a malformed one: a realises line naming no id. In
-# dmn_decisions a requirement id in a decision's own description that no rule of it cites (rules carry the
-# citations); in both, a token shaped like an id, with the prefix of the ids the document does cite, that the
-# subject's pattern does not read (JDL-12 under JDL-\d{3}). ``tools/check_subject.py`` reports each as a warning;
-# the load reads what it can and says nothing.
+# Convention warnings (task-0356, task-0357): a malformed citation, which the mapper reads past. plantuml_realises
+# reads the footer and a realises comment line, dmn_decisions a rule's and a decision's own description, so what
+# is left is a realises line naming no id, and a token shaped like an id, with the prefix of the ids the document
+# does cite, that the subject's pattern does not read (JDL-12 under JDL-\d{3}). ``tools/check_subject.py`` reports
+# each as a warning; the load reads what it can and says nothing.
 _ID_SHAPED = re.compile(r"\b([A-Za-z][A-Za-z0-9_]*)-(\d+)\b")
 
 
@@ -983,14 +998,8 @@ def _dmn_places(dec, ns: dict) -> list[tuple[str, str]]:
 
 
 def _warn_dmn_decision(where: str, places: list[tuple[str, str]], pre: set[str]) -> list[str]:
-    out = []
-    by_rules = {req for _at, desc in places[1:] for req in _ids_in(desc)}
-    if unread := [req for req in _ids_in(places[0][1]) if req not in by_rules]:   # task-0357
-        out.append(f"{where}: {places[0][0]}'s own description cites {', '.join(unread)}, which no rule of it cites: "
-                   "dmn_decisions reads citations from a rule's description only, so it links nothing")
-    out += [f"{where}: {at}'s description cites {', '.join(miss)}, which the subject's requirement id pattern does "
+    return [f"{where}: {at}'s description cites {', '.join(miss)}, which the subject's requirement id pattern does "
             "not read, so it links nothing" for at, desc in places if (miss := _near_misses(desc, pre))]
-    return out
 
 
 def _warn_dmn_decisions(path: str, text: str) -> list[str]:
