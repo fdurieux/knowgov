@@ -49,6 +49,7 @@ def _v1(r: dict) -> dict:
 
 class Subject:
     id = "cargo_quote"
+    record_task = "codegen"   # the class the record's gate resolved (task-0368)
     record_dir = ROOT / "subjects" / "cargo_quote" / "vendor" / "kg_experiment" / "results"
 
     def scenario(self, s):
