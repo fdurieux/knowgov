@@ -46,6 +46,10 @@ Once, after the scenarios: ``subject_check`` listed over stdio and Streamable HT
 Once, after the scenarios: a call naming another subject under ``KG_SUBJECTS`` equals the same call on a reader
 started on that subject, over stdio and HTTP; ``list_subjects`` names every subject; a store-backed call for it
 refuses naming the held subject and the run to start (task-0157, decision-0013 with A1).
+Once, store-free: ``who_knows`` on the knowledge probe (``tools/fixtures/knowledge_probe``, a reader started with it as
+``KG_SUBJECT``, ``KG_SUBJECTS`` and ``KG_INSTANCE``), for a node, a key and a code path, over stdio (both eras) and HTTP,
+equal to the probe's expected reports and its register field to the register's own, so the rdflib job and the Neo4j
+stack job hold one answer; anything but exactly one of node, key and path refused -32602 (task-0360, decision-0047).
 Every answer it reads, over either transport, conforms to the schema the tool's description names
 (``mcp_server.OUTPUT_SCHEMAS``, harness/schemas/; task-0172).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
@@ -761,6 +765,86 @@ def check_subjects(failures: list[str]) -> None:
           f"list_subjects lists {len(listed['subjects'])}; a store-backed call for it refused with the run to start")
 
 
+KNOWLEDGE = ROOT / "tools" / "fixtures" / "knowledge_probe"
+WHO_KNOWS = (("node", "CAP-0002", "node-CAP-0002"), ("key", "shipper|screened", "key-shipper_screened"),
+             ("path", "quote.py", "path-quote_py"))
+
+
+def knowledge_env() -> dict:
+    """The knowledge probe as a reader's subjects and instance (task-0360): its own subject only, so the reports are
+    the probe's whatever subject this check runs on."""
+    root = KNOWLEDGE / "subjects" / "knowledge_probe"
+    return {"KG_SUBJECT": str(root), "KG_SUBJECTS": str(root), "KG_INSTANCE": str(KNOWLEDGE), "KG_AS_OF": "record"}
+
+
+def knowledge_clients() -> list[tuple[str, "StdioClient"]]:
+    """A reader on stdio and one on HTTP, started on the knowledge probe (``knowledge_env``); this process's own
+    environment as it was after."""
+    keep = {k: os.environ.get(k) for k in knowledge_env()}
+    os.environ.update(knowledge_env())
+    try:
+        return [("stdio", StdioClient()), ("http", HttpClient())]
+    finally:
+        for k, v in keep.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+
+def who_knows_answers(name: str, client: "StdioClient", register: dict, failures: list[str]) -> int:
+    """Each of WHO_KNOWS asked of ``client`` (and statelessly over stdio), against the probe's expected report."""
+    n = 0
+    for which, value, stem in WHO_KNOWS:
+        want = json.loads((KNOWLEDGE / "expected" / f"who_knows-{stem}.json").read_text(encoding="utf-8"))
+        sends = [("handshake", client.call("who_knows", {which: value}))]
+        if name == "stdio":
+            sends.append(("stateless", client.modern("tools/call", {"name": "who_knows", "arguments": {which: value}})["result"].get("structuredContent")))
+        for era, got in sends:
+            n += 1
+            got = dict(got or {})
+            if got.pop("register", None) != register or got != want:
+                diff = sorted(k for k in set(got) | set(want) if got.get(k) != want.get(k)) or ["register"]
+                failures.append(f"who_knows {which}={value} over {name} ({era}): differs from the probe's expected report on {diff}")
+    return n
+
+
+def refused_32602(name: str, client: "StdioClient", tool: str, cases: list[dict], failures: list[str]) -> None:
+    """Each of ``cases`` sent to ``tool`` is an error -32602, never a result."""
+    for bad in cases:
+        err = client.request("tools/call", {"name": tool, "arguments": bad}).get("error") or {}
+        if err.get("code") != -32602:
+            failures.append(f"{tool} {bad} over {name}: answered {err or 'a result'}, not -32602")
+
+
+def check_who_knows(failures: list[str]) -> None:
+    """task-0360 (decision-0047 point 2): who_knows for a node, a key and a code path on the knowledge probe, over stdio in
+    both eras and over HTTP, each equal to the probe's expected report and its register field to the served register's
+    own; the same files read on either store, so the rdflib and the Neo4j job hold the same answers. Anything but
+    exactly one of node, key and path, or an argument outside the schema, is -32602."""
+    sys.path.insert(0, str(HARNESS))
+    import register_impact as ri
+    register = ri.source(ri.register_root().resolve())
+    clients = knowledge_clients()
+    n = 0
+    try:
+        for name, client in clients:
+            n += who_knows_answers(name, client, register, failures)
+            refused_32602(name, client, "who_knows", [{}, {"node": "CAP-0002", "key": "shipper|screened"},
+                                                       {"path": "quote.py", "subject": "knowledge_probe"}, {"node": "not-a-node"}], failures)
+    finally:
+        for _, client in clients:
+            client.close()
+    print(f"who_knows: {n} answer(s) on the knowledge probe, a node, a key and a code path over stdio (both eras) and HTTP, "
+          "equal to its expected reports; anything but exactly one of node, key and path refused -32602")
+
+
+def check_files_only(failures: list[str], before: dict) -> None:
+    """The store-free checks after the scenarios, each followed by the census: subject_check (task-0146) and who_knows
+    (task-0360) answer from files and leave the store as it was."""
+    for label, check in (("subject_check", check_subject_tool), ("who_knows", check_who_knows)):
+        check(failures)
+        if census() != before:
+            failures.append(f"{label}: the store changed while the reader answered from files")
+
+
 def check_transports(failures: list[str], ex: dict | None = None) -> None:
     """doc-0020's tools served by the knowgov server on both transports (task-0142, task-0143), and an unknown
     argument or a non-string tool name refused with -32602 on both (task-0200): tools/list over
@@ -1078,9 +1162,7 @@ def main(argv: list[str] | None = None) -> int:
     check_subjects(failures)
     if census() != before:
         failures.append("subjects: the store changed while the reader answered for another subject")
-    check_subject_tool(failures)
-    if census() != before:
-        failures.append("subject_check: the store changed while the server checked a proposed subject")
+    check_files_only(failures, before)
     for f in failures:
         print("FAIL " + f, file=sys.stderr)
     print("MCP server: " + ("every check holds" if not failures else f"{len(failures)} failure(s)"))

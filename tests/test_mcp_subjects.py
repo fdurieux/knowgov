@@ -74,8 +74,11 @@ def test_every_tool_takes_subject_and_says_whether_it_is_store_backed():
     for t in tools:
         assert isinstance(t["_meta"][mcp_server.META_STORE], bool), t["name"]
         assert (t["name"] in mcp_server.STORE_BACKED) == t["_meta"][mcp_server.META_STORE], t["name"]
-        if t["name"] != "list_subjects":
+        if t["name"] not in mcp_server.ACROSS_SUBJECTS:   # task-0360: who_knows reads across every subject, as list_subjects
             assert t["inputSchema"]["properties"]["subject"] == mcp_server.SUBJECT_ARG, t["name"]
+        else:
+            assert "subject" not in t["inputSchema"]["properties"], t["name"]
+    assert mcp_server.ACROSS_SUBJECTS == {"list_subjects", "who_knows"}
     assert mcp_server.STORE_BACKED == {"store_status", "gate_verdict", "three_valued_answer", "evidence_bundle", "register_impact",
                                        "proposal_impact", "held_keys", "derived_outputs", "document_statements"}
     assert mcp_server.STORE_BACKED < names
@@ -94,7 +97,7 @@ def test_none_named_or_the_own_subject_named_answers_exactly_as_today():
 def test_a_path_or_an_unknown_subject_is_refused_on_every_tool():
     s, _ = _server()
     for t in mcp_server.TOOLS:
-        if t["name"] == "list_subjects":
+        if t["name"] in mcp_server.ACROSS_SUBJECTS:   # no subject argument: one is -32602 (tests/test_who_knows.py)
             continue
         need = {k: REQUIRED_SAMPLE[k] for k in t["inputSchema"].get("required", [])}   # task-0281: a call missing one is -32602 first
         r = _call(s, t["name"], {**need, "subject": "../" + SUBJECT.id})["result"]

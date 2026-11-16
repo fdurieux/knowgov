@@ -134,9 +134,13 @@ def test_the_files_only_tools_conform_on_both_subjects():
                 path = next((str(p.relative_to(inst / "code")) for p in (inst / "code").rglob("*.py")), "reference_impl.py") \
                     if extra else "reference_impl.py"
                 r.call("code_path", {"path": path})
+                r.call("who_knows", {"key": m["keys"][0]})   # task-0360: files only, across the reader's subjects
+                if extra:
+                    r.call("who_knows", {"path": path})
                 cap = next(n["id"] for n in listing["nodes"] if n["id"].startswith("CAP"))
                 r.call("register_impact", {"node": m["rows"][0]["nodes"][0]})
                 r.call("register_impact", {"node": cap, "children": True})
+                r.call("who_knows", {"node": cap})
                 r.call("proposal_impact", {"proposal": PROPOSAL})
                 r.call("proposal_impact", {"scope": "JRN-0001"})   # task-0191: the approved register alone, keys per slice
                 r.call("scenario_runs")

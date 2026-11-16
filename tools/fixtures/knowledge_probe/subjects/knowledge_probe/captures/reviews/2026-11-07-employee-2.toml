@@ -1,0 +1,27 @@
+# A review: a person's rulings on what the store holds (task-0037, decision-0002). Read by every load
+# of its scenario. Never edited after it is written: a change of mind is a new review.
+format = 1
+
+[review]
+by = "employee-2"
+on = 2026-11-07
+record = "captures/reviews/2026-11-07-employee-2.toml"
+scenario = "S0"
+
+[[ruling]]
+assertion = "A:cap:2026-11-05-ORG-0002-employee-1:1@capture"
+key = "quote|currency"
+value = "EUR"
+sha256 = "3a0c5f0f4bdb0ec8b4bc7d3c4b6c4f0b8c6b1f0e5a1d8f6c7e2b9a4d3c2b1a00"
+giver = "employee-1"
+outcome = "approved"
+note = ""
+
+[[ruling]]
+assertion = "A:cap:2026-11-05-ORG-0002-employee-1:2@capture"
+key = "quote|validity_days"
+value = "30"
+sha256 = "3a0c5f0f4bdb0ec8b4bc7d3c4b6c4f0b8c6b1f0e5a1d8f6c7e2b9a4d3c2b1a01"
+giver = "employee-1"
+outcome = "rejected"
+note = "quotes stand for 14 days since the last tariff change"

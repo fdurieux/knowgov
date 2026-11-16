@@ -1,0 +1,106 @@
+{
+ "schema_version": 1,
+ "tool": "who_knows",
+ "asked": {
+  "key": "shipper|screened"
+ },
+ "nodes": [
+  "APP-0004",
+  "CAP-0003"
+ ],
+ "keys": [
+  "shipper|screened"
+ ],
+ "code": null,
+ "subjects": [
+  "knowledge_probe"
+ ],
+ "unread": [],
+ "issued_list": "people/handles.toml",
+ "handles": [
+  {
+   "handle": "employee-1",
+   "listed": true,
+   "unit": "ORG-0002",
+   "unit_name": "Architecture stewardship (stand-in)",
+   "roles": [
+    "gives"
+   ],
+   "issued": "2026-11-02",
+   "withdrawn": null,
+   "holder": null,
+   "holder_why": "people/handles.toml records no person for employee-1 (ieam-register decision 0021): its holder is in the organisation's directory, or not recorded",
+   "evidence": [
+    {
+     "kind": "owns",
+     "node": "APP-0004",
+     "via": "owner"
+    },
+    {
+     "kind": "owns",
+     "node": "CAP-0003",
+     "via": "owner"
+    }
+   ]
+  },
+  {
+   "handle": "employee-2",
+   "listed": true,
+   "unit": "ORG-0002",
+   "unit_name": "Architecture stewardship (stand-in)",
+   "roles": [
+    "approves",
+    "gives"
+   ],
+   "issued": "2026-11-02",
+   "withdrawn": null,
+   "holder": null,
+   "holder_why": "people/handles.toml records no person for employee-2 (ieam-register decision 0021): its holder is in the organisation's directory, or not recorded",
+   "evidence": [
+    {
+     "kind": "answered",
+     "key": "shipper|screened",
+     "subject": "knowledge_probe",
+     "on": "2026-11-06",
+     "capture": "A:cap:2026-11-06-ORG-0002-employee-2:1@capture",
+     "nobody_knows": false
+    },
+    {
+     "kind": "owns",
+     "node": "APP-0004",
+     "via": "owner"
+    },
+    {
+     "kind": "owns",
+     "node": "CAP-0003",
+     "via": "owner"
+    }
+   ]
+  },
+  {
+   "handle": "employee-3",
+   "listed": true,
+   "unit": "ORG-0001",
+   "unit_name": "CargoQuote product owner (stand-in)",
+   "roles": [
+    "approves",
+    "closes",
+    "gives"
+   ],
+   "issued": "2026-11-02",
+   "withdrawn": null,
+   "holder": null,
+   "holder_why": "people/handles.toml records no person for employee-3 (ieam-register decision 0021): its holder is in the organisation's directory, or not recorded",
+   "evidence": [
+    {
+     "kind": "approved",
+     "key": "shipper|screened",
+     "subject": "knowledge_probe",
+     "on": "2026-11-08",
+     "review": "review:2026-11-08-employee-3",
+     "statement": "A:cap:2026-11-06-ORG-0002-employee-2:1@capture"
+    }
+   ]
+  }
+ ]
+}

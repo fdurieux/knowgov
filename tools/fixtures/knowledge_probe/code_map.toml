@@ -1,0 +1,11 @@
+# The knowledge probe's code map (task-0360): one file, mapped to the register's TariffEngine module.
+format = 1
+
+[code]
+root = "code"
+include = ["**/*.py"]
+
+[[map]]
+glob = "quote.py"
+app = "APP-0003"
+note = "the probe's quote rules, a synthetic stand-in for TariffEngine"

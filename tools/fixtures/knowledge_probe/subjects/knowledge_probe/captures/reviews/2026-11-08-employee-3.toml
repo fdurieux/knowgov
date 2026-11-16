@@ -1,0 +1,20 @@
+# A review: a person's rulings on what the store holds (task-0037, decision-0002). Read by every load
+# of its scenario. Never edited after it is written: a change of mind is a new review.
+# Its ruling records no key (a review written before task-0199): who_knows reads the key from the capture.
+format = 1
+
+[review]
+by = "employee-3"
+on = 2026-11-08
+record = "captures/reviews/2026-11-08-employee-3.toml"
+scenario = "S0"
+
+[[ruling]]
+assertion = "A:cap:2026-11-06-ORG-0002-employee-2:1@capture"
+outcome = "approved"
+note = ""
+
+[[closes]]
+gap = "gap:declared:capture:2026-11-05-ORG-0002-employee-1:1"
+sha256 = "3a0c5f0f4bdb0ec8b4bc7d3c4b6c4f0b8c6b1f0e5a1d8f6c7e2b9a4d3c2b1a02"
+note = "rounding is the tariff table's, not a rule of its own"
