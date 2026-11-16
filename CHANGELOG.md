@@ -25,6 +25,7 @@ names that section with the version.
 
 ### Contract changes
 
+- A reader of `RECONCILE.json` with an owner (task-0342, decision-0041 C5-1): `harness/reconcile_reader.py` and the MCP reader's new files-only tool `stale_nodes` list, for each system under the register's `exports/`, the stale nodes its newest landing names, each with its owning unit as `register_impact` names it, the folder it was carried from and the system's own id where recorded, beside the landing's `unknown_ids` and `unregistered` count, and group them by unit in `by_owner`; filtered by `system` and owning unit (`owner`). JSON pinned by the new `harness/schemas/stale-nodes.schema.json`; exit 0 with the report, 2 when it cannot run; an argument outside the tool's `inputSchema` is -32602. Nothing is written.
 - A gate-only previous-register setting (task-0342, decision-0041 B-N2): `KG_GATE_REGISTER_PREVIOUS`, a contract setting, makes `instance/ci/knowgov-gate.sh` pass `--register-previous` to the `gate` step alone, a relative path read from the working directory; the GitHub action sets it from its new `register-previous` input, and the GitLab include names it among its variables. The gate stales the keys resting on what the update withdrew on every run it is set, so set it for the run that lands the update and unset it once the owner confirms. `KG_REGISTER_PREVIOUS` keeps its single, page-only effect: the CI template never reads it, so an instance that sets it for the page does not re-stale keys on every CI run. The settings table gains its row (66 contracts of 106).
 
 ### Known limits
