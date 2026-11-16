@@ -6,10 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-16T04:37:00Z'
-updated_date: '2026-11-16T04:37:00Z'
+updated_date: '2026-11-16T19:22:00Z'
 labels:
   - finding
   - reverse-engineering
+  - 0.10.0
 dependencies: []
 type: bug
 ordinal: 346000
@@ -30,4 +31,11 @@ Placement: documenting the footer form and warning on a ' realises comment line 
 - [ ] #1 subjects/README.md shows the footer form plantuml_realises reads, with an example
 - [ ] #2 check_subject.py warns on a ' realises: comment line that the mapper does not read, naming the diagram
 - [ ] #3 A test holds the warning; the scored record is unchanged
+- [ ] #4 Reader extension (0.10.0): plantuml_realises also reads a ' realises: comment line, with the footer still read, recorded in subjects/README.md and the CHANGELOG under contract changes
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+The maintainer, 2026-11-16: "Yes" to these joining 0.10.0 (decision-0047 point 4): the soak they waited for restarts with 0.10.0 anyway.
+<!-- SECTION:NOTES:END -->
