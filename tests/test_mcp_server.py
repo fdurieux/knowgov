@@ -167,7 +167,7 @@ def test_every_tool_listed_and_marked_read_only():
     s, _ = _server()
     tools = s.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]
     assert [t["name"] for t in tools] == ["store_status", "gate_verdict", "three_valued_answer", "evidence_bundle", "register_impact",
-                                          "proposal_impact", "scenario_runs", "scenario_result", "register_nodes",
+                                          "proposal_impact", "scenario_runs", "scenario_result", "register_nodes", "stale_nodes",
                                           "key_nodes", "code_path", "document_links", "subject_check", "held_keys", "derived_outputs", "document_statements",
                                           "who_knows", "list_subjects"]
     for t in tools:

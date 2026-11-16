@@ -1,0 +1,247 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/stale-nodes.schema.json",
+ "title": "knowgov stale_nodes",
+ "description": "What harness/reconcile_reader.py prints and the MCP reader's stale_nodes returns (task-0342, decision-0041 C5-1): the register's tag and commit, the filters applied, the number of distinct stale nodes listed, each system under the register's exports/ with its newest dated landing, whether that landing was reconciled, its stale nodes with their owning units, the carried ids the register does not hold and how many objects no node carries; and by_owner, the listed stale nodes by unit (null: no owner field). Read from the register's files only.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "schema_version",
+  "tool",
+  "register",
+  "filters",
+  "total",
+  "systems",
+  "by_owner"
+ ],
+ "$defs": {
+  "stale": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "in_register",
+    "previous",
+    "source_id",
+    "taxonomy",
+    "kind",
+    "name",
+    "state",
+    "owning_unit"
+   ],
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "in_register": {
+     "type": "boolean",
+     "description": "false when the register no longer holds the node: listed with no owner"
+    },
+    "previous": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "the landing the stale node was carried from, where the landing recorded it"
+    },
+    "source_id": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "the system's own id for the node (its id_field in the register's metamodel/sources.toml), where the landing recorded it"
+    },
+    "taxonomy": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "kind": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "name": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "state": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "owning_unit": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "additionalProperties": false,
+     "required": [
+      "unit",
+      "name",
+      "owns"
+     ],
+     "properties": {
+      "unit": {
+       "type": "string"
+      },
+      "name": {
+       "type": "string"
+      },
+      "owns": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      }
+     },
+     "description": "the node's owner field, the unit's name and the approved owns links to it, as register_impact names them; null when the register no longer holds the node"
+    }
+   }
+  },
+  "system": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "system",
+    "folder",
+    "exported_on",
+    "previous",
+    "reconciled",
+    "stale_nodes",
+    "unknown_ids",
+    "unregistered"
+   ],
+   "properties": {
+    "system": {
+     "type": "string"
+    },
+    "folder": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "the newest dated landing, relative to the register; null when none landed"
+    },
+    "exported_on": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "previous": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "reconciled": {
+     "type": "boolean",
+     "description": "false when no landing, or the landing has no RECONCILE.json; why says which"
+    },
+    "stale_nodes": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/stale"
+     }
+    },
+    "unknown_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "unregistered": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "why": {
+     "type": "string"
+    }
+   }
+  }
+ },
+ "properties": {
+  "schema_version": {
+   "const": 1
+  },
+  "tool": {
+   "const": "stale_nodes"
+  },
+  "register": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "tag",
+    "commit"
+   ],
+   "properties": {
+    "tag": {
+     "type": "string"
+    },
+    "commit": {
+     "type": "string"
+    }
+   }
+  },
+  "filters": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "system": {
+     "type": "string"
+    },
+    "owner": {
+     "type": "string"
+    }
+   }
+  },
+  "total": {
+   "type": "integer",
+   "minimum": 0
+  },
+  "systems": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/system"
+   }
+  },
+  "by_owner": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "unit",
+     "name",
+     "stale"
+    ],
+    "properties": {
+     "unit": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "name": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "stale": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  }
+ }
+}
