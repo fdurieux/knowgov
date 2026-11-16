@@ -127,6 +127,7 @@ def test_the_files_only_tools_conform_on_both_subjects():
             try:
                 listing = r.call("register_nodes")
                 r.call("register_nodes", {"node": listing["nodes"][0]["id"]})
+                r.call("stale_nodes")   # task-0342 (C5-1): the register's landings, files only
                 for key in m["keys"][:4]:
                     r.call("key_nodes", {"key": key})
                 for doc in cited:
