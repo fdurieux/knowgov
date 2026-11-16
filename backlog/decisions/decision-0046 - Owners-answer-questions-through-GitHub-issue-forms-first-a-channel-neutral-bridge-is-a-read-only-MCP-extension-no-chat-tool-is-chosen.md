@@ -6,7 +6,7 @@ title: >-
 date: '2026-11-16T17:41:00Z'
 status: proposed
 ---
-*Proposed. Drafted by the coordinating session on the maintainer's word, 2026-11-16: "Github first, but no decision on a chat tool. Could it be as an MCP?", then "redraft decision-0046", on the login-to-handle mapping "(a), keep the mapping outside git; add the point to 0046", and then "draft the [private instance's] decision and adjust 0046" (the instance's name elided: it is private). Approval is the maintainer's word (ieam-register decision 0019's rule, which knowgov follows).*
+*Proposed. Drafted by the coordinating session on the maintainer's word, 2026-11-16: "Github first, but no decision on a chat tool. Could it be as an MCP?", then "redraft decision-0046", on the login-to-handle mapping "(a), keep the mapping outside git; add the point to 0046", then "draft the [private instance's] decision and adjust 0046" (the instance's name elided: it is private), and, once ieam-register decision 0021 was approved, "approve decision 0021, then align 0046 and 0003". Approval is the maintainer's word (ieam-register decision 0019's rule, which knowgov follows).*
 
 ## Context
 
@@ -26,15 +26,15 @@ The maintainer chose GitHub first and declined to choose a chat tool, and asked 
    Any MCP client can then walk a person through their questions and hand them the link; the person submits in GitHub. The server gains no write tool, and no client records an answer.
 3. **No chat tool is chosen.** Claude Desktop and claude.ai already reach the server; Microsoft Copilot Studio can add an MCP server's tools to an agent published to Teams (preview at this date); Slack documents Slackbot as an MCP client. Which of them an organisation uses is its own choice, outside this decision.
 4. **Order.** The pilot first (decision 1, in the instance). The MCP tools are minted as a task only once the pilot's answers have gone through `ingest` and the maintainer has read them; the task's schemas follow the pilot's form, not the reverse.
-5. **The account-to-handle mapping stays outside git by default** (the maintainer's choice, 2026-11-16), **unless an instance's own register decides otherwise for its own answerers**, with its reason, its scope and each affected answerer's agreement recorded there; knowgov and the public register never hold it. By default the reader takes it as a file passed at run time, never committed, under ieam-register decision 0009: the key from a handle to a person lives in the organisation's directory, because git copies a file to every clone and keeps it in history, so an erasure request could not be honoured without rewriting history. Fixtures carry invented logins only. An instance whose answerers also commit its code may want answers attributed as commits are; that is its register's decision, not this one's, and it leaves the default in place for everyone else.
-6. **The issue itself names its author.** A submitted issue shows the account that opened it, so the repository holds who answered what for as long as the issue exists. An issue is not git history (it can be deleted, which is how an erasure is honoured), but it is personal data under the repository's access rules, not the directory's. Acceptable where the answerers are the maintainers; an organisation whose answerers are its staff should collect answers inside systems its directory already governs (its own GitHub Enterprise with directory sign-in, or its own forms), and its data-protection officer decides how long the issues are kept.
+5. **Who holds a handle follows the register (ieam-register decision 0021, approved 2026-11-16).** A handle is one person in one role; who holds it is recorded and never anonymised, in the organisation's own private register (the handle's `person`, its directory identifier) or in its directory, as that register decides; knowgov and any public repository never hold it. The reader resolves an issue's author to a handle through that record: from the register's `person` where the instance keeps it there, else from a file passed at run time. Either way the giver written into the answer is the handle, and the holder is read from the register, not copied into the capture. Fixtures carry invented accounts only. This replaces the earlier wording of this point, which kept the key outside git by default under ieam-register decision 0009 §1, now superseded.
+6. **The issue itself names its author.** A submitted issue shows the account that opened it, so the issue tracker is a second record of who answered what, beside the register's. Under decision 0021 that attribution is intended and kept, under the basis the organisation records before its first capture (purpose, lawful basis, notice, retention, its data-protection officer's approval). An organisation whose answerers are its staff collects answers in systems its directory governs (its own GitHub Enterprise with directory sign-in, or its own forms), so that the account on the issue is the directory's; its retention period covers the issues as it covers the register.
 
 ## Consequences
 
 - No contract of knowgov changes now. The MCP tools, when minted, are additive (new tools, new schemas) and land in a minor release.
 - An answer's attestation stays the person's own act in a system that records who did it; the MCP side never holds or forwards an answer.
 - A remote client needs the server over Streamable HTTP with `KG_MCP_TOKEN` (any bind wider than 127.0.0.1); stdio and the SSH route stay as they are. An organisation's admins decide which MCP tools their clients may call.
-- The login-to-handle mapping a reader needs is passed in at run time and never committed (decision 5), unless an instance's register has decided to commit it for its own answerers; whoever runs the reader needs the file, and without it every answer is refused, never misattributed.
+- The reader resolves an author to a handle through the register's record of who holds it, or a file passed at run time where the organisation keeps holders in its directory (decision 5); an author it cannot resolve is refused, never misattributed.
 - The issues hold the answerer's account until they are deleted (decision 6); deleting them after ingest is the instance's retention choice, and the capture keeps only the handle.
 - Answering inside a chat, without the GitHub step, is out of scope: it would need a decision on how a person's answer is proven when a model carries it.
 
@@ -53,8 +53,8 @@ The maintainer chose GitHub first and declined to choose a chat tool, and asked 
 | keep an answer a person's act under an issued handle | fit: the person submits in GitHub; the reader maps the account to a handle; `ingest` checks the handle |
 | keep the MCP server read-only | fit: the three tools read or compute; none writes |
 | choose no chat tool | fit: any MCP client; none is named as the route |
-| put no name in the record | fit: handles only in git by default; the mapping is passed in, never committed, unless an instance decides otherwise for itself (decision 5) |
-| keep personal data where it can be erased | gap, accepted: the issues name their author until deleted (decision 6); git never does |
+| attribute every answer to the person who gave it | fit: the handle names one person in one role, its holder recorded where the register decides (decision 5, ieam-register 0021) |
+| keep attribution lawful | gap, accepted: each organisation records its basis before its first capture (ieam-register 0021 §4); knowgov cannot check it |
 | reach a person outside GitHub | gap, accepted: the person still finishes in GitHub |
 | work for a remote client | gap: Streamable HTTP with a token is needed beyond 127.0.0.1; client-side MCP support is preview in one vendor |
 
@@ -63,7 +63,7 @@ The maintainer chose GitHub first and declined to choose a chat tool, and asked 
 - **Strengths:** no new write path; the server, its transports and its tests exist; GitHub keeps who answered and when.
 - **Weaknesses:** a context switch from chat to GitHub for the submit; GitHub accounts for every answering person.
 - **Opportunities:** the same `answer_link` serves the pilot's static links and every MCP client; a client vendor's change does not touch knowgov.
-- **Threats:** issues kept indefinitely become a second record of who answered what, outside the directory's controls; pressure to answer "inside the chat" reopens the write question; a client's admin may block the tools; a vendor's preview MCP support may change.
+- **Threats:** an organisation going live without its recorded basis (ieam-register 0021 §4); issues on accounts outside the directory, which the register cannot resolve; pressure to answer "inside the chat" reopens the write question; a client's admin may block the tools; a vendor's preview MCP support may change.
 
 ## Advice
 
