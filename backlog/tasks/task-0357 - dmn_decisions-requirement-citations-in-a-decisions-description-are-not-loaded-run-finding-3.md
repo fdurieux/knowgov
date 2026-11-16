@@ -7,10 +7,11 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-16T04:37:00Z'
-updated_date: '2026-11-16T19:46:00Z'
+updated_date: '2026-11-16T21:14:00Z'
 labels:
   - finding
   - reverse-engineering
+  - 0.10.0
 dependencies: []
 type: bug
 ordinal: 347000
@@ -31,11 +32,17 @@ Placement: stating it in the guide and warning are fixes (0.9.x); inheriting dec
 - [ ] #1 subjects/README.md states that requirement citations are read from a rule's description
 - [ ] #2 check_subject.py warns on requirement ids cited in a decision's description that no rule cites
 - [ ] #3 A test holds the warning; the scored record is unchanged
-- [ ] #4 dmn_decisions loads requirement ids cited in a decision's description as that decision's citations; the warning then narrows as task-0356's
+- [ ] #4 Reader extension (0.10.0): dmn_decisions loads requirement ids cited in a decision's description as that decision's citations, recorded in subjects/README.md and the CHANGELOG under contract changes
 <!-- AC:END -->
 
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-1. Build the reader extension; run J-F's comparator. 2. If the record moves, withdraw it and keep the fix: README states rule-level citations; check_subject warns (rule citation) on decision-level ids no rule cites, and on id-shaped tokens the pattern does not read. 3. Tests; both comparators.
+1. Build the reader extension; run J-F's comparator. 2. It moved the record (actions_gate cites JDL-088 at decision level only: +1 assertion, +1 fragment per scenario, 60 leaves over 6 scenarios), so it is withdrawn and the fix kept: README states rule-level citations; check_subject warns (rule citation) on decision-level ids no rule cites and on id-shaped tokens the pattern does not read. 3. J-F's one warning admitted by name in test_check_subject and harness.yml's rdflib-readers check. 4. Tests; both comparators.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+The maintainer, 2026-11-16: "Yes" to these joining 0.10.0 (decision-0047 point 4): the soak they waited for restarts with 0.10.0 anyway.
+<!-- SECTION:NOTES:END -->

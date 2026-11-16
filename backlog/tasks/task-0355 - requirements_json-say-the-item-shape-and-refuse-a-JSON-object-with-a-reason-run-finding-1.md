@@ -7,10 +7,11 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-16T04:37:00Z'
-updated_date: '2026-11-16T19:46:00Z'
+updated_date: '2026-11-16T21:14:00Z'
 labels:
   - finding
   - reverse-engineering
+  - 0.10.0
 dependencies: []
 type: bug
 ordinal: 345000
@@ -31,11 +32,17 @@ Placement: the guide's sentence and a named refusal are fixes (0.9.x); accepting
 - [ ] #1 subjects/README.md states requirements_json's input: a top-level JSON list of items, each with id and statement (kind, basis, claim optional)
 - [ ] #2 A non-list top level is refused by check_subject.py and by the load with a message naming the file and the expected shape, never a TypeError
 - [ ] #3 A test holds the refusal; the scored record is unchanged
-- [ ] #4 requirements_json also reads a top-level object whose one list-valued key holds the items (the kits' shape), recorded in subjects/README.md and the CHANGELOG under contract changes
+- [ ] #4 Reader extension (0.10.0): requirements_json also reads a top-level object whose one list-valued key holds the items (the kits' shape), recorded in subjects/README.md and the CHANGELOG under contract changes
 <!-- AC:END -->
 
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-1. extract.requirements_items: a list, or an object's one list-valued key; anything else ShapeRefused (a DocumentUnreadable) naming the file and the shape; extract_all passes it through. 2. check_subject: rule shape (error). 3. subjects/README.md 'Where the bundle mappers read citations'; instance/mappers.toml and the generated skill. 4. tests/test_kit_mapper_findings.py; both comparators.
+1. extract.requirements_items: a list, or an object's one list-valued key; anything else ShapeRefused (a DocumentUnreadable) naming the file and the shape; extract_all passes it through. 2. check_subject: the existing mapper-failed rule carries it. 3. subjects/README.md 'Where the bundle mappers read citations'; instance/mappers.toml and the generated skill. 4. tests/test_kit_mapper_findings.py; both comparators.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+The maintainer, 2026-11-16: "Yes" to these joining 0.10.0 (decision-0047 point 4): the soak they waited for restarts with 0.10.0 anyway.
+<!-- SECTION:NOTES:END -->
