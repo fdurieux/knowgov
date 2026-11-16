@@ -315,7 +315,37 @@ def walk(node: str, which: str = "dependants", root: Path | None = None, childre
                      "state": n.get("state"), "owner": n.get("owner"), "parent": n.get("parent"),
                      "owning_unit": owning_unit(reg, node)},
             "children_walked": children, "children": listed,
-            "edges": edges, "reached": by_prefix, "reached_ids": reached}
+            "edges": edges, "reached": by_prefix, "reached_ids": reached, **_noted(T, n, rows, node, which, children)}
+
+
+def _noted(T: dict, n: dict, rows: dict | None, node: str, which: str, children: bool) -> dict:
+    """``{"note": ...}`` when the walk takes no step from the start's kind (``no_step``), else {}; the dependants rows
+    are the register's ``FORWARD`` when it names no ``WALKS``."""
+    note = no_step(n, rows if rows is not None else getattr(T["impact"], "FORWARD", None), node, which, children)
+    return {"note": note} if note else {}
+
+
+def _starts(rows: dict, which: str) -> str:
+    """The kinds a walk's rows start from, as words: its taxonomies, the thread walk's journeys as their steps."""
+    names = [("journey steps" if which == "thread" and t == "journeys" else t) for t in rows]
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def no_step(n: dict, rows: dict | None, node: str, which: str, children: bool = False) -> str | None:
+    """task-0342 (B-X2, R-T1; decision-0041): why the walk takes no step from the start, when its kind has none: its
+    taxonomy has no row in the walk, or, for the thread walk, it is a journey that is not a step (the register's THREAD
+    row for journeys starts from a step). None when the walk has a step from it, or its rows are unknown. The page's
+    panel says the same (``register_view._no_step``)."""
+    if not rows:
+        return None
+    tax, kind = n.get("_taxonomy"), (n.get("kind") or "").replace("_", " ")
+    if tax in rows and not (which == "thread" and tax == "journeys" and n.get("kind") != "step"):
+        return None
+    what = f"{kind} ({tax})" if kind else str(tax)
+    a = "an" if what[:1] in "aeiou" else "a"
+    return (f"the {which} walk takes no step from {node}, {a} {what}: it starts from {_starts(rows, which)}, so nothing is "
+            "reached from the start itself, which says nothing of what the register links to it"
+            + ("; each descendant is walked by its own kind" if children else ""))
 
 
 def landed_rows(register_map: dict, node: str, reached: list[str], walked: list[str] = (),
