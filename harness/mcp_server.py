@@ -192,7 +192,7 @@ TOOLS = [
          "task": {"type": "string", "description": "the task class whose required keys are resolved (default: codegen); with keys, its block levels and bar apply"},
          "keys": {"type": "array", "items": KEY_ITEM, "minItems": 1, "description": "resolve these entity|attribute keys instead of the task's"},
          "fail_on": {"type": "string", "enum": ["blocker", "critical", "major", "minor", "info"], "description": "the severity at or above which exit_code is 1 (default: blocker)"},
-         "baseline": {"type": "string", "enum": ["none", "record"], "description": "record: exit_code 1 only on a regression against the subject's record (codegen only)"},
+         "baseline": {"type": "string", "enum": ["none", "record"], "description": "record: exit_code 1 only on a regression against the subject's record (its record task only: codegen where declared, else its first class)"},
          "as_of": {"type": "string", "description": "the date review currency is read on (decision-0005): the server's date (default: KG_AS_OF, else today, read once at start, as store_status reports it), today, record (the subject's pinned record date) or YYYY-MM-DD; a review past its key's review months reads validated"}}},
      "annotations": READ_ONLY},
     {"name": "three_valued_answer", "title": "Is it asserted, documented absent, or unknown?",

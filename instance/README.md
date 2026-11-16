@@ -527,9 +527,12 @@ check fails naming `APP-0001`.
 
 **After a register update.** `gate_cli.py --register-previous DIR` reads what the update withdrew or retired against
 the checkout before it, and stales the statements of the keys resting on it. It does so again on every run it is
-passed, so an answer, an ingest or a review ruling cannot restore them while the option stays. The CI template does
-not pass it. Run it once when the update lands, then either re-map the key in `register_map.toml` to a live node, or,
-once the owner confirms the update, run the gate without it (advance your previous register to the new one).
+passed, so an answer, an ingest or a review ruling cannot restore them while the option stays. The CI template passes
+it only when you set `KG_GATE_REGISTER_PREVIOUS` (the GitHub action's `register-previous` input), and only to the
+`gate` step (task-0342). A relative path is read from the working directory. `KG_REGISTER_PREVIOUS` is the page's
+setting and the CI template never reads it, so an instance that sets it for the page does not re-stale keys on every
+CI run. Set the gate's setting for the run that lands the update. Then either re-map the key in `register_map.toml`
+to a live node, or, once the owner confirms the update, unset it (or advance your previous register to the new one).
 
 ## A register pull request read before approval
 
@@ -2040,6 +2043,7 @@ input; the GitLab include's `KG_PUBLISH` and `KG_NO_LOAD` follow the rule above.
 | `KG_SCENARIO` | CI templates and hook | the scenario the gate loads | the subject's first | yes |
 | `KG_FAIL_ON` | CI templates and hook | the severity at or above which a gate exits 1 | each command's own | yes |
 | `KG_AS_OF` | CI templates and hook | the date review currency is read on: `YYYY-MM-DD`, `record` or `today`; see "Running the gates in your pipeline" | `today` | yes |
+| `KG_GATE_REGISTER_PREVIOUS` | CI templates and hook | the register checkout before an update, passed to the `gate` step alone as `--register-previous`; it stales the keys resting on what the update withdrew on every run it is set, so set it for the run that lands the update; see "After a register update". The GitHub action sets it from its `register-previous` input | none | yes |
 | `KG_BASE` | CI templates and hook | the git ref the changed files are taken against, a pull request's base | none: every file | yes |
 | `KG_COMMIT` | CI templates and hook | the commit being checked or registered; `trace-register` needs it | none | yes |
 | `KG_FILES` | CI templates and hook | the files `trace-register` registers, relative to `code_map.toml`'s root | the files changed since `KG_BASE` | yes |
@@ -2059,7 +2063,7 @@ input; the GitLab include's `KG_PUBLISH` and `KG_NO_LOAD` follow the rule above.
 | `KG_SUBJECT` | Subject and register | the subject root a command reads | in the CI templates, the instance's only subject | yes |
 | `KG_SUBJECTS` | Subject and register | the folder of subjects the page and both MCP servers list | `subjects/` of the checkout | yes |
 | `KG_REGISTER` | Subject and register | the register checkout every subject joins | in the CI templates and the hook, `<instance>/register`; for a subject outside the knowgov checkout, none: a command stops with exit 2 naming it; for the public subjects inside the checkout, `demo/register`, the public register | yes |
-| `KG_REGISTER_PREVIOUS` | Subject and register | the register checkout before an update, which the page's register view reads to show what the update withdrew; the gate's own option for it is `--register-previous` | none | yes |
+| `KG_REGISTER_PREVIOUS` | Subject and register | the register checkout before an update, which the page's register view reads to show what the update withdrew; the CI template never reads it: its gate's is `KG_GATE_REGISTER_PREVIOUS` | none | yes |
 | `KG_INSTANCE` | Subject and register | your instance's checkout, for the stack's compose file and the upward joins | none | yes |
 | `KG_PRELOAD_REPORT` | Subject and register | the pre-load report the load records per document version | `preload-report.json` at your instance's root | yes |
 | `KG_STORE` | Store | which store: `neo4j` or `rdflib` | `neo4j` | yes |
