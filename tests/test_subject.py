@@ -193,3 +193,21 @@ def test_cargo_quote_declares_a_test_class_stricter_than_codegen():
     assert not [k for k in t["keys"] if k.endswith("|verified_by") or re.match(r"G\d+\|", k)]
     assert set(t["block_levels"]) == set(c["block_levels"]) | {"proposed"} and t["max_unverified_share"] == 0
     assert "verified_by" in t["rationale"] and "G1-G7" in t["rationale"]
+
+
+def test_the_record_task_is_codegen_where_declared_else_the_first_class():
+    """task-0368: a run's gate, the record baseline and the page's key count read the subject's record task, so a
+    subject whose only class is not codegen runs (it raised KeyError 'codegen' before); no module of the runner
+    names the class."""
+    assert CARGO.record_task == "codegen" and MINIMAL.record_task == "codegen"
+    import shutil
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "training"
+        shutil.copytree(ROOT / "subjects" / "minimal", root)
+        m = root / "subject.toml"
+        m.write_text(m.read_text(encoding="utf-8").replace("[tasks.codegen]", "[tasks.training]"), encoding="utf-8")
+        assert subject_mod.Subject(root).record_task == "training"
+        m.write_text(re.sub(r"^\[tasks\.training\]\n(?:\w+ = .*\n)+", "", m.read_text(encoding="utf-8"), flags=re.M), encoding="utf-8")
+        assert subject_mod.Subject(root).tasks == {} and subject_mod.Subject(root).record_task is None
+    run = (ROOT / "harness" / "run.py").read_text(encoding="utf-8")
+    assert '"codegen"' not in run and "resolve(s, record_task(), as_of)" in run and 'f"task_{record_task()}"' in run
