@@ -1,0 +1,11 @@
+{
+ "schema_version": 1,
+ "tool": "question_evidence",
+ "subject": "knowledge_probe",
+ "key": "quote|currency",
+ "file": "questions/evidence/knowledge_probe/quote%7Ccurrency.md",
+ "found": false,
+ "sha256": null,
+ "text": null,
+ "why": "no evidence file questions/evidence/knowledge_probe/quote%7Ccurrency.md: the instance has generated none for this question"
+}

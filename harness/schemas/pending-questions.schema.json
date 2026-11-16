@@ -1,0 +1,58 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/pending-questions.schema.json",
+ "title": "knowgov pending questions report",
+ "description": "What `python harness/questions.py pending HANDLE` prints and the MCP tool pending_questions returns (task-0361, decision-0046 point 2): an issued handle's open questions, read from the questionnaires the instance keeps in the folder its questions.toml names, across every subject the reader serves, less the items a capture in the subject's capture folder answered on or after the questionnaire's generated_on (from the questionnaire's owner unit; a review-due one, from the handle it is addressed to). Items and answered sorted by subject, scenario, key and questionnaire; skipped by file. Files only, never the store. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": ["schema_version", "tool", "handle", "unit", "unit_name", "roles", "on", "questions", "items", "answered", "skipped"],
+ "properties": {
+  "schema_version": {"const": 1},
+  "tool": {"const": "pending_questions"},
+  "handle": {"type": "string"},
+  "unit": {"type": "string", "description": "the handle's unit, as the register's issued list holds it"},
+  "unit_name": {"type": "string"},
+  "roles": {"type": "array", "items": {"type": "string"}},
+  "on": {"type": "string", "description": "the date the handle was read as issued and not withdrawn on, YYYY-MM-DD"},
+  "questions": {"type": "string", "description": "the questions folder read, relative to the instance"},
+  "items": {"type": "array", "items": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["subject", "scenario", "task", "owner", "route", "questionnaire", "generated_on", "key", "level", "question",
+                "known", "declared_gaps", "closed_by", "earlier", "due", "evidence"],
+   "properties": {
+    "subject": {"type": "string"},
+    "scenario": {"type": "string"},
+    "task": {"type": "string"},
+    "owner": {"type": "string", "description": "the questionnaire's owner unit"},
+    "route": {"enum": ["owner", "review-due"], "description": "owner: a questionnaire for the handle's unit; review-due: one addressed to the handle or its unit"},
+    "questionnaire": {"type": "string", "description": "the questionnaire's file, relative to the instance"},
+    "generated_on": {"type": "string"},
+    "key": {"type": "string"},
+    "level": {"type": ["string", "null"], "description": "the gate's level when the questionnaire was generated"},
+    "question": {"type": "string"},
+    "known": {"type": "array", "items": {"type": "string"}},
+    "declared_gaps": {"type": "array", "items": {"type": "string"}},
+    "closed_by": {"type": ["string", "null"], "description": "the unit that closes the key's declared gap, as the questionnaire names it"},
+    "earlier": {"type": ["string", "null"], "description": "a review-due item's earlier answer"},
+    "due": {"type": ["string", "null"], "description": "a review-due item's due date"},
+    "evidence": {"type": "boolean", "description": "whether the instance holds the item's evidence (question_evidence)"}
+   }}},
+  "answered": {"type": "array", "items": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["subject", "scenario", "key", "questionnaire", "capture", "from", "on"],
+   "properties": {
+    "subject": {"type": "string"},
+    "scenario": {"type": "string"},
+    "key": {"type": "string"},
+    "questionnaire": {"type": "string"},
+    "capture": {"type": "string", "description": "the statement id the load gives the answer or the nobody-knows"},
+    "from": {"type": "string", "description": "the handle that gave it"},
+    "on": {"type": "string"}
+   }}},
+  "skipped": {"type": "array", "items": {
+   "type": "object", "additionalProperties": false, "required": ["file", "why"],
+   "properties": {"file": {"type": "string"}, "why": {"type": "string"}}}}
+ }
+}

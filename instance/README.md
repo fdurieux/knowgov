@@ -187,7 +187,7 @@ knowgov never misreads a file written for a newer one. The number goes in five p
   version = 1
   ```
 
-- **`code_map.toml` and `connectors.toml`**: each carries its own number, at the top of the file,
+- **`code_map.toml`, `connectors.toml` and `questions.toml`**: each carries its own number, at the top of the file,
   before any table:
 
   ```toml
@@ -1382,7 +1382,7 @@ be read is left out of the list, and the page's log says why, while the others s
 An AI coding assistant can ask knowgov the gate's question itself, before it writes anything:
 *may I build on this?* It does so through MCP, the Model Context Protocol, a standard way for an
 assistant to call tools a local program offers. `harness/mcp_server.py` is that program. It offers
-eighteen tools, and all of them only read:
+twenty-one tools, and all of them only read:
 
 | Tool | What the assistant asks | What it gets back |
 |---|---|---|
@@ -1401,8 +1401,11 @@ eighteen tools, and all of them only read:
 | `document_statements` | What does this document say, and what is registered against it? | the statements the loaded scenario holds from a document (an artefact path; a folder by its path ending in `/`), each with its key, value, status, version and the document's fragments it rests on, and the derived outputs registered against it; the versions held, and with `version` only that one's; refused while a run loads the store |
 | `scenario_runs` | Which scenarios have been run, in which mode, and what did they show? | every scenario of your subject with its title and card line; what the record holds for it (deterministic results and the gate's verdict, the arms with how many runs and which model, the extra sources the subject declares); its runs newest first, each as its folder's `run.json` describes it (mode, model, as-of date, who started it, `page` or `mcp`, start, end, status, and the verdict of its results), or inferred, flagged `inferred`, for a folder from before `run.json`; the scenario the store holds and when it was loaded; and the run loading the store now, if any. Replay is not a run: it is the record shown, and nothing records it |
 | `scenario_result` | What did this record or this run show? | what the page's Replay shows for one source that `scenario_runs` lists (the record, an extra source, or a run): the gate's verdict and why, the date it read reviews on, every required key's level, and each arm's runs with its decision and oracle result. It reads that source's files, never the store, and says so: it is not what the store holds now |
-| `list_subjects` | Which subjects can I ask about? | every subject under `KG_SUBJECTS` by its id, the scenario the shared store holds for each, and which tools are store-backed; with `who_knows`, one of the two tools that take no `subject` |
+| `list_subjects` | Which subjects can I ask about? | every subject under `KG_SUBJECTS` by its id, the scenario the shared store holds for each, and which tools are store-backed; with `who_knows` and `pending_questions`, one of the three tools that take no `subject` |
 | `who_knows` | Who knows about this node, this key or this code file? | for exactly one register node, key or code path under your `code_map.toml` root, read across every subject under `KG_SUBJECTS` from files, never the store: each handle whose attested evidence touches it, with its unit, roles, issued and withdrawn dates, its holder (the register's `person`, or null with why), and its evidence by kind: `answered` (a captured answer or "nobody knows"), `approved` or `rejected` (a review's ruling by the handle), `closed` (a review's close of a captured "nobody knows" gap) and `owns` (the handle's unit owns a node in scope). One hop, never a walk; nothing counted, ranked or scored. See *Who knows what*, below |
+| `pending_questions` | Which questions are open for me? | for an issued handle that may answer (not withdrawn, with the role `gives`), every item of the questionnaires your instance keeps for the handle's unit (or a review-due one addressed to it) that no capture has answered since the questionnaire was generated, with its question, what is known and whether its evidence is there; the items already answered, with the capture. See *Questions and the answer form*, below |
+| `question_evidence` | What is the evidence behind this question? | the evidence file your instance generated for the key, verbatim, with its digest; or why there is none |
+| `answer_link` | Give me the link to answer it | the prefilled GitHub issue-form URL for the key, with the verdict (one of the form's four) and the statement to edit in place; computed, nothing written: the person opens it and submits the issue under their own account |
 | `subject_check` | Would this subject I am scaffolding load, and do its keys match what its documents say? | the report `tools/check_subject.py` prints for the same files, made by that tool's own functions against your register: unknown tables and fields, a task with no scenario, a key that is not `entity\|predicate`, a `register_map.toml` row naming a node your register does not hold or an owner of none of its nodes, and what each document yields, with a *did you mean* for a required key no document yields. The assistant passes the proposed `subject.toml`, `register_map.toml`, `scenarios.toml` and the text of every document the manifest names (by the path the manifest gives, at most `../../` up from the subject folder). A proposed manifest that names a file outside that, by an absolute path or by climbing further, is refused before anything is read. The files exist only for the call, in a temporary folder removed afterwards; nothing is stored. A call carries at most 64 documents and 1 MB of text. It is for an assistant with no shell, such as Claude Desktop; in Claude Code, `tools/check_subject.py` on the branch does the same |
 
 While a run of your subject is loading the store (its `run.json` reads `running` and the page has
@@ -1493,18 +1496,19 @@ route is the one that works with the stack as it stands. For a stack on another 
 machine*, below. For a stack started under another project
 name (`docker compose -p knowgov-jef`, as the compose file's notes show), add the same `-p` after
 `docker compose`. To ask about another subject than the one the server started on, name it on the
-call: every tool but `list_subjects` and `who_knows` takes `subject`, an id `list_subjects` names (below).
+call: every tool but `list_subjects`, `who_knows` and `pending_questions` takes `subject`, an id `list_subjects` names (below).
 
 ### One registration for every subject
 
 One registration of each server answers for every subject under `KG_SUBJECTS` (task-0157,
-decision-0013). Every tool of the reader but `list_subjects` and `who_knows` (which read across every subject), and every tool of `knowgov-runs`, takes an optional `subject`: the id
+decision-0013). Every tool of the reader but `list_subjects`, `who_knows` and `pending_questions` (which read across every subject), and every tool of `knowgov-runs`, takes an optional `subject`: the id
 in a subject's `subject.toml`, never a path, resolved under `KG_SUBJECTS` as the page resolves
 `?subject=`. A call that names none answers as before, for `KG_SUBJECT`. `list_subjects` names
 every subject, the scenario the shared store holds for each, and which tools are store-backed.
 
 - **Files-only tools** (`register_nodes`, `key_nodes`, `code_path`, `document_links`,
-  `subject_check`, `scenario_runs`, `scenario_result`, `who_knows`) answer for any subject at once.
+  `subject_check`, `scenario_runs`, `scenario_result`, `who_knows`, `pending_questions`,
+  `question_evidence`, `answer_link`) answer for any subject at once.
 - **Store-backed tools** (`gate_verdict`, `three_valued_answer`, `evidence_bundle`, `store_status`,
   `held_keys`, `derived_outputs`, `document_statements`, and `register_impact` and
   `proposal_impact` for their keys' levels) answer only for the subject and scenario the store
@@ -1549,6 +1553,62 @@ staff only once your organisation has recorded its basis for that use (ieam-regi
 cannot check that the basis exists.
 
 The public register vendored under `demo/register` records no `person`, so every holder there reads null.
+
+### Questions and the answer form
+
+decision-0046 sends each question to a person as a prefilled link to a GitHub issue form. The person
+opens the issue themselves. Your instance's own reader then turns the submitted issues into an answered
+questionnaire that `capture.py ingest` takes, under the person's issued handle, never their login. Three
+tools let any MCP client walk a person through their questions without writing anything:
+
+1. `pending_questions` with their handle lists what is open for their unit.
+2. `question_evidence` shows one item's evidence.
+3. `answer_link` returns the link to submit, with their verdict and their statement filled in.
+
+Your instance names its questions and its form in `questions.toml` at its root, read from the server's
+`KG_INSTANCE`:
+
+```toml
+format = 1
+
+[questions]
+dir = "questions"                  # the questionnaires capture.py questionnaire and due wrote, kept here
+evidence = "questions/evidence"    # one file per question: <evidence>/<subject>/<key><suffix>
+suffix = ".md"                     # the key percent-encoded: quote|insurance -> quote%7Cinsurance.md
+
+[form]
+url = "https://github.com/YOUR-ORG/YOUR-INSTANCE/issues/new"
+template = ".github/ISSUE_TEMPLATE/answer.yml"
+title = "Answer: {key} ({subject})"                          # optional
+evidence_base = "https://github.com/YOUR-ORG/YOUR-INSTANCE/blob/main/"   # optional
+
+[form.fields]          # each field of the form, by its id in the template
+key = "key"
+subject = "subject"
+scenario = "scenario"
+owner = "owner_unit"
+evidence = "evidence"
+verdict = "verdict"
+statement = "statement"
+note = "note"
+
+[form.verdicts]        # the form's four verdicts, by the option labels its dropdown lists
+right_as_stated = "Right as stated"
+right_with_correction = "Right with a correction"
+wrong = "Wrong"
+dont_know = "I don't know"
+```
+
+The settings, in short:
+- **Field ids and labels:** none is hard-coded. `answer_link` reads the template as text and refuses
+  one that does not name every field id (a line `id: <id>`) and every verdict label you configured.
+- **An open item:** an item of a questionnaire for the handle's unit (or a review-due one addressed
+  to the handle or its unit) with no capture on its key since the questionnaire's `generated_on`
+  date. The capture must come from that unit, or for a review-due item from the addressed handle.
+- **A key asked of two units:** `answer_link` needs `scenario` and `owner` to tell them apart.
+- **The URL's length:** at most 8,000 characters. Leave a long statement for the person to write in the form.
+- **The example:** `tools/fixtures/knowledge_probe` holds a worked example (a `questions.toml`, two
+  questionnaires, two evidence files and an issue form).
 
 ### Connecting Claude Desktop
 

@@ -4,7 +4,7 @@ Three kinds of input carry a version:
 
 - **a subject root**: ``subject.toml``'s ``[format] version = N`` covers the subject's own configuration,
   ``subject.toml`` itself, ``scenarios.toml``, ``plants.toml``, ``queries.toml`` and the register map it names;
-- **an instance file**: ``code_map.toml`` and ``connectors.toml`` each carry a top-level ``format = N``;
+- **an instance file**: ``code_map.toml``, ``connectors.toml`` and ``questions.toml`` (task-0361) each carry a top-level ``format = N``;
 - **a record**: each capture and each review file carries a top-level ``format = N``, stamped by
   ``harness/capture.py`` ``capture_toml`` and ``harness/review.py`` ``review_toml``, since a record outlives the
   version that wrote it; the trace ledger (``KG_LEDGER``) carries its ``schema_version``, stamped by ``trace
@@ -27,11 +27,12 @@ Standard library only; nothing here reads a file.
 from __future__ import annotations
 
 # what this knowgov writes and reads, per kind of input; a kind moves its own number
-CURRENT = {"subject": 1, "code_map": 1, "connectors": 1, "capture": 1, "review": 1, "ledger": 1, "proposal": 1}
+CURRENT = {"subject": 1, "code_map": 1, "connectors": 1, "capture": 1, "review": 1, "ledger": 1, "proposal": 1, "questions": 1}
 SUBJECT, CODE_MAP, CONNECTORS, CAPTURE, REVIEW = "subject", "code_map", "connectors", "capture", "review"
 # task-0280 (decision-0033 choice 6): the trace ledger, a JSON record whose version is its schema_version, and a
 # proposal overlay, an optional top-level format
 LEDGER, PROPOSAL = "ledger", "proposal"
+QUESTIONS = "questions"   # task-0361: an instance's questions.toml, a top-level format
 KEY = {LEDGER: "schema_version"}   # the field a kind's version is written in; "format" for the rest, [format] version for a subject
 # decision-0023 Amendment A1: a file that names no version reads as version 1, for every kind and in every
 # release; held apart from CURRENT, which moves when a format does

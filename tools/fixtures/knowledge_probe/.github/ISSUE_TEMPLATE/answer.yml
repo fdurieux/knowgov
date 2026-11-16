@@ -1,0 +1,50 @@
+# The knowledge probe's answer form (task-0361): a GitHub issue form, synthetic. The ids and the verdict labels are
+# the ones questions.toml names; answer_link fills them in by query parameter.
+name: Answer a question
+description: Answer one question the knowledge gate asks of your unit.
+title: "Answer: "
+labels: ["answer"]
+body:
+  - type: input
+    id: key
+    attributes:
+      label: Key
+    validations:
+      required: true
+  - type: input
+    id: subject
+    attributes:
+      label: Subject
+  - type: input
+    id: scenario
+    attributes:
+      label: Scenario
+  - type: input
+    id: owner_unit
+    attributes:
+      label: Owner unit
+  - type: input
+    id: evidence
+    attributes:
+      label: Evidence
+  - type: dropdown
+    id: verdict
+    attributes:
+      label: Verdict
+      options:
+        - Right as stated
+        - Right with a correction
+        - Wrong
+        - I don't know
+    validations:
+      required: true
+  - type: textarea
+    id: statement
+    attributes:
+      label: Statement
+      description: The statement as you hold it to be true; edit it in place.
+  - type: textarea
+    id: note
+    attributes:
+      label: Note
+      description: Must not identify you.

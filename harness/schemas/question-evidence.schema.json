@@ -1,0 +1,20 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/question-evidence.schema.json",
+ "title": "knowgov question evidence report",
+ "description": "What `python harness/questions.py evidence KEY` prints and the MCP tool question_evidence returns (task-0361, decision-0046 point 2): one question's evidence as the instance generated it, the file <evidence>/<subject>/<key percent-encoded><suffix> its questions.toml names, its text verbatim and its sha256; found false with why when the instance generated none or the subject does not know the key. Files only. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": ["schema_version", "tool", "subject", "key", "file", "found", "sha256", "text", "why"],
+ "properties": {
+  "schema_version": {"const": 1},
+  "tool": {"const": "question_evidence"},
+  "subject": {"type": "string"},
+  "key": {"type": "string", "description": "the key, in NFC"},
+  "file": {"type": "string", "description": "the evidence file looked for, relative to the instance"},
+  "found": {"type": "boolean"},
+  "sha256": {"type": ["string", "null"], "description": "the file's raw sha256, hex; null when not found"},
+  "text": {"type": ["string", "null"], "description": "the file's text, verbatim; null when not found"},
+  "why": {"type": ["string", "null"], "description": "why nothing was found; null when found"}
+ }
+}
