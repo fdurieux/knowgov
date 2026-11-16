@@ -644,6 +644,7 @@ _CLAIM_LINE = re.compile(r"^[ \t]*claim:[ \t]*(\S+)[ \t]*$", re.I | re.M)       
 _CLAIM_IN_TEXT = re.compile(r"\bclaim:[ \t]*([A-Za-z_-]+)", re.I)                      # dmn_decisions descriptions
 _CLAIM_COMMENT = re.compile(r"^[ \t]*'[ \t]*claim:[ \t]*(\S+)[ \t]*$", re.I | re.M)   # plantuml_realises
 _CLAIM_TAG = "@claim:"                                                                 # gherkin_tagged
+_REALISES_COMMENT = re.compile(r"^[ \t]*'[ \t]*realises[ \t]*:(.*)$", re.I | re.M)       # plantuml_realises, task-0356
 
 
 class UnknownClaim(ValueError):
@@ -688,14 +689,48 @@ def _stem(rel: str) -> str:
     return rel.rsplit("/", 1)[-1].rsplit(".", 1)[0]
 
 
+class ShapeRefused(DocumentUnreadable):
+    """A document whose top level is not the shape its mapper reads (task-0355): named, with the shape
+    expected, never the TypeError the mapper would otherwise raise half-way through it."""
+
+
+REQUIREMENTS_JSON_SHAPE = ("a JSON list of items, each an object with string \"id\" and \"statement\" (\"kind\", "
+                           "\"basis\" and \"claim\" optional), or an object whose one list-valued key holds that list")
+
+
+def requirements_items(path: str, text: str) -> list[dict]:
+    """The items of a ``requirements_json`` document: the top-level list, or the one list an object holds (a kit's
+    ``{"requirements": [...], ...}``, task-0355; the object's other, non-list keys are the kit's metadata). Anything
+    else raises ShapeRefused naming the file and the shape."""
+    import json
+    def refuse(what: str):
+        raise ShapeRefused(f"{path}: {what}; requirements_json reads {REQUIREMENTS_JSON_SHAPE}")
+    try:
+        doc = json.loads(text)
+    except json.JSONDecodeError as e:
+        refuse(f"not JSON ({e})")
+    if isinstance(doc, dict):
+        lists = sorted(k for k, v in doc.items() if isinstance(v, list))
+        if len(lists) != 1:
+            refuse(f"the top level is an object with {len(lists)} list-valued keys"
+                   + (f" ({', '.join(map(repr, lists))})" if lists else "") + ", so which holds the items is unsaid")
+        doc = doc[lists[0]]
+    elif not isinstance(doc, list):
+        refuse(f"the top level is a JSON {type(doc).__name__.replace('str', 'string').replace('NoneType', 'null')}")
+    for i, item in enumerate(doc):
+        if not isinstance(item, dict) or not all(isinstance(item.get(f), str) for f in ("id", "statement")):
+            refuse(f"item {i} is not an object with string \"id\" and \"statement\"")
+    return doc
+
+
 def extract_requirements_json(path: str, text: str) -> Bag:
-    """A JSON list of ``{id, kind, statement, basis}``: one requirement entity per item and one
+    """A JSON list of ``{id, kind, statement, basis}``, or an object whose one list-valued key holds it
+    (``requirements_items``): one requirement entity per item and one
     extracted ``statement`` assertion, supported by the item as a row fragment (R-VAGUE reads
     row fragments). An item's optional ``claim`` sets the statement's basis (task-0214); the item's
     ``basis`` (where the reverse engineer read it: code logic, prose or both) is not a claim."""
-    import json
     b = Bag(short(path))
-    for item in json.loads(text):
+    for item in requirements_items(path, text):
         rid, stmt = item["id"], item["statement"]
         b.ent(rid, "requirement", rid)
         f = b.frag(f"row/{rid}", stmt)
@@ -739,8 +774,10 @@ def extract_contracts_markdown(path: str, text: str) -> Bag:
 def extract_dmn_decisions(path: str, text: str) -> Bag:
     """A bundle of DMN 1.3 files: one ``decision_table`` entity per decision with its rule count
     (authored: the table's own structure), and ``<req>|decided_by`` for every requirement a rule's
-    description cites, listing ``<decision>/<rule id>``. ``claim: <value>`` in a decision's own
-    description is its rules' claim, in a rule's description that rule's (task-0214)."""
+    description cites, listing ``<decision>/<rule id>``. A requirement id in the decision's own description is
+    not read as a citation (task-0357: reading it moves the public J-F record, so ``tools/check_subject.py``
+    warns on it instead). ``claim: <value>`` in a decision's own description is its rules' claim, in a rule's
+    description that rule's (task-0214)."""
     b = Bag(short(path))
     ns = {"d": "https://www.omg.org/spec/DMN/20191111/MODEL/"}
     cites: dict[str, list[tuple[str, str, str | None]]] = {}
@@ -752,7 +789,8 @@ def extract_dmn_decisions(path: str, text: str) -> Bag:
             dname = dec.get("name") or dec.get("id")
             ent = f"dmn:{dname}"
             b.ent(ent, "decision_table", dname)
-            dclaim = _first_claim(_CLAIM_IN_TEXT, dec.findtext("d:description", default="", namespaces=ns), f"{rel or path} {dname}")
+            ddesc = (dec.findtext("d:description", default="", namespaces=ns) or "").strip()
+            dclaim = _first_claim(_CLAIM_IN_TEXT, ddesc, f"{rel or path} {dname}")
             rules = list(dec.iter(f"{{{ns['d']}}}rule"))
             frags, claims = [], []
             for r in rules:
@@ -835,7 +873,8 @@ _PUML_NAMES = {
 def extract_plantuml_realises(path: str, text: str) -> Bag:
     """A bundle of PlantUML diagrams: one ``diagram`` entity per part with its type (pumllint's
     parser), its title and the names it declares (authored: the diagram's own structure), and
-    ``<req>|realised_by`` for every requirement the footer's ``realises`` list names. A ``' claim: <value>``
+    ``<req>|realised_by`` for every requirement the footer's ``realises`` list names or a ``' realises: <ids>``
+    comment line names (task-0356; a requirement both name is cited once, by the footer). A ``' claim: <value>``
     comment line is the claim of the diagram's statements (task-0214)."""
     from pumllint import parser  # the product's parser, as a library
     b = Bag(short(path))
@@ -859,10 +898,18 @@ def extract_plantuml_realises(path: str, text: str) -> Bag:
             names = [f"{len(d.activity_nodes or [])} activity nodes"]
         b.assertion(ent, "elements", "; ".join(names), f"{stem} declares {len(names)} elements", [head], basis=basis)
         foot = re.search(r"^\s*footer\b(.*)$", body, re.M)
+        cited: set[str] = set()
         if foot:
             f = b.frag(f"{rel or path}:footer", foot.group(0).strip())
             for req in _ids_in(foot.group(1)):
                 cites.setdefault(req, []).append((stem, f, claim))
+                cited.add(req)
+        for n, line in enumerate(_REALISES_COMMENT.finditer(body), 1):   # task-0356: the comment form
+            if new := [req for req in _ids_in(line.group(1)) if req not in cited]:
+                f = b.frag(f"{rel or path}:realises/{n}", line.group(0).strip())
+                for req in new:
+                    cites.setdefault(req, []).append((stem, f, claim))
+                    cited.add(req)
     _by_requirement(b, "realised_by", cites, lambda rid, names: f"{rid} is realised by {', '.join(names)}")
     return b
 
@@ -884,6 +931,77 @@ EXTRACTORS = {   # mapper name (the subject manifest's) -> the deterministic map
     "gherkin_tagged": extract_gherkin_tagged,
     "plantuml_realises": extract_plantuml_realises,
 }
+
+
+# Convention warnings (task-0356, task-0357): a citation the mapper reads past. plantuml_realises reads a realises
+# comment line beside the footer, so what is left there is a malformed one: a realises line naming no id. In
+# dmn_decisions a requirement id in a decision's own description that no rule of it cites (rules carry the
+# citations); in both, a token shaped like an id, with the prefix of the ids the document does cite, that the
+# subject's pattern does not read (JDL-12 under JDL-\d{3}). ``tools/check_subject.py`` reports each as a warning;
+# the load reads what it can and says nothing.
+_ID_SHAPED = re.compile(r"\b([A-Za-z][A-Za-z0-9_]*)-(\d+)\b")
+
+
+def _near_misses(text: str, prefixes: set[str]) -> list[str]:
+    read = set(_REQ_ID.findall(text))
+    return sorted({m.group(0) for m in _ID_SHAPED.finditer(text) if m.group(1) in prefixes and m.group(0) not in read})
+
+
+def _prefixes(text: str) -> set[str]:
+    return {rid.rsplit("-", 1)[0] for rid in _REQ_ID.findall(text)}
+
+
+def _warn_plantuml_realises(path: str, text: str) -> list[str]:
+    out = []
+    pre = _prefixes(text)
+    for rel, body in bundle_parts(text):
+        where = rel or path
+        foot = re.search(r"^\s*footer\b(.*)$", body, re.M)
+        lines = [(m.group(0).strip(), m.group(1)) for m in _REALISES_COMMENT.finditer(body)]
+        if foot and re.search(r"\brealises\b", foot.group(1), re.I):
+            lines.insert(0, (foot.group(0).strip(), foot.group(1)))
+        for line, rest in lines:
+            if not _ids_in(rest):
+                out.append(f"diagram {where}: {line!r} names no requirement id the subject's pattern reads, so it links nothing")
+            elif miss := _near_misses(rest, pre):
+                out.append(f"diagram {where}: {line!r} cites {', '.join(miss)}, which the subject's requirement id pattern does not read")
+    return out
+
+
+def _warn_dmn_decisions(path: str, text: str) -> list[str]:
+    out = []
+    pre = _prefixes(text)
+    ns = {"d": "https://www.omg.org/spec/DMN/20191111/MODEL/"}
+    for rel, body in bundle_parts(text):
+        if not body.lstrip().startswith("<"):
+            continue
+        try:
+            root = ET.fromstring(body)
+        except ET.ParseError:
+            continue   # the mapper's own refusal says it
+        for dec in root.iter(f"{{{ns['d']}}}decision"):
+            dname = dec.get("name") or dec.get("id")
+            places = [(f"decision {dname}", dec.findtext("d:description", default="", namespaces=ns) or "")]
+            places += [(f"decision {dname} rule {r.get('id')}", r.findtext("d:description", default="", namespaces=ns) or "")
+                       for r in dec.iter(f"{{{ns['d']}}}rule")]
+            by_rules = {req for _at, desc in places[1:] for req in _ids_in(desc)}
+            if unread := [req for req in _ids_in(places[0][1]) if req not in by_rules]:   # task-0357
+                out.append(f"{rel or path}: decision {dname}'s own description cites {', '.join(unread)}, which no rule of it "
+                           "cites: dmn_decisions reads citations from a rule's description only, so it links nothing")
+            for at, desc in places:
+                if miss := _near_misses(desc, pre):
+                    out.append(f"{rel or path}: {at}'s description cites {', '.join(miss)}, which the subject's "
+                               "requirement id pattern does not read, so it links nothing")
+    return out
+
+
+CONVENTION_WARNINGS = {"plantuml_realises": _warn_plantuml_realises, "dmn_decisions": _warn_dmn_decisions}
+
+
+def convention_warnings(mapper: str, path: str, text: str) -> list[str]:
+    """The malformed citations a mapper reads past in a document (``CONVENTION_WARNINGS``); [] for the others."""
+    fn = CONVENTION_WARNINGS.get(mapper)
+    return fn(path, text) if fn else []
 
 
 def duplicate_locators(bag: Bag) -> list[str]:
@@ -918,7 +1036,7 @@ def extract_all(kit: dict[str, str], code_text: str) -> list[Bag]:
         try:
             text = mapped_text(text)
             bag = extract_links(path, text, code_text) if mapper == "links" else EXTRACTORS[mapper](path, text)
-        except (UnknownClaim, ImportError):   # a claim names its own place; a missing library is the machine's
+        except (UnknownClaim, ShapeRefused, ImportError):   # a claim and a shape name their own place; a missing library is the machine's
             raise
         except Exception as e:  # noqa: BLE001 — whatever the mapper raised, the document is named (I11)
             raise DocumentUnreadable(f"{path}: its mapper {mapper!r} cannot read it: {type(e).__name__}: {e}") from e

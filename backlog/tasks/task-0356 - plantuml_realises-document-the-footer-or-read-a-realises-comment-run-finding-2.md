@@ -3,10 +3,11 @@ id: TASK-0356
 title: >-
   plantuml_realises: document the footer, or read a realises comment (run
   finding 2)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-16T04:37:00Z'
-updated_date: '2026-11-16T04:37:00Z'
+updated_date: '2026-11-16T19:46:00Z'
 labels:
   - finding
   - reverse-engineering
@@ -30,4 +31,11 @@ Placement: documenting the footer form and warning on a ' realises comment line 
 - [ ] #1 subjects/README.md shows the footer form plantuml_realises reads, with an example
 - [ ] #2 check_subject.py warns on a ' realises: comment line that the mapper does not read, naming the diagram
 - [ ] #3 A test holds the warning; the scored record is unchanged
+- [ ] #4 plantuml_realises also reads a ' realises: comment line, the footer still read; the warning then applies only to a malformed one
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. extract_plantuml_realises reads ' realises: comment lines after the footer, an id both name cited once, the footer's fragment and value unchanged. 2. convention_warnings: a realises line (comment or footer) naming no id, or an id-shaped token with the document's id prefix the pattern does not read; check_subject rule citation (warning). 3. README with example; tests; both comparators.
+<!-- SECTION:PLAN:END -->

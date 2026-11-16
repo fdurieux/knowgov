@@ -3,9 +3,11 @@ id: TASK-0357
 title: >-
   dmn_decisions: requirement citations in a decision's description are not
   loaded (run finding 3)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-16T04:37:00Z'
+updated_date: '2026-11-16T19:46:00Z'
 labels:
   - finding
   - reverse-engineering
@@ -29,4 +31,11 @@ Placement: stating it in the guide and warning are fixes (0.9.x); inheriting dec
 - [ ] #1 subjects/README.md states that requirement citations are read from a rule's description
 - [ ] #2 check_subject.py warns on requirement ids cited in a decision's description that no rule cites
 - [ ] #3 A test holds the warning; the scored record is unchanged
+- [ ] #4 dmn_decisions loads requirement ids cited in a decision's description as that decision's citations; the warning then narrows as task-0356's
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Build the reader extension; run J-F's comparator. 2. If the record moves, withdraw it and keep the fix: README states rule-level citations; check_subject warns (rule citation) on decision-level ids no rule cites, and on id-shaped tokens the pattern does not read. 3. Tests; both comparators.
+<!-- SECTION:PLAN:END -->
