@@ -25,6 +25,7 @@ names that section with the version.
 
 ### Contract changes
 
+- A reader of `RECONCILE.json` with an owner (task-0342, decision-0041 C5-1): `harness/reconcile_reader.py` and the MCP reader's new files-only tool `stale_nodes` list, for each system under the register's `exports/`, the stale nodes its newest landing names, each with its owning unit as `register_impact` names it, the folder it was carried from and the system's own id where recorded, beside the landing's `unknown_ids` and `unregistered` count, and group them by unit in `by_owner`; filtered by `system` and owning unit (`owner`). JSON pinned by the new `harness/schemas/stale-nodes.schema.json`; exit 0 with the report, 2 when it cannot run; an argument outside the tool's `inputSchema` is -32602. Nothing is written.
 - `register_impact` answers a start whose kind has no step in the walk with a word, not with silence (task-0342, decision-0041 B-X2 and R-T1): an optional `note` names the walk, the start's kind and the kinds the walk starts from, as the page's panel does (a capability on `thread`, an application on `realisers`, a unit on any walk), where before it answered with no edges and nothing to say why. `store_status` names the version of the scenario it holds (decision-0041 B-X8): an optional `stage`, 1, or 2 once the scenario's change is applied, the stage the gate report's `version` names as `v1` or `v2`; absent when it holds none. Both schemas gain the optional field; nothing is removed or renamed.
 
 ### Known limits

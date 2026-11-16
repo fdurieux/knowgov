@@ -44,6 +44,8 @@ The question an agent asks is "may I build on this?". Sixteen tools answer it, a
     register_nodes        the register listed, filtered by taxonomy, kind, state, owning unit and parent, with
                           the total; or one node with its lineage, its ancestors by parent to the root and its
                           children, an annotation and never a walk; the register's files, no store (task-0142)
+    stale_nodes           the register nodes a system of record no longer carries, from each system's newest
+                          landing's RECONCILE.json, each with its owning unit, and by unit; files only (task-0342)
     key_nodes             the register nodes a knowledge key concerns: its register_map.toml rows with their
                           nodes, owner, anchor and note; files only (task-0143)
     code_path             a code path's application from the instance's code_map.toml, the keys its header
@@ -166,7 +168,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "string the directory resolves and knowgov does not authenticate. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
-                "(task, as gate_verdict's; codegen by default), those resting only on a descendant not followed flagged not_followed. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The prompts new_subject and add_artefact walk an assistant through scaffolding a subject on a branch; nothing is written through this server. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on, then derived_outputs key=... for what was built on a key. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. In the store: held_keys lists every key the held scenario holds with its level, including those no task class requires; document_statements names the statements a document yields and the outputs built on them; derived_outputs derived=... the statements behind one output. Intake, from a proposed initiative to the board a tracker holds: proposal_impact proposal=... on the overlay; its slices, one per journey step (per delivering process for a product no journey concerns), each overlay element in one slice or a named remainder, are the story map's backbone; each slice's keys are the task class's keys on its thread, and with a scenario held its keys.gate is gate_verdict keys=... on them; slices.task_keys names the class's keys on no slice (task-0252); all under one task class and one as_of. knowgov writes no work item and ranks nothing: no label, score or estimate; the tracker writes the items, each citing register ids. A check that a backlog covers the slices (K3) is parked to the pilot, not offered. key_nodes and document_links read files only, and code_path files, and the store for the ledger leg's suspect when it holds the subject; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it.  Every tool but list_subjects takes subject, the id of a subject under KG_SUBJECTS (list_subjects names them, never a path); none named is this server's own. A store-backed tool (its _meta io.knowgov/storeBacked true) answers only for the subject and scenario the store holds and otherwise names the start_run that would load it; a files-only tool answers for any subject. This server only reads.")
+                "(task, as gate_verdict's; codegen by default), those resting only on a descendant not followed flagged not_followed. Call stale_nodes for the register nodes a system of record has dropped and who owns each. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The prompts new_subject and add_artefact walk an assistant through scaffolding a subject on a branch; nothing is written through this server. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on, then derived_outputs key=... for what was built on a key. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. In the store: held_keys lists every key the held scenario holds with its level, including those no task class requires; document_statements names the statements a document yields and the outputs built on them; derived_outputs derived=... the statements behind one output. Intake, from a proposed initiative to the board a tracker holds: proposal_impact proposal=... on the overlay; its slices, one per journey step (per delivering process for a product no journey concerns), each overlay element in one slice or a named remainder, are the story map's backbone; each slice's keys are the task class's keys on its thread, and with a scenario held its keys.gate is gate_verdict keys=... on them; slices.task_keys names the class's keys on no slice (task-0252); all under one task class and one as_of. knowgov writes no work item and ranks nothing: no label, score or estimate; the tracker writes the items, each citing register ids. A check that a backlog covers the slices (K3) is parked to the pilot, not offered. key_nodes and document_links read files only, and code_path files, and the store for the ledger leg's suspect when it holds the subject; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it.  Every tool but list_subjects takes subject, the id of a subject under KG_SUBJECTS (list_subjects names them, never a path); none named is this server's own. A store-backed tool (its _meta io.knowgov/storeBacked true) answers only for the subject and scenario the store holds and otherwise names the start_run that would load it; a files-only tool answers for any subject. This server only reads.")
 
 import key_rule  # noqa: E402  (task-0296: the one entity|attribute rule)
 KEY_ITEM = {"type": "string", "pattern": key_rule.PATTERN, "description": key_rule.DESCRIPTION}   # every key and keys argument (task-0320, N7)
@@ -340,6 +342,23 @@ TOOLS.append(
          "offset": {"type": "integer", "minimum": 0, "description": "skip this many matching nodes first (default 0)"}}},
      "annotations": READ_ONLY})
 
+TOOLS.append(
+    {"name": "stale_nodes", "title": "Which register nodes has a system of record dropped, and who owns each?",
+     "description": "The register's export landings read from its files, never from the store (task-0342): for each system "
+                    "under the register's exports/, its newest dated landing and the stale nodes its RECONCILE.json names, the "
+                    "register nodes whose id the system's export no longer carries (a stale node stays stale in each later "
+                    "landing until its id returns, so the newest landing holds them all), each with its taxonomy, kind, name, "
+                    "state and owning unit (its owner field, the unit's name and the approved owns links to it), the folder it "
+                    "was carried from and the system's own id for it where the landing recorded one; a node the register no "
+                    "longer holds is listed, in_register false, with no owner. Beside them the carried ids the register does "
+                    "not hold (unknown_ids) and how many objects no node carries (unregistered), and by_owner, the stale nodes "
+                    "by unit: who to ask. A landing with no RECONCILE.json reads reconciled false. A stale node is a finding, "
+                    "never a deletion; nothing is written.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
+         "system": {"type": "string", "description": "one system, as the register's exports/ names its folder (default: every one)"},
+         "owner": {"type": "string", "pattern": r"^[A-Z]+-\d{4,}$", "description": "a unit of the register's organisation: only the stale nodes it owns, by owner field or an approved owns link"}}},
+     "annotations": READ_ONLY})
+
 
 TOOLS.append(
     {"name": "key_nodes", "title": "Which register nodes does this knowledge key concern?",
@@ -475,6 +494,7 @@ TOOLS.append(
 OUTPUT_SCHEMAS = {"store_status": "store-status", "gate_verdict": "gate-report", "three_valued_answer": "three-valued-answer",
                   "evidence_bundle": "evidence-bundle", "register_impact": "register-impact", "proposal_impact": "proposal-impact",
                   "scenario_runs": "scenario-runs", "scenario_result": "scenario-result", "register_nodes": "register-nodes",
+                  "stale_nodes": "stale-nodes",
                   "key_nodes": "key-nodes", "code_path": "code-path", "document_links": "document-links",
                   "subject_check": "subject-check", "held_keys": "held-keys", "derived_outputs": "derived-outputs",
                   "document_statements": "document-statements", "list_subjects": "list-subjects"}
@@ -899,6 +919,15 @@ class Tools:
         try:
             return rn.report(args)
         except rn.NodesError as e:
+            raise ToolError(str(e)) from e
+
+    def stale_nodes(self, args: dict) -> dict:
+        """The stale nodes each system's newest landing names, with their owners (``reconcile_reader.report``,
+        task-0342, decision-0041 C5-1): the register's files only, read from ``KG_REGISTER``; no store is opened."""
+        import reconcile_reader as rr
+        try:
+            return rr.report(args)
+        except rr.ReconcileError as e:
             raise ToolError(str(e)) from e
 
     trace_cfg: dict | None = None   # the code leg's instance and ledger (upward.config), set once at start by main
