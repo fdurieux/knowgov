@@ -328,7 +328,7 @@ requirement_id_pattern`. Each bundle mapper reads its ids from one place (tasks 
 
 | mapper | input and where the ids are read |
 |---|---|
-| `requirements_json` | one JSON file: a top-level list of items, each an object with string `id` and `statement` (`kind`, `basis` and `claim` optional), or an object whose one list-valued key holds that list (`{"requirements": [...], "version": "1"}`; the object's other keys are not read). Any other top level, an object with no or two list-valued keys, or an item without a string `id` and `statement`, is refused by `tools/check_subject.py` (rule `shape`) and by the load, naming the file and this shape |
+| `requirements_json` | one JSON file: a top-level list of items, each an object with string `id` and `statement` (`kind`, `basis` and `claim` optional), or an object whose one list-valued key holds that list (`{"requirements": [...], "version": "1"}`; the object's other keys are not read). Any other top level, an object with no or two list-valued keys, or an item without a string `id` and `statement`, is refused by `tools/check_subject.py` (rule `mapper-failed`) and by the load, naming the file and this shape |
 | `contracts_markdown` | anywhere in a part: `Requirements: JDL-045, …`, ranges, inline citations |
 | `dmn_decisions` | a **rule's** `<description>`. An id in a decision's own `<description>` is not read as a citation: `check_subject.py` warns (rule `citation`) on one that no rule of the decision cites. Write the id on the rule(s) that decide it |
 | `gherkin_tagged` | a scenario's `@<id>` tags |
@@ -362,7 +362,7 @@ is not `<entity>|<predicate>` (each side non-empty, of characters up to U+FFFF w
 character; `harness/key_rule.py`, task-0297), a task with no
 scenario, a `register_map.toml` node the register does not hold or an `owner` of none of its row's
 nodes, a mapper that cannot read its document, and a claim that is not `observed`, `inferred` or
-`intended` (task-0214), and a `requirements_json` document of another shape (rule `shape`, task-0355). It
+`intended` (task-0214), and a `requirements_json` document of another shape (rule `mapper-failed`, naming the file and the shape, task-0355). It
 warns on a malformed citation (rule `citation`, tasks 0356 and 0357; "Where the bundle mappers read citations"
 above), and on a required key no document yields
 when they yield a near one, the documents' yield taken from the load's own mappers in a child

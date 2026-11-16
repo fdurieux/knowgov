@@ -36,7 +36,7 @@
     "level": {"enum": ["error", "warning"]},
     "rule": {"enum": ["manifest", "table", "field", "required", "duplicate", "mapper", "path", "key-syntax", "block-level",
                       "share", "require-approved", "rationale", "task-class", "scenario", "scenario-id", "attestation", "map-node", "map-owner",
-                      "mapper-failed", "yield", "zero-yield", "claim", "shape", "citation"]},
+                      "mapper-failed", "yield", "zero-yield", "claim", "citation"]},
     "where": {"type": "string"},
     "message": {"type": "string"},
     "fix": {"type": "string"}

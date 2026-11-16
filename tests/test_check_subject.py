@@ -76,7 +76,10 @@ def test_the_probe_is_refused_with_each_defect_named_and_its_fix():
 def test_the_public_subjects_pass_with_no_finding():
     for sid in ("cargo_quote", "jef_data_load", "minimal"):
         rep = check_subject.check(ROOT / "subjects" / sid, REGISTER)
-        assert rep["findings"] == [] and rep["exit_code"] == 0, (sid, rep["findings"])
+        # task-0357: J-F's vendored actions_gate cites JDL-088 in its own description and in no rule, the one citation
+        # warning the public kits hold (tests/test_kit_mapper_findings.py); a warning, never a refusal
+        rest = [f for f in rep["findings"] if not (sid == "jef_data_load" and f["rule"] == "citation" and "JDL-088" in f["message"])]
+        assert rest == [] and rep["exit_code"] == 0, (sid, rep["findings"])
         if MAPPERS_RUN and sid != "minimal":
             assert rep["yield"]["state"] == "checked" and rep["yield"]["keys"] > 0, (sid, rep["yield"])
             # the public subjects list the Versions they attest (the maintainer, 2026-11-08): no attestation note, the read

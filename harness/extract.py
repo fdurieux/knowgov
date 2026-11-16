@@ -789,8 +789,7 @@ def extract_dmn_decisions(path: str, text: str) -> Bag:
             dname = dec.get("name") or dec.get("id")
             ent = f"dmn:{dname}"
             b.ent(ent, "decision_table", dname)
-            ddesc = (dec.findtext("d:description", default="", namespaces=ns) or "").strip()
-            dclaim = _first_claim(_CLAIM_IN_TEXT, ddesc, f"{rel or path} {dname}")
+            dclaim = _first_claim(_CLAIM_IN_TEXT, dec.findtext("d:description", default="", namespaces=ns), f"{rel or path} {dname}")
             rules = list(dec.iter(f"{{{ns['d']}}}rule"))
             frags, claims = [], []
             for r in rules:
@@ -870,6 +869,22 @@ _PUML_NAMES = {
 }
 
 
+def _realises_lines(body: str) -> list[tuple[str, str, list[str]]]:
+    """(locator, line, ids) for the footer, then each ``' realises:`` comment line (task-0356) that names an id the
+    lines before it did not: an id both name is cited once, by the footer, which reads as it did before."""
+    out, cited = [], set()
+    foot = re.search(r"^\s*footer\b(.*)$", body, re.M)
+    if foot:
+        ids = _ids_in(foot.group(1))
+        out.append(("footer", foot.group(0).strip(), ids))
+        cited.update(ids)
+    for n, m in enumerate(_REALISES_COMMENT.finditer(body), 1):
+        if ids := [req for req in _ids_in(m.group(1)) if req not in cited]:
+            out.append((f"realises/{n}", m.group(0).strip(), ids))
+            cited.update(ids)
+    return out
+
+
 def extract_plantuml_realises(path: str, text: str) -> Bag:
     """A bundle of PlantUML diagrams: one ``diagram`` entity per part with its type (pumllint's
     parser), its title and the names it declares (authored: the diagram's own structure), and
@@ -897,19 +912,10 @@ def extract_plantuml_realises(path: str, text: str) -> Bag:
         if d.diagram_type == "activity":
             names = [f"{len(d.activity_nodes or [])} activity nodes"]
         b.assertion(ent, "elements", "; ".join(names), f"{stem} declares {len(names)} elements", [head], basis=basis)
-        foot = re.search(r"^\s*footer\b(.*)$", body, re.M)
-        cited: set[str] = set()
-        if foot:
-            f = b.frag(f"{rel or path}:footer", foot.group(0).strip())
-            for req in _ids_in(foot.group(1)):
+        for locator, line, ids in _realises_lines(body):
+            f = b.frag(f"{rel or path}:{locator}", line)
+            for req in ids:
                 cites.setdefault(req, []).append((stem, f, claim))
-                cited.add(req)
-        for n, line in enumerate(_REALISES_COMMENT.finditer(body), 1):   # task-0356: the comment form
-            if new := [req for req in _ids_in(line.group(1)) if req not in cited]:
-                f = b.frag(f"{rel or path}:realises/{n}", line.group(0).strip())
-                for req in new:
-                    cites.setdefault(req, []).append((stem, f, claim))
-                    cited.add(req)
     _by_requirement(b, "realised_by", cites, lambda rid, names: f"{rid} is realised by {', '.join(names)}")
     return b
 
@@ -968,30 +974,36 @@ def _warn_plantuml_realises(path: str, text: str) -> list[str]:
     return out
 
 
+def _dmn_places(dec, ns: dict) -> list[tuple[str, str]]:
+    """(where, description) for a decision, its own first, then each rule's."""
+    dname = dec.get("name") or dec.get("id")
+    return [(f"decision {dname}", dec.findtext("d:description", default="", namespaces=ns) or "")] + \
+        [(f"decision {dname} rule {r.get('id')}", r.findtext("d:description", default="", namespaces=ns) or "")
+         for r in dec.iter(f"{{{ns['d']}}}rule")]
+
+
+def _warn_dmn_decision(where: str, places: list[tuple[str, str]], pre: set[str]) -> list[str]:
+    out = []
+    by_rules = {req for _at, desc in places[1:] for req in _ids_in(desc)}
+    if unread := [req for req in _ids_in(places[0][1]) if req not in by_rules]:   # task-0357
+        out.append(f"{where}: {places[0][0]}'s own description cites {', '.join(unread)}, which no rule of it cites: "
+                   "dmn_decisions reads citations from a rule's description only, so it links nothing")
+    out += [f"{where}: {at}'s description cites {', '.join(miss)}, which the subject's requirement id pattern does "
+            "not read, so it links nothing" for at, desc in places if (miss := _near_misses(desc, pre))]
+    return out
+
+
 def _warn_dmn_decisions(path: str, text: str) -> list[str]:
     out = []
     pre = _prefixes(text)
     ns = {"d": "https://www.omg.org/spec/DMN/20191111/MODEL/"}
     for rel, body in bundle_parts(text):
-        if not body.lstrip().startswith("<"):
-            continue
         try:
-            root = ET.fromstring(body)
+            root = ET.fromstring(body) if body.lstrip().startswith("<") else None
         except ET.ParseError:
-            continue   # the mapper's own refusal says it
-        for dec in root.iter(f"{{{ns['d']}}}decision"):
-            dname = dec.get("name") or dec.get("id")
-            places = [(f"decision {dname}", dec.findtext("d:description", default="", namespaces=ns) or "")]
-            places += [(f"decision {dname} rule {r.get('id')}", r.findtext("d:description", default="", namespaces=ns) or "")
-                       for r in dec.iter(f"{{{ns['d']}}}rule")]
-            by_rules = {req for _at, desc in places[1:] for req in _ids_in(desc)}
-            if unread := [req for req in _ids_in(places[0][1]) if req not in by_rules]:   # task-0357
-                out.append(f"{rel or path}: decision {dname}'s own description cites {', '.join(unread)}, which no rule of it "
-                           "cites: dmn_decisions reads citations from a rule's description only, so it links nothing")
-            for at, desc in places:
-                if miss := _near_misses(desc, pre):
-                    out.append(f"{rel or path}: {at}'s description cites {', '.join(miss)}, which the subject's "
-                               "requirement id pattern does not read, so it links nothing")
+            root = None   # the mapper's own refusal says it
+        for dec in root.iter(f"{{{ns['d']}}}decision") if root is not None else ():
+            out += _warn_dmn_decision(rel or path, _dmn_places(dec, ns), pre)
     return out
 
 

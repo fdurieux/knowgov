@@ -166,4 +166,4 @@ def test_the_claim_is_documented_per_mapper_and_the_probe_runs_on_both_stores():
     for wf in ("harness.yml", "demo.yml"):
         assert "tools/check_claim_probe.py" in (ROOT / ".github" / "workflows" / wf).read_text(encoding="utf-8"), wf
     schema = (ROOT / "harness" / "schemas" / "subject-check.schema.json").read_text(encoding="utf-8")
-    assert '"zero-yield", "claim"]' in schema   # the subject check's rule, additive
+    assert '"zero-yield", "claim"' in schema   # the subject check's rule, additive

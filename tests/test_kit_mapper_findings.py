@@ -1,8 +1,9 @@
 """Tasks 0355-0357: three bundle mappers a reverse-engineering run's kits wrote past. requirements_json refuses a top
 level it cannot read, by name and with the shape, and reads an object whose one list-valued key holds the items;
-plantuml_realises reads a ``' realises:`` comment line beside the footer; dmn_decisions reads a decision's own
-citations. ``tools/check_subject.py`` refuses the shape (rule ``shape``) and warns on a malformed citation (rule
-``citation``): a realises line naming no id, or an id-shaped token the subject's pattern does not read. The mappers
+plantuml_realises reads a ``' realises:`` comment line beside the footer; dmn_decisions is unchanged (reading a
+decision's own citations would move J-F's record). ``tools/check_subject.py`` refuses the shape (rule
+``mapper-failed``) and warns (rule ``citation``) on a realises line naming no id, a decision-level id no rule cites,
+and an id-shaped token the subject's pattern does not read. The mappers
 need the pins (PyYAML, pumllint): skipped naming rdflib where they are absent, required in the rdflib job."""
 from __future__ import annotations
 
@@ -121,14 +122,14 @@ def test_check_subject_refuses_the_shape_and_warns_on_a_malformed_citation_only(
         rep = check_subject.check(root, ROOT / "demo" / "register")
         if rep["yield"]["state"] != "checked":
             skip("rdflib", f"the yield is unchecked here: {rep['yield'].get('why')}")
-        assert not _findings(rep, "citation") and not _findings(rep, "shape"), rep["findings"]
+        assert not _findings(rep, "citation") and not _findings(rep, "mapper-failed"), rep["findings"]
 
         req = root / "kit" / "requirements.json"
         req.write_text(json.dumps({"requirements": json.loads(req.read_text(encoding="utf-8"))}), encoding="utf-8")
         uml = root / "kit" / "uml" / "inferred.puml"
         uml.write_text(uml.read_text(encoding="utf-8").replace("@enduml", "' realises: CLM-004\n@enduml"), encoding="utf-8")
         rep = check_subject.check(root, ROOT / "demo" / "register")
-        assert not _findings(rep, "citation") and not _findings(rep, "shape"), "the read forms are no finding"
+        assert not _findings(rep, "citation") and not _findings(rep, "mapper-failed"), "the read forms are no finding"
 
         req.write_text(json.dumps({"a": [], "b": []}), encoding="utf-8")
         uml.write_text(uml.read_text(encoding="utf-8").replace("' realises: CLM-004\n", "' realises: the gate\n' realises: CLM-004, CLM-04\n"),
@@ -137,7 +138,7 @@ def test_check_subject_refuses_the_shape_and_warns_on_a_malformed_citation_only(
         text = dmn.read_text(encoding="utf-8")
         dmn.write_text(text.replace("<description>", "<description>See CLM-1234 and CLM-005. ", 1), encoding="utf-8")
         rep = check_subject.check(root, ROOT / "demo" / "register")
-        [shape] = _findings(rep, "shape")
+        [shape] = [f for f in _findings(rep, "mapper-failed") if f["where"] == "[[artefact]] requirements.json"]
         assert shape["level"] == "error" and shape["where"] == "[[artefact]] requirements.json" and \
             "requirements.json: the top level is an object with 2 list-valued keys" in shape["message"], shape
         msgs = [f["message"] for f in _findings(rep, "citation")]
@@ -155,6 +156,6 @@ def test_the_public_kit_holds_one_citation_warning_a_decision_level_one():
     rep = check_subject.check(ROOT / "subjects" / "jef_data_load", ROOT / "demo" / "register")
     if rep["yield"]["state"] != "checked":
         skip("rdflib", f"the yield is unchecked here: {rep['yield'].get('why')}")
-    assert not _findings(rep, "shape"), rep["findings"]
+    assert not _findings(rep, "mapper-failed"), rep["findings"]
     assert [(f["where"], f["message"].split(":")[1].strip()) for f in _findings(rep, "citation")] == \
         [("[[artefact]] contracts/dmn/", "decision actions_gate's own description cites JDL-088, which no rule of it cites")]
