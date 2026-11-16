@@ -3,11 +3,11 @@ id: TASK-0361
 title: >-
   decision-0046's three read-only MCP tools: pending_questions,
   question_evidence and answer_link (in 0.10.0, decision-0047 point 3)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-16T19:16:00Z'
-updated_date: '2026-11-16T19:44:00Z'
+updated_date: '2026-11-16T21:11:00Z'
 labels:
   - contract
   - 0.10.0
@@ -31,7 +31,7 @@ decision-0046 point 2 names a channel-neutral bridge as three read-only MCP tool
 - [x] #1 pending_questions(handle) lists a handle's open items from the questionnaires and the captures already ingested, refusing a handle that is not issued
 - [x] #2 question_evidence(key) returns one item's evidence as the instance generated it, or a not-found reason
 - [x] #3 answer_link(key, verdict, statement) returns the prefilled issue-form URL computed from the instance's form template, writing nothing; a verdict outside the form's four is refused
-- [ ] #4 Schemas for the three, both transports, check_mcp_server.py holding each, CHANGELOG Unreleased under contract changes
+- [x] #4 Schemas for the three, both transports, check_mcp_server.py holding each, CHANGELOG Unreleased under contract changes
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -52,4 +52,12 @@ Contract item (the instance configuration): questions.toml at the instance root,
 Choices: the verdict is an enum of four symbols (right_as_stated, right_with_correction, wrong, dont_know) so the input schema is fixed at tools/list; the labels the form lists come from questions.toml. pending_questions takes no subject argument (a person's questions span subjects); question_evidence and answer_link do. A key asked of two units (a row with several owners and no owner field) needs scenario and owner on answer_link. The handle is read as issued, not withdrawn, and holding gives on the server's date (KG_AS_OF). An item is answered by a capture on its key dated on or after generated_on from the questionnaire's owner unit (review-due: from the handle addressed).
 Where the decision's text meets the code: decision-0046 point 2 gives answer_link (key, verdict, statement); the form also needs the scenario and owner, read from the questionnaire that asks the key, so a key in two questionnaires needs the optional scenario and owner arguments.
 Local proof: python tests/run_tests.py 1252/1358 then test_mcp_subjects fixed (REQUIRED_SAMPLE gains verdict and statement); KG_STORE=rdflib python tools/check_mcp_server.py --scenarios S1: every check holds, 27 knowledge-tool answers equal to the expected reports.
+
+CI on 36cc2e6 (PR #577): tests, rdflib, rdflib-readers and stack green; the stack's check_mcp_server.py on the Neo4j store and the rdflib job's on rdflib each held the four knowledge tools to the knowledge probe's expected reports over stdio (both eras) and HTTP. The merge of main (decisions 0046 and 0047 accepted, #575) changed no code.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+decision-0046's channel-neutral bridge, three read-only MCP tools and a CLI (harness/questions.py). pending_questions(handle): an issued handle's open questionnaire items less what captures answered; it refuses a handle that is not issued, is withdrawn, or lacks gives. question_evidence(key): one item's evidence verbatim, or found false with why. answer_link(key, verdict, statement): the prefilled GitHub issue-form URL, computed, nothing written; a verdict outside the form's four is -32602. Contract item: the instance's questions.toml (format = 1, formats.QUESTIONS) names the folders, the form's URL, template, field ids and verdict labels; the template is read as text and refused when it lacks one. Schemas pending-questions, question-evidence, answer-link; check_mcp_server.py holds all three on both stores and transports. Divergence noted: the form needs the scenario and owner, read from the questionnaire, so a key asked of two units takes optional scenario and owner.
+<!-- SECTION:FINAL_SUMMARY:END -->
