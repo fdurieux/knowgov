@@ -26,18 +26,19 @@ sys.path.insert(0, str(ROOT / "harness"))
 
 def leaves(obj, path: str = ""):
     """(path, JSON value) for every leaf; an empty list or object is a leaf of its own."""
-    if isinstance(obj, dict):
-        if not obj:
-            yield path, "{}"
-        for k, v in obj.items():
-            yield from leaves(v, f"{path}.{k}" if path else str(k))
-    elif isinstance(obj, list):
-        if not obj:
-            yield path, "[]"
-        for i, v in enumerate(obj):
-            yield from leaves(v, f"{path}[{i}]")
+    if isinstance(obj, (dict, list)):
+        yield from _children(obj, path)
     else:
         yield path, json.dumps(obj, sort_keys=True)
+
+
+def _children(obj, path: str):
+    items = list(obj.items()) if isinstance(obj, dict) else [(f"[{i}]", v) for i, v in enumerate(obj)]
+    if not items:
+        yield path, "{}" if isinstance(obj, dict) else "[]"
+    for k, v in items:
+        name = f"{path}{k}" if str(k).startswith("[") else (f"{path}.{k}" if path else str(k))
+        yield from leaves(v, name)
 
 
 def differing(a: dict, b: dict) -> list[tuple[str, str, str]]:
