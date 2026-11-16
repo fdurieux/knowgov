@@ -15,7 +15,7 @@ import threading
 import time
 import uuid
 
-from store import (DEAD, DOCUMENT_BASES, DUPLICATE, NEO4J_GUARDED, Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, held_from, inputs_digest, part_list, part_rows,
+from store import (DEAD, DOCUMENT_BASES, DUPLICATE, NEO4J_GUARDED, Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_fields, by_id, held_from, inputs_digest, part_list, part_rows,
                    changed_of, setting, stem, suspect_rows, suspicion)
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
@@ -949,8 +949,8 @@ class Neo4jStore(Store):
             MERGE (ap)-[:APPROVES]->(x) MERGE (ap)-[:BY]->(h)
             SET x.status='approved' RETURN count(x) AS n""", at=at, record=record, hid=agent_id, arts=artefacts).single()["n"]
 
-    def reverify(self, version, keys, agent_id, ts, scope, record) -> list[str]:
-        return self.run("""
+    def reverify(self, version, keys, agent_id, ts, scope, record) -> list[str]:   # by id (task-0369)
+        return sorted(self.run("""
             MATCH (x:Assertion {version:$version}) WHERE x.key IN $keys AND x.status IN ['proposed','validated']
             MATCH (h:Agent {id:$hid})
             MERGE (v:Verification {id:'ver:review:' + $version + ':' + x.id}) SET v.method='review', v.outcome='pass', v.at=$ts,
@@ -959,7 +959,7 @@ class Neo4jStore(Store):
             SET x.status='verified'
             WITH x, h MERGE (ap:Approval {id:'appr:' + $version + ':' + x.id}) SET ap.at=$ts, ap.record=$record
             MERGE (ap)-[:APPROVES]->(x) MERGE (ap)-[:BY]->(h) SET x.status='approved'
-            RETURN collect(x.id) AS ids""", version=version, keys=keys, hid=agent_id, ts=ts, scope=scope, record=record).single()["ids"]
+            RETURN collect(x.id) AS ids""", version=version, keys=keys, hid=agent_id, ts=ts, scope=scope, record=record).single()["ids"])
 
     def review_verifications(self) -> list[dict]:
         return _rows(self.run("""
@@ -980,17 +980,17 @@ class Neo4jStore(Store):
                  rec=None if recorded is None else json.dumps(recorded, ensure_ascii=False, sort_keys=True)).consume()
 
     # ---- the rules
-    def structural_violations(self) -> list[dict]:
+    def structural_violations(self) -> list[dict]:   # each check's rows by id, the checks in this order (task-0369)
         v = []
-        v += _rows(self.run("""
+        v += by_id(_rows(self.run("""
             MATCH (x:Assertion) WHERE x.basis IN ['extracted','authored'] AND NOT (x)-[:SUPPORTED_BY]->(:Fragment)
-            RETURN x.id AS id, 'no supporting fragment' AS why"""))
-        v += _rows(self.run("""
+            RETURN x.id AS id, 'no supporting fragment' AS why""")))
+        v += by_id(_rows(self.run("""
             MATCH (x:Assertion) WHERE x.basis IN ['inferred','assumed','hypothesised']
               AND NOT (x)-[:CANDIDATE_FOR|CONCERNED_BY]-(:Gap) AND NOT (:Gap)-[:CONCERNS]->(x)
-            RETURN x.id AS id, 'inferred without a gap' AS why"""))
-        v += _rows(self.run("MATCH (f:Fragment) WHERE NOT (:Version)-[:HAS_FRAGMENT]->(f) RETURN f.id AS id, 'orphan fragment' AS why"))
-        v += _rows(self.run("MATCH (v:Version) WHERE NOT (:Artefact)-[:HAS_VERSION]->(v) RETURN v.id AS id, 'orphan version' AS why"))
+            RETURN x.id AS id, 'inferred without a gap' AS why""")))
+        v += by_id(_rows(self.run("MATCH (f:Fragment) WHERE NOT (:Version)-[:HAS_FRAGMENT]->(f) RETURN f.id AS id, 'orphan fragment' AS why")))
+        v += by_id(_rows(self.run("MATCH (v:Version) WHERE NOT (:Artefact)-[:HAS_VERSION]->(v) RETURN v.id AS id, 'orphan version' AS why")))
         return v
 
     def candidate_pairs(self, across=None) -> list[dict]:
@@ -1021,11 +1021,11 @@ class Neo4jStore(Store):
                     WITH g MATCH (act:Activity) WHERE act.id STARTS WITH 'act:extract:' + $sc
                     MERGE (g)-[:RAISED_BY]->(act)""", a=a, b=b, gid=gid, key=key, sc=scenario, text=text).consume()
 
-    def vague_fragments(self, words) -> list[dict]:
-        return _rows(self.run("""
+    def vague_fragments(self, words) -> list[dict]:   # by assertion id, then fragment id (task-0369)
+        return by_fields(_rows(self.run("""
             MATCH (x:Assertion)-[:SUPPORTED_BY]->(f:Fragment)
             WHERE any(w IN $vague WHERE toLower(f.text) CONTAINS w) AND f.locator CONTAINS 'row/'
-            RETURN DISTINCT x.id AS id, x.key AS key, f.id AS fid, f.text AS text""", vague=words))
+            RETURN DISTINCT x.id AS id, x.key AS key, f.id AS fid, f.text AS text""", vague=words)), "id", "fid")
 
     def add_ambiguous_gap(self, assertion_id, text, scenario) -> None:
         self.run("""MATCH (x:Assertion {id:$id})
@@ -1034,12 +1034,12 @@ class Neo4jStore(Store):
                     WITH g MATCH (act:Activity) WHERE act.id STARTS WITH 'act:extract:' + $sc
                     MERGE (g)-[:RAISED_BY]->(act)""", id=assertion_id, text=text, sc=scenario).consume()
 
-    def unresolved_assertions(self) -> list[dict]:
-        return _rows(self.run("MATCH (x:Assertion {unresolved:true}) RETURN x.id AS id, x.key AS key, x.raw_value AS sym"))
+    def unresolved_assertions(self) -> list[dict]:   # by id (task-0369)
+        return by_id(_rows(self.run("MATCH (x:Assertion {unresolved:true}) RETURN x.id AS id, x.key AS key, x.raw_value AS sym")))
 
-    def declared_open(self, predicate) -> list[dict]:
-        return _rows(self.run("""MATCH (x:Assertion {predicate:$pred, value:'NONE'})-[:ABOUT]->(e:Entity) WHERE NOT x.status IN $dead
-                                 RETURN e.id AS entity, x.id AS id""", pred=predicate, dead=list(DEAD)))
+    def declared_open(self, predicate) -> list[dict]:   # by assertion id, then entity (task-0369)
+        return by_fields(_rows(self.run("""MATCH (x:Assertion {predicate:$pred, value:'NONE'})-[:ABOUT]->(e:Entity) WHERE NOT x.status IN $dead
+                                 RETURN e.id AS entity, x.id AS id""", pred=predicate, dead=list(DEAD))), "id", "entity")
 
     def add_declared_gap(self, gid, text, entity, assertion_id, scenario, key_entity, key) -> None:
         self.run("""MATCH (e:Entity {id:$req}), (x:Assertion {id:$id})
@@ -1058,9 +1058,9 @@ class Neo4jStore(Store):
                     MERGE (g:Gap {id:'gap:declared:' + $art}) SET g.kind='missing', g.declared=true, g.text=$art + ' is not yet authored'
                     MERGE (g)-[:CONCERNS]->(x)""", id=assertion_id, art=artefact).consume()
 
-    def requirements_without(self, predicate) -> list[str]:
-        return [r["req"] for r in self.run("""MATCH (e:Entity {kind:'requirement'}) WHERE NOT (:Assertion {predicate:$pred})-[:ABOUT]->(e)
-                                              RETURN e.id AS req""", pred=predicate)]
+    def requirements_without(self, predicate) -> list[str]:   # by id (task-0369)
+        return sorted(r["req"] for r in self.run("""MATCH (e:Entity {kind:'requirement'}) WHERE NOT (:Assertion {predicate:$pred})-[:ABOUT]->(e)
+                                              RETURN e.id AS req""", pred=predicate))
 
     def add_unverified_requirement_gap(self, req) -> None:
         self.run("""MATCH (e:Entity {id:$req})
@@ -1068,9 +1068,9 @@ class Neo4jStore(Store):
                        g.text=$req + ' has no verifying scenario'
                     MERGE (g)-[:CONCERNS]->(e)""", req=req).consume()
 
-    def silent_entities(self, kinds) -> list[str]:
-        return [r["id"] for r in self.run("""MATCH (e:Entity) WHERE e.kind IN $kinds AND NOT (:Assertion)-[:ABOUT]->(e)
-                                             RETURN e.id AS id""", kinds=kinds)]
+    def silent_entities(self, kinds) -> list[str]:   # by id (task-0369)
+        return sorted(r["id"] for r in self.run("""MATCH (e:Entity) WHERE e.kind IN $kinds AND NOT (:Assertion)-[:ABOUT]->(e)
+                                             RETURN e.id AS id""", kinds=kinds))
 
     def mark_unverified(self) -> int:
         return self.run("""
@@ -1117,7 +1117,8 @@ class Neo4jStore(Store):
             WHERE all(y IN [(g)-[:CONCERNS]->(z:Assertion) | z] WHERE y.status IN $dead)
             SET g.kind='withdrawn', g.declared=false, g.withdrawn_by=$tag
             RETURN g.id AS id ORDER BY g.id""", inv=[r["id"] for r in inv], dead=list(DEAD), tag=new_tag)]
-        return {"invalidated": inv, "kept": kept, **({"withdrawn": withdrawn} if withdrawn else {})}
+        inv = by_id([{**r, "derived": sorted(r["derived"])} for r in inv])   # by id (task-0369)
+        return {"invalidated": inv, "kept": by_id(kept), **({"withdrawn": withdrawn} if withdrawn else {})}
 
     def invalidate_keys(self, reasons, at=None) -> dict:
         inv = _rows(self.run("""
@@ -1212,7 +1213,7 @@ class Neo4jStore(Store):
             MATCH (d:Derived) OPTIONAL MATCH (d)-[:USED_ASSERTION]->(x:Assertion)
             RETURN d.id AS id, d.kind AS kind, d.sha256 AS sha256, d.recorded AS recorded,
                    collect({id:x.id, status:x.status}) AS used"""))
-        return [{**r, "used": [u for u in r["used"] if u["id"]]} for r in rows]
+        return by_id([{**r, "used": by_id([u for u in r["used"] if u["id"]])} for r in rows])   # by id (task-0369)
 
     def suspect_derived(self) -> list[dict]:   # task-0199: by suspicion, the one rule, never the stored flag
         return suspect_rows(suspicion(self, self.derived_rows()))
@@ -1367,25 +1368,26 @@ class Neo4jStore(Store):
                         "concerns": [c for c in r["concerns"] if c["id"] or c["relkey"]]})
         return out
 
-    def assertions_on_key(self, key, statuses) -> list[dict]:
-        return _rows(self.run("MATCH (x:Assertion {key:$k}) WHERE x.status IN $st RETURN x.id AS id, x.value AS value, x.status AS status, x.basis AS basis",
-                              k=key, st=statuses))
+    def assertions_on_key(self, key, statuses) -> list[dict]:   # by id (task-0369)
+        return by_id(_rows(self.run("MATCH (x:Assertion {key:$k}) WHERE x.status IN $st RETURN x.id AS id, x.value AS value, x.status AS status, x.basis AS basis",
+                                    k=key, st=statuses)))
 
     # ---- the SHACL projection's reads
     def assertion_rows(self) -> list[dict]:
-        return _rows(self.run("MATCH (x:Assertion) RETURN x.id AS id, x.basis AS basis, x.status AS status"))
+        return by_id(_rows(self.run("MATCH (x:Assertion) RETURN x.id AS id, x.basis AS basis, x.status AS status")))   # task-0369
 
     def supported_by(self) -> list[dict]:
-        return _rows(self.run("MATCH (x:Assertion)-[:SUPPORTED_BY]->(f:Fragment) RETURN x.id AS x, f.id AS f"))
+        return by_fields(_rows(self.run("MATCH (x:Assertion)-[:SUPPORTED_BY]->(f:Fragment) RETURN x.id AS x, f.id AS f")), "x", "f")   # task-0369
 
     def candidate_for(self) -> list[dict]:
-        return _rows(self.run("MATCH (x:Assertion)-[:CANDIDATE_FOR]->(g:Gap) RETURN x.id AS x, g.id AS g"))
+        return by_fields(_rows(self.run("MATCH (x:Assertion)-[:CANDIDATE_FOR]->(g:Gap) RETURN x.id AS x, g.id AS g")), "x", "g")   # task-0369
 
     def fragments_with_version(self) -> list[dict]:
-        return _rows(self.run("MATCH (f:Fragment) OPTIONAL MATCH (v:Version)-[:HAS_FRAGMENT]->(f) RETURN f.id AS f, v.id AS v"))
+        return by_fields(_rows(self.run("MATCH (f:Fragment) OPTIONAL MATCH (v:Version)-[:HAS_FRAGMENT]->(f) RETURN f.id AS f, v.id AS v")), "f", "v")   # task-0369
 
     def requirements_verified_by(self) -> list[dict]:
-        return _rows(self.run("MATCH (e:Entity {kind:'requirement'}) OPTIONAL MATCH (x:Assertion {predicate:'verified_by'})-[:ABOUT]->(e) RETURN e.id AS e, collect(x.value) AS by"))
+        rows = _rows(self.run("MATCH (e:Entity {kind:'requirement'}) OPTIONAL MATCH (x:Assertion {predicate:'verified_by'})-[:ABOUT]->(e) RETURN e.id AS e, collect(x.value) AS by"))
+        return by_fields([{**r, "by": sorted(r["by"], key=str)} for r in rows], "e")   # task-0369
 
     # ---- the register projection
     def project_register(self, r: dict) -> None:
