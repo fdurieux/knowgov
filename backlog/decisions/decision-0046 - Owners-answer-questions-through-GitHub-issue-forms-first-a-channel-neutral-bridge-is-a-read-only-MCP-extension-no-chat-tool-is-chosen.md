@@ -6,7 +6,7 @@ title: >-
 date: '2026-11-16T17:41:00Z'
 status: proposed
 ---
-*Proposed. Drafted by the coordinating session on the maintainer's word, 2026-11-16: "Github first, but no decision on a chat tool. Could it be as an MCP?", then "redraft decision-0046", on the login-to-handle mapping "(a), keep the mapping outside git; add the point to 0046", and then "draft the jef-knowgov decision and adjust 0046". Approval is the maintainer's word (ieam-register decision 0019's rule, which knowgov follows).*
+*Proposed. Drafted by the coordinating session on the maintainer's word, 2026-11-16: "Github first, but no decision on a chat tool. Could it be as an MCP?", then "redraft decision-0046", on the login-to-handle mapping "(a), keep the mapping outside git; add the point to 0046", and then "draft the [private instance's] decision and adjust 0046" (the instance's name elided: it is private). Approval is the maintainer's word (ieam-register decision 0019's rule, which knowgov follows).*
 
 ## Context
 
