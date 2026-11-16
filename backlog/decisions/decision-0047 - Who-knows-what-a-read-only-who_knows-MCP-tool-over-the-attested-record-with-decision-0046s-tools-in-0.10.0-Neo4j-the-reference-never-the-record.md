@@ -24,7 +24,7 @@ knowgov's store is a projection: a load wipes it (Neo4j Community serves one dat
    - `owns`: the handle's unit owns the node.
    Items sorted by kind, then key, then date; handles by id. No count used as a rank, no weight, no score. It reads the subjects the reader serves (decision-0013's `KG_SUBJECTS`), their capture folders and reviews, and the one register they share, from files, as `register_nodes` and `key_nodes` do, so it answers the same on either store. A schema `who-knows`, both transports, `check_mcp_server.py` holding its report.
 3. **decision-0046's three tools come forward into the same release.** `pending_questions`, `question_evidence` and `answer_link` are built now, beside `who_knows`. This amends decision-0046's point 4, which gated them on the pilot: their schemas follow the issue form already built in the pilot instance (its verdicts and fields), and the pilot's five answers, when given, are their first real input.
-4. **0.10.0 carries the four tools** (the maintainer's option (A)). Under decision-0016 point 2 it restarts the 30-day soak: 1.0.0 is cut 30 days after 0.10.0 at the earliest, with A1's other conditions unchanged. `CHANGELOG.md`'s Unreleased takes each under its contract-change heading as it merges.
+4. **0.10.0 carries the four tools** (the maintainer's option (A)), **and the contract changes that waited only for the soak** (the maintainer, 2026-11-16: "Yes"): decision-0041's items deferred to 1.1.0 (task-0342: C5-1, B-X2 and R-T1, B-X8, C2-7, B-N2's gate-only setting), R in the header-citation convention (task-0354) and the reader extensions of tasks 0355 to 0357. Their reason to wait, the unbroken soak, falls with 0.10.0; what each chooses is unchanged. decision-0045's 1.1.0 row, task-0347 and task-0359 stay at 1.1.0: each needs a decision first. Under decision-0016 point 2 it restarts the 30-day soak: 1.0.0 is cut 30 days after 0.10.0 at the earliest, with A1's other conditions unchanged. `CHANGELOG.md`'s Unreleased takes each under its contract-change heading as it merges.
 5. **Later steps, named and not in 0.10.0:**
    - **Activity:** git changes mapped through `code_map.toml`, labelled `changed`, never mixed with attested evidence, only where the organisation's recorded basis (ieam-register 0021 §4) names code history, and with its own mapping of git authors to holders.
    - **Walks:** the people around a node (its capability's neighbours, its process thread) by the register's walks; the store's walks may serve them, on both adapters.
@@ -33,7 +33,7 @@ knowgov's store is a projection: a load wipes it (Neo4j Community serves one dat
 
 ## Consequences
 
-- Four additive MCP tools and their schemas: a contract change, 0.10.0, the soak restarted.
+- Four additive MCP tools and their schemas, decision-0041's deferred items, R citations and three reader extensions: contract changes, 0.10.0, the soak restarted once for all of them.
 - The demo register is re-vendored at the ieam-register tag that carries `person`.
 - An organisation that serves `who_knows` holders has recorded its basis (ieam-register 0021 §4); the adopter docs say so.
 - decision-0046 stays proposed until the maintainer accepts it; point 3 above amends its point 4 when both are accepted.
