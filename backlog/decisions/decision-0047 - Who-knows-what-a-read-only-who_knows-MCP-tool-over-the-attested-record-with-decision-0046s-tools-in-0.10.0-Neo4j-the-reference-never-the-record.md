@@ -4,9 +4,9 @@ title: >-
   Who knows what: a read-only who_knows MCP tool over the attested record, with
   decision-0046's tools in 0.10.0; Neo4j the reference, never the record
 date: '2026-11-16T19:15:00Z'
-status: proposed
+status: accepted
 ---
-*Proposed. Drafted by the coordinating session on the maintainer's words, 2026-11-16: "I would like to be able to find the people who have certain knowledge (as they answered one or more questions … or because they have contributed to code, or...) via the knowgov MCP"; on the store, "Neo4j is never the record, however it is the reference", then "Agreed" to the wording of point 1; on timing, "why not do it now? I would like to have this fixed before the lighthouse", then "(A), draft 0047 and dispatch the builds". Approval is the maintainer's word (ieam-register decision 0019's rule, which knowgov follows). The builds it names are dispatched on that word; their pull requests merge only once this record and decision-0046 are accepted.*
+*Accepted. The maintainer, 2026-11-16: "accept decisions 0046 and 0047". Drafted by the coordinating session on the maintainer's words, 2026-11-16: "I would like to be able to find the people who have certain knowledge (as they answered one or more questions … or because they have contributed to code, or...) via the knowgov MCP"; on the store, "Neo4j is never the record, however it is the reference", then "Agreed" to the wording of point 1; on timing, "why not do it now? I would like to have this fixed before the lighthouse", then "(A), draft 0047 and dispatch the builds". Approval is the maintainer's word (ieam-register decision 0019's rule, which knowgov follows). The builds it names were dispatched on that word; their pull requests merge once this record and decision-0046 were accepted, which they are.*
 
 ## Context
 
@@ -36,7 +36,7 @@ knowgov's store is a projection: a load wipes it (Neo4j Community serves one dat
 - Four additive MCP tools and their schemas, decision-0041's deferred items, R citations and three reader extensions: contract changes, 0.10.0, the soak restarted once for all of them.
 - The demo register is re-vendored at the ieam-register tag that carries `person`.
 - An organisation that serves `who_knows` holders has recorded its basis (ieam-register 0021 §4); the adopter docs say so.
-- decision-0046 stays proposed until the maintainer accepts it; point 3 above amends its point 4 when both are accepted.
+- decision-0046 is accepted with this record; point 3 above amends its point 4.
 
 ## Opportunity canvas
 
