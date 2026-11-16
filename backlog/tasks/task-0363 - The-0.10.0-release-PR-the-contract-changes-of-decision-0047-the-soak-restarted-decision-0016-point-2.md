@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-16T19:16:00Z'
-updated_date: '2026-11-16T19:22:00Z'
+updated_date: '2026-11-16T20:24:00Z'
 labels:
   - release
   - 0.10.0
@@ -19,6 +19,7 @@ dependencies:
   - TASK-0355
   - TASK-0356
   - TASK-0357
+  - TASK-0364
 priority: high
 ordinal: 353000
 ---
