@@ -153,6 +153,15 @@ python tools/check_subject.py /path/to/your/instance/subjects/<id> --register /p
 It prints the same findings, each with its fix, and exits 0, 1 or 2 like the layout check. Add
 `--json` for the report as data, pinned by `harness/schemas/subject-check.schema.json`.
 
+A digest your `[verification]` declarations still list after its file changed is reported as matching no
+current file. Add `--store` to have the error name the file that digest was last recorded for (task-0342). The
+check then reads the store `KG_STORE` names, through a read handle, and names the load that recorded the digest.
+Each load keeps, beside the store's own data, the file each digest it read came from: the documents' Versions, a
+directory's files, and the code and suite an execution verification is compared against. When the next load
+wipes the store, it carries this forward for every digest a declaration still lists. If no load the store holds
+recorded the digest, the error says so. A store that cannot be read stops the check with exit 2. Without
+`--store`, the check opens no store and its report is as before.
+
 The register map's rows are checked against the register you name, with `--register` or with
 `KG_REGISTER`. If the register you name cannot be read (a typo in the path, or a folder that is not
 a register), the check stops with exit 2 and names the path; it never skips the register check

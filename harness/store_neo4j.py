@@ -16,7 +16,7 @@ import time
 import uuid
 
 from store import (DEAD, DOCUMENT_BASES, DUPLICATE, NEO4J_GUARDED, Store, StoreBusy, StoreChanged, StoreFenced, StoreReadOnly, by_content, by_id, held_from, inputs_digest, part_list, part_rows,
-                   changed_of, setting, stem, suspect_rows, suspicion)
+                   changed_of, merge_provenance, provenance_of, provenance_text, setting, stem, suspect_rows, suspicion)
 
 logging.getLogger("neo4j").setLevel(logging.ERROR)
 
@@ -639,6 +639,17 @@ class _Unit:
         self.wipe_pending, self.dirty = False, False
 
 
+def _provenance_before_wipe(st) -> list[dict]:
+    """The digest provenance a store holds before its wipe (task-0342): read outside the unit's transaction while none
+    is open, so the schema statements ``apply_constraints`` runs after the wipe still can (a write handle's reads
+    otherwise open it)."""
+    if st.access == "write" and st._pub.tx is None:
+        rows = _rows(st._pub.session.run(st.PROVENANCE))
+    else:
+        rows = _rows(st.run(st.PROVENANCE))
+    return provenance_of(rows[0]["p"]) if rows else []
+
+
 class Neo4jStore(Store):
     name = "neo4j"
 
@@ -714,6 +725,7 @@ class Neo4jStore(Store):
     def wipe(self) -> None:
         import load_memory
         load_memory.wiped(self)   # task-0176: what this wipe deletes counts towards the unit's transaction memory
+        self._carried = _provenance_before_wipe(self)   # task-0342 (C2-7): carried to the next record_provenance
         if self.access == "write" and self._pub.tx is None:
             self._pub.wipe_pending = True   # run first in the unit's transaction, so a constraint can be applied before it
             return
@@ -741,6 +753,7 @@ class Neo4jStore(Store):
         g.import_turtle(text)
         q = lambda name: "`" + name.replace("`", "``") + "`"  # noqa: E731
         self.wipe()
+        self._carried = []   # the imported store's own provenance stands; nothing of the one it replaced is carried
         if self._pub.tx is None:   # a schema statement before the unit's transaction; only a speed-up, so skipped inside one
             self._pub.schema("CREATE INDEX kg_import IF NOT EXISTS FOR (n:_KgImport) ON (n._kg)")
             self._pub.schema("CALL db.awaitIndexes()")
@@ -1289,6 +1302,17 @@ class Neo4jStore(Store):
     def inputs(self) -> dict:
         rows = _rows(self.run("MATCH (a:Agent {id:'agent:harness'}) RETURN " + ", ".join(f"a.input_{k} AS input_{k}" for k in self.INPUTS)))
         return inputs_digest(rows[0] if rows else {})
+
+    PROVENANCE = "MATCH (a:Agent {id:'agent:harness'}) RETURN a.provenance AS p"
+
+    def record_provenance(self, rows, keep) -> None:   # on the tool's Agent node, never a node of its own (store.py)
+        held = provenance_of((_rows(self.run(self.PROVENANCE)) or [{"p": None}])[0]["p"])
+        text = provenance_text(merge_provenance(getattr(self, "_carried", []), held, rows, keep))
+        self.run("MATCH (a:Agent {id:'agent:harness'}) SET a.provenance = $p", p=text).consume()
+
+    def digest_provenance(self) -> list[dict]:
+        rows = _rows(self.run(self.PROVENANCE))
+        return provenance_of(rows[0]["p"]) if rows else []
 
     def clear_act_findings(self) -> None:
         self.run("MATCH (a:ActFinding) DETACH DELETE a").consume()

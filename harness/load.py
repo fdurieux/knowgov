@@ -128,14 +128,19 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
                       **load_identity()})   # task-0341 (decision-0040 (a)): the code and suite compared, the pre-load report applied
     st.create_activity(aid, "extraction", ts, TOOL, activity_note, "agent:harness", subject=SUBJECT.id, scenario=scenario)   # task-0195
     n_frag = n_ass = n_reused = 0
+    recorded: dict[str, str] = {}   # task-0342 (C2-7): each digest this load reads, by the file it was read for
     for path, text in kit.items():
         if path not in FAMILY or path not in STORE or (reingest and path not in changed):
             continue
         family, fmt = FAMILY[path]
         digest, size = SUBJECT.version_digest(path, text)   # a file artefact's raw bytes, as the register digests them (task-0160)
         st.upsert_artefact_version(path, family, fmt, f"V:{path}:{version_tag}", digest, size, ts, version_tag, aid)
+        recorded[digest] = path
         if path.endswith("/"):   # a directory artefact: its digest is the bundle's, so each file's is kept too (task-0094)
-            st.record_part_digests(f"V:{path}:{version_tag}", SUBJECT.part_digests(path, text))
+            parts = SUBJECT.part_digests(path, text)
+            st.record_part_digests(f"V:{path}:{version_tag}", parts)
+            recorded.update({d: path + rel for rel, d in parts.items()})
+    record_provenance(st, recorded, scenario, version_tag)
     preload = _record_preload(st, {p: t for p, t in kit.items() if not reingest or p in changed}, version_tag)
     for bag in bags:
         art = _artefact_of(kit, bag)
@@ -179,6 +184,25 @@ def load_scenario(st, scenario: str, kit: dict[str, str], *, activity_note: str,
     return {"fragments": n_frag, "fragments_reused": n_reused, "assertions": n_ass,
             "unresolved_symbols": unresolved, "activity": aid, **({"unmapped": unmapped} if unmapped else {}),
             **({"preload": preload} if preload else {})}
+
+
+def listed_digests(ver: dict) -> set[str]:
+    """Every digest a ``[verification]`` declaration lists: its ``versions``, ``implementation`` and ``suite``."""
+    return {d for t in (ver or {}).values() if isinstance(t, dict) for f in ("versions", "implementation", "suite")
+            if isinstance(t.get(f), list) for d in t[f] if isinstance(d, str)}
+
+
+def record_provenance(st, documents: dict[str, str], scenario: str, version_tag: str) -> None:
+    """task-0342 (decision-0041 C2-7): which file each digest this load read was recorded for, the documents' (``documents``,
+    digest to file, a directory's files as ``<artefact><relative>``) and the code and suite an execution verification is
+    compared against (``Subject.code``), with the load's subject, scenario and version; what the store held before its
+    wipe is carried for the digests a declaration still lists, so ``check_subject --store`` can name the file a stale
+    digest was last recorded for. The gate never reads it."""
+    code = SUBJECT.code() or {}
+    head = {"subject": SUBJECT.id, "scenario": scenario, "version": version_tag}
+    rows = [{"sha256": d, "file": f, "kind": "code", **head} for f, d in code.items()]
+    rows += [{"sha256": d, "file": f, "kind": "document", **head} for d, f in documents.items()]
+    st.record_provenance(rows, listed_digests(VER))
 
 
 def load_identity() -> dict[str, str]:
