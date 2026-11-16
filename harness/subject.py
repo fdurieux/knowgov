@@ -311,6 +311,13 @@ class Subject:
             return bundle(p, a.get("include")) if p.is_dir() else p.read_text(encoding="utf-8")
 
     @property
+    def record_task(self) -> str | None:
+        """The task class a run's gate resolves and its record holds (task-0368): ``codegen`` where the subject
+        declares it, else its first class, else None. The rule proposal_impact's and the reader's defaults
+        already apply; a subject need not name its class codegen."""
+        return "codegen" if "codegen" in self.tasks else next(iter(self.tasks), None)
+
+    @property
     def order_keys(self) -> list[str]:
         """Every artefact key, in the order the baseline arm concatenates them."""
         return [a["key"] for a in self.artefacts]

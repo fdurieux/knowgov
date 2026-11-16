@@ -892,10 +892,14 @@ def build(today: str | None = None) -> dict:
         exceptions.append({"id": e.get("id"), "rule": e.get("rule"), "scope": e.get("scope", []), "expires": str(e.get("expires")),
                            "rationale": e.get("rationale"), "approved": {k: str(v) for k, v in (e.get("approved") or {}).items()},
                            "sentence": C(f"Exception {e.get('id')} excuses {', '.join(e.get('scope', []))} from rule {e.get('rule')} until {e.get('expires')}.")})
-    matrix = T["register"].load_toml(REGISTER / "mapping" / "matrix.toml")
-    mrows = matrix.get("node_kind", []) + matrix.get("relationship_type", [])
+    # the mapping matrix is the register's support status per tool, which its own checker never reads: an
+    # instance's register without one still loads, and the panel says it has none (task-0368)
+    mpath = REGISTER / "mapping" / "matrix.toml"
+    matrix = T["register"].load_toml(mpath) if mpath.is_file() else None
+    mrows = (matrix.get("node_kind", []) + matrix.get("relationship_type", [])) if matrix is not None else []
     unverified = sum(1 for r in mrows if r.get("status") == "unverified")
-    matrix_sentence = (C(f"The mapping matrix has {len(mrows)} rows, and every row is unverified.") if unverified == len(mrows)
+    matrix_sentence = (C("The register has no mapping matrix.") if matrix is None
+                       else C(f"The mapping matrix has {len(mrows)} rows, and every row is unverified.") if unverified == len(mrows)
                        else C(f"The mapping matrix has {len(mrows)} rows, {unverified} of them unverified."))
     glossary = [{"term": t["term"], "meaning": t["meaning"], "forbidden": t.get("forbidden", [])} for t in reg["glossary"].get("term", [])]
     change = register_change()
