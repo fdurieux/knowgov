@@ -1,4 +1,5 @@
-"""Task-0124: hand-written code cites the keys it rests on. The header citation in Python and Java,
+"""Task-0124: hand-written code cites the keys it rests on. The header citation in Python, Java and R
+(task-0354),
 ``trace register --keys``/``--cited``, and check's citation findings, on test_trace's fake store
 (stdlib only). After S6's change on the rdflib store, tools/check_trace_walkthrough.py."""
 from __future__ import annotations
@@ -45,15 +46,29 @@ def test_a_header_cites_keys_in_python_and_in_java():
     assert (citation.language("a/B.java"), citation.language("x.py"), citation.language("q.sql")) == ("//", "#", None)
 
 
+def test_an_r_header_cites_keys_as_a_python_one_does():
+    r = "#!/usr/bin/env Rscript\n# The lane's orchestration.\n# knowgov-keys: P2|surcharge, P3|order\nlibrary(h2o)\n"
+    assert citation.parse(r, citation.language("lane/train.R")) == ["P2|surcharge", "P3|order"]
+    assert citation.language("a/train.R") == citation.language("a/train.r") == citation.language("x.py") == "#"
+    _raises(lambda: citation.parse("# knowgov-keys: k1,\n", citation.language("bad.R")), "an empty key")
+    with tempfile.TemporaryDirectory() as td:
+        (Path(td) / "plain.R").write_text("x <- 1\n", encoding="utf-8")
+        (Path(td) / "cited.R").write_text("# knowgov-keys: k1\nx <- 1\n", encoding="utf-8")
+        assert citation.read(Path(td) / "plain.R") == [], "an R file without a citation cites none: [], not None"
+        assert citation.read(Path(td) / "cited.R") == ["k1"]
+
+
 def _keyed(td):
     inst, led, _ = _setup(td)
     root = inst / check_root(inst)
-    (inst / "code_map.toml").write_text((inst / "code_map.toml").read_text(encoding="utf-8").replace('include = ["**/*.py"]', 'include = ["**/*.py", "**/*.java"]')
+    (inst / "code_map.toml").write_text((inst / "code_map.toml").read_text(encoding="utf-8").replace('include = ["**/*.py"]', 'include = ["**/*.py", "**/*.java", "**/*.R"]')
                                         + '\n[[map]]\nglob = "hand/**"\napp = "APP-0001"\n', encoding="utf-8")
     (root / "hand").mkdir()
     (root / "hand" / "tariff.py").write_text("# knowgov-keys: k2\nSURCHARGE = 316\n", encoding="utf-8")
     (root / "hand" / "Screen.java").write_text("// knowgov-keys: k1, k3\nclass Screen {}\n", encoding="utf-8")
     (root / "hand" / "plain.py").write_text("X = 1\n", encoding="utf-8")
+    (root / "hand" / "lane.R").write_text("#!/usr/bin/env Rscript\n# knowgov-keys: k3\nx <- 1\n", encoding="utf-8")
+    (root / "hand" / "score.R").write_text("y <- 2\n", encoding="utf-8")   # uncited: a finding only under [citations] require
     return inst, led, root
 
 
@@ -64,11 +79,12 @@ def test_register_keys_rests_on_the_keys_current_statements_and_turns_suspect_af
         rep = _valid(trace.register(st, instance=inst, ledger=led, commit="c1", files=["hand/plain.py"], keys=["k2"], known=KNOWN))
         [r] = rep["registered"]
         assert (r["keys"], r["used"], st.derived[r["id"]]["ids"]) == (["k2"], 1, ["A:2@v1"])
-        rep = _valid(trace.register(st, instance=inst, ledger=led, commit="c1", files=["hand/tariff.py", "hand/Screen.java"],
+        rep = _valid(trace.register(st, instance=inst, ledger=led, commit="c1", files=["hand/tariff.py", "hand/Screen.java", "hand/lane.R"],
                                     cited=True, known=KNOWN))
-        assert [(r["path"], r["keys"], r["used"]) for r in rep["registered"]] == [("hand/tariff.py", ["k2"], 1), ("hand/Screen.java", ["k1", "k3"], 2)]
+        assert [(r["path"], r["keys"], r["used"]) for r in rep["registered"]] == \
+            [("hand/tariff.py", ["k2"], 1), ("hand/Screen.java", ["k1", "k3"], 2), ("hand/lane.R", ["k3"], 1)]
         assert {e["path"]: e["keys"] for e in json.loads(led.read_text(encoding="utf-8"))["entries"]} == \
-            {"hand/plain.py": ["k2"], "hand/tariff.py": ["k2"], "hand/Screen.java": ["k1", "k3"]}
+            {"hand/plain.py": ["k2"], "hand/tariff.py": ["k2"], "hand/Screen.java": ["k1", "k3"], "hand/lane.R": ["k3"]}
 
         after = KeyedStore()   # the change: a reload invalidated k2's statement
         after.status["A:2@v1"] = "invalidated"
@@ -77,7 +93,7 @@ def test_register_keys_rests_on_the_keys_current_statements_and_turns_suspect_af
         assert sus == [("hand/plain.py", ["A:2@v1"]), ("hand/tariff.py", ["A:2@v1"])], "Screen.java cites no invalidated key"
         assert all("cited key(s) k2" in f["message"] for f in rep["findings"] if f["kind"] == "suspect")
         assert {r["path"]: r["keys"] for r in rep["registered"] if "keys" in r} == \
-            {"hand/plain.py": ["k2"], "hand/tariff.py": ["k2"], "hand/Screen.java": ["k1", "k3"]}
+            {"hand/plain.py": ["k2"], "hand/tariff.py": ["k2"], "hand/Screen.java": ["k1", "k3"], "hand/lane.R": ["k3"]}
         assert rep["exit_code"] == 1
 
 
@@ -103,24 +119,29 @@ def test_check_finds_an_unknown_key_always_and_a_missing_citation_only_where_the
         st = KeyedStore()
         trace.register(st, instance=inst, ledger=led, commit="c1", files=["reference_impl.py"], resolve=_resolve())
         rep = _valid(trace.check(st, instance=inst, ledger=led, resolve=_resolve(), known=KNOWN))
-        assert rep["findings"] == [], "without [citations] require, an uncited file is no finding"
+        assert rep["findings"] == [], "without [citations] require, an uncited file (plain.py, score.R) is no finding"
 
         (root / "hand" / "tariff.py").write_text("# knowgov-keys: k2, kX\n", encoding="utf-8")
         (root / "hand" / "Bad.java").write_text("// knowgov-keys:\n", encoding="utf-8")
+        (root / "hand" / "bad.R").write_text("# knowgov-keys: k1,\n", encoding="utf-8")
+        (root / "hand" / "odd.R").write_text("# knowgov-keys: kY\n", encoding="utf-8")
         rep = _valid(trace.check(st, instance=inst, ledger=led, resolve=_resolve(), known=KNOWN))
         assert [(f["severity"], f["kind"], f["path"], f["related"]) for f in rep["findings"]] == \
-            [("blocker", "unknown_key", "hand/tariff.py", ["kX"]), ("blocker", "malformed_citation", "hand/Bad.java", [])]
+            [("blocker", "unknown_key", "hand/odd.R", ["kY"]), ("blocker", "unknown_key", "hand/tariff.py", ["kX"]),
+             ("blocker", "malformed_citation", "hand/Bad.java", []), ("blocker", "malformed_citation", "hand/bad.R", [])]
         assert rep["exit_code"] == 1
-        (root / "hand" / "Bad.java").unlink()
+        for f in ("Bad.java", "bad.R", "odd.R"):
+            (root / "hand" / f).unlink()
         (root / "hand" / "tariff.py").write_text("# knowgov-keys: k2\n", encoding="utf-8")
 
         cm = inst / "code_map.toml"
-        cm.write_text(cm.read_text(encoding="utf-8").replace('include = ["**/*.py", "**/*.java"]', 'include = ["**/*.py", "**/*.java", "**/*.sql"]')
+        cm.write_text(cm.read_text(encoding="utf-8").replace('include = ["**/*.py", "**/*.java", "**/*.R"]', 'include = ["**/*.py", "**/*.java", "**/*.R", "**/*.sql"]')
                       + '\n[citations]\nrequire = true\n', encoding="utf-8")
         (root / "hand" / "load.sql").write_text("select 1;\n", encoding="utf-8")
         rep = _valid(trace.check(st, instance=inst, ledger=led, resolve=_resolve(), known=KNOWN, fail_on="major"))
         assert [(f["severity"], f["kind"], f["path"]) for f in rep["findings"]] == \
-            [("major", "uncited", "hand/plain.py"), ("major", "uncited", "reference_impl.py"), ("info", "uncitable", "hand/load.sql")]
+            [("major", "uncited", "hand/plain.py"), ("major", "uncited", "hand/score.R"), ("major", "uncited", "reference_impl.py"),
+             ("info", "uncitable", "hand/load.sql")]
         assert rep["exit_code"] == 1
         rep = _valid(trace.check(st, instance=inst, ledger=led, resolve=_resolve(), known=KNOWN, changed=["hand/tariff.py"]))
         assert rep["findings"] == [], "with --changed, only the changed files' citations are read"
