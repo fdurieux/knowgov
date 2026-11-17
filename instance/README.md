@@ -1410,7 +1410,7 @@ be read is left out of the list, and the page's log says why, while the others s
 An AI coding assistant can ask knowgov the gate's question itself, before it writes anything:
 *may I build on this?* It does so through MCP, the Model Context Protocol, a standard way for an
 assistant to call tools a local program offers. `harness/mcp_server.py` is that program. It offers
-seventeen tools, and all of them only read:
+nineteen tools, and all of them only read:
 
 | Tool | What the assistant asks | What it gets back |
 |---|---|---|
@@ -1430,7 +1430,8 @@ seventeen tools, and all of them only read:
 | `document_statements` | What does this document say, and what is registered against it? | the statements the loaded scenario holds from a document (an artefact path; a folder by its path ending in `/`), each with its key, value, status, version and the document's fragments it rests on, and the derived outputs registered against it; the versions held, and with `version` only that one's; refused while a run loads the store |
 | `scenario_runs` | Which scenarios have been run, in which mode, and what did they show? | every scenario of your subject with its title and card line; what the record holds for it (deterministic results and the gate's verdict, the arms with how many runs and which model, the extra sources the subject declares); its runs newest first, each as its folder's `run.json` describes it (mode, model, as-of date, who started it, `page` or `mcp`, start, end, status, and the verdict of its results), or inferred, flagged `inferred`, for a folder from before `run.json`; the scenario the store holds and when it was loaded; and the run loading the store now, if any. Replay is not a run: it is the record shown, and nothing records it |
 | `scenario_result` | What did this record or this run show? | what the page's Replay shows for one source that `scenario_runs` lists (the record, an extra source, or a run): the gate's verdict and why, the date it read reviews on, every required key's level, and each arm's runs with its decision and oracle result. It reads that source's files, never the store, and says so: it is not what the store holds now |
-| `list_subjects` | Which subjects can I ask about? | every subject under `KG_SUBJECTS` by its id, the scenario the shared store holds for each, and which tools are store-backed; the one tool that takes no `subject` |
+| `list_subjects` | Which subjects can I ask about? | every subject under `KG_SUBJECTS` by its id, the scenario the shared store holds for each, and which tools are store-backed; with `who_knows`, one of the two tools that take no `subject` |
+| `who_knows` | Who knows about this node, this key or this code file? | for exactly one register node, key or code path under your `code_map.toml` root, read across every subject under `KG_SUBJECTS` from files, never the store: each handle whose attested evidence touches it, with its unit, roles, issued and withdrawn dates, its holder (the register's `person`, or null with why), and its evidence by kind: `answered` (a captured answer or "nobody knows"), `approved` or `rejected` (a review's ruling by the handle), `closed` (a review's close of a captured "nobody knows" gap) and `owns` (the handle's unit owns a node in scope). One hop, never a walk; nothing counted, ranked or scored. See *Who knows what*, below |
 | `subject_check` | Would this subject I am scaffolding load, and do its keys match what its documents say? | the report `tools/check_subject.py` prints for the same files, made by that tool's own functions against your register: unknown tables and fields, a task with no scenario, a key that is not `entity\|predicate`, a `register_map.toml` row naming a node your register does not hold or an owner of none of its nodes, and what each document yields, with a *did you mean* for a required key no document yields. The assistant passes the proposed `subject.toml`, `register_map.toml`, `scenarios.toml` and the text of every document the manifest names (by the path the manifest gives, at most `../../` up from the subject folder). A proposed manifest that names a file outside that, by an absolute path or by climbing further, is refused before anything is read. The files exist only for the call, in a temporary folder removed afterwards; nothing is stored. A call carries at most 64 documents and 1 MB of text. It is for an assistant with no shell, such as Claude Desktop; in Claude Code, `tools/check_subject.py` on the branch does the same |
 
 While a run of your subject is loading the store (its `run.json` reads `running` and the page has
@@ -1521,18 +1522,18 @@ route is the one that works with the stack as it stands. For a stack on another 
 machine*, below. For a stack started under another project
 name (`docker compose -p knowgov-jef`, as the compose file's notes show), add the same `-p` after
 `docker compose`. To ask about another subject than the one the server started on, name it on the
-call: every tool but `list_subjects` takes `subject`, an id `list_subjects` names (below).
+call: every tool but `list_subjects` and `who_knows` takes `subject`, an id `list_subjects` names (below).
 
 ### One registration for every subject
 
 One registration of each server answers for every subject under `KG_SUBJECTS` (task-0157,
-decision-0013). Every tool of the reader but `list_subjects`, and every tool of `knowgov-runs`, takes an optional `subject`: the id
+decision-0013). Every tool of the reader but `list_subjects` and `who_knows` (which read across every subject), and every tool of `knowgov-runs`, takes an optional `subject`: the id
 in a subject's `subject.toml`, never a path, resolved under `KG_SUBJECTS` as the page resolves
 `?subject=`. A call that names none answers as before, for `KG_SUBJECT`. `list_subjects` names
 every subject, the scenario the shared store holds for each, and which tools are store-backed.
 
 - **Files-only tools** (`register_nodes`, `key_nodes`, `code_path`, `document_links`,
-  `subject_check`, `scenario_runs`, `scenario_result`) answer for any subject at once.
+  `subject_check`, `scenario_runs`, `scenario_result`, `who_knows`) answer for any subject at once.
 - **Store-backed tools** (`gate_verdict`, `three_valued_answer`, `evidence_bundle`, `store_status`,
   `held_keys`, `derived_outputs`, `document_statements`, and `register_impact` and
   `proposal_impact` for their keys' levels) answer only for the subject and scenario the store
@@ -1543,6 +1544,40 @@ every subject, the scenario the shared store holds for each, and which tools are
 - A call naming another subject runs in a short-lived child process for that subject, with the
   server's date: about 0.4 s a call on Neo4j, more on a file-backed rdflib store, which parses
   the file in each child.
+
+### Who knows what
+
+`who_knows` (decision-0047) finds the people behind your knowledge without reading TOML by hand. Ask it
+about one register node (`node`), one key (`key`) or one code file (`path`, relative to your
+`code_map.toml` root, the server's `KG_INSTANCE`). It answers in one hop, never a walk:
+
+- a node, and the keys whose `register_map.toml` rows name it;
+- a key, and the nodes its rows name;
+- a code file, its application from `code_map.toml`, and the keys its `knowgov-keys:` header cites.
+
+For each handle whose evidence touches that scope it lists:
+- the handle's unit, roles and dates, as `people/handles.toml` holds them;
+- what the handle did: `answered`, `approved`, `rejected`, `closed` or `owns`, each with its key or node, subject and date.
+
+It reads your subjects' capture folders and their `reviews/`, their register maps, your register and
+your code map. The answer is the same whichever store the server runs on.
+
+Some things it does not do:
+- A review file is read as written. Whether a load applied the ruling is `three_valued_answer`'s to say.
+- A close counts only for a gap a capture's "nobody knows" declared. A gap a document declares has no key
+  in its review file.
+- It counts, ranks, weights and scores nothing, and it never reads another organisation's register.
+
+**The holder.** Each handle's `holder` is the `person` your register records for it (ieam-register
+decision 0021). With none recorded, `holder` is null and `holder_why` says why.
+
+Under decision 0021 a handle is one person in one role, and who holds it is recorded, never
+anonymised. Serving holders through this tool is a use of personal data. Serve `who_knows` to your
+staff only once your organisation has recorded its basis for that use (ieam-register decision 0021
+§4: purpose, lawful basis, notice, retention, and your data-protection officer's approval). knowgov
+cannot check that the basis exists.
+
+The public register vendored under `demo/register` records no `person`, so every holder there reads null.
 
 ### Connecting Claude Desktop
 

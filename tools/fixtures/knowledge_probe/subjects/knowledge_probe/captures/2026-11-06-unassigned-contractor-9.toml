@@ -1,0 +1,16 @@
+# A capture under a handle the register does not list (the probe's case for listed false). Synthetic.
+format = 1
+
+[capture]
+subject = "knowledge_probe"
+scenario = "S0"
+task = "codegen"
+owner = "unassigned"
+from = "contractor-9"
+on = 2026-11-06
+record = "captures/2026-11-06-unassigned-contractor-9.toml"
+
+[[answer]]
+key = "quote|currency"
+value = "EUR"
+note = ""

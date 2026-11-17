@@ -1,0 +1,35 @@
+# The knowledge probe's keys on the demo register (task-0360). Synthetic.
+[map]
+basis = "authored"
+author = "task-0360's fixture"
+status = "approved"
+keys_expected = 5
+
+[[row]]
+key = "quote|currency"
+nodes = ["CAP-0002", "APP-0003"]
+owner = "ORG-0002"
+note = "the currency a quote is priced in"
+
+[[row]]
+key = "quote|validity_days"
+nodes = ["CAP-0004"]
+owner = "ORG-0002"
+note = "how long a quote stands"
+
+[[row]]
+key = "quote|insurance"
+nodes = ["CAP-0002"]
+owner = "ORG-0002"
+note = "whether a quote includes cargo insurance; nobody has answered it"
+
+[[row]]
+key = "shipper|screened"
+nodes = ["CAP-0003", "APP-0004"]
+owner = "ORG-0002"
+note = "whether a shipper is screened before pricing"
+
+[[row]]
+key = "rate|rounding"
+nodes = ["CAP-0002", "PROC-0001"]
+note = "how a rate is rounded"

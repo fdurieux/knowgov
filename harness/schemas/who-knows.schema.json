@@ -1,0 +1,63 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/who-knows.schema.json",
+ "title": "knowgov who-knows report",
+ "description": "What `python harness/who_knows.py` prints and the MCP tool who_knows returns (task-0360, decision-0047 point 2): for exactly one register node, key or code path, the handles whose attested evidence touches it and their holders. Read from files across every subject the reader serves (KG_SUBJECTS) and their one register (KG_REGISTER), never from the store, so the report is the same on either store. The scope is one hop, never a walk: nodes and keys name what was read. Per handle: its unit, roles, issued and withdrawn dates as the register's issued list holds them (listed false for a handle the files name that the list does not), its holder (the register's person, ieam-register decision 0021) or null with holder_why, and its evidence items sorted by kind, then key (a node for owns), then date; handles sorted by id. No count, rank, weight or score. Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": ["schema_version", "tool", "asked", "nodes", "keys", "code", "subjects", "unread", "register", "issued_list", "handles"],
+ "$defs": {
+  "item": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["kind"],
+   "properties": {
+    "kind": {"enum": ["answered", "approved", "closed", "owns", "rejected"]},
+    "key": {"type": "string", "description": "the key the item rests on (every kind but owns)"},
+    "subject": {"type": "string", "description": "the subject whose capture folder holds it (every kind but owns)"},
+    "on": {"type": ["string", "null"], "description": "the capture's or the review's date, YYYY-MM-DD (every kind but owns)"},
+    "capture": {"type": "string", "description": "answered: the statement id the load gives the answer or the nobody-knows, A:cap:<stem>:<n>@capture"},
+    "nobody_knows": {"type": "boolean", "description": "answered: true for a nobody-knows, false for an answer"},
+    "review": {"type": "string", "description": "approved, rejected, closed: the review's id as the load gives it, review:<stem>"},
+    "statement": {"type": "string", "description": "approved, rejected: the statement the ruling names"},
+    "gap": {"type": "string", "description": "closed: the declared gap the review closes"},
+    "node": {"type": "string", "description": "owns: the node in scope the handle's unit owns"},
+    "via": {"enum": ["owner", "owns_link"], "description": "owns: the node's owner field, or an approved owns link"}
+   }
+  }
+ },
+ "properties": {
+  "schema_version": {"const": 1},
+  "tool": {"const": "who_knows"},
+  "asked": {"type": "object", "additionalProperties": false, "description": "the one thing asked, a key in NFC",
+            "properties": {"node": {"type": "string"}, "key": {"type": "string"}, "path": {"type": "string"}}},
+  "nodes": {"type": "array", "items": {"type": "string"}, "description": "the register nodes in scope, sorted"},
+  "keys": {"type": "array", "items": {"type": "string"}, "description": "the keys in scope, sorted"},
+  "code": {"type": ["object", "null"], "additionalProperties": false, "required": ["app", "cited"],
+           "description": "for a path: the application or module code_map.toml assigns it, and the keys its header cites; else null",
+           "properties": {"app": {"type": ["string", "null"]}, "cited": {"type": "array", "items": {"type": "string"}}}},
+  "subjects": {"type": "array", "items": {"type": "string"}, "description": "the subjects read, in the reader's order"},
+  "unread": {"type": "array", "description": "the subjects under KG_SUBJECTS that did not load, each with why",
+             "items": {"type": "object", "additionalProperties": false, "required": ["subject", "why"],
+                       "properties": {"subject": {"type": "string"}, "why": {"type": "string"}}}},
+  "register": {"type": "object", "additionalProperties": false, "required": ["tag", "commit"],
+               "properties": {"tag": {"type": "string"}, "commit": {"type": "string"}}},
+  "issued_list": {"type": ["string", "null"], "description": "the register's issued list read, relative to its root (types.toml [elicited] issued); null when it names none"},
+  "handles": {"type": "array", "items": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["handle", "listed", "unit", "unit_name", "roles", "issued", "withdrawn", "holder", "holder_why", "evidence"],
+   "properties": {
+    "handle": {"type": "string"},
+    "listed": {"type": "boolean", "description": "whether the register's issued list names the handle"},
+    "unit": {"type": ["string", "null"]},
+    "unit_name": {"type": ["string", "null"]},
+    "roles": {"type": "array", "items": {"type": "string"}},
+    "issued": {"type": ["string", "null"]},
+    "withdrawn": {"type": ["string", "null"]},
+    "holder": {"type": ["string", "null"], "description": "the register's person for the handle (ieam-register decision 0021); null when none is recorded"},
+    "holder_why": {"type": ["string", "null"], "description": "why holder is null; null when it is not"},
+    "evidence": {"type": "array", "items": {"$ref": "#/$defs/item"}}
+   }}}
+ }
+}

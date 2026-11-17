@@ -3,7 +3,7 @@
     python harness/mcp_server.py                      # stdio, for an agent that starts the server itself
     python harness/mcp_server.py --http [--host H] [--port P]   # Streamable HTTP at http://H:P/mcp
 
-The question an agent asks is "may I build on this?". Sixteen tools answer it, all read-only:
+The question an agent asks is "may I build on this?". Eighteen tools answer it, all read-only:
 
     store_status          what the store holds: the subject, the scenario loaded, the tasks and the
                           keys the subject asks the three-valued question of
@@ -62,6 +62,9 @@ The question an agent asks is "may I build on this?". Sixteen tools answer it, a
                           text) checked by tools/check_subject.py's own functions against the served register,
                           in a temporary directory removed after the call: its subject-check report; nothing
                           stored, the yield in a child process, the call bounded (task-0146, doc-0018)
+    who_knows             the handles, and their holders, whose attested evidence (captured answers, review
+                          rulings, closes, ownership) touches one node, key or code path, across every subject
+                          the reader serves; files only, one hop, nothing ranked (task-0360, decision-0047)
 
 Two prompts, text only (task-0148, ``harness/wizard.py``): ``new_subject <id> <task>`` and ``add_artefact
 <subject> [file]``, the subject wizard of doc-0018 as a procedure the client runs with its own file tools on
@@ -168,7 +171,7 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
                 "string the directory resolves and knowgov does not authenticate. Call three_valued_answer for one key: 'unknown' is not "
                 "'documented_absent'. Call register_impact before retiring or changing a register node: it names what "
                 "the register's walk reaches, who owns it and the keys that rest on it, read under the task class you name "
-                "(task, as gate_verdict's; codegen by default), those resting only on a descendant not followed flagged not_followed. Call stale_nodes for the register nodes a system of record has dropped and who owns each. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The prompts new_subject and add_artefact walk an assistant through scaffolding a subject on a branch; nothing is written through this server. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on, then derived_outputs key=... for what was built on a key. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. In the store: held_keys lists every key the held scenario holds with its level, including those no task class requires; document_statements names the statements a document yields and the outputs built on them; derived_outputs derived=... the statements behind one output. Intake, from a proposed initiative to the board a tracker holds: proposal_impact proposal=... on the overlay; its slices, one per journey step (per delivering process for a product no journey concerns), each overlay element in one slice or a named remainder, are the story map's backbone; each slice's keys are the task class's keys on its thread, and with a scenario held its keys.gate is gate_verdict keys=... on them; slices.task_keys names the class's keys on no slice (task-0252); all under one task class and one as_of. knowgov writes no work item and ranks nothing: no label, score or estimate; the tracker writes the items, each citing register ids. A check that a backlog covers the slices (K3) is parked to the pilot, not offered. key_nodes and document_links read files only, and code_path files, and the store for the ledger leg's suspect when it holds the subject; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it.  Every tool but list_subjects takes subject, the id of a subject under KG_SUBJECTS (list_subjects names them, never a path); none named is this server's own. A store-backed tool (its _meta io.knowgov/storeBacked true) answers only for the subject and scenario the store holds and otherwise names the start_run that would load it; a files-only tool answers for any subject. This server only reads.")
+                "(task, as gate_verdict's; codegen by default), those resting only on a descendant not followed flagged not_followed. Call stale_nodes for the register nodes a system of record has dropped and who owns each. Call register_nodes to find where to start without an id (the register listed by taxonomy, kind, state, owning unit or parent) and, with node, what a node sits under: its ancestors to the root and its children, named and never walked. Call proposal_impact before a proposed product, capability or journey is approved: it reads the proposal as if approved, every element hypothetical, and names the gaps, the candidates (authored or inferred, never more than proposed), what it touches and who must approve; it approves nothing. Call scenario_runs to see which scenarios have been run, in which mode and with what verdict, and whether a run is loading the store: while one is, the gate refuses. Call scenario_result for what a record or run showed, read from its files: it is not what the store holds. Call subject_check after every change to a subject you are scaffolding: pass the proposed subject.toml, register_map.toml, scenarios.toml and every document's text; a refused manifest is exit_code 1, and a did-you-mean names a key the documents yield. Never take a task's keys from what the documents yield. The prompts new_subject and add_artefact walk an assistant through scaffolding a subject on a branch; nothing is written through this server. The chain composes from named hops, never one walk both ways. Down, from a capability to its knowledge: register_impact walk=realisers, then evidence_bundle keys=... for the keys it lands on, then derived_outputs key=... for what was built on a key. Up, from a code file to the business: code_path (its application and cited keys), key_nodes for a cited key's nodes, register_impact walk=dependants from the application or those nodes (children true for an application whose modules carry the links), then register_nodes node=... for a capability's ancestors. From a document: document_links names the register links citing it and their nodes. In the store: held_keys lists every key the held scenario holds with its level, including those no task class requires; document_statements names the statements a document yields and the outputs built on them; derived_outputs derived=... the statements behind one output. Intake, from a proposed initiative to the board a tracker holds: proposal_impact proposal=... on the overlay; its slices, one per journey step (per delivering process for a product no journey concerns), each overlay element in one slice or a named remainder, are the story map's backbone; each slice's keys are the task class's keys on its thread, and with a scenario held its keys.gate is gate_verdict keys=... on them; slices.task_keys names the class's keys on no slice (task-0252); all under one task class and one as_of. knowgov writes no work item and ranks nothing: no label, score or estimate; the tracker writes the items, each citing register ids. A check that a backlog covers the slices (K3) is parked to the pilot, not offered. key_nodes and document_links read files only, and code_path files, and the store for the ledger leg's suspect when it holds the subject; a leg that reads unchecked was not read, it is not empty. A status is the repository's; you may not upgrade it.  Call who_knows with one node, key or code path to find the handles whose attested evidence touches it (answers, rulings, closes, ownership) and their holders where the register records them; it ranks no one and reads across every subject this server serves. Every tool but list_subjects and who_knows takes subject, the id of a subject under KG_SUBJECTS (list_subjects names them, never a path); none named is this server's own. A store-backed tool (its _meta io.knowgov/storeBacked true) answers only for the subject and scenario the store holds and otherwise names the start_run that would load it; a files-only tool answers for any subject. This server only reads.")
 
 import key_rule  # noqa: E402  (task-0296: the one entity|attribute rule)
 KEY_ITEM = {"type": "string", "pattern": key_rule.PATTERN, "description": key_rule.DESCRIPTION}   # every key and keys argument (task-0320, N7)
@@ -471,6 +474,28 @@ TOOLS.append(
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another"}}},
      "annotations": READ_ONLY})
 
+
+TOOLS.append(
+    {"name": "who_knows", "title": "Who knows about this node, key or code path?",
+     "description": "The handles, and their holders, whose attested evidence touches one register node, one key or one code "
+                    "path (decision-0047), read from files across every subject this reader serves (KG_SUBJECTS) and their one "
+                    "register, never from the store, so the answer is the same on either store. Name exactly one of node, key "
+                    "and path. The scope is one hop, never a walk: a node and the keys whose register-map rows name it; a key "
+                    "and the nodes its rows name; a path under the instance's code_map.toml root, its application and the keys "
+                    "its header cites. Per handle: its unit, roles, issued and withdrawn dates, and its holder, the register's "
+                    "person (ieam-register decision 0021), or null with holder_why when none is recorded; and its evidence, "
+                    "each item answered (a captured answer or nobody knows: the key, the subject, the capture's statement id, "
+                    "on), approved or rejected (a review's ruling by the handle: the review id, the statement, on), closed (a "
+                    "review's close of a captured nobody-knows gap) or owns (the handle's unit owns a node in scope, by its "
+                    "owner field or an approved owns link; none for a withdrawn handle), sorted by kind, key and date, handles "
+                    "by id. Review files are read as written: whether a load applied a ruling is three_valued_answer's. Nothing "
+                    "is counted, ranked, weighted or scored; never a query across registers.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
+         "node": {"type": "string", "pattern": r"^[A-Z]+-\d{4,}$", "description": "one register node id, such as CAP-0002"},
+         "key": {**KEY_ITEM, "description": "an entity|attribute key; "+key_rule.DESCRIPTION},
+         "path": {"type": "string", "description": "a '/'-separated path relative to the root of the instance's code_map.toml (KG_INSTANCE), as code_path names it"}}},
+     "annotations": READ_ONLY})
+
 # task-0157 (B7, decision-0013 with A1): one reader for every subject under KG_SUBJECTS. Every tool but
 # list_subjects takes an optional subject id; a call naming another subject than the process's own is answered by a child process
 # for that subject (harness/mcp_child.py). A tool is store-backed or reads files only, and says which in its
@@ -497,7 +522,12 @@ OUTPUT_SCHEMAS = {"store_status": "store-status", "gate_verdict": "gate-report",
                   "stale_nodes": "stale-nodes",
                   "key_nodes": "key-nodes", "code_path": "code-path", "document_links": "document-links",
                   "subject_check": "subject-check", "held_keys": "held-keys", "derived_outputs": "derived-outputs",
-                  "document_statements": "document-statements", "list_subjects": "list-subjects"}
+                  "document_statements": "document-statements", "list_subjects": "list-subjects", "who_knows": "who-knows"}
+# task-0360: tools that read across every subject the reader serves take no subject argument, as list_subjects
+ACROSS_SUBJECTS = frozenset({"list_subjects", "who_knows"})
+# task-0360: tools whose arguments name exactly one of a set, refused -32602 otherwise; not a top-level oneOf, which some
+# clients' model APIs refuse in a tool's input schema
+EXACTLY_ONE = {"who_knows": ("node", "key", "path")}
 
 
 def output_note(schema: str) -> str:
@@ -505,7 +535,7 @@ def output_note(schema: str) -> str:
 
 
 for _t in TOOLS:
-    if _t["name"] != "list_subjects":
+    if _t["name"] not in ACROSS_SUBJECTS:
         _t["inputSchema"]["properties"]["subject"] = SUBJECT_ARG
     _t["_meta"] = {META_STORE: _t["name"] in STORE_BACKED}
     _t["description"] += output_note(OUTPUT_SCHEMAS[_t["name"]])
@@ -968,6 +998,19 @@ class Tools:
         except upward.UpwardError as e:
             raise ToolError(str(e)) from e
 
+    def who_knows(self, args: dict) -> dict:
+        """The handles whose attested evidence touches a node, a key or a code path (``who_knows.report``, task-0360,
+        decision-0047): files only, across the reader's subjects; no store is opened."""
+        import upward
+        import who_knows as wk
+        with self._lock:
+            if self.trace_cfg is None:
+                self.trace_cfg = upward.config()
+        try:
+            return wk.report({k: args.get(k) for k in wk.ASKED}, self.trace_cfg["instance"])
+        except wk.WhoKnowsError as e:
+            raise ToolError(str(e)) from e
+
     def _ledger_suspect(self, entry: dict) -> dict:
         """task-0303: code_path's ledger entry read as suspect or not on the held store, by trace check's rule, through
         one read handle; when this server cannot read it (no store, another subject's scenario, a run loading), the leg
@@ -1215,6 +1258,10 @@ def argument_refusal(name: str, args, schema: dict) -> str | None:
             return (f"{name}: unknown argument(s) {', '.join(map(repr, unknown))}; "
                     f"it takes {', '.join(sorted(schema.get('properties') or {})) or 'none'}")
     wrong = argument_errors(args, schema)   # type, enum, pattern, minimum, minItems, required
+    one = EXACTLY_ONE.get(name)
+    if one and sum(k in args for k in one) != 1:   # task-0360
+        given = [k for k in one if k in args]
+        wrong.append(f"name exactly one of {', '.join(one)}; given {', '.join(given) or 'none'}")
     return f"{name}: {'; '.join(wrong)}" if wrong else None
 
 

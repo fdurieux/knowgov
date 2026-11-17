@@ -1,0 +1,17 @@
+# A capture: knowledge a person gave, from an answered questionnaire (task-0009). Read by every load.
+# from, on and record are ieam-register decision 0008's fields. Never edited after ingest: a correction is a new capture.
+format = 1
+
+[capture]
+subject = "knowledge_probe"
+scenario = "S0"
+task = "codegen"
+owner = "ORG-0002"
+from = "employee-2"
+on = 2026-11-06
+record = "captures/2026-11-06-ORG-0002-employee-2.toml"
+
+[[answer]]
+key = "shipper|screened"
+value = "before pricing"
+note = ""

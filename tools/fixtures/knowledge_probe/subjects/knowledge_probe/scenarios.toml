@@ -1,0 +1,9 @@
+[[scenario]]
+id = "S0"
+title = "empty"
+represented = "No document; the captures alone."
+gate = "BLOCKED"
+defect = "Nothing documented: the keys rest on captured answers only."
+plant = "Nothing was planted: the subject has no artefacts."
+plain = "The subject holds no document; its captures are what people said."
+extraction = "pristine"
