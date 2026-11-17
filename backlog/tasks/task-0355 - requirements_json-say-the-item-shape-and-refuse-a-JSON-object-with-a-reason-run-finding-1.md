@@ -3,11 +3,11 @@ id: TASK-0355
 title: >-
   requirements_json: say the item shape, and refuse a JSON object with a reason
   (run finding 1)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-16T04:37:00Z'
-updated_date: '2026-11-16T21:14:00Z'
+updated_date: '2026-11-17T09:04:00Z'
 labels:
   - finding
   - reverse-engineering
@@ -29,10 +29,10 @@ Placement: the guide's sentence and a named refusal are fixes (0.9.x); accepting
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 subjects/README.md states requirements_json's input: a top-level JSON list of items, each with id and statement (kind, basis, claim optional)
-- [ ] #2 A non-list top level is refused by check_subject.py and by the load with a message naming the file and the expected shape, never a TypeError
-- [ ] #3 A test holds the refusal; the scored record is unchanged
-- [ ] #4 Reader extension (0.10.0): requirements_json also reads a top-level object whose one list-valued key holds the items (the kits' shape), recorded in subjects/README.md and the CHANGELOG under contract changes
+- [x] #1 subjects/README.md states requirements_json's input: a top-level JSON list of items, each with id and statement (kind, basis, claim optional)
+- [x] #2 A non-list top level is refused by check_subject.py and by the load with a message naming the file and the expected shape, never a TypeError
+- [x] #3 A test holds the refusal; the scored record is unchanged
+- [x] #4 Reader extension (0.10.0): requirements_json also reads a top-level object whose one list-valued key holds the items (the kits' shape), recorded in subjects/README.md and the CHANGELOG under contract changes
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -45,4 +45,12 @@ Placement: the guide's sentence and a named refusal are fixes (0.9.x); accepting
 
 <!-- SECTION:NOTES:BEGIN -->
 The maintainer, 2026-11-16: "Yes" to these joining 0.10.0 (decision-0047 point 4): the soak they waited for restarts with 0.10.0 anyway.
+
+Evidence (PR #579, merged 75ed913 on a whole green matrix with stack): subjects/README.md 'Where the bundle mappers read citations' states the input, a list of items with string id and statement (kind, basis, claim optional), or an object whose one list-valued key holds them. extract.requirements_items raises ShapeRefused (a DocumentUnreadable) naming the file and the shape; extract_all passes it through, check_subject reports it as mapper-failed; tests/test_kit_mapper_findings.py holds the refusal on six shapes, the load's path through extract_all and the object form reading as the list. requirements_json's change moved no record: J-F's re-record is task-0357's alone (its 78 leaves accounted there), CargoQuote unchanged. The reader extension is under CHANGELOG's Contract changes.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+requirements_json reads a list, or an object's one list-valued key, and refuses anything else by name with the expected shape (never a TypeError), in the load and in check_subject; documented in subjects/README.md, the extension under contract changes. Merged in #579.
+<!-- SECTION:FINAL_SUMMARY:END -->
