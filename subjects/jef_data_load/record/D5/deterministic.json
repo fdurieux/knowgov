@@ -1,6 +1,7 @@
 {
  "scenario": "D5",
  "store": "neo4j",
+ "as_of": "2026-10-24",
  "D1_constraints": [
   {
    "type": "uniqueness",
@@ -58,16 +59,16 @@
   }
  ],
  "load": {
-  "fragments": 794,
+  "fragments": 795,
   "fragments_reused": 0,
-  "assertions": 712,
+  "assertions": 713,
   "unresolved_symbols": [],
   "activity": "act:extract:D5:v1"
  },
  "verifications": {
   "execution": 371,
-  "review": 549,
-  "approved": 707
+  "review": 550,
+  "approved": 708
  },
  "rules": {
   "R-STRUCT": [],
@@ -79,18 +80,18 @@
  },
  "D2_census": {
   "assertions_by_status": {
-   "approved": 707,
+   "approved": 708,
    "proposed": 5
   },
   "gaps_by_kind": {
    "unverified": 5
   },
   "contradicts": 0,
-  "nodes": 3348,
-  "relationships": 8655
+  "nodes": 3352,
+  "relationships": 8665
  },
  "D4_shacl": {
-  "triples": 4567,
+  "triples": 4572,
   "main": {
    "conforms": true,
    "results": 0,
@@ -102,14 +103,14 @@
   },
   "info_only": {
    "conforms": false,
-   "results": 712,
+   "results": 713,
    "by_severity": {
-    "Info": 712
+    "Info": 713
    },
    "sample": [
     "Validation Report",
     "Conforms: False",
-    "Results (712):",
+    "Results (713):",
     "Validation Result in MinCountConstraintComponent (http://www.w3.org/ns/shacl#MinCountConstraintComponent):",
     "\tSeverity: sh:Info",
     "\tSource Shape: [ sh:message Literal(\"no reviewer comment recorded (informational)\") ; sh:minCount Literal(\"1\", datatype=xsd:integer) ; sh:path kg:reviewerComment ; sh:severity sh:Info ]",
@@ -137,7 +138,8 @@
   ],
   "flagged": [],
   "stale": [],
-  "suspect_derived": []
+  "suspect_derived": [],
+  "lapsed": []
  },
  "gate_keys": {
   "JDL-001|statement": {

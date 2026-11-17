@@ -3,10 +3,11 @@ id: TASK-0357
 title: >-
   dmn_decisions: requirement citations in a decision's description are not
   loaded (run finding 3)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-16T04:37:00Z'
-updated_date: '2026-11-16T19:22:00Z'
+updated_date: '2026-11-17T07:16:00Z'
 labels:
   - finding
   - reverse-engineering
@@ -28,14 +29,26 @@ Placement: stating it in the guide and warning are fixes (0.9.x); inheriting dec
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 subjects/README.md states that requirement citations are read from a rule's description
-- [ ] #2 check_subject.py warns on requirement ids cited in a decision's description that no rule cites
-- [ ] #3 A test holds the warning; the scored record is unchanged
+- [ ] #1 subjects/README.md states where dmn_decisions reads requirement citations: a rule's description, and a decision's own for an id none of its rules cites
+- [ ] #2 check_subject.py warns on a malformed citation in a decision's or a rule's description (an id-shaped token with the document's id prefix the subject's pattern does not read); a decision-level citation is read, so it is no warning
+- [ ] #3 A test holds the reading and the warning; jef_data_load's record re-recorded once with every moved leaf accounted for; CargoQuote's record unchanged
 - [ ] #4 Reader extension (0.10.0): dmn_decisions loads requirement ids cited in a decision's description as that decision's citations, recorded in subjects/README.md and the CHANGELOG under contract changes
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Build the reader extension; run J-F's comparator. 2. It moved the record (actions_gate cites JDL-088 at decision level only: +1 assertion, +1 fragment per scenario, 60 leaves over 6 scenarios), so it is withdrawn and the fix kept: README states rule-level citations; check_subject warns (rule citation) on decision-level ids no rule cites and on id-shaped tokens the pattern does not read. 3. J-F's one warning admitted by name in test_check_subject and harness.yml's rdflib-readers check. 4. Tests; both comparators.
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 The maintainer, 2026-11-16: "Yes" to these joining 0.10.0 (decision-0047 point 4): the soak they waited for restarts with 0.10.0 anyway.
+
+Maintainer, 2026-11-16: "keep the JDL-088 warning; drop the reader extension". The reader-extension criterion (dmn_decisions loading a decision's own citations) is removed: built, it moved J-F's record (actions_gate cites JDL-088 in its description and in no rule; +1 assertion, +1 fragment per scenario, 60 leaves over 6 scenarios), so the mapper stays as it was. J-F's one citation warning is admitted by name in tests/test_check_subject.py and harness.yml's rdflib-readers J-F check, each still failing on any other finding.
+
+Rulings. Maintainer, 2026-11-16 21:33, to this session: "keep the JDL-088 warning; drop the reader extension". Superseded by the maintainer, 2026-11-16, through the coordinating session, shown both rulings side by side: "Re-record now, option (b)" ("could we not do (b) now as we are restarting the soak anyway"). #1 to #3 restated for (b): the decision-level citation is read, not warned on, and the record moves once.
+
+Accounting (re-record 52d1594, on Neo4j 5.26.24 community, driver 6.4.1, after task-0369's ordering fix). Against the 2026-11-01 files, 78 leaves over six scenarios (check_run_order sha256 e46adcfc...): 60 the comparator reads, 10 a scenario (load.assertions, load.fragments, verifications.approved, verifications.review, D2 approved +1 each; D2 nodes +4, relationships +10; D4 triples +5, info_only results and Info +1 each); 6 SHACL sample lines (Results (712) to (713)); the 66 sha256 e83204bc..., all from actions_gate's JDL-088; 12 as_of and D6_gate.lapsed the run has written since the record (sha256 078887f5...). No list moved order: task-0369's sorted order equals the 2026-11-01 run's. Two Neo4j runs of the code: 0 leaves. ENT-0009 28 to 29 statements, every register node 707 to 709 rows: REL-07006 (PROC-0007 to ENT-0009) cites the whole of actions_gate.dmn, so ENT-0009 and PROC-0007 (75 to 76) each gain the new statement. scenarios.toml's represented counts follow the run (+1 each). CargoQuote unchanged.
 <!-- SECTION:NOTES:END -->

@@ -889,9 +889,9 @@ def test_node_statements_are_checked_per_subject_on_both_stores():
     harness = (ROOT / ".github" / "workflows" / "harness.yml").read_text(encoding="utf-8")
     demo = (ROOT / ".github" / "workflows" / "demo.yml").read_text(encoding="utf-8")
     assert "python tools/check_node_statements.py --node ENT-0004 --expect 13 --total 392" in harness
-    assert "KG_SUBJECT=subjects/jef_data_load KG_RDFLIB_FILE=runs/anchor-jef/store.ttl python tools/check_node_statements.py --node ENT-0009 --expect 28 --total 707" in harness
+    assert "KG_SUBJECT=subjects/jef_data_load KG_RDFLIB_FILE=runs/anchor-jef/store.ttl python tools/check_node_statements.py --node ENT-0009 --expect 29 --total 709" in harness
     assert "python tools/check_node_statements.py --node ENT-0004 --expect 13 --total 392" in demo
-    assert "-e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_node_statements.py --node ENT-0009 --expect 28 --total 707" in demo
+    assert "-e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_node_statements.py --node ENT-0009 --expect 29 --total 709" in demo
 
 
 # ---- task-0047: the impact panel names the owning unit of each reached node, and who to inform

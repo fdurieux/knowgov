@@ -3,10 +3,11 @@ id: TASK-0356
 title: >-
   plantuml_realises: document the footer, or read a realises comment (run
   finding 2)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-16T04:37:00Z'
-updated_date: '2026-11-16T19:22:00Z'
+updated_date: '2026-11-16T21:14:00Z'
 labels:
   - finding
   - reverse-engineering
@@ -33,6 +34,12 @@ Placement: documenting the footer form and warning on a ' realises comment line 
 - [ ] #3 A test holds the warning; the scored record is unchanged
 - [ ] #4 Reader extension (0.10.0): plantuml_realises also reads a ' realises: comment line, with the footer still read, recorded in subjects/README.md and the CHANGELOG under contract changes
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. extract_plantuml_realises reads ' realises: comment lines after the footer, an id both name cited once, the footer's fragment and value unchanged (_realises_lines). 2. convention_warnings: a realises line (comment or footer) naming no id, or an id-shaped token with the document's prefix the pattern does not read; check_subject rule citation (warning), read without the mapper so it holds without pumllint. 3. README with example; tests; both comparators.
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 

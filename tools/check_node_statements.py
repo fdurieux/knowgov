@@ -1,6 +1,6 @@
 """From register nodes to the statements their cited anchors name, measured per subject (task-0077).
 
-    python tools/check_node_statements.py [--node ENT-0009 --expect 28] [--total 707]
+    python tools/check_node_statements.py [--node ENT-0009 --expect 29] [--total 709]
 
 Run after a deterministic run has loaded a scenario into the store ``KG_STORE`` names (and, for rdflib,
 ``KG_RDFLIB_FILE`` keeps). Projects the register at ``KG_REGISTER`` for the subject ``KG_SUBJECT``

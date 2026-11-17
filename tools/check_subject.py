@@ -824,10 +824,32 @@ def yield_only(root: Path) -> dict:
         if any(a.get("basis") == "authored" for a in bag.assertions):
             authored.append(key)
     out = {"state": "checked", "why": None, "artefacts": arts, "failed": failed, "claims": claims, "authored": authored,
-           "duplicate_locators": dups}
+           "duplicate_locators": dups, "conventions": _conventions(extract, SUBJECT)}
     if missing_mod:
         out["why"] = f"some mappers need {missing_mod}, which is not installed here; their artefacts are unchecked"
     return out
+
+
+def _conventions(extract, subject) -> dict[str, list[str]]:
+    """task-0356, task-0357: each document's malformed citations, read without the mapper (so without pumllint)."""
+    out = {}
+    for key, p in subject.kit_files:
+        mapper = subject.mappers.get(key)
+        try:
+            got = extract.convention_warnings(mapper, key, extract.mapped_text(subject.artefact_text(key))) if mapper and p.exists() else []
+        except (OSError, UnicodeDecodeError):
+            got = []   # an unreadable document is the path check's
+        if got:
+            out[key] = got
+    return out
+
+
+def _citations(rep: Report, y: dict) -> None:
+    for key, msgs in sorted(y.get("conventions", {}).items()):   # task-0356, task-0357
+        for msg in msgs:
+            rep.warning("citation", f"[[artefact]] {key}", f"{msg}; the load reads past it",
+                        "write each citation as a requirement id the subject's [rules] requirement_id_pattern reads "
+                        "(subjects/README.md, \"Where the bundle mappers read citations\")")
 
 
 def _offers(wanted: list[str], yielded: set[str]) -> dict[str, str]:
@@ -871,6 +893,7 @@ def check_yield(rep: Report, m: dict, root: Path) -> dict:
         rep.error("claim", f"[[artefact]] {key}", f"{why}; the load fails on it rather than guess what the statement is",
                   "write observed, inferred or intended, or leave the claim out so the statement loads as before "
                   "(subjects/README.md, \"The claim\")")
+    _citations(rep, y)
     yielded = set().union(*arts.values()) if arts else set()
     mapper_of = {a.get("key"): a.get("mapper") for a in m.get("artefact", []) if isinstance(a, dict)}
     conv = conventions()

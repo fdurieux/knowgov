@@ -309,7 +309,7 @@ Where each bundle mapper reads it:
 |---|---|---|
 | `requirements_json` | `"claim": "<value>"` on an item (its `basis` field is where the statement was read: code logic, prose or both, not a claim) | the item's statement |
 | `contracts_markdown` | a line `Claim: <value>` in a part | the part's citations |
-| `dmn_decisions` | `claim: <value>` in a decision's or a rule's `<description>` | the decision's rules, a rule's own winning |
+| `dmn_decisions` | `claim: <value>` in a decision's or a rule's `<description>` | the decision's rules and its own citations, a rule's own winning |
 | `gherkin_tagged` | a tag `@claim:<value>` on the Feature, a Rule or a Scenario | the scenarios under it, the nearest winning |
 | `plantuml_realises` | a comment line `' claim: <value>` | the diagram's statements |
 
@@ -320,6 +320,34 @@ load fails on it rather than read the statement as something it did not say. The
 assertion (`harness/shacl.py`) accepts one that rests on the kit fragment stating it, beside one linked to the gap
 it proposes to fill. `tools/fixtures/claim_probe` carries
 every mapping, and `tools/check_claim_probe.py` holds it on the store `KG_STORE` names.
+
+## Where the bundle mappers read citations
+
+A kit written to these conventions links its layers by requirement id, read by the subject's `[rules]
+requirement_id_pattern`. Each bundle mapper reads its ids from the places below and nowhere else (tasks 0355 to 0357):
+
+| mapper | input and where the ids are read |
+|---|---|
+| `requirements_json` | one JSON file: a top-level list of items, each an object with string `id` and `statement` (`kind`, `basis` and `claim` optional), or an object whose one list-valued key holds that list (`{"requirements": [...], "version": "1"}`; the object's other keys are not read). Any other top level, an object with no or two list-valued keys, or an item without a string `id` and `statement`, is refused by `tools/check_subject.py` (rule `mapper-failed`) and by the load, naming the file and this shape |
+| `contracts_markdown` | anywhere in a part: `Requirements: JDL-045, …`, ranges, inline citations |
+| `dmn_decisions` | a rule's `<description>`, listed as `<decision>/<rule id>`; and a decision's own `<description>`, listed as `<decision>`, for an id none of its rules cites (task-0357). A decision's `claim:` is its own citations' claim |
+| `gherkin_tagged` | a scenario's `@<id>` tags |
+| `plantuml_realises` | the footer, or a comment line `' realises: <ids>`, or both (an id both name is cited once): |
+
+```plantuml
+@startuml sync_run
+' claim: observed
+' realises: JDL-144, JDL-087
+participant Runner
+...
+footer owner: data-load — realises JDL-144, JDL-088
+@enduml
+```
+
+`check_subject.py` warns (rule `citation`) on a citation a mapper reads past: a realises line, comment or footer,
+naming no id the pattern reads, and, in a realises line or a DMN description, a token shaped like an id with the
+prefix of the ids the document cites that the pattern does not read (`JDL-12` under `JDL-\d{3}`). The load reads
+what it can and says nothing, so the warning is the only place such a link is seen missing.
 
 ## Checking a subject
 
@@ -334,7 +362,9 @@ is not `<entity>|<predicate>` (each side non-empty, of characters up to U+FFFF w
 character; `harness/key_rule.py`, task-0297), a task with no
 scenario, a `register_map.toml` node the register does not hold or an `owner` of none of its row's
 nodes, a mapper that cannot read its document, and a claim that is not `observed`, `inferred` or
-`intended` (task-0214). It warns on a required key no document yields
+`intended` (task-0214), and a `requirements_json` document of another shape (rule `mapper-failed`, naming the file and the shape, task-0355). It
+warns on a malformed citation (rule `citation`, tasks 0356 and 0357; "Where the bundle mappers read citations"
+above), and on a required key no document yields
 when they yield a near one, the documents' yield taken from the load's own mappers in a child
 process, with no store. A register named by `--register` or `KG_REGISTER` that cannot be read is
 exit 2, naming the path, by the readers' one test (`register_impact.unreadable`: `metamodel/types.toml`

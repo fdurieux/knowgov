@@ -3,10 +3,11 @@ id: TASK-0355
 title: >-
   requirements_json: say the item shape, and refuse a JSON object with a reason
   (run finding 1)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-16T04:37:00Z'
-updated_date: '2026-11-16T19:22:00Z'
+updated_date: '2026-11-16T21:14:00Z'
 labels:
   - finding
   - reverse-engineering
@@ -33,6 +34,12 @@ Placement: the guide's sentence and a named refusal are fixes (0.9.x); accepting
 - [ ] #3 A test holds the refusal; the scored record is unchanged
 - [ ] #4 Reader extension (0.10.0): requirements_json also reads a top-level object whose one list-valued key holds the items (the kits' shape), recorded in subjects/README.md and the CHANGELOG under contract changes
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. extract.requirements_items: a list, or an object's one list-valued key; anything else ShapeRefused (a DocumentUnreadable) naming the file and the shape; extract_all passes it through. 2. check_subject: the existing mapper-failed rule carries it. 3. subjects/README.md 'Where the bundle mappers read citations'; instance/mappers.toml and the generated skill. 4. tests/test_kit_mapper_findings.py; both comparators.
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
