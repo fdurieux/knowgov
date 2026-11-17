@@ -19,7 +19,8 @@ The pre-load verdicts (task-0064, task-0085) are compared too: every Version's p
 form was unchecked or had findings), as well as the info findings of kind preload the gate reports
 carry. So are the file digests a directory artefact's versions carry (``part_digests``, task-0094),
 row for row; ``--expect-parts`` fails a scenario whose first store recorded none (a subject with a
-directory artefact, J-F). A subject inside an instance with a pre-load report (``tools/preload_check.py -o
+directory artefact, J-F). So is the digest provenance (``digest_provenance``, task-0342), and a scenario whose
+first store recorded none fails. A subject inside an instance with a pre-load report (``tools/preload_check.py -o
 <instance>/preload-report.json``) records them; ``--expect-preload`` fails a scenario whose first
 store recorded none, so a run meant to prove they survive cannot pass on a store that never held one.
 Each gate report must also name what it decided on (task-0237, decision-0029): ``task_profile``, the
@@ -83,6 +84,8 @@ def answers(st, scenario: str) -> dict:
             "held": view.held(),
             # task-0094: the file digests a directory artefact's versions carry
             "parts": st.part_digests(),
+            # task-0342 (C2-7): the file each digest the loads read was recorded for, carried with the store
+            "provenance": st.digest_provenance(),
             # task-0144: the store reads over MCP, the port's three and the tools on them, held equal across store kinds
             "store_reads": store_reads(tools, view, scenario),
             # task-0085: each Version's pre-load verdict, and per task the gate's preload bundle and its info findings
@@ -184,6 +187,7 @@ def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = 
         off = unread(rep, gate_cli.profile_digest(SUBJECT.tasks.get(t)), expect_preload)
         if off:
             failures.append(f"{label} {chain[0]}: gate {t} does not name what it decided on: {off}")
+    failures += unrecorded(base["provenance"], SUBJECT.id, scenario, f"{label} {chain[0]}")
     if expect_parts and not base["parts"]:
         failures.append(f"{label} {chain[0]}: the load recorded no file digest of a directory artefact: does the subject load one?")
     for i, kind in enumerate(chain[1:], 1):
@@ -205,9 +209,16 @@ def check(scenario: str, chain: list[str], stage2: bool, expect_preload: bool = 
           f"task profile {(v.get('task_profile') or '')[:12]}, corpus {str(v.get('corpus'))[:12]}, register {(v.get('register') or {}).get('tag')}), "
           f"{len(base['three_valued'])} three-valued answer(s), {base['census']['nodes']} nodes, "
           f"{base['census']['relationships']} relationships, "
-          f"{len(base['parts'])} file digest(s) of directory artefacts, "
+          f"{len(base['parts'])} file digest(s) of directory artefacts, {len(base['provenance'])} digest provenance row(s), "
           f"{len(base['preload']['verdicts'])} pre-load verdict(s), {sum(map(len, base['preload']['findings'].values()))} preload finding(s): " + ("equal" if not failures else f"{len(failures)} difference(s)"))
     return failures
+
+
+def unrecorded(rows: list[dict], subject: str, scenario: str, where: str) -> list[str]:
+    """task-0342 (C2-7): the load recorded the file of each digest it read, as this subject's for its scenario."""
+    if rows and any(r["scenario"] == scenario for r in rows) and all(r["subject"] == subject for r in rows if r["scenario"] == scenario):
+        return []
+    return [f"{where}: the load recorded no digest provenance, or another subject's for its scenario (task-0342)"]
 
 
 def unread(rep: dict, profile: str | None, expect_preload: bool) -> list[str]:

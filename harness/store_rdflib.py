@@ -57,7 +57,7 @@ from urllib.parse import quote, unquote
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
 
 from store import (DEAD, DOCUMENT_BASES, DUPLICATE, Store, StoreBusy, StoreCorrupt, StoreFenced, StoreReadOnly, by_content, by_id, held_from, inputs_digest,
-                   changed_of, part_list, part_rows, stem, suspect_rows, suspicion)
+                   changed_of, merge_provenance, part_list, part_rows, provenance_of, provenance_text, stem, suspect_rows, suspicion)
 
 try:
     import fcntl
@@ -441,6 +441,7 @@ class RdflibStore(Store):
 
     # ---- lifecycle ---------------------------------------------------------------------------
     def wipe(self) -> None:
+        self._carried = self.digest_provenance() if self._nodes else []   # task-0342: carried to the next record_provenance
         self.g = Graph()
         self._nodes, self._out, self._in, self._seq = {}, {}, {}, 0
         self.dirty = True
@@ -450,6 +451,7 @@ class RdflibStore(Store):
 
     def import_turtle(self, text: str) -> None:
         self.wipe()
+        self._carried = []   # the imported store's own provenance stands; nothing of the one it replaced is carried
         self.g.parse(data=text, format="turtle")
         self._reindex()
 
@@ -1090,6 +1092,16 @@ class RdflibStore(Store):
     def inputs(self) -> dict:
         h = self.node("agent:harness", "Agent")
         return inputs_digest({f"input_{k}": self.prop(h, f"input_{k}") for k in self.INPUTS} if h is not None else {})
+
+    def record_provenance(self, rows, keep) -> None:
+        h = self.node("agent:harness", "Agent")
+        if h is not None:
+            held = provenance_of(self.prop(h, "provenance"))
+            self.set_props(h, {"provenance": provenance_text(merge_provenance(getattr(self, "_carried", []), held, rows, keep))})
+
+    def digest_provenance(self) -> list[dict]:
+        h = self.node("agent:harness", "Agent")
+        return provenance_of(self.prop(h, "provenance")) if h is not None else []
 
     def clear_act_findings(self) -> None:
         for a in list(self.nodes("ActFinding")):

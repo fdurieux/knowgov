@@ -46,7 +46,8 @@ def test_the_entries_are_sha256sums_form_sorted_by_path_and_read_back():
 def test_the_load_records_each_file_of_a_directory_artefact_and_no_other():
     src = (ROOT / "harness" / "load.py").read_text(encoding="utf-8")
     assert 'if path.endswith("/"):' in src
-    assert 'st.record_part_digests(f"V:{path}:{version_tag}", SUBJECT.part_digests(path, text))' in src
+    assert 'parts = SUBJECT.part_digests(path, text)' in src   # task-0342: read once, recorded and given its provenance
+    assert 'st.record_part_digests(f"V:{path}:{version_tag}", parts)' in src
     from subject import bundle_parts
     text = "==> a.md <==\nalpha\n==> dmn/b.dmn <==\n<b/>\n"
     assert {rel: hashlib.sha256(p.encode()).hexdigest() for rel, p in bundle_parts(text) if rel} == {
