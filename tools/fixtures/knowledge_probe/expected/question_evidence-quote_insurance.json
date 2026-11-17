@@ -1,0 +1,11 @@
+{
+ "schema_version": 1,
+ "tool": "question_evidence",
+ "subject": "knowledge_probe",
+ "key": "quote|insurance",
+ "file": "questions/evidence/knowledge_probe/quote%7Cinsurance.md",
+ "found": true,
+ "sha256": "1073bd8386ef3f92364754ec3bd6c8b52441f7abdd7af35420fbe260a1b8ef41",
+ "text": "# quote|insurance\n\nSynthetic evidence for the knowledge probe (task-0361), as an instance's generator would write it.\n\n- **Requirement as stated:** none; no document of the probe mentions insurance.\n- **Code:** `code/quote.py` prices an amount and names no insurance.\n- **Open questions citing it:** none.\n",
+ "why": null
+}

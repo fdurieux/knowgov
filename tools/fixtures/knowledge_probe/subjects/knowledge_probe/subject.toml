@@ -1,0 +1,21 @@
+# The knowledge probe (task-0360, task-0361): a synthetic subject whose captures and reviews the MCP
+# reader's knowledge tools read from files. No artefacts; every handle is a demo register handle but one.
+[format]
+version = 1
+
+[subject]
+id = "knowledge_probe"
+name = "Knowledge probe"
+listed = false   # a fixture: named directly by KG_SUBJECTS, never in a scan of subjects/
+description = "Captured answers and reviews on five keys, one unanswered, for who_knows and the question tools."
+
+[tasks.codegen]
+keys = ["quote|currency", "quote|validity_days", "quote|insurance", "shipper|screened", "rate|rounding"]
+block_levels = ["absent", "declared_gap", "disputed", "invalidated"]
+max_unverified_share = 0.25
+
+[register]
+map = "register_map.toml"
+
+[record]
+as_of = 2026-11-10

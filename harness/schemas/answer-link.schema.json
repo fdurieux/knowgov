@@ -1,0 +1,30 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/answer-link.schema.json",
+ "title": "knowgov answer link report",
+ "description": "What `python harness/questions.py link KEY VERDICT STATEMENT` prints and the MCP tool answer_link returns (task-0361, decision-0046 points 1 and 2): the prefilled GitHub issue-form URL that answers one question, computed from the instance's questions.toml and the questionnaire that asks the key; nothing is written or opened. fields lists the form's eight fields in a fixed order (key, subject, scenario, owner, evidence, verdict, statement, note), each with the id the template gives it and the value filled in (an empty one is left out of the URL). Version 1; a change is additive or a new version. Exit 2 prints no report.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": ["schema_version", "tool", "subject", "scenario", "owner", "key", "questionnaire", "verdict", "verdict_label", "statement", "template", "url", "fields"],
+ "properties": {
+  "schema_version": {"const": 1},
+  "tool": {"const": "answer_link"},
+  "subject": {"type": "string"},
+  "scenario": {"type": "string"},
+  "owner": {"type": "string", "description": "the owner unit of the questionnaire that asks the key"},
+  "key": {"type": "string"},
+  "questionnaire": {"type": "string", "description": "the questionnaire that asks the key, relative to the instance"},
+  "verdict": {"enum": ["right_as_stated", "right_with_correction", "wrong", "dont_know"]},
+  "verdict_label": {"type": "string", "description": "the verdict as the form's dropdown lists it, from questions.toml"},
+  "statement": {"type": "string"},
+  "template": {"type": "string", "description": "the issue form template, relative to the instance; the URL names its file"},
+  "url": {"type": "string", "description": "the form's URL with the template, a title and every non-empty field as query parameters"},
+  "fields": {"type": "array", "items": {
+   "type": "object", "additionalProperties": false, "required": ["field", "id", "value"],
+   "properties": {
+    "field": {"enum": ["key", "subject", "scenario", "owner", "evidence", "verdict", "statement", "note"]},
+    "id": {"type": "string", "description": "the field's id in the template"},
+    "value": {"type": "string"}
+   }}}
+ }
+}

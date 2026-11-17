@@ -1,10 +1,11 @@
 """Check a subject root before it is loaded (task-0135; doc-0018 F2 to F5).
 
-    python tools/check_subject.py <subject root> [--register DIR] [--json]
+    python tools/check_subject.py <subject root> [--register DIR] [--json] [--store]
 
 The layout check (tools/check_instance.py) confirms a subject loads and its documents exist. This
 checks what loading does not: the manifest's own content, and the task's keys against what the
-documents say. It reads and never writes; it opens no store.
+documents say. It reads and never writes; it opens no store, unless ``--store`` asks it to name the file a stale
+digest was last recorded for (below).
 
 - **The manifest** (F5). Every top-level table, and every field of `[subject]`, `[[artefact]]`,
   `[tasks.<class>]` and `[record]`, is one the loader reads; an unknown one is named with the
@@ -35,6 +36,12 @@ documents say. It reads and never writes; it opens no store.
   them (decision-0009). A kit statement whose claim is not observed, inferred or intended is refused
   (rule `claim`, task-0214): the load would fail on it. The mappers need PyYAML; without it the yield
   is unchecked, and the report says so.
+
+With ``--store`` (task-0342, decision-0041 C2-7), the store ``KG_STORE`` names is read once, through a read handle, for
+the digest provenance the loads recorded (``Store.digest_provenance``): each listed digest that matches no current file,
+of a document under ``versions`` or of the code and suite under ``implementation`` and ``suite``, then names the file it
+was last recorded for and the load that recorded it, or says no load the store holds recorded it. The report's shape is
+unchanged; a store that cannot be read is exit 2.
 
 Exit 0 when nothing is refused (warnings and notes are for reading), 1 when the manifest is refused
 (an unknown table or field, a missing required field or a mapped artefact's ``short``, no scenario for a task, a key that is not
@@ -130,10 +137,21 @@ def register_nodes(root: Path) -> dict[str, str] | None:
 
 
 class Report:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, provenance: dict[str, dict] | None = None):
         self.root = root
         self.findings: list[dict] = []
         self.notes: list[dict] = []
+        self.provenance = provenance   # task-0342 (C2-7): digest -> its row, read from a store with --store; None: not read
+
+    def recorded(self, digest: str) -> str:
+        """Where a stale digest was last recorded (task-0342, decision-0041 C2-7), as message text: empty when no store
+        was read."""
+        if self.provenance is None:
+            return ""
+        r = self.provenance.get(digest)
+        if r is None:
+            return f" ({digest[:12]} was recorded by no load the store holds)"
+        return f" ({digest[:12]} was last recorded for {r['file']}, by the load of {r['scenario']} {r['version']})"
 
     def error(self, rule: str, where: str, message: str, fix: str) -> None:
         self.findings.append({"level": "error", "rule": rule, "where": where, "message": message, "fix": fix})
@@ -556,11 +574,13 @@ def _execution_listing(rep: Report, m: dict, root: Path, ex: dict, which: str, t
     stale = sorted(d for d in listed if d not in set(files.values()))   # task-0340 R1, as a document's "matches no current Version"
     owner = _owner(m, which, table, field, rel)
     if len(stale) > len(miss):   # more listed digests gone than files changed: a deletion
-        rep.error("attestation", where, f"{which} lists {', '.join(stale)}, which matches no current file of {owner}: a file was deleted or changed, so the load verifies nothing by execution (decision-0038)",
+        rep.error("attestation", where, f"{which} lists {', '.join(stale)}, which matches no current file of {owner}"
+                  + "".join(rep.recorded(d) for d in stale) + ": a file was deleted or changed, so the load verifies nothing by execution (decision-0038)",
                   "run the suite again and list the digests of the files as they are, or restore the file")
     if miss or (not files and not stale):
         also = owner[len(f"[{table}] {field} {rel}"):]   # task-0338
-        gone = f"; {which} still lists {', '.join(stale)}, which matches no current file" if stale and len(stale) <= len(miss) else ""   # S3
+        gone = (f"; {which} still lists {', '.join(stale)}, which matches no current file" + "".join(rep.recorded(d) for d in stale)
+                if stale and len(stale) <= len(miss) else "")   # S3; task-0342: the file each was last recorded for
         rep.error("attestation", where, f"[{table}] {field} {rel}{also} changed since the execution was attested: "
                   f"{_unlisted(miss)} is not listed under {which}{gone}, so the load verifies nothing by execution (decision-0038)",
                   "run the suite on it again and list the new digest, or restore it")
@@ -636,6 +656,7 @@ def _stale_errors(rep: Report, where: str, name: str, stale: list, held: str, pl
     each says it may have been a scenario plant's Version, with the Version that plant makes now (task-0312 R6)."""
     for i, d in enumerate(stale):
         rep.error("attestation", where, f"versions lists {d}, which matches no current Version of the subject's artefacts"
+                  + rep.recorded(d)
                   + (f" (the listed digests that do match a file: {held})" if held and i == 0 else "") + plants
                   + ": it attests nothing the load reads", _relist_fix(name))
 
@@ -918,10 +939,12 @@ def check_yield(rep: Report, m: dict, root: Path) -> dict:
     return {"state": "checked", "why": y.get("why"), "keys": len(yielded), "artefacts": {k: len(v) for k, v in arts.items()}}
 
 
-def check(root: Path, register: Path | None = None, mappers: set[str] | None = None, run_yield: bool = True) -> dict:
-    """The report for one subject root. Reads only; opens no store; writes nothing."""
+def check(root: Path, register: Path | None = None, mappers: set[str] | None = None, run_yield: bool = True,
+          provenance: list[dict] | None = None) -> dict:
+    """The report for one subject root. Reads only; opens no store; writes nothing. ``provenance``, the rows a store's
+    ``digest_provenance`` gave (``--store``, task-0342), names the file each stale digest was last recorded for."""
     root = Path(root)
-    rep = Report(root)
+    rep = Report(root, None if provenance is None else {})
     out = {"schema_version": SCHEMA_VERSION, "tool": "check_subject", "subject": root.name, "root": root.as_posix(),
            "findings": rep.findings, "notes": rep.notes,
            "yield": {"state": "unchecked", "why": "not run", "keys": 0, "artefacts": {}}, "exit_code": 0}
@@ -936,6 +959,8 @@ def check(root: Path, register: Path | None = None, mappers: set[str] | None = N
     out["format"] = formats.version(m, (root / "subject.toml").as_posix(), formats.SUBJECT)
     sub = m.get("subject") if isinstance(m.get("subject"), dict) else {}
     out["subject"] = sub.get("id", root.name)
+    if provenance is not None:   # this subject's rows only: one store serves every subject
+        rep.provenance = {r["sha256"]: r for r in provenance if r.get("subject") == out["subject"]}
     from subject import FileUnreadable
     try:
         check_manifest(rep, m, root, mappers if mappers is not None else kinds_mappers())
@@ -980,6 +1005,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="the register the map rows are checked against (default: KG_REGISTER, else demo/register); "
                          "a named register that cannot be read exits 2")
     ap.add_argument("--json", action="store_true", help="print the report as JSON")
+    ap.add_argument("--store", action="store_true",
+                    help="read the store KG_STORE names for the file each stale digest was last recorded for (task-0342); "
+                         "a store that cannot be read exits 2")
     ap.add_argument("--yield-only", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
     if args.yield_only:
@@ -1000,12 +1028,32 @@ def main(argv: list[str] | None = None) -> int:
             print(f"cannot run: {by} {register.as_posix()} is not a readable register: {why}", file=sys.stderr)
             return 2
     try:
-        rep = check(args.root, register)
-    except formats.FormatError as e:   # task-0174: written for a newer knowgov, or no version: cannot run
+        rep = check(args.root, register, provenance=_provenance(args.store))
+    except (formats.FormatError, StoreUnread) as e:   # task-0174: written for a newer knowgov, or no version: cannot run
         print(f"cannot run: {e}", file=sys.stderr)
         return 2
     print(json.dumps(rep, indent=1) if args.json else render(rep))
     return rep["exit_code"]
+
+
+class StoreUnread(Exception):
+    """``--store`` was asked and the store cannot be read: the check cannot run (exit 2)."""
+
+
+def stored_provenance() -> list[dict]:
+    """The digest provenance the store ``KG_STORE`` names holds (task-0342), through one read handle (``store.read``)."""
+    import store
+    return store.read(lambda st: st.digest_provenance())
+
+
+def _provenance(asked: bool) -> list[dict] | None:
+    """With ``--store``, ``stored_provenance``; a store that cannot be read is ``StoreUnread``, named. None when not asked."""
+    if not asked:
+        return None
+    try:
+        return stored_provenance()
+    except Exception as e:  # noqa: BLE001 — asked for and not read: cannot run, named
+        raise StoreUnread(f"--store: the store cannot be read: {type(e).__name__}: {e}") from None
 
 
 def _unnamed(root: Path) -> str | None:

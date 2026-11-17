@@ -153,6 +153,15 @@ python tools/check_subject.py /path/to/your/instance/subjects/<id> --register /p
 It prints the same findings, each with its fix, and exits 0, 1 or 2 like the layout check. Add
 `--json` for the report as data, pinned by `harness/schemas/subject-check.schema.json`.
 
+A digest your `[verification]` declarations still list after its file changed is reported as matching no
+current file. Add `--store` to have the error name the file that digest was last recorded for (task-0342). The
+check then reads the store `KG_STORE` names, through a read handle, and names the load that recorded the digest.
+Each load keeps, beside the store's own data, the file each digest it read came from: the documents' Versions, a
+directory's files, and the code and suite an execution verification is compared against. When the next load
+wipes the store, it carries this forward for every digest a declaration still lists. If no load the store holds
+recorded the digest, the error says so. A store that cannot be read stops the check with exit 2. Without
+`--store`, the check opens no store and its report is as before.
+
 The register map's rows are checked against the register you name, with `--register` or with
 `KG_REGISTER`. If the register you name cannot be read (a typo in the path, or a folder that is not
 a register), the check stops with exit 2 and names the path; it never skips the register check
@@ -187,7 +196,7 @@ knowgov never misreads a file written for a newer one. The number goes in five p
   version = 1
   ```
 
-- **`code_map.toml` and `connectors.toml`**: each carries its own number, at the top of the file,
+- **`code_map.toml`, `connectors.toml` and `questions.toml`**: each carries its own number, at the top of the file,
   before any table:
 
   ```toml
@@ -350,6 +359,22 @@ Commit the new folder to your register like any other change. `tools/check_insta
 register's `metamodel/sources.toml` names, and `id_attribute`, when you give it, must be a
 non-empty string.
 
+**Who owns what is stale.** `harness/reconcile_reader.py` reads the landings back (task-0342). For each system under
+your register's `exports/`, it takes the newest dated folder, which holds every stale node still absent, and lists
+each stale node with its owning unit: the node's owner field, the unit's name and the approved `owns` links to it,
+as `register_impact` names them. It groups them by unit in `by_owner`, so each owner gets their own list. It also
+gives the folder each node was carried from, the system's own id for it where the landing recorded one, the
+`unknown_ids` and how many objects are `unregistered`:
+
+```bash
+KG_REGISTER=/path/to/your/instance/register python harness/reconcile_reader.py [--system aris] [--owner ORG-0002]
+```
+
+It reads the register's files only and writes nothing. A node the register no longer holds is listed with
+`in_register: false` and no owner. A landing with no `RECONCILE.json` reads `reconciled: false`. Exit 0 with the
+report; exit 2 for an unreadable register, an unknown system or unit, or a `RECONCILE.json` that is not JSON. The
+JSON is pinned by `harness/schemas/stale-nodes.schema.json`, and the MCP tool `stale_nodes` gives the same report.
+
 ## Tracing a code change to the knowledge
 
 ```bash
@@ -511,9 +536,12 @@ check fails naming `APP-0001`.
 
 **After a register update.** `gate_cli.py --register-previous DIR` reads what the update withdrew or retired against
 the checkout before it, and stales the statements of the keys resting on it. It does so again on every run it is
-passed, so an answer, an ingest or a review ruling cannot restore them while the option stays. The CI template does
-not pass it. Run it once when the update lands, then either re-map the key in `register_map.toml` to a live node, or,
-once the owner confirms the update, run the gate without it (advance your previous register to the new one).
+passed, so an answer, an ingest or a review ruling cannot restore them while the option stays. The CI template passes
+it only when you set `KG_GATE_REGISTER_PREVIOUS` (the GitHub action's `register-previous` input), and only to the
+`gate` step (task-0342). A relative path is read from the working directory. `KG_REGISTER_PREVIOUS` is the page's
+setting and the CI template never reads it, so an instance that sets it for the page does not re-stale keys on every
+CI run. Set the gate's setting for the run that lands the update. Then either re-map the key in `register_map.toml`
+to a live node, or, once the owner confirms the update, unset it (or advance your previous register to the new one).
 
 ## A register pull request read before approval
 
@@ -1382,17 +1410,18 @@ be read is left out of the list, and the page's log says why, while the others s
 An AI coding assistant can ask knowgov the gate's question itself, before it writes anything:
 *may I build on this?* It does so through MCP, the Model Context Protocol, a standard way for an
 assistant to call tools a local program offers. `harness/mcp_server.py` is that program. It offers
-seventeen tools, and all of them only read:
+twenty-two tools, and all of them only read:
 
 | Tool | What the assistant asks | What it gets back |
 |---|---|---|
-| `store_status` | What does the store hold? | the subject, the scenario loaded and when it was loaded (`loaded_at`), the task classes and their required keys, the date the server reads reviews on, and which knowgov the server runs (`knowgov`: its version, commit and distance from the release); one store serves every subject, so a scenario another subject loaded reads as none loaded, named in `held_by_other_subject`, and every tool that reads a scenario refuses until your subject's is loaded |
+| `store_status` | What does the store hold? | the subject, the scenario loaded, which version of it (`stage`: 1, or 2 once its change is applied) and when it was loaded (`loaded_at`), the task classes and their required keys, the date the server reads reviews on, and which knowgov the server runs (`knowgov`: its version, commit and distance from the release); one store serves every subject, so a scenario another subject loaded reads as none loaded, named in `held_by_other_subject`, and every tool that reads a scenario refuses until your subject's is loaded |
 | `gate_verdict` | May I build on the knowledge this task needs, or on these keys? | PROCEED, QUALIFIED or BLOCKED with the findings: the same report `gate_cli.py --no-load -f json` prints |
 | `three_valued_answer` | What is known about this one key? | asserted, documented absent, or unknown, with where each statement came from and who verified it; and any statement a document change invalidated, with `superseded_by` naming the verified or approved statement that replaced it (none: the old value no longer holds and nothing does yet) |
 | `evidence_bundle` | What exactly may I build on, and on what evidence? | the evidence bundle the governed arm reads, as text: the verdict and the policy, every required key's statements with their evidence, verifications, approvals and gaps, lapsed reviews, invalidated statements and what supersedes them, unchecked or flawed documents behind the keys, suspect derived outputs, and the documents the task names verbatim; for a task or for your own keys |
-| `register_impact` | What does retiring or changing this register node touch? | your register's own impact walk from the node (the register's tag and commit, the node, its children listed but not walked unless the assistant asks with `children`, which walks every approved descendant as the register's decision 0014 does, every edge with whether it was followed, what it reaches with each node's owning unit), and the keys your subject's `register_map.toml` places on the node or on what it reaches, each with its owner, its anchor and the node it came through; with `children`, the keys resting only on a descendant not followed are listed last, flagged `not_followed`; with a scenario loaded, each key's level, stale statements and suspect derived outputs as `gate_verdict` reports them for the task class the assistant names with `task` (`codegen` by default); while a run loads the store, refused where it would read those levels |
+| `register_impact` | What does retiring or changing this register node touch? | your register's own impact walk from the node (the register's tag and commit, the node, its children listed but not walked unless the assistant asks with `children`, which walks every approved descendant as the register's decision 0014 does, every edge with whether it was followed, what it reaches with each node's owning unit), and the keys your subject's `register_map.toml` places on the node or on what it reaches, each with its owner, its anchor and the node it came through; with `children`, the keys resting only on a descendant not followed are listed last, flagged `not_followed`; with a scenario loaded, each key's level, stale statements and suspect derived outputs as `gate_verdict` reports them for the task class the assistant names with `task` (`codegen` by default); when the walk takes no step from the node's kind (a capability on `thread`, an application on `realisers`, a unit on any walk), a `note` says so, since nothing reached then means nothing walked, not nothing resting on it; while a run loads the store, refused where it would read those levels |
 | `proposal_impact` | What would this proposed product, capability or journey touch, and what does it lack, before anyone approves it? | the proposal (new nodes with provisional ids, links, the register nodes it reuses as they are or changed, proposed exceptions) read by your register's own checker and walks as if approved, every proposed element marked `hypothetical` and nothing stored: placement findings (a forbidden synonym; a node in no tool yet), link candidates D1 to D4 each `authored` or `inferred` and never more than `proposed`, coverage by every rule the register's checker defines (C1 to C4 at v0.2.13) before and after with the new gaps, what each reused node reaches before and after, what each new node rests on, each reused node's keys as `register_impact` reads them, the new nodes left unmapped, and which unit must approve what; while a run loads the store, refused where it would read the reused nodes' levels. Its walkthrough is in `demo/README.md` |
 | `register_nodes` | Which register nodes are there, and what does this one sit under? | your register listed from its files, with no store: every node with its kind, name, state, owner and parent, filtered by taxonomy, kind, state, owning unit or parent (`null` for the top-level nodes), with the total and a limit; "what does ORG-x own" is this listing, since ownership is shown and never walked. With `node`, that node's lineage: every ancestor up to the root and its children with their states, named and never walked; for what rests on or implements a node, `register_impact` |
+| `stale_nodes` | Which register nodes has a system of record dropped, and who owns each? | your register's export landings, read from its files with no store: for each system under `exports/`, the newest landing and the stale nodes its `RECONCILE.json` names (a node stays stale until its id returns), each with its owning unit, the folder it was carried from and the system's own id for it; the carried ids your register lacks, how many objects no node carries, and the stale nodes by unit; filtered by `system` and by owning unit (`owner`); see "Who owns what is stale" |
 | `key_nodes` | Which register nodes does this knowledge key concern? | the rows of your subject's `register_map.toml` on the key, each with the register nodes it names (kind, name, state, owner), the row's owner, anchor and note; a key your subject knows with no row reads `mapped: false`, one it does not know is refused. Read from files, no store |
 | `code_path` | Which application is this code file, which keys does it cite, and what was it built from? | for a path under your `code_map.toml` root: the application or module the map assigns, the keys the file's `knowgov-keys:` header cites (an unknown one flagged), and the trace ledger's entry for it (derived id, commit, digest, its statement ids and keys, sorted, and its `state`: `current`, `drift` when the file changed since it was registered, or `missing`, as `trace.py check` reads it), and whether it is `suspect`, read from the store while the store holds your subject's scenario, else `unchecked`. Each part says `read` or `unchecked` with why: unchecked means not read, never empty. Read from files, and from the store for the ledger entry's `suspect` when it holds your subject |
 | `document_links` | Which register links cite this document? | the links of your register whose evidence cites the document (a path of your export manifest), each with the evidence anchor, the link's type, state and owner, and the nodes at both ends with their owning units: what the Browser's `register-cites` query shows, read from the register's files, no store |
@@ -1401,7 +1430,11 @@ seventeen tools, and all of them only read:
 | `document_statements` | What does this document say, and what is registered against it? | the statements the loaded scenario holds from a document (an artefact path; a folder by its path ending in `/`), each with its key, value, status, version and the document's fragments it rests on, and the derived outputs registered against it; the versions held, and with `version` only that one's; refused while a run loads the store |
 | `scenario_runs` | Which scenarios have been run, in which mode, and what did they show? | every scenario of your subject with its title and card line; what the record holds for it (deterministic results and the gate's verdict, the arms with how many runs and which model, the extra sources the subject declares); its runs newest first, each as its folder's `run.json` describes it (mode, model, as-of date, who started it, `page` or `mcp`, start, end, status, and the verdict of its results), or inferred, flagged `inferred`, for a folder from before `run.json`; the scenario the store holds and when it was loaded; and the run loading the store now, if any. Replay is not a run: it is the record shown, and nothing records it |
 | `scenario_result` | What did this record or this run show? | what the page's Replay shows for one source that `scenario_runs` lists (the record, an extra source, or a run): the gate's verdict and why, the date it read reviews on, every required key's level, and each arm's runs with its decision and oracle result. It reads that source's files, never the store, and says so: it is not what the store holds now |
-| `list_subjects` | Which subjects can I ask about? | every subject under `KG_SUBJECTS` by its id, the scenario the shared store holds for each, and which tools are store-backed; the one tool that takes no `subject` |
+| `list_subjects` | Which subjects can I ask about? | every subject under `KG_SUBJECTS` by its id, the scenario the shared store holds for each, and which tools are store-backed; with `who_knows` and `pending_questions`, one of the three tools that take no `subject` |
+| `who_knows` | Who knows about this node, this key or this code file? | for exactly one register node, key or code path under your `code_map.toml` root, read across every subject under `KG_SUBJECTS` from files, never the store: each handle whose attested evidence touches it, with its unit, roles, issued and withdrawn dates, its holder (the register's `person`, or null with why), and its evidence by kind: `answered` (a captured answer or "nobody knows"), `approved` or `rejected` (a review's ruling by the handle), `closed` (a review's close of a captured "nobody knows" gap) and `owns` (the handle's unit owns a node in scope). One hop, never a walk; nothing counted, ranked or scored. See *Who knows what*, below |
+| `pending_questions` | Which questions are open for me? | for an issued handle that may answer (not withdrawn, with the role `gives`), every item of the questionnaires your instance keeps for the handle's unit (or a review-due one addressed to it) that no capture has answered since the questionnaire was generated, with its question, what is known and whether its evidence is there; the items already answered, with the capture. See *Questions and the answer form*, below |
+| `question_evidence` | What is the evidence behind this question? | the evidence file your instance generated for the key, verbatim, with its digest; or why there is none |
+| `answer_link` | Give me the link to answer it | the prefilled GitHub issue-form URL for the key, with the verdict (one of the form's four) and the statement to edit in place; computed, nothing written: the person opens it and submits the issue under their own account |
 | `subject_check` | Would this subject I am scaffolding load, and do its keys match what its documents say? | the report `tools/check_subject.py` prints for the same files, made by that tool's own functions against your register: unknown tables and fields, a task with no scenario, a key that is not `entity\|predicate`, a `register_map.toml` row naming a node your register does not hold or an owner of none of its nodes, and what each document yields, with a *did you mean* for a required key no document yields. The assistant passes the proposed `subject.toml`, `register_map.toml`, `scenarios.toml` and the text of every document the manifest names (by the path the manifest gives, at most `../../` up from the subject folder). A proposed manifest that names a file outside that, by an absolute path or by climbing further, is refused before anything is read. The files exist only for the call, in a temporary folder removed afterwards; nothing is stored. A call carries at most 64 documents and 1 MB of text. It is for an assistant with no shell, such as Claude Desktop; in Claude Code, `tools/check_subject.py` on the branch does the same |
 
 While a run of your subject is loading the store (its `run.json` reads `running` and the page has
@@ -1492,18 +1525,19 @@ route is the one that works with the stack as it stands. For a stack on another 
 machine*, below. For a stack started under another project
 name (`docker compose -p knowgov-jef`, as the compose file's notes show), add the same `-p` after
 `docker compose`. To ask about another subject than the one the server started on, name it on the
-call: every tool but `list_subjects` takes `subject`, an id `list_subjects` names (below).
+call: every tool but `list_subjects`, `who_knows` and `pending_questions` takes `subject`, an id `list_subjects` names (below).
 
 ### One registration for every subject
 
 One registration of each server answers for every subject under `KG_SUBJECTS` (task-0157,
-decision-0013). Every tool of the reader but `list_subjects`, and every tool of `knowgov-runs`, takes an optional `subject`: the id
+decision-0013). Every tool of the reader but `list_subjects`, `who_knows` and `pending_questions` (which read across every subject), and every tool of `knowgov-runs`, takes an optional `subject`: the id
 in a subject's `subject.toml`, never a path, resolved under `KG_SUBJECTS` as the page resolves
 `?subject=`. A call that names none answers as before, for `KG_SUBJECT`. `list_subjects` names
 every subject, the scenario the shared store holds for each, and which tools are store-backed.
 
 - **Files-only tools** (`register_nodes`, `key_nodes`, `code_path`, `document_links`,
-  `subject_check`, `scenario_runs`, `scenario_result`) answer for any subject at once.
+  `subject_check`, `scenario_runs`, `scenario_result`, `who_knows`, `pending_questions`,
+  `question_evidence`, `answer_link`) answer for any subject at once.
 - **Store-backed tools** (`gate_verdict`, `three_valued_answer`, `evidence_bundle`, `store_status`,
   `held_keys`, `derived_outputs`, `document_statements`, and `register_impact` and
   `proposal_impact` for their keys' levels) answer only for the subject and scenario the store
@@ -1514,6 +1548,96 @@ every subject, the scenario the shared store holds for each, and which tools are
 - A call naming another subject runs in a short-lived child process for that subject, with the
   server's date: about 0.4 s a call on Neo4j, more on a file-backed rdflib store, which parses
   the file in each child.
+
+### Who knows what
+
+`who_knows` (decision-0047) finds the people behind your knowledge without reading TOML by hand. Ask it
+about one register node (`node`), one key (`key`) or one code file (`path`, relative to your
+`code_map.toml` root, the server's `KG_INSTANCE`). It answers in one hop, never a walk:
+
+- a node, and the keys whose `register_map.toml` rows name it;
+- a key, and the nodes its rows name;
+- a code file, its application from `code_map.toml`, and the keys its `knowgov-keys:` header cites.
+
+For each handle whose evidence touches that scope it lists:
+- the handle's unit, roles and dates, as `people/handles.toml` holds them;
+- what the handle did: `answered`, `approved`, `rejected`, `closed` or `owns`, each with its key or node, subject and date.
+
+It reads your subjects' capture folders and their `reviews/`, their register maps, your register and
+your code map. The answer is the same whichever store the server runs on.
+
+Some things it does not do:
+- A review file is read as written. Whether a load applied the ruling is `three_valued_answer`'s to say.
+- A close counts only for a gap a capture's "nobody knows" declared. A gap a document declares has no key
+  in its review file.
+- It counts, ranks, weights and scores nothing, and it never reads another organisation's register.
+
+**The holder.** Each handle's `holder` is the `person` your register records for it (ieam-register
+decision 0021). With none recorded, `holder` is null and `holder_why` says why.
+
+Under decision 0021 a handle is one person in one role, and who holds it is recorded, never
+anonymised. Serving holders through this tool is a use of personal data. Serve `who_knows` to your
+staff only once your organisation has recorded its basis for that use (ieam-register decision 0021
+§4: purpose, lawful basis, notice, retention, and your data-protection officer's approval). knowgov
+cannot check that the basis exists.
+
+The public register vendored under `demo/register` records no `person`, so every holder there reads null.
+
+### Questions and the answer form
+
+decision-0046 sends each question to a person as a prefilled link to a GitHub issue form. The person
+opens the issue themselves. Your instance's own reader then turns the submitted issues into an answered
+questionnaire that `capture.py ingest` takes, under the person's issued handle, never their login. Three
+tools let any MCP client walk a person through their questions without writing anything:
+
+1. `pending_questions` with their handle lists what is open for their unit.
+2. `question_evidence` shows one item's evidence.
+3. `answer_link` returns the link to submit, with their verdict and their statement filled in.
+
+Your instance names its questions and its form in `questions.toml` at its root, read from the server's
+`KG_INSTANCE`:
+
+```toml
+format = 1
+
+[questions]
+dir = "questions"                  # the questionnaires capture.py questionnaire and due wrote, kept here
+evidence = "questions/evidence"    # one file per question: <evidence>/<subject>/<key><suffix>
+suffix = ".md"                     # the key percent-encoded: quote|insurance -> quote%7Cinsurance.md
+
+[form]
+url = "https://github.com/YOUR-ORG/YOUR-INSTANCE/issues/new"
+template = ".github/ISSUE_TEMPLATE/answer.yml"
+title = "Answer: {key} ({subject})"                          # optional
+evidence_base = "https://github.com/YOUR-ORG/YOUR-INSTANCE/blob/main/"   # optional
+
+[form.fields]          # each field of the form, by its id in the template
+key = "key"
+subject = "subject"
+scenario = "scenario"
+owner = "owner_unit"
+evidence = "evidence"
+verdict = "verdict"
+statement = "statement"
+note = "note"
+
+[form.verdicts]        # the form's four verdicts, by the option labels its dropdown lists
+right_as_stated = "Right as stated"
+right_with_correction = "Right with a correction"
+wrong = "Wrong"
+dont_know = "I don't know"
+```
+
+The settings, in short:
+- **Field ids and labels:** none is hard-coded. `answer_link` reads the template as text and refuses
+  one that does not name every field id (a line `id: <id>`) and every verdict label you configured.
+- **An open item:** an item of a questionnaire for the handle's unit (or a review-due one addressed
+  to the handle or its unit) with no capture on its key since the questionnaire's `generated_on`
+  date. The capture must come from that unit, or for a review-due item from the addressed handle.
+- **A key asked of two units:** `answer_link` needs `scenario` and `owner` to tell them apart.
+- **The URL's length:** at most 8,000 characters. Leave a long statement for the person to write in the form.
+- **The example:** `tools/fixtures/knowledge_probe` holds a worked example (a `questions.toml`, two
+  questionnaires, two evidence files and an issue form).
 
 ### Connecting Claude Desktop
 
@@ -2023,6 +2147,7 @@ input; the GitLab include's `KG_PUBLISH` and `KG_NO_LOAD` follow the rule above.
 | `KG_SCENARIO` | CI templates and hook | the scenario the gate loads | the subject's first | yes |
 | `KG_FAIL_ON` | CI templates and hook | the severity at or above which a gate exits 1 | each command's own | yes |
 | `KG_AS_OF` | CI templates and hook | the date review currency is read on: `YYYY-MM-DD`, `record` or `today`; see "Running the gates in your pipeline" | `today` | yes |
+| `KG_GATE_REGISTER_PREVIOUS` | CI templates and hook | the register checkout before an update, passed to the `gate` step alone as `--register-previous`; it stales the keys resting on what the update withdrew on every run it is set, so set it for the run that lands the update; see "After a register update". The GitHub action sets it from its `register-previous` input | none | yes |
 | `KG_BASE` | CI templates and hook | the git ref the changed files are taken against, a pull request's base | none: every file | yes |
 | `KG_COMMIT` | CI templates and hook | the commit being checked or registered; `trace-register` needs it | none | yes |
 | `KG_FILES` | CI templates and hook | the files `trace-register` registers, relative to `code_map.toml`'s root | the files changed since `KG_BASE` | yes |
@@ -2042,7 +2167,7 @@ input; the GitLab include's `KG_PUBLISH` and `KG_NO_LOAD` follow the rule above.
 | `KG_SUBJECT` | Subject and register | the subject root a command reads | in the CI templates, the instance's only subject | yes |
 | `KG_SUBJECTS` | Subject and register | the folder of subjects the page and both MCP servers list | `subjects/` of the checkout | yes |
 | `KG_REGISTER` | Subject and register | the register checkout every subject joins | in the CI templates and the hook, `<instance>/register`; for a subject outside the knowgov checkout, none: a command stops with exit 2 naming it; for the public subjects inside the checkout, `demo/register`, the public register | yes |
-| `KG_REGISTER_PREVIOUS` | Subject and register | the register checkout before an update, which the page's register view reads to show what the update withdrew; the gate's own option for it is `--register-previous` | none | yes |
+| `KG_REGISTER_PREVIOUS` | Subject and register | the register checkout before an update, which the page's register view reads to show what the update withdrew; the CI template never reads it: its gate's is `KG_GATE_REGISTER_PREVIOUS` | none | yes |
 | `KG_INSTANCE` | Subject and register | your instance's checkout, for the stack's compose file and the upward joins | none | yes |
 | `KG_PRELOAD_REPORT` | Subject and register | the pre-load report the load records per document version | `preload-report.json` at your instance's root | yes |
 | `KG_STORE` | Store | which store: `neo4j` or `rdflib` | `neo4j` | yes |

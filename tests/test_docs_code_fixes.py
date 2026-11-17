@@ -63,15 +63,16 @@ def test_the_page_says_what_a_deterministic_run_registers_and_what_arms_needs():
     assert "contained worker" in note and "--profile arms" in note, note
 
 
-# 4. The reader's instructions say which tools take `subject`.
+# 4. The reader's instructions say which tools take `subject` (task-0360, task-0361: who_knows and pending_questions read
+# across every subject, as list_subjects does, and take none either).
 
-def test_the_instructions_name_the_one_tool_without_subject():
+def test_the_instructions_name_the_tools_without_subject():
     import mcp_server
     text = mcp_server.INSTRUCTIONS
     assert "Every tool takes subject" not in text
     without = sorted(t["name"] for t in mcp_server.TOOLS if "subject" not in t["inputSchema"].get("properties", {}))
-    assert without == ["list_subjects"], without
-    assert "Every tool but list_subjects takes subject" in text
+    assert without == ["list_subjects", "pending_questions", "who_knows"] == sorted(mcp_server.ACROSS_SUBJECTS), without
+    assert "Every tool but list_subjects, who_knows and pending_questions takes subject" in text
 
 
 # 5. Two docstrings.

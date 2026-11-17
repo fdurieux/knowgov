@@ -102,6 +102,14 @@ jobs:
         run: |
           KG_STORE=rdflib python tools/check_round_trip.py --chain rdflib,rdflib
           KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_round_trip.py --chain rdflib,rdflib --expect-parts ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
+      - name: "One order (task-0369): CargoQuote whole and J-F (the subset on a pull request) run again on rdflib, every leaf of the two runs equal, list order included; every ordered read sorted on each scenario"
+        run: |
+          cd harness && KG_STORE=rdflib python run.py --deterministic --out ../runs/rdflib-again && cd ..
+          python tools/check_run_order.py runs/rdflib runs/rdflib-again
+          cd harness && KG_STORE=rdflib KG_SUBJECT=../subjects/jef_data_load python run.py --deterministic ${KG_JF_SCENARIOS:+--scenarios ${KG_JF_SCENARIOS//,/ }} --out ../runs/jef-again && cd ..
+          python tools/check_run_order.py runs/jef runs/jef-again ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
+          KG_STORE=rdflib python tools/check_read_order.py --stores rdflib,rdflib
+          KG_STORE=rdflib KG_SUBJECT=subjects/jef_data_load python tools/check_read_order.py --stores rdflib,rdflib ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
       - name: "Store generations (task-0141.06, decision-0014) on a file-backed rdflib store: SNAP-01 to SNAP-10"
         run: KG_STORE=rdflib python tools/check_snapshots.py --disposable
       - name: The outcomes, machine-readable, in the job's summary (task-0159)

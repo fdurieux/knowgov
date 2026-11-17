@@ -1,0 +1,139 @@
+{
+ "schema_version": 1,
+ "tool": "who_knows",
+ "asked": {
+  "path": "quote.py"
+ },
+ "nodes": [
+  "APP-0003"
+ ],
+ "keys": [
+  "quote|currency",
+  "rate|rounding"
+ ],
+ "code": {
+  "app": "APP-0003",
+  "cited": [
+   "quote|currency",
+   "rate|rounding"
+  ]
+ },
+ "subjects": [
+  "knowledge_probe"
+ ],
+ "unread": [],
+ "issued_list": "people/handles.toml",
+ "handles": [
+  {
+   "handle": "contractor-9",
+   "listed": false,
+   "unit": null,
+   "unit_name": null,
+   "roles": [],
+   "issued": null,
+   "withdrawn": null,
+   "holder": null,
+   "holder_why": "contractor-9 is not on the register's issued list (people/handles.toml)",
+   "evidence": [
+    {
+     "kind": "answered",
+     "key": "quote|currency",
+     "subject": "knowledge_probe",
+     "on": "2026-11-06",
+     "capture": "A:cap:2026-11-06-unassigned-contractor-9:1@capture",
+     "nobody_knows": false
+    }
+   ]
+  },
+  {
+   "handle": "employee-1",
+   "listed": true,
+   "unit": "ORG-0002",
+   "unit_name": "Architecture stewardship (stand-in)",
+   "roles": [
+    "gives"
+   ],
+   "issued": "2026-11-02",
+   "withdrawn": null,
+   "holder": null,
+   "holder_why": "people/handles.toml records no person for employee-1 (ieam-register decision 0021): its holder is in the organisation's directory, or not recorded",
+   "evidence": [
+    {
+     "kind": "answered",
+     "key": "quote|currency",
+     "subject": "knowledge_probe",
+     "on": "2026-11-05",
+     "capture": "A:cap:2026-11-05-ORG-0002-employee-1:1@capture",
+     "nobody_knows": false
+    },
+    {
+     "kind": "answered",
+     "key": "rate|rounding",
+     "subject": "knowledge_probe",
+     "on": "2026-11-05",
+     "capture": "A:cap:2026-11-05-ORG-0002-employee-1:unknown1@capture",
+     "nobody_knows": true
+    },
+    {
+     "kind": "owns",
+     "node": "APP-0003",
+     "via": "owner"
+    }
+   ]
+  },
+  {
+   "handle": "employee-2",
+   "listed": true,
+   "unit": "ORG-0002",
+   "unit_name": "Architecture stewardship (stand-in)",
+   "roles": [
+    "approves",
+    "gives"
+   ],
+   "issued": "2026-11-02",
+   "withdrawn": null,
+   "holder": null,
+   "holder_why": "people/handles.toml records no person for employee-2 (ieam-register decision 0021): its holder is in the organisation's directory, or not recorded",
+   "evidence": [
+    {
+     "kind": "approved",
+     "key": "quote|currency",
+     "subject": "knowledge_probe",
+     "on": "2026-11-07",
+     "review": "review:2026-11-07-employee-2",
+     "statement": "A:cap:2026-11-05-ORG-0002-employee-1:1@capture"
+    },
+    {
+     "kind": "owns",
+     "node": "APP-0003",
+     "via": "owner"
+    }
+   ]
+  },
+  {
+   "handle": "employee-3",
+   "listed": true,
+   "unit": "ORG-0001",
+   "unit_name": "CargoQuote product owner (stand-in)",
+   "roles": [
+    "approves",
+    "closes",
+    "gives"
+   ],
+   "issued": "2026-11-02",
+   "withdrawn": null,
+   "holder": null,
+   "holder_why": "people/handles.toml records no person for employee-3 (ieam-register decision 0021): its holder is in the organisation's directory, or not recorded",
+   "evidence": [
+    {
+     "kind": "closed",
+     "key": "rate|rounding",
+     "subject": "knowledge_probe",
+     "on": "2026-11-08",
+     "review": "review:2026-11-08-employee-3",
+     "gap": "gap:declared:capture:2026-11-05-ORG-0002-employee-1:1"
+    }
+   ]
+  }
+ ]
+}

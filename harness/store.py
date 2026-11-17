@@ -98,7 +98,8 @@ READS = frozenset({
     "gaps_with_concerns", "assertions_on_key", "assertion_rows", "supported_by", "candidate_for",
     "fragments_with_version", "requirements_verified_by", "register_census", "register_node_statements",
     "export_turtle", "describe", "saved_queries", "held_keys", "derived_outputs", "artefact_assertions", "held",
-    "act_findings", "derived_rows", "gap_brief", "lint_gaps", "attestations", "version_digests", "inputs"})
+    "act_findings", "derived_rows", "gap_brief", "lint_gaps", "attestations", "version_digests", "inputs",
+    "digest_provenance"})
 
 
 def corpus_digest(rows: list[dict]) -> str | None:
@@ -125,6 +126,41 @@ def inputs_digest(props: dict) -> dict:
             "configuration": configuration_of(props.get("input_configuration")),
             "code": configuration_of(props.get("input_code")),   # task-0341 (decision-0040 (a)): the same {file: sha256} form
             "preload": preload_of(props.get("input_preload"))}
+
+
+PROVENANCE_FIELDS = ("sha256", "file", "kind", "subject", "scenario", "version")   # task-0342 (C2-7): one row per digest
+
+
+def provenance_text(rows: list[dict]) -> str:
+    """The digest provenance (``Store.record_provenance``) as one property holds it: canonical JSON, a row per digest
+    with ``PROVENANCE_FIELDS``, by digest."""
+    return json.dumps([{k: r.get(k) for k in PROVENANCE_FIELDS} for r in sorted(rows, key=lambda r: r["sha256"])],
+                      sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def provenance_of(text) -> list[dict]:
+    """``provenance_text`` read back: the rows, by digest; [] when none was recorded or it does not read as rows."""
+    if not isinstance(text, str):
+        return []
+    try:
+        got = json.loads(text)
+    except ValueError:
+        return []
+    if not isinstance(got, list) or not all(isinstance(r, dict) and isinstance(r.get("sha256"), str) for r in got):
+        return []
+    return sorted(({k: r.get(k) for k in PROVENANCE_FIELDS} for r in got), key=lambda r: r["sha256"])
+
+
+def merge_provenance(carried: list[dict], held: list[dict], rows: list[dict], keep) -> list[dict]:
+    """What ``record_provenance`` keeps (task-0342, decision-0041 C2-7): ``carried``, the rows the store held before
+    its last wipe, only where their digest is in ``keep`` (the digests a ``[verification]`` declaration still lists);
+    then every row recorded since the wipe (``held``) and ``rows``, a later row of one digest replacing an earlier one.
+    By digest."""
+    keep = set(keep)
+    out = {r["sha256"]: r for r in carried if r["sha256"] in keep}
+    out.update({r["sha256"]: r for r in held})
+    out.update({r["sha256"]: {k: r.get(k) for k in PROVENANCE_FIELDS} for r in rows})
+    return [out[k] for k in sorted(out)]
 
 
 def configuration_text(files: dict[str, str]) -> str:
@@ -208,6 +244,12 @@ def by_id(rows: list[dict]) -> list[dict]:
     nothing) last. A store's collect() answers in its own traversal order, which a reload can move;
     what the gate prints and compares (the bundle, its report) must not."""
     return sorted(rows, key=lambda r: (r.get("id") is None, str(r.get("id"))))
+
+
+def by_fields(rows: list[dict], *fields: str) -> list[dict]:
+    """``rows`` in one total order on every adapter, by ``fields`` in turn, a missing value last in each (task-0369): for
+    a read whose id repeats across rows (an assertion on two vague fragments, a declaration about two entities)."""
+    return sorted(rows, key=lambda r: tuple(x for f in fields for x in (r.get(f) is None, str(r.get(f)))))
 
 
 def by_content(rows: list[dict]) -> list[dict]:
@@ -313,7 +355,8 @@ class Store:
         """Release the handle. Never publishes: a writer that did not commit leaves the store as it was."""
 
     def wipe(self) -> None:
-        """Delete everything this instance holds. The free Neo4j edition serves one database."""
+        """Delete everything this instance holds. The free Neo4j edition serves one database. The digest provenance it
+        held (``digest_provenance``) is read first and carried to the next ``record_provenance`` (task-0342)."""
         raise NotImplementedError
 
     def apply_constraints(self) -> list[dict]:
@@ -652,6 +695,21 @@ class Store:
         recorded, ``captures`` ``inputs_digest`` of the captures and reviews recorded, ``configuration`` the {file: sha256}
         map recorded (task-0335), ``code`` the same of the code and suite, ``preload`` the {path, sha256, why} recorded
         (task-0341); each None when the store holds none (a load before task-0320, task-0335 or task-0341)."""
+        raise NotImplementedError
+
+    def record_provenance(self, rows: list[dict], keep) -> None:
+        """Keep which file each digest a load read was recorded for (task-0342, decision-0041 C2-7), so a digest a
+        ``[verification]`` declaration still lists after its file changed can name the file it was last recorded for.
+        ``rows`` {sha256, file, kind, subject, scenario, version} (``PROVENANCE_FIELDS``): ``file`` the document or code
+        path under the subject root (a directory artefact's file as ``<artefact><relative>``), ``kind`` ``document`` or
+        ``code``, and the load's subject, scenario and version tag. Merged by ``merge_provenance``: what the store held
+        before its last ``wipe`` is carried only for the digests in ``keep``, and every row recorded since is kept, a
+        later row of one digest replacing the earlier. Kept on the tool's Agent node (``agent:harness``) as the property
+        ``provenance``, never a node of its own, so the record's census is as before. The gate never reads it."""
+        raise NotImplementedError
+
+    def digest_provenance(self) -> list[dict]:
+        """Every row ``record_provenance`` kept, by digest; [] when the store holds none (a load before task-0342)."""
         raise NotImplementedError
 
     def clear_act_findings(self) -> None:

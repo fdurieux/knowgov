@@ -1,0 +1,71 @@
+{
+ "schema_version": 1,
+ "tool": "pending_questions",
+ "handle": "employee-1",
+ "unit": "ORG-0002",
+ "unit_name": "Architecture stewardship (stand-in)",
+ "roles": [
+  "gives"
+ ],
+ "on": "2026-11-10",
+ "questions": "questions",
+ "items": [
+  {
+   "subject": "knowledge_probe",
+   "scenario": "S0",
+   "task": "codegen",
+   "owner": "ORG-0002",
+   "route": "owner",
+   "questionnaire": "questions/questionnaire-knowledge_probe-S0-ORG-0002.toml",
+   "generated_on": "2026-11-04",
+   "key": "quote|insurance",
+   "level": "absent",
+   "question": "For quote, what is the value of insurance? Give it as the documents would state it.",
+   "known": [],
+   "declared_gaps": [],
+   "closed_by": null,
+   "earlier": null,
+   "due": null,
+   "evidence": true
+  }
+ ],
+ "answered": [
+  {
+   "subject": "knowledge_probe",
+   "scenario": "S0",
+   "key": "quote|currency",
+   "questionnaire": "questions/questionnaire-knowledge_probe-S0-ORG-0002.toml",
+   "capture": "A:cap:2026-11-05-ORG-0002-employee-1:1@capture",
+   "from": "employee-1",
+   "on": "2026-11-05"
+  },
+  {
+   "subject": "knowledge_probe",
+   "scenario": "S0",
+   "key": "quote|validity_days",
+   "questionnaire": "questions/questionnaire-knowledge_probe-S0-ORG-0002.toml",
+   "capture": "A:cap:2026-11-05-ORG-0002-employee-1:2@capture",
+   "from": "employee-1",
+   "on": "2026-11-05"
+  },
+  {
+   "subject": "knowledge_probe",
+   "scenario": "S0",
+   "key": "rate|rounding",
+   "questionnaire": "questions/questionnaire-knowledge_probe-S0-ORG-0002.toml",
+   "capture": "A:cap:2026-11-05-ORG-0002-employee-1:unknown1@capture",
+   "from": "employee-1",
+   "on": "2026-11-05"
+  },
+  {
+   "subject": "knowledge_probe",
+   "scenario": "S0",
+   "key": "shipper|screened",
+   "questionnaire": "questions/questionnaire-knowledge_probe-S0-ORG-0002.toml",
+   "capture": "A:cap:2026-11-06-ORG-0002-employee-2:1@capture",
+   "from": "employee-2",
+   "on": "2026-11-06"
+  }
+ ],
+ "skipped": []
+}

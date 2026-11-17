@@ -1,0 +1,26 @@
+# A capture: knowledge a person gave, from an answered questionnaire (task-0009). Read by every load.
+# from, on and record are ieam-register decision 0008's fields. Never edited after ingest: a correction is a new capture.
+format = 1
+
+[capture]
+subject = "knowledge_probe"
+scenario = "S0"
+task = "codegen"
+owner = "ORG-0002"
+from = "employee-1"
+on = 2026-11-05
+record = "captures/2026-11-05-ORG-0002-employee-1.toml"
+
+[[answer]]
+key = "quote|currency"
+value = "EUR"
+note = ""
+
+[[answer]]
+key = "quote|validity_days"
+value = "30"
+note = ""
+
+[[unknown]]
+key = "rate|rounding"
+note = "the rule is not written down anywhere I know of"

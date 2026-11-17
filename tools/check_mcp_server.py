@@ -31,7 +31,8 @@ Then ask ``key_nodes`` for every key of the subject's register map, and, on the 
 for the reference code and the climb to a capability's ancestors, and ``document_links`` for the first row's
 anchored document (task-0143). Once, store-free: the file-only tools listed and answering alike over stdio and
 HTTP, ``register_impact walk=thread`` from a capability and a process equal on both and to the register's THREAD
-walk (task-0336), and the shipped managed allowlist admitting the server by name (task-0142, task-0143).
+walk (task-0336), the capability's with a ``note`` that the walk takes no step from it and the process's without, ``stale_nodes``
+equal on both and to ``reconcile_reader.report`` (task-0342), and the shipped managed allowlist admitting the server by name (task-0142, task-0143).
 Then ask ``held_keys``, ``derived_outputs`` and ``document_statements`` and require each equal to the port's
 read in-process through a read handle, the levels gate_verdict's for the held key set, and each used statement
 stale or superseded as the gate's stale statements read; at stage 2 too (task-0144).
@@ -39,13 +40,19 @@ Then ask ``scenario_runs`` and require the subject's scenarios in order, the hel
 ``store_status``'s ``loaded_at``, the record's D6 verdict for it, and no run in progress (task-0128);
 and ``scenario_result`` on the record with that verdict, read from files (task-0129).
 The same process also answers ``server/discover`` and a stateless (2026-07-28) ``gate_verdict``,
-which must equal the handshake's (task-0079).
+which must equal the handshake's (task-0079); ``store_status`` names stage 1, and 2 after the change (task-0342).
 Once, after the scenarios: ``subject_check`` listed over stdio and Streamable HTTP, and on doc-0018's probe
 (``tools/fixtures/subject_probe``) its report equal to ``tools/check_subject.py --json``'s, over stdio in both eras (task-0146); and the prompts
 ``new_subject`` and ``add_artefact`` listed and given over both transports (task-0148).
 Once, after the scenarios: a call naming another subject under ``KG_SUBJECTS`` equals the same call on a reader
 started on that subject, over stdio and HTTP; ``list_subjects`` names every subject; a store-backed call for it
 refuses naming the held subject and the run to start (task-0157, decision-0013 with A1).
+Once, store-free: ``who_knows`` on the knowledge probe (``tools/fixtures/knowledge_probe``, a reader started with it as
+``KG_SUBJECT``, ``KG_SUBJECTS`` and ``KG_INSTANCE``), for a node, a key and a code path, and ``pending_questions``,
+``question_evidence`` and ``answer_link`` on its questions and form, over stdio (both eras) and HTTP, equal to the probe's
+expected reports and who_knows' register field to the register's own, so the rdflib job and the Neo4j stack job hold one
+answer; anything but exactly one of node, key and path, or a verdict outside the form's four, refused -32602 (task-0360,
+task-0361, decisions 0046 and 0047).
 Every answer it reads, over either transport, conforms to the schema the tool's description names
 (``mcp_server.OUTPUT_SCHEMAS``, harness/schemas/; task-0172).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
@@ -198,6 +205,13 @@ def settled(stale: list[dict]) -> dict[str, list[str]]:
     return {k: v for k, v in out.items() if v}
 
 
+def stage_named(sc: str, status: dict, gate: dict) -> list[str]:
+    """task-0342 (B-X8): store_status names the stage the gate report's version names, v1 as 1 and v2 as 2."""
+    want = {"v1": 1, "v2": 2}.get(gate.get("version"))
+    return [] if want is not None and status.get("stage") == want else \
+        [f"{sc}: store_status names stage {status.get('stage')}, the gate's version {gate.get('version')}"]
+
+
 def check_stage2(sc: str, subject, failures: list[str]) -> None:
     """S6 after its change and re-verification: the server and the command agree, and both name
     what supersedes each invalidated statement as the record does."""
@@ -223,6 +237,7 @@ def check_stage2(sc: str, subject, failures: list[str]) -> None:
         corpus_held(f"{sc} stage 2", got, expected, failures)
         if got.get("version") == "v1":
             failures.append(f"{sc} stage 2: the store holds v1, not the change")
+        failures += stage_named(f"{sc} stage 2", client.call("store_status", {}), got)   # task-0342 (B-X8): the change held
         if not want or got.get("superseded_by") != want:
             failures.append(f"{sc} stage 2: superseded_by {got.get('superseded_by')}, the record's successors {want}")
         by_key = {x["key"]: x["id"] for x in rec["gate_after_reverification"]["stale"]}
@@ -711,7 +726,7 @@ def check_upward(client: "StdioClient", ex: dict | None, failures: list[str], la
 
 # doc-0020's hops: files only, no store; code_path files, and the store for the ledger leg's suspect when it holds the
 # subject (task-0303, decision-0035 B1)
-FILE_TOOLS = ("register_nodes", "key_nodes", "code_path", "document_links")
+FILE_TOOLS = ("register_nodes", "key_nodes", "code_path", "document_links", "stale_nodes")   # stale_nodes: task-0342
 STORE_TOOLS = ("held_keys", "derived_outputs", "document_statements")   # doc-0020 C3: the store's reads (task-0144)
 ALLOWLIST = ROOT / "instance" / "ci" / "claude" / "managed-mcp-allowlist.json"
 
@@ -761,6 +776,103 @@ def check_subjects(failures: list[str]) -> None:
           f"list_subjects lists {len(listed['subjects'])}; a store-backed call for it refused with the run to start")
 
 
+KNOWLEDGE = ROOT / "tools" / "fixtures" / "knowledge_probe"
+# (tool, arguments, the expected report's stem under the probe's expected/): task-0360's who_knows and task-0361's question tools
+KNOWLEDGE_CALLS = (("who_knows", {"node": "CAP-0002"}, "who_knows-node-CAP-0002"),
+                   ("who_knows", {"key": "shipper|screened"}, "who_knows-key-shipper_screened"),
+                   ("who_knows", {"path": "quote.py"}, "who_knows-path-quote_py"),
+                   ("pending_questions", {"handle": "employee-1"}, "pending_questions-employee-1"),
+                   ("pending_questions", {"handle": "employee-3"}, "pending_questions-employee-3"),
+                   ("question_evidence", {"key": "quote|insurance"}, "question_evidence-quote_insurance"),
+                   ("question_evidence", {"key": "quote|currency"}, "question_evidence-quote_currency"),
+                   ("answer_link", {"key": "quote|insurance", "verdict": "right_with_correction",
+                                    "statement": "A quote includes no insurance."}, "answer_link-quote_insurance"),
+                   ("answer_link", {"key": "rate|rounding", "verdict": "dont_know", "statement": "", "scenario": "S0",
+                                    "owner": "ORG-0001"}, "answer_link-rate_rounding"))
+KNOWLEDGE_REFUSED = (("who_knows", {}), ("who_knows", {"node": "CAP-0002", "key": "shipper|screened"}),
+                     ("who_knows", {"path": "quote.py", "subject": "knowledge_probe"}), ("who_knows", {"node": "not-a-node"}),
+                     ("pending_questions", {}), ("pending_questions", {"handle": "employee-1", "subject": "knowledge_probe"}),
+                     ("question_evidence", {}), ("answer_link", {"key": "quote|insurance", "verdict": "maybe", "statement": "x"}),
+                     ("answer_link", {"key": "quote|insurance", "verdict": "wrong"}))
+
+
+def knowledge_env() -> dict:
+    """The knowledge probe as a reader's subjects and instance (task-0360): its own subject only, so the reports are
+    the probe's whatever subject this check runs on; the date its record's (2026-11-10)."""
+    root = KNOWLEDGE / "subjects" / "knowledge_probe"
+    return {"KG_SUBJECT": str(root), "KG_SUBJECTS": str(root), "KG_INSTANCE": str(KNOWLEDGE), "KG_AS_OF": "record"}
+
+
+def knowledge_clients() -> list[tuple[str, "StdioClient"]]:
+    """A reader on stdio and one on HTTP, started on the knowledge probe (``knowledge_env``); this process's own
+    environment as it was after."""
+    keep = {k: os.environ.get(k) for k in knowledge_env()}
+    os.environ.update(knowledge_env())
+    try:
+        return [("stdio", StdioClient()), ("http", HttpClient())]
+    finally:
+        for k, v in keep.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+
+def knowledge_answers(name: str, client: "StdioClient", register: dict, failures: list[str]) -> int:
+    """Each of KNOWLEDGE_CALLS asked of ``client`` (and statelessly over stdio), against the probe's expected report;
+    who_knows' register field against the served register's own."""
+    n = 0
+    for tool, args, stem in KNOWLEDGE_CALLS:
+        want = json.loads((KNOWLEDGE / "expected" / f"{stem}.json").read_text(encoding="utf-8"))
+        sends = [("handshake", client.call(tool, args))]
+        if name == "stdio":
+            sends.append(("stateless", client.modern("tools/call", {"name": tool, "arguments": args})["result"].get("structuredContent")))
+        for era, got in sends:
+            n += 1
+            got = dict(got or {})
+            if tool == "who_knows" and got.pop("register", None) != register:
+                failures.append(f"{tool} {args} over {name} ({era}): its register is not the served register's")
+            if got != want:
+                diff = sorted(k for k in set(got) | set(want) if got.get(k) != want.get(k))
+                failures.append(f"{tool} {args} over {name} ({era}): differs from the probe's expected report on {diff}")
+    return n
+
+
+def check_knowledge_tools(failures: list[str]) -> None:
+    """task-0360 (decision-0047 point 2) and task-0361 (decision-0046 point 2): who_knows, pending_questions,
+    question_evidence and answer_link on the knowledge probe, over stdio in both eras and over HTTP, each equal to the
+    probe's expected report; files read on either store, so the rdflib and the Neo4j job hold the same answers. An
+    argument outside a tool's schema (anything but exactly one of who_knows' node, key and path; a verdict outside the
+    form's four) is -32602; a handle the register does not issue is the tool's refusal."""
+    sys.path.insert(0, str(HARNESS))
+    import register_impact as ri
+    register = ri.source(ri.register_root().resolve())
+    clients = knowledge_clients()
+    n = 0
+    try:
+        for name, client in clients:
+            n += knowledge_answers(name, client, register, failures)
+            for tool, bad in KNOWLEDGE_REFUSED:
+                err = client.request("tools/call", {"name": tool, "arguments": bad}).get("error") or {}
+                if err.get("code") != -32602:
+                    failures.append(f"{tool} {bad} over {name}: answered {err or 'a result'}, not -32602")
+            r = client.request("tools/call", {"name": "pending_questions", "arguments": {"handle": "contractor-9"}})["result"]
+            if not r.get("isError") or "not issued" not in r["content"][0]["text"]:
+                failures.append(f"pending_questions over {name}: a handle the register does not issue was not refused")
+    finally:
+        for _, client in clients:
+            client.close()
+    print(f"knowledge tools: {n} answer(s) on the knowledge probe (who_knows, pending_questions, question_evidence, "
+          "answer_link) over stdio (both eras) and HTTP, equal to its expected reports; schema refusals -32602, an unissued "
+          "handle refused")
+
+
+def check_files_only(failures: list[str], before: dict) -> None:
+    """The store-free checks after the scenarios, each followed by the census: subject_check (task-0146) and the knowledge
+    tools (task-0360, task-0361) answer from files and leave the store as it was."""
+    for label, check in (("subject_check", check_subject_tool), ("the knowledge tools", check_knowledge_tools)):
+        check(failures)
+        if census() != before:
+            failures.append(f"{label}: the store changed while the reader answered from files")
+
+
 def check_transports(failures: list[str], ex: dict | None = None) -> None:
     """doc-0020's tools served by the knowgov server on both transports (task-0142, task-0143), and an unknown
     argument or a non-string tool name refused with -32602 on both (task-0200): tools/list over
@@ -771,6 +883,8 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
     calls = [("register_nodes", {"taxonomy": "capabilities"}), ("register_nodes", {"node": "CAP-0002"})]
     calls += [("key_nodes", {"key": key})] if key else []
     calls += [("code_path", {"path": ex["file"] if ex else "reference_impl.py"})]
+    calls += [("stale_nodes", {})]   # task-0342 (decision-0041 C5-1): the register's landings with their owners
+    stale_at = len(calls) - 1
     thread = thread_starts()   # task-0336 (decision-0039 §3.3): the thread walk from a capability and from a process
     calls += [("register_impact", {"node": n, "walk": "thread"}) for n in thread]
     answers = {}
@@ -787,7 +901,9 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
             for params in ({"name": "gate_verdict", "arguments": {"senario": "S4"}}, {"name": ["gate_verdict"]},
                            {"name": "gate_verdict", "arguments": {"keys": ["nonsense"]}},
                            {"name": "evidence_bundle", "arguments": {"keys": ["thing\u200b|property"]}},
-                           {"name": "gate_verdict", "arguments": {"keys": ["thing\u202e|property"]}}):   # task-0297: RLO
+                           {"name": "gate_verdict", "arguments": {"keys": ["thing\u202e|property"]}},   # task-0297: RLO
+                           {"name": "stale_nodes", "arguments": {"systen": "aris"}},   # task-0342: a new tool's schema
+                           {"name": "stale_nodes", "arguments": {"owner": "the owner"}}):
                 err = client.request("tools/call", params).get("error") or {}
                 if err.get("code") != -32602:
                     failures.append(f"{name}: tools/call {params} answered {err or 'a result'}, not -32602 (M5, M6, task-0296)")
@@ -797,6 +913,7 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
     if answers.get("stdio") != answers.get("http"):
         failures.append("the file-only tools answer differently over stdio and HTTP")
     check_thread(answers.get("stdio", [])[-len(thread):] if thread else [], thread, failures)
+    check_stale(answers.get("stdio", [None] * len(calls))[stale_at], failures)
     allowed = {x.get("serverName") for x in json.loads(ALLOWLIST.read_text(encoding="utf-8")).get("allowedMcpServers", [])}
     sys.path.insert(0, str(HARNESS))
     import mcp_server
@@ -804,6 +921,27 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
         failures.append(f"{ALLOWLIST.name} admits {sorted(allowed)}, not the server {mcp_server.SERVER['name']}")
     print(f"transports: {', '.join((*FILE_TOOLS, *STORE_TOOLS))} listed over stdio and HTTP, {len(calls)} call(s) equal on both; "
           f"{ALLOWLIST.name} admits {mcp_server.SERVER['name']}")
+
+
+def check_stale(got: dict | None, failures: list[str]) -> None:
+    """task-0342 (decision-0041 C5-1): stale_nodes over the server is the reader's report in this process
+    (``reconcile_reader.report``) on the same register, every stale node of each system's newest landing with its
+    owning unit as register_impact names it."""
+    sys.path.insert(0, str(HARNESS))
+    import reconcile_reader as rr
+    import register_impact as ri
+    want = rr.report({})
+    if got != want:
+        failures.append("stale_nodes over the server differs from reconcile_reader.report on the same register")
+        return
+    root = ri.register_root()
+    reg = ri.load_tools(root)["register"].load_register(root)
+    for s in got["systems"]:
+        for x in s["stale_nodes"]:
+            if x["in_register"] and x["owning_unit"] != ri.owning_unit(reg, x["id"]):
+                failures.append(f"stale_nodes names {x['id']} owned by {x['owning_unit']}, register_impact {ri.owning_unit(reg, x['id'])}")
+    print(f"stale_nodes: {len(got['systems'])} system(s), {got['total']} stale node(s), "
+          f"{sum(1 for s in got['systems'] if s['reconciled'])} landing(s) reconciled, as reconcile_reader.py reports them")
 
 
 def thread_starts() -> list[str]:
@@ -836,8 +974,12 @@ def check_thread(got: list[dict], starts: list[str], failures: list[str]) -> Non
         keys = [k["key"] for k in ri.landed_rows(SUBJECT.register_map(), node, reached)]
         if ans["walk"] != "thread" or ans["edges"] != edges or ids != reached or [k["key"] for k in ans["keys"]] != keys:
             failures.append(f"register_impact walk=thread from {node} is not the register's THREAD walk or its keys")
+        stepless = reg["nodes"][node].get("_taxonomy") not in T["impact"].WALKS["thread"]   # task-0342 (B-X2, R-T1)
+        if stepless != bool(ans.get("note")):
+            failures.append(f"register_impact walk=thread from {node} gives note {ans.get('note')!r}, the THREAD walk "
+                            f"{'has no' if stepless else 'has a'} row for its kind")
         print(f"thread: register_impact walk=thread from {node} reaches {len(ids)} node(s) and lands {len(keys)} key(s), "
-              "as tools/impact.py --walk thread, equal over stdio and HTTP")
+              "as tools/impact.py --walk thread, equal over stdio and HTTP" + (", with a note that it takes no step" if ans.get("note") else ""))
 
 
 SINGLE_KEY_TOOLS = ("three_valued_answer", "derived_outputs", "key_nodes")   # task-0320 (decision-0038 N7)
@@ -1048,6 +1190,7 @@ def main(argv: list[str] | None = None) -> int:
             status = client.call("store_status", {})
             if status["scenario"] != sc:
                 failures.append(f"{sc}: store_status says the store holds {status['scenario']}")
+            failures += stage_named(sc, status, expected)
             rel = SUBJECT.scenario(sc).get("deterministic_record") or sc
             rec_path = SUBJECT.record_dir / rel / "deterministic.json"
             d5 = json.loads(rec_path.read_text(encoding="utf-8")).get("D5_three_valued") if rec_path.exists() else None
@@ -1078,9 +1221,7 @@ def main(argv: list[str] | None = None) -> int:
     check_subjects(failures)
     if census() != before:
         failures.append("subjects: the store changed while the reader answered for another subject")
-    check_subject_tool(failures)
-    if census() != before:
-        failures.append("subject_check: the store changed while the server checked a proposed subject")
+    check_files_only(failures, before)
     for f in failures:
         print("FAIL " + f, file=sys.stderr)
     print("MCP server: " + ("every check holds" if not failures else f"{len(failures)} failure(s)"))

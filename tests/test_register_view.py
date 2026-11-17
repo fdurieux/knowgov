@@ -387,6 +387,28 @@ def test_register_root_comes_from_the_environment_and_a_checkout_has_no_note():
     assert rv.REGISTER == (DEMO / "register").resolve() and rv.source_info()["kind"] == "copy"
 
 
+
+@on_cargo_quote
+def test_a_register_without_a_mapping_matrix_still_loads_and_says_so():
+    """task-0368: an instance's register without mapping/matrix.toml (its support status per tool, which the
+    register's own checker never reads) loads; the panel says it has no matrix instead of failing whole."""
+    import importlib
+    import os
+    import shutil
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "register"
+        shutil.copytree(DEMO / "register", root, ignore=shutil.ignore_patterns("SOURCE.md", "__pycache__"))
+        (root / "mapping" / "matrix.toml").unlink()
+        os.environ["KG_REGISTER"] = str(root)
+        try:
+            v = importlib.reload(register_view).build()
+            assert v["matrix"]["rows"] == 0 and v["matrix"]["sentence"] == "The register has no mapping matrix."
+            assert v["summary"]["nodes"] == 57, "the rest of the register reads as before"
+        finally:
+            del os.environ["KG_REGISTER"]
+            importlib.reload(register_view)
+
 # ---- task-0023, task-0044: the saved query register-impact is the walk impact.py makes
 # The Cypher's CALL (a) { } block is parsed (the step predicate, one term per taxonomy and direction,
 # read twice: in the quantified path that finds the expanded nodes and in the match of the edges met
