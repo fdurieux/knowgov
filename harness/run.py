@@ -63,6 +63,17 @@ def gate_summary(g: dict) -> dict:
     return {k: v for k, v in g.items() if k not in ("keys", "as_of", "attestation", "register_staled")}
 
 
+class CannotRun(Exception):
+    """A run this subject cannot make, its cause in one line (exit 2 through cli_exit)."""
+
+
+def record_task() -> str:
+    """The class the run's gate resolves (task-0368): the subject's record task, codegen only where declared."""
+    if SUBJECT.record_task is None:
+        raise CannotRun(f"subject {SUBJECT.id} declares no task class ([tasks.<class>] in subject.toml): the gate has no keys to resolve")
+    return SUBJECT.record_task
+
+
 def d5(s) -> dict:
     """The three-valued answer for the keys the subject names."""
     return {key: three_valued(s, key) for key in SUBJECT.three_valued}
@@ -82,7 +93,7 @@ def deterministic(sc: str, pv: dict, s, as_of=None) -> dict:
     rules = run_all(s, sc)
     reviews = load_reviews(s, sc)   # a person's rulings, after the rules (task-0037); none without captures/reviews/
     cen = census(s)
-    gate = resolve(s, "codegen", as_of)
+    gate = resolve(s, record_task(), as_of)
     out = {"scenario": sc, "store": s.name, "as_of": gate["as_of"], "D1_constraints": d1, "load": load, "verifications": ver, "rules": rules,
            "D2_census": cen, "D4_shacl": shacl.run(s), "D6_gate": gate_summary(gate),
            "gate_keys": {k: {"level": v["level"], "flags": v["flags"], "n": len(v["assertions"])} for k, v in gate["keys"].items()}}
@@ -101,9 +112,9 @@ def stage2(sc: str, cfg2: dict, pv: dict, s, derived_code: str | None, derived_i
     rested on the changed fragments, then record the re-verification of the named keys. The two
     steps are ``change.py``'s, which the gate command's ``--stage 2`` shares (task-0049)."""
     ch = apply_change(sc, cfg2, s, derived_code, derived_ids)
-    gate_blocked = resolve(s, "codegen", as_of)
+    gate_blocked = resolve(s, record_task(), as_of)
     rever = reverify(sc, cfg2, pv, s, ch["kit2"])
-    gate_after = resolve(s, "codegen", as_of)
+    gate_after = resolve(s, record_task(), as_of)
     stage2 = {"load_v2": ch["load_v2"], "D3_stale": ch["D3_stale"], "R-STRUCT_after": ch["R-STRUCT_after"],
               "gate_before_reverification": gate_summary(gate_blocked),
               "reverified": rever,
@@ -300,7 +311,7 @@ def _run_all(args, d, pv, as_of, out_root, summary) -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
         det, gate, kit = deterministic(sc, pv, d, as_of)   # one store, one scenario at a time
         cfg = SUBJECT.scenario(sc)
-        task = cfg.get("prompts", "task_codegen")
+        task = cfg.get("prompts", f"task_{record_task()}")
         runs = {}
         if cfg.get("stage2"):
             # stage 1 is the pristine graph; the derived artefact is an earlier scenario's governed

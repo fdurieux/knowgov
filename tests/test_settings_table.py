@@ -99,14 +99,16 @@ def test_each_row_has_a_group_and_says_contract_or_why_not():
     marked = {r[0].strip("`"): r[4] for r in _rows()}
     assert all(marked[n] == "yes" for n in adopter.CONTRACT_SETTINGS), "decision-0027's twenty are contracts"
     for n in ("KG_STORE", "KG_SUBJECT", "KG_REGISTER", "KG_BIND", "KG_MCP_TOKEN", "KG_PAGE_TOKEN", "KG_AS_OF",
-              "KG_PUBLISH", "KG_REPORT", "KG_ANNOTATE", "KG_CLOCK", "KG_TODAY", "KG_REGISTER_PREVIOUS", "KG_NOW"):
+              "KG_PUBLISH", "KG_REPORT", "KG_ANNOTATE", "KG_CLOCK", "KG_TODAY", "KG_REGISTER_PREVIOUS", "KG_NOW",
+              "KG_GATE_REGISTER_PREVIOUS"):
         assert marked[n] == "yes", n
     for n in ("KG_PORT_APP", "KG_PUBLIC_PORT", "KG_STORE_READ_ATTEMPTS", "KG_ALLOW_UNCONTAINED_EXECUTION",
               "KG_PORT_BOLT", "KG_OUTCOMES", "KG_BUILD_COMMIT", "KG_TRACEBACK", "KG_WORKER_MEMORY", "KG_MCP_MAX_BODY"):
         assert marked[n].startswith("no: "), n
     assert marked["KG_ARMS_EFFORT"] == "no: its values are the model API's", "decision-0034 choice 1's reason"
     # task-0275's 63 of 75, as the maintainer confirmed; decision-0034 choice 1 adds 30 rows, two of them contracts
-    assert sum(v == "yes" for v in marked.values()) == 65 and len(marked) == 105, (sum(v == "yes" for v in marked.values()), len(marked))
+    # task-0342 (decision-0041 B-N2) adds KG_GATE_REGISTER_PREVIOUS, a contract
+    assert sum(v == "yes" for v in marked.values()) == 66 and len(marked) == 106, (sum(v == "yes" for v in marked.values()), len(marked))
 
 
 def test_the_wording_says_the_table_decides():

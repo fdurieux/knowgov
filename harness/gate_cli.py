@@ -942,7 +942,7 @@ def _levels_known(levels: dict, where: str, field: str) -> None:
             raise CannotRun(f"--baseline {where}: {field}.{key} is {level!r}, not a level of the gate ({', '.join(LEVELS)})")
 
 
-RECORD_TASK = "codegen"   # the record's gate is the codegen task, read at stage 1 (task-0209)
+RECORD_TASK = "codegen"   # a record without its task named was the codegen task's, read at stage 1 (task-0209); a run names it (task-0368)
 # a deterministic.json by its whole structure, every record of both public subjects' (task-0286): never one key
 RECORD_KEYS = ("D1_constraints", "D2_census", "D4_shacl", "D6_gate", "gate_keys", "load", "rules", "scenario", "verifications")
 RECORD_GATE_KEYS = ("below_verified", "blocked_keys", "conflicts", "flagged", "task", "verdict", "why")
@@ -970,7 +970,7 @@ def _record_shape(data: dict, where) -> None:
 def check_record_baseline(data: dict, where: Path, *, record_dir: Path, scenario: str, task: str, stage: int) -> None:
     """A deterministic.json read as a baseline is this subject's record for the same run (task-0286): a file of
     the subject's own record tree with the record's whole structure (``_record_shape``), its ``scenario`` the run's,
-    its task the record's (its D6_gate's, codegen) and its stage 1 (or the one it names), every level one of the gate's. Each failure is CannotRun,
+    its task the record's (its D6_gate's, the subject's record task) and its stage 1 (or the one it names), every level one of the gate's. Each failure is CannotRun,
     exit 2, naming the file and what differs."""
     _record_shape(data, where)
     root = Path(record_dir).resolve()
@@ -992,8 +992,8 @@ def _baseline(arg: str, subject, scenario: str, task: str, stage: int = 1) -> tu
     if arg == "none":
         return None
     if arg == "record":
-        if task != "codegen":
-            raise CannotRun(f"the record's gate is the codegen task, not {task!r}")
+        if task != subject.record_task:
+            raise CannotRun(f"the record's gate is the {subject.record_task} task, not {task!r}")
         rel = subject.scenario(scenario).get("deterministic_record") or scenario
         p = subject.record_dir / rel / "deterministic.json"
         if not p.exists():
@@ -1308,14 +1308,14 @@ def held_version(st) -> str | None:
 def _change(st, subject, scenario: str, cfg2: dict, reverified: bool) -> dict:
     """Stage 2 on a store holding stage 1, as harness/run.py's ``stage2`` does it (harness/change.py):
     the derived output is the subject's record's (``[scenario.stage2.derived]``), registered with the
-    statements the stage-1 codegen gate served, as run.py registers it from its runs folder."""
+    statements the stage-1 gate of the record task served, as run.py registers it from its runs folder."""
     from change import apply_change, reverify, version_of
     from gate import resolve
     from load import pristine_values
     derived = cfg2.get("derived", {})
     code_path = subject.record_dir / derived.get("from_scenario", scenario) / derived.get("file", "run1_G.py")
     code = code_path.read_text(encoding="utf-8") if derived and code_path.exists() else None
-    ids = [a["id"] for v in resolve(st, "codegen")["keys"].values() for a in v["assertions"]] if code else []
+    ids = [a["id"] for v in resolve(st, subject.record_task)["keys"].values() for a in v["assertions"]] if code and subject.record_task else []
     ch = apply_change(scenario, cfg2, st, code, ids)
     rever = reverify(scenario, cfg2, pristine_values(), st, ch["kit2"]) if reverified else []
     return {"artefact": cfg2["artefact"], "version": version_of(cfg2),
@@ -1326,8 +1326,8 @@ def _change(st, subject, scenario: str, cfg2: dict, reverified: bool) -> dict:
 def _register_change(st, subject, scenario: str, change: dict, previous: Path) -> dict:
     """A register change on a store holding the scenario (task-0122, harness/register_change.py): the
     scenario's governed output in the subject's record (the stage-2 ``derived`` table of any scenario
-    that names this one ``from_scenario``) is registered as derived with the statements the codegen
-    gate served, as stage 2 registers it; then the keys resting on what the change withdrew are
+    that names this one ``from_scenario``) is registered as derived with the statements the record
+    task's gate served, as stage 2 registers it; then the keys resting on what the change withdrew are
     invalidated, each by its reason. A change that withdrew nothing writes nothing."""
     import register_change as rc
     landed = rc.resting(change, subject.register_map(), previous, rc.ri.register_root())
@@ -1341,7 +1341,7 @@ def _register_change(st, subject, scenario: str, change: dict, previous: Path) -
             path = subject.record_dir / d.get("from_scenario", "") / d.get("file", "run1_G.py")
             if d.get("from_scenario") == scenario and path.exists():
                 did = d.get("id", f"derived:{scenario}")
-                ids = [a["id"] for v in resolve(st, "codegen")["keys"].values() for a in v["assertions"]] if "codegen" in TASKS else []
+                ids = [a["id"] for v in resolve(st, subject.record_task)["keys"].values() for a in v["assertions"]] if subject.record_task in TASKS else []
                 st.register_derived(did, d.get("kind", "artefact"), sha256(path.read_text(encoding="utf-8")), ids)
                 break
     from load import now

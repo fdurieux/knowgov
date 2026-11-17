@@ -34,6 +34,11 @@
 #                   the working directory the script was called from; a run that exits 2 writes none
 #   KG_REGISTER     every gate: the register checkout (default: <instance>/register, the instance's own; a
 #                   relative path is read from the working directory); one that cannot be read exits 2
+#   KG_GATE_REGISTER_PREVIOUS   gate only: the register checkout before an update (--register-previous; task-0342,
+#                   decision-0041 B-N2), a relative path read from the working directory; the gate stales the keys
+#                   resting on what the update withdrew, deprecated or retired, again on every run it is set, so set
+#                   it for the run that lands the update and unset it once the owner has confirmed. Unset: none.
+#                   KG_REGISTER_PREVIOUS is the page's own and never read here
 #   KG_PRELOAD_REPORT   every gate: the pre-load report the load applies, relative to the instance (an absolute path as
 #                   given), since the core runs in the harness (task-0312)
 #   KG_STORE, KG_RDFLIB_FILE, KG_NEO4J_*   the store, as the harness reads them
@@ -187,6 +192,8 @@ gate)
     if flag KG_NO_LOAD "${KG_NO_LOAD:-}"; then set -- "$@" --no-load; fi
     if flag KG_PUBLISH "${KG_PUBLISH:-}"; then set -- "$@" --publish; fi
     [ -n "${KG_AS_OF:-}" ] && set -- "$@" --as-of "$KG_AS_OF"
+    # task-0342 (decision-0041 B-N2): the gate-only previous register; the page's KG_REGISTER_PREVIOUS keeps its single effect
+    [ -n "${KG_GATE_REGISTER_PREVIOUS:-}" ] && set -- "$@" --register-previous "$(abspath "$KG_GATE_REGISTER_PREVIOUS")"
     [ -n "$REPORT" ] && set -- "$@" -o "$REPORT"
     core gate_cli.py "$@"
     ;;

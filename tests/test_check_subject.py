@@ -163,7 +163,11 @@ def test_the_yield_opens_no_store():
     assert cp.returncode == 0, cp.stderr
     assert json.loads(cp.stdout.strip().splitlines()[-1]) == [], cp.stdout
     src = (ROOT / "tools" / "check_subject.py").read_text(encoding="utf-8")
-    assert "import store" not in src and "open_store" not in src
+    # task-0342 (C2-7): the store is read only with --store, through one read handle, in stored_provenance alone
+    assert "open_store" not in src and src.count("import store") == 1
+    fn = src[src.index("def stored_provenance"):]
+    assert "import store" in fn[:fn.index("\ndef ")] and "store.read(" in fn[:fn.index("\ndef ")]
+    assert src.count("return stored_provenance()") == 1 and "provenance=_provenance(args.store)" in src
 
 
 def _renewal(rows: str, keys: list[str], short: bool = True) -> Path:
