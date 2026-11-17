@@ -1,0 +1,66 @@
+# Questionnaire for ORG-0002 (Architecture stewardship (stand-in)): 5 of the 5 keys you own need an answer.
+# Subject knowledge_probe, scenario S0, task codegen, generated 2026-11-04 from the gate's result. Synthetic.
+
+[questionnaire]
+subject = "knowledge_probe"
+scenario = "S0"
+task = "codegen"
+owner = "ORG-0002"
+owner_name = "Architecture stewardship (stand-in)"
+generated_on = 2026-11-04
+keys_owned = 5
+open = 5
+
+[answered]
+from = ""
+on = ""
+
+[[item]]
+key = "quote|currency"
+level = "absent"
+known = []
+declared_gaps = []
+question = "For quote, what is the value of currency? Give it as the documents would state it."
+answer = ""
+nobody_knows = false
+note = ""
+
+[[item]]
+key = "quote|validity_days"
+level = "absent"
+known = []
+declared_gaps = []
+question = "For quote, what is the value of validity_days? Give it as the documents would state it."
+answer = ""
+nobody_knows = false
+note = ""
+
+[[item]]
+key = "quote|insurance"
+level = "absent"
+known = []
+declared_gaps = []
+question = "For quote, what is the value of insurance? Give it as the documents would state it."
+answer = ""
+nobody_knows = false
+note = ""
+
+[[item]]
+key = "shipper|screened"
+level = "absent"
+known = []
+declared_gaps = []
+question = "For shipper, what is the value of screened? Give it as the documents would state it."
+answer = ""
+nobody_knows = false
+note = ""
+
+[[item]]
+key = "rate|rounding"
+level = "absent"
+known = []
+declared_gaps = []
+question = "For rate, what is the value of rounding? Give it as the documents would state it."
+answer = ""
+nobody_knows = false
+note = ""

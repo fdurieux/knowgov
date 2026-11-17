@@ -1,0 +1,56 @@
+{
+ "schema_version": 1,
+ "tool": "answer_link",
+ "subject": "knowledge_probe",
+ "scenario": "S0",
+ "owner": "ORG-0001",
+ "key": "rate|rounding",
+ "questionnaire": "questions/questionnaire-knowledge_probe-S0-ORG-0001.toml",
+ "verdict": "dont_know",
+ "verdict_label": "I don't know",
+ "statement": "",
+ "template": ".github/ISSUE_TEMPLATE/answer.yml",
+ "url": "https://github.com/example-org/example-instance/issues/new?template=answer.yml&title=Answer%3A%20rate%7Crounding%20%28knowledge_probe%29&key=rate%7Crounding&subject=knowledge_probe&scenario=S0&owner_unit=ORG-0001&evidence=https%3A%2F%2Fgithub.com%2Fexample-org%2Fexample-instance%2Fblob%2Fmain%2Fquestions%2Fevidence%2Fknowledge_probe%2Frate%25257Crounding.md&verdict=I%20don%27t%20know",
+ "fields": [
+  {
+   "field": "key",
+   "id": "key",
+   "value": "rate|rounding"
+  },
+  {
+   "field": "subject",
+   "id": "subject",
+   "value": "knowledge_probe"
+  },
+  {
+   "field": "scenario",
+   "id": "scenario",
+   "value": "S0"
+  },
+  {
+   "field": "owner",
+   "id": "owner_unit",
+   "value": "ORG-0001"
+  },
+  {
+   "field": "evidence",
+   "id": "evidence",
+   "value": "https://github.com/example-org/example-instance/blob/main/questions/evidence/knowledge_probe/rate%257Crounding.md"
+  },
+  {
+   "field": "verdict",
+   "id": "verdict",
+   "value": "I don't know"
+  },
+  {
+   "field": "statement",
+   "id": "statement",
+   "value": ""
+  },
+  {
+   "field": "note",
+   "id": "note",
+   "value": ""
+  }
+ ]
+}

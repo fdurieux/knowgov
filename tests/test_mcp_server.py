@@ -169,7 +169,7 @@ def test_every_tool_listed_and_marked_read_only():
     assert [t["name"] for t in tools] == ["store_status", "gate_verdict", "three_valued_answer", "evidence_bundle", "register_impact",
                                           "proposal_impact", "scenario_runs", "scenario_result", "register_nodes", "stale_nodes",
                                           "key_nodes", "code_path", "document_links", "subject_check", "held_keys", "derived_outputs", "document_statements",
-                                          "who_knows", "list_subjects"]
+                                          "who_knows", "pending_questions", "question_evidence", "answer_link", "list_subjects"]
     for t in tools:
         a = t["annotations"]
         assert a["readOnlyHint"] is True and a["destructiveHint"] is False and a["openWorldHint"] is False, t["name"]

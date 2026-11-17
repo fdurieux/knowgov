@@ -1,0 +1,36 @@
+{
+ "schema_version": 1,
+ "tool": "pending_questions",
+ "handle": "employee-3",
+ "unit": "ORG-0001",
+ "unit_name": "CargoQuote product owner (stand-in)",
+ "roles": [
+  "approves",
+  "closes",
+  "gives"
+ ],
+ "on": "2026-11-10",
+ "questions": "questions",
+ "items": [
+  {
+   "subject": "knowledge_probe",
+   "scenario": "S0",
+   "task": "codegen",
+   "owner": "ORG-0001",
+   "route": "owner",
+   "questionnaire": "questions/questionnaire-knowledge_probe-S0-ORG-0001.toml",
+   "generated_on": "2026-11-04",
+   "key": "rate|rounding",
+   "level": "absent",
+   "question": "For rate, what is the value of rounding? Give it as the documents would state it.",
+   "known": [],
+   "declared_gaps": [],
+   "closed_by": null,
+   "earlier": null,
+   "due": null,
+   "evidence": true
+  }
+ ],
+ "answered": [],
+ "skipped": []
+}

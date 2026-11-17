@@ -1,0 +1,31 @@
+# The knowledge probe's questions and its answer form (task-0361, decision-0046): where the instance keeps the
+# questionnaires it sent and the evidence it generated for each question, and the GitHub issue form an answer is
+# submitted through. Synthetic: the form's repository is an example, never opened by a check.
+format = 1
+
+[questions]
+dir = "questions"
+evidence = "questions/evidence"
+suffix = ".md"
+
+[form]
+url = "https://github.com/example-org/example-instance/issues/new"
+template = ".github/ISSUE_TEMPLATE/answer.yml"
+title = "Answer: {key} ({subject})"
+evidence_base = "https://github.com/example-org/example-instance/blob/main/"
+
+[form.fields]
+key = "key"
+subject = "subject"
+scenario = "scenario"
+owner = "owner_unit"
+evidence = "evidence"
+verdict = "verdict"
+statement = "statement"
+note = "note"
+
+[form.verdicts]
+right_as_stated = "Right as stated"
+right_with_correction = "Right with a correction"
+wrong = "Wrong"
+dont_know = "I don't know"

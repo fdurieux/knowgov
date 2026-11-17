@@ -48,9 +48,11 @@ Once, after the scenarios: a call naming another subject under ``KG_SUBJECTS`` e
 started on that subject, over stdio and HTTP; ``list_subjects`` names every subject; a store-backed call for it
 refuses naming the held subject and the run to start (task-0157, decision-0013 with A1).
 Once, store-free: ``who_knows`` on the knowledge probe (``tools/fixtures/knowledge_probe``, a reader started with it as
-``KG_SUBJECT``, ``KG_SUBJECTS`` and ``KG_INSTANCE``), for a node, a key and a code path, over stdio (both eras) and HTTP,
-equal to the probe's expected reports and its register field to the register's own, so the rdflib job and the Neo4j
-stack job hold one answer; anything but exactly one of node, key and path refused -32602 (task-0360, decision-0047).
+``KG_SUBJECT``, ``KG_SUBJECTS`` and ``KG_INSTANCE``), for a node, a key and a code path, and ``pending_questions``,
+``question_evidence`` and ``answer_link`` on its questions and form, over stdio (both eras) and HTTP, equal to the probe's
+expected reports and who_knows' register field to the register's own, so the rdflib job and the Neo4j stack job hold one
+answer; anything but exactly one of node, key and path, or a verdict outside the form's four, refused -32602 (task-0360,
+task-0361, decisions 0046 and 0047).
 Every answer it reads, over either transport, conforms to the schema the tool's description names
 (``mcp_server.OUTPUT_SCHEMAS``, harness/schemas/; task-0172).
 Finally, prove the server wrote nothing: the store reads the same census before and after.
@@ -775,13 +777,28 @@ def check_subjects(failures: list[str]) -> None:
 
 
 KNOWLEDGE = ROOT / "tools" / "fixtures" / "knowledge_probe"
-WHO_KNOWS = (("node", "CAP-0002", "node-CAP-0002"), ("key", "shipper|screened", "key-shipper_screened"),
-             ("path", "quote.py", "path-quote_py"))
+# (tool, arguments, the expected report's stem under the probe's expected/): task-0360's who_knows and task-0361's question tools
+KNOWLEDGE_CALLS = (("who_knows", {"node": "CAP-0002"}, "who_knows-node-CAP-0002"),
+                   ("who_knows", {"key": "shipper|screened"}, "who_knows-key-shipper_screened"),
+                   ("who_knows", {"path": "quote.py"}, "who_knows-path-quote_py"),
+                   ("pending_questions", {"handle": "employee-1"}, "pending_questions-employee-1"),
+                   ("pending_questions", {"handle": "employee-3"}, "pending_questions-employee-3"),
+                   ("question_evidence", {"key": "quote|insurance"}, "question_evidence-quote_insurance"),
+                   ("question_evidence", {"key": "quote|currency"}, "question_evidence-quote_currency"),
+                   ("answer_link", {"key": "quote|insurance", "verdict": "right_with_correction",
+                                    "statement": "A quote includes no insurance."}, "answer_link-quote_insurance"),
+                   ("answer_link", {"key": "rate|rounding", "verdict": "dont_know", "statement": "", "scenario": "S0",
+                                    "owner": "ORG-0001"}, "answer_link-rate_rounding"))
+KNOWLEDGE_REFUSED = (("who_knows", {}), ("who_knows", {"node": "CAP-0002", "key": "shipper|screened"}),
+                     ("who_knows", {"path": "quote.py", "subject": "knowledge_probe"}), ("who_knows", {"node": "not-a-node"}),
+                     ("pending_questions", {}), ("pending_questions", {"handle": "employee-1", "subject": "knowledge_probe"}),
+                     ("question_evidence", {}), ("answer_link", {"key": "quote|insurance", "verdict": "maybe", "statement": "x"}),
+                     ("answer_link", {"key": "quote|insurance", "verdict": "wrong"}))
 
 
 def knowledge_env() -> dict:
     """The knowledge probe as a reader's subjects and instance (task-0360): its own subject only, so the reports are
-    the probe's whatever subject this check runs on."""
+    the probe's whatever subject this check runs on; the date its record's (2026-11-10)."""
     root = KNOWLEDGE / "subjects" / "knowledge_probe"
     return {"KG_SUBJECT": str(root), "KG_SUBJECTS": str(root), "KG_INSTANCE": str(KNOWLEDGE), "KG_AS_OF": "record"}
 
@@ -798,36 +815,32 @@ def knowledge_clients() -> list[tuple[str, "StdioClient"]]:
             os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
 
 
-def who_knows_answers(name: str, client: "StdioClient", register: dict, failures: list[str]) -> int:
-    """Each of WHO_KNOWS asked of ``client`` (and statelessly over stdio), against the probe's expected report."""
+def knowledge_answers(name: str, client: "StdioClient", register: dict, failures: list[str]) -> int:
+    """Each of KNOWLEDGE_CALLS asked of ``client`` (and statelessly over stdio), against the probe's expected report;
+    who_knows' register field against the served register's own."""
     n = 0
-    for which, value, stem in WHO_KNOWS:
-        want = json.loads((KNOWLEDGE / "expected" / f"who_knows-{stem}.json").read_text(encoding="utf-8"))
-        sends = [("handshake", client.call("who_knows", {which: value}))]
+    for tool, args, stem in KNOWLEDGE_CALLS:
+        want = json.loads((KNOWLEDGE / "expected" / f"{stem}.json").read_text(encoding="utf-8"))
+        sends = [("handshake", client.call(tool, args))]
         if name == "stdio":
-            sends.append(("stateless", client.modern("tools/call", {"name": "who_knows", "arguments": {which: value}})["result"].get("structuredContent")))
+            sends.append(("stateless", client.modern("tools/call", {"name": tool, "arguments": args})["result"].get("structuredContent")))
         for era, got in sends:
             n += 1
             got = dict(got or {})
-            if got.pop("register", None) != register or got != want:
-                diff = sorted(k for k in set(got) | set(want) if got.get(k) != want.get(k)) or ["register"]
-                failures.append(f"who_knows {which}={value} over {name} ({era}): differs from the probe's expected report on {diff}")
+            if tool == "who_knows" and got.pop("register", None) != register:
+                failures.append(f"{tool} {args} over {name} ({era}): its register is not the served register's")
+            if got != want:
+                diff = sorted(k for k in set(got) | set(want) if got.get(k) != want.get(k))
+                failures.append(f"{tool} {args} over {name} ({era}): differs from the probe's expected report on {diff}")
     return n
 
 
-def refused_32602(name: str, client: "StdioClient", tool: str, cases: list[dict], failures: list[str]) -> None:
-    """Each of ``cases`` sent to ``tool`` is an error -32602, never a result."""
-    for bad in cases:
-        err = client.request("tools/call", {"name": tool, "arguments": bad}).get("error") or {}
-        if err.get("code") != -32602:
-            failures.append(f"{tool} {bad} over {name}: answered {err or 'a result'}, not -32602")
-
-
-def check_who_knows(failures: list[str]) -> None:
-    """task-0360 (decision-0047 point 2): who_knows for a node, a key and a code path on the knowledge probe, over stdio in
-    both eras and over HTTP, each equal to the probe's expected report and its register field to the served register's
-    own; the same files read on either store, so the rdflib and the Neo4j job hold the same answers. Anything but
-    exactly one of node, key and path, or an argument outside the schema, is -32602."""
+def check_knowledge_tools(failures: list[str]) -> None:
+    """task-0360 (decision-0047 point 2) and task-0361 (decision-0046 point 2): who_knows, pending_questions,
+    question_evidence and answer_link on the knowledge probe, over stdio in both eras and over HTTP, each equal to the
+    probe's expected report; files read on either store, so the rdflib and the Neo4j job hold the same answers. An
+    argument outside a tool's schema (anything but exactly one of who_knows' node, key and path; a verdict outside the
+    form's four) is -32602; a handle the register does not issue is the tool's refusal."""
     sys.path.insert(0, str(HARNESS))
     import register_impact as ri
     register = ri.source(ri.register_root().resolve())
@@ -835,20 +848,26 @@ def check_who_knows(failures: list[str]) -> None:
     n = 0
     try:
         for name, client in clients:
-            n += who_knows_answers(name, client, register, failures)
-            refused_32602(name, client, "who_knows", [{}, {"node": "CAP-0002", "key": "shipper|screened"},
-                                                       {"path": "quote.py", "subject": "knowledge_probe"}, {"node": "not-a-node"}], failures)
+            n += knowledge_answers(name, client, register, failures)
+            for tool, bad in KNOWLEDGE_REFUSED:
+                err = client.request("tools/call", {"name": tool, "arguments": bad}).get("error") or {}
+                if err.get("code") != -32602:
+                    failures.append(f"{tool} {bad} over {name}: answered {err or 'a result'}, not -32602")
+            r = client.request("tools/call", {"name": "pending_questions", "arguments": {"handle": "contractor-9"}})["result"]
+            if not r.get("isError") or "not issued" not in r["content"][0]["text"]:
+                failures.append(f"pending_questions over {name}: a handle the register does not issue was not refused")
     finally:
         for _, client in clients:
             client.close()
-    print(f"who_knows: {n} answer(s) on the knowledge probe, a node, a key and a code path over stdio (both eras) and HTTP, "
-          "equal to its expected reports; anything but exactly one of node, key and path refused -32602")
+    print(f"knowledge tools: {n} answer(s) on the knowledge probe (who_knows, pending_questions, question_evidence, "
+          "answer_link) over stdio (both eras) and HTTP, equal to its expected reports; schema refusals -32602, an unissued "
+          "handle refused")
 
 
 def check_files_only(failures: list[str], before: dict) -> None:
-    """The store-free checks after the scenarios, each followed by the census: subject_check (task-0146) and who_knows
-    (task-0360) answer from files and leave the store as it was."""
-    for label, check in (("subject_check", check_subject_tool), ("who_knows", check_who_knows)):
+    """The store-free checks after the scenarios, each followed by the census: subject_check (task-0146) and the knowledge
+    tools (task-0360, task-0361) answer from files and leave the store as it was."""
+    for label, check in (("subject_check", check_subject_tool), ("the knowledge tools", check_knowledge_tools)):
         check(failures)
         if census() != before:
             failures.append(f"{label}: the store changed while the reader answered from files")

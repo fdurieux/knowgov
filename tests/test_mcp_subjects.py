@@ -31,7 +31,7 @@ OTHER = next(x["id"] for x in subject_ids.subjects() if x["id"] != SUBJECT.id)
 
 
 REQUIRED_SAMPLE = {"key": "P2|surcharge", "node": "CAP-0001", "scenario": "S1", "source": "record", "path": "a.py",
-                   "document": "docs/pricing.md", "subject_toml": ""}   # a well-typed value for each required argument
+                   "document": "docs/pricing.md", "subject_toml": "", "verdict": "wrong", "statement": ""}   # a well-typed value for each required argument
 
 
 def _text(r) -> str:
@@ -78,7 +78,7 @@ def test_every_tool_takes_subject_and_says_whether_it_is_store_backed():
             assert t["inputSchema"]["properties"]["subject"] == mcp_server.SUBJECT_ARG, t["name"]
         else:
             assert "subject" not in t["inputSchema"]["properties"], t["name"]
-    assert mcp_server.ACROSS_SUBJECTS == {"list_subjects", "who_knows"}
+    assert mcp_server.ACROSS_SUBJECTS == {"list_subjects", "who_knows", "pending_questions"}
     assert mcp_server.STORE_BACKED == {"store_status", "gate_verdict", "three_valued_answer", "evidence_bundle", "register_impact",
                                        "proposal_impact", "held_keys", "derived_outputs", "document_statements"}
     assert mcp_server.STORE_BACKED < names
