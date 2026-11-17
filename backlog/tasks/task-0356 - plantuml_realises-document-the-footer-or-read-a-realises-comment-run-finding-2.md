@@ -3,11 +3,11 @@ id: TASK-0356
 title: >-
   plantuml_realises: document the footer, or read a realises comment (run
   finding 2)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-16T04:37:00Z'
-updated_date: '2026-11-16T21:14:00Z'
+updated_date: '2026-11-17T09:04:00Z'
 labels:
   - finding
   - reverse-engineering
@@ -29,10 +29,10 @@ Placement: documenting the footer form and warning on a ' realises comment line 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 subjects/README.md shows the footer form plantuml_realises reads, with an example
-- [ ] #2 check_subject.py warns on a ' realises: comment line that the mapper does not read, naming the diagram
-- [ ] #3 A test holds the warning; the scored record is unchanged
-- [ ] #4 Reader extension (0.10.0): plantuml_realises also reads a ' realises: comment line, with the footer still read, recorded in subjects/README.md and the CHANGELOG under contract changes
+- [x] #1 subjects/README.md shows the footer form plantuml_realises reads, with an example
+- [x] #2 check_subject.py warns on a ' realises: comment line that the mapper does not read, naming the diagram
+- [x] #3 A test holds the warning; the scored record is unchanged
+- [x] #4 Reader extension (0.10.0): plantuml_realises also reads a ' realises: comment line, with the footer still read, recorded in subjects/README.md and the CHANGELOG under contract changes
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -45,4 +45,12 @@ Placement: documenting the footer form and warning on a ' realises comment line 
 
 <!-- SECTION:NOTES:BEGIN -->
 The maintainer, 2026-11-16: "Yes" to these joining 0.10.0 (decision-0047 point 4): the soak they waited for restarts with 0.10.0 anyway.
+
+Evidence (PR #579, merged 75ed913, whole green with stack): subjects/README.md shows the footer and the ' realises: comment forms with a PlantUML example. With #4 the mapper reads comment lines (_realises_lines; an id both name cited once, the footer's fragment and value unchanged), so #2's warning narrows, as the brief set, to a realises line the mapper reads past: one naming no id, or an id-shaped token with the document's prefix the pattern does not read; check_subject's citation warning names the diagram. tests/test_kit_mapper_findings.py holds the comment form, the footer unchanged and the warnings. The change moved no record: no public kit carries a realises comment, CargoQuote and J-F unchanged by it (J-F's re-record is task-0357's).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+plantuml_realises reads ' realises: comment lines beside the footer; check_subject warns only on a malformed realises line, naming the diagram; README shows both forms with an example. Merged in #579; no record moved by it.
+<!-- SECTION:FINAL_SUMMARY:END -->
