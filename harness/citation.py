@@ -3,16 +3,19 @@ a file, naming the keys the file rests on.
 
     # knowgov-keys: entity|rule, entity|limit          (Python)
     // knowgov-keys: entity|rule, entity|limit         (Java)
+    # knowgov-keys: entity|rule, entity|limit          (R)
 
 The marker is ``knowgov-keys:``, after the language's line-comment prefix and optional blanks; the
 keys are comma-separated, as the subject's keys name them (``entity|attribute``; a key holds no comma).
 Only the first HEAD_LINES lines are read, so a citation is a header and not a remark in the body;
 several citation lines add up, in order, without repeats. A citation line with no key is malformed.
 
-Two languages: Python, the language of the subjects' own code, and Java, the language most enterprise
-service code that consumes a register is written in. Java's ``//`` line comment is also Kotlin's,
-C#'s, Go's, JavaScript's and TypeScript's, so another of them is one more row in COMMENT, not another
-parser. A file whose suffix COMMENT does not hold has no citation to read (``None``, not ``[]``).
+Three languages: Python, the language of the subjects' own code; Java, the language most enterprise
+service code that consumes a register is written in; and R, a modelling lane's (task-0354), whose line
+comment is Python's ``#``. Java's ``//`` line comment is also Kotlin's, C#'s, Go's, JavaScript's and
+TypeScript's, so another of them is one more row in COMMENT, not another parser. The suffix is read
+case-insensitively, so ``.R`` is ``.r``. A file whose suffix COMMENT does not hold has no citation to
+read (``None``, not ``[]``); a covered file with no citation line cites none (``[]``).
 
 Standard library only; reads, never writes. ``harness/trace.py`` reads it (``register --cited`` and
 ``check``'s citation findings); what counts as a known key is the caller's.
@@ -24,7 +27,7 @@ from pathlib import Path
 
 MARK = "knowgov-keys:"
 HEAD_LINES = 30
-COMMENT = {".py": "#", ".java": "//"}
+COMMENT = {".py": "#", ".java": "//", ".r": "#"}   # suffixes in lower case: language() folds
 
 
 class Malformed(ValueError):

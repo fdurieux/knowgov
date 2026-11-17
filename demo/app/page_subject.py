@@ -71,7 +71,7 @@ class PageSubject:
         import task_policy   # task-0313: a task policy the gate refuses is left out and logged, never served to a run that exits 2
         for task_name, spec in s.tasks.items():
             task_policy.build(task_name, spec)
-        self.key_count: int = len(s.tasks.get("codegen", {}).get("keys", []))
+        self.key_count: int = len(s.tasks.get(s.record_task, {}).get("keys", []))   # the record task's (task-0368)
         # the register: how its links cite this subject's requirements
         self.req_anchor: str = s.register.get("requirement_anchor", "")
         self.req_doc_anchor: str = self.req_anchor.split(":", 1)[-1]                 # e.g. requirements.md#
