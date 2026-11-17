@@ -18,8 +18,8 @@
    "floor": 34
   },
   "demo/app/register_view.py::build": {
-   "value": 27,
-   "floor": 27
+   "value": 26,
+   "floor": 26
   },
   "demo/app/register_view.py::footprint": {
    "value": 58,

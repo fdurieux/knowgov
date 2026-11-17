@@ -892,11 +892,7 @@ def build(today: str | None = None) -> dict:
         exceptions.append({"id": e.get("id"), "rule": e.get("rule"), "scope": e.get("scope", []), "expires": str(e.get("expires")),
                            "rationale": e.get("rationale"), "approved": {k: str(v) for k, v in (e.get("approved") or {}).items()},
                            "sentence": C(f"Exception {e.get('id')} excuses {', '.join(e.get('scope', []))} from rule {e.get('rule')} until {e.get('expires')}.")})
-    matrix = T["register"].load_toml(REGISTER / "mapping" / "matrix.toml")
-    mrows = matrix.get("node_kind", []) + matrix.get("relationship_type", [])
-    unverified = sum(1 for r in mrows if r.get("status") == "unverified")
-    matrix_sentence = (C(f"The mapping matrix has {len(mrows)} rows, and every row is unverified.") if unverified == len(mrows)
-                       else C(f"The mapping matrix has {len(mrows)} rows, {unverified} of them unverified."))
+    matrix = _matrix(C)
     glossary = [{"term": t["term"], "meaning": t["meaning"], "forbidden": t.get("forbidden", [])} for t in reg["glossary"].get("term", [])]
     change = register_change()
     change["sentence"] = _change_sentence(change, C)
@@ -908,8 +904,22 @@ def build(today: str | None = None) -> dict:
             "subject_system": _ps().system, "slice": {"nodes": len(mine), "links": slice_links, "other_nodes": len(nodes) - len(mine), "other_systems": others},
             "impact_default": default_start,
             "nodes_by_taxonomy": by_tax, "links": links, "relationship_types": rel_types,
-            "exceptions": exceptions, "matrix": {"rows": len(mrows), "unverified": unverified, "sentence": matrix_sentence},
+            "exceptions": exceptions, "matrix": matrix,
             "glossary": glossary, "register_change": change, "text_registry": reg_sentences}
+
+
+def _matrix(C) -> dict:
+    """The mapping matrix, the register's support status per tool, which its own checker never reads: an
+    instance's register without one still loads, and the panel says it has none (task-0368)."""
+    path = REGISTER / "mapping" / "matrix.toml"
+    if not path.is_file():
+        return {"rows": 0, "unverified": 0, "sentence": C("The register has no mapping matrix.")}
+    matrix = _load_tools()["register"].load_toml(path)
+    rows = matrix.get("node_kind", []) + matrix.get("relationship_type", [])
+    unverified = sum(1 for r in rows if r.get("status") == "unverified")
+    sentence = (C(f"The mapping matrix has {len(rows)} rows, and every row is unverified.") if unverified == len(rows)
+                else C(f"The mapping matrix has {len(rows)} rows, {unverified} of them unverified."))
+    return {"rows": len(rows), "unverified": unverified, "sentence": sentence}
 
 
 _COMPAT = {"REQ_ANCHOR": "req_anchor", "REQ_DOC_ANCHOR": "req_doc_anchor", "SYSTEM": "system", "SYS": "sys", "REQ_ID": "req_id",
