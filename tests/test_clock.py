@@ -133,7 +133,8 @@ def test_every_check_tool_that_reads_the_date_pins_it():
     # a check that only reads the store in process (no load of reviews, no gate command) needs no pin;
     # name it here with why, so a new check is pinned by default
     in_process = {"check_saved_queries.py", "check_impact_cypher.py", "check_instance.py",
-                  "preload_check.py"}   # the last names the gate in its prose and runs no harness command
+                  "preload_check.py",   # names the gate in its prose and runs no harness command
+                  "check_run_order.py"}   # task-0369: compares two run folders' files, names run.py in its prose, runs nothing
     assert not [n for n in unpinned if n not in in_process], f"runs a command that reads the date without pinning it: {unpinned}"
 
 

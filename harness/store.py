@@ -246,6 +246,12 @@ def by_id(rows: list[dict]) -> list[dict]:
     return sorted(rows, key=lambda r: (r.get("id") is None, str(r.get("id"))))
 
 
+def by_fields(rows: list[dict], *fields: str) -> list[dict]:
+    """``rows`` in one total order on every adapter, by ``fields`` in turn, a missing value last in each (task-0369): for
+    a read whose id repeats across rows (an assertion on two vague fragments, a declaration about two entities)."""
+    return sorted(rows, key=lambda r: tuple(x for f in fields for x in (r.get(f) is None, str(r.get(f)))))
+
+
 def by_content(rows: list[dict]) -> list[dict]:
     """``rows`` without an id (a fragment) in one order on every adapter: by their fields."""
     import json

@@ -338,6 +338,16 @@ jobs:
         run: docker compose exec -T app python tools/check_transcript_route.py runs/transcript
       - name: One id per conflict on both stores (task-0223, decision-0020, doc-0030 S2), every CargoQuote scenario loaded fresh on Neo4j and on rdflib, S4's four conflicts named alike
         run: docker compose exec -T app python tools/check_conflict_ids.py --stores neo4j,rdflib --require S4
+      - name: "One order on Neo4j (task-0369): CargoQuote and J-F each run twice on Neo4j, every leaf of the two runs equal, list order included, and each matches its record; every ordered read sorted and the same on Neo4j and rdflib"
+        run: |
+          docker compose exec -T app sh -c 'rm -rf runs/order-cq-a runs/order-cq-b && python harness/run.py --deterministic --out runs/order-cq-a > /dev/null && python harness/run.py --deterministic --out runs/order-cq-b > /dev/null'
+          docker compose exec -T app python tools/check_run_order.py runs/order-cq-a runs/order-cq-b
+          docker compose exec -T app python demo/tools/compare_deterministic.py runs/order-cq-a
+          docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app sh -c 'rm -rf runs/order-jef-a runs/order-jef-b && python harness/run.py --deterministic --out runs/order-jef-a > /dev/null && python harness/run.py --deterministic --out runs/order-jef-b > /dev/null'
+          docker compose exec -T app python tools/check_run_order.py runs/order-jef-a runs/order-jef-b
+          docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python demo/tools/compare_deterministic.py runs/order-jef-a
+          docker compose exec -T app python tools/check_read_order.py --stores neo4j,rdflib
+          docker compose exec -T -e KG_SUBJECT=/repo/subjects/jef_data_load app python tools/check_read_order.py --stores neo4j,rdflib ${KG_JF_SCENARIOS:+--scenarios "$KG_JF_SCENARIOS"}
       - name: The store survives a round trip (task-0070), Neo4j to Turtle to rdflib and back to Neo4j, every CargoQuote scenario and J-F's (the subset on a pull request), the same gate reports and three-valued answers
         run: |
           docker compose exec -T app python tools/check_round_trip.py --chain neo4j,rdflib,neo4j

@@ -56,7 +56,7 @@ from urllib.parse import quote, unquote
 
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
 
-from store import (DEAD, DOCUMENT_BASES, DUPLICATE, Store, StoreBusy, StoreCorrupt, StoreFenced, StoreReadOnly, by_content, by_id, held_from, inputs_digest,
+from store import (DEAD, DOCUMENT_BASES, DUPLICATE, Store, StoreBusy, StoreCorrupt, StoreFenced, StoreReadOnly, by_content, by_fields, by_id, held_from, inputs_digest,
                    changed_of, merge_provenance, part_list, part_rows, provenance_of, provenance_text, stem, suspect_rows, suspicion)
 
 try:
@@ -634,7 +634,7 @@ class RdflibStore(Store):
             self.merge_edge(ap, "BY", h)
             self.set_props(x, {"status": "approved"})
             ids.append(self.nid(x))
-        return ids
+        return sorted(ids)   # by id (task-0369)
 
     def review_verifications(self) -> list[dict]:
         out = []
@@ -663,21 +663,21 @@ class RdflibStore(Store):
                 self.merge_edge(dv, "USED_ASSERTION", x)
 
     # ---- the rules ---------------------------------------------------------------------------
-    def structural_violations(self) -> list[dict]:
+    def structural_violations(self) -> list[dict]:   # each check's rows by id, the checks in this order (task-0369)
         v = []
-        for x in self.nodes("Assertion"):
+        for x in sorted(self.nodes("Assertion"), key=self.nid):
             if self.prop(x, "basis") in ("extracted", "authored") and not any(self.has_label(f, "Fragment") for f in self.out(x, "SUPPORTED_BY")):
                 v.append({"id": self.nid(x), "why": "no supporting fragment"})
-        for x in self.nodes("Assertion"):
+        for x in sorted(self.nodes("Assertion"), key=self.nid):
             if self.prop(x, "basis") in ("inferred", "assumed", "hypothesised"):
                 linked = any(self.has_label(t, "Gap") for t in self.out(x, "CANDIDATE_FOR", "CONCERNED_BY") + self.inn(x, "CANDIDATE_FOR", "CONCERNED_BY"))
                 concerned = any(self.has_label(s, "Gap") for s in self.inn(x, "CONCERNS"))
                 if not linked and not concerned:
                     v.append({"id": self.nid(x), "why": "inferred without a gap"})
-        for f in self.nodes("Fragment"):
+        for f in sorted(self.nodes("Fragment"), key=self.nid):
             if not any(self.has_label(s, "Version") for s in self.inn(f, "HAS_FRAGMENT")):
                 v.append({"id": self.nid(f), "why": "orphan fragment"})
-        for ver in self.nodes("Version"):
+        for ver in sorted(self.nodes("Version"), key=self.nid):
             if not any(self.has_label(s, "Artefact") for s in self.inn(ver, "HAS_VERSION")):
                 v.append({"id": self.nid(ver), "why": "orphan version"})
         return v
@@ -752,7 +752,7 @@ class RdflibStore(Store):
                     if row not in seen:
                         seen.add(row)
                         out.append({"id": row[0], "key": row[1], "fid": row[2], "text": row[3]})
-        return out
+        return by_fields(out, "id", "fid")   # by assertion id, then fragment id (task-0369)
 
     def add_ambiguous_gap(self, assertion_id, text, scenario) -> None:
         x = self.node(assertion_id, "Assertion")
@@ -763,7 +763,7 @@ class RdflibStore(Store):
         self._raised_by(g, scenario)
 
     def unresolved_assertions(self) -> list[dict]:
-        return [{"id": self.nid(x), "key": self.prop(x, "key"), "sym": self.prop(x, "raw_value")} for x in self.nodes("Assertion", unresolved=True)]
+        return by_id([{"id": self.nid(x), "key": self.prop(x, "key"), "sym": self.prop(x, "raw_value")} for x in self.nodes("Assertion", unresolved=True)])   # task-0369
 
     def declared_open(self, predicate) -> list[dict]:
         out = []
@@ -773,7 +773,7 @@ class RdflibStore(Store):
             for e in self.out(x, "ABOUT"):
                 if self.has_label(e, "Entity"):
                     out.append({"entity": self.nid(e), "id": self.nid(x)})
-        return out
+        return by_fields(out, "id", "entity")   # by assertion id, then entity (task-0369)
 
     def add_declared_gap(self, gid, text, entity, assertion_id, scenario, key_entity, key) -> None:
         e, x = self.node(entity, "Entity"), self.node(assertion_id, "Assertion")
@@ -805,7 +805,7 @@ class RdflibStore(Store):
         for e in self.nodes("Entity", kind="requirement"):
             if not any(self.has_label(x, "Assertion") and self.prop(x, "predicate") == predicate for x in self.inn(e, "ABOUT")):
                 out.append(self.nid(e))
-        return out
+        return sorted(out)   # by id (task-0369)
 
     def add_unverified_requirement_gap(self, req) -> None:
         e = self.node(req, "Entity")
@@ -815,8 +815,8 @@ class RdflibStore(Store):
         self.merge_edge(g, "CONCERNS", e)
 
     def silent_entities(self, kinds) -> list[str]:
-        return [self.nid(e) for e in self.nodes("Entity") if self.prop(e, "kind") in kinds
-                and not any(self.has_label(x, "Assertion") for x in self.inn(e, "ABOUT"))]
+        return sorted(self.nid(e) for e in self.nodes("Entity") if self.prop(e, "kind") in kinds
+                      and not any(self.has_label(x, "Assertion") for x in self.inn(e, "ABOUT")))   # by id (task-0369)
 
     def mark_unverified(self) -> int:
         n = 0
@@ -886,7 +886,8 @@ class RdflibStore(Store):
             if xs and any(x in inv_nodes for x in xs) and all(self.prop(x, "status") in DEAD for x in xs):
                 self.set_props(g, {"kind": "withdrawn", "declared": False, "withdrawn_by": new_tag})
                 withdrawn.append(self.nid(g))
-        return {"invalidated": inv, "kept": kept, **({"withdrawn": withdrawn} if withdrawn else {})}
+        inv = by_id([{**r, "derived": sorted(r["derived"])} for r in inv])   # by id (task-0369)
+        return {"invalidated": inv, "kept": by_id(kept), **({"withdrawn": withdrawn} if withdrawn else {})}
 
     def invalidate_keys(self, reasons, at=None) -> dict:
         inv = []
@@ -994,9 +995,9 @@ class RdflibStore(Store):
         return by_id(out)
 
     def derived_rows(self) -> list[dict]:
-        return [{"id": self.nid(d), "kind": self.prop(d, "kind"), "sha256": self.prop(d, "sha256"), "recorded": self.prop(d, "recorded"),
-                 "used": [{"id": self.nid(x), "status": self.prop(x, "status")} for x in self.out(d, "USED_ASSERTION") if self.has_label(x, "Assertion")]}
-                for d in self.nodes("Derived")]
+        return by_id([{"id": self.nid(d), "kind": self.prop(d, "kind"), "sha256": self.prop(d, "sha256"), "recorded": self.prop(d, "recorded"),
+                       "used": by_id([{"id": self.nid(x), "status": self.prop(x, "status")} for x in self.out(d, "USED_ASSERTION") if self.has_label(x, "Assertion")])}
+                      for d in self.nodes("Derived")])   # by id (task-0369)
 
     def suspect_derived(self) -> list[dict]:   # task-0199: by suspicion, the one rule, never the stored flag
         return suspect_rows(suspicion(self, self.derived_rows()))
@@ -1182,18 +1183,20 @@ class RdflibStore(Store):
         return out
 
     def assertions_on_key(self, key, statuses) -> list[dict]:
-        return [{"id": self.nid(x), "value": self.prop(x, "value"), "status": self.prop(x, "status"), "basis": self.prop(x, "basis")}
-                for x in self.nodes("Assertion", key=key) if self.prop(x, "status") in statuses]
+        return by_id([{"id": self.nid(x), "value": self.prop(x, "value"), "status": self.prop(x, "status"), "basis": self.prop(x, "basis")}
+                      for x in self.nodes("Assertion", key=key) if self.prop(x, "status") in statuses])   # by id (task-0369)
 
     # ---- the SHACL projection's reads --------------------------------------------------------
     def assertion_rows(self) -> list[dict]:
-        return [{"id": self.nid(x), "basis": self.prop(x, "basis"), "status": self.prop(x, "status")} for x in self.nodes("Assertion")]
+        return by_id([{"id": self.nid(x), "basis": self.prop(x, "basis"), "status": self.prop(x, "status")} for x in self.nodes("Assertion")])   # task-0369
 
     def supported_by(self) -> list[dict]:
-        return [{"x": self.nid(x), "f": self.nid(f)} for x in self.nodes("Assertion") for f in self.out(x, "SUPPORTED_BY") if self.has_label(f, "Fragment")]
+        return by_fields([{"x": self.nid(x), "f": self.nid(f)} for x in self.nodes("Assertion") for f in self.out(x, "SUPPORTED_BY") if self.has_label(f, "Fragment")],
+                         "x", "f")   # task-0369
 
     def candidate_for(self) -> list[dict]:
-        return [{"x": self.nid(x), "g": self.nid(g)} for x in self.nodes("Assertion") for g in self.out(x, "CANDIDATE_FOR") if self.has_label(g, "Gap")]
+        return by_fields([{"x": self.nid(x), "g": self.nid(g)} for x in self.nodes("Assertion") for g in self.out(x, "CANDIDATE_FOR") if self.has_label(g, "Gap")],
+                         "x", "g")   # task-0369
 
     def fragments_with_version(self) -> list[dict]:
         out = []
@@ -1203,11 +1206,12 @@ class RdflibStore(Store):
                 out += [{"f": self.nid(f), "v": self.nid(v)} for v in vs]
             else:
                 out.append({"f": self.nid(f), "v": None})
-        return out
+        return by_fields(out, "f", "v")   # task-0369
 
     def requirements_verified_by(self) -> list[dict]:
-        return [{"e": self.nid(e), "by": [self.prop(x, "value") for x in self.inn(e, "ABOUT") if self.has_label(x, "Assertion") and self.prop(x, "predicate") == "verified_by"]}
-                for e in self.nodes("Entity", kind="requirement")]
+        return by_fields([{"e": self.nid(e), "by": sorted((self.prop(x, "value") for x in self.inn(e, "ABOUT") if self.has_label(x, "Assertion")
+                                                           and self.prop(x, "predicate") == "verified_by"), key=str)}
+                          for e in self.nodes("Entity", kind="requirement")], "e")   # task-0369
 
     # ---- the register projection -------------------------------------------------------------
     def project_register(self, r: dict) -> None:
