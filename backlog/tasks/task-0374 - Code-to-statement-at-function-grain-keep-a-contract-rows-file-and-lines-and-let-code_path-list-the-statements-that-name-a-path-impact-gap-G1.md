@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-18T07:35:00Z'
-updated_date: '2026-11-18T07:36:00Z'
+updated_date: '2026-11-18T07:55:00Z'
 labels:
   - impact
   - reverse-engineering
@@ -33,3 +33,18 @@ Placement: a contract change (decision-0016), so 0.10.0 before its cut or 1.1.0 
 - [ ] #3 who_knows --path may scope by those statements (with the G5 task)
 - [ ] #4 a test on a public fixture; the scored records unchanged or re-recorded with every moved leaf accounted for; CHANGELOG line under Contract changes
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Order of build (the maintainer, 2026-11-18: "yes, add that note to task-0374; add the parsing layer as a note to task-0374: python parsing, R parsing, and Java parsing").
+
+First layer, no parsing: the kit's function names with their file and line ranges, as the contracts give them. The fragment also keeps the cited file's sha256 as the kit read it, so when the file's bytes differ the walk still answers and flags the ranges as possibly moved (a finding), never silently wrong.
+
+Second layer, optional, a parser per language that resolves a named function to its current line range, so a statement follows its function when the code above it moves, and drift can say which function changed rather than which file:
+- Python: the standard library's ast (FunctionDef, AsyncFunctionDef and ClassDef with lineno and end_lineno). No new dependency; first.
+- R: no parser in Python's standard library. Either R itself (utils::getParseData through Rscript, where the instance has R) or a tree-sitter grammar for R. Either one is a new dependency, so it needs a decision record before the build.
+- Java: no parser in Python's standard library either. Either a pure-Python parser such as javalang, or a tree-sitter grammar for Java, or the JDK's own tooling where a JDK is installed. Again a new dependency, so a decision record first.
+
+Each parser is used only when present. Where none is available the first layer's ranges and digest check stand, and the report says which layer answered. One tree-sitter route could serve R and Java together. The decision should weigh it against a per-language runtime: tree-sitter means one dependency with grammars pinned per language, while Rscript or a JDK means no Python dependency but needs that runtime in the image.
+<!-- SECTION:NOTES:END -->
