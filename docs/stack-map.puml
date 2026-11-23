@@ -1,0 +1,44 @@
+@startuml knowgov-stack-map
+!include <C4/C4_Context>
+' How the tools around knowgov fit together: who depends on whom, and what
+' actually moves along each link. Arrows point toward whoever receives.
+' The second field of each link is its kind: "code" is a dependency that is
+' installed and run; "vendored" is bytes copied at a tag and held by digest;
+' "convention" is an agreement with no code link; "surroundings" joins the
+' stack to something outside it. Companion to artefact-flow.puml.
+title How the tools around knowgov fit together
+footer owner: knowgov maintainer — sources: each repository's README and maintainer notes, read 2026-11-23
+
+System(knowgov_hub, "knowgov", "Governed knowledge for AI-assisted delivery: load, check, gate")
+System(pumllint_tool, "pumllint", "Conventions linter for PlantUML diagrams")
+System(aris_converter, "aris2puml", "Converts ARIS process models to PlantUML diagrams")
+System(id_register, "ieam-register", "Ids, relationships and approvals, kept in git")
+System(legible_site, "Legible", "The programme's site and systemic impact model")
+System(benchmark, "Settlement benchmark", "Private repository: synthetic tasks, a hidden oracle, pre-registered studies")
+System(agent_record, "AR2", "A record per AI agent: risk tier, autonomy level")
+
+System_Ext(systems_of_record, "Systems of record", "ARIS, Archi, the data model")
+System_Ext(aris_architect, "ARIS Architect", "Process models (EPC)")
+System_Ext(graph_store, "Graph store", "Neo4j, or rdflib in memory or a file")
+System_Ext(verdict_consumers, "Verdict consumers", "CI gate, AI assistant over MCP, coding hook")
+System_Ext(private_instance, "Private instance", "An organisation's own register, documents and owners' answers")
+
+Rel(pumllint_tool, knowgov_hub, "Supplies its parser and a pre-load linter to", "code")
+Rel(pumllint_tool, knowgov_hub, "Supplies the example subjects at a tag to", "vendored")
+Rel(id_register, knowgov_hub, "Supplies the register and its reconcile tool to", "vendored")
+Rel(legible_site, knowgov_hub, "Supplies the systemic model to", "vendored")
+Rel(legible_site, knowgov_hub, "Sets the artefact kinds and gate contract for", "convention")
+Rel(aris_converter, pumllint_tool, "Sends diagrams to lint and a trace manifest to", "code")
+Rel(id_register, pumllint_tool, "Lists its ids for trace coverage by", "convention")
+Rel(aris_converter, id_register, "Carries the CAP- and PROC- id prefixes of", "convention")
+Rel(benchmark, knowgov_hub, "Benchmarks the stack around", "convention")
+Rel(knowgov_hub, agent_record, "Has two agents recorded in a dry run of", "convention")
+
+Rel(systems_of_record, id_register, "Send dated exports to", "surroundings")
+Rel(aris_architect, aris_converter, "Exports EPCs as JSON or EPML to", "surroundings")
+Rel(knowgov_hub, graph_store, "Loads statements into and reads from", "surroundings")
+Rel(knowgov_hub, verdict_consumers, "Gives its verdict, exit 0, 1 or 2, to", "surroundings")
+Rel(knowgov_hub, private_instance, "Provides the instance layout for", "surroundings")
+
+SHOW_LEGEND()
+@enduml

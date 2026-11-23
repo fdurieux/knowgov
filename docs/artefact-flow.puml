@@ -1,0 +1,46 @@
+@startuml knowgov-artefact-flow
+' The path of one document, from the tool it was written in to the moment
+' someone builds on it. Each swimlane is the tool or person doing the step.
+' Linting does not block the load: its verdict is recorded against the
+' document's version and the gate reports what rests on a flawed document.
+' The five knowgov steps are a reader's grouping of the pipeline, not names
+' the code uses. Companion to stack-map.puml.
+title The path of one document through the knowgov stack
+footer owner: knowgov maintainer — sources: knowgov README and instance/kinds.toml, read 2026-11-23
+
+|Authoring tools|
+start
+repeat
+  :Write or change the document;
+  if (ARIS process model?) then (ARIS model)
+    |Aris to puml converter|
+    :Convert the model to PlantUML;
+  else (Any other document)
+  endif
+  |Pumllint and other linters|
+  :Lint the document before load;
+  |Knowgov|
+  :Load the document as sourced statements;
+  |Ieam register|
+  :Supply ids and owners;
+  |Knowgov|
+  :Join each statement to its register id;
+  |People and agents|
+  :Review and answer as knowledge owner;
+  |Knowgov|
+  :Verify statements by review or test run;
+  :Check rules for conflicts and stale statements;
+  :Gate the task on what it needs;
+  if (Knowledge present and verified?) then (Gate passes)
+    |People and agents|
+    :Build on the verified knowledge;
+    |Knowgov|
+    :Register the built outputs;
+  else (Gate fails)
+    |People and agents|
+    :Resolve the reported findings;
+  endif
+  |Authoring tools|
+repeat while (Source document changed?) is (Changed) not (Unchanged)
+stop
+@enduml
