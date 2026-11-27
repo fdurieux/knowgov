@@ -32,6 +32,15 @@ names that section with the version.
   The vendored checker accepts `person` where present, refuses one that is not a directory identifier and one
   person holding two live handles with the same unit and roles. `who_knows` already reads `person`; the synthetic
   handles carry none, so every holder stays null with `holder_why`. Nothing in the record moves.
+- The vendored register moves to ieam-register v0.2.15 (`756be61`, from v0.2.14; task-0376). It adds the register's
+  decisions 0022 to 0025: a process node points at its function definition, the register id riding on it by
+  `metamodel/sources.toml`'s `register_id_attribute`; an agent registry's usages stay in their registry and cite a
+  capability by id (`exports/agent_registry/<date>/`, the checker's `check_inbound`, `reconcile.py`'s `references`);
+  a name differing from the latest export is a warning, only for a system whose `export_names` is `concept`; and a
+  scheduled seam check. The register view reads two more warnings, both `inbound` on the register's own synthetic
+  agent-registry export, and its pinned date moves to 2026-11-27, that export's date; 0 errors. `seam_check.py` and
+  `inventory.py` stay outside the copied path set. `register_impact` and `proposal_impact` are unchanged on the
+  example instance; nothing in the record moves.
 
 ### Contract changes
 

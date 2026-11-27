@@ -1,9 +1,11 @@
 ---
 id: TASK-0376
 title: Re-vendor the register at ieam-register v0.2.15 (decisions 0022 to 0024)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-27T19:15:00Z'
+updated_date: '2026-11-27T19:42:29Z'
 labels:
   - 0.10.0
   - register

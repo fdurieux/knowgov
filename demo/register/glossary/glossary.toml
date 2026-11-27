@@ -56,3 +56,10 @@ meaning = "A check that an approved node of one kind has a link of one type, or 
 forbidden = ["completeness rule", "mandatory mapping"]
 owner = "ORG-0002"
 since = 2026-10-30
+
+[[term]]
+term = "inbound reference"
+meaning = "A record in another system of record that names a register node by its id, such as a usage in an agent registry naming the capability it serves; the register holds no node or link for it and reads it from that system's export (decision 0023)."
+forbidden = ["backlink", "inbound link"]
+owner = "ORG-0002"
+since = 2026-11-27

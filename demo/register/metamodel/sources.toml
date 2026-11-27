@@ -6,29 +6,52 @@
 [system.aris]
 description = "ARIS, the governed authoring repository for processes, journeys, products and operational publication"
 id_field = "aris_guid"
+# Decision 0024: what the export's [ids] name. "concept": the thing a node names, so check_register
+# compares the node's name with it; "document": a document nodes point into, so the name is unchecked.
+export_names = "concept"
 authoritative_for = ["processes", "journeys", "products"]
 export_route = "report script to JSON (aris2puml's contract); unverified in the target installation"
+# Decision 0022: what aris_guid names for a process node, and where ARIS carries the register id.
+# The attribute is a copy of the register's id, never minted in ARIS; an organisation's instance
+# may name another (knowgov connectors.toml id_attribute). Both unverified in the target installation.
+process_definition = "a process node's aris_guid is the GUID of one function definition (AML ObjDef, OT_FUNC), never an occurrence or a model; [source] diagram is the GUID of the EPC model of record"
+register_id_attribute = "AT_ID"
 
 [system.archi]
 description = "Archi, ArchiMate 3.2; authors capability and application views"
 id_field = "archi_id"
+export_names = "concept"
 authoritative_for = ["capabilities", "applications"]
 export_route = "ArchiMate Model Exchange File Format; element ids stable within one model file"
 
 [system.edm]
 description = "the enterprise data model repository"
 id_field = "edm_id"
+export_names = "concept"
 authoritative_for = ["information"]
 export_route = "unknown; format and id stability unverified"
 
 [system.kit]
 description = "the CargoQuote kit (pumllint kg_experiment/kit), synthetic content for this test case"
 id_field = "kit_path"
+export_names = "document"
 authoritative_for = ["capabilities", "products", "journeys", "processes", "applications", "information", "organisation"]
 export_route = "a MANIFEST of sha256 digests at a pumllint commit; the files themselves stay in pumllint"
 
 [system.jef_kit]
 description = "the J-F data-load kit (pumllint recreate_experiment/kit): the maintainer's own daily asset load, reverse-engineered into requirements, contracts, decision tables, diagrams and a tagged suite; the organisation's second subject (decision 0005); synthetic fixtures, no bank data"
 id_field = "kit_path"
+export_names = "document"
 authoritative_for = ["capabilities", "products", "journeys", "processes", "applications", "information", "organisation"]
 export_route = "a MANIFEST of sha256 digests at a pumllint commit; the files themselves stay in pumllint"
+
+[system.agent_registry]
+# Decision 0023: a system of record that authors no node here. Its usages cite a register id
+# (an inbound reference), read from its export by check_inbound and reported, never a node or a
+# link. An empty authoritative_for means no node may name it in [source].
+description = "an agent registry: the system of record for AI agents and their usages; a usage cites the capability it serves by its register id"
+id_field = "usage_id"
+export_names = "concept"
+authoritative_for = []
+cites = ["capabilities"]
+export_route = "a dated MANIFEST of the usages not retired and the register id each cites, delivered by the registry's owner; synthetic in this test case"

@@ -1,0 +1,40 @@
+{
+  "folder": "exports/agent_registry/2026-11-27",
+  "previous": "",
+  "source": "agent_registry",
+  "files": {
+    "added": [],
+    "updated": [],
+    "deleted": []
+  },
+  "ids": {
+    "added": [
+      "u-27b6fe",
+      "u-3f9c21",
+      "u-8a04d7",
+      "u-c51e90"
+    ],
+    "renamed": [],
+    "deleted": []
+  },
+  "stale_nodes": [],
+  "unregistered": [],
+  "references": {
+    "added": [
+      {
+        "usage_id": "u-3f9c21",
+        "cites": "CAP-0003"
+      },
+      {
+        "usage_id": "u-8a04d7",
+        "cites": "CAP-0005"
+      },
+      {
+        "usage_id": "u-c51e90",
+        "cites": "prov-17"
+      }
+    ],
+    "changed": [],
+    "removed": []
+  }
+}
