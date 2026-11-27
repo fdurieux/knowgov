@@ -50,7 +50,7 @@ def _rpc(calls: list[tuple[str, dict]], **env) -> list[dict]:
 
 
 def _text(m: dict) -> dict:
-    return json.loads(m["result"]["content"][0]["text"])
+    return json.loads(m["result"]["content"][-1]["text"])   # the answer: a notice may lead it (task-0365)
 
 
 def test_the_helper_counts_a_subjects_root_outside_the_checkout():

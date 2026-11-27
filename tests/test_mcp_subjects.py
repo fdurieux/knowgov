@@ -35,7 +35,7 @@ REQUIRED_SAMPLE = {"key": "P2|surcharge", "node": "CAP-0001", "scenario": "S1", 
 
 
 def _text(r) -> str:
-    return r["content"][0]["text"]
+    return r["content"][-1]["text"]   # the answer, or the error: a notice may lead an answer (task-0365)
 
 
 def test_a_subject_is_an_id_under_kg_subjects_never_a_path():

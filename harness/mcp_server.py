@@ -1503,6 +1503,8 @@ class Server:
         # its own table (knowgov-runs) or a child (route=None) answers it itself or not at all
         self.route = (route_to_child if table is None else None) if route == "default" else route
         self.max_response = max_response()   # task-0177: one tools/call result at most, refused whole above it
+        import settings
+        self.budget = settings.number("KG_MCP_CLIENT_BUDGET")   # task-0365: above it, an answer is marked large, never cut
 
     def handle(self, msg) -> dict | None:
         """One message's response. Whatever escapes the dispatch is an internal error, -32603, never a raised
@@ -1580,16 +1582,15 @@ class Server:
             except subject_ids.UnknownSubject as e:
                 return _result(id_, {"content": [{"type": "text", "text": str(e)}], "isError": True, **stamp})
             args = {k: v for k, v in args.items() if k != "subject"}
-            if not subject_ids.is_own(entry):
-                return _result(id_, {**self._capped(name, self.route(self.tools, entry, name, args)), **stamp})
+            if not subject_ids.is_own(entry):   # the child marks its own answer (task-0365); the cap is this process's
+                return _result(id_, stamped(self._capped(name, self.route(self.tools, entry, name, args)), stamp))
         try:
             data = getattr(self.tools, name)(args)
         except (ToolError, PermissionError) as e:
             return _result(id_, {"content": [{"type": "text", "text": str(e)}], "isError": True, **stamp})
         except Exception as e:  # noqa: BLE001 - a tool that cannot answer is an error result, never a dropped connection
             return _failure_result(id_, name, e, stamp)
-        return _result(id_, {**self._capped(name, {"content": [{"type": "text", "text": json.dumps(data, indent=1, ensure_ascii=False, default=str)}],
-                                                   "structuredContent": data, "isError": False}), **stamp})
+        return _result(id_, stamped(self._capped(name, answered(name, args, data, self.budget)), stamp))
 
     def _capped(self, name: str, result: dict) -> dict:
         """``result`` when its JSON fits KG_MCP_MAX_RESPONSE, else an error result naming the setting
@@ -1599,10 +1600,12 @@ class Server:
         if size <= self.max_response:
             return result
         import http_boundary
+        import result_marks
         why = http_boundary.over_cap("KG_MCP_MAX_RESPONSE", size, self.max_response)
         sys.stderr.write(f"mcp: {name}: {why}\n")
-        return {"content": [{"type": "text", "text": f"{name}: {why} (a limit, a narrower key set or verbatim false "
-                                                     "narrows most calls)"}], "isError": True}
+        m = result_marks.refused(name, size)   # task-0365: nothing returned, its size and the narrower call
+        return {"content": [{"type": "text", "text": f"{name}: {why}; nothing is returned. To ask narrowly: {m['narrower']}"}],
+                "isError": True, "_meta": {result_marks.META_CLIPPED: m}}
 
     def _modern(self, id_, method: str, params: dict) -> dict:
         """A self-contained 2026-07-28 request: nothing is read from an earlier one."""
@@ -1684,6 +1687,25 @@ def route_to_child(tools, entry: dict, name: str, args: dict) -> dict:
         detail = (got or {}).get("error", {}).get("message") if isinstance(got, dict) else why
         return {"content": [{"type": "text", "text": f"{name} could not answer for {entry['id']}: {detail}"}], "isError": True}
     return got
+
+
+def answered(name: str, args: dict, data, budget: int | None = None) -> dict:
+    """A tool's answer as a result: its JSON as text and structuredContent. When the tool returned less than it holds
+    (``result_marks.clipped``), or its text is over ``budget`` characters (``result_marks.large``; task-0365,
+    decision-0048), each mark in ``_meta`` and, in words, as a text item before the answer, which stays the last text
+    item, unchanged; an answer with no mark is the result it was before."""
+    import result_marks
+    text = json.dumps(data, indent=1, ensure_ascii=False, default=str)
+    marks = result_marks.marks(name, args, data, len(text), budget)
+    notes = [{"type": "text", "text": result_marks.notice(k, m)} for k, m in marks.items()]
+    out = {"content": [*notes, {"type": "text", "text": text}], "structuredContent": data, "isError": False}
+    return {**out, "_meta": marks} if marks else out
+
+
+def stamped(result: dict, stamp: dict) -> dict:
+    """``result`` with the era's stamp: its ``_meta`` merged into the result's, so a mark is never replaced by it."""
+    import result_marks
+    return result_marks.with_meta({**result, **{k: v for k, v in stamp.items() if k != "_meta"}}, stamp.get("_meta") or {})
 
 
 def serve_stdio(server: Server, inp=None, out=None) -> None:
@@ -1827,7 +1849,7 @@ def serve_http(server: Server, host: str, port: int, token: str | None) -> Threa
 
 
 MCP_SETTINGS = ("KG_SUBJECT_CALL_TIMEOUT", "KG_MCP_PORT", "KG_MCP_MAX_BODY", "KG_MCP_READ_TIMEOUT", "KG_MCP_IDLE_TIMEOUT",
-                "KG_MCP_MAX_CONNECTIONS")   # the numeric settings mcp_server reads (task-0264)
+                "KG_MCP_MAX_CONNECTIONS", "KG_MCP_CLIENT_BUDGET")   # the numeric settings mcp_server reads (task-0264; task-0365)
 
 
 def _port_flag(raw: str) -> int:

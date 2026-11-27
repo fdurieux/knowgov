@@ -228,7 +228,7 @@ def test_gate_verdict_is_the_commands_report_for_the_same_store():
                                  threshold="blocker", baseline=None, loaded=False, version="v1")
     assert want["as_of"] == DAY
     assert got["structuredContent"] == want
-    assert json.loads(got["content"][0]["text"]) == want
+    assert json.loads(got["content"][-1]["text"]) == want   # the answer is the last text item (task-0365)
     assert want["verdict"] == "BLOCKED" and want["exit_code"] == 1   # the first codegen key is absent
     assert [f["key"] for f in want["findings"] if f["severity"] == "blocker"] == [spec["keys"][0]]
 
@@ -972,5 +972,5 @@ def test_the_remote_sections_check_answers_over_stdio():
     assert len(out) == 2, out
     greeting, subjects = (json.loads(line) for line in out)
     assert greeting["result"]["serverInfo"]["name"] == "knowgov"
-    ids = {s["id"] for s in json.loads(subjects["result"]["content"][0]["text"])["subjects"]}
+    ids = {s["id"] for s in json.loads(subjects["result"]["content"][-1]["text"])["subjects"]}
     assert {"cargo_quote", "jef_data_load"} <= ids, ids
