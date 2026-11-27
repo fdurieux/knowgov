@@ -179,6 +179,9 @@ INSTRUCTIONS = ("knowgov answers whether an assistant may build on the knowledge
 
 import key_rule  # noqa: E402  (task-0296: the one entity|attribute rule)
 KEY_ITEM = {"type": "string", "pattern": key_rule.PATTERN, "description": key_rule.DESCRIPTION}   # every key and keys argument (task-0320, N7)
+# task-0364: gate_verdict's filter, by the gate's own levels and the gate report's finding kinds
+GATE_LEVELS = ["absent", "declared_gap", "disputed", "invalidated", "proposed", "validated", "verified", "approved"]
+FINDING_KINDS = ["key", "intended", "task", "stale", "suspect_derived", "lapsed", "act", "attestation", "lint", "preload"]
 
 TOOLS = [
     {"name": "store_status", "title": "What the store holds",
@@ -193,14 +196,27 @@ TOOLS = [
     {"name": "gate_verdict", "title": "May I build on this?",
      "description": "The gate's verdict (PROCEED, QUALIFIED or BLOCKED), its findings on the severity ladder and the "
                     "blocking keys, for a task class or for a key set of your own, on the scenario the store holds. "
-                    "The report is the one `gate_cli.py --no-load -f json` prints; exit_code 1 means do not proceed.",
+                    "The report is the one `gate_cli.py --no-load -f json` prints; exit_code 1 means do not proceed. "
+                    "For a large subject, call it first with summary true: the verdict, why, the bar, the identity fields and "
+                    "the counts by severity, finding kind, key level and owner unit, from the same report, no finding listed; "
+                    "then read the findings behind a count with filter (owner, level, kind, key or severity), which returns the "
+                    "report with only those findings and names how many matched of how many. Relay a count as the summary "
+                    "states it; never count from part of a report.",
      "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
          "scenario": {"type": "string", "description": "the scenario you expect the store to hold; refused if it holds another (default: whatever it holds)"},
          "task": {"type": "string", "description": "the task class whose required keys are resolved (default: codegen); with keys, its block levels and bar apply"},
          "keys": {"type": "array", "items": KEY_ITEM, "minItems": 1, "description": "resolve these entity|attribute keys instead of the task's"},
          "fail_on": {"type": "string", "enum": ["blocker", "critical", "major", "minor", "info"], "description": "the severity at or above which exit_code is 1 (default: blocker)"},
          "baseline": {"type": "string", "enum": ["none", "record"], "description": "record: exit_code 1 only on a regression against the subject's record (its record task only: codegen where declared, else its first class)"},
-         "as_of": {"type": "string", "description": "the date review currency is read on (decision-0005): the server's date (default: KG_AS_OF, else today, read once at start, as store_status reports it), today, record (the subject's pinned record date) or YYYY-MM-DD; a review past its key's review months reads validated"}}},
+         "as_of": {"type": "string", "description": "the date review currency is read on (decision-0005): the server's date (default: KG_AS_OF, else today, read once at start, as store_status reports it), today, record (the subject's pinned record date) or YYYY-MM-DD; a review past its key's review months reads validated"},
+         "summary": {"type": "boolean", "description": "true: the verdict, why, the bar, the identity fields and counts by severity, finding kind, key level and owner unit, no finding listed (harness/schemas/gate-summary.schema.json); the first call for a large subject (default: false, the full report)"},
+         "filter": {"type": "object", "additionalProperties": False,
+                    "description": "the full report with only the findings matching every field named; verdict, exit_code, counts and levels stay the whole report's, and its filter block names how many matched of how many",
+                    "properties": {"owner": {"type": ["string", "null"], "description": "the owner unit a finding names, as the summary's by_owner does; null for the findings no single unit answers for and those naming none"},
+                                   "level": {"type": "string", "enum": GATE_LEVELS, "description": "the finding's level"},
+                                   "kind": {"type": "string", "enum": FINDING_KINDS, "description": "the finding's kind"},
+                                   "key": {**KEY_ITEM, "description": "the key a finding names; " + key_rule.DESCRIPTION},
+                                   "severity": {"type": "string", "enum": ["blocker", "critical", "major", "minor", "info"], "description": "the finding's severity"}}}}},
      "annotations": READ_ONLY},
     {"name": "three_valued_answer", "title": "Is it asserted, documented absent, or unknown?",
      "description": "For one key: 'asserted' with its values, 'documented_absent' when the documents say there is none, "
@@ -580,11 +596,55 @@ def output_note(schema: str) -> str:
     return f" Output (structuredContent): harness/schemas/{schema}.schema.json."
 
 
+# task-0364: a tool whose output an argument selects names each schema; output_schema reads which one a call answers with
+ARG_SCHEMAS = {"gate_verdict": ("summary", "gate-summary")}
+
+
+def output_schema(name: str, args: dict | None = None) -> str:
+    """The schema a call of ``name`` with ``args`` answers under: the tool's own, or the one its selecting argument names."""
+    sel = ARG_SCHEMAS.get(name)
+    return sel[1] if sel and (args or {}).get(sel[0]) else OUTPUT_SCHEMAS[name]
+
+
 for _t in TOOLS:
     if _t["name"] not in ACROSS_SUBJECTS:
         _t["inputSchema"]["properties"]["subject"] = SUBJECT_ARG
     _t["_meta"] = {META_STORE: _t["name"] in STORE_BACKED}
+    if _t["name"] in ARG_SCHEMAS:   # task-0364: the selected schema named first, so the tool's own still ends the description
+        _t["description"] += f" With {ARG_SCHEMAS[_t['name']][0]} true, output (structuredContent): harness/schemas/{ARG_SCHEMAS[_t['name']][1]}.schema.json; else:"
     _t["description"] += output_note(OUTPUT_SCHEMAS[_t["name"]])
+
+
+def verdict_args(args: dict, subject, tasks: dict) -> tuple:
+    """gate_verdict's task, keys, fail_on and baseline, each refused as a ToolError when it cannot be read."""
+    import gate_cli
+    task = args.get("task", "codegen")   # a default only when absent (task-0281)
+    if task not in tasks:
+        raise ToolError(f"{subject.id}: no task {task!r}; the subject declares {sorted(tasks) or 'none'}")
+    keys = args.get("keys")
+    if keys is not None and (not isinstance(keys, list) or not keys or not all(isinstance(k, str) and k for k in keys)):
+        raise ToolError("keys must be a non-empty list of entity|attribute strings")
+    threshold = args.get("fail_on", "blocker")
+    if threshold not in gate_cli.SEVERITIES:
+        raise ToolError(f"fail_on must be one of {gate_cli.SEVERITIES}")
+    which = args.get("baseline", "none")
+    if which not in ("none", "record"):
+        raise ToolError("baseline must be none or record; a file path is not served")
+    if keys is not None and which == "record":
+        raise ToolError("the record is a baseline for a task class, not for a key set of your own")
+    return task, keys, threshold, which
+
+
+def verdict_filter(args: dict) -> dict | None:
+    """task-0364: gate_verdict's filter, None when none is named. An empty filter, or one beside summary, is refused: a summary counts the whole report."""
+    flt = args.get("filter")
+    if flt is None:
+        return None
+    if not flt:
+        raise ToolError("filter names none of owner, level, kind, key or severity; drop it for the whole report")
+    if args.get("summary"):
+        raise ToolError("summary counts the whole report and filter narrows its findings: name one, then the other")
+    return flt   # filter.key: held raw and in NFC before dispatch, -32602, and read in NFC (nfc_keys), as every key argument
 
 
 def manifest_file_error(e: BaseException) -> bool:
@@ -861,20 +921,8 @@ class Tools:
         import gate_cli
         from subject import SUBJECT
         from tasks import TASKS
-        task = args.get("task", "codegen")   # a default only when absent (task-0281)
-        if task not in TASKS:
-            raise ToolError(f"{SUBJECT.id}: no task {task!r}; the subject declares {sorted(TASKS) or 'none'}")
-        keys = args.get("keys")
-        if keys is not None and (not isinstance(keys, list) or not keys or not all(isinstance(k, str) and k for k in keys)):
-            raise ToolError("keys must be a non-empty list of entity|attribute strings")
-        threshold = args.get("fail_on", "blocker")
-        if threshold not in gate_cli.SEVERITIES:
-            raise ToolError(f"fail_on must be one of {gate_cli.SEVERITIES}")
-        which = args.get("baseline", "none")
-        if which not in ("none", "record"):
-            raise ToolError("baseline must be none or record; a file path is not served")
-        if keys is not None and which == "record":
-            raise ToolError("the record is a baseline for a task class, not for a key set of your own")
+        task, keys, threshold, which = verdict_args(args, SUBJECT, TASKS)
+        flt = verdict_filter(args)   # task-0364
         on = self._as_of(args)
         spec = dict(TASKS[task])
         name = task
@@ -890,9 +938,13 @@ class Tools:
                 base = gate_cli._baseline(which, SUBJECT, scenario, task)
             except gate_cli.CannotRun as e:
                 raise ToolError(str(e)) from e
-            return gate_cli.evaluate(st, subject=SUBJECT.id, scenario=scenario, task=name, spec=spec,
-                                     threshold=threshold, baseline=base, loaded=False,
-                                     version=gate_cli.held_version(st), as_of=on, route_task=task)
+            rep = gate_cli.evaluate(st, subject=SUBJECT.id, scenario=scenario, task=name, spec=spec,
+                                    threshold=threshold, baseline=base, loaded=False,
+                                    version=gate_cli.held_version(st), as_of=on, route_task=task)
+            import gate_summary   # task-0364: the one report, read as counts or narrowed to the findings named
+            if args.get("summary"):
+                return gate_summary.summary(rep, spec)
+            return gate_summary.filtered(rep, flt) if flt is not None else rep
         return self._with_store(go)
 
     def evidence_bundle(self, args: dict) -> dict:
@@ -1288,9 +1340,10 @@ KEY_ARGS = ("key", "keys")   # the arguments that name knowledge keys, on every 
 
 
 def nfc_keys(args):
-    """``args`` with each knowledge key in NFC (task-0301, decision-0034 Amendment A2): ``key`` and each item of
-    ``keys``. A value of another shape is left for the schema to refuse."""
-    if not isinstance(args, dict) or not any(k in args for k in KEY_ARGS):
+    """``args`` with each knowledge key in NFC (task-0301, decision-0034 Amendment A2): ``key``, each item of
+    ``keys`` and gate_verdict's ``filter.key`` (task-0364). A value of another shape is left for the schema to refuse."""
+    nested = isinstance(args, dict) and isinstance(args.get("filter"), dict) and "key" in args["filter"]
+    if not isinstance(args, dict) or not (nested or any(k in args for k in KEY_ARGS)):
         return args
     import key_rule
     out = dict(args)
@@ -1298,6 +1351,8 @@ def nfc_keys(args):
         out["key"] = key_rule.normalise(out["key"])
     if "keys" in out:
         out["keys"] = key_rule.normalise_all(out["keys"])
+    if nested:
+        out["filter"] = {**out["filter"], "key": key_rule.normalise(out["filter"]["key"])}
     return out
 
 
@@ -1317,6 +1372,8 @@ def _renamed(message: str | None, nfc, sent) -> str | None:
     if message is None or not isinstance(nfc, dict):
         return message
     pairs = [(nfc.get("key"), sent.get("key"))] + list(zip(nfc.get("keys") or [], sent.get("keys") or []))
+    if isinstance(nfc.get("filter"), dict) and isinstance(sent.get("filter"), dict):   # task-0364
+        pairs.append((nfc["filter"].get("key"), sent["filter"].get("key")))
     for new, old in pairs:
         if isinstance(new, str) and isinstance(old, str) and new != old:
             message = message.replace(repr(new), repr(old)).replace(new, old)

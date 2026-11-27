@@ -3,9 +3,10 @@ id: TASK-0364
 title: >-
   gate_verdict: a summary mode that returns counts by owner unit, level,
   severity and kind, the full findings only on request (0.10.0)
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-16T20:24:00Z'
+updated_date: '2026-11-27T19:37:03Z'
 labels:
   - contract
   - 0.10.0
@@ -29,3 +30,22 @@ The maintainer asked a Claude Desktop session over MCP for a private subject's g
 - [ ] #4 A finding filter (by owner, level, kind or key) returns only those findings, so an assistant can ask narrowly instead of reading the whole report
 - [ ] #5 CHANGELOG Unreleased under contract changes; the MCP reader docs name the summary as the first call for a large subject
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. harness/gate_summary.py: summary(report, spec) and filtered(report, filter), pure, over the one report gate_cli.evaluate builds.
+2. gate_verdict gains summary (boolean) and filter (owner, level, kind, key, severity) in its inputSchema. Summary selects harness/schemas/gate-summary.schema.json (mcp_server.output_schema). Filter keeps gate-report, with an optional filter block. With neither, the answer is the report unchanged.
+3. filter.key is NFC'd and held raw and in NFC, -32602, as every key argument is. An empty filter, or a filter beside summary, is refused.
+4. check_mcp_server recomputes every count from the full report on every scenario and stage 2, checks every owner and kind filter plus the blocker filter, and compares over stdio and HTTP. Neo4j is covered by the stack job.
+5. Docs: the tool description and instance/README.md name the summary as the first call. The CHANGELOG gets a line under Contract changes.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Design:
+- by_owner counts findings by their owner field, so every count can be recomputed from the full report (AC3). Owner null collects findings no single unit answers for, plus those of a kind that names no owner (task, suspect_derived, preload). That is exactly what filter owner=null returns.
+- by_level counts required keys by level, from levels.
+- The summary's baseline gives its lists as counts.
+<!-- SECTION:NOTES:END -->

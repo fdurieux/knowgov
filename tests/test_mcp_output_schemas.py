@@ -32,15 +32,15 @@ PROPOSAL = json.loads((ROOT / "tools" / "fixtures" / "proposal_contract_quote.js
 ALL = {**mcp_server.OUTPUT_SCHEMAS, **mcp_runs.OUTPUT_SCHEMAS}
 
 
-def check(name: str, result: dict) -> dict:
-    """The call answered, its structuredContent conforms to the tool's schema, and a field the schema does not
-    name is refused."""
+def check(name: str, result: dict, args: dict | None = None) -> dict:
+    """The call answered, its structuredContent conforms to the tool's schema (the one an argument selects, task-0364),
+    and a field the schema does not name is refused."""
     assert not result.get("isError"), (name, result["content"][0]["text"][:400])
     out = result["structuredContent"]
-    schema = schema_check.load(ALL[name])
+    schema = schema_check.load(mcp_server.output_schema(name, args) if name in mcp_server.OUTPUT_SCHEMAS else ALL[name])
     errors = schema_check.validate(out, schema)
     assert errors == [], (name, errors[:5])
-    assert schema_check.validate({**out, "unschematised": 1}, schema), f"{name}: an unschematised field passed {ALL[name]}"
+    assert schema_check.validate({**out, "unschematised": 1}, schema), f"{name}: an unschematised field passed its schema"
     return out
 
 
@@ -62,7 +62,7 @@ class Reader:
         return json.loads(self.p.stdout.readline())
 
     def call(self, name: str, args: dict | None = None) -> dict:
-        return check(name, self.request("tools/call", {"name": name, "arguments": args or {}})["result"])
+        return check(name, self.request("tools/call", {"name": name, "arguments": args or {}})["result"], args)
 
     def close(self) -> None:
         self.p.stdin.close()
@@ -180,6 +180,8 @@ def test_the_store_backed_tools_conform_on_both_subjects():
                     r.call("gate_verdict", {"task": task})
                 key = (status["three_valued_keys"] or m["keys"])[0]
                 r.call("gate_verdict", {"keys": [key, "no_such|key"], "fail_on": "info"})
+                r.call("gate_verdict", {"summary": True})   # task-0364: gate-summary
+                r.call("gate_verdict", {"filter": {"severity": "blocker"}})
                 statements = []
                 for k in [*status["three_valued_keys"][:3], "no_such|key"]:
                     statements += r.call("three_valued_answer", {"key": k})["statements"]
