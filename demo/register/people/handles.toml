@@ -1,8 +1,11 @@
-# Issued handles (decision 0009). A handle names a person who gave knowledge, without naming them:
-# the key from a handle to a person is the organisation's directory, never this file, never git.
-# Handles are issued from a counter, never chosen, never reused, never a name, a unit or a staff
-# number. Fields: handle, unit (an organisation node), roles, issued, and withdrawn once the
-# person leaves or the handle is retired. This test case's handles are synthetic roles.
+# Issued handles (decisions 0009 and 0021). A handle is one person in one role: one unit and a set
+# of roles, issued for one assignment from a counter, never chosen, never reassigned, never reused,
+# never a name, a unit or a staff number. Who holds it is recorded and never anonymised: in the
+# organisation's private register as `person`, its directory identifier (never free text, never an
+# e-mail address typed by hand), or in its directory; never in a public repository. Fields: handle,
+# unit (an organisation node), roles, issued, person (optional), and withdrawn once the role passes
+# to someone else or the handle is retired; the holder stays recorded after withdrawal. This test
+# case's handles are synthetic roles and carry no `person`.
 
 [[handle]]
 handle = "employee-1"
