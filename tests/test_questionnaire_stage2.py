@@ -170,3 +170,33 @@ def test_ingest_accepts_an_answered_stage_2_questionnaire():
     assert errs == [], errs
     assert cap["answers"] == [{"key": "P2|surcharge", "value": "341.00", "note": ""}] and cap["scenario"] == "S6"
     assert "[[answer]]" in capture.capture_toml(cap, "captures/x.toml")
+
+
+def test_a_stage_2_gate_reports_routes_name_the_stage_2_questionnaire():
+    """The route a finding names after the change runs ``capture.py questionnaire --stage 2``, the command this task
+    adds, where it named the stage-1 one, which asks the first version's statements; stage 1's route is unchanged."""
+    need_rdflib()
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "s6.json"
+        p = subprocess.run([sys.executable, str(ROOT / "harness" / "gate_cli.py"), "--scenario", "S6", "--stage", "2", "--as-of", "record",
+                            "-f", "json", "-o", str(out)], env=_env(), cwd=ROOT, capture_output=True, text=True, timeout=900)
+        assert p.returncode == 1, p.stdout + p.stderr
+        rep = json.loads(out.read_text(encoding="utf-8"))
+    routes = {f["key"]: f["route"] for f in rep["findings"] if f.get("kind") == "key" and f.get("route")}
+    assert {"P2|surcharge", "P2|threshold"} <= set(routes), routes
+    for key, r in routes.items():
+        assert r.startswith("python harness/capture.py questionnaire --scenario S6 --task codegen --stage 2 --out DIR; "), (key, r)
+
+
+def test_route_stage_reads_the_change_or_the_held_later_version():
+    """``gate_cli.route_stage``: 2 with a change, or for a store holding the version S6's [scenario.stage2] names (the MCP
+    reader and --no-load); 1 otherwise, and for a scenario with no later version or another subject."""
+    code = ("import sys; sys.path.insert(0, 'harness'); import gate_cli as g, capture as c; "
+            "print([g.route_stage('cargo_quote', 'S6', 'v1', {'x': 1}), g.route_stage('cargo_quote', 'S6', 'v2', None), "
+            "g.route_stage('cargo_quote', 'S6', 'v1', None), g.route_stage('cargo_quote', 'S2', 'v2', None), "
+            "g.route_stage('other', 'S6', 'v2', None)]); "
+            "print(c.questionnaire_route('cargo_quote', 'S6', 'codegen', 'ORG-0001') == "
+            "c.questionnaire_route('cargo_quote', 'S6', 'codegen', 'ORG-0001', None, 1))")
+    p = subprocess.run([sys.executable, "-c", code], env=_env(), cwd=ROOT, capture_output=True, text=True, timeout=120)
+    assert p.returncode == 0, p.stderr
+    assert p.stdout.split() == ["[2,", "2,", "1,", "1,", "1]", "True"], p.stdout

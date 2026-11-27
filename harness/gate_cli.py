@@ -675,6 +675,20 @@ def superseded_map(res: dict) -> dict[str, list[str]]:
 NO_INPUTS = {"attestations": None, "captures": None, "configuration": None, "code": None, "preload": None}   # task-0320: a report built with no store's inputs: unknown
 
 
+def route_stage(subject: str, scenario: str, version: str | None, change: dict | None) -> int:
+    """task-0371: the stage a finding's questionnaire route names: 2 when the report is of the scenario's change (the
+    command's ``--stage 2``) or of a store holding its later version (``--no-load``, the MCP ``gate_verdict``: the held
+    version the subject's ``[scenario.stage2]`` names), else 1. A subject other than the loaded one reads 1 unless a
+    change is passed."""
+    if change:
+        return 2
+    from subject import SUBJECT
+    if SUBJECT.id != subject or scenario not in SUBJECT.scenarios:
+        return 1
+    cfg2 = SUBJECT.scenario(scenario).get("stage2")
+    return 2 if cfg2 and version == cfg2.get("version", "v2") else 1
+
+
 def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loaded: bool,
            block_levels: set[str], threshold: str, baseline: dict | None,
            version: str | None = None, change: dict | None = None, owners: dict[str, dict] | None = None,
@@ -688,10 +702,11 @@ def report(res: dict, *, subject: str, scenario: str, task: str, store: str, loa
     ``route_keys`` the keys that questionnaire covers (None: every key): a key outside them has no route."""
     from capture import questionnaire_route
     rt = route_task or task
+    stage = route_stage(subject, scenario, version, change)   # task-0371: after a change, the stage-2 questionnaire
 
     def route(unit, key):   # the files routing names, so the route points where the questionnaire is written (G8)
         files = ((owners or {}).get(key) or {}).get("files")
-        return questionnaire_route(subject, scenario, rt, unit, files) if route_keys is None or key in route_keys else None
+        return questionnaire_route(subject, scenario, rt, unit, files, stage) if route_keys is None or key in route_keys else None
     fs = register_routes(findings(res, block_levels, owners, route, closers, suspect_scope), res)
     fail = baseline["regression"] if baseline is not None else bool(at_or_above(fs, threshold))
     if baseline is not None:

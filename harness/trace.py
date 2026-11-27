@@ -291,13 +291,16 @@ def _keys_of(e: dict, ids: list[str], briefs: list[dict] | None = None) -> list[
 def _routing(st, task: str):
     """task-0304: the subject's key owners (``capture.finding_owners``, as the gate reads them) and the route a finding
     names, the owner's questionnaire for the scenario the store holds and ``task``, as the gate report's (task-0102)."""
+    import gate_cli
     from capture import finding_owners, questionnaire_route
     from subject import SUBJECT
     owners = finding_owners(SUBJECT)
-    scenario = (st.held() or {}).get("scenario")
+    held = st.held() or {}
+    scenario = held.get("scenario")
+    stage = gate_cli.route_stage(SUBJECT.id, scenario, held.get("version"), None)   # task-0371: a held change, --stage 2
 
     def route(unit, key):
-        return questionnaire_route(SUBJECT.id, scenario, task, unit, (owners.get(key) or {}).get("files"))
+        return questionnaire_route(SUBJECT.id, scenario, task, unit, (owners.get(key) or {}).get("files"), stage)
     return owners, route if scenario else None   # no load held: no questionnaire to route to
 
 

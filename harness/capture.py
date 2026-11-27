@@ -193,14 +193,17 @@ def closing_route(gap: str, unit: str | None) -> str:
             "(python harness/capture.py review) under a handle with the role closes")
 
 
-def questionnaire_route(subject_id: str, scenario: str, task: str, unit: str | None, files: list[str] | None = None) -> str:
+def questionnaire_route(subject_id: str, scenario: str, task: str, unit: str | None, files: list[str] | None = None,
+                        stage: int = 1) -> str:
     """The route to approval a finding names (task-0102, doc-0014 C7): the owner's questionnaire
     (task-0009), the command that writes it and the file it writes, then its ingest and a review. ``files``
-    (``routing``): the questionnaires the key is written into; with several units, each one's (task-0201, G8)."""
+    (``routing``): the questionnaires the key is written into; with several units, each one's (task-0201, G8).
+    ``stage`` 2 (task-0371): a finding after the scenario's change names ``--stage 2``, so the questionnaire asks
+    the later version's statements; stage 1's text is unchanged."""
     files = files or [unit or UNASSIGNED]
     who = unit or (" or ".join(files) if files != [UNASSIGNED] else "the owner")
     where = " or ".join(f"DIR/questionnaire-{subject_id}-{scenario}-{f}.toml" for f in files)
-    return (f"python harness/capture.py questionnaire --scenario {scenario} --task {task} --out DIR; "
+    return (f"python harness/capture.py questionnaire --scenario {scenario} --task {task}{' --stage 2' if stage == 2 else ''} --out DIR; "
             f"{who} answers {where}, "
             "then python harness/capture.py ingest it and a reviewer who is not the author rules on it" + from_instance(subject_id))
 

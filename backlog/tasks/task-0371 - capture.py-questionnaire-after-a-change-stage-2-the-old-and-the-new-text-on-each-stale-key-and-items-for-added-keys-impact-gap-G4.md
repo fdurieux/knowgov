@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-11-18T07:35:00Z'
-updated_date: '2026-11-27T17:47:44Z'
+updated_date: '2026-11-27T17:50:46Z'
 labels:
   - impact
   - reverse-engineering
@@ -43,6 +43,8 @@ Placement: a contract change (decision-0016), so 0.10.0 before its cut or 1.1.0 
 3. change.added_keys (held_keys before and after the change) for the added keys; stderr notes for added keys no class requires, added keys another class requires, and invalidated statements on keys the task does not require. The gate finding stays task-0370's, on the same seam.
 4. TOML shape unchanged, so no format bump; stage 1 byte-identical.
 5. Tests on S6's stage 2 and a public plant that adds P4|rounding and S-review|final; ingest of an answered stage-2 file; CHANGELOG line under Contract changes.
+
+6. In scope on the coordinator's word (2026-11-27): a finding's route after a change names capture.py questionnaire --stage 2 (gate_cli.route_stage: a change passed, or a held version the scenario's [scenario.stage2] names), in gate reports, the MCP gate_verdict and trace check. Stage 1's routes are unchanged.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -55,4 +57,6 @@ Scope set by the coordinating session on 2026-11-27 after a relevance check, rec
 - AC2 is met by each known string naming its version, e.g. "316.00 (invalidated, v1, extracted, contract/decision_table.md)" beside "341.00 (proposed, v2, ...)". It lists the statement's value, not its source sentence, and the item shape is unchanged.
 - AC3: an added key the task requires is an item. One no class requires is a stderr note. The gate finding is task-0370's.
 - Removed statements, which have no successor, are not special-cased. A required key holding one is asked at its level with the invalidated statement alone.
+
+Route: gate_cli.route_stage decides the stage a route names. It is 2 for gate_cli --stage 2, and for --no-load, MCP gate_verdict and trace check on a store holding the version the scenario's [scenario.stage2] names. No golden or expected file held S6 stage-2 route text; tests/test_gate_cli.py holds S2's stage-1 route, which is unchanged.
 <!-- SECTION:NOTES:END -->
