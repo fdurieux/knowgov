@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-11-16T20:24:00Z'
-updated_date: '2026-11-27T19:37:03Z'
+updated_date: '2026-11-27T19:57:56Z'
 labels:
   - contract
   - 0.10.0
@@ -24,11 +24,11 @@ The maintainer asked a Claude Desktop session over MCP for a private subject's g
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 gate_verdict takes an optional argument selecting a summary: the verdict, why, the bar, the identity fields, and counts by owner unit, by level, by severity and by finding kind, with no per-key findings
-- [ ] #2 The default answer is unchanged (no existing caller sees a difference), unless the coordinator records otherwise in the PR with the reason
-- [ ] #3 The summary's counts equal those computed from the full report on the same store, on Neo4j and rdflib and over both transports; check_mcp_server.py holds it; a schema for the summary shape
-- [ ] #4 A finding filter (by owner, level, kind or key) returns only those findings, so an assistant can ask narrowly instead of reading the whole report
-- [ ] #5 CHANGELOG Unreleased under contract changes; the MCP reader docs name the summary as the first call for a large subject
+- [x] #1 gate_verdict takes an optional argument selecting a summary: the verdict, why, the bar, the identity fields, and counts by owner unit, by level, by severity and by finding kind, with no per-key findings
+- [x] #2 The default answer is unchanged (no existing caller sees a difference), unless the coordinator records otherwise in the PR with the reason
+- [x] #3 The summary's counts equal those computed from the full report on the same store, on Neo4j and rdflib and over both transports; check_mcp_server.py holds it; a schema for the summary shape
+- [x] #4 A finding filter (by owner, level, kind or key) returns only those findings, so an assistant can ask narrowly instead of reading the whole report
+- [x] #5 CHANGELOG Unreleased under contract changes; the MCP reader docs name the summary as the first call for a large subject
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -48,4 +48,13 @@ Design:
 - by_owner counts findings by their owner field, so every count can be recomputed from the full report (AC3). Owner null collects findings no single unit answers for, plus those of a kind that names no owner (task, suspect_derived, preload). That is exactly what filter owner=null returns.
 - by_level counts required keys by level, from levels.
 - The summary's baseline gives its lists as counts.
+
+Proven locally, rdflib, pinned clock (2026-11-27):
+- check_mcp_server passes on CargoQuote (all 7 scenarios, S6 stage 2 included), J-F C,D3 and minimal. On every scenario and over stdio and HTTP, summary counts equal those recomputed from the full report, and each owner, kind and blocker filter returns exactly the report's findings.
+- tests/test_gate_summary.py: 6 tests.
+- test_mcp_output_schemas validates summary and filter calls on both public subjects.
+- The default answer is byte-identical to main 510762c's on one store, under codegen, design and fail_on=info. The only difference is the knowgov build commit.
+- Pinned suite 1403/1404; unpinned 1289/1404, 0 failed.
+- Neo4j is left to the stack job.
+- Fixed on the way: the bar's block_levels come from a set, so they differed between processes. They are now listed in the gate's level order.
 <!-- SECTION:NOTES:END -->
