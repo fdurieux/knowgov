@@ -25,12 +25,17 @@ FILTERS = ("owner", "level", "kind", "key", "severity")
 # decision-0029 (task-0237) and its additions: what the gate decided on, as the report names it
 IDENTITY = ("task_profile", "register", "knowgov", "corpus", "attestations", "captures", "configuration", "code", "preload")
 SEVERITIES = ("blocker", "critical", "major", "minor", "info")
+# the gate's levels, worst first (gate.ORDER; tests/test_gate_summary.py holds them equal): a task class's block levels are a
+# set, so they are listed in this order, the same in every process whatever PYTHONHASHSEED
+LEVELS = ("absent", "declared_gap", "disputed", "invalidated", "proposed", "validated", "verified", "approved")
 
 
 def bar(spec: dict) -> dict:
-    """The bar the task class sets: the levels that block, the share of required keys that may sit below verified (or
+    """The bar the task class sets: the levels that block (in the gate's order, worst first), the share of required keys that may sit below verified (or
     approved, where the class requires it) and whether it does."""
-    return {"block_levels": list(spec.get("block_levels") or []), "max_unverified_share": spec.get("max_unverified_share"),
+    levels = list(spec.get("block_levels") or [])
+    rank = {lv: i for i, lv in enumerate(LEVELS)}
+    return {"block_levels": sorted(levels, key=lambda lv: (rank.get(lv, len(LEVELS)), lv)), "max_unverified_share": spec.get("max_unverified_share"),
             "require_approved": spec.get("require_approved") is True}
 
 

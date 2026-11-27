@@ -16,7 +16,7 @@ import gate_summary  # noqa: E402
 import mcp_server  # noqa: E402
 import schema_check  # noqa: E402
 
-SPEC = {"keys": ["a|x", "b|y", "c|z"], "block_levels": ["absent"], "max_unverified_share": 0.25}
+SPEC = {"keys": ["a|x", "b|y", "c|z"], "block_levels": {"absent"}, "max_unverified_share": 0.25}
 
 
 def _f(sev, kind, key=None, level=None, **kw):
@@ -71,7 +71,7 @@ def test_the_tool_takes_summary_and_filter_and_names_both_schemas():
     t = next(t for t in mcp_server.TOOLS if t["name"] == "gate_verdict")
     props = t["inputSchema"]["properties"]
     assert props["summary"]["type"] == "boolean" and set(props["filter"]["properties"]) == set(gate_summary.FILTERS)
-    assert mcp_server.GATE_LEVELS == gate.ORDER
+    assert mcp_server.GATE_LEVELS == gate.ORDER == list(gate_summary.LEVELS)
     kinds = schema_check.load("gate-report")["$defs"]["finding"]["properties"]["kind"]["enum"]
     assert mcp_server.FINDING_KINDS == kinds
     assert mcp_server.output_schema("gate_verdict", {"summary": True}) == "gate-summary"
@@ -82,6 +82,13 @@ def test_the_tool_takes_summary_and_filter_and_names_both_schemas():
     assert refuse({"filter": {"key": "nonsense"}}) and refuse({"filter": {"colour": "x"}}) and refuse({"summary": "yes"})
     assert refuse({"filter": {"key": "thing​|property"}}) and refuse({"filter": {"kind": "bogus"}})
     assert refuse({"filter": {"owner": None, "severity": "major"}}) is None
+
+
+def test_the_bar_lists_a_classs_block_levels_in_the_gates_order_whatever_the_set_order():
+    """A task class's block levels are a set; the summary lists them worst first, so stdio and HTTP, each its own process
+    with its own hash seed, answer byte for byte alike."""
+    for levels in ({"invalidated", "absent", "disputed", "declared_gap"}, ["disputed", "declared_gap", "invalidated", "absent"]):
+        assert gate_summary.bar({"block_levels": levels})["block_levels"] == ["absent", "declared_gap", "disputed", "invalidated"]
 
 
 def test_an_empty_filter_or_one_beside_summary_is_refused_and_none_reads_the_report_whole():
