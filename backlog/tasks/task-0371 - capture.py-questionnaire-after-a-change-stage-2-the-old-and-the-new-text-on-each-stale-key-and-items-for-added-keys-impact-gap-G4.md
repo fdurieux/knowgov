@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-11-18T07:35:00Z'
-updated_date: '2026-11-27T17:50:46Z'
+updated_date: '2026-11-27T18:09:57Z'
 labels:
   - impact
   - reverse-engineering
@@ -29,10 +29,10 @@ Placement: a contract change (decision-0016), so 0.10.0 before its cut or 1.1.0 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 capture.py questionnaire takes --stage 2 (or reads a published store) and asks each key on which a statement was invalidated
-- [ ] #2 An item on a stale key carries the invalidated statement's text and its successor's, each with its version
-- [ ] #3 Keys the new version adds that a task class requires get an item; unmapped ones are reported (see the G3 task)
-- [ ] #4 Tests on S6's change; ingest still accepts the output; CHANGELOG line under Contract changes
+- [x] #1 capture.py questionnaire takes --stage 2 (or reads a published store) and asks each key on which a statement was invalidated
+- [x] #2 An item on a stale key carries the invalidated statement's text and its successor's, each with its version
+- [x] #3 Keys the new version adds that a task class requires get an item; unmapped ones are reported (see the G3 task)
+- [x] #4 Tests on S6's change; ingest still accepts the output; CHANGELOG line under Contract changes
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -59,4 +59,12 @@ Scope set by the coordinating session on 2026-11-27 after a relevance check, rec
 - Removed statements, which have no successor, are not special-cased. A required key holding one is asked at its level with the invalidated statement alone.
 
 Route: gate_cli.route_stage decides the stage a route names. It is 2 for gate_cli --stage 2, and for --no-load, MCP gate_verdict and trace check on a store holding the version the scenario's [scenario.stage2] names. No golden or expected file held S6 stage-2 route text; tests/test_gate_cli.py holds S2's stage-1 route, which is unchanged.
+
+Proven locally on rdflib under a pinned clock (2026-11-27):
+- tests/test_questionnaire_stage2.py, 9 tests: S6's stale keys with both versions; the planted added key P4|rounding and the unrequired S-review|final; the any-level rule; ingest of an answered stage-2 file; the stage-2 routes.
+- The pinned suite: 1397/1398 passed.
+- The comparator: 0 differing leaves.
+- check_round_trip --chain rdflib,rdflib, check_gate_after_change, check_trace_walkthrough and check_mcp_server all pass.
+- Stage-1 questionnaires are byte-identical to main on S1-S7.
+- Neo4j is left to the stack job.
 <!-- SECTION:NOTES:END -->
