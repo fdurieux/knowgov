@@ -3,10 +3,10 @@ id: TASK-0371
 title: >-
   capture.py questionnaire after a change: stage 2, the old and the new text on
   each stale key, and items for added keys (impact gap G4)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-18T07:35:00Z'
-updated_date: '2026-11-27T18:09:57Z'
+updated_date: '2026-11-27T19:19:00Z'
 labels:
   - impact
   - reverse-engineering
@@ -68,3 +68,9 @@ Proven locally on rdflib under a pinned clock (2026-11-27):
 - Stage-1 questionnaires are byte-identical to main on S1-S7.
 - Neo4j is left to the stack job.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Built in knowgov #599 (510762c), merged on the whole matrix green with stack. capture.py questionnaire --stage 2 loads the scenario's change through the gate's own routine, before re-verification, in a scratch store. Each required key that holds an invalidated statement is asked whatever its level, with its known strings naming each statement's version. A required key that only v2 holds is an item. Notes go to stderr with a note: prefix. Stage-2 gate, MCP and trace routes name --stage 2 (gate_cli.route_stage). The items' shape and the capture format are unchanged, and stage 1 is byte-identical on S1-S7. The seam for task-0370 is change.added_keys (added keys only); reads of removed statements are a possible follow-up.
+<!-- SECTION:FINAL_SUMMARY:END -->
