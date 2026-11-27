@@ -3,10 +3,10 @@ id: TASK-0364
 title: >-
   gate_verdict: a summary mode that returns counts by owner unit, level,
   severity and kind, the full findings only on request (0.10.0)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-16T20:24:00Z'
-updated_date: '2026-11-27T19:57:56Z'
+updated_date: '2026-11-27T20:58:00Z'
 labels:
   - contract
   - 0.10.0
@@ -58,3 +58,9 @@ Proven locally, rdflib, pinned clock (2026-11-27):
 - Neo4j is left to the stack job.
 - Fixed on the way: the bar's block_levels come from a set, so they differed between processes. They are now listed in the gate's level order.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Built in knowgov #601 (9a20b8d), merged on the whole matrix green with stack. gate_verdict gains summary (verdict, why, bar, identity fields, counts by severity, kind, level and owner, no findings; schema gate-summary) and filter (owner, level, kind, key, severity; the full report with only the matching findings and a filter block with matched and total; the verdict, exit_code, counts and levels stay the whole report's). The default answer is unchanged. check_mcp_server.py recomputes every count from the full report on every scenario and on S6 stage 2, over stdio and HTTP, on rdflib and Neo4j. Set-ordered block_levels now come out in gate order.
+<!-- SECTION:FINAL_SUMMARY:END -->
