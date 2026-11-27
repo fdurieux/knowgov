@@ -254,6 +254,7 @@ def _add_months(d: dt.date, months: int) -> dt.date:
 # decision 0009: gives (may answer for the unit), approves (may approve what another handle of the
 # unit gave), closes (may close a declared gap or settle a dispute on what the unit owns)
 ROLES = {"gives", "approves", "closes"}
+PERSON = r"^(?=.*[0-9@])[A-Za-z0-9][A-Za-z0-9._@-]{1,127}$"   # decision 0021; types.toml [elicited] person
 
 
 def _issued_handles(reg: dict) -> dict | None:
@@ -268,18 +269,24 @@ def _issued_handles(reg: dict) -> dict | None:
 
 def check_handles(reg: dict, f: Findings):
     """Decision 0009: the issued list holds handles, units and roles, never a name; each handle
-    matches the pattern, is listed once, and names a unit the organisation taxonomy holds."""
+    matches the pattern, is listed once, and names a unit the organisation taxonomy holds.
+    Decision 0021: a handle is one person in one role; an optional `person` is the holder's
+    directory identifier, matching `[elicited]` `person`, and one person never holds two live
+    handles with the same unit and roles. `person` is required nowhere."""
     rel = reg["types"].get("elicited", {}).get("issued")
     if not rel or not (reg["root"] / rel).exists():
         return
-    pattern = reg["types"].get("elicited", {}).get("handle", r"^[a-z][a-z0-9-]{1,39}$")
-    allowed = {"handle", "unit", "roles", "issued", "withdrawn"}
+    spec = reg["types"].get("elicited", {})
+    pattern = spec.get("handle", r"^[a-z][a-z0-9-]{1,39}$")
+    person_pattern = spec.get("person", PERSON)
+    allowed = {"handle", "unit", "roles", "issued", "withdrawn", "person"}
     seen = set()
+    held = {}   # (person, unit, roles) -> [(handle, issued, withdrawn)]
     for h in tomllib.loads((reg["root"] / rel).read_text(encoding="utf-8")).get("handle", []):
         w = f"{rel} [{h.get('handle', '?')}]"
         extra = sorted(set(h) - allowed)
         if extra:
-            f.error("handles", w, f"fields {extra} are not allowed: the list holds handles, units and roles, never a name")
+            f.error("handles", w, f"fields {extra} are not allowed: the list holds handles, units, roles and a directory identifier, never a name")
         if not re.match(pattern, str(h.get("handle", ""))):
             f.error("handles", w, "not an opaque handle")
         if h.get("handle") in seen:
@@ -293,6 +300,22 @@ def check_handles(reg: dict, f: Findings):
         bad = sorted(set(h.get("roles", [])) - ROLES)
         if bad:
             f.error("handles", w, f"roles {bad} unknown; a role is one of {sorted(ROLES)}")
+        if "person" in h:
+            person = h["person"]
+            if not isinstance(person, str) or not re.match(person_pattern, person):
+                f.error("handles", w, f"person {person!r} is not a directory identifier (decision 0021): "
+                                      "an account's id or principal name, never free text or a name")
+            elif _date(h.get("issued")) is not None:
+                key = (person, h.get("unit"), frozenset(h.get("roles", [])))
+                held.setdefault(key, []).append((h.get("handle"), _date(h["issued"]), _date(h.get("withdrawn"))))
+    for (person, unit, roles), spans in held.items():
+        spans.sort(key=lambda s: s[1])
+        for i, (a, a_from, a_to) in enumerate(spans):
+            for b, b_from, b_to in spans[i + 1:]:
+                if a_to is None or b_from < a_to:   # live from issued up to the day before withdrawn
+                    f.error("handles", f"{rel} [{b}]",
+                            f"person {person!r} already holds {a} for {unit} with roles {sorted(roles)}: "
+                            "a handle is one person in one role (decision 0021)")
 
 
 def check_elicited(reg: dict, f: Findings, where: str, ln: dict, today: dt.date):
