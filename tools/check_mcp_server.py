@@ -45,6 +45,9 @@ On each scenario, and again after S6's change, ``gate_verdict`` with ``summary``
 severity, kind, key level and owner unit, recomputed here from that report, with its verdict and identity fields, and
 each owner, kind and the blocker severity asked as ``filter`` returns exactly the full report's findings for it, the
 rest of the report unmoved; once over Streamable HTTP too, equal to stdio's (task-0364).
+On each scenario, ``subject_overview`` names it as held, its keys, rows and nodes are the register map's, read here from
+the file, and under every task class each key finding of ``gate_verdict`` names the owner it gives the key; over both
+transports it answers alike (task-0366).
 Once, over stdio and Streamable HTTP alike: ``register_nodes`` past its limit carries ``_meta["io.knowgov/clipped"]``
 (harness/schemas/result-meta.schema.json) with its returned and total counts and the narrower call, and the same first
 in content; one node's lineage, uncut, carries no mark; and on a reader whose ``KG_MCP_CLIENT_BUDGET`` is 1000, the
@@ -210,6 +213,31 @@ class HttpClient(StdioClient):
 
 
 SEVS = ("blocker", "critical", "major", "minor", "info")
+
+
+def check_overview(client: "StdioClient", sc: str, failures: list[str], label: str) -> None:
+    """task-0366: subject_overview names the scenario the store holds, its counts are the register map's (read here from
+    the file), and under every task class each key finding of gate_verdict names the owner the overview gives its key."""
+    import tomllib
+    from subject import SUBJECT
+    ov = client.call("subject_overview", {})
+    rows = tomllib.loads((SUBJECT.root / SUBJECT.register["map"]).read_text(encoding="utf-8")).get("row", [])
+    nodes = {n for r in rows for n in r.get("nodes") or []}
+    if ov["held"]["scenario"] != sc:
+        failures.append(f"{label}: subject_overview says the store holds {ov['held']}, not {sc}")
+    if ov["counts"]["rows"] != len(rows) or {k["key"] for k in ov["keys"] if k["mapped"]} != {r["key"] for r in rows} \
+            or {n["id"] for n in ov["nodes"]} != nodes or sum(o["keys"] for o in ov["owners"]) != ov["counts"]["keys"]:
+        failures.append(f"{label}: subject_overview's counts {ov['counts']} differ from the register map's ({len(rows)} rows, {len(nodes)} nodes)")
+    owner = {k["key"]: k["owner"] for k in ov["keys"]}
+    checked = 0
+    for task in SUBJECT.tasks:
+        gate = client.call("gate_verdict", {"scenario": sc, "task": task, "as_of": "record"})
+        off = [(f["key"], f.get("owner"), owner.get(f["key"])) for f in gate["findings"] if f["kind"] == "key" and f.get("owner") != owner.get(f["key"])]
+        checked += sum(1 for f in gate["findings"] if f["kind"] == "key")
+        if off:
+            failures.append(f"{label}: gate_verdict --task {task}'s key findings name other owners than subject_overview: {off[:3]}")
+    print(f"{label}: subject_overview holds {sc}, its {ov['counts']['keys']} key(s), {len(rows)} row(s) and {len(nodes)} node(s) the "
+          f"register map's; {checked} gate key finding(s) under {len(SUBJECT.tasks)} class(es) name its owners")
 
 
 def recount(full: dict) -> dict:
@@ -880,7 +908,8 @@ def check_upward(client: "StdioClient", ex: dict | None, failures: list[str], la
 
 # doc-0020's hops: files only, no store; code_path files, and the store for the ledger leg's suspect when it holds the
 # subject (task-0303, decision-0035 B1)
-FILE_TOOLS = ("register_nodes", "key_nodes", "code_path", "document_links", "stale_nodes")   # stale_nodes: task-0342
+FILE_TOOLS = ("register_nodes", "key_nodes", "code_path", "document_links", "stale_nodes",   # stale_nodes: task-0342
+              "subject_overview")   # task-0366
 STORE_TOOLS = ("held_keys", "derived_outputs", "document_statements")   # doc-0020 C3: the store's reads (task-0144)
 ALLOWLIST = ROOT / "instance" / "ci" / "claude" / "managed-mcp-allowlist.json"
 
@@ -1039,6 +1068,7 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
     calls += [("code_path", {"path": ex["file"] if ex else "reference_impl.py"})]
     calls += [("stale_nodes", {})]   # task-0342 (decision-0041 C5-1): the register's landings with their owners
     stale_at = len(calls) - 1
+    calls += [("subject_overview", {})]   # task-0366: what the subject rests on, the same on both transports
     thread = thread_starts()   # task-0336 (decision-0039 §3.3): the thread walk from a capability and from a process
     calls += [("register_impact", {"node": n, "walk": "thread"}) for n in thread]
     answers, summaries, marks = {}, {}, {}
@@ -1343,6 +1373,7 @@ def main(argv: list[str] | None = None) -> int:
                 failures.append(f"{sc}: gate_verdict differs from gate_cli --no-load on {diff}")
             corpus_held(sc, got, load_corpus(load), failures)
             check_summary(client, sc, got, failures, sc)   # task-0364
+            check_overview(client, sc, failures, sc)   # task-0366
             differs_held(client, sc, rec_path_of(sc), failures)
             disc = client.modern("server/discover", {})["result"]
             stateless = client.modern("tools/call", {"name": "gate_verdict", "arguments": {"scenario": sc, "as_of": "record"}})["result"]
