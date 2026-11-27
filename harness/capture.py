@@ -1,7 +1,7 @@
 """Capture what people know (task-0009): a questionnaire per owner from the gate's gap list, and
 the answers back in as statements attributed to the person who gave them.
 
-    python harness/capture.py questionnaire [--scenario ID] [--task NAME] --out DIR
+    python harness/capture.py questionnaire [--scenario ID] [--task NAME] [--stage 1|2] --out DIR
     python harness/capture.py ingest ANSWERED.toml [--into DIR]
     python harness/capture.py review REVIEW.toml [--scenario ID]
     python harness/capture.py due [--on DATE] --out DIR
@@ -16,6 +16,15 @@ the nodes a key concerns (the subject's ``register_map.toml``), or the one unit 
 verified, with what the store holds on it, and the denominator: how many keys the owner has. An
 item on a declared gap also names the unit that closes it (``closed_by``, ``capture.gap_closers``,
 the gate finding's ``closer``; task-0113), which ingest does not read.
+
+``questionnaire --stage 2`` (task-0371, impact gap G4) then brings in the scenario's later version, the
+subject's ``[scenario.stage2]`` change, by the gate's own routine (``gate_cli._change``, before re-verification),
+in the same scratch store: each key a statement was invalidated on is asked with its ``known`` statements naming
+their versions, the invalidated one beside its successor, and a key the new version adds that the task requires is
+an item like any open key. On stderr, one note each: the invalidated statements on keys the task does not require,
+and the added keys another class requires or none does (task-0370 makes the last a gate finding). A statement the
+new version removed has no successor; its key, when required, is asked at its level with the invalidated statement
+alone. The items' shape is stage 1's, so ingest reads them unchanged; without ``--stage`` the text is stage 1's, byte for byte.
 
 ``ingest`` checks an answered questionnaire and writes it, normalised, into the subject's capture
 folder (``[capture] dir`` in subject.toml, ``captures/`` by default). Every load reads that folder
@@ -211,8 +220,48 @@ def _with_open(by_owner: dict[str, list[str]], res: dict) -> dict[str, list[str]
     return {o: ks for o, ks in by_owner.items() if any(res["keys"][k]["level"] in OPEN_LEVELS for k in ks)}
 
 
-def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, today: dt.date) -> dict[str, str]:
-    """owner -> the questionnaire's TOML text; a key goes to its answering owner only."""
+def statement_rows(st, res: dict) -> dict[str, dict]:
+    """task-0371: assertion id -> its row as the port's ``artefact_assertions`` reads it (``version``, ``value``,
+    ``status``, ``basis``, ``artefact``), for every statement ``res`` lists and every invalidated one on its keys
+    (``res["stale"]``), by the artefacts the rows name, so a questionnaire after a change tells v1's text from v2's."""
+    ids = {a["id"] for v in res["keys"].values() for a in v["assertions"]} | {x["id"] for x in res.get("stale") or []}
+    arts = sorted({a["artefact"] for v in res["keys"].values() for a in v["assertions"] if a.get("artefact")})
+    return {r["id"]: r for art in arts for r in st.artefact_assertions(art) if r["id"] in ids}
+
+
+def _known(a: dict, statements: dict[str, dict] | None) -> str:
+    """One statement as ``known`` lists it; with ``statements`` (stage 2, task-0371), its version after its status."""
+    ver = (statements or {}).get(a["id"], {}).get("version")
+    return f"{a['value']} ({a['status']}, " + (f"{ver}, " if statements is not None and ver else "") + f"{a['basis']}, {a['artefact']})"
+
+
+def known_of(key: str, v: dict, res: dict, statements: dict[str, dict] | None) -> list[str]:
+    """The ``known`` list of a key's item: every statement the gate's result holds on it; at stage 2 (task-0371) each
+    with its version, and every statement the change invalidated on it that the result no longer lists (one a settled
+    successor supersedes, which the gate's level drops), so the invalidated text stands beside its successor's."""
+    rows = list(v["assertions"])
+    if statements is not None:
+        held = {a["id"] for a in rows}
+        rows += [statements[x["id"]] for x in res.get("stale") or [] if x["key"] == key and x["id"] not in held and x["id"] in statements]
+        rows.sort(key=lambda a: a["id"])   # by id, as the store lists a key's statements
+    return [_known(a, statements) for a in rows]
+
+
+def stage2_head(change: dict | None) -> list[str]:
+    """task-0371: the header line a stage-2 questionnaire adds after its second, naming the change; none at stage 1."""
+    if not change:
+        return []
+    return [f"# Stage 2: after {change['artefact']} was read in again as {change['version']}; "
+            f"{len(change['invalidated'])} statement(s) the change invalidated. Each known statement names "
+            "its version: an invalidated one beside its successor."]
+
+
+def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, today: dt.date,
+                   change: dict | None = None, statements: dict[str, dict] | None = None) -> dict[str, str]:
+    """owner -> the questionnaire's TOML text; a key goes to its answering owner only. ``change`` (task-0371),
+    the stage-2 change the store holds (``gate_cli._change``'s block), names it in the header, and ``statements``
+    (``statement_rows``) gives each ``known`` statement its version and adds the invalidated ones (``known_of``);
+    both None at stage 1, whose text is unchanged."""
     route = routing(subject.register_map(), nodes)   # task-0201: where questionnaire_route says the key is
     closers = gap_closers(subject, {k: v.get("declared_gaps") or [] for k, v in res["keys"].items()})   # task-0113
     by_owner: dict[str, list[str]] = {}
@@ -226,6 +275,7 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
         lines = [
             f"# Questionnaire for {owner} ({name}): {len(open_keys)} of the {len(keys)} keys you own need an answer.",
             f"# Subject {subject.id}, scenario {scenario}, task {task}, generated {today.isoformat()} from the gate's result.",
+            *stage2_head(change),
             "# For each item: write the value in `answer`, or set `nobody_knows = true` if no one can say.",
             "# Leave an item untouched to skip it. Fill [answered] with your handle (lower case, never your name) and the date.",
             "# A note must not identify you: no name, no role only you hold, no \"as the author of ...\". It is copied",
@@ -249,7 +299,7 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
         ]
         for k in open_keys:
             v = res["keys"][k]
-            known = [f"{a['value']} ({a['status']}, {a['basis']}, {a['artefact']})" for a in v["assertions"]]
+            known = known_of(k, v, res, statements)
             gaps = [g["text"] for g in v["declared_gaps"]]
             c = closers.get(k)
             lines += [""]
@@ -468,6 +518,9 @@ def main(argv: list[str] | None = None) -> int:
     qa.add_argument("--scenario")
     qa.add_argument("--task", default="codegen")
     qa.add_argument("--out", required=True, type=Path)
+    qa.add_argument("--stage", type=int, choices=[1, 2], default=1,
+                    help="1 (default): the scenario as first loaded; 2: then its later version, the subject's [scenario.stage2] "
+                         "change, before re-verification, as gate_cli.py --stage 2 loads it (task-0371)")
     ia = sub.add_parser("ingest", help="check an answered questionnaire and add it to the subject's captures")
     ia.add_argument("answered", type=Path)
     ia.add_argument("--into", type=Path, help="the capture folder (default: the subject's [capture] dir)")
@@ -492,7 +545,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _questionnaire(args) -> int:
-    import gate_cli
     import review
     from subject import SUBJECT
     from tasks import TASKS
@@ -501,13 +553,16 @@ def _questionnaire(args) -> int:
         raise CannotRun(f"{SUBJECT.id}: no scenario {scenario!r}")
     if args.task not in TASKS:
         raise CannotRun(f"{SUBJECT.id}: no task {args.task!r}")
-    from gate import resolve
+    cfg2 = SUBJECT.scenario(scenario).get("stage2") if args.stage == 2 else None
+    if args.stage == 2 and not cfg2:
+        raise CannotRun(f"{SUBJECT.id}: {scenario} has no later version (no [scenario.stage2])")
     from store import scratch_store
     with scratch_store(instance=SUBJECT.id) as st:   # a private load: the shared store keeps what it holds (task-0183)
-        gate_cli._load(st, scenario)
-        res = resolve(st, args.task)
+        res, change, statements = questionnaire_view(st, SUBJECT, scenario, args.task, cfg2)
     nodes = register_nodes(register_root())
-    qs = questionnaires(res, SUBJECT, scenario, args.task, nodes, review.today())
+    qs = questionnaires(res, SUBJECT, scenario, args.task, nodes, review.today(), change=change, statements=statements)
+    for line in change_notes(change, res, args.task, TASKS):   # task-0371: what the change touched that no item asks
+        print(line, file=sys.stderr)
     args.out.mkdir(parents=True, exist_ok=True)
     if not qs:   # task-0315 L4: no file is written for an owner with nothing open, and the exit is unchanged
         print(f"nothing is open for any owner: no questionnaire written (an earlier one left in {args.out} is not removed)")
@@ -519,6 +574,58 @@ def _questionnaire(args) -> int:
     if left:   # task-0315 L6: another owner's earlier file is not removed, and may no longer be asked
         print(f"note: earlier questionnaire(s) left in {args.out} are not removed: {', '.join(left)}", file=sys.stderr)
     return 0
+
+
+def questionnaire_view(st, subject, scenario: str, task: str, cfg2: dict | None = None) -> tuple[dict, dict | None, dict | None]:
+    """(the gate's result, the change, its statements' rows) on ``st``: the scenario loaded as the gate command
+    loads it (``gate_cli._load``), and with ``cfg2`` (task-0371) its later version brought in by the gate's own
+    stage-2 routine (``gate_cli._change``, before re-verification), with ``invalidated_keys`` (each invalidated
+    statement's key, on any key) and ``added`` (``change.added_keys``) beside it. Stage 1: (result, None, None)."""
+    import gate_cli
+    from change import added_keys, held_key_set
+    from gate import resolve
+    gate_cli._load(st, scenario)
+    if not cfg2:
+        return resolve(st, task), None, None
+    before = held_key_set(st)
+    change = gate_cli._change(st, subject, scenario, cfg2, False)
+    held = held_key_set(st)
+    change["invalidated_keys"] = {x["id"]: x["key"] for x in st.stale_on_keys(sorted(held)) if x["id"] in set(change["invalidated"])}
+    change["added"] = added_keys(before, st)
+    res = resolve(st, task)
+    return res, change, statement_rows(st, res)
+
+
+def change_notes(change: dict | None, res: dict, task: str, tasks: dict) -> list[str]:
+    """task-0371: what a stage-2 change touched that no item of this task's questionnaires asks, one line each: the
+    invalidated statements on keys the task does not require, the added keys another class requires (asked by its
+    questionnaire), and the added keys no class requires (task-0370 makes those a gate finding). None at stage 1."""
+    if not change:
+        return []
+    mine = set(tasks[task]["keys"])
+
+    def classes(key: str) -> list[str]:
+        return sorted(t for t, spec in tasks.items() if key in spec.get("keys", []))
+    out = []
+    off = sorted((k, i) for i, k in (change.get("invalidated_keys") or {}).items() if k not in mine)
+    if off:
+        out.append(f"note: {len(off)} statement(s) the change invalidated are on keys task {task} does not require, so no item "
+                   "asks them: " + ", ".join(f"{i} ({k}; " + (f"required by {', '.join(classes(k))}" if classes(k) else "required by no task")
+                                             + ")" for k, i in off))
+    added = change.get("added") or []
+    other = [k for k in added if k not in mine and classes(k)]
+    if other:
+        out.append(f"note: {len(other)} key(s) the new version adds are required by another task, not {task} "
+                   "(its questionnaire, --task, asks them): " + ", ".join(f"{k} ({', '.join(classes(k))})" for k in other))
+    none = [k for k in added if not classes(k)]
+    if none:
+        out.append(f"note: {len(none)} key(s) the new version adds are required by no task, so no questionnaire asks them: "
+                   + ", ".join(none))
+    asked = [k for k in added if k in mine and k in res["keys"]]
+    if asked:
+        out.append(f"note: {len(asked)} key(s) the new version adds are required by task {task}, each an item of its "
+                   "owner's questionnaire where it is open: " + ", ".join(asked))
+    return out
 
 
 def _ingest(args) -> int:

@@ -73,6 +73,18 @@ def apply_change(sc: str, cfg2: dict, s, derived_code: str | None, derived_ids: 
     return {"load_v2": load2, "D3_stale": stale, "R-STRUCT_after": struct, "kit2": kit2, "derived": did}
 
 
+def held_key_set(s) -> set[str]:
+    """Every key a statement of the store names (the port's ``held_keys``), whatever its status."""
+    return {r["key"] for r in s.held_keys()}
+
+
+def added_keys(before: set[str], s) -> list[str]:
+    """The keys the store names after a change that it named before none of (``before``, ``held_key_set`` read
+    before ``apply_change``), sorted: the keys the new version adds. ``capture.py questionnaire --stage 2`` reports
+    those no task class requires (task-0371); the gate's stage-2 report is to name them by the register map too (task-0370)."""
+    return sorted(held_key_set(s) - before)
+
+
 def reverify(sc: str, cfg2: dict, pv: dict, s, kit2: dict) -> list[str]:
     """Step 2; returns the re-verified statements' ids. The owner's re-verification is an attestation: with no
     ``at`` or no attester it is not applied (task-0199, doc-0030 I9), and ``check_subject`` refuses it."""
