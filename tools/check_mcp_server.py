@@ -41,6 +41,10 @@ Then ask ``scenario_runs`` and require the subject's scenarios in order, the hel
 and ``scenario_result`` on the record with that verdict, read from files (task-0129).
 The same process also answers ``server/discover`` and a stateless (2026-07-28) ``gate_verdict``,
 which must equal the handshake's (task-0079); ``store_status`` names stage 1, and 2 after the change (task-0342).
+On each scenario, and again after S6's change, ``gate_verdict`` with ``summary`` gives the full report's counts, by
+severity, kind, key level and owner unit, recomputed here from that report, with its verdict and identity fields, and
+each owner, kind and the blocker severity asked as ``filter`` returns exactly the full report's findings for it, the
+rest of the report unmoved; once over Streamable HTTP too, equal to stdio's (task-0364).
 Once, after the scenarios: ``subject_check`` listed over stdio and Streamable HTTP, and on doc-0018's probe
 (``tools/fixtures/subject_probe``) its report equal to ``tools/check_subject.py --json``'s, over stdio in both eras (task-0146); and the prompts
 ``new_subject`` and ``add_artefact`` listed and given over both transports (task-0148).
@@ -97,15 +101,17 @@ def _stop(p: subprocess.Popen, grace: float = 30) -> None:
         p.wait(timeout=grace)
 
 
-def conform(name: str, out: dict) -> None:
-    """Every answer this check reads, on either transport, conforms to the schema the tool names (task-0172)."""
+def conform(name: str, out: dict, args: dict | None = None) -> None:
+    """Every answer this check reads, on either transport, conforms to the schema the tool names (task-0172), or the one
+    an argument selects (task-0364: gate_verdict with summary)."""
     if str(HARNESS) not in sys.path:
         sys.path.insert(0, str(HARNESS))
     import mcp_server
     import schema_check
-    errors = schema_check.validate(out, schema_check.load(mcp_server.OUTPUT_SCHEMAS[name]))
+    schema = mcp_server.output_schema(name, args)
+    errors = schema_check.validate(out, schema_check.load(schema))
     if errors:
-        raise AssertionError(f"{name}: off harness/schemas/{mcp_server.OUTPUT_SCHEMAS[name]}.schema.json: {errors[:3]}")
+        raise AssertionError(f"{name}: off harness/schemas/{schema}.schema.json: {errors[:3]}")
 
 
 class StdioClient:
@@ -137,7 +143,7 @@ class StdioClient:
         if r.get("isError"):
             raise AssertionError(f"{name}{args}: {r['content'][0]['text']}")
         out = r["structuredContent"]
-        conform(name, out)
+        conform(name, out, args)
         return out
 
     def modern(self, method: str, params: dict) -> dict:
@@ -198,6 +204,83 @@ class HttpClient(StdioClient):
         _stop(self.p)
 
 
+SEVS = ("blocker", "critical", "major", "minor", "info")
+
+
+def recount(full: dict) -> dict:
+    """task-0364: the summary's counts computed here from the full report, apart from harness/gate_summary.py, so the
+    check is not the code checking itself: by severity from the findings, by kind, by key level from levels, and by
+    owner (a finding naming none counted with owner null), each owner's findings, distinct keys and severities."""
+    fs = full["findings"]
+    owners = {}
+    for f in fs:
+        o = owners.setdefault(f.get("owner"), {"findings": 0, "keys": set(), "by_severity": dict.fromkeys(SEVS, 0)})
+        o["findings"] += 1
+        o["by_severity"][f["severity"]] += 1
+        if f.get("key"):
+            o["keys"].add(f["key"])
+    kinds, levels = {}, {}
+    for f in fs:
+        kinds[f["kind"]] = kinds.get(f["kind"], 0) + 1
+    for lv in full["levels"].values():
+        levels[lv] = levels.get(lv, 0) + 1
+    return {"by_severity": {sv: sum(1 for f in fs if f["severity"] == sv) for sv in SEVS}, "by_kind": kinds, "by_level": levels,
+            "by_owner": {o: {**v, "keys": len(v["keys"])} for o, v in owners.items()}}
+
+
+def check_summary(client: "StdioClient", sc: str, full: dict, failures: list[str], label: str) -> dict:
+    """task-0364: gate_verdict's summary on the store ``full`` was read from equals the full report's counts, verdict and
+    identity fields, and lists no finding; each owner's row, each kind and each severity, asked as a filter, returns
+    exactly the findings the full report holds for it, the rest of the report unmoved. Returns what it read, so the
+    transports can be compared."""
+    args = {"scenario": sc, "as_of": "record"}
+    summ = client.call("gate_verdict", {**args, "summary": True})
+    want = recount(full)
+    got = summ["counts"]
+    owners = {r["owner"]: {k: r[k] for k in ("findings", "keys", "by_severity")} for r in got["by_owner"]}
+    if (got["by_severity"] != want["by_severity"] or got["by_severity"] != full["counts"] or got["by_kind"] != want["by_kind"]
+            or got["by_level"] != want["by_level"] or owners != want["by_owner"] or summ["findings"] != len(full["findings"])):
+        failures.append(f"{label}: gate_verdict summary counts {got} differ from the full report's {want}")
+    same = ("verdict", "why", "exit_code", "threshold", "as_of", "keys", "version", "task_profile", "register", "knowgov", "corpus",
+            "attestations", "captures", "configuration", "code", "preload")
+    off = [k for k in same if summ.get(k) != full.get(k)]
+    if off:
+        failures.append(f"{label}: gate_verdict summary differs from the full report on {off}")
+    narrowed = {}
+    filters = [{"owner": o} for o in owners] + [{"kind": k} for k in want["by_kind"]] + [{"severity": "blocker"}]
+    for flt in filters:
+        part = client.call("gate_verdict", {**args, "filter": flt})
+        kept = [f for f in full["findings"] if all(f.get(k) == v for k, v in flt.items())]
+        rest = {k: v for k, v in part.items() if k not in ("findings", "filter")}
+        if part["findings"] != kept or part["filter"] != {**flt, "matched": len(kept), "total": len(full["findings"])} \
+                or rest != {k: v for k, v in full.items() if k != "findings"}:
+            failures.append(f"{label}: gate_verdict filter {flt} answered {part.get('filter')}, the full report holds {len(kept)}")
+        narrowed[json.dumps(flt, sort_keys=True)] = part["filter"]["matched"]
+    print(f"{label}: gate_verdict summary equals the full report's counts ({len(full['findings'])} finding(s), {len(owners)} owner row(s), "
+          f"{len(want['by_kind'])} kind(s)); {len(filters)} filter(s) each return exactly its findings")
+    return {"summary": summ, "narrowed": narrowed}
+
+
+def transports_differ(answers: dict, summaries: dict) -> list[str]:
+    """What answers differently over stdio and HTTP: the file-only tools' calls, and gate_verdict's summary and filters."""
+    out = []
+    if answers.get("stdio") != answers.get("http"):
+        out.append("the file-only tools answer differently over stdio and HTTP")
+    if summaries.get("stdio") != summaries.get("http"):   # task-0364: the summary and every filter, the same on both
+        out.append("gate_verdict's summary or a filter answers differently over stdio and HTTP")
+    return out
+
+
+def transport_summary(client: "StdioClient", name: str, failures: list[str]) -> tuple | None:
+    """task-0364: the summary and the filters over one transport, on the store as the scenarios left it; None when no
+    store answers the full gate (the files-only run, with no store), which reads the same on both transports."""
+    r = client.request("tools/call", {"name": "gate_verdict", "arguments": {"as_of": "record"}})["result"]
+    if r.get("isError"):
+        return None
+    full = r["structuredContent"]
+    return full, check_summary(client, full["scenario"], full, failures, f"{name}: {full['scenario']}")
+
+
 def settled(stale: list[dict]) -> dict[str, list[str]]:
     """The record's stale statements and their verified or approved successors (task-0071)."""
     out = {x["id"]: sorted({t["id"] for t in x.get("successors") or [] if t.get("id") and t.get("status") in ("verified", "approved")})
@@ -235,6 +318,7 @@ def check_stage2(sc: str, subject, failures: list[str]) -> None:
             diff = sorted(k for k in set(got) | set(expected) if got.get(k) != expected.get(k))
             failures.append(f"{sc} stage 2: gate_verdict differs from gate_cli --no-load on {diff}")
         corpus_held(f"{sc} stage 2", got, expected, failures)
+        check_summary(client, sc, got, failures, f"{sc} stage 2")   # task-0364: a stage-2 report's counts too
         if got.get("version") == "v1":
             failures.append(f"{sc} stage 2: the store holds v1, not the change")
         failures += stage_named(f"{sc} stage 2", client.call("store_status", {}), got)   # task-0342 (B-X8): the change held
@@ -887,7 +971,7 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
     stale_at = len(calls) - 1
     thread = thread_starts()   # task-0336 (decision-0039 §3.3): the thread walk from a capability and from a process
     calls += [("register_impact", {"node": n, "walk": "thread"}) for n in thread]
-    answers = {}
+    answers, summaries = {}, {}
     for name, cls in (("stdio", StdioClient), ("http", HttpClient)):
         client = cls()
         try:
@@ -896,9 +980,13 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
             if missing:
                 failures.append(f"{name}: tools/list lacks {missing}")
             answers[name] = [client.call(t, a) for t, a in calls]
+            summaries[name] = transport_summary(client, name, failures)
             # task-0200 (M5, M6): an argument outside the tool's schema and a non-string name are -32602 here too;
             # task-0296: a key outside the one entity|attribute rule, a zero-width space in it included, as well
             for params in ({"name": "gate_verdict", "arguments": {"senario": "S4"}}, {"name": ["gate_verdict"]},
+                           {"name": "gate_verdict", "arguments": {"filter": {"colour": "red"}}},   # task-0364: the filter's schema
+                           {"name": "gate_verdict", "arguments": {"filter": {"key": "thing\u200b|property"}}},
+                           {"name": "gate_verdict", "arguments": {"summary": "yes"}},
                            {"name": "gate_verdict", "arguments": {"keys": ["nonsense"]}},
                            {"name": "evidence_bundle", "arguments": {"keys": ["thing\u200b|property"]}},
                            {"name": "gate_verdict", "arguments": {"keys": ["thing\u202e|property"]}},   # task-0297: RLO
@@ -910,8 +998,7 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
             single_key_refused(client, name, failures)
         finally:
             client.close()
-    if answers.get("stdio") != answers.get("http"):
-        failures.append("the file-only tools answer differently over stdio and HTTP")
+    failures += transports_differ(answers, summaries)
     check_thread(answers.get("stdio", [])[-len(thread):] if thread else [], thread, failures)
     check_stale(answers.get("stdio", [None] * len(calls))[stale_at], failures)
     allowed = {x.get("serverName") for x in json.loads(ALLOWLIST.read_text(encoding="utf-8")).get("allowedMcpServers", [])}
@@ -1182,6 +1269,7 @@ def main(argv: list[str] | None = None) -> int:
                 diff = sorted(k for k in set(got) | set(expected) if got.get(k) != expected.get(k))
                 failures.append(f"{sc}: gate_verdict differs from gate_cli --no-load on {diff}")
             corpus_held(sc, got, load_corpus(load), failures)
+            check_summary(client, sc, got, failures, sc)   # task-0364
             differs_held(client, sc, rec_path_of(sc), failures)
             disc = client.modern("server/discover", {})["result"]
             stateless = client.modern("tools/call", {"name": "gate_verdict", "arguments": {"scenario": sc, "as_of": "record"}})["result"]

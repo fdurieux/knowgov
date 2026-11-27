@@ -1,0 +1,536 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/gate-summary.schema.json",
+ "title": "knowgov gate summary",
+ "description": "task-0364: the MCP reader's gate_verdict with summary true: one gate report (gate-report.schema.json, the same gate_cli.evaluate) read as counts, no finding listed (harness/gate_summary.py). Every count is computed from that report: by_severity is its counts, by_kind and by_owner its findings, by_level its levels; tools/check_mcp_server.py holds them equal to the full report's on the same store, over stdio and HTTP, on rdflib and Neo4j. To read the findings behind a count, call gate_verdict with filter naming its owner, level, kind, key or severity.",
+ "type": "object",
+ "required": [
+  "schema_version",
+  "tool",
+  "report_schema_version",
+  "subject",
+  "scenario",
+  "task",
+  "store",
+  "loaded",
+  "version",
+  "verdict",
+  "why",
+  "threshold",
+  "exit_code",
+  "as_of",
+  "bar",
+  "task_profile",
+  "register",
+  "knowgov",
+  "corpus",
+  "attestations",
+  "captures",
+  "configuration",
+  "code",
+  "preload",
+  "keys",
+  "findings",
+  "counts",
+  "baseline"
+ ],
+ "additionalProperties": false,
+ "$defs": {
+  "verdict": {
+   "enum": [
+    "PROCEED",
+    "QUALIFIED",
+    "BLOCKED"
+   ]
+  },
+  "register_source": {
+   "type": "object",
+   "required": [
+    "tag",
+    "commit"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "tag": {
+     "type": "string"
+    },
+    "commit": {
+     "type": "string"
+    }
+   }
+  },
+  "severity": {
+   "enum": [
+    "blocker",
+    "critical",
+    "major",
+    "minor",
+    "info"
+   ]
+  }
+ },
+ "properties": {
+  "schema_version": {
+   "const": 1,
+   "description": "the summary's own version, apart from the report's"
+  },
+  "tool": {
+   "const": "knowgov gate summary"
+  },
+  "report_schema_version": {
+   "const": 3,
+   "description": "3 since task-0237 (decision-0029): task_profile, register and knowgov, required; a version-2 report still reads as a --baseline"
+  },
+  "subject": {
+   "type": "string",
+   "description": "the subject's id"
+  },
+  "scenario": {
+   "type": "string"
+  },
+  "task": {
+   "type": "string",
+   "description": "the task class of the subject's [tasks] table"
+  },
+  "store": {
+   "type": "string",
+   "description": "the store adapter the gate computed on: rdflib for the default load into the process's scratch store (decision-0017); KG_STORE's adapter with --publish or --no-load"
+  },
+  "loaded": {
+   "type": "boolean",
+   "description": "true: the gate loaded the scenario first; false (--no-load): it read the configured store as it was"
+  },
+  "version": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "the version loaded last (task-0049): v1 for stage 1, the subject's [scenario.stage2] version for --stage 2; with --no-load, the store's latest extraction"
+  },
+  "verdict": {
+   "$ref": "#/$defs/verdict"
+  },
+  "why": {
+   "type": "string"
+  },
+  "threshold": {
+   "$ref": "#/$defs/severity"
+  },
+  "exit_code": {
+   "enum": [
+    0,
+    1
+   ]
+  },
+  "as_of": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "YYYY-MM-DD, the date review currency was read on (--as-of; decision-0005): today by default, the subject's pinned record date with --as-of record"
+  },
+  "bar": {
+   "type": "object",
+   "required": [
+    "block_levels",
+    "max_unverified_share",
+    "require_approved"
+   ],
+   "additionalProperties": false,
+   "description": "the task class's bar: the levels that block a key, the share of required keys allowed below verified (approved where require_approved), and whether the class requires approved",
+   "properties": {
+    "block_levels": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "max_unverified_share": {
+     "type": [
+      "number",
+      "null"
+     ]
+    },
+    "require_approved": {
+     "type": "boolean"
+    }
+   }
+  },
+  "task_profile": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "version 3 (task-0237, decision-0029, doc-0014 C9): the sha256, hex, of the canonical JSON (sorted keys, no whitespace, UTF-8) of the subject's [tasks.<class>] table the gate read, as its manifest gives it, with the keys asked for in place of its own when a key set was asked for (task keys); null when no table was read"
+  },
+  "register": {
+   "type": "object",
+   "required": [
+    "tag",
+    "commit",
+    "why"
+   ],
+   "additionalProperties": false,
+   "description": "version 3 (task-0237): the register the gate read, KG_REGISTER: a vendored copy's SOURCE.md, else an instance checkout's git HEAD and the tag exactly on it, read without the network",
+   "properties": {
+    "tag": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "null when no tag names the commit, or the register is unknown"
+    },
+    "commit": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "40 hex; null when unknown, with why"
+    },
+    "why": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "why the commit is unknown; null when it is known"
+    },
+    "files": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "pattern": "^[0-9a-f]{64}$",
+     "description": "task-0320 (decision-0038 N2), optional and additive: the register's files a load reads, the sha256, hex, of one canonical JSON line [path, sha256] per file, sorted: every file the register's own loader (tools/register.py load_register) opens, recorded as it opens them, and the issued-handles list its metamodel/types.toml names (harness/register_impact.py loaded_files, files_digest); a loaded file edited under the same tag and commit moves it, a file no load reads (a README, a stray file, SOURCE.md) does not; null when the register has no loader of its own"
+    }
+   }
+  },
+  "knowgov": {
+   "type": "object",
+   "required": [
+    "version",
+    "commit",
+    "describe"
+   ],
+   "additionalProperties": false,
+   "description": "version 3 (task-0237): the knowgov build that judged, task-0227's identity (harness/build_identity.py), as store_status reports it; each null when it cannot be known",
+   "properties": {
+    "version": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "commit": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "describe": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "corpus": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "pattern": "^[0-9a-f]{64}$",
+   "description": "task-0307 (decision-0037), added since without a version change: the corpus the gate decided on, the sha256, hex, of one line per document Version the store holds, the canonical JSON array [artefact, version, sha256] (no whitespace, UTF-8, a null kept null) and a newline, the lines sorted (harness/store.py corpus_digest; canonical lines, task-0320, decision-0038 N4: a tab or newline in a value, or null against \"\", never collides), every Version counted, a stage-2 change's earlier one included; equal on both stores and through export and import; null when no Version is loaded. With --baseline, a corpus that differs from the baseline's is named in baseline.differs and on stderr, never in the exit"
+  },
+  "attestations": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "pattern": "^[0-9a-f]{64}$",
+   "description": "task-0320 (decision-0038 N2), optional and additive: the subject manifest's [verification], [provenance] and [capture] as the load read them, the sha256, hex, of the canonical JSON {\"verification\": .., \"provenance\": .., \"capture\": ..} (sorted keys, no whitespace, UTF-8, a TOML date as its ISO text, a table the manifest lacks null; harness/load.py attestations_digest), recorded in the store at the load (Store.record_inputs) and read back, so a --no-load or MCP read names the load's; equal on both stores and through export and import; null on a store loaded before it"
+  },
+  "captures": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "pattern": "^[0-9a-f]{64}$",
+   "description": "task-0320 (decision-0038 N2), optional and additive: the answers and reviews the load applied, the sha256, hex, of the canonical JSON {\"captures\": c, \"reviews\": r}, c and r each the digest of the sorted [file name, digest of its content as read] of the capture files the load ingested and of the review files it applied (another scenario's review and a refused one left out; harness/load.py applied_digest), recorded at the load and read back (Store.inputs); null on a store loaded before it"
+  },
+  "configuration": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "additionalProperties": {
+    "type": "string",
+    "pattern": "^[0-9a-f]{64}$"
+   },
+   "description": "task-0335 (decision-0039 §3.2), optional and additive: the subject's configuration files the load read, each by its path under the subject root as the manifest names it, to the sha256, hex, of its raw bytes as read: subject.toml whole, scenarios.toml, the register map ([register] map), and plants.toml, queries.toml and the verification map ([verification] map) where read, a file that is not there left out (harness/subject.py Subject.configuration); recorded at the load (Store.record_inputs) and read back (Store.inputs), so a --no-load or MCP read names the load's; equal on both stores and through export and import; with --baseline compared whole, a file read on one side only a difference; null on a store loaded before it"
+  },
+  "code": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "additionalProperties": {
+    "type": "string",
+    "pattern": "^[0-9a-f]{64}$"
+   },
+   "description": "task-0341 (decision-0040 (a)), optional and additive: the code and suite an execution verification is compared against, each file the load's part selection reads for [reference] code (a file, or a directory's *.py files) and for [oracle] script with each path [oracle] suite lists (harness/subject.py code_files), by its path under the subject root as the manifest names it (a directory's file as <it>/<relative>), to the sha256, hex, of its raw bytes, a file that is not there left out, {} when the manifest declares neither (Subject.code); recorded at the load (Store.record_inputs) and read back (Store.inputs), so a --no-load or MCP read names the load's; equal on both stores and through export and import; with --baseline compared whole, a file on one side only a difference; null on a store loaded before it, or when a path lies outside the instance"
+  },
+  "preload": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "required": [
+    "path",
+    "sha256",
+    "why"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "path": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "the report's path as KG_PRELOAD_REPORT names it, else preload-report.json, the instance's own; null when none was applied"
+    },
+    "sha256": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "pattern": "^[0-9a-f]{64}$",
+     "description": "the sha256, hex, of the report's raw bytes; null when none was applied"
+    },
+    "why": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "why no report was applied (KG_PRELOAD_REPORT unset and the instance holds none, or the subject is in no instance); null when one was"
+    }
+   },
+   "description": "task-0341 (decision-0040 (a)), optional and additive: the pre-load report the load applied (harness/preload.py identity: KG_PRELOAD_REPORT, else <instance>/preload-report.json), its path and the digest of its raw bytes, or both null with why when none was applied; recorded at the load (Store.record_inputs) and read back (Store.inputs); equal on both stores and through export and import; with --baseline compared whole, so a report applied on one side only is a difference; null on a store loaded before it"
+  },
+  "keys": {
+   "type": "object",
+   "required": [
+    "total",
+    "below_verified",
+    "flagged"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "total": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "below_verified": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "flagged": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "unintended": {
+     "type": "integer",
+     "minimum": 0,
+     "description": "keys verified but not approved under a class that requires approved (task-0215); present only then"
+    }
+   }
+  },
+  "findings": {
+   "type": "integer",
+   "minimum": 0,
+   "description": "how many findings the report holds; none is listed"
+  },
+  "counts": {
+   "type": "object",
+   "required": [
+    "by_severity",
+    "by_kind",
+    "by_level",
+    "by_owner"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "by_severity": {
+     "type": "object",
+     "required": [
+      "blocker",
+      "critical",
+      "major",
+      "minor",
+      "info"
+     ],
+     "additionalProperties": false,
+     "properties": {
+      "blocker": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "critical": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "major": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "minor": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "info": {
+       "type": "integer",
+       "minimum": 0
+      }
+     },
+     "description": "the report's counts: findings by severity"
+    },
+    "by_kind": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "description": "findings by kind (gate-report's finding kinds), only the kinds present"
+    },
+    "by_level": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "description": "required keys by their level (the report's levels), only the levels present; sums to keys.total"
+    },
+    "by_owner": {
+     "type": "array",
+     "description": "one row per owner the findings name, by owner, null last: owner null collects the findings no single unit answers for and those of a kind naming no owner (task, suspect_derived, preload), the findings a filter of owner null returns",
+     "items": {
+      "type": "object",
+      "required": [
+       "owner",
+       "findings",
+       "keys",
+       "by_severity"
+      ],
+      "additionalProperties": false,
+      "properties": {
+       "owner": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "findings": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "keys": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "the distinct keys its findings name"
+       },
+       "by_severity": {
+        "type": "object",
+        "required": [
+         "blocker",
+         "critical",
+         "major",
+         "minor",
+         "info"
+        ],
+        "additionalProperties": false,
+        "properties": {
+         "blocker": {
+          "type": "integer",
+          "minimum": 0
+         },
+         "critical": {
+          "type": "integer",
+          "minimum": 0
+         },
+         "major": {
+          "type": "integer",
+          "minimum": 0
+         },
+         "minor": {
+          "type": "integer",
+          "minimum": 0
+         },
+         "info": {
+          "type": "integer",
+          "minimum": 0
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "baseline": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "required": [
+    "source",
+    "verdict",
+    "regression",
+    "worse_verdict",
+    "regressed_keys",
+    "new_suspect"
+   ],
+   "additionalProperties": false,
+   "description": "the report's baseline, its lists as counts; null without one",
+   "properties": {
+    "source": {
+     "type": "string"
+    },
+    "verdict": {
+     "$ref": "#/$defs/verdict"
+    },
+    "regression": {
+     "type": "boolean"
+    },
+    "worse_verdict": {
+     "type": "boolean"
+    },
+    "regressed_keys": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "new_suspect": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "differs": {
+     "type": "array",
+     "items": {
+      "enum": [
+       "task_profile",
+       "register",
+       "knowgov",
+       "corpus",
+       "attestations",
+       "captures",
+       "configuration",
+       "code",
+       "preload",
+       "as_of"
+      ]
+     },
+     "description": "task-0320 (decision-0038 N3), optional and additive: the identity fields that differ from the baseline's, in this order, computed once (harness/gate_cli.py differs) for the command and for the MCP reader's gate_verdict; a field either side lacks or holds as null, and an object's sub-field either side holds as null (A-N1), is never named; configuration compared whole (task-0335), code and preload likewise (task-0341); the command also names each on stderr; never the exit"
+    }
+   }
+  }
+ }
+}
