@@ -200,3 +200,22 @@ def test_route_stage_reads_the_change_or_the_held_later_version():
     p = subprocess.run([sys.executable, "-c", code], env=_env(), cwd=ROOT, capture_output=True, text=True, timeout=120)
     assert p.returncode == 0, p.stderr
     assert p.stdout.split() == ["[2,", "2,", "1,", "1,", "1]", "True"], p.stdout
+
+
+def test_a_stale_key_is_asked_whatever_its_level_at_stage_2_only():
+    """The coordinator's point 2: a required key holding an invalidated statement is an item at stage 2 even when a
+    settled successor lifts it to verified; at stage 1 (no change) a verified key is not asked, as before."""
+    nodes = capture.register_nodes(ROOT / "demo" / "register")
+    old = {"id": "A:dt:P2|surcharge@v1", "value": "316.00", "status": "invalidated", "basis": "extracted", "artefact": "contract/decision_table.md"}
+    new = {**old, "id": "A:dt:P2|surcharge@v2", "value": "341.00", "status": "verified"}
+    res = {"keys": {"P2|surcharge": {"level": "verified", "flags": [], "assertions": [new], "declared_gaps": []}},
+           "stale": [{"id": old["id"], "key": "P2|surcharge"}]}
+    change = {"artefact": "contract/decision_table.md", "version": "v2", "invalidated": [old["id"]]}
+    rows = {old["id"]: {**old, "version": "v1"}, new["id"]: {**new, "version": "v2"}}
+    today = dt.date.fromisoformat(DAY)
+    assert capture.questionnaires(res, CARGO_QUOTE, "S6", "codegen", nodes, today) == {}
+    [text] = capture.questionnaires(res, CARGO_QUOTE, "S6", "codegen", nodes, today, change=change, statements=rows).values()
+    [it] = tomllib.loads(text)["item"]
+    assert it["key"] == "P2|surcharge" and it["level"] == "verified"
+    assert it["known"] == ["316.00 (invalidated, v1, extracted, contract/decision_table.md)",
+                           "341.00 (verified, v2, extracted, contract/decision_table.md)"], it["known"]

@@ -19,7 +19,7 @@ the gate finding's ``closer``; task-0113), which ingest does not read.
 
 ``questionnaire --stage 2`` (task-0371, impact gap G4) then brings in the scenario's later version, the
 subject's ``[scenario.stage2]`` change, by the gate's own routine (``gate_cli._change``, before re-verification),
-in the same scratch store: each key a statement was invalidated on is asked with its ``known`` statements naming
+in the same scratch store: each required key a statement was invalidated on is asked, whatever its level, with its ``known`` statements naming
 their versions, the invalidated one beside its successor, and a key the new version adds that the task requires is
 an item like any open key. On stderr, one note each: the invalidated statements on keys the task does not require,
 and the added keys another class requires or none does (task-0370 makes the last a gate finding). A statement the
@@ -218,9 +218,21 @@ def _q(s: str) -> str:
     return json.dumps(s, ensure_ascii=False)
 
 
-def _with_open(by_owner: dict[str, list[str]], res: dict) -> dict[str, list[str]]:
-    """task-0315 C2-5: the owners with at least one open key; a questionnaire with nothing to answer is not written."""
-    return {o: ks for o, ks in by_owner.items() if any(res["keys"][k]["level"] in OPEN_LEVELS for k in ks)}
+def _with_open(by_owner: dict[str, list[str]], res: dict, asked: set[str] = frozenset()) -> dict[str, list[str]]:
+    """task-0315 C2-5: the owners with at least one open key; a questionnaire with nothing to answer is not written.
+    ``asked`` (``asked_keys``): keys asked whatever their level."""
+    return {o: ks for o, ks in by_owner.items() if _open_keys(ks, res, asked)}
+
+
+def _open_keys(keys: list[str], res: dict, asked: set[str]) -> list[str]:
+    """The keys of ``keys`` an item asks: open by level (``OPEN_LEVELS``) or asked whatever it (``asked_keys``)."""
+    return [k for k in keys if res["keys"][k]["level"] in OPEN_LEVELS or k in asked]
+
+
+def asked_keys(res: dict, change: dict | None) -> set[str]:
+    """task-0371: at stage 2, every required key that holds a statement the change invalidated (the gate's ``stale``), asked
+    whatever its level, so a key a settled successor already lifts is still asked against its earlier statement; none at stage 1."""
+    return {x["key"] for x in res.get("stale") or [] if x["key"] in res["keys"]} if change else set()
 
 
 def statement_rows(st, res: dict) -> dict[str, dict]:
@@ -272,8 +284,9 @@ def questionnaires(res: dict, subject, scenario: str, task: str, nodes: dict, to
         for o in (route.get(key) or {}).get("files") or [UNASSIGNED]:
             by_owner.setdefault(o, []).append(key)
     out = {}
-    for owner, keys in sorted(_with_open(by_owner, res).items()):
-        open_keys = [k for k in keys if res["keys"][k]["level"] in OPEN_LEVELS]
+    asked = asked_keys(res, change)
+    for owner, keys in sorted(_with_open(by_owner, res, asked).items()):
+        open_keys = _open_keys(keys, res, asked)
         name = nodes.get(owner, {}).get("name", "no owner in the register map")
         lines = [
             f"# Questionnaire for {owner} ({name}): {len(open_keys)} of the {len(keys)} keys you own need an answer.",
