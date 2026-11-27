@@ -73,6 +73,7 @@ and the test checks this file names every term of it.
 | source of record | The system that authors a node's content: ARIS, Archi, the EDM repository, or the kit in the test case. |
 | export | A dated, append-only mirror of a source of record, with a manifest of digests and a reconciliation report. |
 | approval | A recorded acceptance: of a verified assertion in the store, or of a node or link in the register, with who, when and which record. |
+| inbound reference | A record in another system of record that names a register node by its id, such as an agent registry's usage naming its capability. The register reads it from that system's export and holds no link for it. |
 | exception | An approved, expiring deviation from a coverage rule, with its scope and rationale. |
 | coverage rule | A register check that an approved node of one kind has a link of one type, or an unexpired exception. |
 | state | Where a register node or link stands: draft, proposed, approved, deprecated, retired or rejected. An assertion has a status, never a state. |

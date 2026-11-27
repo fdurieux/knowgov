@@ -1,0 +1,22 @@
+exported_on = 2026-11-27T00:00:00Z
+source = "agent_registry"
+source_version = "synthetic fixture of decision 0023"
+tool = "hand-written synthetic export; no real organisation's agent"
+tool_version = "0.1.0"
+previous = ""
+# Decision 0023: the export is the manifest's own tables; no file travels with it. Four synthetic
+# usages: one cites an approved capability, one a proposed one, one an id no node carries (an
+# entry of the framework's provisional list), one nothing. No stage, owner or version of a usage.
+
+[files]
+
+[ids]
+"u-3f9c21" = "screening assistant, quote intake"
+"u-8a04d7" = "shipper notification drafter"
+"u-c51e90" = "lane rate explainer"
+"u-27b6fe" = "internal search helper"
+
+[cites]
+"u-3f9c21" = "CAP-0003"
+"u-8a04d7" = "CAP-0005"
+"u-c51e90" = "prov-17"

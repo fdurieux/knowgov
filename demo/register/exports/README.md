@@ -9,4 +9,6 @@ no longer appears). A later export is a new folder, never an overwrite.
 `kit/` is this test case's synthetic source: the manifest names the pumllint commit and the
 digests of the CargoQuote kit files; the files themselves stay in pumllint. A second subject of
 the organisation is a second `<system>/` folder with its own manifests (decision 0004). `aris/`, `archi/`
-and `edm/` are empty until an export route is tested on a target installation.
+and `edm/` are empty until an export route is tested on a target installation. `agent_registry/` holds a
+synthetic export of an agent registry's usages and the capability id each cites, under `[cites]`:
+inbound references, read and reported by `check_inbound`, never nodes (decision 0023).
