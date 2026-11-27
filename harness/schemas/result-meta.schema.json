@@ -1,0 +1,103 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/result-meta.schema.json",
+ "title": "knowgov MCP result _meta",
+ "description": "task-0365, decision-0048: the knowgov fields of a tools/call result's _meta (harness/result_marks.py). io.knowgov/clipped is present only when the answer holds less than the tool read: register_nodes past its limit, scenario_runs past its limit, or an answer refused over KG_MCP_MAX_RESPONSE (what bytes, returned 0). io.knowgov/large is present only when the answer's text is over KG_MCP_CLIENT_BUDGET characters: it is whole, but a client may cut it. An answer with neither is the result it was before. Each mark is also a text item, in words, before the answer, which stays the last text item. The 2026-07-28 era's io.modelcontextprotocol/serverInfo sits beside them.",
+ "type": "object",
+ "additionalProperties": false,
+ "properties": {
+  "io.knowgov/clipped": {
+   "type": "object",
+   "required": [
+    "partial",
+    "what",
+    "returned",
+    "total",
+    "narrower"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "partial": {
+     "const": true
+    },
+    "what": {
+     "enum": [
+      "nodes",
+      "runs",
+      "bytes"
+     ],
+     "description": "what returned and total count: register nodes, runs, or the refused answer's bytes"
+    },
+    "returned": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "total": {
+     "type": "integer",
+     "minimum": 0,
+     "description": "how many the tool holds for the call"
+    },
+    "narrower": {
+     "type": "string",
+     "description": "the call that reads the rest, or reads less"
+    }
+   }
+  },
+  "io.modelcontextprotocol/serverInfo": {
+   "type": "object",
+   "description": "the 2026-07-28 era's stamp, not knowgov's"
+  },
+  "io.knowgov/large": {
+   "type": "object",
+   "required": [
+    "partial",
+    "chars",
+    "budget",
+    "count",
+    "narrower"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "partial": {
+     "const": false,
+     "description": "nothing is cut: the answer is whole (task-0177)"
+    },
+    "chars": {
+     "type": "integer",
+     "minimum": 0,
+     "description": "the characters of the answer's text item"
+    },
+    "budget": {
+     "type": "integer",
+     "minimum": 1000,
+     "description": "KG_MCP_CLIENT_BUDGET as this server read it"
+    },
+    "count": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "required": [
+      "what",
+      "n"
+     ],
+     "additionalProperties": false,
+     "description": "what the answer holds, by tool (findings, statements, keys, nodes, outputs, runs); null for a tool with no count",
+     "properties": {
+      "what": {
+       "type": "string"
+      },
+      "n": {
+       "type": "integer",
+       "minimum": 0
+      }
+     }
+    },
+    "narrower": {
+     "type": "string",
+     "description": "how to ask narrowly"
+    }
+   }
+  }
+ }
+}

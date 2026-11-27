@@ -45,6 +45,11 @@ On each scenario, and again after S6's change, ``gate_verdict`` with ``summary``
 severity, kind, key level and owner unit, recomputed here from that report, with its verdict and identity fields, and
 each owner, kind and the blocker severity asked as ``filter`` returns exactly the full report's findings for it, the
 rest of the report unmoved; once over Streamable HTTP too, equal to stdio's (task-0364).
+Once, over stdio and Streamable HTTP alike: ``register_nodes`` past its limit carries ``_meta["io.knowgov/clipped"]``
+(harness/schemas/result-meta.schema.json) with its returned and total counts and the narrower call, and the same first
+in content; one node's lineage, uncut, carries no mark; and on a reader whose ``KG_MCP_CLIENT_BUDGET`` is 1000, the
+whole listing is whole and marked ``io.knowgov/large`` with its characters, the budget, its node count and the narrower
+call, the answer still the last text item (task-0365, decision-0048).
 Once, after the scenarios: ``subject_check`` listed over stdio and Streamable HTTP, and on doc-0018's probe
 (``tools/fixtures/subject_probe``) its report equal to ``tools/check_subject.py --json``'s, over stdio in both eras (task-0146); and the prompts
 ``new_subject`` and ``add_artefact`` listed and given over both transports (task-0148).
@@ -117,9 +122,9 @@ def conform(name: str, out: dict, args: dict | None = None) -> None:
 class StdioClient:
     """A minimal MCP client: start the server, initialise, call tools."""
 
-    def __init__(self):
+    def __init__(self, env: dict | None = None):
         self.p = subprocess.Popen([sys.executable, str(HARNESS / "mcp_server.py")], stdin=subprocess.PIPE,
-                                  stdout=subprocess.PIPE, text=True, env=os.environ.copy())
+                                  stdout=subprocess.PIPE, text=True, env={**os.environ, **(env or {})})
         self.n = 0
         init = self.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
                                            "clientInfo": {"name": "check_mcp_server", "version": "1"}})
@@ -163,11 +168,11 @@ class HttpClient(StdioClient):
     """The same client over Streamable HTTP: start ``mcp_server.py --http`` on a free loopback port,
     then one POST per message (task-0095)."""
 
-    def __init__(self):
+    def __init__(self, env: dict | None = None):
         import re
         self.p = subprocess.Popen([sys.executable, str(HARNESS / "mcp_server.py"), "--http", "--host", "127.0.0.1", "--port", "0"],
                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                                  text=True, env=os.environ.copy())
+                                  text=True, env={**os.environ, **(env or {})})
         line = self.p.stderr.readline()
         m = re.search(r"(http://127\.0\.0\.1:\d+/mcp)", line)
         if not m:
@@ -268,6 +273,71 @@ def transports_differ(answers: dict, summaries: dict) -> list[str]:
         out.append("the file-only tools answer differently over stdio and HTTP")
     if summaries.get("stdio") != summaries.get("http"):   # task-0364: the summary and every filter, the same on both
         out.append("gate_verdict's summary or a filter answers differently over stdio and HTTP")
+    return out
+
+
+BUDGET = "1000"   # task-0365: a client budget the register's whole listing is over, so the large case is held here
+
+
+def large_marks(failures: list[str]) -> dict:
+    """task-0365 (decision-0048): on a reader started with KG_MCP_CLIENT_BUDGET at 1000, register_nodes' whole listing is
+    over it: whole, its text the last item and equal to structuredContent, io.knowgov/large naming its characters, the
+    budget, its node count and the narrower call, and the same in words before it; one node's lineage, under it, plain.
+    Over stdio and Streamable HTTP alike."""
+    import schema_check
+    seen = {}
+    for name, cls in (("stdio", StdioClient), ("http", HttpClient)):
+        client = cls({"KG_MCP_CLIENT_BUDGET": BUDGET})
+        try:
+            r = client.request("tools/call", {"name": "register_nodes", "arguments": {"limit": 1000}})["result"]
+            plain = client.request("tools/call", {"name": "register_nodes", "arguments": {"node": "CAP-0002"}})["result"]
+        finally:
+            client.close()
+        meta = {k: v for k, v in (r.get("_meta") or {}).items() if k != "io.modelcontextprotocol/serverInfo"}
+        big = meta.get("io.knowgov/large") or {}
+        data = r.get("structuredContent") or {}
+        ok = (not schema_check.validate(meta, schema_check.load("result-meta")) and set(meta) == {"io.knowgov/large"}
+              and big.get("chars") == len(r["content"][-1]["text"]) > int(BUDGET) and big.get("budget") == int(BUDGET)
+              and big.get("count") == {"what": "nodes", "n": data.get("total")} and json.loads(r["content"][-1]["text"]) == data
+              and len(r["content"]) == 2 and r["content"][0]["text"].startswith("large: "))
+        if not ok:
+            failures.append(f"{name}: register_nodes over a {BUDGET}-character budget is not marked large as decision-0048 has it: {meta}")
+        if (plain.get("_meta") or {}).keys() - {"io.modelcontextprotocol/serverInfo"} or len(plain["content"]) != 1:
+            failures.append(f"{name}: one node's lineage, under the budget, carries a mark")
+        seen[name] = {"meta": meta, "content": r["content"]}
+    if seen.get("stdio") != seen.get("http"):
+        failures.append("a large result carries a different mark over stdio and HTTP")
+    big = (seen.get("stdio") or {}).get("meta", {}).get("io.knowgov/large") or {}
+    print(f"large: register_nodes' {big.get('chars')} characters over a {BUDGET}-character budget marked large, whole, the same over "
+          "stdio and HTTP; one node's lineage plain")
+    return seen
+
+
+def mark_holds(r: dict, meta: dict, mark: dict | None, cut: bool) -> bool:
+    """A clipped listing's mark counts what it returned of its total and opens its content; an uncut one has none."""
+    if not cut:
+        return not meta and len(r["content"]) == 1
+    data = r.get("structuredContent") or {}
+    return bool(mark) and mark["returned"] == len(data.get("nodes") or []) and mark["total"] == data.get("total") \
+        and r["content"][0]["text"].startswith("partial: ") and len(r["content"]) == 2
+
+
+def clip_marks(client: "StdioClient", name: str, failures: list[str]) -> list:
+    """task-0365: register_nodes past its limit carries the clipped mark in _meta (harness/schemas/result-meta.schema.json)
+    and first in content, its total the listing's; one node's lineage, uncut, carries none and one content item. Returns
+    the two results less the era's stamp, so the transports can be compared."""
+    import schema_check
+    out = []
+    for args, cut in (({"limit": 2}, True), ({"node": "CAP-0002"}, False)):
+        r = client.request("tools/call", {"name": "register_nodes", "arguments": args})["result"]
+        meta = {k: v for k, v in (r.get("_meta") or {}).items() if k != "io.modelcontextprotocol/serverInfo"}
+        errors = schema_check.validate(meta, schema_check.load("result-meta"))
+        mark = meta.get("io.knowgov/clipped")
+        if errors or not mark_holds(r, meta, mark, cut):
+            failures.append(f"{name}: register_nodes {args} {'is not marked clipped' if cut else 'carries a mark'}: {meta or r['content'][0]['text'][:120]}")
+        out.append({"meta": meta, "content": r["content"]})
+    print(f"{name}: register_nodes past its limit is marked clipped ({(out[0]['meta'].get('io.knowgov/clipped') or {}).get('returned')} of "
+          f"{(out[0]['meta'].get('io.knowgov/clipped') or {}).get('total')} nodes); one node's lineage carries no mark")
     return out
 
 
@@ -971,7 +1041,7 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
     stale_at = len(calls) - 1
     thread = thread_starts()   # task-0336 (decision-0039 §3.3): the thread walk from a capability and from a process
     calls += [("register_impact", {"node": n, "walk": "thread"}) for n in thread]
-    answers, summaries = {}, {}
+    answers, summaries, marks = {}, {}, {}
     for name, cls in (("stdio", StdioClient), ("http", HttpClient)):
         client = cls()
         try:
@@ -981,6 +1051,7 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
                 failures.append(f"{name}: tools/list lacks {missing}")
             answers[name] = [client.call(t, a) for t, a in calls]
             summaries[name] = transport_summary(client, name, failures)
+            marks[name] = clip_marks(client, name, failures)   # task-0365
             # task-0200 (M5, M6): an argument outside the tool's schema and a non-string name are -32602 here too;
             # task-0296: a key outside the one entity|attribute rule, a zero-width space in it included, as well
             for params in ({"name": "gate_verdict", "arguments": {"senario": "S4"}}, {"name": ["gate_verdict"]},
@@ -999,6 +1070,8 @@ def check_transports(failures: list[str], ex: dict | None = None) -> None:
         finally:
             client.close()
     failures += transports_differ(answers, summaries)
+    if marks.get("stdio") != marks.get("http"):   # task-0365: the clipped and the uncut result, the same on both
+        failures.append("a clipped or an uncut result carries a different mark over stdio and HTTP")
     check_thread(answers.get("stdio", [])[-len(thread):] if thread else [], thread, failures)
     check_stale(answers.get("stdio", [None] * len(calls))[stale_at], failures)
     allowed = {x.get("serverName") for x in json.loads(ALLOWLIST.read_text(encoding="utf-8")).get("allowedMcpServers", [])}
@@ -1305,6 +1378,7 @@ def main(argv: list[str] | None = None) -> int:
         if SUBJECT.scenario(sc).get("stage2"):
             check_stage2(sc, SUBJECT, failures)
     check_transports(failures, ex)
+    large_marks(failures)   # task-0365: the large case, beside check_transports' clipped and plain ones
     before = census()
     check_subjects(failures)
     if census() != before:

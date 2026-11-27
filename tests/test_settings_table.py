@@ -108,7 +108,8 @@ def test_each_row_has_a_group_and_says_contract_or_why_not():
     assert marked["KG_ARMS_EFFORT"] == "no: its values are the model API's", "decision-0034 choice 1's reason"
     # task-0275's 63 of 75, as the maintainer confirmed; decision-0034 choice 1 adds 30 rows, two of them contracts
     # task-0342 (decision-0041 B-N2) adds KG_GATE_REGISTER_PREVIOUS, a contract
-    assert sum(v == "yes" for v in marked.values()) == 66 and len(marked) == 106, (sum(v == "yes" for v in marked.values()), len(marked))
+    # task-0365 (decision-0048) adds KG_MCP_CLIENT_BUDGET, a contract
+    assert sum(v == "yes" for v in marked.values()) == 67 and len(marked) == 107, (sum(v == "yes" for v in marked.values()), len(marked))
 
 
 def test_the_wording_says_the_table_decides():

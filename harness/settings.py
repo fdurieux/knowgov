@@ -37,6 +37,8 @@ NUMBERS = {
     "KG_WORKER_FILE_BYTES": (int, 1, 1 << 40, 64 << 20, True),      # worker: RLIMIT_FSIZE, bytes
     "KG_MCP_PORT": (int, LISTEN_MIN, PORT_MAX, 8765, True),        # mcp_server --http
     "KG_DEMO_PORT": (int, LISTEN_MIN, PORT_MAX, 8080, True),       # the page
+    # task-0365, decision-0048: the characters of a tools/call answer's text above which the reader marks it large
+    "KG_MCP_CLIENT_BUDGET": (int, 1000, 1 << 30, 100_000, True),   # mcp_server, result_marks.large
 }
 for _p in ("KG_MCP", "KG_PAGE"):   # http_boundary.Limits.from_env: each transport's bounds
     NUMBERS.update({

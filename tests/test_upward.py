@@ -282,7 +282,8 @@ def test_the_file_only_tools_are_listed_and_answer_alike_on_both_transports_and_
             os.environ.update(KG_STORE="rdflib", KG_RDFLIB_FILE=str(Path(d) / "absent.ttl"), KG_AS_OF="2026-11-04")   # the clock is pinned
             if SAME:
                 os.environ.update(KG_INSTANCE=str(_instance()), KG_LEDGER=str(Path(d) / "ledger.json"))
-            check_mcp_server.check_transports(failures)
+            check_mcp_server.check_transports(failures)   # with task-0365's clipped and plain register_nodes
+            check_mcp_server.large_marks(failures)         # task-0365 (decision-0048): the large case, files only
     finally:
         for k, v in old.items():
             os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
