@@ -41,6 +41,7 @@ names that section with the version.
   agent-registry export, and its pinned date moves to 2026-11-27, that export's date; 0 errors. `seam_check.py` and
   `inventory.py` stay outside the copied path set. `register_impact` and `proposal_impact` are unchanged on the
   example instance; nothing in the record moves.
+- The MCP reader's instructions tell an assistant how to use what the tools return (task-0367): quote every number from a tool's field and name the tool; never state a count it did not read; when a result carries `io.knowgov/clipped` or `io.knowgov/large` (task-0365), ask again with `gate_verdict`'s `summary` or `filter`, or the mark's narrower call; ask again before repeating an earlier claim; start a large subject with `subject_overview` and `gate_verdict` `summary`; never state a link no tool states. One list (`mcp_server.READING_RULES`), the same on stdio and HTTP and in both protocol eras, held by `tests/test_reading_rules.py`. `instance/README.md` gains "Telling your assistant how to use the answers": the same six rules in plain words, to paste into a project's instructions. Wording only: the instructions text is not a contract; no tool, argument, schema or exit code moves.
 
 ### Contract changes
 

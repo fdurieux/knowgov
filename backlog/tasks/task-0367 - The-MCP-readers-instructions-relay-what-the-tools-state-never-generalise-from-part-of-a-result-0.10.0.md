@@ -3,10 +3,10 @@ id: TASK-0367
 title: >-
   The MCP reader's instructions: relay what the tools state, never generalise
   from part of a result (0.10.0)
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-16T20:28:00Z'
-updated_date: '2026-11-16T20:28:00Z'
+updated_date: '2026-11-28T01:15:16Z'
 labels:
   - 0.10.0
   - mcp
@@ -27,7 +27,27 @@ The maintainer, 2026-11-16: "yes, add them as 0.10.0 tasks", after a Claude Desk
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The server's instructions tell the assistant: quote numbers from the tool's fields and name the tool; never state a count it did not read; when a result is marked partial, re-ask with the summary or a filter; re-query before repeating an earlier claim; prefer subject_overview and gate_verdict's summary as first calls for a large subject
-- [ ] #2 The same text is sent on both transports and in both protocol eras; a test holds it
-- [ ] #3 The adopter docs give the same rules as a client-side instruction an organisation can paste into its assistant's project
+- [x] #1 The server's instructions tell the assistant: quote numbers from the tool's fields and name the tool; never state a count it did not read; when a result is marked partial, re-ask with the summary or a filter; re-query before repeating an earlier claim; prefer subject_overview and gate_verdict's summary as first calls for a large subject
+- [x] #2 The same text is sent on both transports and in both protocol eras; a test holds it
+- [x] #3 The adopter docs give the same rules as a client-side instruction an organisation can paste into its assistant's project
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. mcp_server.READING_RULES: six rules, appended to INSTRUCTIONS before "This server only reads.". The names match what shipped: io.knowgov/clipped and io.knowgov/large (#604), gate_verdict summary and filter (#601), subject_overview and key_nodes (#606).
+2. tests/test_reading_rules.py: every rule is in INSTRUCTIONS; the same text goes out over stdio and HTTP, from initialize and from server/discover; the README block has six numbered rules naming the same tools and marks.
+3. instance/README.md gains "Telling your assistant how to use the answers", a paste-able text block in plain words.
+4. A CHANGELOG line in the plain Unreleased list, since the instructions text is not a contract (the contracts table lists tools and prompts).
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Proven locally (2026-11-28). tests/test_reading_rules.py has 3 tests:
+- every rule is in INSTRUCTIONS, naming the marks, tools and arguments as shipped;
+- the same text comes from initialize and server/discover, over stdio and over HTTP, each from a live server process;
+- the README's paste-able block has six numbered rules naming the same tools and marks.
+Pinned suite: 1419/1420. Unpinned: 1305/1420, 0 failed.
+The CHANGELOG line is in the plain Unreleased list, not Contract changes: the contracts table covers tools and prompts, not the instructions text.
+<!-- SECTION:NOTES:END -->
