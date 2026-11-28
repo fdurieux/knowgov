@@ -38,6 +38,7 @@ NARROWER = {
     "held_keys": "three_valued_answer or gate_verdict on the keys you need",
     "document_statements": "document_statements with version",
     "scenario_runs": "scenario_runs with scenario and a limit",
+    "subject_overview": "subject_overview with task, one class's keys, or key_nodes on one key",
 }
 GENERIC = "a limit, a narrower key set or verbatim false, where the tool takes one"
 
@@ -93,6 +94,7 @@ COUNTS = {
     "document_statements": lambda d: ("statements", _n(d.get("total"))),
     "stale_nodes": lambda d: ("stale nodes", _n(d.get("total"))),
     "scenario_runs": lambda d: ("runs", sum(_n(s.get("runs_total")) for s in d.get("scenarios") or [])),
+    "subject_overview": lambda d: ("keys", _n((d.get("counts") or {}).get("keys"))),
 }
 
 

@@ -62,6 +62,9 @@ The question an agent asks is "may I build on this?". Twenty-one tools answer it
                           text) checked by tools/check_subject.py's own functions against the served register,
                           in a temporary directory removed after the call: its subject-check report; nothing
                           stored, the yield in a child process, the call bounded (task-0146, doc-0018)
+    subject_overview      what a subject rests on: the register nodes its register_map.toml rows name, by kind and id,
+                          with names and owners; its keys with their nodes, owner and task classes; the owner units
+                          with their key counts; the scenario the store holds for it; files only (task-0366)
     who_knows             the handles, and their holders, whose attested evidence (captured answers, review
                           rulings, closes, ownership) touches one node, key or code path, across every subject
                           the reader serves; files only, one hop, nothing ranked (task-0360, decision-0047)
@@ -557,6 +560,19 @@ TOOLS.append(
          "owner": {"type": "string", "description": "the owner unit of the questionnaire that asks the key, when several do"}}},
      "annotations": READ_ONLY})
 
+TOOLS.append(   # task-0366: what a subject rests on and who owns its keys, from its register map and the register's files
+    {"name": "subject_overview", "title": "What does this subject rest on, and who owns its keys?",
+     "description": "What a subject rests on, stated from its files: the register nodes its register_map.toml rows name, by "
+                    "kind then id, with each node's taxonomy, name, state, owner and how many keys rest on it; every key the "
+                    "map names or a task class requires, with its nodes, the unit that answers for it (the owner a gate finding "
+                    "on it names) and the classes requiring it; the owner units with their key counts, and a null row for the "
+                    "keys no single unit answers for (no_unit, several_units); and the scenario the shared store holds for this "
+                    "subject, or null with why. The map's rows are the only link a subject has to the register: never infer "
+                    "one to an application, a capability or a process that no row names. task narrows the keys to one class. "
+                    "Files only, so the same on either store.",
+     "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
+         "task": {"type": "string", "description": "one task class's keys (default: every key the map names or a class requires)"}}},
+     "annotations": READ_ONLY})
 # task-0157 (B7, decision-0013 with A1): one reader for every subject under KG_SUBJECTS. Every tool but
 # list_subjects takes an optional subject id; a call naming another subject than the process's own is answered by a child process
 # for that subject (harness/mcp_child.py). A tool is store-backed or reads files only, and says which in its
@@ -584,7 +600,8 @@ OUTPUT_SCHEMAS = {"store_status": "store-status", "gate_verdict": "gate-report",
                   "key_nodes": "key-nodes", "code_path": "code-path", "document_links": "document-links",
                   "subject_check": "subject-check", "held_keys": "held-keys", "derived_outputs": "derived-outputs",
                   "document_statements": "document-statements", "list_subjects": "list-subjects", "who_knows": "who-knows",
-                  "pending_questions": "pending-questions", "question_evidence": "question-evidence", "answer_link": "answer-link"}
+                  "pending_questions": "pending-questions", "question_evidence": "question-evidence", "answer_link": "answer-link",
+                  "subject_overview": "subject-overview"}
 # task-0360: tools that read across every subject the reader serves take no subject argument, as list_subjects
 ACROSS_SUBJECTS = frozenset({"list_subjects", "who_knows", "pending_questions"})   # task-0361: a handle's questions span subjects
 # task-0360: tools whose arguments name exactly one of a set, refused -32602 otherwise; not a top-level oneOf, which some
@@ -1095,6 +1112,32 @@ class Tools:
             return upward.code_path(args.get("path"), self.trace_cfg, suspect=self._ledger_suspect)
         except upward.UpwardError as e:
             raise ToolError(str(e)) from e
+
+    def subject_overview(self, args: dict) -> dict:
+        """What the subject rests on and who owns its keys (``subject_overview.report``, task-0366): its register map and
+        the register's files; the store asked only for the scenario it holds for this subject, null with why otherwise."""
+        import subject_overview as so
+        try:
+            return so.report(args.get("task"), held=self._held_for_subject())
+        except so.OverviewError as e:
+            raise ToolError(str(e)) from e
+
+    def _held_for_subject(self) -> dict:
+        """{scenario, why}: the scenario the shared store holds when the load was this subject's (``held.owner``, task-0195),
+        as list_subjects reads it; null with why when it holds another's, none, or cannot be read."""
+        import held as held_state
+        from subject import SUBJECT
+        try:
+            self._not_mid_run()
+            h = self._with_store(lambda st: st.held())
+        except ToolError as e:
+            return {"scenario": None, "why": str(e)}
+        if not h:
+            return {"scenario": None, "why": "the store holds no scenario"}
+        who = held_state.owner(h)
+        if who != SUBJECT.id:
+            return {"scenario": None, "why": f"the store holds {h['scenario']} of {who or 'a subject it does not record'}, not {SUBJECT.id}"}
+        return {"scenario": h["scenario"], "why": None}
 
     def who_knows(self, args: dict) -> dict:
         """The handles whose attested evidence touches a node, a key or a code path (``who_knows.report``, task-0360,

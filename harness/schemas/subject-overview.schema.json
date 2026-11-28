@@ -1,0 +1,289 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/fdurieux/knowgov/harness/schemas/subject-overview.schema.json",
+ "title": "knowgov subject overview",
+ "description": "task-0366: the MCP reader's subject_overview (harness/subject_overview.py): what a subject rests on, from its register_map.toml and the register's files, read by the register's own loader. The map's rows are the only link from a subject to the register; nothing here is inferred. Every count is computed from the lists it returns; tools/check_mcp_server.py holds them equal to the map's rows and each key finding's owner to the gate's, on both stores and transports.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "schema_version",
+  "tool",
+  "subject",
+  "task",
+  "register",
+  "register_map",
+  "held",
+  "counts",
+  "owners",
+  "nodes",
+  "keys",
+  "note"
+ ],
+ "properties": {
+  "schema_version": {
+   "const": 1
+  },
+  "tool": {
+   "const": "subject_overview"
+  },
+  "subject": {
+   "type": "string"
+  },
+  "task": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "the task class the keys are narrowed to; null for every key"
+  },
+  "register": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "tag",
+    "commit"
+   ],
+   "properties": {
+    "tag": {
+     "type": "string"
+    },
+    "commit": {
+     "type": "string"
+    }
+   }
+  },
+  "register_map": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "the register map's path in the subject, as subject.toml names it"
+  },
+  "held": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "scenario",
+    "why"
+   ],
+   "description": "the scenario the shared store holds for this subject, or null with why (it holds another's, none, or cannot be read)",
+   "properties": {
+    "scenario": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "why": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "counts": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "keys",
+    "mapped",
+    "unmapped",
+    "nodes",
+    "nodes_by_kind",
+    "rows"
+   ],
+   "properties": {
+    "keys": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "mapped": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "unmapped": {
+     "type": "integer",
+     "minimum": 0,
+     "description": "keys a task class requires that no row maps"
+    },
+    "nodes": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "nodes_by_kind": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "integer",
+      "minimum": 0
+     }
+    },
+    "rows": {
+     "type": "integer",
+     "minimum": 0,
+     "description": "the map's rows, whatever the task"
+    }
+   }
+  },
+  "owners": {
+   "type": "array",
+   "description": "one row per unit answering for keys, by unit, then a null row for the keys no single unit answers for",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "unit",
+     "name",
+     "keys"
+    ],
+    "properties": {
+     "unit": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "name": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "keys": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "no_unit": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "null row: keys no row assigns a unit"
+     },
+     "several_units": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "null row: keys several units answer for"
+     }
+    }
+   }
+  },
+  "nodes": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/node"
+   },
+   "description": "by kind, then id"
+  },
+  "keys": {
+   "type": "array",
+   "description": "by key",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "key",
+     "mapped",
+     "nodes",
+     "owner",
+     "units",
+     "tasks"
+    ],
+    "properties": {
+     "key": {
+      "type": "string"
+     },
+     "mapped": {
+      "type": "boolean"
+     },
+     "nodes": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "owner": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "description": "the one unit that answers for the key, the owner a gate finding on it names"
+     },
+     "units": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "every unit that answers for it"
+     },
+     "tasks": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  },
+  "note": {
+   "type": "string"
+  }
+ },
+ "$defs": {
+  "node": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "id",
+    "taxonomy",
+    "kind",
+    "name",
+    "state",
+    "owner",
+    "keys"
+   ],
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "taxonomy": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "kind": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "name": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "state": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "owner": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "keys": {
+     "type": "integer",
+     "minimum": 1,
+     "description": "how many of the listed keys rest on the node"
+    },
+    "missing": {
+     "const": true,
+     "description": "a node a row names that the register does not hold"
+    }
+   }
+  }
+ }
+}
