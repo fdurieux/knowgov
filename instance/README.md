@@ -1751,6 +1751,30 @@ Once connected, ask in your own words; the assistant picks the tool. For example
 - "Summarise the gate on S1: how many findings, by owner unit and severity? Then show me ORG-0001's blockers." (`gate_verdict` with `summary`, then with `filter` naming `owner` and `severity`)
 - "Which scenarios have been run, and what did the last run of S6 show?" (`scenario_runs`)
 
+### Telling your assistant how to use the answers
+
+The server already tells a connected assistant these rules, in the instructions it sends when the assistant connects.
+Some assistants give those instructions little weight, so it helps to repeat them where your team keeps its standing
+instructions for the assistant: a project's instructions, a `CLAUDE.md`, or a system prompt. Paste this as it is:
+
+```text
+When you use the knowgov tools:
+1. Quote every number from a field a tool returned, and say which tool it came from.
+2. Never state a count, a total or a share you did not read in a tool's answer. Do not count from part of a result,
+   and do not estimate one.
+3. If an answer starts with "partial:" or "large:" (its io.knowgov/clipped or io.knowgov/large mark), it is cut or
+   too big to read whole. Do not generalise from it. Ask again more narrowly: gate_verdict with summary true, then
+   with filter, or the narrower call the note names. The full answer is the last text item.
+4. Before repeating something you said earlier in the conversation, ask the tool again. The store may have changed.
+5. For a large subject, start with subject_overview and gate_verdict with summary true, then narrow with filter.
+6. Never state a link the tools do not state. A subject connects to the register only through the register map rows
+   that subject_overview and key_nodes return. Do not guess a link to an application, a capability or a process
+   from names.
+```
+
+These are the same six rules the server sends (`harness/mcp_server.py`, `READING_RULES`); a test keeps the two lists
+the same length and naming the same tools and marks.
+
 ### Letting an assistant run a scenario: knowgov-runs
 
 The server above only reads. If you want an assistant to load a scenario itself, without a person

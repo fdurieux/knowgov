@@ -3,10 +3,10 @@ id: TASK-0367
 title: >-
   The MCP reader's instructions: relay what the tools state, never generalise
   from part of a result (0.10.0)
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-16T20:28:00Z'
-updated_date: '2026-11-16T20:28:00Z'
+updated_date: '2026-11-28T01:01:05Z'
 labels:
   - 0.10.0
   - mcp
@@ -31,3 +31,12 @@ The maintainer, 2026-11-16: "yes, add them as 0.10.0 tasks", after a Claude Desk
 - [ ] #2 The same text is sent on both transports and in both protocol eras; a test holds it
 - [ ] #3 The adopter docs give the same rules as a client-side instruction an organisation can paste into its assistant's project
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. mcp_server.READING_RULES: six rules, appended to INSTRUCTIONS before "This server only reads.". The names match what shipped: io.knowgov/clipped and io.knowgov/large (#604), gate_verdict summary and filter (#601), subject_overview and key_nodes (#606).
+2. tests/test_reading_rules.py: every rule is in INSTRUCTIONS; the same text goes out over stdio and HTTP, from initialize and from server/discover; the README block has six numbered rules naming the same tools and marks.
+3. instance/README.md gains "Telling your assistant how to use the answers", a paste-able text block in plain words.
+4. A CHANGELOG line in the plain Unreleased list, since the instructions text is not a contract (the contracts table lists tools and prompts).
+<!-- SECTION:PLAN:END -->
