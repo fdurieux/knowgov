@@ -69,7 +69,7 @@ name: knowgov
 
 services:
   neo4j:
-    image: neo4j:5.26-community@sha256:249a1ec6e3c52d82101a5ed33d6ed2b5ed5b0017b21a28c0bfebc335e87fb177   # tag and index digest (task-0092)
+    image: neo4j:5.26-community@sha256:c5fd91e41d44858ea678813fd53f8e60602e771a7656c502385247ffbcb0aec0   # tag and index digest (task-0092)
     # the guard refuses a wider KG_BIND with the default password, then runs the image's own entrypoint
     entrypoint: ["/bin/sh", "/knowgov/bind-guard.sh", "tini", "-g", "--", "/startup/docker-entrypoint.sh"]
     command: ["neo4j"]
