@@ -3,10 +3,10 @@ id: TASK-0366
 title: >-
   subject_overview: a read-only MCP tool stating what a subject rests on and who
   owns its keys (0.10.0)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-16T20:28:00Z'
-updated_date: '2026-11-27T23:55:15Z'
+updated_date: '2026-11-28T00:55:00Z'
 labels:
   - contract
   - 0.10.0
@@ -56,3 +56,9 @@ Proven locally, rdflib, pinned clock (2026-11-27):
 - Neo4j is left to the stack job.
 - main (#605) is merged in.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Built in knowgov #606 (6644261), merged on the whole matrix green with stack. subject_overview is a read-only, files-only MCP tool and command with schema subject-overview. It returns the nodes register_map.toml's rows name, read by the register's own loader, with name, state, owner and key count. It returns every key with its nodes, its owner (capture.routing, the owner the gate's findings name) and its classes; the owner units with key counts, plus a null row for no_unit and several_units; and the held scenario for the subject, or null with why. task narrows to one class, and bad arguments return -32602. It never infers a link that no row names, and task-0365's marks apply. check_mcp_server.py holds it on every scenario: CargoQuote 57 keys / 57 rows / 20 nodes, J-F 163 / 163 / 24, the gate's owner per key under every class, stdio equal to HTTP.
+<!-- SECTION:FINAL_SUMMARY:END -->
