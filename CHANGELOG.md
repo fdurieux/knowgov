@@ -8,7 +8,34 @@ the store port, the subject manifest format.
 Between releases, changes merged to `main` gather under `## Unreleased` on top; the release PR
 names that section with the version.
 
-## Unreleased
+## 0.10.0 — 2026-11-28
+
+0.10.0 is the first minor release after the 0.9 contract freeze. It answers who knows what from the attested
+record, carries a questionnaire item to a prefilled answer form, and lets an assistant read a large subject
+without guessing: a summary and filters on the gate's verdict, an overview of what a subject rests on, marks on
+a cut or large result, and instructions to quote what the tools state. Every contract change adds; none removes
+or renames a flag, exit code, schema field, tool or setting. Two can change what an existing instance sees:
+`dmn_decisions` reads the requirement ids a decision's own description cites, which moved `jef_data_load`'s
+scored record, and a marked MCP result carries its mark as a text item before the answer.
+
+It is a contract change after 0.9.x, so under decision-0016 point 2 it restarts the freeze, and with it
+Amendment A1's 30-day soak: the soak starts again on 2026-11-28, and 1.0.0 comes no earlier than 2026-12-28.
+
+The contract changes that set the minor version are listed under **Contract changes** below:
+- six read-only MCP tools, each with its schema and command: `who_knows` (decision-0047), decision-0046's
+  `pending_questions`, `question_evidence` and `answer_link`, `subject_overview` and `stale_nodes`;
+- `gate_verdict`'s `summary` and `filter`, with the new `gate-summary` schema;
+- the result marks `io.knowgov/clipped` and `io.knowgov/large` (decision-0048), with the new `result-meta`
+  schema and the bounded setting `KG_MCP_CLIENT_BUDGET`;
+- the gate-only setting `KG_GATE_REGISTER_PREVIOUS`, with the GitHub action's `register-previous` input;
+- a new instance file, `questions.toml` (`format = 1`);
+- optional fields: `register_impact`'s `note` and `store_status`'s `stage`;
+- three mapper readings: `requirements_json`, `plantuml_realises` and `dmn_decisions`;
+- `capture.py questionnaire --stage 2`, and the routes after a change that name it.
+
+The rest are fixes, wording and the register's re-vendoring to ieam-register `v0.2.15`.
+
+### Changes
 
 - User-facing wording says what is declared, registered and issued (provenance plan, P0 step 6): a verification by execution is a *declared* suite result, since no oracle runs at load; a derived output is *registered against* its statements, not shown to have used them; an approval or review is *by an issued handle*, not an authenticated person. Docs, the MCP tool descriptions and server instructions, and the page's labels only; no field, schema, exit code or `KG_*` setting moves.
 - The agent arm delivers a document read to the model at `READ_LIMIT` (60,000 characters), as documented; the JSON result cap (`RESULT_LIMIT`, 6,000) had cut every read to about 6,000, so future arms runs can differ from earlier ones. `run_suite` results keep `RESULT_LIMIT`. The agent trace's tool rows gain `delivered` (characters sent) and `clipped`. The scored record's stored results are unchanged, the deterministic run making no model calls (decision-0045 Q10, task-0353).
@@ -68,11 +95,53 @@ names that section with the version.
 - A subject whose task class is not named `codegen` runs (task-0368): `run.py` raised `KeyError: 'codegen'` on such a subject, the page's Deterministic button failing with it. The run's gate, the record baseline (`--baseline record`, `_change`, `_register_change`) and the page's key count read the subject's record task, `Subject.record_task`: `codegen` where declared, else the first class, the default `proposal_impact` and the reader already apply; a subject with no class is refused, exit 2, naming it. The arms' default prompt pair is `task_<class>`. The register panel loads a register without `mapping/matrix.toml` (which the register's own checker never reads) and says it has no mapping matrix, where the whole panel failed. Both public subjects declare `codegen`: the record, the comparator, schemas, `KG_*` settings and exit codes are unchanged.
 - A stale digest names the file it was last recorded for (task-0342, decision-0041 C2-7). The store port gains a write, `record_provenance`, and a read, `digest_provenance`, on both adapters. Each load records which file each digest it read came from: a document's Version, a directory's file as `<artefact><relative>`, or each file of the code and suite an execution verification is compared against. Each row also names the load's subject, scenario and version. The rows sit on `agent:harness` as one property, so the record's census is unchanged. A wipe carries them to the next load for the digests a `[verification]` declaration still lists. `tools/check_subject.py --store` reads them through a read handle: a listed digest that matches no current file then names that file and the load that recorded it, or says no load the store holds recorded it. A store that cannot be read is exit 2. Without `--store`, the check opens no store and its report is unchanged. The gate never reads the rows; `check_round_trip.py` holds them equal across every hop.
 
+### What this release carries
+
+| what | version |
+|---|---|
+| pumllint (the sequence-diagram mapper's parser) | 0.35.0, from PyPI, as in 0.9.1 |
+| the IEAM register, vendored under `demo/register/` | ieam-register `v0.2.15` (`756be61`), from `v0.2.13` in 0.9.1 by way of `v0.2.14` (`be01dfc`) |
+| the record's pins | unchanged from 0.9.1: neo4j 6.4.1, rdflib 7.6.0, pyshacl 0.40.2, openai 3.41.0; the J-F oracle's pandas 3.0.5, numpy 2.4.6, requests 2.34.2, pyarrow 25.0.1, pytest 9.1.1, pytest-bdd 9.0.1 |
+| the compose file's model proxy | `litellm` v1.109.0, as in 0.9.1 |
+| Python | 3.12 in the image |
+
+The image is `ghcr.io/fdurieux/knowgov:v0.10.0`. The compose file pins v0.9.1 by its index digest for `app`
+and `worker`, and moves to v0.10.0's digest in a follow-up once the Release has published it.
+
 ### Known limits
+
+0.9.0's and 0.9.1's Known limits stand, except where 0.10.0 moves them:
+
+- 0.9.0's "there is no read of the keys one owner holds" no longer holds: `subject_overview` names the unit
+  that answers for each key and counts each unit's keys, and `gate_verdict`'s `filter` with `owner` lists one
+  unit's findings. There is still no read of what approving a document Version would change, or of what
+  withdrawing a link would.
+- 0.9.0's "the CI template passes none" (no previous register) now reads: the CI template passes one only when
+  `KG_GATE_REGISTER_PREVIOUS` is set, and the gate then stales the keys the update touched on every run, until
+  it is unset or moved forward.
+- 0.9.0's fix-only residues, tasked for 0.9.x, shipped in 0.9.1.
+
+In addition:
 
 - knowgov's history is not tamper-evident against whoever administers its storage. An administrator who can write the store, the trace ledger and, once it exists, the journal and its trust policy can rewrite them together and recompute every digest. Detection needs an independently controlled witness, built only on demand (decision-0045 Q1, P5).
 - Handles are issued strings, not authenticated: the self-review refusal (a ruling whose `by` equals the capture's `from`) compares handles, so one person claiming two handles at ingest, or editing a capture file's `from` after ingest (the load does not compare the file stem with `from` or re-check `from` against the issued list), is not stopped. The directory and the pull request review bind a handle to a person (decision-0002). Closing the edit-after-ingest route is a 1.1.0 candidate (task-0347).
 - A document's statements are attested by `[provenance] human`, the same identity recorded as their author (CargoQuote S1: 23 of 23 approved authored statements, author = reviewer = approver = `agent:maintainer`). The four eyes are the pull request that adds the declaration (decision-0009 (a)); no tool checks them. A separate drafter is a 1.1.0 candidate (task-0347).
+- A client whose own response limit is below `KG_MCP_CLIENT_BUDGET` still cuts a result unmarked: the server
+  cannot see a cut the client makes, so the instance lowers the budget to the client's limit. A client that
+  ignores the leading text items sees the answer but not its mark (decision-0048).
+- `who_knows` reads files, as written: its `closed` evidence reaches only a gap a capture declared (a close of a
+  gap a document declares names no key without the store), and a review file is read as written, not as the
+  load applied it, so a refused review still names its rulings. The vendored public register records no
+  `person`, so every holder in the public subjects reads null with `holder_why` (task-0360).
+- A stage-2 change's added keys that no task class requires and no `register_map.toml` row names reach no gate
+  finding, no owner and no questionnaire item; `held_keys` lists them as unrequired, and `capture.py
+  questionnaire --stage 2` names them in a stderr note only. The gate's finding is task-0370, not in 0.10.0.
+- The digest provenance `check_subject --store` reads is the store's own: a fresh database holds none, and the
+  gate never reads it (task-0342).
+- R's header citations are read, but no R oracle runs a verification by execution (task-0354).
+- CargoQuote's committed record keeps the list order of the run that wrote it, one sample of what is now a
+  sorted output, until its next deliberate re-record; J-F's re-record for task-0357 ran on the sorted reads
+  (task-0369).
 
 ## 0.9.1 — 2026-11-14
 
