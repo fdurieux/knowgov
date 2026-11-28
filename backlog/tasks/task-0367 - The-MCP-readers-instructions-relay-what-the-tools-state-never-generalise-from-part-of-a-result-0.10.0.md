@@ -3,10 +3,10 @@ id: TASK-0367
 title: >-
   The MCP reader's instructions: relay what the tools state, never generalise
   from part of a result (0.10.0)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-16T20:28:00Z'
-updated_date: '2026-11-28T01:15:16Z'
+updated_date: '2026-11-28T02:09:27Z'
 labels:
   - 0.10.0
   - mcp
@@ -51,3 +51,9 @@ Proven locally (2026-11-28). tests/test_reading_rules.py has 3 tests:
 Pinned suite: 1419/1420. Unpinned: 1305/1420, 0 failed.
 The CHANGELOG line is in the plain Unreleased list, not Contract changes: the contracts table covers tools and prompts, not the instructions text.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Built in knowgov #608 (f513c2b), merged on the whole matrix green with stack. mcp_server.READING_RULES, six rules appended to the reader's INSTRUCTIONS: quote numbers from a tool's fields and name the tool; never state a count not read; on io.knowgov/clipped or io.knowgov/large ask again with gate_verdict's summary or filter or the mark's narrower call; ask again before repeating a claim; start a large subject with subject_overview and gate_verdict summary; never state a link no tool states. The same text goes out on stdio and HTTP, from initialize and server/discover, held by tests/test_reading_rules.py; instance/README.md gives the same rules as a paste-able client-side instruction. Wording only: the instructions text is not a contract, so its CHANGELOG line is in the plain list. Follow-up: the 0.10.0 release PR, task-0363.
+<!-- SECTION:FINAL_SUMMARY:END -->
